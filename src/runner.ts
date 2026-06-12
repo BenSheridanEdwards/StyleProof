@@ -17,8 +17,8 @@ export type Surface = {
   ignore?: string[];
   /** Viewport widths to sweep — one per @media band, so breakpoint rules are verified too. */
   widths: number[];
-  /** Viewport height (default 800). */
-  height?: number;
+  /** Viewport height: a number, or a function of the width (default 800). */
+  height?: number | ((width: number) => number);
 };
 
 export type DefineOptions = {
@@ -60,7 +60,8 @@ export function defineStyleMapCapture({
       for (const width of surface.widths) {
         test(`${surface.key} @ ${width}`, async ({ page }) => {
           test.setTimeout(180_000);
-          await page.setViewportSize({ width, height: surface.height ?? 800 });
+          const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
+          await page.setViewportSize({ width, height });
           await surface.go(page);
           const map = await captureStyleMap(page, { ignore: surface.ignore ?? [] });
           const stem = path.join(baseDir, dir as string, `${surface.key}@${width}`);
