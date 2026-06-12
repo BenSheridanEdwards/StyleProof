@@ -118,6 +118,64 @@ npx stylemap-diff __stylemaps__/before __stylemaps__/after
 An empty diff is the certificate. A non-empty diff names every element, property, and
 state that drifted.
 
+## Visual reports: side-by-side crops for PR review
+
+When the diff is *intentional*, you don't want a wall of longhands — you want to look
+at it. `stylemap-report` turns a diff into a reviewable report: it finds the
+**outermost changed element** (descendants of other changed elements fold into their
+ancestor), merges nearby regions, zooms out with padding, and crops the before/after
+full-page screenshots at identical dimensions so the pair reads as a pair:
+
+| Before | After |
+| --- | --- |
+| ![before](docs/demo-before.png) | ![after](docs/demo-after.png) |
+
+…followed by exactly what changed, including state deltas no screenshot could show:
+
+```
+- body > main … > a:nth-child(3)  (.sc-run.reveal.d2…)
+  - border-top-color: rgb(31, 113, 128) → rgb(217, 162, 74)
+  - [:hover] border-top-color: rgb(95, 202, 219) → (state no longer changes it)
+```
+
+Captures save a full-page screenshot next to each map by default (disable with
+`screenshots: false`), so the committed baseline carries both the facts and the
+pixels — generating a report never requires rebuilding the old code.
+
+```sh
+stylemap-report <beforeDir> <afterDir> --out report/ [--image-base-url <url>]
+```
+
+writes `report.md` (PR-comment-ready markdown), `report.json` (machine-readable), and
+`crops/*.png`.
+
+### PR comments via GitHub Action
+
+The repo ships a composite action that diffs against your committed baseline and, on
+changes, publishes the crops to a report branch and upserts a PR comment — so you
+approve visual changes by looking at them:
+
+```yaml
+- name: Capture style maps
+  run: STYLEMAP_DIR=ci npx playwright test stylemap
+
+- name: Style-map report
+  uses: BenSheridanEdwards/playwright-stylemap@main
+  with:
+    baseline-dir: e2e/__stylemaps__/baseline
+    fresh-dir: e2e/__stylemaps__/ci
+    # report-branch: stylemap-reports   # default
+    # fail-on-diff: 'true'              # default
+```
+
+The job fails while changes are unapproved; **approving = regenerating the committed
+baseline** from the new build and pushing it with the PR (the comment reminds you).
+The comment updates in place on every push, and flips to ✓ when the diff is clean.
+
+> **Private repos:** GitHub does not render images from private `raw.githubusercontent`
+> URLs inside comments — the property diff and image *links* still work, and images
+> render once the repo is public. Public repos get full inline side-by-sides.
+
 ## CI gate
 
 Commit a baseline capture (the `.json.gz` files are small — a content-heavy page
@@ -168,21 +226,35 @@ the style map and invisible or ambiguous to pixels:
 ## API
 
 ```ts
-import { captureStyleMap, saveStyleMap, loadStyleMap, defineStyleMapCapture } from 'playwright-stylemap';
+import {
+  captureStyleMap, saveStyleMap, loadStyleMap,
+  defineStyleMapCapture, diffStyleMaps, diffStyleMapDirs, generateStyleMapReport,
+} from 'playwright-stylemap';
 
-// Capture the current page state (drive it there first).
+// Capture the current page state (drive it there first). Each element carries
+// its document-space bounding box, so reports can crop screenshots around it.
 const map = await captureStyleMap(page, { ignore: ['.live-feed'] });
 
 // Persist / read (.json or .json.gz by extension).
 saveStyleMap('maps/home@1280.json.gz', map);
 const before = loadStyleMap('maps/home@1280.json.gz');
 
-// Generate capture tests from a surface list (see Quickstart).
+// Generate capture tests from a surface list (see Quickstart). Saves a
+// full-page screenshot per capture unless screenshots: false.
 defineStyleMapCapture({ surfaces, dir: process.env.STYLEMAP_DIR, baseDir: '__stylemaps__' });
+
+// Structured diffing and report generation, same engines as the CLIs.
+const findings = diffStyleMaps(before, map);
+const { surfaces, counts } = diffStyleMapDirs('maps/before', 'maps/after');
+generateStyleMapReport({ beforeDir: 'maps/before', afterDir: 'maps/after', outDir: 'report' });
 ```
 
-The CLI: `stylemap-diff <beforeDir> <afterDir> [--max N]` — exit 0 identical,
-1 differences, 2 usage error.
+CLIs:
+
+- `stylemap-diff <beforeDir> <afterDir> [--max N] [--json <file>]` — exit 0
+  identical, 1 differences, 2 usage error.
+- `stylemap-report <beforeDir> <afterDir> --out <dir> [--image-base-url <url>]` —
+  exit 0 no changes, 1 report generated, 2 usage error.
 
 ## Caveats
 

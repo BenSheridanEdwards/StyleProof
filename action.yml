@@ -1,0 +1,114 @@
+name: 'playwright-stylemap report'
+description: >-
+  Diff playwright-stylemap captures against a committed baseline. When styles
+  changed, generate side-by-side before/after crops, publish them to a report
+  branch, and upsert a PR comment for visual approval.
+branding:
+  icon: 'layers'
+  color: 'blue'
+
+inputs:
+  baseline-dir:
+    description: 'Directory with the committed baseline captures (.json.gz + .png).'
+    required: true
+  fresh-dir:
+    description: 'Directory with the freshly captured maps to compare (.json.gz + .png).'
+    required: true
+  report-branch:
+    description: 'Branch that hosts report images (created if missing).'
+    default: 'stylemap-reports'
+  github-token:
+    description: 'Token used to push the report branch and post the PR comment.'
+    default: ${{ github.token }}
+  fail-on-diff:
+    description: 'Fail the job when differences are found.'
+    default: 'true'
+
+outputs:
+  changed:
+    description: '"true" when any computed style, pseudo-element, or state changed.'
+    value: ${{ steps.diff.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    - id: diff
+      shell: bash
+      run: |
+        set +e
+        npx stylemap-diff "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200
+        code=$?
+        set -e
+        if [ "$code" -eq 2 ]; then echo "stylemap-diff usage/capture error" >&2; exit 2; fi
+        echo "changed=$([ "$code" -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+    - id: report
+      if: steps.diff.outputs.changed == 'true'
+      shell: bash
+      run: |
+        REPORT_PATH="runs/${{ github.run_id }}-${{ github.run_attempt }}"
+        BASE_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ inputs.report-branch }}/${REPORT_PATH}"
+        npx stylemap-report "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" \
+          --out stylemap-report --image-base-url "$BASE_URL" || true
+        echo "path=$REPORT_PATH" >> "$GITHUB_OUTPUT"
+
+    - name: Publish report images
+      if: steps.diff.outputs.changed == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        REPO_URL="https://x-access-token:${{ inputs.github-token }}@github.com/${{ github.repository }}.git"
+        BRANCH="${{ inputs.report-branch }}"
+        TMP="$(mktemp -d)"
+        if git ls-remote --exit-code --heads "$REPO_URL" "$BRANCH" >/dev/null 2>&1; then
+          git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TMP"
+        else
+          git -C "$TMP" init -b "$BRANCH"
+          git -C "$TMP" remote add origin "$REPO_URL"
+        fi
+        mkdir -p "$TMP/${{ steps.report.outputs.path }}"
+        cp -R stylemap-report/. "$TMP/${{ steps.report.outputs.path }}/"
+        git -C "$TMP" config user.name 'github-actions[bot]'
+        git -C "$TMP" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        git -C "$TMP" add -A
+        git -C "$TMP" commit -m "stylemap report ${{ steps.report.outputs.path }}"
+        git -C "$TMP" push origin "$BRANCH"
+
+    - name: Upsert PR comment
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const fs = require('fs');
+          const marker = '<!-- playwright-stylemap-report -->';
+          const changed = '${{ steps.diff.outputs.changed }}' === 'true';
+          const { data: comments } = await github.rest.issues.listComments({
+            ...context.repo, issue_number: context.issue.number, per_page: 100,
+          });
+          const existing = comments.find((c) => c.body && c.body.includes(marker));
+          if (!changed) {
+            // Stay quiet unless an earlier report needs superseding.
+            if (!existing) return;
+            await github.rest.issues.updateComment({
+              ...context.repo, comment_id: existing.id,
+              body: `${marker}\n## 🗺️ stylemap report\n\n✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.`,
+            });
+            return;
+          }
+          let body = marker + '\n' + fs.readFileSync('stylemap-report/report.md', 'utf8');
+          if (body.length > 65000) {
+            body = body.slice(0, 64000) + '\n\n…truncated — the full report lives on the report branch.';
+          }
+          if (existing) {
+            await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+          } else {
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+          }
+
+    - name: Fail on diff
+      if: steps.diff.outputs.changed == 'true' && inputs.fail-on-diff == 'true'
+      shell: bash
+      run: |
+        echo 'Style changes detected — review the PR comment. To accept, regenerate the baseline and commit it.' >&2
+        exit 1

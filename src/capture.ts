@@ -22,7 +22,9 @@ import { gzipSync, gunzipSync } from 'node:zlib';
  */
 
 type Props = Record<string, string>;
-type ElementEntry = { tag: string; cls: string; style: Props; pseudo?: Record<string, Props> };
+/** Document-space bounding box: [x, y, width, height], rounded. */
+export type Rect = [number, number, number, number];
+export type ElementEntry = { tag: string; cls: string; rect?: Rect; style: Props; pseudo?: Record<string, Props> };
 export type StyleMap = {
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
@@ -94,17 +96,35 @@ function capturePage({ ignore, motionOnly }: CaptureArgs) {
     return o;
   };
 
-  const elements: Record<string, { tag: string; cls: string; style: Props; pseudo?: Record<string, Props> }> = {};
+  type Entry = {
+    tag: string;
+    cls: string;
+    rect?: [number, number, number, number];
+    style: Props;
+    pseudo?: Record<string, Props>;
+  };
+  const elements: Record<string, Entry> = {};
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
   for (const el of all) {
     if (el === frame || (skipSel && el.matches(skipSel))) continue;
     const tag = el.tagName.toLowerCase();
     if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'noscript') continue;
-    const entry: { tag: string; cls: string; style: Props; pseudo?: Record<string, Props> } = {
+    const entry: Entry = {
       tag,
       cls: el.getAttribute('class') || '',
       style: snap(getComputedStyle(el), defaultFor(tag)),
     };
+    if (!motionOnly) {
+      // Document-space box so report crops can locate the element in a
+      // full-page screenshot regardless of scroll position at capture time.
+      const r = el.getBoundingClientRect();
+      entry.rect = [
+        Math.round(r.x + window.scrollX),
+        Math.round(r.y + window.scrollY),
+        Math.round(r.width),
+        Math.round(r.height),
+      ];
+    }
     for (const ps of PSEUDOS) {
       if (ps === '::marker' && getComputedStyle(el).display !== 'list-item') continue;
       if (ps === '::placeholder' && !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) continue;

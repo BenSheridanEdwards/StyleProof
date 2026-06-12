@@ -1,6 +1,6 @@
 {
   "name": "playwright-stylemap",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Certify CSS refactors with the browser's computed styles: capture every resolved longhand, pseudo-element, and forced hover/focus/active state, then diff before against after.",
   "keywords": [
     "playwright",
@@ -25,7 +25,8 @@
     }
   },
   "bin": {
-    "stylemap-diff": "./bin/stylemap-diff.mjs"
+    "stylemap-diff": "./bin/stylemap-diff.mjs",
+    "stylemap-report": "./bin/stylemap-report.mjs"
   },
   "files": [
     "dist",
@@ -43,6 +44,10 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.9.3",
+    "@types/pngjs": "^6.0.5",
     "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
   }
 }
