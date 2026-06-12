@@ -31,6 +31,12 @@ export type DefineOptions = {
   dir: string | undefined;
   /** Base output directory (default `__stylemaps__` next to the invoking spec's CWD). */
   baseDir?: string;
+  /**
+   * Also save a full-page screenshot per capture (default true). The report
+   * generator crops these to show changed regions side by side; captures
+   * without screenshots still diff, but produce text-only reports.
+   */
+  screenshots?: boolean;
 };
 
 /**
@@ -42,7 +48,12 @@ export type DefineOptions = {
  * defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
  * ```
  */
-export function defineStyleMapCapture({ surfaces, dir, baseDir = '__stylemaps__' }: DefineOptions): void {
+export function defineStyleMapCapture({
+  surfaces,
+  dir,
+  baseDir = '__stylemaps__',
+  screenshots = true,
+}: DefineOptions): void {
   test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
   test.describe('stylemap capture', () => {
     for (const surface of surfaces) {
@@ -52,7 +63,13 @@ export function defineStyleMapCapture({ surfaces, dir, baseDir = '__stylemaps__'
           await page.setViewportSize({ width, height: surface.height ?? 800 });
           await surface.go(page);
           const map = await captureStyleMap(page, { ignore: surface.ignore ?? [] });
-          saveStyleMap(path.join(baseDir, dir as string, `${surface.key}@${width}.json.gz`), map);
+          const stem = path.join(baseDir, dir as string, `${surface.key}@${width}`);
+          saveStyleMap(`${stem}.json.gz`, map);
+          if (screenshots) {
+            // captureStyleMap froze animations/transitions, so this is the
+            // same settled state the map describes.
+            await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+          }
         });
       }
     }
