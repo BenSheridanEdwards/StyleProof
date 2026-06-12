@@ -1,0 +1,60 @@
+import { test } from '@playwright/test';
+import path from 'node:path';
+import { captureStyleMap, saveStyleMap } from './capture.js';
+import type { Page } from '@playwright/test';
+
+/**
+ * A surface is one deterministic page state worth certifying: a route plus
+ * the interactions that reach the state, captured at one viewport width per
+ * @media band of its stylesheets.
+ */
+export type Surface = {
+  /** Capture file name prefix; must be unique. */
+  key: string;
+  /** Navigate and drive the page to the state, ending settled (fonts loaded, entrance animations done). */
+  go: (page: Page) => Promise<void>;
+  /** Selectors for nondeterministic regions (live data, third-party embeds); skipped entirely. */
+  ignore?: string[];
+  /** Viewport widths to sweep — one per @media band, so breakpoint rules are verified too. */
+  widths: number[];
+  /** Viewport height (default 800). */
+  height?: number;
+};
+
+export type DefineOptions = {
+  surfaces: Surface[];
+  /**
+   * Output directory label. Convention: drive it from an env var so the same
+   * spec captures `before`, `after`, or a CI label — and skips entirely when
+   * unset, keeping the spec inert during normal test runs.
+   */
+  dir: string | undefined;
+  /** Base output directory (default `__stylemaps__` next to the invoking spec's CWD). */
+  baseDir?: string;
+};
+
+/**
+ * Generate one Playwright test per surface × width that captures the style
+ * map to `<baseDir>/<dir>/<key>@<width>.json.gz`.
+ *
+ * ```ts
+ * // stylemap.spec.ts
+ * defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
+ * ```
+ */
+export function defineStyleMapCapture({ surfaces, dir, baseDir = '__stylemaps__' }: DefineOptions): void {
+  test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
+  test.describe('stylemap capture', () => {
+    for (const surface of surfaces) {
+      for (const width of surface.widths) {
+        test(`${surface.key} @ ${width}`, async ({ page }) => {
+          test.setTimeout(180_000);
+          await page.setViewportSize({ width, height: surface.height ?? 800 });
+          await surface.go(page);
+          const map = await captureStyleMap(page, { ignore: surface.ignore ?? [] });
+          saveStyleMap(path.join(baseDir, dir as string, `${surface.key}@${width}.json.gz`), map);
+        });
+      }
+    }
+  });
+}
