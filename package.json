@@ -1,6 +1,6 @@
 {
   "name": "playwright-stylemap",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Certify CSS refactors with the browser's computed styles: capture every resolved longhand, pseudo-element, and forced hover/focus/active state, then diff before against after.",
   "keywords": [
     "playwright",
