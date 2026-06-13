@@ -131,13 +131,25 @@ side-by-side image per change:
 
 <sub>◀ before  ·  after ▶ — grey bar = before, blue bar = after</sub>
 
-…followed by exactly what changed, including state deltas no screenshot could show:
+…followed by exactly what changed, as a per-element table:
 
-```
-- body > main … > a:nth-child(3)  (.sc-run.reveal.d2…)
-  - border-top-color: rgb(31, 113, 128) → rgb(217, 162, 74)
-  - [:hover] border-top-color: rgb(95, 202, 219) → (state no longer changes it)
-```
+> **`div.who-grid`**
+>
+> | Property | Before | After |
+> | --- | --- | --- |
+> | `grid-template-columns` | `368px ×3` | `548px ×2` |
+> | `gap` | `1px` | `12px` |
+> | `border-color` | `rgb(150, 172, 205)` | `rgb(229, 231, 235)` |
+>
+> **`h3`** ×5 · **`div.who`** ×3 …
+
+The raw computed diff is a wall of longhands — one `border` change is 16 entries
+(4 sides × width/style/color, doubled by logical aliases), one `color` change drags 8
+`currentColor` echoes. The report collapses all of that: shorthand families
+(`padding: 26px 24px → 28px`), logical/`currentColor` duplicates dropped, repeated tokens
+folded (`368px ×3`), identical sibling elements grouped (`×5`), labelled by their semantic
+class — and colours sit in their own cells so GitHub renders swatches. The certification
+differ (`stylemap-diff`) stays raw and complete.
 
 For an **organism-level change** (a component's layout *and* its internals), the crop
 zooms out to the whole component: the outermost element with a *real* styling change
