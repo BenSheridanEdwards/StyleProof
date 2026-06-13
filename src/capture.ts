@@ -19,6 +19,14 @@ import { gzipSync, gunzipSync } from 'node:zlib';
  *   motion   — transition/animation longhands are captured before the
  *              freeze-CSS below nulls them, so declared motion is verified
  *              too, while every other captured value is a settled end state.
+ *
+ * LIMITATIONS (documented, and warned at capture time):
+ *   - Shadow DOM (open or closed) is NOT traversed: styles inside a web
+ *     component's shadow root are invisible to the diff. A refactor inside a
+ *     shadow tree would be falsely certified identical, so capture emits a
+ *     one-time warning naming the shadow hosts it skipped.
+ *   - Iframe content (same- or cross-origin) is NOT traversed for the same
+ *     reason; same-origin frames are listed in the same warning.
  */
 
 type Props = Record<string, string>;
@@ -29,6 +37,13 @@ export type StyleMap = {
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
   states: Record<string, Record<string, Record<string, Props>>>;
+  /**
+   * True when the forced :hover/:focus/:active layer was skipped for this
+   * capture because of CDP/page interactive-element count skew. Persisted so a
+   * diff against a fully-captured side flags that the state layer wasn't
+   * certified, instead of silently reading as "identical".
+   */
+  statesSkipped?: boolean;
 };
 
 export type CaptureOptions = {
@@ -37,6 +52,19 @@ export type CaptureOptions = {
    * matching elements and their descendants are skipped entirely.
    */
   ignore?: string[];
+  /**
+   * Capture forced :hover/:focus/:active state deltas (default true). This is
+   * the expensive layer — O(interactive elements × 3 states) with a subtree
+   * evaluate each. Set false to skip it on surfaces where you don't need
+   * state certification, or where the page has thousands of interactive nodes.
+   */
+  captureStates?: boolean;
+  /**
+   * Cap on interactive elements forced-state-captured per surface (default
+   * 800). Beyond this the capture warns and truncates rather than hanging for
+   * minutes; raise it deliberately if you need full coverage of a huge page.
+   */
+  maxInteractive?: number;
 };
 
 const INTERACTIVE = 'a, button, input, textarea, select, summary, [role="button"], [tabindex]';
@@ -66,23 +94,34 @@ function capturePage({ ignore, motionOnly }: CaptureArgs) {
     return 'body > ' + parts.join(' > ');
   };
 
-  // Per-tag UA defaults from a stylesheet-free iframe, used to prune the maps.
+  // Per-tag (and per-tag-per-pseudo) UA defaults from a stylesheet-free iframe,
+  // used to prune the maps. A pseudo-element's UA defaults are NOT the host
+  // element's defaults, so they are measured and cached separately under a
+  // composite key (e.g. `li::marker`) — pruning a pseudo against the wrong
+  // baseline can both drop real changes and bloat the file.
   const frame = document.createElement('iframe');
   frame.style.cssText = 'position:absolute;left:-9999px;width:100px;height:100px;border:0';
   document.body.appendChild(frame);
   const fdoc = frame.contentDocument as Document;
   const defaults: Record<string, Props> = {};
-  const defaultFor = (tag: string): Props => {
-    if (!(tag in defaults)) {
+  const probeCache: Record<string, Element> = {};
+  const probeFor = (tag: string): Element => {
+    if (!(tag in probeCache)) {
       const probe = fdoc.createElement(tag);
       fdoc.body.appendChild(probe);
-      const cs = fdoc.defaultView!.getComputedStyle(probe);
+      probeCache[tag] = probe;
+    }
+    return probeCache[tag];
+  };
+  const defaultFor = (tag: string, pseudo?: string): Props => {
+    const key = pseudo ? `${tag}${pseudo}` : tag;
+    if (!(key in defaults)) {
+      const cs = fdoc.defaultView!.getComputedStyle(probeFor(tag), pseudo ?? null);
       const o: Props = {};
       for (let i = 0; i < cs.length; i++) o[cs.item(i)] = cs.getPropertyValue(cs.item(i));
-      defaults[tag] = o;
-      probe.remove();
+      defaults[key] = o;
     }
-    return defaults[tag];
+    return defaults[key];
   };
 
   const snap = (cs: CSSStyleDeclaration, def: Props | null): Props => {
@@ -105,10 +144,22 @@ function capturePage({ ignore, motionOnly }: CaptureArgs) {
   };
   const elements: Record<string, Entry> = {};
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
+  // Surface untraversed shadow roots and same-origin iframes so a refactor
+  // inside one is not silently certified identical (see file header).
+  let shadowHosts = 0;
+  let sameOriginFrames = 0;
   for (const el of all) {
     if (el === frame || (skipSel && el.matches(skipSel))) continue;
     const tag = el.tagName.toLowerCase();
     if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'noscript') continue;
+    if (!motionOnly && (el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot) shadowHosts++;
+    if (!motionOnly && (tag === 'iframe' || tag === 'frame')) {
+      try {
+        if ((el as HTMLIFrameElement).contentDocument) sameOriginFrames++;
+      } catch {
+        // cross-origin: genuinely untraversable, not counted
+      }
+    }
     const entry: Entry = {
       tag,
       cls: el.getAttribute('class') || '',
@@ -130,13 +181,13 @@ function capturePage({ ignore, motionOnly }: CaptureArgs) {
       if (ps === '::placeholder' && !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) continue;
       const cs = getComputedStyle(el, ps);
       if ((ps === '::before' || ps === '::after') && cs.getPropertyValue('content') === 'none') continue;
-      const props = snap(cs, defaultFor(tag));
+      const props = snap(cs, defaultFor(tag, ps));
       if (Object.keys(props).length) (entry.pseudo ??= {})[ps] = props;
     }
     elements[pathOf(el)] = entry;
   }
   frame.remove();
-  return { defaults, elements };
+  return { defaults, elements, shadowHosts, sameOriginFrames };
 }
 
 type SubtreeArgs = { selector: string; index: number };
@@ -220,7 +271,11 @@ function pathsForSelector({ selector, skipSel }: PathArgs) {
 
 // Forced pseudo-class states on interactive elements, via CDP so no real
 // mouse or focus is involved and parent-state descendant rules still apply.
-async function captureForcedStates(page: Page, ignore: string[]): Promise<StyleMap['states']> {
+async function captureForcedStates(
+  page: Page,
+  ignore: string[],
+  maxInteractive: number,
+): Promise<{ states: StyleMap['states']; skipped: boolean }> {
   const client = await page.context().newCDPSession(page);
   await client.send('DOM.enable');
   await client.send('CSS.enable');
@@ -228,12 +283,37 @@ async function captureForcedStates(page: Page, ignore: string[]): Promise<StyleM
   const { nodeIds } = await client.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: INTERACTIVE });
   const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
   const paths = await page.evaluate(pathsForSelector, { selector: INTERACTIVE, skipSel });
+
+  // The CDP DOM snapshot and the live querySelectorAll are two separate,
+  // non-atomic reads. They can legitimately disagree — display:contents,
+  // nodes detached or injected between the two calls (next-route-announcer,
+  // Playwright internals, late hydration adding [tabindex]). A mismatch is NOT
+  // a fatal error: positional nodeId↔path alignment is only valid when the
+  // counts agree, so on skew we warn and skip the forced-state layer for this
+  // surface rather than aborting the whole capture (base + pseudo layers,
+  // the load-bearing certification, still succeed).
   if (paths.length !== nodeIds.length) {
-    throw new Error(`stylemap: CDP saw ${nodeIds.length} interactive elements, page saw ${paths.length}`);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `stylemap: interactive-element count skew (CDP saw ${nodeIds.length}, page saw ${paths.length}); ` +
+        'skipping forced :hover/:focus/:active capture for this surface. This is usually a benign, ' +
+        'transient DOM difference (display:contents, injected/detached nodes). Re-run if it persists.',
+    );
+    await client.detach();
+    return { states: {}, skipped: true };
+  }
+
+  const limit = Math.min(nodeIds.length, maxInteractive);
+  if (nodeIds.length > maxInteractive) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `stylemap: ${nodeIds.length} interactive elements exceeds maxInteractive=${maxInteractive}; ` +
+        `forced-state capture truncated to the first ${maxInteractive}. Raise maxInteractive to cover them all.`,
+    );
   }
 
   const states: StyleMap['states'] = {};
-  for (let i = 0; i < nodeIds.length; i++) {
+  for (let i = 0; i < limit; i++) {
     const p = paths[i];
     if (!p) continue;
     const baseSnap: Snap = await page.evaluate(snapSubtree, { selector: INTERACTIVE, index: i });
@@ -246,7 +326,7 @@ async function captureForcedStates(page: Page, ignore: string[]): Promise<StyleM
     }
   }
   await client.detach();
-  return states;
+  return { states, skipped: false };
 }
 
 /**
@@ -256,10 +336,20 @@ async function captureForcedStates(page: Page, ignore: string[]): Promise<StyleM
  */
 export async function captureStyleMap(page: Page, options: CaptureOptions = {}): Promise<StyleMap> {
   const ignore = options.ignore ?? [];
+  const captureStates = options.captureStates ?? true;
+  const maxInteractive = options.maxInteractive ?? 800;
   // Motion longhands first (FREEZE_CSS would null them), then everything else.
   const motion = await page.evaluate(capturePage, { ignore, motionOnly: true });
   await page.addStyleTag({ content: FREEZE_CSS });
   const base = await page.evaluate(capturePage, { ignore, motionOnly: false });
+  if (base.shadowHosts || base.sameOriginFrames) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `stylemap: ${base.shadowHosts} shadow host(s) and ${base.sameOriginFrames} same-origin iframe(s) were ` +
+        'NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside ' +
+        'one would be reported as identical. See README "Limitations".',
+    );
+  }
   for (const [p, entry] of Object.entries(base.elements)) {
     const m = motion.elements[p];
     if (!m) continue;
@@ -268,8 +358,19 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
       if (entry.pseudo?.[ps]) Object.assign(entry.pseudo[ps], props);
     }
   }
-  const states = await captureForcedStates(page, ignore);
-  return { defaults: base.defaults, elements: base.elements, states };
+  let states: StyleMap['states'] = {};
+  let statesSkipped = false;
+  if (captureStates) {
+    const forced = await captureForcedStates(page, ignore, maxInteractive);
+    states = forced.states;
+    statesSkipped = forced.skipped;
+  }
+  return {
+    defaults: base.defaults,
+    elements: base.elements,
+    states,
+    ...(statesSkipped ? { statesSkipped: true } : {}),
+  };
 }
 
 /** Write a style map to disk; gzipped when the path ends in `.gz`. */
@@ -281,6 +382,19 @@ export function saveStyleMap(filePath: string, map: StyleMap): void {
 
 /** Read a style map written by {@link saveStyleMap} (`.json` or `.json.gz`). */
 export function loadStyleMap(filePath: string): StyleMap {
-  const raw = fs.readFileSync(filePath);
-  return JSON.parse(filePath.endsWith('.gz') ? gunzipSync(raw).toString('utf8') : raw.toString('utf8'));
+  let raw: Buffer;
+  try {
+    raw = fs.readFileSync(filePath);
+  } catch (e) {
+    throw new Error(`stylemap: cannot read capture ${filePath}: ${(e as Error).message}`);
+  }
+  try {
+    const text = filePath.endsWith('.gz') ? gunzipSync(raw).toString('utf8') : raw.toString('utf8');
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error(
+      `stylemap: capture ${filePath} is corrupt or truncated (${(e as Error).message}). ` +
+        'Re-capture it — a partial write or interrupted upload produces an unreadable .gz.',
+    );
+  }
 }

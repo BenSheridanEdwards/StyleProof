@@ -1,6 +1,6 @@
 {
   "name": "playwright-stylemap",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "description": "Certify CSS refactors with the browser's computed styles: capture every resolved longhand, pseudo-element, and forced hover/focus/active state, then diff before against after.",
   "keywords": [
     "playwright",
@@ -8,13 +8,23 @@
     "refactoring",
     "visual-regression",
     "computed-style",
+    "computed-styles",
     "tailwind",
     "migration",
-    "testing"
+    "snapshot",
+    "testing",
+    "ci"
   ],
   "license": "MIT",
   "author": "Ben Sheridan-Edwards <bensheridanedwards@users.noreply.github.com>",
-  "repository": "github:BenSheridanEdwards/playwright-stylemap",
+  "homepage": "https://github.com/BenSheridanEdwards/playwright-stylemap#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BenSheridanEdwards/playwright-stylemap.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BenSheridanEdwards/playwright-stylemap/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -22,32 +32,55 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
+    "stylemap-init": "./bin/stylemap-init.mjs",
     "stylemap-diff": "./bin/stylemap-diff.mjs",
     "stylemap-report": "./bin/stylemap-report.mjs"
   },
   "files": [
     "dist",
     "bin",
+    "docs/demo-composite.png",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
+    "clean": "rm -rf dist",
     "build": "tsc",
-    "prepare": "npm run build"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"{src,bin,test,example}/**/*.{ts,mjs,js}\" \"*.{ts,js,mjs,json,md}\"",
+    "format:check": "prettier --check \"{src,bin,test,example}/**/*.{ts,mjs,js}\" \"*.{ts,js,mjs,json,md}\"",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "test:watch": "node --test --watch test/*.test.mjs",
+    "test:e2e": "npm run build && playwright test test/smoke.e2e.spec.ts",
+    "init": "node ./bin/stylemap-init.mjs",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run clean && npm run build && npm run typecheck"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40"
   },
+  "dependencies": {
+    "pngjs": "^7.0.0"
+  },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.9.3",
     "@types/pngjs": "^6.0.5",
-    "typescript": "^5.6.2"
-  },
-  "dependencies": {
-    "pngjs": "^7.0.0"
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.6.2",
+    "typescript-eslint": "^8.18.0"
   }
 }

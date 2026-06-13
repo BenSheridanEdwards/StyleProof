@@ -4,7 +4,7 @@
  * region, plus the exact property changes, as markdown ready for a PR
  * comment.
  *
- *   stylemap-report <beforeDir> <afterDir> --out <dir> [--image-base-url <url>]
+ *   stylemap-report <beforeDir> <afterDir> --out <dir> [options]
  *
  * Both capture dirs need the .json.gz maps; side-by-side images additionally
  * need the .png screenshots that `defineStyleMapCapture` saves by default.
@@ -12,22 +12,71 @@
  */
 import { generateStyleMapReport } from '../dist/report.js';
 
+const HELP = `stylemap-report — reviewable before/after report from two captures
+
+usage: stylemap-report <beforeDir> <afterDir> --out <dir> [options]
+
+options:
+  --out <dir>               output directory (default: stylemap-report)
+  --image-base-url <url>    prefix for image URLs in report.md (default: relative)
+  --pad <px>                padding around changed rects when cropping (default: 24)
+  --max-crops <n>           max crop regions per surface before collapsing (default: 6)
+  --min-width <px>          minimum crop width, for context (default: 320)
+  --min-height <px>         minimum crop height, for context (default: 180)
+  --include-layout-noise    keep size/position-derived longhands (height, width,
+                            transform-origin, top…) that a reflow changes up the
+                            whole ancestor chain (off by default)
+  -h, --help                show this help
+
+exit: 0 no changes, 1 report generated, 2 usage error.
+`;
+
 const argv = process.argv.slice(2);
 const args = [];
 const flags = { out: 'stylemap-report', imageBaseUrl: '' };
+let pad;
+let maxCrops;
+let minWidth;
+let minHeight;
+let includeLayoutNoise = false;
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i] === '--out') flags.out = argv[++i];
-  else if (argv[i].startsWith('--out=')) flags.out = argv[i].slice(6);
-  else if (argv[i] === '--image-base-url') flags.imageBaseUrl = argv[++i];
-  else if (argv[i].startsWith('--image-base-url=')) flags.imageBaseUrl = argv[i].slice(17);
-  else if (argv[i].startsWith('--')) {
-    console.error(`unknown flag: ${argv[i]}`);
+  const a = argv[i];
+  if (a === '-h' || a === '--help') {
+    process.stdout.write(HELP);
+    process.exit(0);
+  } else if (a === '--out') flags.out = argv[++i];
+  else if (a.startsWith('--out=')) flags.out = a.slice(6);
+  else if (a === '--image-base-url') flags.imageBaseUrl = argv[++i];
+  else if (a.startsWith('--image-base-url=')) flags.imageBaseUrl = a.slice(17);
+  else if (a === '--pad') pad = Number(argv[++i]);
+  else if (a.startsWith('--pad=')) pad = Number(a.slice(6));
+  else if (a === '--max-crops') maxCrops = Number(argv[++i]);
+  else if (a.startsWith('--max-crops=')) maxCrops = Number(a.slice(12));
+  else if (a === '--min-width') minWidth = Number(argv[++i]);
+  else if (a.startsWith('--min-width=')) minWidth = Number(a.slice(12));
+  else if (a === '--min-height') minHeight = Number(argv[++i]);
+  else if (a.startsWith('--min-height=')) minHeight = Number(a.slice(13));
+  else if (a === '--include-layout-noise') includeLayoutNoise = true;
+  else if (a.startsWith('--include-layout-noise=')) includeLayoutNoise = a.slice(23) !== 'false';
+  else if (a.startsWith('--')) {
+    console.error(`unknown flag: ${a}`);
     process.exit(2);
-  } else args.push(argv[i]);
+  } else args.push(a);
 }
 if (args.length !== 2) {
-  console.error('usage: stylemap-report <beforeDir> <afterDir> --out <dir> [--image-base-url <url>]');
+  console.error('usage: stylemap-report <beforeDir> <afterDir> --out <dir> [options]  (--help for all options)');
   process.exit(2);
+}
+for (const [name, val] of [
+  ['--pad', pad],
+  ['--max-crops', maxCrops],
+  ['--min-width', minWidth],
+  ['--min-height', minHeight],
+]) {
+  if (val !== undefined && !Number.isFinite(val)) {
+    console.error(`${name} must be a number`);
+    process.exit(2);
+  }
 }
 
 let result;
@@ -37,6 +86,11 @@ try {
     afterDir: args[1],
     outDir: flags.out,
     imageBaseUrl: flags.imageBaseUrl || undefined,
+    pad,
+    maxCrops,
+    minWidth,
+    minHeight,
+    includeLayoutNoise,
   });
 } catch (e) {
   console.error(e.message);

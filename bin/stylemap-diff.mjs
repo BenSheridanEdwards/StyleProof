@@ -19,12 +19,27 @@
 import fs from 'node:fs';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
 
+const HELP = `stylemap-diff — certify a CSS refactor by diffing two computed-style captures
+
+usage: stylemap-diff <beforeDir> <afterDir> [options]
+
+options:
+  --max <n>        max lines printed per surface before truncating (default: 40)
+  --json <file>    also write the full structured diff to <file>
+  -h, --help       show this help
+
+exit: 0 identical (certified), 1 differences found, 2 usage/capture error.
+`;
+
 const argv = process.argv.slice(2);
 const args = [];
 let MAX = 40;
 let jsonOut = null;
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i] === '--max') MAX = Number(argv[++i]);
+  if (argv[i] === '-h' || argv[i] === '--help') {
+    process.stdout.write(HELP);
+    process.exit(0);
+  } else if (argv[i] === '--max') MAX = Number(argv[++i]);
   else if (argv[i].startsWith('--max=')) MAX = Number(argv[i].slice(6));
   else if (argv[i] === '--json') jsonOut = argv[++i];
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
@@ -34,7 +49,7 @@ for (let i = 0; i < argv.length; i++) {
   } else args.push(argv[i]);
 }
 if (args.length !== 2 || !Number.isFinite(MAX)) {
-  console.error('usage: stylemap-diff <beforeDir> <afterDir> [--max N] [--json <file>]');
+  console.error('usage: stylemap-diff <beforeDir> <afterDir> [--max N] [--json <file>]  (--help for all options)');
   process.exit(2);
 }
 const [dirA, dirB] = args;

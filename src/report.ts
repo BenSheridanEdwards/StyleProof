@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import { loadStyleMap, type Rect, type StyleMap } from './capture.js';
-import { diffStyleMapDirs, type DiffCounts, type Finding, type PropChange, type SurfaceDiff } from './diff.js';
+import { diffStyleMapDirs, type DiffCounts, type Finding, type PropChange } from './diff.js';
 
 /**
  * Visual diff report: for every surface with findings, crop the before/after
@@ -215,13 +215,43 @@ const UNIFORM: { short: string; parts: string[] }[] = [
   { short: 'border-style', parts: ['top', 'right', 'bottom', 'left'].map((s) => `border-${s}-style`) },
 ];
 const boxShorthand = ([t, r, b, l]: string[]): string =>
-  t === r && r === b && b === l ? t : t === b && r === l ? `${t} ${r}` : r === l ? `${t} ${r} ${b}` : `${t} ${r} ${b} ${l}`;
+  t === r && r === b && b === l
+    ? t
+    : t === b && r === l
+      ? `${t} ${r}`
+      : r === l
+        ? `${t} ${r} ${b}`
+        : `${t} ${r} ${b} ${l}`;
 
 const PROP_ORDER = [
-  'display', 'position', 'grid-template-columns', 'grid-template-rows', 'flex-direction', 'justify-content',
-  'align-items', 'gap', 'margin', 'padding', 'border-width', 'border-style', 'border-color', 'border-radius',
-  'outline', 'background-color', 'background-image', 'color', 'box-shadow', 'opacity', 'transform',
-  'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-transform', 'text-align',
+  'display',
+  'position',
+  'grid-template-columns',
+  'grid-template-rows',
+  'flex-direction',
+  'justify-content',
+  'align-items',
+  'gap',
+  'margin',
+  'padding',
+  'border-width',
+  'border-style',
+  'border-color',
+  'border-radius',
+  'outline',
+  'background-color',
+  'background-image',
+  'color',
+  'box-shadow',
+  'opacity',
+  'transform',
+  'font-family',
+  'font-size',
+  'font-weight',
+  'line-height',
+  'letter-spacing',
+  'text-transform',
+  'text-align',
 ];
 const orderIdx = (p: string): number => {
   const i = PROP_ORDER.indexOf(p);
@@ -249,7 +279,7 @@ const CURRENTCOLOR_FOLLOWERS = [
   '-webkit-text-stroke-color',
 ];
 
-function summarizeProps(props: PropChange[]): PropChange[] {
+export function summarizeProps(props: PropChange[]): PropChange[] {
   const map = new Map(props.map((p) => [p.prop, { ...p }]));
   for (const [logical, physical] of Object.entries(LOGICAL_TO_PHYSICAL)) {
     const lo = map.get(logical);
@@ -300,7 +330,7 @@ function summarizeProps(props: PropChange[]): PropChange[] {
 }
 
 /** `div.who-grid`, `a.nav-cta`, `h3` — the semantic marker class, else the tag. */
-function prettyLabel(p: string, cls: string): string {
+export function prettyLabel(p: string, cls: string): string {
   const tag = (p.split('>').pop() ?? '').trim().replace(/:nth-child\(\d+\)/, '') || 'el';
   const first = cls.split(/\s+/)[0] ?? '';
   return /^[a-z][a-z0-9-]*$/.test(first) ? `${tag}.${first}` : tag;
@@ -381,8 +411,7 @@ const DERIVED_PROPS = new Set([
   'inset-inline-start',
   'inset-inline-end',
 ]);
-const hasRealChange = (f: Finding): boolean =>
-  f.kind === 'dom' || f.props.some((p) => !DERIVED_PROPS.has(p.prop));
+const hasRealChange = (f: Finding): boolean => f.kind === 'dom' || f.props.some((p) => !DERIVED_PROPS.has(p.prop));
 const stripDerived = (f: Finding): Finding =>
   f.kind === 'dom' ? f : { ...f, props: f.props.filter((p) => !DERIVED_PROPS.has(p.prop)) };
 
@@ -441,7 +470,10 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   for (const { sd, findings: surfaceFindings } of prepared) {
     md.push('', `### \`${sd.surface}\``);
     if (sd.missing) {
-      md.push('', `⚠️ captured only in the **${sd.missing === 'before' ? 'after' : 'before'}** set — re-run both captures.`);
+      md.push(
+        '',
+        `⚠️ captured only in the **${sd.missing === 'before' ? 'after' : 'before'}** set — re-run both captures.`,
+      );
       json.push({ surface: sd.surface, missing: sd.missing });
       continue;
     }
@@ -476,7 +508,10 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       if (region && pngA && pngB) {
         // Same crop dimensions on both sides so the pair reads as a pair.
         const w = Math.max(minWidth, visible(g.before) ? g.before.w : 0, visible(g.after) ? g.after.w : 0);
-        const h = Math.min(maxHeight, Math.max(minHeight, visible(g.before) ? g.before.h : 0, visible(g.after) ? g.after.h : 0));
+        const h = Math.min(
+          maxHeight,
+          Math.max(minHeight, visible(g.before) ? g.before.h : 0, visible(g.after) ? g.after.h : 0),
+        );
         // Path-safe stem: a surface key like `hero@1280` becomes `hero-1280`
         // so relative image links resolve cleanly in any markdown host.
         const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${n}`;
@@ -488,16 +523,14 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         writePng(path.join(outDir, `${stem}-composite.png`), composite);
         images = { before: `${stem}-before.png`, after: `${stem}-after.png`, composite: `${stem}-composite.png` };
         // One side-by-side image per change: clean inline render, single upload.
-        md.push(
-          '',
-          `![before ◀ │ ▶ after](${img(images.composite!)})`,
-          '',
-          '<sub>◀ before  ·  after ▶</sub>',
-        );
+        md.push('', `![before ◀ │ ▶ after](${img(images.composite!)})`, '', '<sub>◀ before  ·  after ▶</sub>');
       } else if (!region) {
         md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
       } else {
-        md.push('', '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._');
+        md.push(
+          '',
+          '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
+        );
       }
 
       md.push(...lines);
