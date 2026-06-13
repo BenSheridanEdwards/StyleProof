@@ -295,7 +295,7 @@ async function captureForcedStates(
   if (paths.length !== nodeIds.length) {
     // eslint-disable-next-line no-console
     console.warn(
-      `stylemap: interactive-element count skew (CDP saw ${nodeIds.length}, page saw ${paths.length}); ` +
+      `styleproof: interactive-element count skew (CDP saw ${nodeIds.length}, page saw ${paths.length}); ` +
         'skipping forced :hover/:focus/:active capture for this surface. This is usually a benign, ' +
         'transient DOM difference (display:contents, injected/detached nodes). Re-run if it persists.',
     );
@@ -307,7 +307,7 @@ async function captureForcedStates(
   if (nodeIds.length > maxInteractive) {
     // eslint-disable-next-line no-console
     console.warn(
-      `stylemap: ${nodeIds.length} interactive elements exceeds maxInteractive=${maxInteractive}; ` +
+      `styleproof: ${nodeIds.length} interactive elements exceeds maxInteractive=${maxInteractive}; ` +
         `forced-state capture truncated to the first ${maxInteractive}. Raise maxInteractive to cover them all.`,
     );
   }
@@ -345,7 +345,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   if (base.shadowHosts || base.sameOriginFrames) {
     // eslint-disable-next-line no-console
     console.warn(
-      `stylemap: ${base.shadowHosts} shadow host(s) and ${base.sameOriginFrames} same-origin iframe(s) were ` +
+      `styleproof: ${base.shadowHosts} shadow host(s) and ${base.sameOriginFrames} same-origin iframe(s) were ` +
         'NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside ' +
         'one would be reported as identical. See README "Limitations".',
     );
@@ -386,14 +386,14 @@ export function loadStyleMap(filePath: string): StyleMap {
   try {
     raw = fs.readFileSync(filePath);
   } catch (e) {
-    throw new Error(`stylemap: cannot read capture ${filePath}: ${(e as Error).message}`);
+    throw new Error(`styleproof: cannot read capture ${filePath}: ${(e as Error).message}`);
   }
   try {
     const text = filePath.endsWith('.gz') ? gunzipSync(raw).toString('utf8') : raw.toString('utf8');
     return JSON.parse(text);
   } catch (e) {
     throw new Error(
-      `stylemap: capture ${filePath} is corrupt or truncated (${(e as Error).message}). ` +
+      `styleproof: capture ${filePath} is corrupt or truncated (${(e as Error).message}). ` +
         'Re-capture it — a partial write or interrupted upload produces an unreadable .gz.',
     );
   }

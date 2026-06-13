@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **playwright-stylemap** are documented here.
+All notable changes to **StyleProof** are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -19,11 +19,11 @@ semver. This release also lands the engine and packaging hardening below.
 
 ### Added
 
-- Published to npm as `playwright-stylemap`; install with
-  `npm i -D playwright-stylemap @playwright/test`.
-- `stylemap-init` CLI: scaffold a starter capture spec (and `playwright.config.ts`) into
+- Published to npm as `styleproof`; install with
+  `npm i -D styleproof @playwright/test`.
+- `styleproof-init` CLI: scaffold a starter capture spec (and `playwright.config.ts`) into
   any project.
-- `stylemap-report` CLI flags `--pad`, `--max-crops`, `--min-width`, `--min-height`,
+- `styleproof-report` CLI flags `--pad`, `--max-crops`, `--min-width`, `--min-height`,
   `--include-layout-noise`; `-h`/`--help` on all three CLIs.
 - `CaptureOptions.captureStates` (default true) and `CaptureOptions.maxInteractive`
   (default 800) to skip or cap the expensive forced-state layer on huge pages.
@@ -80,7 +80,7 @@ semver. This release also lands the engine and packaging hardening below.
   instead of a raw diff dump; public repos also inline the images, private repos link
   them.
 - Report header counts the collapsed total, not the raw longhand count.
-- The certification differ (`stylemap-diff`) stays raw and complete — only the report
+- The certification differ (`styleproof-diff`) stays raw and complete — only the report
   collapses.
 
 ## [0.6.0]
@@ -103,7 +103,7 @@ semver. This release also lands the engine and packaging hardening below.
 
 ### Added
 
-- **Orphan report branch with stable per-PR links.** Reports live on a `stylemap-reports`
+- **Orphan report branch with stable per-PR links.** Reports live on a `styleproof-reports`
   orphan branch (reports only, never your code); each run overwrites `pr-<n>/`, so the
   report URL is permanent for the PR's life and reports are never pruned.
 - **Public/private image modes** via `inline-images: auto` — public repos embed
@@ -157,7 +157,7 @@ number)`), so each viewport band can capture at its own height. Default remains 
 
 ### Added
 
-- **Visual diff reports.** `stylemap-report` (and `generateStyleMapReport`) crop the
+- **Visual diff reports.** `styleproof-report` (and `generateStyleMapReport`) crop the
   before/after full-page screenshots around the outermost changed element (descendants
   fold into ancestors, nearby regions merge, both sides framed at identical dimensions)
   and write PR-comment-ready markdown with the exact property changes — `report.md`,
@@ -165,7 +165,7 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - Captures now record each element's document-space bounding box, and the runner saves a
   full-page screenshot per capture (`screenshots: false` to opt out), so the committed
   baseline carries pixels and reports never rebuild the old code.
-- `--json <file>` on `stylemap-diff`.
+- `--json <file>` on `styleproof-diff`.
 - A composite GitHub Action: diff against the committed baseline, publish crops, upsert
   a PR comment, flip it to ✓ when clean.
 
@@ -189,16 +189,16 @@ number)`), so each viewport band can capture at its own height. Default remains 
   ignored — inputs, not outcomes.
 - `defineStyleMapCapture` generates one Playwright test per surface × width, inert until
   `STYLEMAP_DIR` is set; `saveStyleMap`/`loadStyleMap` persist `.json` or `.json.gz`.
-- `stylemap-diff` CLI: certifies a refactor (exit 0) or names the exact element,
+- `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/playwright-stylemap/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/BenSheridanEdwards/playwright-stylemap/compare/v0.7.0...v1.0.0
-[0.7.0]: https://github.com/BenSheridanEdwards/playwright-stylemap/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/BenSheridanEdwards/playwright-stylemap/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/BenSheridanEdwards/playwright-stylemap/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/BenSheridanEdwards/playwright-stylemap/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/BenSheridanEdwards/playwright-stylemap/compare/v0.2.1...v0.3.0
-[0.2.1]: https://github.com/BenSheridanEdwards/playwright-stylemap/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/BenSheridanEdwards/playwright-stylemap/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/BenSheridanEdwards/playwright-stylemap/releases/tag/v0.1.0
+[Unreleased]: https://github.com/BenSheridanEdwards/styleproof/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.7.0...v1.0.0
+[0.7.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/BenSheridanEdwards/styleproof/releases/tag/v0.1.0

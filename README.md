@@ -1,12 +1,12 @@
-# playwright-stylemap
+# StyleProof
 
 > **Prove a CSS refactor changed nothing.** Capture the browser's _computed styles_ and diff before against after. If the diff is empty, the refactor is certified: not "looks the same", but _resolves byte-for-byte the same_.
 
-[![npm version](https://img.shields.io/npm/v/playwright-stylemap.svg)](https://www.npmjs.com/package/playwright-stylemap)
-[![CI](https://github.com/BenSheridanEdwards/playwright-stylemap/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/playwright-stylemap/actions/workflows/ci.yml)
-[![license: MIT](https://img.shields.io/npm/l/playwright-stylemap.svg)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/styleproof.svg)](https://www.npmjs.com/package/styleproof)
+[![CI](https://github.com/BenSheridanEdwards/styleproof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/styleproof/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/npm/l/styleproof.svg)](./LICENSE)
 
-playwright-stylemap captures every resolved CSS longhand on every element, every
+StyleProof captures every resolved CSS longhand on every element, every
 pseudo-element (`::before`/`::after`/`::marker`/`::placeholder`), and every forced
 `:hover`/`:focus`/`:active` state, swept across your breakpoints, keyed by DOM
 structure rather than class names. Then it diffs two captures and tells you the exact
@@ -59,13 +59,13 @@ model, the style map certifies what pixels can't see. Use both.
 
 ```sh
 # from npm (peer dep: @playwright/test):
-npm i -D playwright-stylemap @playwright/test
+npm i -D styleproof @playwright/test
 ```
 
 Until the first npm release you can install straight from GitHub:
 
 ```sh
-npm i -D github:BenSheridanEdwards/playwright-stylemap @playwright/test
+npm i -D github:BenSheridanEdwards/styleproof @playwright/test
 ```
 
 Requirements: Node 18+, `@playwright/test` >= 1.40, a Chromium-capable Playwright
@@ -77,13 +77,13 @@ A runnable spec lives in [`example/`](example/).
 ## 60-second quickstart
 
 **1. Write a capture spec** listing your **surfaces** — each one a deterministic page
-state plus the viewport widths to sweep. `npx stylemap-init` scaffolds the file below
+state plus the viewport widths to sweep. `npx styleproof-init` scaffolds the file below
 (with a `settle()` helper and a `playwright.config.ts` if you don't have one); or write
 it by hand:
 
 ```ts
-// e2e/stylemap.spec.ts
-import { defineStyleMapCapture, type Surface } from 'playwright-stylemap';
+// e2e/styleproof.spec.ts
+import { defineStyleMapCapture, type Surface } from 'styleproof';
 
 const SURFACES: Surface[] = [
   {
@@ -115,7 +115,7 @@ test run.
 servers inject their own styles:
 
 ```sh
-STYLEMAP_DIR=baseline npx playwright test stylemap   # writes __stylemaps__/baseline/*.json.gz + *.png
+STYLEMAP_DIR=baseline npx playwright test styleproof   # writes __stylemaps__/baseline/*.json.gz + *.png
 git add e2e/__stylemaps__/baseline && git commit -m "stylemap baseline"
 ```
 
@@ -125,8 +125,8 @@ full-page screenshots let the report crop changed regions later.
 **3. Let CI diff every push** against that committed baseline:
 
 ```sh
-STYLEMAP_DIR=ci npx playwright test stylemap
-npx stylemap-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
+STYLEMAP_DIR=ci npx playwright test styleproof
+npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
 ```
 
 An empty diff exits `0` (certified). A non-empty diff exits `1` and names every
@@ -172,7 +172,7 @@ renaming a token is invisible while changing what an element resolves to is not.
 
 ### Derived / reflow-noise filtering
 
-The **certification differ** (`stylemap-diff`) compares everything, including
+The **certification differ** (`styleproof-diff`) compares everything, including
 layout-derived longhands (`width`, `height`, `top`, `transform-origin`…), because a
 reflow _is_ a change to certify. The **report** filters those by default: on a reflow
 they change all the way up the ancestor chain (`body`, `main`, `section`…), and an
@@ -183,7 +183,7 @@ Pass `includeLayoutNoise: true` to keep them in the report too.
 ### The readable report
 
 When a diff is _intentional_, you want to look at it, not read a wall of longhands.
-`stylemap-report` crops the before/after screenshots around the **outermost changed
+`styleproof-report` crops the before/after screenshots around the **outermost changed
 element** (descendants fold into their ancestor, nearby regions merge), stitches each
 pair into one labelled side-by-side image (grey bar = before, blue bar = after), and
 writes the exact changes as a per-element table. It collapses the noise: shorthand
@@ -226,7 +226,7 @@ import {
   generateStyleMapReport,
   summarizeProps,
   prettyLabel,
-} from 'playwright-stylemap';
+} from 'styleproof';
 ```
 
 | Export                   | Signature                                                                         | Description                                                                                                                                                                                                                                           |
@@ -330,25 +330,25 @@ The three bins are installed on your PATH (run via `npx` or an npm script). They
 the built `dist/`, so they work from the installed package out of the box. Each takes
 `-h`/`--help`.
 
-### `stylemap-init` — scaffold a capture spec
+### `styleproof-init` — scaffold a capture spec
 
 ```
-stylemap-init [--dir <path>] [--base-url <url>] [--force]
+styleproof-init [--dir <path>] [--base-url <url>] [--force]
 ```
 
-| Flag               | Default                 | Description                                                             |
-| ------------------ | ----------------------- | ----------------------------------------------------------------------- |
-| `--dir <path>`     | `e2e/stylemap.spec.ts`  | Where to write the starter spec (with a `settle()` helper + a Surface). |
-| `--base-url <url>` | `http://localhost:3000` | `baseURL` for a generated `playwright.config.ts` (only if none exists). |
-| `--force`          | off                     | Overwrite the spec if it already exists. Idempotent without it.         |
+| Flag               | Default                  | Description                                                             |
+| ------------------ | ------------------------ | ----------------------------------------------------------------------- |
+| `--dir <path>`     | `e2e/styleproof.spec.ts` | Where to write the starter spec (with a `settle()` helper + a Surface). |
+| `--base-url <url>` | `http://localhost:3000`  | `baseURL` for a generated `playwright.config.ts` (only if none exists). |
+| `--force`          | off                      | Overwrite the spec if it already exists. Idempotent without it.         |
 
 Exit `0` on success (or nothing to do), `2` on a usage error. An existing
 `playwright.config.ts` is never touched.
 
-### `stylemap-diff` — the certification gate
+### `styleproof-diff` — the certification gate
 
 ```
-stylemap-diff <beforeDir> <afterDir> [--max N] [--json <file>]
+styleproof-diff <beforeDir> <afterDir> [--max N] [--json <file>]
 ```
 
 | Flag                                 | Default | Description                                                                                   |
@@ -364,23 +364,23 @@ stylemap-diff <beforeDir> <afterDir> [--max N] [--json <file>]
 | `1`       | Differences found (DOM, style, and/or state).                                                  |
 | `2`       | Usage or capture error (bad args, missing dir, no captures, non-finite `--max`, unknown flag). |
 
-### `stylemap-report` — the reviewable visual report
+### `styleproof-report` — the reviewable visual report
 
 ```
-stylemap-report <beforeDir> <afterDir> --out <dir> [options]
+styleproof-report <beforeDir> <afterDir> --out <dir> [options]
 ```
 
-| Flag                                   | Default           | Description                                                                                                                   |
-| -------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `<beforeDir>`                          | —                 | Baseline captures (`.json.gz` + `.png` for crops).                                                                            |
-| `<afterDir>`                           | —                 | Fresh captures (`.json.gz` + `.png` for crops).                                                                               |
-| `--out <dir>` (or `--out=<dir>`)       | `stylemap-report` | Output directory: writes `report.md`, `report.json`, `crops/*.png`.                                                           |
-| `--image-base-url <url>` (or `=<url>`) | relative paths    | Prefix for image URLs in `report.md` (e.g. a raw GitHub URL). Omit to keep relative paths that render from a committed file.  |
-| `--pad <px>`                           | `24`              | Padding around the changed rects when cropping.                                                                               |
-| `--max-crops <n>`                      | `6`               | Max crop regions per surface before collapsing to one union crop.                                                             |
-| `--min-width <px>`                     | `320`             | Minimum crop width, for context around tiny changes.                                                                          |
-| `--min-height <px>`                    | `180`             | Minimum crop height.                                                                                                          |
-| `--include-layout-noise`               | off               | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`…) in the report instead of filtering them. |
+| Flag                                   | Default             | Description                                                                                                                   |
+| -------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `<beforeDir>`                          | —                   | Baseline captures (`.json.gz` + `.png` for crops).                                                                            |
+| `<afterDir>`                           | —                   | Fresh captures (`.json.gz` + `.png` for crops).                                                                               |
+| `--out <dir>` (or `--out=<dir>`)       | `styleproof-report` | Output directory: writes `report.md`, `report.json`, `crops/*.png`.                                                           |
+| `--image-base-url <url>` (or `=<url>`) | relative paths      | Prefix for image URLs in `report.md` (e.g. a raw GitHub URL). Omit to keep relative paths that render from a committed file.  |
+| `--pad <px>`                           | `24`                | Padding around the changed rects when cropping.                                                                               |
+| `--max-crops <n>`                      | `6`                 | Max crop regions per surface before collapsing to one union crop.                                                             |
+| `--min-width <px>`                     | `320`               | Minimum crop width, for context around tiny changes.                                                                          |
+| `--min-height <px>`                    | `180`               | Minimum crop height.                                                                                                          |
+| `--include-layout-noise`               | off                 | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`…) in the report instead of filtering them. |
 
 | Exit code | Meaning                                                                       |
 | --------- | ----------------------------------------------------------------------------- |
@@ -402,14 +402,14 @@ flips to ✓ when clean.
 
 ```yaml
 - name: Capture style maps
-  run: STYLEMAP_DIR=ci npx playwright test stylemap
+  run: STYLEMAP_DIR=ci npx playwright test styleproof
 
 - name: Style-map report
-  uses: BenSheridanEdwards/playwright-stylemap@v1
+  uses: BenSheridanEdwards/styleproof@v1
   with:
     baseline-dir: e2e/__stylemaps__/baseline
     fresh-dir: e2e/__stylemaps__/ci
-    # report-branch: stylemap-reports   # default (orphan; created on first run)
+    # report-branch: styleproof-reports   # default (orphan; created on first run)
     # inline-images: auto               # auto | always | never
     # fail-on-diff: 'true'              # default
 ```
@@ -420,7 +420,7 @@ flips to ✓ when clean.
 | --------------- | -------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `baseline-dir`  | yes      | —                     | Directory with the committed baseline captures (`.json.gz` + `.png`).                                                           |
 | `fresh-dir`     | yes      | —                     | Directory with the freshly captured maps to compare.                                                                            |
-| `report-branch` | no       | `stylemap-reports`    | Orphan branch that stores reports (created on first run). One `pr-<n>/` folder per PR; never pruned.                            |
+| `report-branch` | no       | `styleproof-reports`  | Orphan branch that stores reports (created on first run). One `pr-<n>/` folder per PR; never pruned.                            |
 | `inline-images` | no       | `auto`                | `auto` \| `always` \| `never`. `auto` embeds composites in the comment for public repos and links the report for private repos. |
 | `github-token`  | no       | `${{ github.token }}` | Token used to push the report branch and post the comment.                                                                      |
 | `fail-on-diff`  | no       | `'true'`              | Fail the job when differences are found.                                                                                        |
@@ -457,14 +457,14 @@ The report branch is an **orphan** (reports only, never your code), so its root 
 folder per PR plus a README:
 
 ```
-stylemap-reports (orphan)
+styleproof-reports (orphan)
 ├── README.md
 ├── pr-9/   report.md + crops/*-composite.png
 └── pr-12/  …
 ```
 
 - **Stable links.** Each run overwrites `pr-<n>/`, so
-  `…/blob/stylemap-reports/pr-9/report.md` is permanent for the life of the PR.
+  `…/blob/styleproof-reports/pr-9/report.md` is permanent for the life of the PR.
   Reports are **never pruned**; per-run history lives in the branch's git commits.
 - **Compact.** Only the **composite** is committed (alpha dropped, max deflate,
   adaptive filtering): ~30–90 KB per change, a few hundred KB per PR.
@@ -474,8 +474,8 @@ stylemap-reports (orphan)
   history grows. The _tree_ (what serves the links) stays small; to shrink `.git`,
   squash the orphan branch when it's quiet — current reports keep their URLs:
   ```sh
-  git checkout --orphan tmp stylemap-reports && git commit -qm "squash reports" \
-    && git branch -M tmp stylemap-reports && git push -f origin stylemap-reports
+  git checkout --orphan tmp styleproof-reports && git commit -qm "squash reports" \
+    && git branch -M tmp styleproof-reports && git push -f origin styleproof-reports
   ```
 
 ## CI recipes
@@ -495,8 +495,8 @@ baseline. Use the Action step from above to also post a PR comment.
 - run: npm run build
 - run: npx next start -p 3000 &
 - run: npx wait-on http://localhost:3000
-- run: BASE_URL=http://localhost:3000 STYLEMAP_DIR=ci npx playwright test stylemap
-- run: npx stylemap-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
+- run: BASE_URL=http://localhost:3000 STYLEMAP_DIR=ci npx playwright test styleproof
+- run: npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
 ```
 
 ### Vite / SPA
@@ -506,8 +506,8 @@ baseline. Use the Action step from above to also post a PR comment.
 - run: npm run build # → dist/
 - run: npx vite preview --port 4173 & # serves the production build
 - run: npx wait-on http://localhost:4173
-- run: BASE_URL=http://localhost:4173 STYLEMAP_DIR=ci npx playwright test stylemap
-- run: npx stylemap-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
+- run: BASE_URL=http://localhost:4173 STYLEMAP_DIR=ci npx playwright test styleproof
+- run: npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
 ```
 
 ### Plain static site
@@ -517,8 +517,8 @@ baseline. Use the Action step from above to also post a PR comment.
 - run: npm run build # → public/ or dist/
 - run: npx serve -l 5000 dist & # any static server
 - run: npx wait-on http://localhost:5000
-- run: BASE_URL=http://localhost:5000 STYLEMAP_DIR=ci npx playwright test stylemap
-- run: npx stylemap-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
+- run: BASE_URL=http://localhost:5000 STYLEMAP_DIR=ci npx playwright test styleproof
+- run: npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
 ```
 
 ### Generic build → serve → capture → diff
@@ -527,8 +527,8 @@ baseline. Use the Action step from above to also post a PR comment.
 <your build command>                         # produce a PRODUCTION build
 <your static/app server> &                   # serve it on a known port
 npx wait-on http://localhost:<port>          # wait until it answers
-BASE_URL=http://localhost:<port> STYLEMAP_DIR=ci npx playwright test stylemap
-npx stylemap-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
+BASE_URL=http://localhost:<port> STYLEMAP_DIR=ci npx playwright test styleproof
+npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
 ```
 
 Your `playwright.config.ts` reads `BASE_URL` for `use.baseURL`; surfaces use relative
@@ -565,7 +565,7 @@ nondeterminism becomes a false diff. In your surface's `go`:
   already have finished. Scroll the page to trigger reveals, then wait; or inject CSS
   forcing your reveal classes to their final values
   (`.reveal{opacity:1!important;transform:none!important}`).
-- **Scroll-reveal.** Walk the page top to bottom (see `example/stylemap.spec.ts`'s
+- **Scroll-reveal.** Walk the page top to bottom (see `example/styleproof.spec.ts`'s
   `settle` helper) so every observer fires, then scroll back to `0`.
 - **Live / nondeterministic regions.** List them in `ignore` (live feeds, ads,
   third-party embeds, timestamps); the elements and their subtrees are skipped.
@@ -595,21 +595,21 @@ nondeterminism becomes a false diff. In your surface's `go`:
 
 ## Troubleshooting
 
-| Symptom                                                                 | Likely cause / fix                                                                                                                                                                                                                                                    |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npx playwright test stylemap` does nothing / spec skipped              | `STYLEMAP_DIR` is unset. The capture spec is inert by design until you set it (`STYLEMAP_DIR=before …`).                                                                                                                                                              |
-| `no .json(.gz) captures found in …`                                     | You diffed before capturing, or pointed at the wrong dir. Check `<baseDir>/<label>/`.                                                                                                                                                                                 |
-| `stylemap: interactive-element count skew …; skipping forced … capture` | The DOM changed between the CDP query and the page evaluate (e.g. a late-rendering widget). The base + pseudo capture still succeed; only the forced-state layer is skipped for that surface. Settle the surface fully, or `ignore` the unstable region, then re-run. |
-| Capture warns about shadow hosts / iframes                              | Styles inside shadow roots and frames are not captured (see Limitations). Point a separate surface at the frame's document, or accept the gap.                                                                                                                        |
-| Diffs you didn't expect, all `width`/`height`/`top`/…                   | A real reflow (content or layout changed). The differ keeps these; use the _report_ (which filters them) to see the styling intent, or capture the identical build state.                                                                                             |
-| Baseline passes locally, fails in CI with DOM findings                  | Env parity: your local env renders elements CI doesn't (or vice versa). Capture the baseline in CI's environment — see _Baselines and the env-parity gotcha_.                                                                                                         |
-| Diffs every run, fonts-related                                          | Fonts weren't ready at capture. Await `document.fonts.ready` (and any web-font load) in `go`.                                                                                                                                                                         |
-| Private-repo PR comment shows no images, only a link                    | Expected: GitHub can't render images in a private comment body. Click the link — the committed report renders the crops inline through your session.                                                                                                                  |
-| `stylemap-diff: command not found` from a fresh clone                   | The bins import the built `dist/`. Run `npm run build` first (the published npm package ships a prebuilt `dist/`).                                                                                                                                                    |
+| Symptom                                                                   | Likely cause / fix                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npx playwright test styleproof` does nothing / spec skipped              | `STYLEMAP_DIR` is unset. The capture spec is inert by design until you set it (`STYLEMAP_DIR=before …`).                                                                                                                                                              |
+| `no .json(.gz) captures found in …`                                       | You diffed before capturing, or pointed at the wrong dir. Check `<baseDir>/<label>/`.                                                                                                                                                                                 |
+| `styleproof: interactive-element count skew …; skipping forced … capture` | The DOM changed between the CDP query and the page evaluate (e.g. a late-rendering widget). The base + pseudo capture still succeed; only the forced-state layer is skipped for that surface. Settle the surface fully, or `ignore` the unstable region, then re-run. |
+| Capture warns about shadow hosts / iframes                                | Styles inside shadow roots and frames are not captured (see Limitations). Point a separate surface at the frame's document, or accept the gap.                                                                                                                        |
+| Diffs you didn't expect, all `width`/`height`/`top`/…                     | A real reflow (content or layout changed). The differ keeps these; use the _report_ (which filters them) to see the styling intent, or capture the identical build state.                                                                                             |
+| Baseline passes locally, fails in CI with DOM findings                    | Env parity: your local env renders elements CI doesn't (or vice versa). Capture the baseline in CI's environment — see _Baselines and the env-parity gotcha_.                                                                                                         |
+| Diffs every run, fonts-related                                            | Fonts weren't ready at capture. Await `document.fonts.ready` (and any web-font load) in `go`.                                                                                                                                                                         |
+| Private-repo PR comment shows no images, only a link                      | Expected: GitHub can't render images in a private comment body. Click the link — the committed report renders the crops inline through your session.                                                                                                                  |
+| `styleproof-diff: command not found` from a fresh clone                   | The bins import the built `dist/`. Run `npm run build` first (the published npm package ships a prebuilt `dist/`).                                                                                                                                                    |
 
 ## How this compares to pixel snapshot tools
 
-|                                                                            | **playwright-stylemap**         | **Percy / Chromatic**     | **Playwright `toHaveScreenshot`** |
+|                                                                            | **StyleProof**                  | **Percy / Chromatic**     | **Playwright `toHaveScreenshot`** |
 | -------------------------------------------------------------------------- | ------------------------------- | ------------------------- | --------------------------------- |
 | Compares                                                                   | computed CSS longhands          | rendered pixels           | rendered pixels                   |
 | Certifies invisible state (hover/focus/active, hidden, between-breakpoint) | **yes**                         | no                        | no                                |

@@ -8,8 +8,8 @@ import { saveStyleMap } from '../dist/capture.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const DIFF = path.join(here, '..', 'bin', 'stylemap-diff.mjs');
-const REPORT = path.join(here, '..', 'bin', 'stylemap-report.mjs');
+const DIFF = path.join(here, '..', 'bin', 'styleproof-diff.mjs');
+const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
 
 function run(script, args) {
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
@@ -47,7 +47,7 @@ function identicalPair() {
   return { root, A, B };
 }
 
-// ---------------------------------------------------------------- stylemap-diff
+// ---------------------------------------------------------------- styleproof-diff
 
 test('diff CLI exits 0 when captures are identical', () => {
   const { root, A, B } = identicalPair();
@@ -68,7 +68,7 @@ test('diff CLI exits 1 when captures differ', () => {
 test('diff CLI exits 2 on wrong argument count', () => {
   const r = run(DIFF, ['only-one-dir']);
   assert.equal(r.status, 2);
-  assert.match(r.stderr, /usage: stylemap-diff/);
+  assert.match(r.stderr, /usage: styleproof-diff/);
 });
 
 test('diff CLI exits 2 on an unknown flag', () => {
@@ -143,7 +143,7 @@ test('diff CLI reads a plain .json capture against a .json.gz capture', () => {
   rmTmp(root);
 });
 
-// -------------------------------------------------------------- stylemap-report
+// -------------------------------------------------------------- styleproof-report
 
 test('report CLI exits 0 and writes an empty report when nothing changed', () => {
   const { root, A, B } = identicalPair();
@@ -168,7 +168,7 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
 test('report CLI exits 2 on wrong argument count', () => {
   const r = run(REPORT, ['only-one']);
   assert.equal(r.status, 2);
-  assert.match(r.stderr, /usage: stylemap-report/);
+  assert.match(r.stderr, /usage: styleproof-report/);
 });
 
 test('report CLI exits 2 on an unknown flag', () => {

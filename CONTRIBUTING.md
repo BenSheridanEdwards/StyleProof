@@ -1,4 +1,4 @@
-# Contributing to playwright-stylemap
+# Contributing to StyleProof
 
 Thanks for helping make a CSS refactor provable. This is a small, focused TypeScript
 library plus three CLIs and a composite GitHub Action; contributions that keep it that
@@ -7,8 +7,8 @@ way (one job, done well, no native deps) are the easiest to merge.
 ## Getting set up
 
 ```sh
-git clone https://github.com/BenSheridanEdwards/playwright-stylemap
-cd playwright-stylemap
+git clone https://github.com/BenSheridanEdwards/styleproof
+cd styleproof
 npm install                 # also runs `npm run build` via the `prepare` script
 npx playwright install chromium   # for the smoke e2e
 ```
@@ -27,9 +27,9 @@ src/
   report.ts    generateStyleMapReport + summarizeProps / prettyLabel
   index.ts     the public surface — everything users import
 bin/
-  stylemap-init.mjs     scaffold a capture spec into a project
-  stylemap-diff.mjs     CLI over diff.ts (imports the built dist/)
-  stylemap-report.mjs   CLI over report.ts (imports the built dist/)
+  styleproof-init.mjs     scaffold a capture spec into a project
+  styleproof-diff.mjs     CLI over diff.ts (imports the built dist/)
+  styleproof-report.mjs   CLI over report.ts (imports the built dist/)
 test/
   *.test.mjs            node:test unit suite (diff, report, CLI)
   smoke.e2e.spec.ts     Playwright smoke against a file:// fixture (the only browser test)
@@ -68,7 +68,7 @@ way to see a change end to end:
 BASE_URL=http://localhost:3000 STYLEMAP_DIR=before npx playwright test example/
 # ...make a deliberate CSS change in the target site, rebuild it...
 BASE_URL=http://localhost:3000 STYLEMAP_DIR=after  npx playwright test example/
-npx stylemap-diff __stylemaps__/before __stylemaps__/after
+npx styleproof-diff __stylemaps__/before __stylemaps__/after
 ```
 
 ## Pull request norms
@@ -82,7 +82,7 @@ npx stylemap-diff __stylemaps__/before __stylemaps__/after
   Action input/output) update the README's API/CLI/Action tables and the CHANGELOG.
 - **Browser-evaluated code** (`capturePage`, `snapSubtree`, `pathsForSelector`) stays
   self-contained and dependency-free; cover it with the smoke e2e.
-- **Keep the certification differ exact.** `stylemap-diff` must never gain a tolerance;
+- **Keep the certification differ exact.** `styleproof-diff` must never gain a tolerance;
   the report may filter noise, the differ may not.
 - Add a CHANGELOG entry under `## [Unreleased]` (Added/Changed/Fixed).
 
@@ -113,7 +113,7 @@ regenerate baselines).
 ## Reporting bugs
 
 Open an issue with: the tool version, the surface `go` function (minimised), the output
-of `stylemap-diff`, and whether captures were against a production build. A false
+of `styleproof-diff`, and whether captures were against a production build. A false
 positive is best reported as the two `.json.gz` maps that shouldn't differ, or a minimal
 HTML fixture.
 

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { defineStyleMapCapture, type Surface } from 'playwright-stylemap';
+import { defineStyleMapCapture, type Surface } from 'styleproof';
 
 /**
  * Example capture spec. Each surface is one deterministic page state; widths
@@ -8,7 +8,7 @@ import { defineStyleMapCapture, type Surface } from 'playwright-stylemap';
  *   STYLEMAP_DIR=before npx playwright test example/   # capture baseline
  *   ...refactor your CSS...
  *   STYLEMAP_DIR=after  npx playwright test example/   # capture again
- *   npx stylemap-diff __stylemaps__/before __stylemaps__/after
+ *   npx styleproof-diff __stylemaps__/before __stylemaps__/after
  */
 
 // Captures read whatever is in front of them, so the page must be settled and

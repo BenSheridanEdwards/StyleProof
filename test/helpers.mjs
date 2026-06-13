@@ -1,4 +1,4 @@
-// Shared test fixtures for the playwright-stylemap suite. Zero new deps:
+// Shared test fixtures for the styleproof suite. Zero new deps:
 // node builtins + pngjs (already a runtime dependency).
 import fs from 'node:fs';
 import os from 'node:os';
@@ -7,7 +7,7 @@ import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
 
 /** Make a unique temp dir; returns its path. Caller removes via rmTmp. */
-export function mkTmp(prefix = 'stylemap-test-') {
+export function mkTmp(prefix = 'styleproof-test-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
