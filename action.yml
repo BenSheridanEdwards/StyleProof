@@ -28,8 +28,19 @@ inputs:
     description: 'Token used to push the report branch and post the PR comment.'
     default: ${{ github.token }}
   fail-on-diff:
-    description: 'Fail the job when differences are found.'
+    description: 'Legacy refactor-certification mode: fail the job when any difference is found. Ignored when require-approval is true.'
     default: 'true'
+  require-approval:
+    description: >-
+      Review-gate mode. Instead of failing the job, set a `StyleProof` commit
+      status (red until a write-access reviewer ticks the approval box in the
+      report comment, green when there are no visual changes). Pair with the
+      styleproof-approve workflow (see README) and a branch-protection rule that
+      requires the `StyleProof` status.
+    default: 'false'
+  status-context:
+    description: 'Name of the commit status set in require-approval mode (must match the approve workflow + branch protection).'
+    default: 'StyleProof'
 
 outputs:
   changed:
@@ -143,6 +154,16 @@ runs:
           const head = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
           const regions = headEnd > 0 ? lines.slice(headEnd).join('\n') : '';
 
+          const requireApproval = '${{ inputs.require-approval }}' === 'true';
+          const statusContext = '${{ inputs.status-context }}';
+
+          // Review-gate mode: inject one approval checkbox per change-group heading,
+          // BEFORE the public/private rendering so both modes carry it. Every box
+          // must be ticked for green — each change signed off on its own.
+          const regionsForComment = requireApproval
+            ? regions.replace(/^(### .+)$/gm, '$1\n\n- [ ] **Approve this change**')
+            : regions;
+
           let visual;
           if (embed) {
             // public: rewrite relative crop paths to public raw URLs → images render inline.
@@ -150,22 +171,53 @@ runs:
             // push's crop at the overwritten path (the committed report.md keeps
             // relative paths and is unaffected).
             const sha = '${{ github.sha }}';
-            visual = regions.replace(/\]\(crops\/([^)]+)\)/g, `](${rawBase}/crops/$1?v=${sha})`);
+            visual = regionsForComment.replace(/\]\(crops\/([^)]+)\)/g, `](${rawBase}/crops/$1?v=${sha})`);
           } else {
             // private: tables render inline; images live behind the authenticated link
-            const tables = regions.replace(/^!\[.*$/gm, '').replace(/^<sub>.*$/gm, '').replace(/\n{3,}/g, '\n\n');
+            const tables = regionsForComment.replace(/^!\[.*$/gm, '').replace(/^<sub>.*$/gm, '').replace(/\n{3,}/g, '\n\n');
             visual = `### 📊 [**View the side-by-side visual report →**](${url})\n\n_Before/after crops render inline there — a committed file served through your authenticated session (works in private repos)._\n${tables}`;
           }
 
-          let body = [
-            marker, head, '', visual, '',
-            '---', '_To accept: regenerate the committed baseline from this build and commit it with your diff._',
-          ].join('\n');
+          // Bind approval to this exact commit so a post-report push can't inherit green.
+          const headSha = '${{ github.event.pull_request.head.sha }}';
+          const footer = requireApproval
+            ? [
+                '---',
+                `_Tick **every** "Approve this change" box above to turn the **${statusContext}** check green — write access required, each box counts. A new push that changes styles re-opens it._`,
+                `<!-- styleproof-sha:${headSha} -->`,
+              ]
+            : ['---', '_To accept: regenerate the committed baseline from this build and commit it with your diff._'];
+          let body = [marker, head, '', visual, '', ...footer].join('\n');
           if (body.length > 64000) body = body.slice(0, 63000) + `\n\n…truncated — see the [full report →](${url}).`;
           await upsert(body);
 
+    # Review-gate mode: drive a commit status the approve workflow can flip,
+    # instead of failing the job. Green when nothing changed; red ("needs
+    # sign-off") until a write-access reviewer ticks the box. PR events only.
+    - name: Set review status
+      if: github.event_name == 'pull_request' && inputs.require-approval == 'true'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const changed = '${{ steps.diff.outputs.changed }}' === 'true';
+          const sha = context.payload.pull_request.head.sha;
+          const url = '${{ steps.publish.outputs.url }}';
+          await github.rest.repos.createCommitStatus({
+            ...context.repo,
+            sha,
+            context: '${{ inputs.status-context }}',
+            state: changed ? 'failure' : 'success',
+            description: changed
+              ? 'Visual changes need sign-off — tick the box in the report comment'
+              : 'No visual changes',
+            ...(changed && url ? { target_url: url } : {}),
+          });
+
+    # Legacy refactor-certification: fail the job on any diff (default). Skipped
+    # in review-gate mode, where the status check is the gate instead.
     - name: Fail on diff
-      if: steps.diff.outputs.changed == 'true' && inputs.fail-on-diff == 'true'
+      if: steps.diff.outputs.changed == 'true' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true'
       shell: bash
       run: |
         echo 'Style changes detected — review the PR comment. To accept, regenerate the baseline and commit it.' >&2

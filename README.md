@@ -394,11 +394,11 @@ Numeric flags also accept the `--flag=value` form. The remaining `maxHeight` kno
 
 ## GitHub Action
 
-The repo ships a composite action that diffs against your committed baseline and, on
-changes, commits a compact report to an orphan branch and posts it to the PR. It
-fails the job while changes are unapproved; **approving = regenerating the committed
-baseline** and pushing it with the PR. The comment updates in place on every push and
-flips to ✓ when clean.
+The repo ships a composite action that diffs two capture dirs and, on changes, commits a
+compact report to an orphan branch and posts it to the PR. The comment updates in place on
+every push and flips to ✓ when clean. It runs in one of two modes — **certify a refactor**
+(default) or **review visual changes** with per-change sign-off (`require-approval`); see
+[Two modes](#two-modes-certify-a-refactor-or-review-visual-changes) below.
 
 ```yaml
 - name: Capture style maps
@@ -416,14 +416,16 @@ flips to ✓ when clean.
 
 ### Inputs
 
-| Input           | Required | Default               | Description                                                                                                                     |
-| --------------- | -------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `baseline-dir`  | yes      | —                     | Directory with the committed baseline captures (`.json.gz` + `.png`).                                                           |
-| `fresh-dir`     | yes      | —                     | Directory with the freshly captured maps to compare.                                                                            |
-| `report-branch` | no       | `styleproof-reports`  | Orphan branch that stores reports (created on first run). One `pr-<n>/` folder per PR; never pruned.                            |
-| `inline-images` | no       | `auto`                | `auto` \| `always` \| `never`. `auto` embeds composites in the comment for public repos and links the report for private repos. |
-| `github-token`  | no       | `${{ github.token }}` | Token used to push the report branch and post the comment.                                                                      |
-| `fail-on-diff`  | no       | `'true'`              | Fail the job when differences are found.                                                                                        |
+| Input              | Required | Default               | Description                                                                                                                     |
+| ------------------ | -------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `baseline-dir`     | yes      | —                     | Directory with the committed baseline captures (`.json.gz` + `.png`).                                                           |
+| `fresh-dir`        | yes      | —                     | Directory with the freshly captured maps to compare.                                                                            |
+| `report-branch`    | no       | `styleproof-reports`  | Orphan branch that stores reports (created on first run). One `pr-<n>/` folder per PR; never pruned.                            |
+| `inline-images`    | no       | `auto`                | `auto` \| `always` \| `never`. `auto` embeds composites in the comment for public repos and links the report for private repos. |
+| `github-token`     | no       | `${{ github.token }}` | Token used to push the report branch and post the comment.                                                                      |
+| `fail-on-diff`     | no       | `'true'`              | Legacy refactor mode: fail the job on any diff. Ignored when `require-approval` is `'true'`.                                    |
+| `require-approval` | no       | `'false'`             | Review-gate mode: set a `StyleProof` commit status (red until each change is approved) instead of failing the job. See below.   |
+| `status-context`   | no       | `StyleProof`          | Name of the commit status set in review-gate mode (must match the approve workflow + branch protection).                        |
 
 ### Outputs
 
@@ -431,6 +433,46 @@ flips to ✓ when clean.
 | ------------ | ------------------------------------------------------------------- |
 | `changed`    | `"true"` when any computed style, pseudo-element, or state changed. |
 | `report-url` | Blob URL of the committed report (when changed).                    |
+
+### Two modes: certify a refactor, or review visual changes
+
+- **Certify (default, `fail-on-diff: true`).** Any computed-style change fails the job.
+  Right for a refactor you expect to be a no-op (a CSS-to-Tailwind migration); "approving"
+  a change means regenerating the committed baseline and pushing it.
+- **Review gate (`require-approval: true`).** The report is the product: every PR shows
+  _what changed visually_, and a reviewer signs each change off against the PR's stated
+  intent. Instead of failing the job, the Action sets a **`StyleProof` commit status** —
+  green when nothing changed, red until approved — and posts **one approval checkbox per
+  change**. The gate goes green only when **every** box is ticked.
+
+To enable the review gate:
+
+1. Set `require-approval: 'true'` on the Action, and grant the job `statuses: write`
+   (plus the existing `contents: write` / `pull-requests: write`).
+2. Copy [`example/styleproof-approve.yml`](example/styleproof-approve.yml) to
+   `.github/workflows/` **on your default branch** (`issue_comment` workflows only run
+   from the default branch).
+3. Add a branch-protection rule that **requires the `StyleProof` status** to pass.
+
+A reviewer with write access walks the report change-by-change and ticks each box; the
+status updates ("2 of 3 approved") and flips green at full approval. A new push that
+changes styles re-opens the gate. The approval is bound to the exact reviewed commit and
+acts only on a human edit of the bot's own comment, so it can't be flipped green by a
+later push, by the bot's own comment updates, or by anyone without write access. Pair it
+naturally with a head-vs-**base-branch** diff (capture the base branch into `baseline-dir`)
+so each PR's report is exactly _what this PR changes_.
+
+Two things to know about the trust model:
+
+- **Single-reviewer by design.** Any write-access user can tick the boxes, **including the
+  PR author on their own PR** — the sign-off is "I confirm this is intentional," not
+  multi-party review. If you need a different person to approve, add a branch-protection
+  rule requiring a review from someone other than the author (CODEOWNERS); this gate
+  doesn't enforce that itself.
+- **Use the default `GITHUB_TOKEN`.** The approve workflow only acts on a comment authored
+  by a bot (so an attacker-authored comment can never trigger it). If you post the report
+  with a personal access token (a `User`), the workflow won't fire and the gate can never
+  go green. A GitHub App token works; a PAT does not.
 
 ### Why two image modes (and why it's automatic)
 
