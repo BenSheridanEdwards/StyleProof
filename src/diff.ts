@@ -24,7 +24,14 @@ export type SurfaceDiff = {
 
 export type DiffCounts = { dom: number; style: number; state: number };
 
-function diffProps(propsA: Record<string, string>, propsB: Record<string, string>, fallbackA: Record<string, string>, fallbackB: Record<string, string>, unsetA: string, unsetB: string): PropChange[] {
+function diffProps(
+  propsA: Record<string, string>,
+  propsB: Record<string, string>,
+  fallbackA: Record<string, string>,
+  fallbackB: Record<string, string>,
+  unsetA: string,
+  unsetB: string,
+): PropChange[] {
   const changed: PropChange[] = [];
   for (const prop of new Set([...Object.keys(propsA), ...Object.keys(propsB)])) {
     if (prop.startsWith('--')) continue;
@@ -55,9 +62,34 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
     for (const pseudo of [null, ...new Set([...Object.keys(ea.pseudo ?? {}), ...Object.keys(eb.pseudo ?? {})])]) {
       const propsA = pseudo ? (ea.pseudo?.[pseudo] ?? {}) : ea.style;
       const propsB = pseudo ? (eb.pseudo?.[pseudo] ?? {}) : eb.style;
-      const props = diffProps(propsA, propsB, defsA, defsB, '(unset)', '(unset)');
+      // A pseudo-element is pruned against its own UA defaults (capture stores
+      // them under a composite `tag::pseudo` key); fall back to the element's
+      // tag defaults for maps written before that fix.
+      const pdefsA = pseudo ? (a.defaults[ea.tag + pseudo] ?? defsA) : defsA;
+      const pdefsB = pseudo ? (b.defaults[eb.tag + pseudo] ?? defsB) : defsB;
+      const props = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
       if (props.length) findings.push({ kind: 'style', path: p, cls: ea.cls, pseudo, props });
     }
+  }
+
+  // If the forced-state layer was skipped on exactly one side (CDP skew during
+  // that capture), the :hover/:focus/:active layer was not compared — flag it
+  // loudly rather than letting {} vs {} read as "identical".
+  if (!!a.statesSkipped !== !!b.statesSkipped) {
+    findings.push({
+      kind: 'state',
+      path: '(surface)',
+      cls: '',
+      state: 'forced-state capture',
+      sub: '(surface)',
+      props: [
+        {
+          prop: 'forced :hover/:focus/:active layer',
+          before: a.statesSkipped ? 'skipped (CDP skew)' : 'captured',
+          after: b.statesSkipped ? 'skipped (CDP skew)' : 'captured',
+        },
+      ],
+    });
   }
 
   for (const p of new Set([...Object.keys(a.states ?? {}), ...Object.keys(b.states ?? {})])) {
@@ -68,7 +100,14 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
       const da = sa[state] ?? {};
       const db = sb[state] ?? {};
       for (const sub of new Set([...Object.keys(da), ...Object.keys(db)])) {
-        const props = diffProps(da[sub] ?? {}, db[sub] ?? {}, {}, {}, '(state does not change it)', '(state no longer changes it)');
+        const props = diffProps(
+          da[sub] ?? {},
+          db[sub] ?? {},
+          {},
+          {},
+          '(state does not change it)',
+          '(state no longer changes it)',
+        );
         if (props.length) findings.push({ kind: 'state', path: p, cls, state, sub, props });
       }
     }

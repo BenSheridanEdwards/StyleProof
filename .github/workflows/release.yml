@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# contents: write -> create the GitHub Release.
+# id-token: write -> REQUIRED for `npm publish --provenance` (OIDC -> Sigstore).
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # registry-url makes setup-node write an .npmrc that reads NODE_AUTH_TOKEN.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::pushed tag v$TAG does not match package.json version $PKG"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      # Provenance needs npm >= 9.5 (Node 22 ships it) and id-token: write above.
+      # --access public publishes the package publicly (required for provenance).
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Extract this tag's section from CHANGELOG.md if present; otherwise let
+      # the release action auto-generate notes.
+      - name: Build release notes
+        id: notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -f CHANGELOG.md ]; then
+            awk -v v="$VERSION" '
+              /^## / { if (p) exit; if (index($0, v)) { p=1; next } }
+              p { print }
+            ' CHANGELOG.md > notes.md
+          fi
+          if [ -s notes.md ]; then
+            echo 'have_notes=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'have_notes=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: ${{ steps.notes.outputs.have_notes == 'true' && 'notes.md' || '' }}
+          generate_release_notes: ${{ steps.notes.outputs.have_notes != 'true' }}

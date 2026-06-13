@@ -2,4 +2,7 @@ node_modules/
 dist/
 test-results/
 playwright-report/
-example/__stylemaps__/
+coverage/
+**/__stylemaps__/
+*.tgz
+.DS_Store

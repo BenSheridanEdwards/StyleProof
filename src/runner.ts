@@ -44,7 +44,7 @@ export type DefineOptions = {
  * map to `<baseDir>/<dir>/<key>@<width>.json.gz`.
  *
  * ```ts
- * // stylemap.spec.ts
+ * // styleproof.spec.ts
  * defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
  * ```
  */
@@ -55,7 +55,7 @@ export function defineStyleMapCapture({
   screenshots = true,
 }: DefineOptions): void {
   test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
-  test.describe('stylemap capture', () => {
+  test.describe('styleproof capture', () => {
     for (const surface of surfaces) {
       for (const width of surface.widths) {
         test(`${surface.key} @ ${width}`, async ({ page }) => {
