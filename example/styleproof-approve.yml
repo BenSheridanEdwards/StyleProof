@@ -30,6 +30,9 @@ jobs:
       github.event.comment.user.type == 'Bot' &&
       github.event.sender.type == 'User' &&
       contains(github.event.comment.body, '<!-- styleproof-report -->')
+    # ubuntu-latest is fine where you have GitHub-hosted Actions minutes. On a
+    # PRIVATE repo without them, this job silently fails to start — point it at
+    # the same self-hosted runner your CI uses, e.g. runs-on: [self-hosted, …].
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v7
