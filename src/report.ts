@@ -407,6 +407,19 @@ function groupTitle(findings: Finding[]): string {
   return parts.join(', ') || `${n(new Set(findings.map((f) => f.path)).size, 'element')} changed`;
 }
 
+/**
+ * A crop's heading: the element it's anchored on, then what happened inside it —
+ * `` `who-grid` · 5 elements restyled ``. Naming the anchor is what ties the
+ * table of changes below to the screenshot above it.
+ */
+function regionHeading(regionPaths: string[], findings: Finding[]): string {
+  const anchors = [...regionPaths].sort((a, b) => a.split(' > ').length - b.split(' > ').length);
+  const clsFor = (p: string) => findings.find((f) => f.path === p)?.cls ?? '';
+  const head = prettyLabel(anchors[0] ?? '', clsFor(anchors[0] ?? ''));
+  const label = anchors.length > 1 ? `\`${head}\` + ${anchors.length - 1} more` : `\`${head}\``;
+  return `${label} · ${groupTitle(findings)}`;
+}
+
 // A diff state row whose value is one of these placeholders means "this state
 // has no effect here" — meaningless to show, so render it as an em dash.
 const STATE_PLACEHOLDER = new Set(['(state does not change it)', '(state no longer changes it)', '(unset)']);
@@ -609,17 +622,10 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   }
 
   let totalFindings = 0;
+  let cropSeq = 0;
   for (const cg of changeGroups) {
     const { sd, findings: surfaceFindings } = cg.rep;
     totalFindings += surfaceFindings.length;
-
-    md.push('', `### ${groupTitle(surfaceFindings)}`);
-    md.push(
-      '',
-      cg.surfaces.length > 1
-        ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceList(cg.surfaces)}_`
-        : `_${formatSurfaceList(cg.surfaces)}_`,
-    );
 
     const mapA = loadStyleMap(findCapture(beforeDir, sd.surface));
     const mapB = loadStyleMap(findCapture(afterDir, sd.surface));
@@ -637,15 +643,32 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         })),
       ];
     }
+    // Read top-to-bottom: one section per crop, in page order.
+    const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
+    groups.sort((a, b) => topY(a) - topY(b));
+
+    const surfaceList =
+      cg.surfaces.length > 1
+        ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceList(cg.surfaces)}_`
+        : `_${formatSurfaceList(cg.surfaces)}_`;
 
     const surfaceJson: Record<string, unknown> = {
       surfaces: cg.surfaces,
       representative: sd.surface,
       regions: [] as unknown[],
     };
-    let n = 0;
+
     for (const g of groups) {
-      n++;
+      cropSeq++;
+      // Exactly the findings whose element lives inside THIS crop, so the tables
+      // sit directly under the screenshot that shows them — never a wall of
+      // changes spanning several crops with no way to tell which is which.
+      const regionFindings = surfaceFindings.filter((f) =>
+        g.paths.some((root) => f.path === root || f.path.startsWith(root + ' > ')),
+      );
+
+      md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
+
       const region = visible(g.after) ? g.after : g.before;
       let images: { before?: string; after?: string; composite?: string } = {};
       if (region && pngA && pngB) {
@@ -655,9 +678,9 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
           maxHeight,
           Math.max(minHeight, visible(g.before) ? g.before.h : 0, visible(g.after) ? g.after.h : 0),
         );
-        // Path-safe stem: a surface key like `hero@1280` becomes `hero-1280`
-        // so relative image links resolve cleanly in any markdown host.
-        const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${n}`;
+        // Path-safe, report-unique stem: `hero@1280` → `hero-1280-3` so relative
+        // image links resolve cleanly and two crops never collide on one filename.
+        const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}`;
         const before = cropPng(pngA, visible(g.before) ? g.before : region, w, h);
         const after = cropPng(pngB, visible(g.after) ? g.after : region, w, h);
         const composite = compositePair(before, after);
@@ -665,7 +688,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         writePng(path.join(outDir, `${stem}-after.png`), after);
         writePng(path.join(outDir, `${stem}-composite.png`), composite);
         images = { before: `${stem}-before.png`, after: `${stem}-after.png`, composite: `${stem}-composite.png` };
-        // One side-by-side image per change: clean inline render, single upload.
+        // One side-by-side image per crop: clean inline render, single upload.
         md.push(
           '',
           `![before ◀ │ ▶ after](${img(images.composite!)})`,
@@ -680,11 +703,12 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
           '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
         );
       }
+
+      // The changes this crop shows, grouped per element, right under its image.
+      md.push(...renderElements(regionFindings));
       (surfaceJson.regions as unknown[]).push({ paths: g.paths, before: g.before, after: g.after, images });
     }
 
-    // The findings, grouped per element, rendered once for the whole group.
-    md.push(...renderElements(surfaceFindings));
     surfaceJson.findings = surfaceFindings;
     json.push(surfaceJson);
   }
