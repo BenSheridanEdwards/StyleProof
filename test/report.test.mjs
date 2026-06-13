@@ -260,6 +260,58 @@ test('an identical change across surfaces collapses into one grouped section', (
   rmTmp(root);
 });
 
+test('two far-apart changes become two crop sections, each holding only its own changes', () => {
+  // A top-right `nav-cta` and a far-below `card` — non-overlapping rects, so the
+  // report must split them into two screenshots, and the tables under each must
+  // be exactly what that screenshot shows (no wall of changes spanning crops).
+  const map = (radius, bg) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 1000], style: {} },
+        'body > a:nth-child(1)': {
+          tag: 'a',
+          cls: 'nav-cta',
+          rect: [1080, 20, 140, 40],
+          style: { 'border-radius': radius },
+        },
+        'body > div:nth-child(2)': {
+          tag: 'div',
+          cls: 'card',
+          rect: [100, 600, 300, 200],
+          style: { 'background-color': bg },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'hero@1280',
+    before: map('8px', 'rgb(7, 10, 14)'),
+    after: map('9999px', 'rgb(14, 20, 29)'),
+    beforePng: solidPng(1280, 1000),
+    afterPng: solidPng(1280, 1000),
+  });
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+
+  // One ### section per crop, each headed by the element it is anchored on.
+  assert.match(md, /### `a\.nav-cta` · 1 element restyled/);
+  assert.match(md, /### `div\.card` · 1 element restyled/);
+
+  // Split on the headings and assert each section carries ONLY its own property.
+  const sections = md.split(/\n### /).slice(1);
+  const nav = sections.find((s) => s.startsWith('`a.nav-cta`'));
+  const card = sections.find((s) => s.startsWith('`div.card`'));
+  assert.ok(nav.includes('border-radius') && !nav.includes('background-color'), 'nav crop shows only its change');
+  assert.ok(card.includes('background-color') && !card.includes('border-radius'), 'card crop shows only its change');
+
+  // Crops read top-to-bottom: the nav-cta (y=20) section precedes the card (y=600).
+  assert.ok(md.indexOf('`a.nav-cta`') < md.indexOf('`div.card`'), 'sections are in page order');
+  assert.equal(
+    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-composite.png')).length,
+    2,
+    'one composite per crop',
+  );
+  rmTmp(root);
+});
+
 test('a newly-added element shows the values its states take, not a bogus "before"', () => {
   const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
   const after = makeMap({
