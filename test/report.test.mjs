@@ -312,6 +312,41 @@ test('two far-apart changes become two crop sections, each holding only its own 
   rmTmp(root);
 });
 
+test('property tables fold under a <details> toggle with an essence line; foldDetailsAt keeps small changes inline', () => {
+  const map = (radius) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
+        'body > a:nth-child(1)': { tag: 'a', cls: 'cta', rect: [20, 20, 120, 40], style: { 'border-radius': radius } },
+      },
+    });
+  const f = pairFixture({
+    surface: 's@1280',
+    before: map('8px'),
+    after: map('9999px'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+
+  // Default (foldDetailsAt: 0) folds always: an essence line above, then the
+  // table inside <details>. The blank lines around the table are mandatory or
+  // GitHub renders it as literal text — assert them explicitly.
+  const folded = fs.readFileSync(generateStyleMapReport({ ...f }).reportMdPath, 'utf8');
+  assert.match(folded, /`border-radius` `8px` → `9999px`/, 'essence line above the fold');
+  assert.match(folded, /<details>\n<summary>Show the property change<\/summary>\n\n/, 'blank line after </summary>');
+  assert.match(folded, /\n\n<\/details>/, 'blank line before </details>');
+
+  // foldDetailsAt: Infinity never folds — table renders inline, no toggle, no
+  // essence line echoing it.
+  const inline = fs.readFileSync(
+    generateStyleMapReport({ ...f, outDir: path.join(f.root, 'inline'), foldDetailsAt: Infinity }).reportMdPath,
+    'utf8',
+  );
+  assert.ok(!inline.includes('<details>'), 'foldDetailsAt: Infinity keeps tables inline');
+  assert.match(inline, /\| `border-radius` \| `8px` \| `9999px` \|/, 'table is present inline');
+  rmTmp(f.root);
+});
+
 test('a newly-added element shows the values its states take, not a bogus "before"', () => {
   const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
   const after = makeMap({

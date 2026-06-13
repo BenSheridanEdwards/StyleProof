@@ -21,6 +21,8 @@ options:
   --image-base-url <url>    prefix for image URLs in report.md (default: relative)
   --pad <px>                padding around changed rects when cropping (default: 24)
   --max-crops <n>           max crop regions per surface before collapsing (default: 6)
+  --fold-details-at <n>     row count at which a crop's property tables fold under a
+                            <details> toggle (default: 0 = always; 'Infinity' = never)
   --min-width <px>          minimum crop width, for context (default: 320)
   --min-height <px>         minimum crop height, for context (default: 180)
   --include-layout-noise    keep size/position-derived longhands (height, width,
@@ -36,6 +38,7 @@ const args = [];
 const flags = { out: 'styleproof-report', imageBaseUrl: '' };
 let pad;
 let maxCrops;
+let foldDetailsAt;
 let minWidth;
 let minHeight;
 let includeLayoutNoise = false;
@@ -52,6 +55,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--pad=')) pad = Number(a.slice(6));
   else if (a === '--max-crops') maxCrops = Number(argv[++i]);
   else if (a.startsWith('--max-crops=')) maxCrops = Number(a.slice(12));
+  else if (a === '--fold-details-at') foldDetailsAt = Number(argv[++i]);
+  else if (a.startsWith('--fold-details-at=')) foldDetailsAt = Number(a.slice(18));
   else if (a === '--min-width') minWidth = Number(argv[++i]);
   else if (a.startsWith('--min-width=')) minWidth = Number(a.slice(12));
   else if (a === '--min-height') minHeight = Number(argv[++i]);
@@ -78,6 +83,11 @@ for (const [name, val] of [
     process.exit(2);
   }
 }
+// foldDetailsAt allows Infinity ("never fold"), so it gets a NaN-only check.
+if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
+  console.error('--fold-details-at must be a number (or Infinity)');
+  process.exit(2);
+}
 
 let result;
 try {
@@ -88,6 +98,7 @@ try {
     imageBaseUrl: flags.imageBaseUrl || undefined,
     pad,
     maxCrops,
+    foldDetailsAt,
     minWidth,
     minHeight,
     includeLayoutNoise,
