@@ -123,12 +123,13 @@ state that drifted.
 When the diff is *intentional*, you don't want a wall of longhands — you want to look
 at it. `stylemap-report` turns a diff into a reviewable report: it finds the
 **outermost changed element** (descendants of other changed elements fold into their
-ancestor), merges nearby regions, zooms out with padding, and crops the before/after
-full-page screenshots at identical dimensions so the pair reads as a pair:
+ancestor), merges nearby regions, zooms out with padding, crops the before/after
+full-page screenshots at identical dimensions, and stitches them into one labelled
+side-by-side image per change:
 
-| Before | After |
-| --- | --- |
-| ![before](docs/demo-before.png) | ![after](docs/demo-after.png) |
+![before ◀ │ ▶ after](docs/demo-composite.png)
+
+<sub>◀ before  ·  after ▶ — grey bar = before, blue bar = after</sub>
 
 …followed by exactly what changed, including state deltas no screenshot could show:
 
@@ -138,22 +139,22 @@ full-page screenshots at identical dimensions so the pair reads as a pair:
   - [:hover] border-top-color: rgb(95, 202, 219) → (state no longer changes it)
 ```
 
-Captures save a full-page screenshot next to each map by default (disable with
-`screenshots: false`), so the committed baseline carries both the facts and the
-pixels — generating a report never requires rebuilding the old code.
+The whole imaging pipeline is Playwright + Node — **no browser interaction**. Captures
+save a full-page screenshot next to each map by default (disable with
+`screenshots: false`), so the committed baseline carries both the facts and the pixels;
+generating a report never rebuilds the old code.
 
 ```sh
 stylemap-report <beforeDir> <afterDir> --out report/ [--image-base-url <url>]
 ```
 
-writes `report.md` (PR-comment-ready markdown), `report.json` (machine-readable), and
-`crops/*.png`.
+writes `report.md` (renders the composite images), `report.json` (machine-readable),
+and `crops/*.png` (composite + the individual before/after crops).
 
-### PR comments via GitHub Action
+### PR comments via GitHub Action — works in private repos
 
 The repo ships a composite action that diffs against your committed baseline and, on
-changes, publishes the crops to a report branch and upserts a PR comment — so you
-approve visual changes by looking at them:
+changes, commits the report to a branch and links it from a PR comment:
 
 ```yaml
 - name: Capture style maps
@@ -168,13 +169,28 @@ approve visual changes by looking at them:
     # fail-on-diff: 'true'              # default
 ```
 
-The job fails while changes are unapproved; **approving = regenerating the committed
-baseline** from the new build and pushing it with the PR (the comment reminds you).
-The comment updates in place on every push, and flips to ✓ when the diff is clean.
+The comment links to **`📊 View the side-by-side visual report →`**, and the property
+diff sits in a `<details>`. The job fails while changes are unapproved; **approving =
+regenerating the committed baseline** from the new build and pushing it with the PR.
+The comment updates in place on every push and flips to ✓ when the diff is clean.
 
-> **Private repos:** GitHub does not render images from private `raw.githubusercontent`
-> URLs inside comments — the property diff and image *links* still work, and images
-> render once the repo is public. Public repos get full inline side-by-sides.
+#### Why a link, not an image embedded in the comment body
+
+This is the one GitHub-imposed subtlety. There are two ways an image can appear on a
+PR, and they have **opposite** privacy behaviour:
+
+| Placement | How GitHub fetches it | Private repo |
+| --- | --- | --- |
+| In a **comment body** (`![](url)`) | anonymously, via the Camo proxy | a private URL **404s → broken image**; only a public URL renders |
+| In a **committed file** (`report.md` with relative `crops/…`) | through **your authenticated session** | **renders inline** — same as a private README's images |
+
+So the action commits the report and links it: you click once and see the side-by-side
+crops rendered inline, with no public hosting and no browser. (Embedding the image
+*directly in the comment body* of a private repo is genuinely impossible from CI —
+GitHub's only private-friendly image URL is `user-attachments`, whose upload endpoint
+rejects API tokens with HTTP 422 and requires a logged-in browser session. If you want
+that, an AI agent with browser access — e.g. Claude Code with the Chrome MCP — can
+upload via the web UI; CI cannot.)
 
 ## CI gate
 

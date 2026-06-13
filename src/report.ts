@@ -230,7 +230,9 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         // Same crop dimensions on both sides so the pair reads as a pair.
         const w = Math.max(minWidth, visible(g.before) ? g.before.w : 0, visible(g.after) ? g.after.w : 0);
         const h = Math.min(maxHeight, Math.max(minHeight, visible(g.before) ? g.before.h : 0, visible(g.after) ? g.after.h : 0));
-        const stem = `crops/${sd.surface.replace(/[^a-z0-9@-]/gi, '_')}-${n}`;
+        // Path-safe stem: a surface key like `hero@1280` becomes `hero-1280`
+        // so relative image links resolve cleanly in any markdown host.
+        const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${n}`;
         const before = cropPng(pngA, visible(g.before) ? g.before : region, w, h);
         const after = cropPng(pngB, visible(g.after) ? g.after : region, w, h);
         const composite = compositePair(before, after);
