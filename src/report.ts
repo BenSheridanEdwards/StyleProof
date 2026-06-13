@@ -699,14 +699,6 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     json.push({ surface: p.sd.surface, missing: p.sd.missing });
   }
 
-  if (surfaces.length) {
-    md.push(
-      '',
-      '---',
-      '_To accept these changes, regenerate the committed baseline from this build and commit it with your diff._',
-    );
-  }
-
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
   fs.writeFileSync(reportMdPath, md.join('\n') + '\n');

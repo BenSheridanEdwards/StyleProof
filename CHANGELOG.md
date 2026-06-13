@@ -7,6 +7,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.2.0]
+
+Visual-review approval gate. StyleProof can now act as a per-PR review gate
+("here is what changed visually — sign off if it's intentional") rather than only
+a zero-diff refactor certifier.
+
+### Added
+
+- **`require-approval` Action input.** Instead of failing the job on any diff, the
+  Action sets a `StyleProof` commit status: green when there are no visual changes,
+  red ("needs sign-off") until the changes are approved. The report comment gains
+  **one approval checkbox per change** — each distinct visual change is signed off
+  on its own, and the gate goes green only when **every** box is ticked.
+- **`example/styleproof-approve.yml`** — a template `issue_comment` workflow (copy
+  to your default branch). As a write-access reviewer ticks the per-change boxes,
+  it updates the `StyleProof` status ("2 of 3 approved") and flips it green only at
+  full approval. Its trust model:
+  - acts only on a **human edit** of the **bot's own** report comment
+    (`comment.user.type == 'Bot'` and `sender.type == 'User'`), which excludes both
+    the Action's own comment upserts and any attacker-authored comment;
+  - **binds approval to the exact commit** the report was generated for (a
+    `<!-- styleproof-sha -->` marker), so a push after the report can never inherit
+    a green status — a new render re-opens the gate;
+  - **verifies write access** (`getCollaboratorPermissionLevel`, fails closed)
+    before moving the status. The marker is not the trust boundary — write access is.
+- **`status-context` input** to rename the commit status (must match the approve
+  workflow + branch protection).
+
+### Changed
+
+- The report no longer appends its own "regenerate the baseline" footer — the
+  consumer (the Action, or your own wrapper) owns the call to action. This also
+  removes the duplicate footer the Action used to add. `fail-on-diff` (legacy
+  refactor mode) is unchanged and still the default.
+
 ## [1.1.0]
 
 Report readability overhaul. No change to the capture format, the diff, or the
@@ -215,7 +250,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/styleproof/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/styleproof/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.6.0...v0.7.0

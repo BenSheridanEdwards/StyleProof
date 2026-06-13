@@ -1,0 +1,91 @@
+# StyleProof approval gate — copy to .github/workflows/ on your DEFAULT branch.
+#
+# issue_comment workflows only ever run from the default branch, so this must
+# live on main (not on the feature branch) to take effect. It flips the
+# `StyleProof` commit status as a write-access reviewer ticks the per-change
+# approval boxes in the StyleProof report comment: green only when EVERY box is
+# ticked. Pair it with the Action's `require-approval: true` input and a
+# branch-protection rule that requires the `StyleProof` status.
+name: StyleProof approve
+
+on:
+  issue_comment:
+    types: [edited] # ticking a checkbox edits the comment
+
+# statuses:write to flip the gate; pull-requests:read to resolve the PR head SHA;
+# issues:write only for the "needs write access" reply on an unauthorized tick.
+permissions:
+  statuses: write
+  pull-requests: read
+  issues: write
+
+jobs:
+  approve:
+    # A HUMAN editing the BOT's own StyleProof report comment on a PR. This is the
+    # trust gate, not the marker: it excludes the bot's own upsert-edits
+    # (sender is a Bot) and any attacker-authored comment (comment.user is a User),
+    # so the only edits that reach the logic are humans ticking boxes in our comment.
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.user.type == 'Bot' &&
+      github.event.sender.type == 'User' &&
+      contains(github.event.comment.body, '<!-- styleproof-report -->')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const STATUS = 'StyleProof'; // must match the Action's status-context input
+
+            // Re-fetch the comment so concurrent ticks all compute from the LATEST
+            // body and converge (the event payload is the body as of one edit). The
+            // body is untrusted — only ever pattern-matched here, never evaluated.
+            const fresh = await github.rest.issues.getComment({ ...context.repo, comment_id: context.payload.comment.id });
+            const body = fresh.data.body || '';
+
+            // Bind approval to the exact commit the report was generated for. A
+            // push after the report leaves this stale, so a new render can never
+            // inherit a green status.
+            const shaMatch = body.match(/<!-- styleproof-sha:([0-9a-f]{40}) -->/i);
+            if (!shaMatch) return;
+            const reportSha = shaMatch[1];
+
+            // One approval checkbox per change. Green needs them ALL ticked.
+            const boxes = body.split('\n').filter((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve this change\*\*/.test(l));
+            if (boxes.length === 0) return;
+            const total = boxes.length;
+            const ticked = boxes.filter((l) => /\[[xX]\]/.test(l)).length;
+
+            // The human who toggled the box must have write access. (`sender` on an
+            // edited event is the editor; combined with the bot-authored + non-bot
+            // guards in `if:`, that's the person who ticked.)
+            const actor = context.payload.sender.login;
+            let perm = 'none';
+            try {
+              perm = (await github.rest.repos.getCollaboratorPermissionLevel({ ...context.repo, username: actor })).data.permission;
+            } catch {
+              /* not a collaborator → stays 'none', fails closed */
+            }
+            if (!['admin', 'maintain', 'write'].includes(perm)) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.payload.issue.number,
+                body: `@${actor} — approving the StyleProof gate needs write access to this repo, so the check stays red.`,
+              });
+              return;
+            }
+
+            // Only ever stamp the exact reviewed commit. If the PR moved since the
+            // report was posted, do nothing — the Action re-posts (red) for the new SHA.
+            const pr = await github.rest.pulls.get({ ...context.repo, pull_number: context.payload.issue.number });
+            const headSha = pr.data.head.sha;
+            if (headSha !== reportSha) return;
+
+            const allApproved = ticked === total;
+            await github.rest.repos.createCommitStatus({
+              ...context.repo,
+              sha: headSha,
+              context: STATUS,
+              state: allApproved ? 'success' : 'failure',
+              description: allApproved ? `All ${total} visual change(s) approved` : `${ticked} of ${total} change(s) approved`,
+            });
