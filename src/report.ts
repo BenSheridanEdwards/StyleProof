@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import { loadStyleMap, type Rect, type StyleMap } from './capture.js';
-import { diffStyleMapDirs, findingLabel, type Finding, type SurfaceDiff } from './diff.js';
+import { diffStyleMapDirs, findingLabel, type DiffCounts, type Finding, type SurfaceDiff } from './diff.js';
 
 /**
  * Visual diff report: for every surface with findings, crop the before/after
@@ -31,6 +31,13 @@ export type ReportOptions = {
   maxHeight?: number;
   /** Max crop regions per surface before collapsing into one union crop (default 6). */
   maxCrops?: number;
+  /**
+   * Include size/position-derived longhands (height, width, transform-origin…)
+   * in the report. Off by default: on a reflow they change up the whole ancestor
+   * chain and would anchor crops to the entire page. The certification differ
+   * (`stylemap-diff`) always keeps them.
+   */
+  includeLayoutNoise?: boolean;
 };
 
 export type ReportResult = {
@@ -167,6 +174,38 @@ function formatProps(f: Finding): string[] {
   return f.props.map((p) => `${prefix}\`${p.prop}: ${p.before} → ${p.after}\``);
 }
 
+// Computed values that follow from an element's box size or position rather than
+// its styling. On any reflow they change all the way up the ancestor chain
+// (body, main, section…), so an element whose ONLY changes are these is a reflow
+// casualty: it must not anchor a crop region (that would zoom to the whole page)
+// nor clutter the findings. The certification differ keeps them — a reflow IS a
+// change to certify — but the visual report focuses on styling intent.
+const DERIVED_PROPS = new Set([
+  'width',
+  'height',
+  'block-size',
+  'inline-size',
+  'min-width',
+  'min-height',
+  'max-width',
+  'max-height',
+  'perspective-origin',
+  'transform-origin',
+  // position offsets shift with the document on any reflow
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'inset-block-start',
+  'inset-block-end',
+  'inset-inline-start',
+  'inset-inline-end',
+]);
+const hasRealChange = (f: Finding): boolean =>
+  f.kind === 'dom' || f.props.some((p) => !DERIVED_PROPS.has(p.prop));
+const stripDerived = (f: Finding): Finding =>
+  f.kind === 'dom' ? f : { ...f, props: f.props.filter((p) => !DERIVED_PROPS.has(p.prop)) };
+
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,
@@ -180,8 +219,27 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     maxCrops = 6,
   } = opts;
 
-  const { surfaces, counts } = diffStyleMapDirs(beforeDir, afterDir);
+  const includeNoise = opts.includeLayoutNoise ?? false;
+  const { surfaces } = diffStyleMapDirs(beforeDir, afterDir);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
+
+  // Focus each surface on styling intent: drop reflow-casualty elements (only
+  // size/position-derived changes) and strip those props from the rest, unless
+  // includeLayoutNoise is set. Surfaces left with no real change are dropped.
+  const prepared = surfaces
+    .map((sd) => ({
+      sd,
+      findings: sd.missing || includeNoise ? sd.findings : sd.findings.filter(hasRealChange).map(stripDerived),
+    }))
+    .filter((p) => p.sd.missing || p.findings.length > 0);
+
+  const shown: DiffCounts = { dom: 0, style: 0, state: 0 };
+  for (const { findings } of prepared)
+    for (const f of findings) {
+      if (f.kind === 'dom') shown.dom++;
+      else if (f.kind === 'style') shown.style += f.props.length;
+      else shown.state += f.props.length;
+    }
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -189,30 +247,30 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
 
   md.push('## 🗺️ stylemap report');
   md.push('');
-  if (surfaces.length === 0) {
+  if (prepared.length === 0) {
     md.push('✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.');
   } else {
     md.push(
-      `**${counts.dom} DOM change(s) · ${counts.style} computed-style difference(s) · ${counts.state} state-delta difference(s)** across ${surfaces.length} changed surface(s).`,
+      `**${shown.dom} DOM change(s) · ${shown.style} computed-style difference(s) · ${shown.state} state-delta difference(s)** across ${prepared.length} changed surface(s).`,
     );
   }
 
   let totalFindings = 0;
-  for (const sd of surfaces) {
+  for (const { sd, findings: surfaceFindings } of prepared) {
     md.push('', `### \`${sd.surface}\``);
     if (sd.missing) {
       md.push('', `⚠️ captured only in the **${sd.missing === 'before' ? 'after' : 'before'}** set — re-run both captures.`);
       json.push({ surface: sd.surface, missing: sd.missing });
       continue;
     }
-    totalFindings += sd.findings.length;
+    totalFindings += surfaceFindings.length;
 
     const mapA = loadStyleMap(findCapture(beforeDir, sd.surface));
     const mapB = loadStyleMap(findCapture(afterDir, sd.surface));
     const pngA = readPng(path.join(beforeDir, `${sd.surface}.png`));
     const pngB = readPng(path.join(afterDir, `${sd.surface}.png`));
 
-    const changedPaths = outermost([...new Set(sd.findings.map((f) => f.path))]);
+    const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
     let groups = groupRegions(changedPaths, mapA, mapB, padBy);
     if (groups.length > maxCrops) {
       groups = [
@@ -228,7 +286,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     let n = 0;
     for (const g of groups) {
       n++;
-      const findings = sd.findings.filter((f) => g.paths.some((p) => f.path === p || f.path.startsWith(p + ' > ')));
+      const findings = surfaceFindings.filter((f) => g.paths.some((p) => f.path === p || f.path.startsWith(p + ' > ')));
       const lines = findings.flatMap((f) => [
         `- ${findingLabel(f.path, f.cls)}${f.kind === 'style' && f.pseudo ? f.pseudo : ''}`,
         ...formatProps(f).map((s) => `  - ${s}`),
@@ -287,8 +345,8 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
   fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
-  fs.writeFileSync(reportJsonPath, JSON.stringify({ counts, surfaces: json }, null, 2));
-  return { changedSurfaces: surfaces.length, totalFindings, reportMdPath, reportJsonPath };
+  fs.writeFileSync(reportJsonPath, JSON.stringify({ counts: shown, surfaces: json }, null, 2));
+  return { changedSurfaces: prepared.length, totalFindings, reportMdPath, reportJsonPath };
 }
 
 function findCapture(dir: string, surface: string): string {
