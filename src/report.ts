@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import { loadStyleMap, type Rect, type StyleMap } from './capture.js';
-import { diffStyleMapDirs, findingLabel, type DiffCounts, type Finding, type SurfaceDiff } from './diff.js';
+import { diffStyleMapDirs, type DiffCounts, type Finding, type PropChange, type SurfaceDiff } from './diff.js';
 
 /**
  * Visual diff report: for every surface with findings, crop the before/after
@@ -168,10 +168,190 @@ function readPng(file: string): PNG | null {
   return PNG.sync.read(fs.readFileSync(file));
 }
 
-function formatProps(f: Finding): string[] {
-  if (f.kind === 'dom') return [`DOM ${f.change}${f.detail ? `: ${f.detail}` : ''}`];
-  const prefix = f.kind === 'state' ? `[:${f.state}] ` : (f.pseudo ?? '');
-  return f.props.map((p) => `${prefix}\`${p.prop}: ${p.before} → ${p.after}\``);
+// --- readable findings: dedupe logical longhands, collapse shorthand families,
+//     humanize values, label by semantic marker, group identical siblings ------
+
+// Logical longhand → its physical equivalent (LTR, horizontal-tb). Dropped when
+// the physical one changed identically, so each change appears once.
+const LOGICAL_TO_PHYSICAL: Record<string, string> = (() => {
+  const m: Record<string, string> = {};
+  const sides: Record<string, string> = {
+    'block-start': 'top',
+    'block-end': 'bottom',
+    'inline-start': 'left',
+    'inline-end': 'right',
+  };
+  for (const [l, p] of Object.entries(sides)) {
+    for (const k of ['color', 'width', 'style']) m[`border-${l}-${k}`] = `border-${p}-${k}`;
+    m[`margin-${l}`] = `margin-${p}`;
+    m[`padding-${l}`] = `padding-${p}`;
+    m[`inset-${l}`] = p;
+  }
+  const radius: Record<string, string> = {
+    'start-start': 'top-left',
+    'start-end': 'top-right',
+    'end-start': 'bottom-left',
+    'end-end': 'bottom-right',
+  };
+  for (const [l, p] of Object.entries(radius)) m[`border-${l}-radius`] = `border-${p}-radius`;
+  return m;
+})();
+
+// Length-valued 4-side families → CSS 1–4-value shorthand whenever all four
+// sides changed (e.g. `padding: 26px 24px → 28px`).
+const BOX4: { short: string; parts: string[] }[] = [
+  { short: 'margin', parts: ['top', 'right', 'bottom', 'left'].map((s) => `margin-${s}`) },
+  { short: 'padding', parts: ['top', 'right', 'bottom', 'left'].map((s) => `padding-${s}`) },
+  { short: 'border-width', parts: ['top', 'right', 'bottom', 'left'].map((s) => `border-${s}-width`) },
+  {
+    short: 'border-radius',
+    parts: ['top-left', 'top-right', 'bottom-right', 'bottom-left'].map((s) => `border-${s}-radius`),
+  },
+];
+// Colour/keyword families → one row only when all four sides match (else
+// per-side, which keeps each colour swatchable).
+const UNIFORM: { short: string; parts: string[] }[] = [
+  { short: 'border-color', parts: ['top', 'right', 'bottom', 'left'].map((s) => `border-${s}-color`) },
+  { short: 'border-style', parts: ['top', 'right', 'bottom', 'left'].map((s) => `border-${s}-style`) },
+];
+const boxShorthand = ([t, r, b, l]: string[]): string =>
+  t === r && r === b && b === l ? t : t === b && r === l ? `${t} ${r}` : r === l ? `${t} ${r} ${b}` : `${t} ${r} ${b} ${l}`;
+
+const PROP_ORDER = [
+  'display', 'position', 'grid-template-columns', 'grid-template-rows', 'flex-direction', 'justify-content',
+  'align-items', 'gap', 'margin', 'padding', 'border-width', 'border-style', 'border-color', 'border-radius',
+  'outline', 'background-color', 'background-image', 'color', 'box-shadow', 'opacity', 'transform',
+  'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-transform', 'text-align',
+];
+const orderIdx = (p: string): number => {
+  const i = PROP_ORDER.indexOf(p);
+  return i === -1 ? PROP_ORDER.length : i;
+};
+
+function cleanVal(v: string): string {
+  let s = v.replace(/-?\d+\.\d+/g, (m) => String(Math.round(parseFloat(m) * 10) / 10));
+  if (!s.includes('(')) {
+    const toks = s.split(' ');
+    if (toks.length > 1 && new Set(toks).size === 1) s = `${toks[0]} ×${toks.length}`;
+  }
+  return s.replace(/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/g, 'transparent');
+}
+
+// These default to `currentColor`, so a `color` change drags them all along —
+// pure echoes, dropped when they match the `color` change.
+const CURRENTCOLOR_FOLLOWERS = [
+  'caret-color',
+  'outline-color',
+  'column-rule-color',
+  'text-decoration-color',
+  'text-emphasis-color',
+  '-webkit-text-fill-color',
+  '-webkit-text-stroke-color',
+];
+
+function summarizeProps(props: PropChange[]): PropChange[] {
+  const map = new Map(props.map((p) => [p.prop, { ...p }]));
+  for (const [logical, physical] of Object.entries(LOGICAL_TO_PHYSICAL)) {
+    const lo = map.get(logical);
+    const ph = map.get(physical);
+    if (lo && ph && lo.before === ph.before && lo.after === ph.after) map.delete(logical);
+  }
+  const color = map.get('color');
+  if (color)
+    for (const f of CURRENTCOLOR_FOLLOWERS) {
+      const m = map.get(f);
+      if (m && m.before === color.before && m.after === color.after) map.delete(f);
+    }
+  for (const fam of BOX4) {
+    const members = fam.parts.map((p) => map.get(p));
+    if (members.every((m): m is PropChange => !!m)) {
+      fam.parts.forEach((p) => map.delete(p));
+      map.set(fam.short, {
+        prop: fam.short,
+        before: boxShorthand(members.map((m) => m.before)),
+        after: boxShorthand(members.map((m) => m.after)),
+      });
+    }
+  }
+  const rg = map.get('row-gap');
+  const cg = map.get('column-gap');
+  if (rg && cg) {
+    map.delete('row-gap');
+    map.delete('column-gap');
+    map.set('gap', {
+      prop: 'gap',
+      before: rg.before === cg.before ? rg.before : `${rg.before} ${cg.before}`,
+      after: rg.after === cg.after ? rg.after : `${rg.after} ${cg.after}`,
+    });
+  }
+  for (const fam of UNIFORM) {
+    const members = fam.parts.map((p) => map.get(p)).filter((m): m is PropChange => !!m);
+    if (
+      members.length === fam.parts.length &&
+      members.every((m) => m.before === members[0].before && m.after === members[0].after)
+    ) {
+      fam.parts.forEach((p) => map.delete(p));
+      map.set(fam.short, { prop: fam.short, before: members[0].before, after: members[0].after });
+    }
+  }
+  return [...map.values()]
+    .map((p) => ({ prop: p.prop, before: cleanVal(p.before), after: cleanVal(p.after) }))
+    .sort((a, b) => orderIdx(a.prop) - orderIdx(b.prop) || a.prop.localeCompare(b.prop));
+}
+
+/** `div.who-grid`, `a.nav-cta`, `h3` — the semantic marker class, else the tag. */
+function prettyLabel(p: string, cls: string): string {
+  const tag = (p.split('>').pop() ?? '').trim().replace(/:nth-child\(\d+\)/, '') || 'el';
+  const first = cls.split(/\s+/)[0] ?? '';
+  return /^[a-z][a-z0-9-]*$/.test(first) ? `${tag}.${first}` : tag;
+}
+
+// Group findings (identical siblings collapse to one ×N block) and render each
+// as a 3-column table; colours land in their own cell so GitHub adds swatches.
+function renderFindings(findings: Finding[], maxRows = 60): string[] {
+  type Group = { label: string; note: string; rows: PropChange[]; count: number };
+  const groups: Group[] = [];
+  const byKey = new Map<string, Group>();
+  for (const f of findings) {
+    const label = prettyLabel(f.path, f.cls);
+    const note = f.kind === 'state' ? `:${f.state}` : f.kind === 'style' ? (f.pseudo ?? '') : '';
+    const rows = f.kind === 'dom' ? [] : summarizeProps(f.props);
+    const headOnly = f.kind === 'dom' ? `DOM ${f.change}${f.detail ? ` ${f.detail}` : ''}` : '';
+    if (f.kind !== 'dom' && rows.length === 0) continue;
+    const key = `${label}|${note}|${headOnly}|${JSON.stringify(rows)}`;
+    const g = byKey.get(key);
+    if (g) g.count++;
+    else {
+      const ng: Group = { label, note: headOnly || note, rows, count: 1 };
+      byKey.set(key, ng);
+      groups.push(ng);
+    }
+  }
+  const out: string[] = [];
+  let used = 0;
+  for (let i = 0; i < groups.length; i++) {
+    if (used >= maxRows) {
+      out.push('', `_…and ${groups.length - i} more element(s) — see report.json._`);
+      break;
+    }
+    const g = groups[i];
+    const head = `**\`${g.label}\`**${g.count > 1 ? ` ×${g.count}` : ''}${g.note ? `  ${g.note}` : ''}`;
+    if (!g.rows.length) {
+      out.push('', head);
+      used += 1;
+      continue;
+    }
+    out.push(
+      '',
+      head,
+      '',
+      '| Property | Before | After |',
+      '| --- | --- | --- |',
+      ...g.rows.map((r) => `| \`${r.prop}\` | \`${r.before}\` | \`${r.after}\` |`),
+    );
+    used += 2 + g.rows.length;
+  }
+  return out;
 }
 
 // Computed values that follow from an element's box size or position rather than
@@ -233,12 +413,14 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     }))
     .filter((p) => p.sd.missing || p.findings.length > 0);
 
+  // Count what the report actually shows (after shorthand/dedupe collapsing),
+  // not the raw longhand explosion.
   const shown: DiffCounts = { dom: 0, style: 0, state: 0 };
   for (const { findings } of prepared)
     for (const f of findings) {
       if (f.kind === 'dom') shown.dom++;
-      else if (f.kind === 'style') shown.style += f.props.length;
-      else shown.state += f.props.length;
+      else if (f.kind === 'style') shown.style += summarizeProps(f.props).length;
+      else shown.state += summarizeProps(f.props).length;
     }
 
   const md: string[] = [];
@@ -287,10 +469,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     for (const g of groups) {
       n++;
       const findings = surfaceFindings.filter((f) => g.paths.some((p) => f.path === p || f.path.startsWith(p + ' > ')));
-      const lines = findings.flatMap((f) => [
-        `- ${findingLabel(f.path, f.cls)}${f.kind === 'style' && f.pseudo ? f.pseudo : ''}`,
-        ...formatProps(f).map((s) => `  - ${s}`),
-      ]);
+      const lines = renderFindings(findings);
 
       const region = visible(g.after) ? g.after : g.before;
       let images: { before?: string; after?: string; composite?: string } = {};
@@ -321,8 +500,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         md.push('', '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._');
       }
 
-      md.push('', ...lines.slice(0, 40));
-      if (lines.length > 40) md.push(`  - …and ${lines.length - 40} more (see report.json)`);
+      md.push(...lines);
       (surfaceJson.regions as unknown[]).push({
         paths: g.paths,
         before: g.before,

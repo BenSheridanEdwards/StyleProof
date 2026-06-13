@@ -133,26 +133,29 @@ runs:
           const isPrivate = !!context.payload.repository.private;
           const embed = mode === 'always' || (mode === 'auto' && !isPrivate);
 
-          const diff = fs.existsSync('stylemap-diff.txt') ? fs.readFileSync('stylemap-diff.txt', 'utf8').trim() : '';
-          const clipped = diff.length > 50000 ? diff.slice(0, 50000) + '\n… (truncated)' : diff;
+          // The readable report.md carries the per-element property tables (text,
+          // so they render in the comment on any repo) plus the composite images.
+          const reportMd = fs.existsSync('stylemap-report/report.md') ? fs.readFileSync('stylemap-report/report.md', 'utf8') : '';
+          const lines = reportMd.split('\n');
+          const headEnd = lines.findIndex((l) => l.startsWith('### '));
+          const head = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ stylemap report';
+          const regions = headEnd > 0 ? lines.slice(headEnd).join('\n') : '';
 
           let visual;
           if (embed) {
-            const report = JSON.parse(fs.readFileSync('stylemap-report/report.json', 'utf8'));
-            const shots = [];
-            for (const s of report.surfaces || [])
-              for (const r of s.regions || [])
-                if (r.images && r.images.composite) shots.push(`**\`${s.surface}\`**\n\n![${s.surface} before/after](${rawBase}/${r.images.composite})`);
-            visual = `${shots.join('\n\n')}\n\n<sub>◀ before · after ▶ — [full report →](${url})</sub>`;
+            // public: rewrite relative crop paths to public raw URLs → images render inline
+            visual = regions.replace(/\]\(crops\//g, `](${rawBase}/crops/`);
           } else {
-            visual = `### 📊 [**View the side-by-side visual report →**](${url})\n\nBefore/after crops render **inline** when you open it — a committed file served through your authenticated session (works in private repos; no public hosting, no browser).`;
+            // private: tables render inline; images live behind the authenticated link
+            const tables = regions.replace(/^!\[.*$/gm, '').replace(/^<sub>.*$/gm, '').replace(/\n{3,}/g, '\n\n');
+            visual = `### 📊 [**View the side-by-side visual report →**](${url})\n\n_Before/after crops render inline there — a committed file served through your authenticated session (works in private repos)._\n${tables}`;
           }
 
-          const body = [
-            marker, '## 🗺️ stylemap report', '', visual, '',
-            '<details><summary>Property changes</summary>', '', '```', clipped, '```', '', '</details>', '',
+          let body = [
+            marker, head, '', visual, '',
             '---', '_To accept: regenerate the committed baseline from this build and commit it with your diff._',
           ].join('\n');
+          if (body.length > 64000) body = body.slice(0, 63000) + `\n\n…truncated — see the [full report →](${url}).`;
           await upsert(body);
 
     - name: Fail on diff
