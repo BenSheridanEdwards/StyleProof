@@ -1,218 +1,243 @@
 # StyleProof
 
-> **Prove a CSS refactor changed nothing.** Capture the browser's _computed styles_ and diff before against after. If the diff is empty, the refactor is certified: not "looks the same", but _resolves byte-for-byte the same_.
+**Know exactly what every PR changes visually, and sign it off.** Two modes share one capture-and-diff engine: gate a PR on per-change sign-off, or certify that a refactor changed nothing visual. StyleProof captures the browser's _computed_ styles, diffs your PR against its base branch, and posts a per-change report, so a styling change never ships without someone confirming it was intended.
 
 [![npm version](https://img.shields.io/npm/v/styleproof.svg)](https://www.npmjs.com/package/styleproof)
-[![CI](https://github.com/BenSheridanEdwards/styleproof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/styleproof/actions/workflows/ci.yml)
-[![license: MIT](https://img.shields.io/npm/l/styleproof.svg)](./LICENSE)
-
-StyleProof captures every resolved CSS longhand on every element, every
-pseudo-element (`::before`/`::after`/`::marker`/`::placeholder`), and every forced
-`:hover`/`:focus`/`:active` state, swept across your breakpoints, keyed by DOM
-structure rather than class names. Then it diffs two captures and tells you the exact
-element, property, and state that drifted, or certifies that nothing did.
-
-Built for CSS-to-Tailwind migrations, design-system swaps, stylesheet consolidation,
-and any refactor where "trust me, it's identical" isn't good enough.
-
-```
-home@1280: 1 element(s) differ
-  body > main:nth-child(2) > section:nth-child(5) > a:nth-child(1)  (.cta)
-    border-bottom-color: rgb(95, 202, 219) → rgb(229, 231, 235)
-    border-bottom-style: none → solid
-
-  [:hover] body > nav:nth-child(1) > a:nth-child(3)
-    border-color: rgb(95, 202, 219) → (state no longer changes it)
-
-✗ 1 DOM change(s), 2 computed-style difference(s), 1 state-delta difference(s) across 12 surfaces
-```
+[![CI](https://github.com/BenSheridanEdwards/styleproof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/styleproof/actions)
+[![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/styleproof/blob/main/LICENSE)
 
 ---
 
-## Why computed styles certify a refactor where pixels cannot
+## The problem
 
-Pixel diffing is the right tool for _catching_ visual drift, but it cannot _certify_ a
-refactor, because most of a stylesheet is invisible to a screenshot:
+Visual regressions are the biggest unguarded gap in front-end review. A PR says it does one thing; somewhere in the diff a `:focus` ring goes missing, a hidden error message changes colour, a rule lands on the wrong side of a breakpoint, a sub-pixel shift creeps in. None of that shows up in a code review of a Tailwind class soup, and pixel-snapshot tools miss most of it too: screenshots can't force `:hover` / `:focus` / `:active`, can't see elements that aren't currently visible, can't reach between-breakpoint rules, and blur away sub-pixel drift and declared-but-not-running motion.
 
-- **Hover, focus, and active states.** A deleted `:hover` rule renders identically
-  until a human points a mouse at it. This tool forces each pseudo-class through the
-  Chrome DevTools Protocol (`CSS.forcePseudoState`) and records exactly what each
-  state changes, including parent-state rules that restyle descendants. (`:focus`
-  forces `:focus` and `:focus-visible` together.)
-- **Hidden elements.** A closed mobile menu is `display: none` in every screenshot,
-  but its panel, items, and animations still have computed styles, and they're
-  compared.
-- **Between-breakpoint rules.** Screenshots sample two or three viewports. The style
-  map sweeps one width per `@media` band, so a dropped `max-width: 680px` override is
-  caught even if your screenshot widths never land in that band.
-- **Sub-threshold drift.** Every pixel comparison needs a tolerance for antialiasing,
-  and a tolerance is a place for a real 1px change to hide. Computed values need no
-  tolerance: `13.5px` either equals `13.5px` or it doesn't.
-- **Declared motion.** Transitions and animations are captured as declared longhands
-  (then frozen so every other value is a settled end state), so changing
-  `transition: all .2s` to `.3s` is a diff even though no still image could see it.
+## The solution
 
-Screenshots and style maps complement each other: pixels catch what you forgot to
-model, the style map certifies what pixels can't see. Use both.
+StyleProof reads the **computed style** of every element, the values the browser actually resolves, and turns each PR into a crisp answer to one question: what did this change about the way the site looks?
+
+- It **captures computed styles, not pixels**: every resolved longhand, every pseudo-element, the deltas that `:hover` / `:focus` / `:active` apply (forced via the DevTools protocol, no mouse), swept across each `@media` breakpoint. It catches what screenshots miss.
+- It **diffs your PR's HEAD against its base branch**, so the report is _exactly what this PR changes_, nothing more. There is no committed baseline to maintain and no drift to chase.
+- It **posts a per-change report comment** on the PR, with before/after property tables and side-by-side crops, grouped so each distinct change appears once.
+- It **gates the PR on per-change sign-off**: a `StyleProof` commit status that stays red until every change is approved, and goes green when there are none. The author (human or agent) ticks a box per change to confirm it was intended.
+
+A reviewer, a senior engineer or an AI agent, holds that report against the PR's stated intent. If they line up, ship it. If a change shows up the PR never claimed, that's the signal something slipped in.
+
+---
+
+## How it works
+
+Four stages turn a PR into a signed-off visual review: **capture → diff → report → gate.**
+
+### The capture
+
+StyleProof drives your pages with Playwright and, at each settled state, reads what the browser computed:
+
+- **Elements.** Every element's computed style, pruned against per-tag user-agent defaults (measured in a clean, stylesheet-free iframe so only _your_ declarations remain), plus `::before` / `::after` / `::marker` / `::placeholder`.
+- **States.** For every interactive element, what `:hover`, `:focus` (forced together with `:focus-visible`), and `:active` _change_, forced through a CDP session with `CSS.forcePseudoState`, captured as a delta over the element's subtree. No screenshot can reach these.
+- **Motion.** `transition` and `animation` longhands are captured _before_ animations are frozen, so declared motion is verified while every other value is read as a settled end state.
+
+Elements are keyed by **DOM structure, never class name** (`body > div:nth-child(2) > a:nth-child(1)`). That is the design property that makes a CSS-to-Tailwind migration legible: every `class` attribute can be rewritten and the map still lines up element-for-element. The class is stored as a human-readable label, but it is never compared.
+
+The result is a `StyleMap`: a compact, deterministic JSON snapshot of one page at one viewport width. You capture one per surface per breakpoint.
+
+### The diff: HEAD vs base branch
+
+CI captures a `StyleMap` from the PR HEAD and another from the base branch, then diffs them. The diff is structural and value-exact:
+
+- Elements present on one side only become `added` / `removed` DOM findings; a changed tag at the same path becomes `retagged`.
+- Every computed longhand is compared, with each side falling back to its own UA defaults; any `before ≠ after` is a property change.
+- State deltas are compared per element, per state, per sub-path.
+- Custom properties (`--*`) are ignored on purpose: they are inputs, not outcomes, and every visual effect of a variable lands in a real longhand that _is_ compared in full.
+
+Because the comparison is HEAD-against-base, the findings are precisely the visual surface area of _this_ PR.
+
+### The report
+
+The diff is rendered to a Markdown report (`report.md` + structured `report.json` + image crops) and posted as a marked PR comment:
+
+- A one-line summary: how many DOM, computed-style, and state-delta differences, across how many distinct changes and surfaces.
+- Each distinct change rendered once, even when it appears on several breakpoints (identical changes across surfaces collapse into a single section with one representative crop, the widest one).
+- Before/after property tables per element, with longhands folded into readable rows (4-side families collapsed to shorthand, logical/physical duplicates dropped, transparent values normalised).
+- Side-by-side before/after crops on a GitHub-dark canvas, located in a full-page screenshot via each element's document-space rect.
+- Reflow noise filtered out by default: elements whose only change is size/position-derived are dropped so a single layout shift doesn't drown the real change.
+
+### The approval gate
+
+In review-gate mode the report comment carries **one approval checkbox per change**. The `StyleProof` commit status is red until every box is ticked, green when it is, and green immediately when a PR has no visual changes at all. Sign-off is bound to the exact reviewed commit: push new work and the gate re-opens for the new SHA. A companion workflow enforces _who_ can approve, detailed in [the Action reference](#the-github-action).
+
+---
+
+## Two modes
+
+StyleProof is one capture-and-diff engine with two ways to act on the result. Pick which, and why:
+
+- **Review gate** (`require-approval: true`) is the recommended mode: drive the `StyleProof` commit status and ask for per-change sign-off, so an intended change ships once someone confirms it. Use it on any PR that touches styling.
+- **Certify a refactor** (`fail-on-diff: true`, the historical default) proves a change touched _nothing_ visual: any difference fails the job. Use it for a CSS-to-Tailwind migration, a design-system swap, or a build-tooling change whose entire promise is "the output is byte-for-byte identical." The contract is zero diff, and a single drifting property is a failure to investigate, not a change to approve.
+
+Review-gate is the recommended mode but opt-in; `fail-on-diff` is the historical default, and `fail-on-diff` is ignored when `require-approval` is true. A PR is either gated on sign-off or gated on identity, never both.
+
+---
 
 ## Install
 
-```sh
-# from npm (peer dep: @playwright/test):
-npm i -D styleproof @playwright/test
+```bash
+npm install -D styleproof @playwright/test
+npx playwright install chromium
 ```
 
-Until the first npm release you can install straight from GitHub:
+Requirements:
 
-```sh
-npm i -D github:BenSheridanEdwards/styleproof @playwright/test
+- **Node ≥ 18**, ESM (`"type": "module"`).
+- **`@playwright/test` ≥ 1.40** (peer dependency): StyleProof captures through Playwright and forces states through Chromium's DevTools protocol.
+
+Working examples live in [`example/`](https://github.com/BenSheridanEdwards/styleproof/tree/main/example): a capture spec and the approve workflow you'll copy into CI.
+
+## Quickstart
+
+After installing (above), scaffold the capture spec, wire CI, copy the approve workflow, and require the status.
+
+### 1. Scaffold a capture spec
+
+```bash
+npx styleproof-init
 ```
 
-Requirements: Node 18+, `@playwright/test` >= 1.40, a Chromium-capable Playwright
-install (`npx playwright install chromium`). The only runtime dependency is
-[`pngjs`](https://www.npmjs.com/package/pngjs) (pure JS, no native build).
+This writes `e2e/styleproof.spec.ts` (a starter surface sweeping widths `[1280, 768, 390]` with a `settle()` helper) and, only if you don't already have one, a `playwright.config.ts` pointed at `http://localhost:3000`. It never overwrites an existing config, and re-running it is a no-op.
 
-A runnable spec lives in [`example/`](example/).
-
-## 60-second quickstart
-
-**1. Write a capture spec** listing your **surfaces** — each one a deterministic page
-state plus the viewport widths to sweep. `npx styleproof-init` scaffolds the file below
-(with a `settle()` helper and a `playwright.config.ts` if you don't have one); or write
-it by hand:
+Edit the spec to describe your surfaces with `defineStyleMapCapture`:
 
 ```ts
-// e2e/styleproof.spec.ts
-import { defineStyleMapCapture, type Surface } from 'styleproof';
+import { defineStyleMapCapture } from 'styleproof';
 
-const SURFACES: Surface[] = [
-  {
-    key: 'home',
-    go: async (page) => {
-      await page.goto('/', { waitUntil: 'networkidle' });
-      await page.evaluate(() => document.fonts.ready);
+async function settle(page) {
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(() => document.fonts.ready);
+  // scroll-reveal, lazy images, etc.: drive the page to rest before capture
+}
+
+defineStyleMapCapture({
+  dir: process.env.STYLEMAP_DIR, // inert until set — see below
+  surfaces: [
+    {
+      key: 'landing',
+      go: async (page) => {
+        await page.goto('/');
+        await settle(page);
+      },
+      widths: [1280, 768, 390], // one viewport per @media band
     },
-    ignore: ['.live-feed'], // nondeterministic regions, skipped entirely
-    widths: [1280, 768, 390], // one per @media band of the route's CSS
-  },
-  {
-    key: 'home-menu-open', // states matter: model them as surfaces
-    go: async (page) => {
-      await page.goto('/', { waitUntil: 'networkidle' });
-      await page.getByRole('button', { name: 'Menu' }).click();
+    {
+      key: 'landing-nav-open',
+      go: async (page) => {
+        await page.goto('/');
+        await settle(page);
+        await page.getByRole('button', { name: 'Menu' }).click();
+      },
+      widths: [768, 390],
     },
-    widths: [390],
-  },
-];
-
-defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
+  ],
+});
 ```
 
-The spec is **inert** unless `STYLEMAP_DIR` is set, so it costs nothing in a normal
-test run.
+The spec is **inert** (every test skips) until `dir` is set via `STYLEMAP_DIR`, so it lives harmlessly alongside your other Playwright tests and only runs when CI asks it to. Each `surface × width` becomes one test, capturing `<key>@<width>.json.gz` (plus a full-page screenshot for the report crops).
 
-**2. Capture a baseline and commit it** — **always against a production build**, dev
-servers inject their own styles:
+### 2. Wire CI to capture HEAD and base
 
-```sh
-STYLEMAP_DIR=baseline npx playwright test styleproof   # writes __stylemaps__/baseline/*.json.gz + *.png
-git add e2e/__stylemaps__/baseline && git commit -m "stylemap baseline"
+Your CI job captures the PR HEAD and the base branch into two directories, then hands them to the Action. The shape is the same for every framework; `npm run build` / `npm run serve` here stand in for _your_ framework's commands (see [CI recipes](#ci-recipes)), and `npx wait-on` blocks until the server is actually ready before capture:
+
+```yaml
+# .github/workflows/styleproof.yml
+name: StyleProof
+on: pull_request
+
+jobs:
+  styleproof:
+    runs-on: ubuntu-latest # or your self-hosted runner — see caveat
+    permissions:
+      contents: write # push the report branch
+      pull-requests: write # post/update the comment
+      statuses: write # set the StyleProof status
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the base branch too
+
+      # --- capture the base branch ---
+      - run: git checkout ${{ github.event.pull_request.base.sha }}
+      - run: npm ci && npm run build && (npm run serve &) # your framework's build + serve
+      - run: npx wait-on http://localhost:3000 # wait for the server to bind
+      - run: STYLEMAP_DIR=base npx playwright test e2e/styleproof.spec.ts
+
+      # --- capture the PR head ---
+      - run: git checkout ${{ github.event.pull_request.head.sha }}
+      - run: npm ci && npm run build && (npm run serve &)
+      - run: npx wait-on http://localhost:3000
+      - run: STYLEMAP_DIR=head npx playwright test e2e/styleproof.spec.ts
+
+      # --- report + gate ---
+      - uses: BenSheridanEdwards/styleproof@v1
+        with:
+          baseline-dir: base
+          fresh-dir: head
+          require-approval: true # review-gate mode
 ```
 
-The `.json.gz` maps are small (a content-heavy page gzips to ~80 KB); the `.png`
-full-page screenshots let the report crop changed regions later.
+The `git checkout`, build/serve, and `wait-on` lines are conventional Actions/git plumbing you supply for a HEAD-vs-base capture, not StyleProof commands; only the `styleproof.spec.ts` runs and the Action step are StyleProof's.
 
-**3. Let CI diff every push** against that committed baseline:
+### 3. Copy the approve workflow to your default branch
 
-```sh
-STYLEMAP_DIR=ci npx playwright test styleproof
-npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
-```
+The checkboxes need a workflow to read them. Copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/styleproof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` on your **default branch**: it enforces who can approve (details in [the Action reference](#the-github-action)). GitHub only runs `issue_comment` workflows from the default branch, so until this file is merged there the checkboxes won't do anything, even on the PR you're testing.
 
-An empty diff exits `0` (certified). A non-empty diff exits `1` and names every
-element, property, and state that drifted. After an _intentional_ change, regenerate
-the baseline and commit it with your diff — the gate is a ratchet, not a freeze.
+### 4. Require the status
 
-## Core concepts
+Add a branch-protection rule requiring the `StyleProof` status check. Now an unsigned visual change can't merge.
 
-### StyleMap
-
-A `StyleMap` is the JSON snapshot of one page state at one width. It has three layers:
-
-- **`elements`** — every element's computed style, pruned against per-tag UA defaults
-  (measured live in a stylesheet-free iframe) so files stay small, plus its
-  pseudo-elements and its document-space bounding box (so reports can crop the
-  screenshot around it).
-- **`states`** — for every interactive element (`a, button, input, textarea, select,
-summary, [role="button"], [tabindex]`), the delta that `:hover`, `:focus` /
-  `:focus-visible`, and `:active` apply, forced via CDP with no real mouse or focus,
-  captured over the element's whole subtree so parent-state descendant rules are seen.
-- **`defaults`** — the per-tag UA baseline used to prune `elements`, kept so the diff
-  can resolve a pruned property back to its default when only one side set it.
-
-### Surfaces
-
-A **surface** is one deterministic page state worth certifying. You give it a `key`, a
-`go(page)` function that navigates and drives the page to that state (ending
-_settled_: fonts loaded, entrance animations done), an optional `ignore` list of
-selectors for nondeterministic regions, and the `widths` to sweep. Distinct states
-(menu open, dialog open, selected tab, form error) are distinct surfaces.
-
-### DOM-structure keys
-
-Every element is keyed by its structural path, `body > nav:nth-child(3) >
-a:nth-child(2)`, **never by class name**. A migration can rewrite every `class`
-attribute freely while the map stays comparable. If the DOM itself changes, the diff
-says so loudly under a `DOM` finding: a CSS-only refactor must not touch structure.
-
-Custom properties (`--*`) are deliberately ignored: they are inputs, not outcomes.
-Every visual effect of a variable lands in a real longhand that _is_ compared, so
-renaming a token is invisible while changing what an element resolves to is not.
-(This also silences Tailwind's `--tw-*` machinery.)
-
-### Derived / reflow-noise filtering
-
-The **certification differ** (`styleproof-diff`) compares everything, including
-layout-derived longhands (`width`, `height`, `top`, `transform-origin`…), because a
-reflow _is_ a change to certify. The **report** filters those by default: on a reflow
-they change all the way up the ancestor chain (`body`, `main`, `section`…), and an
-element whose _only_ changes are derived is a reflow casualty, not a styling change,
-so it must not anchor a crop region (that would zoom the crop to the whole page).
-Pass `includeLayoutNoise: true` to keep them in the report too.
-
-### The readable report
-
-When a diff is _intentional_, you want to look at it, not read a wall of longhands.
-`styleproof-report` crops the before/after screenshots around the **outermost changed
-element** (descendants fold into their ancestor, nearby regions merge), stitches each
-pair into one labelled side-by-side image (grey bar = before, blue bar = after), and
-writes the exact changes as a per-element table. It collapses the noise: shorthand
-families (`padding: 26px 24px → 28px`), logical / `currentColor` duplicates dropped,
-repeated tokens folded (`368px ×3`), identical sibling elements grouped (`×5`),
-labelled by their semantic class, colours in their own cells so GitHub renders
-swatches.
-
-![before ◀ │ ▶ after](docs/demo-composite.png)
-
-<sub>◀ before · after ▶ — grey bar = before, blue bar = after</sub>
-
-> **`div.who-grid`**
+> **Caveats.**
 >
-> | Property                | Before               | After                |
-> | ----------------------- | -------------------- | -------------------- |
-> | `grid-template-columns` | `368px ×3`           | `548px ×2`           |
-> | `gap`                   | `1px`                | `12px`               |
-> | `border-color`          | `rgb(150, 172, 205)` | `rgb(229, 231, 235)` |
->
-> **`h3`** ×5 · **`div.who`** ×3 …
+> - **Self-hosted runners:** `issue_comment` workflows run from the default branch, and on a **private repo without GitHub-hosted Actions minutes** that job silently fails to start. Point the approve workflow at the same self-hosted runner your CI uses (`runs-on: [self-hosted, …]`); there's a comment in the template marking the line.
+> - **Hard merge-blocking is your host's job.** StyleProof sets a commit status; turning that status into a _required_ check is a branch-protection setting on GitHub. The gate is only as binding as the rule you attach to it.
 
-The whole imaging pipeline is Playwright + Node, **no browser interaction**. Captures
-save a full-page screenshot next to each map by default, so the committed baseline
-carries both the facts and the pixels; generating a report never rebuilds the old code.
+---
 
-## API reference
+## Reference
 
-Everything is exported from the package root:
+### Concepts
+
+**StyleMap.** The capture artifact: a JSON object (gzipped on disk) with three layers — `defaults` (per-tag UA baselines used for pruning), `elements` (every element's pruned computed style + pseudo-elements + document-space `rect`), and `states` (the `:hover` / `:focus` / `:active` deltas). One `StyleMap` is one surface at one width.
+
+**Surfaces.** A page in a particular state at a set of widths: a `key`, a `go(page)` that navigates and settles, an `ignore` list of nondeterministic regions, and the `widths` to sweep (one per `@media` band). `defineStyleMapCapture` expands `surfaces × widths` into individual Playwright tests.
+
+**DOM-structure keys.** Elements are keyed by structural path, never class, so a refactor can rewrite every `class` and still produce a comparable map. Tag changes at the same path surface as `retagged`.
+
+**Derived / reflow filtering.** The report drops elements whose only differences are size/position-derived and strips those props from the rest. Turn it off with `--include-layout-noise`. The certification differ (`styleproof-diff`) always keeps them — a reflow is itself a change to certify.
+
+**The report.** Cross-surface changes collapse to one section with one representative crop (the widest surface); each changed element renders once, gathering its base, pseudo, and state findings under a single heading. Property lists are folded into readable rows by `summarizeProps`; element labels come from `prettyLabel`. Brand-new elements render their state values as a single column (there's no meaningful "before"); existing elements render `Before → After`.
+
+### Readable output
+
+A clean run:
+
+```
+✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.
+```
+
+A change, as the certification differ prints it:
+
+```
+✗ 2 surface(s) with difference(s)
+
+landing @ 1280
+  a.nav-cta
+    color           #0b1220 → #ffffff
+    background-color #58a6ff → #1f6feb
+  button.cta  :focus
+    outline-color   (state does not change it) → #58a6ff
+```
+
+…and as the PR report renders it: a summary line, a section per distinct change with a before/after crop, and per-element property tables.
+
+### API
 
 ```ts
 import {
@@ -229,475 +254,175 @@ import {
 } from 'styleproof';
 ```
 
-| Export                   | Signature                                                                         | Description                                                                                                                                                                                                                                           |
-| ------------------------ | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `captureStyleMap`        | `(page: Page, options?: CaptureOptions) => Promise<StyleMap>`                     | Capture the page's complete style map. Drive the page to the target state first; it reads whatever is in front of it. Records elements, pseudo-elements, forced `:hover`/`:focus`/`:active` deltas, declared motion, and each element's bounding box. |
-| `saveStyleMap`           | `(filePath: string, map: StyleMap) => void`                                       | Write a map to disk; gzipped when the path ends in `.gz`. Creates parent dirs.                                                                                                                                                                        |
-| `loadStyleMap`           | `(filePath: string) => StyleMap`                                                  | Read a map written by `saveStyleMap` (`.json` or `.json.gz`).                                                                                                                                                                                         |
-| `defineStyleMapCapture`  | `(opts: DefineOptions) => void`                                                   | Generate one Playwright test per surface × width, saving `<baseDir>/<dir>/<key>@<width>.json.gz` (+ `.png`). Skips entirely when `dir` is undefined, so the spec is inert in normal runs. Call at module top level in a `.spec.ts`.                   |
-| `diffStyleMaps`          | `(a: StyleMap, b: StyleMap) => Finding[]`                                         | Structured diff of two maps for the same surface: DOM, style, and state findings.                                                                                                                                                                     |
-| `diffStyleMapDirs`       | `(dirA: string, dirB: string) => { surfaces: SurfaceDiff[]; counts: DiffCounts }` | Diff every same-named capture between two directories. Throws if neither dir has any `.json(.gz)` captures.                                                                                                                                           |
-| `findingLabel`           | `(path: string, cls: string) => string`                                           | Human label: structural path plus a truncated `.class` hint (first 3 classes).                                                                                                                                                                        |
-| `generateStyleMapReport` | `(opts: ReportOptions) => ReportResult`                                           | Crop the before/after screenshots around changed regions and write `report.md`, `report.json`, and `crops/*.png`.                                                                                                                                     |
-| `summarizeProps`         | `(props: PropChange[]) => PropChange[]`                                           | The report's property collapser: dedupe logical aliases, fold `currentColor` echoes, collapse shorthand families (`padding: 26px 24px`), round and run-length values. Exported for downstream report builders.                                        |
-| `prettyLabel`            | `(path: string, cls: string) => string`                                           | Label an element by its semantic marker class (`div.who-grid`) rather than its structural path.                                                                                                                                                       |
+| Export                                           | Purpose                                                                                                          |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `captureStyleMap(page, options?)`                | Read a settled page into a `StyleMap`.                                                                           |
+| `saveStyleMap(path, map)` / `loadStyleMap(path)` | Persist / read a map (gzipped when the path ends `.gz`; a corrupt file throws a friendly "re-capture it" error). |
+| `defineStyleMapCapture(options)`                 | Generate the Playwright capture tests from a surface list.                                                       |
+| `diffStyleMaps(a, b)`                            | `Finding[]` for two maps.                                                                                        |
+| `diffStyleMapDirs(dirA, dirB)`                   | `{ surfaces, counts }` across two capture directories.                                                           |
+| `findingLabel(path, cls)`                        | Human label for a finding.                                                                                       |
+| `generateStyleMapReport(before, after, options)` | Write `report.md`, `report.json`, and `crops/`.                                                                  |
+| `summarizeProps` / `prettyLabel`                 | The report's property-folding and element-labelling helpers.                                                     |
 
-### Key exported types
+Key types: `StyleMap`, `ElementEntry`, `Rect`, `CaptureOptions` (capture); `Surface`, `DefineOptions` (runner); `Finding`, `PropChange`, `SurfaceDiff`, `DiffCounts` (diff); `ReportOptions`, `ReportResult` (report).
 
 ```ts
-type Rect = [number, number, number, number]; // document-space [x, y, w, h], rounded
+import { chromium } from '@playwright/test';
+import { captureStyleMap, saveStyleMap, loadStyleMap, diffStyleMaps } from 'styleproof';
 
-type StyleMap = {
-  defaults: Record<string, Props>; // per-tag UA baseline
-  elements: Record<string, ElementEntry>; // keyed by structural path
-  states: Record<string, Record<string, Record<string, Props>>>; // path → state → subpath → props
-};
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
-type ElementEntry = {
-  tag: string;
-  cls: string;
-  rect?: Rect;
-  style: Props; // Record<string, string>
-  pseudo?: Record<string, Props>; // '::before' | '::after' | '::marker' | '::placeholder'
-};
+await page.goto('http://localhost:3000');
+// …drive to a settled state…
+const head = await captureStyleMap(page, { ignore: ['.clock', '.carousel'] });
 
+const base = loadStyleMap('base/landing@1280.json.gz');
+const findings = diffStyleMaps(base, head); // exactly what changed
+```
+
+`CaptureOptions`:
+
+```ts
 type CaptureOptions = {
-  ignore?: string[]; // selectors skipped with their subtrees
-  captureStates?: boolean; // capture forced :hover/:focus/:active deltas (default true)
-  maxInteractive?: number; // cap forced-state elements per surface (default 800)
-};
-
-type Surface = {
-  key: string; // unique file-name prefix
-  go: (page: Page) => Promise<void>;
-  ignore?: string[];
-  widths: number[]; // one per @media band
-  height?: number | ((width: number) => number); // default 800
-};
-
-type DefineOptions = {
-  surfaces: Surface[];
-  dir: string | undefined; // capture label; undefined = skip
-  baseDir?: string; // default '__stylemaps__'
-  screenshots?: boolean; // default true
-};
-
-type PropChange = { prop: string; before: string; after: string };
-
-type Finding =
-  | { kind: 'dom'; path: string; cls: string; change: 'added' | 'removed' | 'retagged'; detail?: string }
-  | { kind: 'style'; path: string; cls: string; pseudo: string | null; props: PropChange[] }
-  | { kind: 'state'; path: string; cls: string; state: string; sub: string; props: PropChange[] };
-
-type SurfaceDiff = { surface: string; missing?: 'before' | 'after'; findings: Finding[] };
-type DiffCounts = { dom: number; style: number; state: number };
-
-type ReportOptions = {
-  beforeDir: string;
-  afterDir: string;
-  outDir: string;
-  imageBaseUrl?: string; // prefix for image URLs in report.md (default: relative paths)
-  pad?: number; // padding around changed rects (default 24)
-  minWidth?: number; // default 320
-  minHeight?: number; // default 180
-  maxHeight?: number; // crops clamped to this (default 1600)
-  maxCrops?: number; // regions per surface before collapsing to one (default 6)
-  includeLayoutNoise?: boolean; // keep size/position-derived longhands (default false)
-};
-
-type ReportResult = {
-  changedSurfaces: number;
-  totalFindings: number;
-  reportMdPath: string;
-  reportJsonPath: string;
+  ignore?: string[]; // nondeterministic regions; matches AND their descendants are skipped
+  captureStates?: boolean; // default true — the forced :hover/:focus/:active layer
+  maxInteractive?: number; // default 800 — cap on forced-state interactive elements
 };
 ```
 
-```ts
-// Example: programmatic use, same engines as the CLIs.
-const map = await captureStyleMap(page, { ignore: ['.live-feed'] });
-saveStyleMap('maps/home@1280.json.gz', map);
-const before = loadStyleMap('maps/home@1280.json.gz');
+### CLI
 
-const findings = diffStyleMaps(before, map);
-const { surfaces, counts } = diffStyleMapDirs('maps/before', 'maps/after');
-generateStyleMapReport({ beforeDir: 'maps/before', afterDir: 'maps/after', outDir: 'report' });
-```
+Three bins ship with the package. Every flag accepts both `--flag value` and `--flag=value`.
 
-## CLI reference
+#### `styleproof-init`
 
-The three bins are installed on your PATH (run via `npx` or an npm script). They read
-the built `dist/`, so they work from the installed package out of the box. Each takes
-`-h`/`--help`.
-
-### `styleproof-init` — scaffold a capture spec
+Scaffold the capture spec (and a starter `playwright.config.ts` if none exists).
 
 ```
-styleproof-init [--dir <path>] [--base-url <url>] [--force]
+styleproof-init [options]
+  --dir <path>      spec output path (default: e2e/styleproof.spec.ts)
+  --base-url <url>  baseURL for a generated playwright.config.ts (default: http://localhost:3000)
+  --force           overwrite the spec if it already exists
+  -h, --help        show this help
 ```
 
-| Flag               | Default                  | Description                                                             |
-| ------------------ | ------------------------ | ----------------------------------------------------------------------- |
-| `--dir <path>`     | `e2e/styleproof.spec.ts` | Where to write the starter spec (with a `settle()` helper + a Surface). |
-| `--base-url <url>` | `http://localhost:3000`  | `baseURL` for a generated `playwright.config.ts` (only if none exists). |
-| `--force`          | off                      | Overwrite the spec if it already exists. Idempotent without it.         |
+Idempotent. Exit `0` done / nothing to do, `2` usage error.
 
-Exit `0` on success (or nothing to do), `2` on a usage error. An existing
-`playwright.config.ts` is never touched.
+#### `styleproof-diff`
 
-### `styleproof-diff` — the certification gate
+The certification gate: does anything differ? Prints per-surface element / property / state drift and a final identical / differences summary.
 
 ```
-styleproof-diff <beforeDir> <afterDir> [--max N] [--json <file>]
+styleproof-diff <beforeDir> <afterDir> [options]
+  --max <n>     max lines printed per surface before truncating (default: 40)
+  --json <file> also write the full structured diff to <file>
+  -h, --help    show this help
 ```
 
-| Flag                                 | Default | Description                                                                                   |
-| ------------------------------------ | ------- | --------------------------------------------------------------------------------------------- |
-| `<beforeDir>`                        | —       | Directory of baseline `.json(.gz)` captures (required).                                       |
-| `<afterDir>`                         | —       | Directory of fresh `.json(.gz)` captures (required).                                          |
-| `--max N` (or `--max=N`)             | `40`    | Max diff lines printed per surface before truncating. (The GitHub Action passes `--max=200`.) |
-| `--json <file>` (or `--json=<file>`) | —       | Also write the structured `{ counts, surfaces }` result to `<file>`.                          |
+Exit `0` identical (certified), `1` differences found, `2` usage / capture error.
 
-| Exit code | Meaning                                                                                        |
-| --------- | ---------------------------------------------------------------------------------------------- |
-| `0`       | Identical — every computed style, pseudo-element, and state matches. **Certified.**            |
-| `1`       | Differences found (DOM, style, and/or state).                                                  |
-| `2`       | Usage or capture error (bad args, missing dir, no captures, non-finite `--max`, unknown flag). |
+#### `styleproof-report`
 
-### `styleproof-report` — the reviewable visual report
+The reviewable product: render the diff to a Markdown report with before/after crops.
 
 ```
 styleproof-report <beforeDir> <afterDir> --out <dir> [options]
+  --out <dir>              output directory (default: styleproof-report)
+  --image-base-url <url>   prefix for image URLs in report.md (default: relative)
+  --pad <px>               padding around changed rects when cropping (default: 24)
+  --max-crops <n>          max crop regions per surface before collapsing (default: 6)
+  --min-width <px>         minimum crop width, for context (default: 320)
+  --min-height <px>        minimum crop height, for context (default: 180)
+  --include-layout-noise   keep size/position-derived longhands (off by default)
+  -h, --help               show this help
 ```
 
-| Flag                                   | Default             | Description                                                                                                                   |
-| -------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `<beforeDir>`                          | —                   | Baseline captures (`.json.gz` + `.png` for crops).                                                                            |
-| `<afterDir>`                           | —                   | Fresh captures (`.json.gz` + `.png` for crops).                                                                               |
-| `--out <dir>` (or `--out=<dir>`)       | `styleproof-report` | Output directory: writes `report.md`, `report.json`, `crops/*.png`.                                                           |
-| `--image-base-url <url>` (or `=<url>`) | relative paths      | Prefix for image URLs in `report.md` (e.g. a raw GitHub URL). Omit to keep relative paths that render from a committed file.  |
-| `--pad <px>`                           | `24`                | Padding around the changed rects when cropping.                                                                               |
-| `--max-crops <n>`                      | `6`                 | Max crop regions per surface before collapsing to one union crop.                                                             |
-| `--min-width <px>`                     | `320`               | Minimum crop width, for context around tiny changes.                                                                          |
-| `--min-height <px>`                    | `180`               | Minimum crop height.                                                                                                          |
-| `--include-layout-noise`               | off                 | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`…) in the report instead of filtering them. |
+Exit `0` no changes (empty report written), `1` report generated, `2` usage error.
 
-| Exit code | Meaning                                                                       |
-| --------- | ----------------------------------------------------------------------------- |
-| `0`       | No changes — an empty report was written.                                     |
-| `1`       | Report generated (one or more changed surfaces).                              |
-| `2`       | Usage error (wrong arg count, unknown/non-numeric flag, or capture/IO error). |
+The split is the spine of the tool: **`styleproof-diff` is the certify gate, `styleproof-report` is the review product.** The Action runs the diff to decide whether anything changed, then the report to show what.
 
-Numeric flags also accept the `--flag=value` form. The remaining `maxHeight` knob
-(crop height clamp, default 1600) is available through the programmatic
-`generateStyleMapReport` API.
+### The GitHub Action
 
-## GitHub Action
+`BenSheridanEdwards/styleproof@v1` (composite). It runs `styleproof-diff` to detect change, runs `styleproof-report` when there is any, pushes the report to an orphan branch, upserts a marked PR comment, and either fails the job (certify mode) or sets the `StyleProof` status (review mode).
 
-The repo ships a composite action that diffs two capture dirs and, on changes, commits a
-compact report to an orphan branch and posts it to the PR. The comment updates in place on
-every push and flips to ✓ when clean. It runs in one of two modes — **certify a refactor**
-(default) or **review visual changes** with per-change sign-off (`require-approval`); see
-[Two modes](#two-modes-certify-a-refactor-or-review-visual-changes) below.
+**Inputs:**
 
-```yaml
-- name: Capture style maps
-  run: STYLEMAP_DIR=ci npx playwright test styleproof
+| Input              | Default               | Purpose                                                                                                      |
+| ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `baseline-dir`     | _required_            | Base-branch captures (`.json.gz` + `.png`).                                                                  |
+| `fresh-dir`        | _required_            | PR-head captures to compare.                                                                                 |
+| `report-branch`    | `styleproof-reports`  | Orphan branch storing reports, one `pr-<n>/` folder per PR.                                                  |
+| `inline-images`    | `auto`                | `auto` / `always` / `never`. `auto` embeds composites inline for public repos, links the report for private. |
+| `github-token`     | `${{ github.token }}` | Push the report branch and post the comment.                                                                 |
+| `fail-on-diff`     | `true`                | Certify mode: fail the job on any diff. Ignored when `require-approval` is true.                             |
+| `require-approval` | `false`               | Review-gate mode: set the `StyleProof` status instead of failing.                                            |
+| `status-context`   | `StyleProof`          | Commit-status name. Must match the approve workflow and branch protection.                                   |
 
-- name: Style-map report
-  uses: BenSheridanEdwards/styleproof@v1
-  with:
-    baseline-dir: e2e/__stylemaps__/baseline
-    fresh-dir: e2e/__stylemaps__/ci
-    # report-branch: styleproof-reports   # default (orphan; created on first run)
-    # inline-images: auto               # auto | always | never
-    # fail-on-diff: 'true'              # default
-```
+**Outputs:**
 
-### Inputs
-
-| Input              | Required | Default               | Description                                                                                                                     |
-| ------------------ | -------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `baseline-dir`     | yes      | —                     | Directory with the committed baseline captures (`.json.gz` + `.png`).                                                           |
-| `fresh-dir`        | yes      | —                     | Directory with the freshly captured maps to compare.                                                                            |
-| `report-branch`    | no       | `styleproof-reports`  | Orphan branch that stores reports (created on first run). One `pr-<n>/` folder per PR; never pruned.                            |
-| `inline-images`    | no       | `auto`                | `auto` \| `always` \| `never`. `auto` embeds composites in the comment for public repos and links the report for private repos. |
-| `github-token`     | no       | `${{ github.token }}` | Token used to push the report branch and post the comment.                                                                      |
-| `fail-on-diff`     | no       | `'true'`              | Legacy refactor mode: fail the job on any diff. Ignored when `require-approval` is `'true'`.                                    |
-| `require-approval` | no       | `'false'`             | Review-gate mode: set a `StyleProof` commit status (red until each change is approved) instead of failing the job. See below.   |
-| `status-context`   | no       | `StyleProof`          | Name of the commit status set in review-gate mode (must match the approve workflow + branch protection).                        |
-
-### Outputs
-
-| Output       | Description                                                         |
+| Output       | Value                                                               |
 | ------------ | ------------------------------------------------------------------- |
 | `changed`    | `"true"` when any computed style, pseudo-element, or state changed. |
 | `report-url` | Blob URL of the committed report (when changed).                    |
 
-### Two modes: certify a refactor, or review visual changes
+**The approve workflow trust model.** `styleproof-approve.yml` fires on `issue_comment: [edited]` (ticking a box edits the comment) and flips the status. It is deliberately strict about _who_ can approve:
 
-- **Certify (default, `fail-on-diff: true`).** Any computed-style change fails the job.
-  Right for a refactor you expect to be a no-op (a CSS-to-Tailwind migration); "approving"
-  a change means regenerating the committed baseline and pushing it.
-- **Review gate (`require-approval: true`).** The report is the product: every PR shows
-  _what changed visually_, and a reviewer signs each change off against the PR's stated
-  intent. Instead of failing the job, the Action sets a **`StyleProof` commit status** —
-  green when nothing changed, red until approved — and posts **one approval checkbox per
-  change**. The gate goes green only when **every** box is ticked.
+- It only acts on a **human editing the bot's own report comment**: comment author is the Bot, the editing sender is a User, and the body carries the `<!-- styleproof-report -->` marker. This excludes the Action's own edits and any attacker-authored comment.
+- **Write access is the trust boundary, not the marker.** The editor's collaborator permission must be `admin` / `maintain` / `write` (failing closed to `none`); otherwise it posts a "needs write access" reply and leaves the status red.
+- **Sign-off is bound to the commit.** The report embeds `<!-- styleproof-sha:<40-hex> -->`; the workflow resolves the PR head and does nothing unless they match. A push after the report can never inherit a green status — the Action re-posts red for the new SHA.
+- It counts `- [x] **Approve this change**` lines and sets `success` only when ticked equals total, else `failure` with `N of M change(s) approved`.
 
-To enable the review gate:
+It runs on the default token via `actions/github-script@v7`; the Action's `github-token` defaults to `${{ github.token }}`, so no PAT is required.
 
-1. Set `require-approval: 'true'` on the Action, and grant the job `statuses: write`
-   (plus the existing `contents: write` / `pull-requests: write`).
-2. Copy [`example/styleproof-approve.yml`](example/styleproof-approve.yml) to
-   `.github/workflows/` **on your default branch** (`issue_comment` workflows only run
-   from the default branch).
-3. Add a branch-protection rule that **requires the `StyleProof` status** to pass.
-
-A reviewer with write access walks the report change-by-change and ticks each box; the
-status updates ("2 of 3 approved") and flips green at full approval. A new push that
-changes styles re-opens the gate. The approval is bound to the exact reviewed commit and
-acts only on a human edit of the bot's own comment, so it can't be flipped green by a
-later push, by the bot's own comment updates, or by anyone without write access. Pair it
-naturally with a head-vs-**base-branch** diff (capture the base branch into `baseline-dir`)
-so each PR's report is exactly _what this PR changes_.
-
-Two things to know about the trust model:
-
-- **Single-reviewer by design.** Any write-access user can tick the boxes, **including the
-  PR author on their own PR** — the sign-off is "I confirm this is intentional," not
-  multi-party review. If you need a different person to approve, add a branch-protection
-  rule requiring a review from someone other than the author (CODEOWNERS); this gate
-  doesn't enforce that itself.
-- **Use the default `GITHUB_TOKEN`.** The approve workflow only acts on a comment authored
-  by a bot (so an attacker-authored comment can never trigger it). If you post the report
-  with a personal access token (a `User`), the workflow won't fire and the gate can never
-  go green. A GitHub App token works; a PAT does not.
-
-### Why two image modes (and why it's automatic)
-
-The two ways an image can appear on a PR have **opposite** privacy behaviour, so
-`inline-images: auto` picks per repo:
-
-| Placement                                             | How GitHub fetches it                  | Private repo                                        |
-| ----------------------------------------------------- | -------------------------------------- | --------------------------------------------------- |
-| **comment body** `![](url)`                           | anonymously, via the Camo proxy        | private URL **404s → broken**; needs a public URL   |
-| **committed file** (`report.md` + relative `crops/…`) | through **your authenticated session** | **renders inline** — like a private README's images |
-
-- **Public repo** → composites are embedded **directly in the comment** via the public
-  `raw.githubusercontent.com/…` URL; you see the side-by-side without clicking.
-- **Private repo** → the comment **links** the committed `report.md`; one click shows
-  the crops inline, no public hosting, no browser.
-
-(Embedding an image _directly in a private comment body_ is genuinely impossible from
-CI — GitHub's only private-friendly image URL is `user-attachments`, whose upload
-endpoint rejects API tokens with HTTP 422 and needs a logged-in browser session.)
-
-### Orphan-branch layout and stable links
-
-The report branch is an **orphan** (reports only, never your code), so its root is one
-folder per PR plus a README:
-
-```
-styleproof-reports (orphan)
-├── README.md
-├── pr-9/   report.md + crops/*-composite.png
-└── pr-12/  …
-```
-
-- **Stable links.** Each run overwrites `pr-<n>/`, so
-  `…/blob/styleproof-reports/pr-9/report.md` is permanent for the life of the PR.
-  Reports are **never pruned**; per-run history lives in the branch's git commits.
-- **Compact.** Only the **composite** is committed (alpha dropped, max deflate,
-  adaptive filtering): ~30–90 KB per change, a few hundred KB per PR.
-- **Concurrency-safe.** Different PRs touch different folders; a rejected push just
-  rebase-replays (the action retries).
-- **Reclaiming history.** Git keeps every overwritten image, so a busy repo's branch
-  history grows. The _tree_ (what serves the links) stays small; to shrink `.git`,
-  squash the orphan branch when it's quiet — current reports keep their URLs:
-  ```sh
-  git checkout --orphan tmp styleproof-reports && git commit -qm "squash reports" \
-    && git branch -M tmp styleproof-reports && git push -f origin styleproof-reports
-  ```
+---
 
 ## CI recipes
 
-Every recipe is the same shape: produce a **production build**, serve it, point
-`BASE_URL` (or your Playwright `baseURL`) at it, capture, diff against the committed
-baseline. Use the Action step from above to also post a PR comment.
+Capture base and head under their own `STYLEMAP_DIR` (see [Quickstart step 2](#2-wire-ci-to-capture-head-and-base)), then hand the two directories to the Action. Only the build/serve lines change per framework:
 
-### Next.js
+| Framework   | build                      | serve                                       |
+| ----------- | -------------------------- | ------------------------------------------- |
+| Next.js     | `next build`               | `next start -p 3000`                        |
+| Vite        | `vite build`               | `vite preview --port 3000`                  |
+| Static site | (your generator)           | `npx serve -l 3000 dist`                    |
+| Anything    | whatever produces the site | any static server on the captured `baseURL` |
 
-```yaml
-- uses: actions/checkout@v4
-- uses: actions/setup-node@v4
-  with: { node-version: 20, cache: npm }
-- run: npm ci
-- run: npx playwright install --with-deps chromium
-- run: npm run build
-- run: npx next start -p 3000 &
-- run: npx wait-on http://localhost:3000
-- run: BASE_URL=http://localhost:3000 STYLEMAP_DIR=ci npx playwright test styleproof
-- run: npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
-```
+For **certify mode**, swap `require-approval: true` for `fail-on-diff: true` (the default) and the job fails on any diff instead of asking for sign-off.
 
-### Vite / SPA
+### Baselines and the env-parity gotcha
 
-```yaml
-- run: npm ci && npx playwright install --with-deps chromium
-- run: npm run build # → dist/
-- run: npx vite preview --port 4173 & # serves the production build
-- run: npx wait-on http://localhost:4173
-- run: BASE_URL=http://localhost:4173 STYLEMAP_DIR=ci npx playwright test styleproof
-- run: npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
-```
-
-### Plain static site
-
-```yaml
-- run: npm ci && npx playwright install --with-deps chromium
-- run: npm run build # → public/ or dist/
-- run: npx serve -l 5000 dist & # any static server
-- run: npx wait-on http://localhost:5000
-- run: BASE_URL=http://localhost:5000 STYLEMAP_DIR=ci npx playwright test styleproof
-- run: npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
-```
-
-### Generic build → serve → capture → diff
-
-```sh
-<your build command>                         # produce a PRODUCTION build
-<your static/app server> &                   # serve it on a known port
-npx wait-on http://localhost:<port>          # wait until it answers
-BASE_URL=http://localhost:<port> STYLEMAP_DIR=ci npx playwright test styleproof
-npx styleproof-diff e2e/__stylemaps__/baseline e2e/__stylemaps__/ci
-```
-
-Your `playwright.config.ts` reads `BASE_URL` for `use.baseURL`; surfaces use relative
-paths (`page.goto('/')`).
-
-## Baselines and the env-parity gotcha
-
-A baseline is the committed `before` of your refactor and the certified state CI
-compares against. **Capture it in the same environment CI uses.** Anything that
-changes what renders must match between the baseline capture and CI's fresh capture:
-
-- **Feature flags** that show or hide a panel.
-- **API tokens** that gate a section (e.g. a live-data widget only present when a key
-  is set).
-- **Env-dependent copy** (a `mailto:` line built from an env var, a conditional embed).
-
-If your local `.env` makes the page render _more_ than CI will, baselines captured
-locally can never pass on the runner: the extra elements exist on one side only and
-show up as DOM findings. The fix is to capture the baseline with the **same** env the
-runner has (typically no `.env.local`), then commit it. After an _intentional_ style
-change, regenerate the committed baseline from a production build in that same
-environment and commit it with your diff.
+Capture both sides under the **same environment**. If env vars change _what renders_ (a token that toggles a panel, an address that changes a `mailto:`, an embed key that swaps a real widget for a skeleton), then a base captured with your local `.env` against a head captured on a bare CI runner will diff on DOM structure that no PR touched. Capture base and head with the identical env on the same machine, and the diff is purely the PR's doing.
 
 ## Determinism
 
-Captures read whatever is in front of them, so the page must be **settled and
-repeatable** before `captureStyleMap` runs. The differ has zero tolerance, so any
-nondeterminism becomes a false diff. In your surface's `go`:
-
-- **Fonts.** `await page.evaluate(() => document.fonts.ready)` before capturing —
-  unloaded fonts change `font-family` fallbacks and metrics.
-- **Animations / transitions.** The capture freezes them so every value is a settled
-  end state, but _entrance_ animations driven by JS or IntersectionObserver must
-  already have finished. Scroll the page to trigger reveals, then wait; or inject CSS
-  forcing your reveal classes to their final values
-  (`.reveal{opacity:1!important;transform:none!important}`).
-- **Scroll-reveal.** Walk the page top to bottom (see `example/styleproof.spec.ts`'s
-  `settle` helper) so every observer fires, then scroll back to `0`.
-- **Live / nondeterministic regions.** List them in `ignore` (live feeds, ads,
-  third-party embeds, timestamps); the elements and their subtrees are skipped.
-- **Same build state.** Layout-derived values are part of the map by design, so if
-  text content differs between captures, expect diffs. Capture the same build.
+The capture reads whatever is in front of it, so **drive the page to rest before capturing.** Your `settle()` should wait for fonts (`document.fonts.ready`), let lazy images and scroll-reveal animations finish, and stop any looping motion. StyleProof freezes `transition`/`animation` itself before the base pass (after recording declared motion), but it cannot settle _your_ application state for you. `ignore` out genuinely nondeterministic regions (clocks, carousels, randomised content); the selector and all its descendants are dropped.
 
 ## Limitations
 
-- **Chromium only for forced-state capture.** The `:hover`/`:focus`/`:active` deltas
-  use CDP (`CSS.forcePseudoState`), which is Chromium-only. Base element and
-  pseudo-element capture work in any Playwright browser.
-- **Same machine, same browser version for before/after.** Computed values are far
-  less platform-sensitive than pixels, but font metrics can still differ across OSes
-  and browser builds. Capture both sides on the same runner image.
-- **No shadow-DOM piercing.** Capture walks `document.querySelectorAll('body *')`; it
-  does not descend into shadow roots, so a refactor inside a web component's shadow
-  tree would be falsely certified identical. Capture emits a one-time warning counting
-  the shadow hosts it skipped, so the gap is loud, not silent.
-- **No iframe piercing.** Iframe content (same- or cross-origin) is not traversed for
-  the same reason; same-origin frames are counted in the same warning. To certify a
-  frame, point a separate surface at its document directly.
-- **Layout-derived values are included** (used track sizes, element heights, offsets).
-  This is intentional for the certification differ, but it means a content or reflow
-  change produces diffs; the report filters these unless `includeLayoutNoise: true`.
-- **Forced-state capture is O(interactive elements × 3 states).** A content-heavy page
-  takes a few seconds per surface.
+- **Forced states are Chromium-only.** `:hover` / `:focus` / `:active` are forced through the Chromium DevTools protocol, so the state layer is Chromium-specific. (Base and pseudo layers work wherever Playwright runs.)
+- **No Shadow DOM or iframe piercing.** Open or closed shadow roots and iframe content (same- or cross-origin) are not traversed; a refactor inside one would be falsely reported identical. Capture warns once when it sees shadow hosts or same-origin frames.
+- **Same machine.** Compare maps captured on the same OS / browser build / DPR; font rasterisation and default metrics differ across hosts. (See the env-parity note above.)
+- **The forced-state layer is the expensive one.** It's capped at `maxInteractive` (800) elements per surface and can be turned off with `captureStates: false`. A CDP count-skew on a surface (from `display: contents`, late hydration, injected nodes) makes the state layer for that surface skip with a warning rather than abort the diff; a one-sided skip is surfaced loudly so it never reads as "identical."
 
-## Troubleshooting
+## Compared to pixel-snapshot tools
 
-| Symptom                                                                   | Likely cause / fix                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npx playwright test styleproof` does nothing / spec skipped              | `STYLEMAP_DIR` is unset. The capture spec is inert by design until you set it (`STYLEMAP_DIR=before …`).                                                                                                                                                              |
-| `no .json(.gz) captures found in …`                                       | You diffed before capturing, or pointed at the wrong dir. Check `<baseDir>/<label>/`.                                                                                                                                                                                 |
-| `styleproof: interactive-element count skew …; skipping forced … capture` | The DOM changed between the CDP query and the page evaluate (e.g. a late-rendering widget). The base + pseudo capture still succeed; only the forced-state layer is skipped for that surface. Settle the surface fully, or `ignore` the unstable region, then re-run. |
-| Capture warns about shadow hosts / iframes                                | Styles inside shadow roots and frames are not captured (see Limitations). Point a separate surface at the frame's document, or accept the gap.                                                                                                                        |
-| Diffs you didn't expect, all `width`/`height`/`top`/…                     | A real reflow (content or layout changed). The differ keeps these; use the _report_ (which filters them) to see the styling intent, or capture the identical build state.                                                                                             |
-| Baseline passes locally, fails in CI with DOM findings                    | Env parity: your local env renders elements CI doesn't (or vice versa). Capture the baseline in CI's environment — see _Baselines and the env-parity gotcha_.                                                                                                         |
-| Diffs every run, fonts-related                                            | Fonts weren't ready at capture. Await `document.fonts.ready` (and any web-font load) in `go`.                                                                                                                                                                         |
-| Private-repo PR comment shows no images, only a link                      | Expected: GitHub can't render images in a private comment body. Click the link — the committed report renders the crops inline through your session.                                                                                                                  |
-| `styleproof-diff: command not found` from a fresh clone                   | The bins import the built `dist/`. Run `npm run build` first (the published npm package ships a prebuilt `dist/`).                                                                                                                                                    |
-
-## How this compares to pixel snapshot tools
-
-|                                                                            | **StyleProof**                  | **Percy / Chromatic**     | **Playwright `toHaveScreenshot`** |
-| -------------------------------------------------------------------------- | ------------------------------- | ------------------------- | --------------------------------- |
-| Compares                                                                   | computed CSS longhands          | rendered pixels           | rendered pixels                   |
-| Certifies invisible state (hover/focus/active, hidden, between-breakpoint) | **yes**                         | no                        | no                                |
-| Tolerance needed                                                           | **none** (exact values)         | antialiasing threshold    | `maxDiffPixels` threshold         |
-| Cross-browser / cross-OS fidelity                                          | values only (no real render)    | **strong** (real renders) | good                              |
-| Catches what it wasn't told to model                                       | no (model your surfaces)        | **yes** (whole frame)     | yes (the frame)                   |
-| Hosted dashboard / approvals UI                                            | git-based (commit the baseline) | **yes** (SaaS)            | local/CI files                    |
-| Cost                                                                       | free, MIT, self-hosted          | paid SaaS (free tiers)    | free                              |
-
-They solve different halves of the problem. Pixel tools _catch_ drift you didn't think
-to check, across real browser renders. The style map _certifies_ that a refactor
-changed nothing, including the states and rules a screenshot can never see, with no
-tolerance to hide a real change in. **Run both:** screenshots for discovery, the style
-map for proof.
-
-## Battle-tested: what it caught
-
-This tool was extracted from a real CSS-to-Tailwind migration (~680 lines of bespoke
-CSS across four stylesheets, certified to zero diff). Every one of these was caught by
-the style map and invisible or ambiguous to pixels:
-
-- **A base-layer reset eating button borders.** `button { border: none }` in the
-  global stylesheet meant `border` + `border-color` utilities (width and colour only)
-  rendered _no border at all_. Every bordered button needed an explicit
-  `border-solid`. The diff named all of them.
-- **`grid-cols-2` is not `1fr 1fr`.** Tailwind's `repeat(2, minmax(0, 1fr))` removes
-  the min-content floor. One panel had been quietly overflowing its grid track by 8px;
-  the utility version clamped it, reflowing 50 elements. On `display: none` elements
-  the two forms even serialize differently.
-- **`outline-none` is not `outline: none`.** Tailwind's utility is a 2px transparent
-  outline (an accessibility affordance). The forced-`:focus` capture flagged three new
-  longhands the original never set.
-- **Shorthand resets.** `border-bottom: none` resets style _and_ colour to initial;
-  zeroing just the width (`border-b-0`) leaves the preflight's gray `solid` behind.
-  Same story for `hover:shadow-*` (ring placeholders), `rounded-full` (`9999px` vs
-  `50%`), `items-start` (`flex-start` vs `start`), and named font utilities (dropped
-  fallbacks from the stack).
-- **A dropped `:hover` rule on a link** that every screenshot tool sailed past, because
-  nothing hovers in a screenshot.
+|                                  | Percy / Chromatic     | Playwright screenshots | **StyleProof**                                |
+| -------------------------------- | --------------------- | ---------------------- | --------------------------------------------- |
+| What's compared                  | rendered pixels       | rendered pixels        | **computed styles** (every resolved longhand) |
+| Hover / focus / active           | ✗ (can't force)       | ✗ (can't force)        | ✓ forced via CDP                              |
+| Hidden / off-screen elements     | ✗                     | ✗                      | ✓                                             |
+| Between-breakpoint rules         | only at chosen widths | only at chosen widths  | ✓ swept per width                             |
+| Sub-pixel / declared motion      | blurred / invisible   | blurred / invisible    | ✓ exact values                                |
+| Baseline to maintain             | hosted baseline       | committed PNGs         | **none — diffs HEAD vs base branch**          |
+| Per-change sign-off              | hosted approvals UI   | ✗                      | ✓ per-change checkboxes, `StyleProof` status  |
+| Refactor "changed nothing" proof | approximate (pixels)  | approximate (pixels)   | ✓ exact (zero diff)                           |
 
 ## Contributing
 
-Issues and PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, the
-build/test loop, and the release process. Changes are recorded in
-[CHANGELOG.md](CHANGELOG.md).
+Issues and PRs welcome at [github.com/BenSheridanEdwards/styleproof](https://github.com/BenSheridanEdwards/styleproof). It is, fittingly, gated on its own report.
 
 ## License
 
-MIT © Ben Sheridan-Edwards. See [LICENSE](LICENSE).
+MIT © Ben Sheridan-Edwards
