@@ -3,18 +3,20 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      # Full semver only. The moving major alias (e.g. v1) is updated BY this
+      # workflow and is deliberately not a trigger, so there is no loop.
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
-# contents: write -> create the GitHub Release.
+# contents: write -> create the GitHub Release and move the major tag.
 # id-token: write -> REQUIRED for `npm publish --provenance` (OIDC -> Sigstore).
 permissions:
   contents: write
   id-token: write
 
 jobs:
-  publish:
-    name: publish to npm
-    runs-on: ubuntu-latest
+  release:
+    name: release
+    runs-on: ubuntu-latest # styleproof is public, so GitHub-hosted runners are free
     steps:
       - uses: actions/checkout@v4
 
@@ -49,12 +51,22 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      # Provenance needs npm >= 9.5 (Node 22 ships it) and id-token: write above.
-      # --access public publishes the package publicly (required for provenance).
+      # Idempotent and token-aware: skip when the version is already on npm
+      # (a backfilled tag or a re-run) or when NPM_TOKEN is not configured
+      # (keep publishing manually until then). Provenance needs npm >= 9.5
+      # (Node 22 ships it) and id-token: write above; --access public is required.
       - name: Publish to npm
-        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "::notice::NPM_TOKEN is not set — skipping npm publish. Publish manually, or add the secret for automated provenance-signed releases."
+          elif npm view "styleproof@${VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::styleproof@${VERSION} is already on npm — skipping publish."
+          else
+            npm publish --provenance --access public
+          fi
 
       # Extract this tag's section from CHANGELOG.md if present; otherwise let
       # the release action auto-generate notes.
@@ -79,3 +91,12 @@ jobs:
         with:
           body_path: ${{ steps.notes.outputs.have_notes == 'true' && 'notes.md' || '' }}
           generate_release_notes: ${{ steps.notes.outputs.have_notes != 'true' }}
+
+      # Move the major alias (e.g. v1) to this release, so consumers pinning
+      # `uses: BenSheridanEdwards/styleproof@v1` always get the latest 1.x. A
+      # GITHUB_TOKEN push does not retrigger workflows, so this never loops.
+      - name: Move the major tag
+        run: |
+          MAJOR="v$(node -p "require('./package.json').version.split('.')[0]")"
+          git tag -f "$MAJOR" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$MAJOR"
