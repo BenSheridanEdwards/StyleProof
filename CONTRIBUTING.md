@@ -88,18 +88,20 @@ npx styleproof-diff __stylemaps__/before __stylemaps__/after
 
 ## Release process
 
-Releases are tag-driven: pushing a `v*` tag runs `.github/workflows/release.yml`, which
-builds, typechecks, lints, tests, and runs `npm publish --provenance --access public`
-(needs the `NPM_TOKEN` repo secret and `id-token: write`, both already wired), then cuts
-a GitHub Release from the CHANGELOG section.
+Releases are tag-driven. Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`,
+which builds, typechecks, lints, tests, publishes to npm, cuts a GitHub Release from the
+CHANGELOG section, and **moves the floating major tag** (`v1`) so consumers pinning
+`uses: …/styleproof@v1` always get the latest 1.x.
 
 1. Move the `## [Unreleased]` notes into a new version section in `CHANGELOG.md`.
 2. `npm version <patch|minor|major>` — bumps `package.json` and creates the `vX.Y.Z` tag.
-3. `git push --follow-tags` — the release workflow publishes with provenance.
-4. Move the floating major tag so `uses: …@v1` keeps working:
-   ```sh
-   git tag -f v1 vX.Y.Z && git push -f origin v1
-   ```
+3. `git push --follow-tags`.
+
+The publish step is **idempotent and token-aware**: it skips when that version is already
+on npm (a re-run, or a backfilled tag) or when the `NPM_TOKEN` secret is not set. So until
+you add `NPM_TOKEN`, the workflow still cuts the Release and moves `v1`, and you publish
+with a manual `npm publish --access public` (no provenance); add `NPM_TOKEN` to publish
+automatically with provenance. You no longer move the major tag by hand.
 
 `dist/` is git-ignored on purpose; it ships via the npm `files` array (built at publish
 time), not via git — don't commit it. A manual `npm publish` works too but ships
