@@ -151,10 +151,10 @@ stylemap-report <beforeDir> <afterDir> --out report/ [--image-base-url <url>]
 writes `report.md` (renders the composite images), `report.json` (machine-readable),
 and `crops/*.png` (composite + the individual before/after crops).
 
-### PR comments via GitHub Action — works in private repos
+### PR comments via GitHub Action — public **and** private repos
 
 The repo ships a composite action that diffs against your committed baseline and, on
-changes, commits the report to a branch and links it from a PR comment:
+changes, commits a compact report to an orphan branch and posts it to the PR:
 
 ```yaml
 - name: Capture style maps
@@ -165,32 +165,61 @@ changes, commits the report to a branch and links it from a PR comment:
   with:
     baseline-dir: e2e/__stylemaps__/baseline
     fresh-dir: e2e/__stylemaps__/ci
-    # report-branch: stylemap-reports   # default
+    # report-branch: stylemap-reports   # default (orphan; created on first run)
+    # inline-images: auto               # auto | always | never
     # fail-on-diff: 'true'              # default
 ```
 
-The comment links to **`📊 View the side-by-side visual report →`**, and the property
-diff sits in a `<details>`. The job fails while changes are unapproved; **approving =
-regenerating the committed baseline** from the new build and pushing it with the PR.
-The comment updates in place on every push and flips to ✓ when the diff is clean.
+The job fails while changes are unapproved; **approving = regenerating the committed
+baseline** and pushing it with the PR. The comment updates in place on every push and
+flips to ✓ when clean.
 
-#### Why a link, not an image embedded in the comment body
+#### Two modes, one pipeline (`inline-images: auto`)
 
-This is the one GitHub-imposed subtlety. There are two ways an image can appear on a
-PR, and they have **opposite** privacy behaviour:
+Both modes commit the report to the branch; only the comment differs, because the two
+ways an image can appear on a PR have **opposite** privacy behaviour:
 
 | Placement | How GitHub fetches it | Private repo |
 | --- | --- | --- |
-| In a **comment body** (`![](url)`) | anonymously, via the Camo proxy | a private URL **404s → broken image**; only a public URL renders |
-| In a **committed file** (`report.md` with relative `crops/…`) | through **your authenticated session** | **renders inline** — same as a private README's images |
+| **comment body** `![](url)` | anonymously, via the Camo proxy | private URL **404s → broken**; needs a public URL |
+| **committed file** (`report.md` + relative `crops/…`) | through **your authenticated session** | **renders inline** — like a private README's images |
 
-So the action commits the report and links it: you click once and see the side-by-side
-crops rendered inline, with no public hosting and no browser. (Embedding the image
-*directly in the comment body* of a private repo is genuinely impossible from CI —
-GitHub's only private-friendly image URL is `user-attachments`, whose upload endpoint
-rejects API tokens with HTTP 422 and requires a logged-in browser session. If you want
-that, an AI agent with browser access — e.g. Claude Code with the Chrome MCP — can
-upload via the web UI; CI cannot.)
+- **Public repo** → composites are embedded **directly in the comment** via the public
+  `raw.githubusercontent.com/…` URL; you see the side-by-side without clicking.
+- **Private repo** → the comment **links** the committed `report.md`; one click shows
+  the crops inline, no public hosting, no browser.
+
+(Embedding an image *directly in a private comment body* is genuinely impossible from
+CI — GitHub's only private-friendly image URL is `user-attachments`, whose upload
+endpoint rejects API tokens with HTTP 422 and needs a logged-in browser session. An AI
+agent with browser access can do it via the web UI; CI cannot.)
+
+#### Layout, stable links, and size
+
+The report branch is an **orphan** — only reports, never your code — so the root is just
+one folder per PR plus a README:
+
+```
+stylemap-reports (orphan)
+├── README.md
+├── pr-9/   report.md + crops/*-composite.png
+└── pr-12/  …
+```
+
+- **Stable links.** Each run overwrites `pr-<n>/`, so `…/blob/stylemap-reports/pr-9/report.md`
+  is permanent for the life of the PR. Reports are **never pruned** — every PR stays
+  available. Per-run history lives in the branch's git commits.
+- **Compact.** Only the **composite** is committed (not the separate before/after crops),
+  written lossless but lean (alpha dropped — every crop is opaque — max deflate, adaptive
+  filtering): ~30–90 KB per change, a few hundred KB per PR.
+- **Reclaiming history.** Git keeps every overwritten image in history, so a very busy
+  repo's branch history grows over time. The *tree* (what serves the links) stays small;
+  to shrink `.git`, squash the orphan branch when it's quiet — the current reports keep
+  their URLs:
+  ```sh
+  git checkout --orphan tmp stylemap-reports && git commit -qm "squash reports" \
+    && git branch -M tmp stylemap-reports && git push -f origin stylemap-reports
+  ```
 
 ## CI gate
 
