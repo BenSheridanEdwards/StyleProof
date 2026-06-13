@@ -139,6 +139,15 @@ side-by-side image per change:
   - [:hover] border-top-color: rgb(95, 202, 219) → (state no longer changes it)
 ```
 
+For an **organism-level change** (a component's layout *and* its internals), the crop
+zooms out to the whole component: the outermost element with a *real* styling change
+anchors the region, and its changed descendants fold in. Crucially, the report ignores
+**size/position-derived longhands** (`height`, `width`, `transform-origin`, `top`…) when
+choosing what to crop — on a reflow those change all the way up the ancestor chain
+(`body`, `main`, `section`…), and without this the crop would zoom to the entire page
+instead of the component. (The certification differ keeps them — a reflow *is* a change
+to certify; pass `includeLayoutNoise: true` to keep them in the report too.)
+
 The whole imaging pipeline is Playwright + Node — **no browser interaction**. Captures
 save a full-page screenshot next to each map by default (disable with
 `screenshots: false`), so the committed baseline carries both the facts and the pixels;
