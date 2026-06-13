@@ -107,6 +107,45 @@ function cropPng(src: PNG, box: Box, w: number, h: number): PNG {
   return out;
 }
 
+type RGB = [number, number, number];
+function fillRect(png: PNG, x: number, y: number, w: number, h: number, [r, g, b]: RGB): void {
+  for (let yy = Math.max(0, y); yy < Math.min(png.height, y + h); yy++) {
+    for (let xx = Math.max(0, x); xx < Math.min(png.width, x + w); xx++) {
+      const i = (yy * png.width + xx) << 2;
+      png.data[i] = r;
+      png.data[i + 1] = g;
+      png.data[i + 2] = b;
+      png.data[i + 3] = 255;
+    }
+  }
+}
+
+/**
+ * One labelled before|after image: the two equal-size crops on a dark canvas,
+ * a divider between them, and a top accent bar per side (grey = before,
+ * blue = after) as a font-free before/after cue. Left is always before.
+ */
+function compositePair(before: PNG, after: PNG): PNG {
+  const PAD = 20;
+  const GAP = 28;
+  const BAR = 6; // accent strip height
+  const w = Math.max(before.width, after.width);
+  const h = Math.max(before.height, after.height);
+  const width = PAD + w + GAP + w + PAD;
+  const height = PAD + BAR + h + PAD;
+  const canvas = new PNG({ width, height });
+  fillRect(canvas, 0, 0, width, height, [13, 17, 23]); // GitHub dark
+  const leftX = PAD;
+  const rightX = PAD + w + GAP;
+  const top = PAD + BAR;
+  fillRect(canvas, leftX, PAD, w, BAR, [110, 118, 129]); // before: grey
+  fillRect(canvas, rightX, PAD, w, BAR, [88, 166, 255]); // after: blue
+  PNG.bitblt(before, canvas, 0, 0, before.width, before.height, leftX, top);
+  PNG.bitblt(after, canvas, 0, 0, after.width, after.height, rightX, top);
+  fillRect(canvas, PAD + w + GAP / 2 - 1, PAD, 2, BAR + h, [48, 54, 61]); // divider
+  return canvas;
+}
+
 function readPng(file: string): PNG | null {
   if (!fs.existsSync(file)) return null;
   return PNG.sync.read(fs.readFileSync(file));
@@ -186,7 +225,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       ]);
 
       const region = visible(g.after) ? g.after : g.before;
-      let images: { before?: string; after?: string } = {};
+      let images: { before?: string; after?: string; composite?: string } = {};
       if (region && pngA && pngB) {
         // Same crop dimensions on both sides so the pair reads as a pair.
         const w = Math.max(minWidth, visible(g.before) ? g.before.w : 0, visible(g.after) ? g.after.w : 0);
@@ -194,10 +233,18 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         const stem = `crops/${sd.surface.replace(/[^a-z0-9@-]/gi, '_')}-${n}`;
         const before = cropPng(pngA, visible(g.before) ? g.before : region, w, h);
         const after = cropPng(pngB, visible(g.after) ? g.after : region, w, h);
+        const composite = compositePair(before, after);
         fs.writeFileSync(path.join(outDir, `${stem}-before.png`), PNG.sync.write(before));
         fs.writeFileSync(path.join(outDir, `${stem}-after.png`), PNG.sync.write(after));
-        images = { before: `${stem}-before.png`, after: `${stem}-after.png` };
-        md.push('', '| Before | After |', '| --- | --- |', `| ![before](${img(images.before!)}) | ![after](${img(images.after!)}) |`);
+        fs.writeFileSync(path.join(outDir, `${stem}-composite.png`), PNG.sync.write(composite));
+        images = { before: `${stem}-before.png`, after: `${stem}-after.png`, composite: `${stem}-composite.png` };
+        // One side-by-side image per change: clean inline render, single upload.
+        md.push(
+          '',
+          `![before ◀ │ ▶ after](${img(images.composite!)})`,
+          '',
+          '<sub>◀ before  ·  after ▶</sub>',
+        );
       } else if (!region) {
         md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
       } else {
