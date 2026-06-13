@@ -1,12 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Config for the example capture spec. Point BASE_URL at the site to capture
-// (a production build — dev servers inject their own styles).
+// The tool's own e2e: a self-contained smoke test (test/smoke.e2e.spec.ts)
+// that drives the browser capture path against a file:// HTML fixture — no
+// live server needed. The reference example/ spec is for consumers and is not
+// run here (it needs a production build of the consuming site).
 export default defineConfig({
-  testDir: './example',
+  testDir: '.',
+  testMatch: ['test/**/*.e2e.spec.ts'],
   timeout: 120_000,
-  use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
-  },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });
