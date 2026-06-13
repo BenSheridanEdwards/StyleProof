@@ -1,8 +1,9 @@
 name: 'playwright-stylemap report'
 description: >-
   Diff playwright-stylemap captures against a committed baseline. When styles
-  changed, generate side-by-side before/after crops, publish them to a report
-  branch, and upsert a PR comment for visual approval.
+  changed, commit a side-by-side before/after report to a branch and link it
+  from a PR comment — the images render inline even in private repos, because
+  GitHub serves a committed file's relative images through the viewer's session.
 branding:
   icon: 'layers'
   color: 'blue'
@@ -15,7 +16,7 @@ inputs:
     description: 'Directory with the freshly captured maps to compare (.json.gz + .png).'
     required: true
   report-branch:
-    description: 'Branch that hosts report images (created if missing).'
+    description: 'Branch that hosts the committed reports (created if missing).'
     default: 'stylemap-reports'
   github-token:
     description: 'Token used to push the report branch and post the PR comment.'
@@ -28,6 +29,9 @@ outputs:
   changed:
     description: '"true" when any computed style, pseudo-element, or state changed.'
     value: ${{ steps.diff.outputs.changed }}
+  report-url:
+    description: 'Blob URL of the committed report (when changed).'
+    value: ${{ steps.report.outputs.url }}
 
 runs:
   using: composite
@@ -36,27 +40,23 @@ runs:
       shell: bash
       run: |
         set +e
-        npx stylemap-diff "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200
-        code=$?
+        npx stylemap-diff "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 | tee stylemap-diff.txt
+        code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "stylemap-diff usage/capture error" >&2; exit 2; fi
         echo "changed=$([ "$code" -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
+    # Report images use RELATIVE paths so they render inline from the committed
+    # file (do NOT pass --image-base-url: a raw.githubusercontent URL is fetched
+    # anonymously by GitHub's Camo proxy and 404s on private repos).
     - id: report
       if: steps.diff.outputs.changed == 'true'
       shell: bash
       run: |
-        REPORT_PATH="runs/${{ github.run_id }}-${{ github.run_attempt }}"
-        BASE_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ inputs.report-branch }}/${REPORT_PATH}"
-        npx stylemap-report "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" \
-          --out stylemap-report --image-base-url "$BASE_URL" || true
-        echo "path=$REPORT_PATH" >> "$GITHUB_OUTPUT"
-
-    - name: Publish report images
-      if: steps.diff.outputs.changed == 'true'
-      shell: bash
-      run: |
         set -euo pipefail
+        REPORT_PATH="runs/pr-${{ github.event.pull_request.number || github.run_id }}/${{ github.run_id }}-${{ github.run_attempt }}"
+        npx stylemap-report "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out stylemap-report || true
+
         REPO_URL="https://x-access-token:${{ inputs.github-token }}@github.com/${{ github.repository }}.git"
         BRANCH="${{ inputs.report-branch }}"
         TMP="$(mktemp -d)"
@@ -66,13 +66,15 @@ runs:
           git -C "$TMP" init -b "$BRANCH"
           git -C "$TMP" remote add origin "$REPO_URL"
         fi
-        mkdir -p "$TMP/${{ steps.report.outputs.path }}"
-        cp -R stylemap-report/. "$TMP/${{ steps.report.outputs.path }}/"
+        mkdir -p "$TMP/$REPORT_PATH"
+        cp -R stylemap-report/. "$TMP/$REPORT_PATH/"
         git -C "$TMP" config user.name 'github-actions[bot]'
         git -C "$TMP" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
         git -C "$TMP" add -A
-        git -C "$TMP" commit -m "stylemap report ${{ steps.report.outputs.path }}"
+        git -C "$TMP" commit -m "stylemap report $REPORT_PATH"
         git -C "$TMP" push origin "$BRANCH"
+
+        echo "url=https://github.com/${{ github.repository }}/blob/$BRANCH/$REPORT_PATH/report.md" >> "$GITHUB_OUTPUT"
 
     - name: Upsert PR comment
       if: github.event_name == 'pull_request'
@@ -87,24 +89,38 @@ runs:
             ...context.repo, issue_number: context.issue.number, per_page: 100,
           });
           const existing = comments.find((c) => c.body && c.body.includes(marker));
+          const upsert = async (body) => existing
+            ? github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
+            : github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+
           if (!changed) {
-            // Stay quiet unless an earlier report needs superseding.
             if (!existing) return;
-            await github.rest.issues.updateComment({
-              ...context.repo, comment_id: existing.id,
-              body: `${marker}\n## 🗺️ stylemap report\n\n✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.`,
-            });
+            await upsert(`${marker}\n## 🗺️ stylemap report\n\n✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.`);
             return;
           }
-          let body = marker + '\n' + fs.readFileSync('stylemap-report/report.md', 'utf8');
-          if (body.length > 65000) {
-            body = body.slice(0, 64000) + '\n\n…truncated — the full report lives on the report branch.';
-          }
-          if (existing) {
-            await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
-          } else {
-            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
-          }
+          const url = '${{ steps.report.outputs.url }}';
+          const diff = fs.existsSync('stylemap-diff.txt') ? fs.readFileSync('stylemap-diff.txt', 'utf8') : '';
+          const clipped = diff.length > 50000 ? diff.slice(0, 50000) + '\n… (truncated)' : diff;
+          const body = [
+            marker,
+            '## 🗺️ stylemap report',
+            '',
+            `### 📊 [**View the side-by-side visual report →**](${url})`,
+            '',
+            "The link opens before/after crops rendered **inline** — it's a committed file in this repo, so the images render through your authenticated session (works in private repos; no public hosting, no browser upload).",
+            '',
+            '<details><summary>Property changes</summary>',
+            '',
+            '```',
+            clipped.trim(),
+            '```',
+            '',
+            '</details>',
+            '',
+            '---',
+            '_To accept these changes, regenerate the committed baseline from this build and commit it with your diff._',
+          ].join('\n');
+          await upsert(body);
 
     - name: Fail on diff
       if: steps.diff.outputs.changed == 'true' && inputs.fail-on-diff == 'true'
