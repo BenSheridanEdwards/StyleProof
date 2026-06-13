@@ -324,6 +324,20 @@ export function summarizeProps(props: PropChange[]): PropChange[] {
       map.set(fam.short, { prop: fam.short, before: members[0].before, after: members[0].after });
     }
   }
+  // outline-width/-style/-color → one `outline` row (offset stays separate).
+  const ow = map.get('outline-width');
+  const os = map.get('outline-style');
+  const oc = map.get('outline-color');
+  if (ow && os && oc) {
+    map.delete('outline-width');
+    map.delete('outline-style');
+    map.delete('outline-color');
+    map.set('outline', {
+      prop: 'outline',
+      before: `${ow.before} ${os.before} ${oc.before}`,
+      after: `${ow.after} ${os.after} ${oc.after}`,
+    });
+  }
   return [...map.values()]
     .map((p) => ({ prop: p.prop, before: cleanVal(p.before), after: cleanVal(p.after) }))
     .sort((a, b) => orderIdx(a.prop) - orderIdx(b.prop) || a.prop.localeCompare(b.prop));
@@ -336,50 +350,158 @@ export function prettyLabel(p: string, cls: string): string {
   return /^[a-z][a-z0-9-]*$/.test(first) ? `${tag}.${first}` : tag;
 }
 
-// Group findings (identical siblings collapse to one ×N block) and render each
-// as a 3-column table; colours land in their own cell so GitHub adds swatches.
-function renderFindings(findings: Finding[], maxRows = 60): string[] {
-  type Group = { label: string; note: string; rows: PropChange[]; count: number };
-  const groups: Group[] = [];
-  const byKey = new Map<string, Group>();
+const surfaceBase = (s: string): string => s.replace(/@\d+$/, '');
+const surfaceWidth = (s: string): number => Number(s.match(/@(\d+)$/)?.[1] ?? 0);
+
+/** "landing @ 1280, 1080, 390 · landing-nav-open @ 1080" from the surface keys. */
+function formatSurfaceList(surfaces: string[]): string {
+  const byBase = new Map<string, number[]>();
+  for (const s of surfaces) {
+    const arr = byBase.get(surfaceBase(s)) ?? [];
+    arr.push(surfaceWidth(s));
+    byBase.set(surfaceBase(s), arr);
+  }
+  return [...byBase]
+    .map(([base, ws]) => {
+      const widths = ws.filter((w) => w > 0).sort((a, b) => b - a);
+      return widths.length ? `${base} @ ${widths.join(', ')}` : base;
+    })
+    .join(' · ');
+}
+
+/** Canonical signature of a surface's findings: surfaces that changed in the
+ *  same way collapse into one section + one image (the rects differ per width;
+ *  the change itself does not). */
+function signatureOf(findings: Finding[]): string {
+  return JSON.stringify(
+    findings
+      .map((f) => ({
+        p: f.path,
+        k: f.kind,
+        t: f.kind === 'dom' ? f.change : f.kind === 'state' ? f.state : (f.pseudo ?? ''),
+        v:
+          f.kind === 'dom'
+            ? ''
+            : summarizeProps(f.props)
+                .map((c) => `${c.prop}=${c.before}>${c.after}`)
+                .join('|'),
+      }))
+      .sort((a, b) => `${a.p}|${a.k}|${a.t}`.localeCompare(`${b.p}|${b.k}|${b.t}`)),
+  );
+}
+
+/** A one-line heading for a change group: "1 element added", "2 elements restyled". */
+function groupTitle(findings: Finding[]): string {
+  const added = new Set(findings.filter((f) => f.kind === 'dom' && f.change === 'added').map((f) => f.path));
+  const removed = new Set(findings.filter((f) => f.kind === 'dom' && f.change === 'removed').map((f) => f.path));
+  const retagged = new Set(findings.filter((f) => f.kind === 'dom' && f.change === 'retagged').map((f) => f.path));
+  const restyled = new Set(
+    findings.filter((f) => f.kind !== 'dom' && !added.has(f.path) && !removed.has(f.path)).map((f) => f.path),
+  );
+  const n = (c: number, w: string) => `${c} ${w}${c === 1 ? '' : 's'}`;
+  const parts: string[] = [];
+  if (added.size) parts.push(`${n(added.size, 'element')} added`);
+  if (removed.size) parts.push(`${n(removed.size, 'element')} removed`);
+  if (retagged.size) parts.push(`${n(retagged.size, 'element')} retagged`);
+  if (restyled.size) parts.push(`${n(restyled.size, 'element')} restyled`);
+  return parts.join(', ') || `${n(new Set(findings.map((f) => f.path)).size, 'element')} changed`;
+}
+
+// A diff state row whose value is one of these placeholders means "this state
+// has no effect here" — meaningless to show, so render it as an em dash.
+const STATE_PLACEHOLDER = new Set(['(state does not change it)', '(state no longer changes it)', '(unset)']);
+const cell = (v: string): string => (STATE_PLACEHOLDER.has(v) ? '—' : `\`${v}\``);
+
+function beforeAfterTable(rows: PropChange[]): string[] {
+  return [
+    '| Property | Before | After |',
+    '| --- | --- | --- |',
+    ...rows.map((r) => `| \`${r.prop}\` | ${cell(r.before)} | ${cell(r.after)} |`),
+  ];
+}
+
+/** One element's heading + body lines (no leading blank, no ×N suffix). */
+function renderOneElement(group: Finding[]): { head: string; body: string[] } | null {
+  const label = prettyLabel(group[0].path, group[0].cls);
+  const dom = group.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom');
+  const styles = group.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style');
+  const states = group.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state');
+
+  if (dom?.change === 'removed') return { head: `**Removed** \`${label}\``, body: [] };
+  const added = dom?.change === 'added';
+  const head = added
+    ? `**Added** \`${label}\``
+    : dom?.change === 'retagged'
+      ? `**Retagged** \`${label}\` ${dom.detail ?? ''}`
+      : `**\`${label}\`**`;
+
+  const body: string[] = [];
+  for (const s of styles) {
+    const rows = summarizeProps(s.props);
+    if (rows.length) body.push('', s.pseudo ? `On \`${s.pseudo}\`:` : 'Style:', '', ...beforeAfterTable(rows));
+  }
+  if (states.length) {
+    const rows: string[] = [];
+    for (const st of states)
+      for (const c of summarizeProps(st.props))
+        rows.push(
+          added
+            ? `| \`:${st.state}\` | \`${c.prop}\` | ${cell(c.after)} |`
+            : `| \`:${st.state}\` | \`${c.prop}\` | ${cell(c.before)} → ${cell(c.after)} |`,
+        );
+    if (rows.length)
+      body.push(
+        '',
+        added ? 'Interactive states:' : 'Interactive-state changes:',
+        '',
+        added ? '| State | Property | Value |' : '| State | Property | Before → After |',
+        '| --- | --- | --- |',
+        ...rows,
+      );
+  }
+  // Existing element with nothing left to show (all derived) → skip; an
+  // added/removed/retagged element always renders its heading.
+  if (!dom && !body.length) return null;
+  return { head, body };
+}
+
+/**
+ * Render each changed element ONCE — its base / pseudo / state findings grouped
+ * under a single heading — then collapse identical siblings (same label, same
+ * change at the same level) into one block with a `×N` count. A newly-added
+ * element shows only the values it takes (a brand-new element has no meaningful
+ * "before"); an existing element shows before → after.
+ */
+function renderElements(findings: Finding[], maxElements = 40): string[] {
+  const byPath = new Map<string, Finding[]>();
   for (const f of findings) {
-    const label = prettyLabel(f.path, f.cls);
-    const note = f.kind === 'state' ? `:${f.state}` : f.kind === 'style' ? (f.pseudo ?? '') : '';
-    const rows = f.kind === 'dom' ? [] : summarizeProps(f.props);
-    const headOnly = f.kind === 'dom' ? `DOM ${f.change}${f.detail ? ` ${f.detail}` : ''}` : '';
-    if (f.kind !== 'dom' && rows.length === 0) continue;
-    const key = `${label}|${note}|${headOnly}|${JSON.stringify(rows)}`;
-    const g = byKey.get(key);
-    if (g) g.count++;
+    const arr = byPath.get(f.path) ?? [];
+    arr.push(f);
+    byPath.set(f.path, arr);
+  }
+  type Block = { head: string; body: string[]; count: number };
+  const blocks: Block[] = [];
+  const bySig = new Map<string, Block>();
+  for (const group of byPath.values()) {
+    const el = renderOneElement(group);
+    if (!el) continue;
+    const sig = `${el.head}\n${el.body.join('\n')}`;
+    const seen = bySig.get(sig);
+    if (seen) seen.count++;
     else {
-      const ng: Group = { label, note: headOnly || note, rows, count: 1 };
-      byKey.set(key, ng);
-      groups.push(ng);
+      const block = { ...el, count: 1 };
+      bySig.set(sig, block);
+      blocks.push(block);
     }
   }
   const out: string[] = [];
-  let used = 0;
-  for (let i = 0; i < groups.length; i++) {
-    if (used >= maxRows) {
-      out.push('', `_…and ${groups.length - i} more element(s) — see report.json._`);
+  for (let i = 0; i < blocks.length; i++) {
+    if (i >= maxElements) {
+      out.push('', `_…and ${blocks.length - i} more element(s) — see report.json._`);
       break;
     }
-    const g = groups[i];
-    const head = `**\`${g.label}\`**${g.count > 1 ? ` ×${g.count}` : ''}${g.note ? `  ${g.note}` : ''}`;
-    if (!g.rows.length) {
-      out.push('', head);
-      used += 1;
-      continue;
-    }
-    out.push(
-      '',
-      head,
-      '',
-      '| Property | Before | After |',
-      '| --- | --- | --- |',
-      ...g.rows.map((r) => `| \`${r.prop}\` | \`${r.before}\` | \`${r.after}\` |`),
-    );
-    used += 2 + g.rows.length;
+    const b = blocks[i];
+    out.push('', b.count > 1 ? `${b.head} ×${b.count}` : b.head, ...b.body);
   }
   return out;
 }
@@ -442,42 +564,62 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     }))
     .filter((p) => p.sd.missing || p.findings.length > 0);
 
-  // Count what the report actually shows (after shorthand/dedupe collapsing),
-  // not the raw longhand explosion.
+  // Group surfaces that changed in the SAME way (the rects differ per width; the
+  // change itself does not) so an identical change shows once, not once per
+  // surface — with one representative image (the widest surface in the group).
+  const missing = prepared.filter((p) => p.sd.missing);
+  type ChangeGroup = { surfaces: string[]; rep: (typeof prepared)[number]; findings: Finding[] };
+  const bySig = new Map<string, ChangeGroup>();
+  for (const p of prepared) {
+    if (p.sd.missing) continue;
+    const sig = signatureOf(p.findings);
+    const existing = bySig.get(sig);
+    if (existing) {
+      existing.surfaces.push(p.sd.surface);
+      if (surfaceWidth(p.sd.surface) > surfaceWidth(existing.rep.sd.surface)) existing.rep = p;
+    } else {
+      bySig.set(sig, { surfaces: [p.sd.surface], rep: p, findings: p.findings });
+    }
+  }
+  const changeGroups = [...bySig.values()];
+
+  // Counts reflect the GROUPED view: each distinct change counts once, not once
+  // per surface it appears on (after shorthand/dedupe collapsing).
   const shown: DiffCounts = { dom: 0, style: 0, state: 0 };
-  for (const { findings } of prepared)
-    for (const f of findings) {
+  for (const cg of changeGroups)
+    for (const f of cg.findings) {
       if (f.kind === 'dom') shown.dom++;
       else if (f.kind === 'style') shown.style += summarizeProps(f.props).length;
       else shown.state += summarizeProps(f.props).length;
     }
+  const surfaceCount = changeGroups.reduce((acc, g) => acc + g.surfaces.length, 0) + missing.length;
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
   const img = (rel: string) => (imageBaseUrl ? `${imageBaseUrl.replace(/\/$/, '')}/${rel}` : rel);
 
-  md.push('## 🗺️ StyleProof report');
-  md.push('');
-  if (prepared.length === 0) {
+  md.push('## 🗺️ StyleProof report', '');
+  if (changeGroups.length === 0 && missing.length === 0) {
     md.push('✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.');
   } else {
     md.push(
-      `**${shown.dom} DOM change(s) · ${shown.style} computed-style difference(s) · ${shown.state} state-delta difference(s)** across ${prepared.length} changed surface(s).`,
+      `**${shown.dom} DOM change(s) · ${shown.style} computed-style difference(s) · ${shown.state} state-delta difference(s)** ` +
+        `across ${changeGroups.length} distinct change(s) in ${surfaceCount} surface(s).`,
     );
   }
 
   let totalFindings = 0;
-  for (const { sd, findings: surfaceFindings } of prepared) {
-    md.push('', `### \`${sd.surface}\``);
-    if (sd.missing) {
-      md.push(
-        '',
-        `⚠️ captured only in the **${sd.missing === 'before' ? 'after' : 'before'}** set — re-run both captures.`,
-      );
-      json.push({ surface: sd.surface, missing: sd.missing });
-      continue;
-    }
+  for (const cg of changeGroups) {
+    const { sd, findings: surfaceFindings } = cg.rep;
     totalFindings += surfaceFindings.length;
+
+    md.push('', `### ${groupTitle(surfaceFindings)}`);
+    md.push(
+      '',
+      cg.surfaces.length > 1
+        ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceList(cg.surfaces)}_`
+        : `_${formatSurfaceList(cg.surfaces)}_`,
+    );
 
     const mapA = loadStyleMap(findCapture(beforeDir, sd.surface));
     const mapB = loadStyleMap(findCapture(afterDir, sd.surface));
@@ -496,13 +638,14 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       ];
     }
 
-    const surfaceJson: Record<string, unknown> = { surface: sd.surface, regions: [] as unknown[] };
+    const surfaceJson: Record<string, unknown> = {
+      surfaces: cg.surfaces,
+      representative: sd.surface,
+      regions: [] as unknown[],
+    };
     let n = 0;
     for (const g of groups) {
       n++;
-      const findings = surfaceFindings.filter((f) => g.paths.some((p) => f.path === p || f.path.startsWith(p + ' > ')));
-      const lines = renderFindings(findings);
-
       const region = visible(g.after) ? g.after : g.before;
       let images: { before?: string; after?: string; composite?: string } = {};
       if (region && pngA && pngB) {
@@ -523,7 +666,12 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         writePng(path.join(outDir, `${stem}-composite.png`), composite);
         images = { before: `${stem}-before.png`, after: `${stem}-after.png`, composite: `${stem}-composite.png` };
         // One side-by-side image per change: clean inline render, single upload.
-        md.push('', `![before ◀ │ ▶ after](${img(images.composite!)})`, '', '<sub>◀ before  ·  after ▶</sub>');
+        md.push(
+          '',
+          `![before ◀ │ ▶ after](${img(images.composite!)})`,
+          '',
+          `<sub>◀ before  ·  after ▶ — ${sd.surface}</sub>`,
+        );
       } else if (!region) {
         md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
       } else {
@@ -532,17 +680,23 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
           '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
         );
       }
-
-      md.push(...lines);
-      (surfaceJson.regions as unknown[]).push({
-        paths: g.paths,
-        before: g.before,
-        after: g.after,
-        images,
-        findings,
-      });
+      (surfaceJson.regions as unknown[]).push({ paths: g.paths, before: g.before, after: g.after, images });
     }
+
+    // The findings, grouped per element, rendered once for the whole group.
+    md.push(...renderElements(surfaceFindings));
+    surfaceJson.findings = surfaceFindings;
     json.push(surfaceJson);
+  }
+
+  for (const p of missing) {
+    md.push(
+      '',
+      `### \`${p.sd.surface}\``,
+      '',
+      `⚠️ captured only in the **${p.sd.missing === 'before' ? 'after' : 'before'}** set — re-run both captures.`,
+    );
+    json.push({ surface: p.sd.surface, missing: p.sd.missing });
   }
 
   if (surfaces.length) {

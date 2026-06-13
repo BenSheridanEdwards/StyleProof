@@ -231,6 +231,61 @@ test('end-to-end: identical siblings in one region collapse to a single block x 
   rmTmp(root);
 });
 
+test('an identical change across surfaces collapses into one grouped section', () => {
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  const outDir = path.join(root, 'out');
+  const box = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': { tag: 'div', cls: 'box', rect: [0, 0, 200, 100], style: { color } },
+      },
+    });
+  // Same change captured at two widths — the change is identical, the rects are not.
+  for (const surface of ['s@1280', 's@390']) {
+    writeCapture(beforeDir, surface, box('rgb(0, 0, 0)'), solidPng(1280, 800));
+    writeCapture(afterDir, surface, box('rgb(255, 0, 0)'), solidPng(1280, 800));
+  }
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /Identical across 2 surfaces/);
+  assert.equal((md.match(/\*\*`div\.box`\*\*/g) || []).length, 1, 'rendered once, not once per surface');
+  assert.equal(
+    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-composite.png')).length,
+    1,
+    'one composite image for the group, not one per surface',
+  );
+  rmTmp(root);
+});
+
+test('a newly-added element shows the values its states take, not a bogus "before"', () => {
+  const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > a:nth-child(1)': { tag: 'a', cls: 'link', rect: [0, 0, 80, 20], style: { color: 'rgb(0, 0, 0)' } },
+    },
+    states: { 'body > a:nth-child(1)': { hover: { 'body > a:nth-child(1)': { color: 'rgb(0, 0, 255)' } } } },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@1280',
+    before,
+    after,
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /\*\*Added\*\* `a\.link`/);
+  assert.match(md, /Interactive states:/);
+  assert.match(md, /\| State \| Property \| Value \|/);
+  assert.match(md, /`:hover` \| `color` \| `rgb\(0, 0, 255\)`/);
+  assert.doesNotMatch(md, /state does not change it/, 'no jargon placeholder for a brand-new element');
+  rmTmp(root);
+});
+
 test('end-to-end: a valid composite PNG of the expected size is written', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
