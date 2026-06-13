@@ -25,6 +25,13 @@ Clearer reports: one section per screenshot.
   checkbox the Action injects is per visual region — sign off the grid and the
   button independently. A change that is identical across widths still collapses to
   one section, as before.
+- **The property tables fold under a toggle, behind a one-line essence.** The
+  screenshot and the approval checkbox always stay visible; below them a scannable
+  one-liner names the top deltas (and flags hover/focus/active changes, which a
+  static screenshot can't show), and the full before→after tables sit inside a
+  `<details>`. New `foldDetailsAt` report option: the row count at which tables fold
+  (default `0` = always; set `5` to keep small changes inline and fold only verbose
+  ones, `Infinity` to never fold).
 
 ### Fixed
 

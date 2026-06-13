@@ -32,6 +32,13 @@ export type ReportOptions = {
   /** Max crop regions per surface before collapsing into one union crop (default 6). */
   maxCrops?: number;
   /**
+   * Row count at which a crop's property tables fold under a `<details>` toggle
+   * (default 0 = always fold; the essence line and screenshot stay visible). Set
+   * to e.g. 5 to keep small changes inline and fold only verbose ones, or
+   * `Infinity` to never fold.
+   */
+  foldDetailsAt?: number;
+  /**
    * Include size/position-derived longhands (height, width, transform-origin…)
    * in the report. Off by default: on a reflow they change up the whole ancestor
    * chain and would anchor crops to the entire page. The certification differ
@@ -519,6 +526,58 @@ function renderElements(findings: Finding[], maxElements = 40): string[] {
   return out;
 }
 
+/**
+ * A scannable one-liner of what a crop changed, shown ABOVE the folded tables so a
+ * reviewer can judge without expanding: its top property deltas with values, the
+ * rest as a count, and a flag when the change reaches into hover/focus/active — the
+ * one kind of change a static before|after screenshot can't show.
+ */
+function changeEssence(findings: Finding[]): string {
+  const verbs: string[] = [];
+  for (const c of ['added', 'removed', 'retagged'] as const) {
+    const k = findings.filter((f) => f.kind === 'dom' && f.change === c).length;
+    if (k) verbs.push(`${k} ${c}`);
+  }
+  const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props)));
+  const top = rows.slice(0, 3).map((r) => `\`${r.prop}\` ${cell(r.before)} → ${cell(r.after)}`);
+  const more = rows.length > top.length ? `+${rows.length - top.length} more` : '';
+  const line = [...verbs, ...top, more].filter(Boolean).join(' · ') || '_see changes_';
+  return findings.some((f) => f.kind === 'state') ? `${line} _· incl. hover/focus/active_` : line;
+}
+
+/** Plain-text `<summary>` affordance — GitHub renders markdown inside `<summary>`
+ *  literally, so no backticks or bold here. */
+function foldSummary(findings: Finding[]): string {
+  const n = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
+  if (!n) return 'Show details';
+  return n === 1 ? 'Show the property change' : `Show all ${n} property changes`;
+}
+
+/** Render a crop's changes: the essence line, then the property tables — folded
+ *  under a toggle once they would be a wall (the screenshot and approval checkbox
+ *  above always stay visible). Blank lines around the table block are mandatory or
+ *  GitHub prints the tables as literal text. `foldAt` is the row count at which the
+ *  tables collapse; ≤ 0 folds always, Infinity never. */
+function renderCropChanges(findings: Finding[], foldAt: number): string[] {
+  const tables = renderElements(findings);
+  if (!tables.length) return [];
+  const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
+  // Small enough to read at a glance: the tables speak for themselves, no essence
+  // line (it would just echo a one- or two-row table).
+  if (rows < foldAt) return tables;
+  // Folded: the essence line is the visible stand-in for what the toggle hides.
+  return [
+    '',
+    changeEssence(findings),
+    '',
+    '<details>',
+    `<summary>${foldSummary(findings)}</summary>`,
+    ...tables,
+    '',
+    '</details>',
+  ];
+}
+
 // Computed values that follow from an element's box size or position rather than
 // its styling. On any reflow they change all the way up the ancestor chain
 // (body, main, section…), so an element whose ONLY changes are these is a reflow
@@ -561,6 +620,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     minHeight = 180,
     maxHeight = 1600,
     maxCrops = 6,
+    foldDetailsAt = 0,
   } = opts;
 
   const includeNoise = opts.includeLayoutNoise ?? false;
@@ -704,8 +764,9 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         );
       }
 
-      // The changes this crop shows, grouped per element, right under its image.
-      md.push(...renderElements(regionFindings));
+      // What this crop changed: a scannable essence line, then the property
+      // tables — folded under a toggle once they'd be a wall (foldDetailsAt).
+      md.push(...renderCropChanges(regionFindings, foldDetailsAt));
       (surfaceJson.regions as unknown[]).push({ paths: g.paths, before: g.before, after: g.after, images });
     }
 
