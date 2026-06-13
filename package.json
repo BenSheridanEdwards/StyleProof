@@ -1,5 +1,5 @@
 {
-  "name": "playwright-stylemap",
+  "name": "styleproof",
   "version": "1.0.0",
   "description": "Certify CSS refactors with the browser's computed styles: capture every resolved longhand, pseudo-element, and forced hover/focus/active state, then diff before against after.",
   "keywords": [
@@ -17,13 +17,13 @@
   ],
   "license": "MIT",
   "author": "Ben Sheridan-Edwards <ben@codewalnut.com>",
-  "homepage": "https://github.com/BenSheridanEdwards/playwright-stylemap#readme",
+  "homepage": "https://github.com/BenSheridanEdwards/styleproof#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BenSheridanEdwards/playwright-stylemap.git"
+    "url": "git+https://github.com/BenSheridanEdwards/styleproof.git"
   },
   "bugs": {
-    "url": "https://github.com/BenSheridanEdwards/playwright-stylemap/issues"
+    "url": "https://github.com/BenSheridanEdwards/styleproof/issues"
   },
   "type": "module",
   "main": "./dist/index.js",
@@ -36,9 +36,9 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "stylemap-init": "./bin/stylemap-init.mjs",
-    "stylemap-diff": "./bin/stylemap-diff.mjs",
-    "stylemap-report": "./bin/stylemap-report.mjs"
+    "styleproof-init": "./bin/styleproof-init.mjs",
+    "styleproof-diff": "./bin/styleproof-diff.mjs",
+    "styleproof-report": "./bin/styleproof-report.mjs"
   },
   "files": [
     "dist",
@@ -62,7 +62,7 @@
     "test": "npm run build && node --test test/*.test.mjs",
     "test:watch": "node --test --watch test/*.test.mjs",
     "test:e2e": "npm run build && playwright test test/smoke.e2e.spec.ts",
-    "init": "node ./bin/stylemap-init.mjs",
+    "init": "node ./bin/styleproof-init.mjs",
     "prepare": "npm run build",
     "prepublishOnly": "npm run clean && npm run build && npm run typecheck"
   },

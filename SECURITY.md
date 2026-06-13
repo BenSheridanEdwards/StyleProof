@@ -11,7 +11,7 @@ any public disclosure.
 
 ## Scope
 
-`playwright-stylemap` runs inside your own test/CI environment and reads pages you point
+StyleProof runs inside your own test/CI environment and reads pages you point
 it at; it ships no server and makes no outbound network calls. The GitHub Action pushes a
 report branch and posts PR comments using the token you provide. Reports of credential
 handling, command injection, or path traversal in the CLIs, library, or Action are in

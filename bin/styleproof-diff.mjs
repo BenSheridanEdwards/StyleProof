@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Diff two computed-style map captures (see playwright-stylemap).
+ * Diff two computed-style map captures (see styleproof).
  *
- *   stylemap-diff <beforeDir> <afterDir> [--max N] [--json <file>]
+ *   styleproof-diff <beforeDir> <afterDir> [--max N] [--json <file>]
  *
  * Reports, per surface:
  *   - DOM changes (elements added/removed/retagged) — a CSS-only refactor
@@ -19,9 +19,9 @@
 import fs from 'node:fs';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
 
-const HELP = `stylemap-diff — certify a CSS refactor by diffing two computed-style captures
+const HELP = `styleproof-diff — certify a CSS refactor by diffing two computed-style captures
 
-usage: stylemap-diff <beforeDir> <afterDir> [options]
+usage: styleproof-diff <beforeDir> <afterDir> [options]
 
 options:
   --max <n>        max lines printed per surface before truncating (default: 40)
@@ -49,7 +49,7 @@ for (let i = 0; i < argv.length; i++) {
   } else args.push(argv[i]);
 }
 if (args.length !== 2 || !Number.isFinite(MAX)) {
-  console.error('usage: stylemap-diff <beforeDir> <afterDir> [--max N] [--json <file>]  (--help for all options)');
+  console.error('usage: styleproof-diff <beforeDir> <afterDir> [--max N] [--json <file>]  (--help for all options)');
   process.exit(2);
 }
 const [dirA, dirB] = args;

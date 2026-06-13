@@ -39,7 +39,7 @@ async function captureFixture(
   page: import('@playwright/test').Page,
   html: string,
 ): Promise<ReturnType<typeof loadStyleMap>> {
-  const file = path.join(os.tmpdir(), `stylemap-e2e-${Math.random().toString(36).slice(2)}.html`);
+  const file = path.join(os.tmpdir(), `styleproof-e2e-${Math.random().toString(36).slice(2)}.html`);
   fs.writeFileSync(file, html);
   try {
     await page.setViewportSize({ width: 800, height: 600 });
@@ -77,7 +77,7 @@ test('catches a dropped :hover variant via forced-state capture (CDP)', async ({
 
 test('saveStyleMap/loadStyleMap roundtrip a real capture (.json.gz)', async ({ page }) => {
   const map = await captureFixture(page, fixture('rgb(0, 0, 0)', 'rgb(0, 255, 0)'));
-  const file = path.join(os.tmpdir(), `stylemap-e2e-rt-${Math.random().toString(36).slice(2)}.json.gz`);
+  const file = path.join(os.tmpdir(), `styleproof-e2e-rt-${Math.random().toString(36).slice(2)}.json.gz`);
   saveStyleMap(file, map);
   try {
     expect(loadStyleMap(file)).toEqual(map);

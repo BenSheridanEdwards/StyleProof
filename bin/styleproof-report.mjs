@@ -4,7 +4,7 @@
  * region, plus the exact property changes, as markdown ready for a PR
  * comment.
  *
- *   stylemap-report <beforeDir> <afterDir> --out <dir> [options]
+ *   styleproof-report <beforeDir> <afterDir> --out <dir> [options]
  *
  * Both capture dirs need the .json.gz maps; side-by-side images additionally
  * need the .png screenshots that `defineStyleMapCapture` saves by default.
@@ -12,12 +12,12 @@
  */
 import { generateStyleMapReport } from '../dist/report.js';
 
-const HELP = `stylemap-report — reviewable before/after report from two captures
+const HELP = `styleproof-report — reviewable before/after report from two captures
 
-usage: stylemap-report <beforeDir> <afterDir> --out <dir> [options]
+usage: styleproof-report <beforeDir> <afterDir> --out <dir> [options]
 
 options:
-  --out <dir>               output directory (default: stylemap-report)
+  --out <dir>               output directory (default: styleproof-report)
   --image-base-url <url>    prefix for image URLs in report.md (default: relative)
   --pad <px>                padding around changed rects when cropping (default: 24)
   --max-crops <n>           max crop regions per surface before collapsing (default: 6)
@@ -33,7 +33,7 @@ exit: 0 no changes, 1 report generated, 2 usage error.
 
 const argv = process.argv.slice(2);
 const args = [];
-const flags = { out: 'stylemap-report', imageBaseUrl: '' };
+const flags = { out: 'styleproof-report', imageBaseUrl: '' };
 let pad;
 let maxCrops;
 let minWidth;
@@ -64,7 +64,7 @@ for (let i = 0; i < argv.length; i++) {
   } else args.push(a);
 }
 if (args.length !== 2) {
-  console.error('usage: stylemap-report <beforeDir> <afterDir> --out <dir> [options]  (--help for all options)');
+  console.error('usage: styleproof-report <beforeDir> <afterDir> --out <dir> [options]  (--help for all options)');
   process.exit(2);
 }
 for (const [name, val] of [

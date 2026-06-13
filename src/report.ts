@@ -35,7 +35,7 @@ export type ReportOptions = {
    * Include size/position-derived longhands (height, width, transform-origin…)
    * in the report. Off by default: on a reflow they change up the whole ancestor
    * chain and would anchor crops to the entire page. The certification differ
-   * (`stylemap-diff`) always keeps them.
+   * (`styleproof-diff`) always keeps them.
    */
   includeLayoutNoise?: boolean;
 };
@@ -456,7 +456,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const json: Array<Record<string, unknown>> = [];
   const img = (rel: string) => (imageBaseUrl ? `${imageBaseUrl.replace(/\/$/, '')}/${rel}` : rel);
 
-  md.push('## 🗺️ stylemap report');
+  md.push('## 🗺️ StyleProof report');
   md.push('');
   if (prepared.length === 0) {
     md.push('✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.');

@@ -11,11 +11,11 @@ A clear description of the bug.
 What you expected instead.
 
 **Reproduction**
-Steps, and if possible a minimal `stylemap-diff`/`stylemap-report` output or a `report.json`
+Steps, and if possible a minimal `styleproof-diff`/`styleproof-report` output or a `report.json`
 snippet showing the finding. A minimal HTML fixture is ideal.
 
 **Environment**
-- playwright-stylemap version:
+- StyleProof version:
 - @playwright/test version:
 - Node version:
 - OS / CI runner:
