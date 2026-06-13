@@ -1,6 +1,6 @@
 {
   "name": "styleproof",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Certify CSS refactors with the browser's computed styles: capture every resolved longhand, pseudo-element, and forced hover/focus/active state, then diff before against after.",
   "keywords": [
     "playwright",

@@ -7,6 +7,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.1.0]
+
+Report readability overhaul. No change to the capture format, the diff, or the
+public API — `styleproof-diff` certification is byte-for-byte identical; only the
+human-facing `styleproof-report` / `generateStyleMapReport` output changed.
+
+### Changed
+
+- **Group an identical change across surfaces into one section + one image.** A
+  change that appears on every breakpoint of a responsive page (e.g. a new footer
+  link across 7 landing widths) was repeated once per surface with a near-duplicate
+  crop each time. Surfaces whose findings are identical now collapse into a single
+  section that lists the affected surfaces (`landing @ 1280, 1080, 390 …`) and shows
+  one representative crop (the widest). The summary counts distinct changes, not
+  per-surface repetitions.
+- **One heading per element.** An element's base, pseudo, and forced-state findings
+  render under a single heading instead of a separate `DOM added` / `:hover` /
+  `:focus` block each.
+- **Newly-added elements read naturally.** A brand-new element has no meaningful
+  "before", so its forced states render as a `State · Property · Value` table of the
+  values it takes, instead of a `Before` column full of `(state does not change it)`.
+- `outline-width`/`-style`/`-color` collapse into one `outline` row.
+
 ## [1.0.0]
 
 First stable release and first publish to npm. The capture format, the public API
@@ -192,7 +215,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/styleproof/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/styleproof/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/BenSheridanEdwards/styleproof/compare/v0.5.0...v0.6.0
