@@ -107,6 +107,16 @@ function cropPng(src: PNG, box: Box, w: number, h: number): PNG {
   return out;
 }
 
+// Lossless but lean: drop the alpha channel (every crop/composite is opaque),
+// max deflate, adaptive per-row filtering. ~15% smaller than the default, and
+// faithful — these images are eyeballed for intentional change, so no lossy
+// artifacts that could masquerade as a real diff. The bigger lever is in the
+// action: it commits only the composite, never the separate before/after crops.
+const PNG_OPTS = { deflateLevel: 9, filterType: -1, colorType: 2, inputColorType: 6 } as const;
+function writePng(file: string, png: PNG): void {
+  fs.writeFileSync(file, PNG.sync.write(png, PNG_OPTS));
+}
+
 type RGB = [number, number, number];
 function fillRect(png: PNG, x: number, y: number, w: number, h: number, [r, g, b]: RGB): void {
   for (let yy = Math.max(0, y); yy < Math.min(png.height, y + h); yy++) {
@@ -236,9 +246,9 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         const before = cropPng(pngA, visible(g.before) ? g.before : region, w, h);
         const after = cropPng(pngB, visible(g.after) ? g.after : region, w, h);
         const composite = compositePair(before, after);
-        fs.writeFileSync(path.join(outDir, `${stem}-before.png`), PNG.sync.write(before));
-        fs.writeFileSync(path.join(outDir, `${stem}-after.png`), PNG.sync.write(after));
-        fs.writeFileSync(path.join(outDir, `${stem}-composite.png`), PNG.sync.write(composite));
+        writePng(path.join(outDir, `${stem}-before.png`), before);
+        writePng(path.join(outDir, `${stem}-after.png`), after);
+        writePng(path.join(outDir, `${stem}-composite.png`), composite);
         images = { before: `${stem}-before.png`, after: `${stem}-after.png`, composite: `${stem}-composite.png` };
         // One side-by-side image per change: clean inline render, single upload.
         md.push(
