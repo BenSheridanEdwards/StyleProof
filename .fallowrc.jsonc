@@ -1,0 +1,7 @@
+{
+  // Test-fixture similarity (setup boilerplate across spec files) is expected
+  // and not worth contorting tests for; run the duplication analysis in production
+  // mode so it skips test/dev files. Dead-code, complexity, and security still
+  // scan the whole tree, and src/bin duplication is still caught.
+  "production": { "dupes": true }
+}
