@@ -145,28 +145,26 @@ function fillRect(png: PNG, x: number, y: number, w: number, h: number, [r, g, b
 }
 
 /**
- * One labelled before|after image: the two equal-size crops on a dark canvas,
- * a divider between them, and a top accent bar per side (grey = before,
- * blue = after) as a font-free before/after cue. Left is always before.
+ * One before|after image: the two equal-size crops on a dark canvas with a
+ * neutral divider between them. Left is always before; before/after is labelled
+ * by the caption under the image. The divider is identical on both sides, so the
+ * ONLY thing that differs across the pair is the actual change — no extra chrome
+ * (e.g. a coloured accent strip) that reads as a second diff.
  */
 function compositePair(before: PNG, after: PNG): PNG {
   const PAD = 20;
   const GAP = 28;
-  const BAR = 6; // accent strip height
   const w = Math.max(before.width, after.width);
   const h = Math.max(before.height, after.height);
   const width = PAD + w + GAP + w + PAD;
-  const height = PAD + BAR + h + PAD;
+  const height = PAD + h + PAD;
   const canvas = new PNG({ width, height });
   fillRect(canvas, 0, 0, width, height, [13, 17, 23]); // GitHub dark
   const leftX = PAD;
   const rightX = PAD + w + GAP;
-  const top = PAD + BAR;
-  fillRect(canvas, leftX, PAD, w, BAR, [110, 118, 129]); // before: grey
-  fillRect(canvas, rightX, PAD, w, BAR, [88, 166, 255]); // after: blue
-  PNG.bitblt(before, canvas, 0, 0, before.width, before.height, leftX, top);
-  PNG.bitblt(after, canvas, 0, 0, after.width, after.height, rightX, top);
-  fillRect(canvas, PAD + w + GAP / 2 - 1, PAD, 2, BAR + h, [48, 54, 61]); // divider
+  PNG.bitblt(before, canvas, 0, 0, before.width, before.height, leftX, PAD);
+  PNG.bitblt(after, canvas, 0, 0, after.width, after.height, rightX, PAD);
+  fillRect(canvas, PAD + w + GAP / 2 - 1, PAD, 2, h, [48, 54, 61]); // divider
   return canvas;
 }
 

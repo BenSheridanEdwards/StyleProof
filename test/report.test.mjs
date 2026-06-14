@@ -390,9 +390,9 @@ test('end-to-end: a valid composite PNG of the expected size is written', () => 
   // Re-decode it: proves a real PNG, not an empty/corrupt file.
   const png = PNG.sync.read(fs.readFileSync(compositePath));
   // Crop is min 320x180; composite = PAD20 + w + GAP28 + w + PAD20 wide,
-  // PAD20 + BAR6 + h + PAD20 tall. With w=320,h=180: 2*320+68=708 by 226.
+  // PAD20 + h + PAD20 tall (no accent strip). With w=320,h=180: 2*320+68=708 by 220.
   assert.equal(png.width, 708);
-  assert.equal(png.height, 226);
+  assert.equal(png.height, 220);
   rmTmp(root);
 });
 
