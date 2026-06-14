@@ -630,7 +630,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   } = opts;
 
   const includeNoise = opts.includeLayoutNoise ?? false;
-  const { surfaces } = diffStyleMapDirs(beforeDir, afterDir);
+  const { surfaces, volatile: volatileCount } = diffStyleMapDirs(beforeDir, afterDir);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
   // Focus each surface on styling intent: drop reflow-casualty elements (only
@@ -697,6 +697,12 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
           `New surfaces don't block the check.`,
       );
     }
+  }
+  if (volatileCount > 0) {
+    md.push(
+      '',
+      `_${volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — they don't affect the check._`,
+    );
   }
 
   let totalFindings = 0;

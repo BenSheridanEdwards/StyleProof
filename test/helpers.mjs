@@ -57,16 +57,24 @@ export function writeCapture(dir, surface, map, png /* Buffer | null */) {
   return dir;
 }
 
+/** A fresh tmp root with the standard before/after/out subdir paths (no writes). */
+export function tmpDirs() {
+  const root = mkTmp();
+  return {
+    root,
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir: path.join(root, 'out'),
+  };
+}
+
 /**
  * Convenience: lay down a before/after pair under a fresh tmp root.
  * Returns { root, beforeDir, afterDir, outDir }.
  */
 export function pairFixture({ surface, before, after, beforePng = null, afterPng = null } = {}) {
-  const root = mkTmp();
-  const beforeDir = path.join(root, 'before');
-  const afterDir = path.join(root, 'after');
-  const outDir = path.join(root, 'out');
-  writeCapture(beforeDir, surface, before, beforePng);
-  writeCapture(afterDir, surface, after, afterPng);
-  return { root, beforeDir, afterDir, outDir };
+  const dirs = tmpDirs();
+  writeCapture(dirs.beforeDir, surface, before, beforePng);
+  writeCapture(dirs.afterDir, surface, after, afterPng);
+  return dirs;
 }
