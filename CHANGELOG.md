@@ -7,6 +7,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.5.0]
+
+Live regions are handled automatically, so a dashboard with streaming data,
+tickers, or late-loading content no longer produces a false "everything
+changed" report.
+
+### Added
+
+- **Auto-settle before capture (`stabilize`, default on).** The capture now
+  polls the (motion-frozen) page until its computed-style map has been unchanged
+  for a quiet window, so content that paints _after_ `go()` resolves — an async
+  fetch, an SSE/WebSocket stream backfilling a grid — is captured loaded, not
+  mid-load. This is what fixes the most common false positive: base and head
+  racing an async load and diffing empty-state-vs-populated. Requiring a
+  _sustained_ no-change window (not a single quiet sample) is what lets it wait
+  through the gap before late content appears.
+- **Automatic live-region detection.** Anything still changing on its own when
+  the settle budget runs out is, by definition, nondeterministic (it mutates
+  with no code change). Those element paths are recorded in `StyleMap.volatile`
+  and excluded from the diff — unioned across both sides — so a stream or ticker
+  never reads as a change, with no manual `ignore`. The report notes how many
+  live regions were auto-excluded. Tune or disable via
+  `captureStyleMap(page, { stabilize })` (`false`, or `{ interval, quietFor, timeout }`).
+
+### Changed
+
+- `diffStyleMapDirs` now returns a `volatile` count alongside `surfaces`/`counts`.
+- Text-only churn (a clock, "2m ago") still never matters — the diff has always
+  compared computed style, not text; this release adds the structural/layout
+  determinism to match.
+
 ## [1.4.0]
 
 New surfaces (present on only one side, no baseline to diff) are shown for

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadStyleMap, type StyleMap } from './capture.js';
+import { loadStyleMap, isUnder, type StyleMap } from './capture.js';
 
 /**
  * Structured diff between two style maps. Custom properties (--*) are
@@ -46,7 +46,14 @@ function diffProps(
 export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
   const findings: Finding[] = [];
 
+  // Live regions either capture flagged as nondeterministic (a stream, ticker,
+  // late-loading content): never diff them — their values move with no code
+  // change. Union both sides so a region volatile on only one capture is still
+  // skipped, in every layer (element, pseudo, forced-state).
+  const volatile = [...new Set([...(a.volatile ?? []), ...(b.volatile ?? [])])];
+
   for (const p of [...new Set([...Object.keys(a.elements), ...Object.keys(b.elements)])].sort()) {
+    if (volatile.length && isUnder(p, volatile)) continue;
     const ea = a.elements[p];
     const eb = b.elements[p];
     if (!ea || !eb) {
@@ -93,6 +100,7 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
   }
 
   for (const p of new Set([...Object.keys(a.states ?? {}), ...Object.keys(b.states ?? {})])) {
+    if (volatile.length && isUnder(p, volatile)) continue;
     const sa = a.states?.[p] ?? {};
     const sb = b.states?.[p] ?? {};
     const cls = (a.elements[p] ?? b.elements[p])?.cls ?? '';
@@ -116,6 +124,15 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
   return findings;
 }
 
+/** Add a surface's findings to the running totals (one DOM/style/state tally). */
+function tallyCounts(findings: Finding[], counts: DiffCounts): void {
+  for (const f of findings) {
+    if (f.kind === 'dom') counts.dom++;
+    else if (f.kind === 'style') counts.style += f.props.length;
+    else counts.state += f.props.length;
+  }
+}
+
 function indexDir(dir: string): Record<string, string> {
   return Object.fromEntries(
     fs
@@ -125,8 +142,12 @@ function indexDir(dir: string): Record<string, string> {
   );
 }
 
-/** Diff every same-named capture between two directories. */
-export function diffStyleMapDirs(dirA: string, dirB: string): { surfaces: SurfaceDiff[]; counts: DiffCounts } {
+/** Diff every same-named capture between two directories. `volatile` is the
+ *  count of live regions auto-excluded across all surfaces (union per surface). */
+export function diffStyleMapDirs(
+  dirA: string,
+  dirB: string,
+): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number } {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
@@ -134,6 +155,7 @@ export function diffStyleMapDirs(dirA: string, dirB: string): { surfaces: Surfac
 
   const surfaces: SurfaceDiff[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
+  let volatile = 0;
   for (const surface of names) {
     if (!indexA[surface] || !indexB[surface]) {
       // A surface present on only one side has no baseline to diff against — it's
@@ -143,15 +165,14 @@ export function diffStyleMapDirs(dirA: string, dirB: string): { surfaces: Surfac
       surfaces.push({ surface, missing: indexA[surface] ? 'after' : 'before', findings: [] });
       continue;
     }
-    const findings = diffStyleMaps(loadStyleMap(indexA[surface]), loadStyleMap(indexB[surface]));
-    for (const f of findings) {
-      if (f.kind === 'dom') counts.dom++;
-      else if (f.kind === 'style') counts.style += f.props.length;
-      else counts.state += f.props.length;
-    }
+    const mapA = loadStyleMap(indexA[surface]);
+    const mapB = loadStyleMap(indexB[surface]);
+    volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
+    const findings = diffStyleMaps(mapA, mapB);
+    tallyCounts(findings, counts);
     if (findings.length) surfaces.push({ surface, findings });
   }
-  return { surfaces, counts };
+  return { surfaces, counts, volatile };
 }
 
 /** Human label: structural path plus a truncated class hint. */

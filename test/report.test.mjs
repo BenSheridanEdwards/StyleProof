@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import { generateStyleMapReport, summarizeProps, prettyLabel } from '../dist/report.js';
-import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, writeCapture } from './helpers.mjs';
+import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture } from './helpers.mjs';
 
 // NOTE: summarizeProps and prettyLabel must be exported from report.ts (and
 // re-exported from index.ts) for these direct unit tests. See the drafted
@@ -407,10 +407,7 @@ test('end-to-end: no differences yields the all-identical report and zero surfac
 });
 
 test('end-to-end: a surface missing on one side is reported as a new surface, not crashed on', () => {
-  const root = mkTmp();
-  const beforeDir = path.join(root, 'before');
-  const afterDir = path.join(root, 'after');
-  const outDir = path.join(root, 'out');
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
   writeCapture(beforeDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
   writeCapture(afterDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
   writeCapture(beforeDir, 'about@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
@@ -426,10 +423,7 @@ test('end-to-end: a surface missing on one side is reported as a new surface, no
 });
 
 test('end-to-end: a new surface is shown with its captured-side screenshot', () => {
-  const root = mkTmp();
-  const beforeDir = path.join(root, 'before');
-  const afterDir = path.join(root, 'after');
-  const outDir = path.join(root, 'out');
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
   // Present only on the after side, with a screenshot → rendered as an image.
   writeCapture(
     afterDir,
@@ -445,6 +439,24 @@ test('end-to-end: a new surface is shown with its captured-side screenshot', () 
   const m = md.match(/!\[new surface — after\]\((crops\/[^)]+-new\.png)\)/);
   assert.ok(m, 'new-surface screenshot is embedded');
   assert.ok(fs.existsSync(path.join(outDir, m[1])), 'the crop file was written');
+  rmTmp(root);
+});
+
+test('end-to-end: a live region is auto-excluded and noted, not reported as a change', () => {
+  // After differs ONLY on a path the after-capture flagged volatile (a live region).
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    after: {
+      ...sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
+      volatile: ['body > div:nth-child(1) > button:nth-child(1)'],
+    },
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  assert.equal(res.changedSurfaces, 0); // the only delta was on a live region
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /✓ All surfaces identical/);
+  assert.match(md, /1 live region\(s\) auto-excluded/);
   rmTmp(root);
 });
 

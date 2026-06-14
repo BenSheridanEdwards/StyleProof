@@ -123,6 +123,8 @@ jobs:
 
 > Capture both sides in the **same environment** (same machine, same env vars): if env vars change _what renders_, base and head will diff on DOM no PR touched.
 
+**Live pages just work.** Before each capture, StyleProof settles the page — it waits until the computed-style map stops changing, so async content (a fetch, an SSE/WebSocket stream backfilling a grid) is captured loaded, not mid-load. Anything still moving on its own after that is detected as a live region and excluded from the diff, so a stream or ticker never reads as a change — no manual `ignore` needed. Disable or tune with `captureStyleMap(page, { stabilize: false })` / `{ stabilize: { quietFor, timeout } }`.
+
 ## Reference
 
 **Action `BenSheridanEdwards/styleproof@v1`** — key inputs:

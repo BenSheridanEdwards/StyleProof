@@ -2,8 +2,22 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, loadStyleMap } from '../dist/index.js';
 import { diffStyleMaps } from '../dist/index.js';
+
+/** Navigate to inline HTML (no waiting past `load`) and run a callback. */
+async function withPage<T>(page: Page, html: string, fn: () => Promise<T>): Promise<T> {
+  const file = path.join(os.tmpdir(), `styleproof-e2e-${Math.random().toString(36).slice(2)}.html`);
+  fs.writeFileSync(file, html);
+  try {
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.goto('file://' + file, { waitUntil: 'load' });
+    return await fn();
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+}
 
 /**
  * Smoke e2e for the browser-only capture path. Everything in src/capture.ts
@@ -35,19 +49,8 @@ function fixture(buttonColor: string, hoverColor: string): string {
   </body></html>`;
 }
 
-async function captureFixture(
-  page: import('@playwright/test').Page,
-  html: string,
-): Promise<ReturnType<typeof loadStyleMap>> {
-  const file = path.join(os.tmpdir(), `styleproof-e2e-${Math.random().toString(36).slice(2)}.html`);
-  fs.writeFileSync(file, html);
-  try {
-    await page.setViewportSize({ width: 800, height: 600 });
-    await page.goto('file://' + file, { waitUntil: 'load' });
-    return await captureStyleMap(page);
-  } finally {
-    fs.rmSync(file, { force: true });
-  }
+async function captureFixture(page: Page, html: string): Promise<ReturnType<typeof loadStyleMap>> {
+  return withPage(page, html, () => captureStyleMap(page));
 }
 
 test('captures a real page and reports an identical map as unchanged', async ({ page }) => {
@@ -73,6 +76,35 @@ test('catches a dropped :hover variant via forced-state capture (CDP)', async ({
   const b = await captureFixture(page, afterNoHover);
   const stateFinding = diffStyleMaps(a, b).find((f) => f.kind === 'state' && f.state === 'hover');
   expect(stateFinding, 'hover delta change detected').toBeTruthy();
+});
+
+test('auto-settles for content that paints after load (async fetch/stream)', async ({ page }) => {
+  // A div appended 300ms AFTER load — a stand-in for data that renders late. A
+  // naive capture at `load` would miss it; the settle pass waits THROUGH the
+  // initial quiet gap (it requires a sustained no-change window, not one sample).
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}.late{color:rgb(10,20,30)}</style></head><body>
+    <main></main>
+    <script>setTimeout(function(){var d=document.createElement('div');d.className='late';d.textContent='loaded';document.querySelector('main').appendChild(d);},300)</script>
+  </body></html>`;
+  const map = await withPage(page, html, () => captureStyleMap(page));
+  const hasLate = Object.values(map.elements).some((e) => e.cls === 'late');
+  expect(hasLate, 'late-painted element captured after the settle wait').toBe(true);
+  expect(map.volatile ?? [], 'a one-shot late load settles — not flagged volatile').toEqual([]);
+});
+
+test('auto-excludes a perpetual live region', async ({ page }) => {
+  // #live mutates its own layout forever → never settles → flagged volatile and
+  // excluded; the static button beside it is still captured.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}#live{width:50px;height:50px;background:rgb(1,2,3)}</style></head><body>
+    <main><div id="live"></div><button class="cta">ok</button></main>
+    <script>var i=0;setInterval(function(){document.getElementById('live').style.marginLeft=((i++%20)+5)+'px';},80)</script>
+  </body></html>`;
+  const map = await withPage(page, html, () => captureStyleMap(page, { stabilize: { interval: 100, timeout: 800 } }));
+  expect((map.volatile ?? []).length, 'live region detected').toBeGreaterThan(0);
+  const liveStillCaptured = Object.keys(map.elements).some((p) => p.endsWith('div:nth-child(1)'));
+  expect(liveStillCaptured, 'the live region is excluded from elements').toBe(false);
+  const buttonCaptured = Object.values(map.elements).some((e) => e.cls === 'cta');
+  expect(buttonCaptured, 'the static button is still captured').toBe(true);
 });
 
 test('saveStyleMap/loadStyleMap roundtrip a real capture (.json.gz)', async ({ page }) => {
