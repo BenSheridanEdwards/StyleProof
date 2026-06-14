@@ -1,24 +1,40 @@
 name: Release
 
+# Publish on merge to main. When a merged change bumps the version in
+# package.json (i.e. there is no vX.Y.Z tag for it yet), this builds, tests,
+# publishes to npm, tags the commit, cuts a GitHub Release from the CHANGELOG,
+# moves the major alias (e.g. v1), and mirrors to GitHub Packages. A merge that
+# does NOT bump the version is a clean no-op — npm forbids republishing a
+# version, so the version bump is the deliberate "release this" signal.
+#
+# To cut a release: bump the version in your PR (`npm version patch|minor|major
+# --no-git-tag-version`, or edit package.json + CHANGELOG), then merge. Until
+# the NPM_TOKEN secret is set the publish step is skipped (the tag + Release
+# still happen); add it for automated, provenance-signed publishing.
 on:
   push:
-    tags:
-      # Full semver only. The moving major alias (e.g. v1) is updated BY this
-      # workflow and is deliberately not a trigger, so there is no loop.
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+    branches: [main]
+  workflow_dispatch:
 
-# contents: write -> create the GitHub Release and move the major tag.
-# id-token: write -> REQUIRED for `npm publish --provenance` (OIDC -> Sigstore).
+# contents: write -> tag + GitHub Release + move the major alias.
+# id-token: write -> npm publish --provenance (OIDC -> Sigstore).
+# packages: write -> the GitHub Packages mirror job.
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 jobs:
   release:
     name: release
     runs-on: ubuntu-latest # styleproof is public, so GitHub-hosted runners are free
+    outputs:
+      released: ${{ steps.check.outputs.released }}
+      version: ${{ steps.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the tags to detect an existing release and to push a new one
 
       # registry-url makes setup-node write an .npmrc that reads NODE_AUTH_TOKEN.
       - uses: actions/setup-node@v4
@@ -27,53 +43,68 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: npm
 
-      - name: Verify tag matches package.json version
+      # The version bump is the release signal: if package.json's version has no
+      # tag yet, this merge bumped it and we release; otherwise it's a no-op.
+      - name: Has this version been released?
+        id: check
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          PKG="$(node -p "require('./package.json').version")"
-          if [ "$TAG" != "$PKG" ]; then
-            echo "::error::pushed tag v$TAG does not match package.json version $PKG"
-            exit 1
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "::notice::v$VERSION is already tagged — no version bump on this merge, nothing to release."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::v$VERSION is new — releasing."
+            echo "released=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install dependencies
+        if: steps.check.outputs.released == 'true'
         run: npm ci
-
       - name: Build
+        if: steps.check.outputs.released == 'true'
         run: npm run build
-
       - name: Typecheck
+        if: steps.check.outputs.released == 'true'
         run: npm run typecheck
-
       - name: Lint
+        if: steps.check.outputs.released == 'true'
         run: npm run lint
-
       - name: Unit tests
+        if: steps.check.outputs.released == 'true'
         run: npm test
 
-      # Idempotent and token-aware: skip when the version is already on npm
-      # (a backfilled tag or a re-run) or when NPM_TOKEN is not configured
-      # (keep publishing manually until then). Provenance needs npm >= 9.5
-      # (Node 22 ships it) and id-token: write above; --access public is required.
+      # Idempotent and token-aware: skip when NPM_TOKEN is unset (tag + Release
+      # still happen; publish manually until then) or when the version is somehow
+      # already on npm. Provenance needs npm >= 9.5 (Node 22) and id-token: write.
       - name: Publish to npm
+        if: steps.check.outputs.released == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          VERSION="$(node -p "require('./package.json').version")"
+          VERSION="${{ steps.check.outputs.version }}"
           if [ -z "${NODE_AUTH_TOKEN}" ]; then
-            echo "::notice::NPM_TOKEN is not set — skipping npm publish. Publish manually, or add the secret for automated provenance-signed releases."
+            echo "::warning::NPM_TOKEN is not set — skipping npm publish. Add the secret for automated provenance-signed releases."
           elif npm view "styleproof@${VERSION}" version >/dev/null 2>&1; then
             echo "::notice::styleproof@${VERSION} is already on npm — skipping publish."
           else
             npm publish --provenance --access public
           fi
 
-      # Extract this tag's section from CHANGELOG.md if present; otherwise let
+      - name: Tag the release
+        if: steps.check.outputs.released == 'true'
+        run: |
+          VERSION="${{ steps.check.outputs.version }}"
+          git tag "v$VERSION" "$GITHUB_SHA"
+          git push origin "refs/tags/v$VERSION"
+
+      # Extract this version's section from CHANGELOG.md if present; otherwise let
       # the release action auto-generate notes.
       - name: Build release notes
+        if: steps.check.outputs.released == 'true'
         id: notes
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ steps.check.outputs.version }}"
           if [ -f CHANGELOG.md ]; then
             awk -v v="$VERSION" '
               /^## / { if (p) exit; if (index($0, v)) { p=1; next } }
@@ -87,8 +118,10 @@ jobs:
           fi
 
       - name: Create GitHub Release
+        if: steps.check.outputs.released == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.check.outputs.version }}
           body_path: ${{ steps.notes.outputs.have_notes == 'true' && 'notes.md' || '' }}
           generate_release_notes: ${{ steps.notes.outputs.have_notes != 'true' }}
 
@@ -96,7 +129,19 @@ jobs:
       # `uses: BenSheridanEdwards/styleproof@v1` always get the latest 1.x. A
       # GITHUB_TOKEN push does not retrigger workflows, so this never loops.
       - name: Move the major tag
+        if: steps.check.outputs.released == 'true'
         run: |
-          MAJOR="v$(node -p "require('./package.json').version.split('.')[0]")"
+          MAJOR="v$(echo "${{ steps.check.outputs.version }}" | cut -d. -f1)"
           git tag -f "$MAJOR" "$GITHUB_SHA"
           git push -f origin "refs/tags/$MAJOR"
+
+  # Mirror the same version to GitHub Packages (scoped) so the repo's Packages
+  # section stays in sync. Called here because a GITHUB_TOKEN-created Release does
+  # not fire the mirror workflow's own `release` trigger.
+  github-packages:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/github-packages.yml

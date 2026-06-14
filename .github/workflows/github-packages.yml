@@ -6,9 +6,8 @@ name: GitHub Packages
 # kept in lockstep on every release. Uses the built-in GITHUB_TOKEN, no secret.
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
+  workflow_call: # invoked by release.yml after a successful release
+  workflow_dispatch: # or on demand to re-mirror the current version
 
 permissions:
   contents: read
