@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- The before/after composite no longer draws coloured accent strips (grey for
+  before, blue for after) above each crop. They were a font-free before/after
+  cue, but a strip that differs between the two sides reads as a _second_ change
+  in the pair. Now the only thing that differs across the composite is the actual
+  change; before/after stays conveyed by position (left = before) and the caption.
+
 ## [1.3.0]
 
 Clearer reports: one section per screenshot.
