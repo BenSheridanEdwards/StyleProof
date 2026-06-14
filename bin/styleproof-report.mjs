@@ -108,10 +108,13 @@ try {
   process.exit(2);
 }
 
+const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';
 console.log(
   result.changedSurfaces === 0
-    ? '✓ no changes — empty report written'
-    : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)`,
+    ? result.newSurfaces === 0
+      ? '✓ no changes — empty report written'
+      : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for reference`
+    : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );
 console.log(`report: ${result.reportMdPath}`);
-process.exit(result.changedSurfaces === 0 ? 0 : 1);
+process.exit(result.changedSurfaces === 0 && result.newSurfaces === 0 ? 0 : 1);
