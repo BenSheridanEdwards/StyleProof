@@ -119,7 +119,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.check.outputs.released == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.check.outputs.version }}
           body_path: ${{ steps.notes.outputs.have_notes == 'true' && 'notes.md' || '' }}
