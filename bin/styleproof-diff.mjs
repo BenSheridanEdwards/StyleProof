@@ -14,7 +14,8 @@
  *     `hover:` variant a screenshot can never catch.
  *
  * Custom properties (--*) are ignored: they are inputs, not outcomes (see
- * README). Exit code 0 = identical, 1 = differences, 2 = usage/capture error.
+ * README). Exit code 0 = identical, 1 = reviewable differences, 2 = usage/capture
+ * error, 3 = only new surfaces (present on one side, no baseline to diff against).
  */
 import fs from 'node:fs';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
@@ -28,7 +29,8 @@ options:
   --json <file>    also write the full structured diff to <file>
   -h, --help       show this help
 
-exit: 0 identical (certified), 1 differences found, 2 usage/capture error.
+exit: 0 identical (certified), 1 differences found, 2 usage/capture error,
+      3 only new surfaces (present on one side, no baseline to diff against).
 `;
 
 const argv = process.argv.slice(2);
@@ -71,7 +73,8 @@ const { surfaces, counts } = result;
 
 for (const sd of surfaces) {
   if (sd.missing) {
-    console.log(`\n${sd.surface}: captured in only one set — re-run both captures`);
+    const side = sd.missing === 'before' ? 'after' : 'before';
+    console.log(`\n${sd.surface}: new surface — captured only in the ${side} set, no baseline to compare`);
     continue;
   }
   const lines = [];
@@ -98,13 +101,19 @@ for (const sd of surfaces) {
 if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({ counts, surfaces }, null, 2));
 
 const total = counts.dom + counts.style + counts.state;
+const newSurfaces = surfaces.filter((s) => s.missing).length;
 const surfaceCount = new Set([
   ...fs.readdirSync(dirA).filter((f) => /\.json(\.gz)?$/.test(f)),
   ...fs.readdirSync(dirB).filter((f) => /\.json(\.gz)?$/.test(f)),
 ]).size;
+const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
 console.log(
   total === 0
-    ? `\n✓ ${surfaceCount} surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces`,
+    ? newSurfaces === 0
+      ? `\n✓ ${surfaceCount} surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches`
+      : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — shown for reference, no reviewable change`
+    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}`,
 );
-process.exit(total === 0 ? 0 : 1);
+// 0 = identical, 1 = reviewable differences, 3 = only new surfaces (no baseline,
+// nothing to review). 2 stays reserved for usage/capture errors.
+process.exit(total > 0 ? 1 : newSurfaces > 0 ? 3 : 0);

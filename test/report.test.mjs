@@ -406,7 +406,7 @@ test('end-to-end: no differences yields the all-identical report and zero surfac
   rmTmp(root);
 });
 
-test('end-to-end: a surface missing on one side is reported, not crashed on', () => {
+test('end-to-end: a surface missing on one side is reported as a new surface, not crashed on', () => {
   const root = mkTmp();
   const beforeDir = path.join(root, 'before');
   const afterDir = path.join(root, 'after');
@@ -416,7 +416,35 @@ test('end-to-end: a surface missing on one side is reported, not crashed on', ()
   writeCapture(beforeDir, 'about@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /captured only in the \*\*before\*\* set/);
+  // Framed as a new surface (non-blocking), carrying the marker the PR comment
+  // uses to attach an OPTIONAL approval box — never the misleading "0 changes".
+  assert.match(md, /### `about@1280` · new surface <!-- styleproof-new -->/);
+  assert.match(md, /🆕 \*\*1 new surface\(s\)\*\*/);
+  assert.match(md, /doesn't block the check/);
+  assert.doesNotMatch(md, /0 DOM change\(s\)/); // no contradictory "0 changes" headline
+  rmTmp(root);
+});
+
+test('end-to-end: a new surface is shown with its captured-side screenshot', () => {
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  const outDir = path.join(root, 'out');
+  // Present only on the after side, with a screenshot → rendered as an image.
+  writeCapture(
+    afterDir,
+    'pricing@1280',
+    sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    solidPng(1280, 600),
+  );
+  // A matching identical pair so the dir isn't all-missing (and the diff runs).
+  writeCapture(beforeDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  writeCapture(afterDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const m = md.match(/!\[new surface — after\]\((crops\/[^)]+-new\.png)\)/);
+  assert.ok(m, 'new-surface screenshot is embedded');
+  assert.ok(fs.existsSync(path.join(outDir, m[1])), 'the crop file was written');
   rmTmp(root);
 });
 

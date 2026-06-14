@@ -136,8 +136,11 @@ export function diffStyleMapDirs(dirA: string, dirB: string): { surfaces: Surfac
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
   for (const surface of names) {
     if (!indexA[surface] || !indexB[surface]) {
+      // A surface present on only one side has no baseline to diff against — it's
+      // a NEW surface, not a style change. It does NOT count toward the change
+      // tallies (those drive the review gate); the consumer flags it separately
+      // off the `missing` marker and shows it for reference without blocking.
       surfaces.push({ surface, missing: indexA[surface] ? 'after' : 'before', findings: [] });
-      counts.dom++;
       continue;
     }
     const findings = diffStyleMaps(loadStyleMap(indexA[surface]), loadStyleMap(indexB[surface]));

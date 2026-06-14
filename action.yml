@@ -44,7 +44,10 @@ inputs:
 
 outputs:
   changed:
-    description: '"true" when any computed style, pseudo-element, or state changed.'
+    description: >-
+      "true" when an existing surface changed (computed style, pseudo-element, DOM,
+      or state). A brand-new surface with no baseline is NOT a change and leaves
+      this "false" — it's reported for reference but never gates.
     value: ${{ steps.diff.outputs.changed }}
   report-url:
     description: 'Blob URL of the committed report (when changed).'
@@ -61,13 +64,17 @@ runs:
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
-        echo "changed=$([ "$code" -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+        # 1 = reviewable changes (gate on these); 3 = only NEW surfaces with no
+        # baseline (report them, but they never gate). `report` fires for either,
+        # so the report is published/posted; `changed` drives the review gate.
+        if [ "$code" -eq 1 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+        if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then echo "report=true" >> "$GITHUB_OUTPUT"; else echo "report=false" >> "$GITHUB_OUTPUT"; fi
 
     # Report images use RELATIVE paths so they render from the committed file (do
     # NOT pass --image-base-url — a raw.githubusercontent URL is fetched anonymously
     # by GitHub's Camo proxy and 404s on private repos).
     - id: publish
-      if: steps.diff.outputs.changed == 'true'
+      if: steps.diff.outputs.report == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -105,7 +112,9 @@ runs:
           rm -rf "${TMP:?}/${REPORT_PATH}"
           mkdir -p "$TMP/$REPORT_PATH/crops"
           cp styleproof-report/report.md "$TMP/$REPORT_PATH/report.md"
-          cp styleproof-report/crops/*-composite.png "$TMP/$REPORT_PATH/crops/" 2>/dev/null || true
+          # Composite (before|after) crops for changes, plus single-side crops for
+          # new surfaces — both are referenced by report.md's relative image links.
+          cp styleproof-report/crops/*-composite.png styleproof-report/crops/*-new.png "$TMP/$REPORT_PATH/crops/" 2>/dev/null || true
 
           git -C "$TMP" add -A
           git -C "$TMP" commit -q -m "$REPORT_MSG" || true
@@ -126,7 +135,12 @@ runs:
         script: |
           const fs = require('fs');
           const marker = '<!-- styleproof-report -->';
+          // `changed` = reviewable before/after differences (these gate). `report`
+          // also covers NEW surfaces with no baseline: still worth posting (with a
+          // screenshot), but they never gate — so a new-surfaces-only run posts the
+          // report yet leaves the check green.
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
+          const report = '${{ steps.diff.outputs.report }}' === 'true';
           const { data: comments } = await github.rest.issues.listComments({
             ...context.repo, issue_number: context.issue.number, per_page: 100,
           });
@@ -135,7 +149,7 @@ runs:
             ? github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
             : github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
 
-          if (!changed) {
+          if (!report) {
             if (existing) await upsert(`${marker}\n## 🗺️ StyleProof report\n\n✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.`);
             return;
           }
@@ -157,11 +171,18 @@ runs:
           const requireApproval = '${{ inputs.require-approval }}' === 'true';
           const statusContext = '${{ inputs.status-context }}';
 
-          // Review-gate mode: inject one approval checkbox per change-group heading,
-          // BEFORE the public/private rendering so both modes carry it. Every box
-          // must be ticked for green — each change signed off on its own.
+          // Review-gate mode: inject one approval checkbox per section heading,
+          // BEFORE the public/private rendering so both modes carry it. A real
+          // change gets a **required** box (all must be ticked for green); a NEW
+          // surface (heading carries the styleproof-new marker) gets an OPTIONAL
+          // box with a distinct label the approve workflow deliberately ignores —
+          // so new surfaces are acknowledgeable but never gate the check.
+          const hasNew = regions.includes('<!-- styleproof-new -->');
           const regionsForComment = requireApproval
-            ? regions.replace(/^(### .+)$/gm, '$1\n\n- [ ] **Approve this change**')
+            ? regions.replace(/^### .+$/gm, (line) =>
+                line.includes('<!-- styleproof-new -->')
+                  ? `${line}\n\n- [ ] **Approve this new surface** _(optional — does not block the check)_`
+                  : `${line}\n\n- [ ] **Approve this change**`)
             : regions;
 
           let visual;
@@ -183,7 +204,9 @@ runs:
           const footer = requireApproval
             ? [
                 '---',
-                `_Tick **every** "Approve this change" box above to turn the **${statusContext}** check green — write access required, each box counts. A new push that changes styles re-opens it._`,
+                changed
+                  ? `_Tick **every** "Approve this change" box above to turn the **${statusContext}** check green — write access required, each box counts.${hasNew ? ' New-surface boxes are optional and never block.' : ''} A new push that changes styles re-opens it._`
+                  : `_The surface(s) above are **new** — no baseline to compare, so they don't block the **${statusContext}** check (it stays green). Ticking a box just records that you've seen them; they become the baseline once this merges._`,
                 `<!-- styleproof-sha:${headSha} -->`,
               ]
             : ['---', '_To accept: regenerate the committed baseline from this build and commit it with your diff._'];
@@ -215,9 +238,11 @@ runs:
           });
 
     # Legacy refactor-certification: fail the job on any diff (default). Skipped
-    # in review-gate mode, where the status check is the gate instead.
+    # in review-gate mode, where the status check is the gate instead. Uses
+    # `report` (not `changed`) so a new surface with no baseline also fails the
+    # certification — "nothing changed" means the capture set didn't grow either.
     - name: Fail on diff
-      if: steps.diff.outputs.changed == 'true' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true'
+      if: steps.diff.outputs.report == 'true' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true'
       shell: bash
       run: |
         echo 'Style changes detected — review the PR comment. To accept, regenerate the baseline and commit it.' >&2

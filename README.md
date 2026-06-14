@@ -16,6 +16,7 @@ On every PR, StyleProof captures a `StyleMap` from the HEAD and from the base br
 
 - A summary line, then **one section per distinct change**, with a side-by-side before/after cropped screenshot and the property changes folded under a toggle.
 - An **approval checkbox per change**, driving a `StyleProof` commit status: red until every change is signed off, green when there are none.
+- **New surfaces don't block.** A surface that exists only on the PR head (no baseline to diff — e.g. the bootstrap PR that first adds the capture spec, or a brand-new page) is shown with its screenshot under a `🆕 new surface` heading and an _optional_ approval box, but it never holds the status red. It becomes part of the baseline once merged.
 - No committed baseline to maintain — the diff is HEAD-vs-base, so the report is _exactly what this PR changes_.
 
 ## What a report looks like

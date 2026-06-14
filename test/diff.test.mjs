@@ -171,7 +171,12 @@ test('diffStyleMapDirs flags a surface present in only one dir', () => {
   const missing = surfaces.find((s) => s.surface === 'about@1280');
   assert.ok(missing, 'about surface present');
   assert.equal(missing.missing, 'before'); // only in B (after) → missing from the before set
-  assert.equal(counts.dom, 1); // a missing surface counts as one dom change
+  // A new surface has no baseline to diff, so it is NOT a change — it must not
+  // inflate the tallies that drive the review gate (only `home@1280` matched,
+  // and it is identical).
+  assert.equal(counts.dom, 0);
+  assert.equal(counts.style, 0);
+  assert.equal(counts.state, 0);
   rmTmp(root);
 });
 

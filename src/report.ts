@@ -48,13 +48,21 @@ export type ReportOptions = {
 };
 
 export type ReportResult = {
+  /** Surfaces carrying a reviewable change (excludes new, one-sided surfaces). */
   changedSurfaces: number;
+  /** New surfaces present on only one side, with no baseline to compare. */
+  newSurfaces: number;
   totalFindings: number;
   reportMdPath: string;
   reportJsonPath: string;
 };
 
 type Box = { x: number; y: number; w: number; h: number };
+
+// Hidden marker appended to a new-surface heading. Invisible in rendered
+// markdown; lets the PR-comment layer attach an OPTIONAL "approve" box to a new
+// surface (vs the required box on a real change), so new surfaces never gate.
+const NEW_SURFACE_MARKER = '<!-- styleproof-new -->';
 
 const rectToBox = (r: Rect): Box => ({ x: r[0], y: r[1], w: r[2], h: r[3] });
 const pad = (b: Box, by: number): Box => ({ x: b.x - by, y: b.y - by, w: b.w + 2 * by, h: b.h + 2 * by });
@@ -663,7 +671,10 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       else if (f.kind === 'style') shown.style += summarizeProps(f.props).length;
       else shown.state += summarizeProps(f.props).length;
     }
-  const surfaceCount = changeGroups.reduce((acc, g) => acc + g.surfaces.length, 0) + missing.length;
+  // Surfaces carrying a reviewable change — NOT the new (one-sided) ones, which
+  // have no baseline to compare and are summarised on their own line below so the
+  // headline never reads "0 changes" while warnings sit beneath it.
+  const changedSurfaceCount = changeGroups.reduce((acc, g) => acc + g.surfaces.length, 0);
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -673,10 +684,19 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   if (changeGroups.length === 0 && missing.length === 0) {
     md.push('✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.');
   } else {
-    md.push(
-      `**${shown.dom} DOM change(s) · ${shown.style} computed-style difference(s) · ${shown.state} state-delta difference(s)** ` +
-        `across ${changeGroups.length} distinct change(s) in ${surfaceCount} surface(s).`,
-    );
+    if (changeGroups.length > 0) {
+      md.push(
+        `**${shown.dom} DOM change(s) · ${shown.style} computed-style difference(s) · ${shown.state} state-delta difference(s)** ` +
+          `across ${changeGroups.length} distinct change(s) in ${changedSurfaceCount} surface(s).`,
+      );
+    }
+    if (missing.length > 0) {
+      if (changeGroups.length > 0) md.push('');
+      md.push(
+        `🆕 **${missing.length} new surface(s)** captured with no baseline to compare — shown below for reference. ` +
+          `New surfaces don't block the check.`,
+      );
+    }
   }
 
   let totalFindings = 0;
@@ -772,21 +792,57 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     json.push(surfaceJson);
   }
 
+  // New surfaces: present on only one side, so there's nothing to diff. Show the
+  // captured side as a single screenshot for reference and mark the heading so the
+  // PR comment can attach an OPTIONAL approval box — these never gate the check.
   for (const p of missing) {
+    const side = p.sd.missing === 'before' ? 'after' : 'before';
+    const srcDir = side === 'after' ? afterDir : beforeDir;
+    const png = readPng(path.join(srcDir, `${p.sd.surface}.png`));
     md.push(
       '',
-      `### \`${p.sd.surface}\``,
+      `### \`${p.sd.surface}\` · new surface ${NEW_SURFACE_MARKER}`,
       '',
-      `⚠️ captured only in the **${p.sd.missing === 'before' ? 'after' : 'before'}** set — re-run both captures.`,
+      `_${formatSurfaceList([p.sd.surface])}_`,
     );
-    json.push({ surface: p.sd.surface, missing: p.sd.missing });
+    const surfaceJson: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: true };
+    if (png) {
+      cropSeq++;
+      const h = Math.min(maxHeight, png.height);
+      const crop = cropPng(png, { x: 0, y: 0, w: png.width, h }, png.width, h);
+      const stem = `crops/${p.sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}-new`;
+      writePng(path.join(outDir, `${stem}.png`), crop);
+      md.push(
+        '',
+        `![new surface — ${side}](${img(`${stem}.png`)})`,
+        '',
+        `<sub>${side} · ${p.sd.surface}${png.height > h ? ' (top of page)' : ''}</sub>`,
+      );
+      surfaceJson.image = `${stem}.png`;
+    } else {
+      md.push(
+        '',
+        `_Captured only in the **${side}** set; no screenshot saved (run captures with \`screenshots: true\`)._`,
+      );
+    }
+    md.push(
+      '',
+      `_No baseline to compare against — this surface is new, so it doesn't block the check. It becomes part of the baseline once this merges._`,
+    );
+    json.push(surfaceJson);
   }
 
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
   fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
   fs.writeFileSync(reportJsonPath, JSON.stringify({ counts: shown, surfaces: json }, null, 2));
-  return { changedSurfaces: prepared.length, totalFindings, reportMdPath, reportJsonPath };
+  return {
+    changedSurfaces: prepared.length - missing.length,
+    newSurfaces: missing.length,
+    totalFindings,
+    reportMdPath,
+    reportJsonPath,
+  };
 }
 
 function findCapture(dir: string, surface: string): string {
