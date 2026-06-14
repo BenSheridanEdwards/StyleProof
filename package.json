@@ -63,7 +63,7 @@
     "test:watch": "node --test --watch test/*.test.mjs",
     "test:e2e": "npm run build && playwright test test/smoke.e2e.spec.ts",
     "init": "node ./bin/styleproof-init.mjs",
-    "prepare": "npm run build",
+    "prepare": "npm run build && husky",
     "prepublishOnly": "npm run clean && npm run build && npm run typecheck"
   },
   "peerDependencies": {
