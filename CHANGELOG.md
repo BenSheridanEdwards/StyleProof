@@ -7,6 +7,39 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.4.0]
+
+New surfaces (present on only one side, no baseline to diff) are shown for
+reference and never block the review gate.
+
+### Fixed
+
+- **A surface captured on only one side is now treated as a _new surface_, not a
+  change.** Previously every one-sided surface counted as a DOM change, so a
+  bootstrap PR (base branch has no capture spec yet → empty baseline) rendered a
+  self-contradicting report — a `0 DOM change(s) · 0 … · 0 … across 0 distinct
+change(s) in N surface(s)` headline sitting above N "re-run both captures"
+  warnings, each with an approval checkbox that could turn the gate green on a
+  capture set that has no baseline at all.
+
+### Changed
+
+- **New surfaces are shown, not blocked.** A surface present on only one side is
+  rendered with its captured-side screenshot under a `🆕 new surface` heading,
+  summarised on its own headline line (`🆕 N new surface(s) … don't block the
+check`), and excluded from the change tallies. In review-gate mode it gets an
+  **optional** `Approve this new surface` checkbox that the approve workflow
+  deliberately ignores — so a new surface never holds the `StyleProof` status red.
+  Real before↔after changes still gate exactly as before.
+- **`styleproof-diff` exit codes:** `0` identical, `1` reviewable differences,
+  `2` usage/capture error (unchanged), and new **`3`** = only new surfaces (no
+  baseline to diff). The Action reports on `1` or `3` but only gates on `1`;
+  certify mode (`fail-on-diff`) still fails on either, since "nothing changed"
+  means the capture set didn't grow either.
+- The Action `changed` output is now `"false"` for a brand-new surface with no
+  baseline (it was a change before). `generateStyleMapReport` returns a new
+  `newSurfaces` count alongside `changedSurfaces`.
+
 ## [1.3.1]
 
 ### Changed
