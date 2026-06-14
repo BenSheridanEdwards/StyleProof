@@ -1,0 +1,46 @@
+name: GitHub Packages
+
+# Publish a scoped mirror (@bensheridanedwards/styleproof) to the GitHub Packages
+# registry so it appears in the repo's Packages section. The canonical install
+# stays the unscoped `styleproof` on npmjs.org; this is a discoverability mirror,
+# kept in lockstep on every release. Uses the built-in GITHUB_TOKEN, no secret.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: https://npm.pkg.github.com
+          scope: '@bensheridanedwards'
+
+      - run: npm ci
+      - run: npm run build
+
+      # GitHub Packages requires the name scoped to the repo owner. This rewrite
+      # is ephemeral (CI checkout only); package.json on the branch is untouched.
+      - run: npm pkg set name='@bensheridanedwards/styleproof'
+
+      # Skip cleanly if this version is already on GitHub Packages (re-runs).
+      - name: Publish
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "@bensheridanedwards/styleproof@$VERSION" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "@bensheridanedwards/styleproof@$VERSION already on GitHub Packages — skipping."
+          else
+            npm publish
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
