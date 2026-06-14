@@ -260,6 +260,93 @@ test('an identical change across surfaces collapses into one grouped section', (
   rmTmp(root);
 });
 
+test('two far-apart changes become two crop sections, each holding only its own changes', () => {
+  // A top-right `nav-cta` and a far-below `card` — non-overlapping rects, so the
+  // report must split them into two screenshots, and the tables under each must
+  // be exactly what that screenshot shows (no wall of changes spanning crops).
+  const map = (radius, bg) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 1000], style: {} },
+        'body > a:nth-child(1)': {
+          tag: 'a',
+          cls: 'nav-cta',
+          rect: [1080, 20, 140, 40],
+          style: { 'border-radius': radius },
+        },
+        'body > div:nth-child(2)': {
+          tag: 'div',
+          cls: 'card',
+          rect: [100, 600, 300, 200],
+          style: { 'background-color': bg },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'hero@1280',
+    before: map('8px', 'rgb(7, 10, 14)'),
+    after: map('9999px', 'rgb(14, 20, 29)'),
+    beforePng: solidPng(1280, 1000),
+    afterPng: solidPng(1280, 1000),
+  });
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+
+  // One ### section per crop, each headed by the element it is anchored on.
+  assert.match(md, /### `a\.nav-cta` · 1 element restyled/);
+  assert.match(md, /### `div\.card` · 1 element restyled/);
+
+  // Split on the headings and assert each section carries ONLY its own property.
+  const sections = md.split(/\n### /).slice(1);
+  const nav = sections.find((s) => s.startsWith('`a.nav-cta`'));
+  const card = sections.find((s) => s.startsWith('`div.card`'));
+  assert.ok(nav.includes('border-radius') && !nav.includes('background-color'), 'nav crop shows only its change');
+  assert.ok(card.includes('background-color') && !card.includes('border-radius'), 'card crop shows only its change');
+
+  // Crops read top-to-bottom: the nav-cta (y=20) section precedes the card (y=600).
+  assert.ok(md.indexOf('`a.nav-cta`') < md.indexOf('`div.card`'), 'sections are in page order');
+  assert.equal(
+    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-composite.png')).length,
+    2,
+    'one composite per crop',
+  );
+  rmTmp(root);
+});
+
+test('property tables fold under a <details> toggle with an essence line; foldDetailsAt keeps small changes inline', () => {
+  const map = (radius) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
+        'body > a:nth-child(1)': { tag: 'a', cls: 'cta', rect: [20, 20, 120, 40], style: { 'border-radius': radius } },
+      },
+    });
+  const f = pairFixture({
+    surface: 's@1280',
+    before: map('8px'),
+    after: map('9999px'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+
+  // Default (foldDetailsAt: 0) folds always: an essence line above, then the
+  // table inside <details>. The blank lines around the table are mandatory or
+  // GitHub renders it as literal text — assert them explicitly.
+  const folded = fs.readFileSync(generateStyleMapReport({ ...f }).reportMdPath, 'utf8');
+  assert.match(folded, /`border-radius` `8px` → `9999px`/, 'essence line above the fold');
+  assert.match(folded, /<details>\n<summary>Show the property change<\/summary>\n\n/, 'blank line after </summary>');
+  assert.match(folded, /\n\n<\/details>/, 'blank line before </details>');
+
+  // foldDetailsAt: Infinity never folds — table renders inline, no toggle, no
+  // essence line echoing it.
+  const inline = fs.readFileSync(
+    generateStyleMapReport({ ...f, outDir: path.join(f.root, 'inline'), foldDetailsAt: Infinity }).reportMdPath,
+    'utf8',
+  );
+  assert.ok(!inline.includes('<details>'), 'foldDetailsAt: Infinity keeps tables inline');
+  assert.match(inline, /\| `border-radius` \| `8px` \| `9999px` \|/, 'table is present inline');
+  rmTmp(f.root);
+});
+
 test('a newly-added element shows the values its states take, not a bogus "before"', () => {
   const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
   const after = makeMap({

@@ -333,6 +333,8 @@ styleproof-report <beforeDir> <afterDir> --out <dir> [options]
   --image-base-url <url>   prefix for image URLs in report.md (default: relative)
   --pad <px>               padding around changed rects when cropping (default: 24)
   --max-crops <n>          max crop regions per surface before collapsing (default: 6)
+  --fold-details-at <n>    rows at which a crop's tables fold under a <details> toggle
+                           (default: 0 = always; 'Infinity' = never)
   --min-width <px>         minimum crop width, for context (default: 320)
   --min-height <px>        minimum crop height, for context (default: 180)
   --include-layout-noise   keep size/position-derived longhands (off by default)

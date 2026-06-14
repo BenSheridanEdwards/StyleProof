@@ -7,6 +7,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.3.0]
+
+Clearer reports: one section per screenshot.
+
+### Changed
+
+- **The report is organised by crop, not by surface.** Each changed region of the
+  page is its own section, headed by the element it is anchored on
+  (`` `who-grid` · 7 elements restyled ``), and its before|after screenshot is
+  followed by **only** the property changes that screenshot shows. A page with two
+  unrelated changes (say a restructured grid and a lone button) used to render one
+  screenshot, then another, then a single wall of tables you could not map back to
+  either image; now every table sits under the crop it belongs to, and crops read
+  top-to-bottom in page order.
+- **Approval is per crop.** Because each crop is its own `###` section, the approval
+  checkbox the Action injects is per visual region — sign off the grid and the
+  button independently. A change that is identical across widths still collapses to
+  one section, as before.
+- **The property tables fold under a toggle, behind a one-line essence.** The
+  screenshot and the approval checkbox always stay visible; below them a scannable
+  one-liner names the top deltas (and flags hover/focus/active changes, which a
+  static screenshot can't show), and the full before→after tables sit inside a
+  `<details>`. New `foldDetailsAt` report option: the row count at which tables fold
+  (default `0` = always; set `5` to keep small changes inline and fold only verbose
+  ones, `Infinity` to never fold).
+
+### Fixed
+
+- Two distinct changes that shared a representative surface could collide on one crop
+  image filename; crop images are now uniquely numbered across the whole report.
+
 ## [1.2.0]
 
 Visual-review approval gate. StyleProof can now act as a per-PR review gate
