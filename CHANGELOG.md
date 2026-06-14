@@ -7,6 +7,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.6.0]
+
+The report tells you what to look for, in plain English, and stops being a
+spot-the-difference puzzle.
+
+### Added
+
+- **Plain-English change bullets.** Each crop now leads with a few bullets that
+  name the change the way a person would — `**columns: 2 → 3**`, `becomes a
+centered flex layout`, `corners squared off (50% → 8px)`, `recoloured light
+yellow → cyan` — instead of a raw list of computed-style deltas. A deterministic
+  rule set over the summarised properties (no LLM, no network); the exact
+  before→after tables still live in the fold for when you want them. New
+  `describeChange` / `colorName` helpers in `src/describe.ts`.
+
+### Changed
+
+- **Before/after crops line up exactly.** Both sides are now cropped from the
+  SAME page rectangle (the union of where the change sits on each side), so the
+  backgrounds align and the bullet tells you where to look — no more comparing
+  two differently-framed screenshots.
+- **Forced-state noise is gone.** The `:hover`/`:focus`/`:active` layer was
+  drowning real changes in echoes — on one PR, 3135 "state-delta differences"
+  across 8 elements. Now:
+  - a state delta the **base style already changed** is suppressed (a `:hover
+color` that just follows a recoloured base is an echo, not a dropped variant);
+  - layout/grid-track props are stripped from state deltas (a forced relayout
+    isn't interaction feedback);
+  - a change between two "no value" markers (`— → (gone)`) is dropped — it never
+    meant anything;
+  - the `outline` shorthand no longer renders `(state no longer changes it)`
+    three times in a row.
+- `summarizeProps` drops no-op and non-value↔non-value rows, so counts and tables
+  reflect only real, reviewable changes.
+
 ## [1.5.0]
 
 Live regions are handled automatically, so a dashboard with streaming data,
