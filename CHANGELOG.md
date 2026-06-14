@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.3.1]
+
 ### Changed
 
 - The before/after composite no longer draws coloured accent strips (grey for
