@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { generateStyleMapReport, summarizeProps, prettyLabel } from '../dist/report.js';
+import { generateStyleMapReport, summarizeProps, prettyLabel, describeChange, colorName } from '../dist/report.js';
 import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture } from './helpers.mjs';
 
 // NOTE: summarizeProps and prettyLabel must be exported from report.ts (and
@@ -113,6 +113,25 @@ test('summarizeProps does not fold tokens inside function notation', () => {
   const out = summarizeProps([{ prop: 'background-image', before: 'url(a) url(a)', after: 'none' }]);
   // contains no '(' check is on the whole string; url() has '(', so left intact
   assert.equal(out[0].before, 'url(a) url(a)');
+});
+
+test('summarizeProps drops a change between two non-values (— → (gone))', () => {
+  const out = summarizeProps([
+    { prop: 'color', before: '(state does not change it)', after: '(gone)' },
+    { prop: 'background-color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' },
+  ]);
+  assert.deepEqual(out, [{ prop: 'background-color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' }]);
+});
+
+test('summarizeProps collapses an all-placeholder outline to one non-value, not a triple repeat', () => {
+  const ph = '(state no longer changes it)';
+  const out = summarizeProps([
+    { prop: 'outline-width', before: ph, after: ph },
+    { prop: 'outline-style', before: ph, after: ph },
+    { prop: 'outline-color', before: ph, after: ph },
+  ]);
+  // both sides are non-values → the whole outline row is dropped (no `(...) (...) (...)`).
+  assert.equal(out.length, 0);
 });
 
 // --------------------------------------------------------------- prettyLabel
@@ -251,7 +270,11 @@ test('an identical change across surfaces collapses into one grouped section', (
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.match(md, /Identical across 2 surfaces/);
-  assert.equal((md.match(/\*\*`div\.box`\*\*/g) || []).length, 1, 'rendered once, not once per surface');
+  assert.equal(
+    (md.match(/\*\*`div\.box`\*\* — /g) || []).length,
+    1,
+    'the element bullet renders once, not once per surface',
+  );
   assert.equal(
     fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-composite.png')).length,
     1,
@@ -328,11 +351,11 @@ test('property tables fold under a <details> toggle with an essence line; foldDe
     afterPng: solidPng(1280, 800),
   });
 
-  // Default (foldDetailsAt: 0) folds always: an essence line above, then the
+  // Default (foldDetailsAt: 0) folds always: plain-English bullets above, then the
   // table inside <details>. The blank lines around the table are mandatory or
   // GitHub renders it as literal text — assert them explicitly.
   const folded = fs.readFileSync(generateStyleMapReport({ ...f }).reportMdPath, 'utf8');
-  assert.match(folded, /`border-radius` `8px` → `9999px`/, 'essence line above the fold');
+  assert.match(folded, /corners fully rounded/, 'plain-English summary above the fold');
   assert.match(folded, /<details>\n<summary>Show the property change<\/summary>\n\n/, 'blank line after </summary>');
   assert.match(folded, /\n\n<\/details>/, 'blank line before </details>');
 
@@ -460,6 +483,47 @@ test('end-to-end: a live region is auto-excluded and noted, not reported as a ch
   rmTmp(root);
 });
 
+test('end-to-end: forced-state echoes are suppressed and the change reads in plain English', () => {
+  // A button recoloured amber → cyan. Its :hover delta echoes that base change,
+  // and a :focus delta leaks grid-template-columns as a (gone) artifact. Both are
+  // noise: only the base recolour is a real, reviewable change.
+  const el = (color) => ({
+    tag: 'button',
+    cls: 'on',
+    rect: [10, 10, 120, 32],
+    style: { color, 'border-color': color },
+  });
+  const states = (color, grid) => ({
+    'body > button:nth-child(1)': {
+      hover: { 'body > button:nth-child(1)': { color } },
+      focus: { 'body > button:nth-child(1)': { 'grid-template-columns': grid } },
+    },
+  });
+  const before = makeMap({
+    elements: { 'body > button:nth-child(1)': el('rgb(255, 196, 77)') },
+    states: states('rgb(255, 196, 77)', '380px'),
+  });
+  const after = makeMap({
+    elements: { 'body > button:nth-child(1)': el('rgb(63, 233, 255)') },
+    states: states('rgb(63, 233, 255)', '(gone)'),
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before,
+    after,
+    beforePng: solidPng(1280, 400),
+    afterPng: solidPng(1280, 400),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.equal(json.counts.state, 0); // hover echo + (gone) focus delta both suppressed
+  assert.equal(json.counts.style, 2); // color + border-color, the real change
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /recoloured/); // plain-English bullet, not a raw prop dump
+  assert.doesNotMatch(md, /\(gone\)/);
+  rmTmp(root);
+});
+
 test('end-to-end: includeLayoutNoise keeps the reflow-casualty element', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
@@ -473,4 +537,81 @@ test('end-to-end: includeLayoutNoise keeps the reflow-casualty element', () => {
   const on = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(outDir, 'on'), includeLayoutNoise: true });
   assert.equal(on.changedSurfaces, 1);
   rmTmp(root);
+});
+
+// ------------------------------------------------- describeChange / colorName
+// (plain-English summariser, re-exported from report.js so this stays a single
+// dist import — see report.ts)
+
+test('colorName maps rgb to a legible palette word', () => {
+  assert.equal(colorName('rgb(38, 198, 218)'), 'cyan');
+  assert.equal(colorName('rgb(33, 110, 233)'), 'blue');
+  assert.equal(colorName('rgba(0, 0, 0, 0)'), 'transparent');
+  assert.equal(colorName('transparent'), 'transparent');
+  assert.equal(colorName('none'), null); // not a colour
+});
+
+test('describeChange names a grid column-count change', () => {
+  const out = describeChange([
+    { label: 'div.grid', props: [{ prop: 'grid-template-columns', before: '380px ×2', after: '253px 253px 253px' }] },
+  ]);
+  assert.ok(
+    out.some((l) => /columns: 2 → 3/.test(l)),
+    out.join('\n'),
+  );
+});
+
+test('describeChange describes a centered flex layout switch in English', () => {
+  const out = describeChange([
+    {
+      label: 'span.led',
+      props: [
+        { prop: 'display', before: 'block', after: 'flex' },
+        { prop: 'justify-content', before: 'normal', after: 'center' },
+        { prop: 'align-items', before: 'normal', after: 'center' },
+      ],
+    },
+  ]);
+  assert.ok(
+    out.some((l) => /centered.*flex/.test(l)),
+    out.join('\n'),
+  );
+});
+
+test('describeChange collapses an identical recolour across many elements to ×N', () => {
+  const recolor = (label) => ({
+    label,
+    props: [
+      { prop: 'color', before: 'rgb(255, 196, 77)', after: 'rgb(63, 233, 255)' },
+      { prop: 'border-color', before: 'rgb(255, 196, 77)', after: 'rgb(63, 233, 255)' },
+    ],
+  });
+  const out = describeChange(Array.from({ length: 14 }, (_, i) => recolor(`button.b${i}`)));
+  const recolorLines = out.filter((l) => /recoloured/.test(l));
+  assert.equal(recolorLines.length, 1, out.join('\n'));
+  assert.match(recolorLines[0], /×14/);
+});
+
+test('describeChange labels a single restyled element and flags interaction-state changes', () => {
+  const out = describeChange([
+    { label: 'button.on', props: [{ prop: 'border-radius', before: '50%', after: '8px' }], states: ['hover', 'focus'] },
+  ]);
+  assert.ok(
+    out.some((l) => /\*\*`button\.on`\*\* —/.test(l)),
+    out.join('\n'),
+  );
+  assert.ok(
+    out.some((l) => /interaction states.*:hover.*:focus/.test(l)),
+    out.join('\n'),
+  );
+});
+
+test('describeChange reports added/removed counts', () => {
+  const out = describeChange([
+    { label: 'div.a', added: true, props: [] },
+    { label: 'div.b', added: true, props: [] },
+    { label: 'span.c', removed: true, props: [] },
+  ]);
+  assert.ok(out.some((l) => /\*\*2\*\* elements added/.test(l)));
+  assert.ok(out.some((l) => /\*\*1\*\* element removed/.test(l)));
 });
