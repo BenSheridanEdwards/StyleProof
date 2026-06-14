@@ -32,7 +32,7 @@ jobs:
       released: ${{ steps.check.outputs.released }}
       version: ${{ steps.check.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # need the tags to detect an existing release and to push a new one
 
