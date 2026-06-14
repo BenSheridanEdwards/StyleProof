@@ -14,7 +14,7 @@ Pixel-snapshot tools miss most CSS regressions: they can't force `:hover` / `:fo
 
 On every PR, StyleProof captures a `StyleMap` from the HEAD and from the base branch, diffs them, and posts a Markdown comment:
 
-- A summary line, then **one section per distinct change**, with a side-by-side before/after crop and the property changes folded under a toggle.
+- A summary line, then **one section per distinct change**, with a side-by-side before/after cropped screenshot and the property changes folded under a toggle.
 - An **approval checkbox per change**, driving a `StyleProof` commit status: red until every change is signed off, green when there are none.
 - No committed baseline to maintain — the diff is HEAD-vs-base, so the report is _exactly what this PR changes_.
 
