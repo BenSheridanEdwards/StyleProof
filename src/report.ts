@@ -32,6 +32,13 @@ export type ReportOptions = {
   /** Max crop regions per surface before collapsing into one union crop (default 6). */
   maxCrops?: number;
   /**
+   * Row count at which a crop's property tables fold under a `<details>` toggle
+   * (default 0 = always fold; the essence line and screenshot stay visible). Set
+   * to e.g. 5 to keep small changes inline and fold only verbose ones, or
+   * `Infinity` to never fold.
+   */
+  foldDetailsAt?: number;
+  /**
    * Include size/position-derived longhands (height, width, transform-origin…)
    * in the report. Off by default: on a reflow they change up the whole ancestor
    * chain and would anchor crops to the entire page. The certification differ
@@ -407,6 +414,19 @@ function groupTitle(findings: Finding[]): string {
   return parts.join(', ') || `${n(new Set(findings.map((f) => f.path)).size, 'element')} changed`;
 }
 
+/**
+ * A crop's heading: the element it's anchored on, then what happened inside it —
+ * `` `who-grid` · 5 elements restyled ``. Naming the anchor is what ties the
+ * table of changes below to the screenshot above it.
+ */
+function regionHeading(regionPaths: string[], findings: Finding[]): string {
+  const anchors = [...regionPaths].sort((a, b) => a.split(' > ').length - b.split(' > ').length);
+  const clsFor = (p: string) => findings.find((f) => f.path === p)?.cls ?? '';
+  const head = prettyLabel(anchors[0] ?? '', clsFor(anchors[0] ?? ''));
+  const label = anchors.length > 1 ? `\`${head}\` + ${anchors.length - 1} more` : `\`${head}\``;
+  return `${label} · ${groupTitle(findings)}`;
+}
+
 // A diff state row whose value is one of these placeholders means "this state
 // has no effect here" — meaningless to show, so render it as an em dash.
 const STATE_PLACEHOLDER = new Set(['(state does not change it)', '(state no longer changes it)', '(unset)']);
@@ -506,6 +526,58 @@ function renderElements(findings: Finding[], maxElements = 40): string[] {
   return out;
 }
 
+/**
+ * A scannable one-liner of what a crop changed, shown ABOVE the folded tables so a
+ * reviewer can judge without expanding: its top property deltas with values, the
+ * rest as a count, and a flag when the change reaches into hover/focus/active — the
+ * one kind of change a static before|after screenshot can't show.
+ */
+function changeEssence(findings: Finding[]): string {
+  const verbs: string[] = [];
+  for (const c of ['added', 'removed', 'retagged'] as const) {
+    const k = findings.filter((f) => f.kind === 'dom' && f.change === c).length;
+    if (k) verbs.push(`${k} ${c}`);
+  }
+  const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props)));
+  const top = rows.slice(0, 3).map((r) => `\`${r.prop}\` ${cell(r.before)} → ${cell(r.after)}`);
+  const more = rows.length > top.length ? `+${rows.length - top.length} more` : '';
+  const line = [...verbs, ...top, more].filter(Boolean).join(' · ') || '_see changes_';
+  return findings.some((f) => f.kind === 'state') ? `${line} _· incl. hover/focus/active_` : line;
+}
+
+/** Plain-text `<summary>` affordance — GitHub renders markdown inside `<summary>`
+ *  literally, so no backticks or bold here. */
+function foldSummary(findings: Finding[]): string {
+  const n = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
+  if (!n) return 'Show details';
+  return n === 1 ? 'Show the property change' : `Show all ${n} property changes`;
+}
+
+/** Render a crop's changes: the essence line, then the property tables — folded
+ *  under a toggle once they would be a wall (the screenshot and approval checkbox
+ *  above always stay visible). Blank lines around the table block are mandatory or
+ *  GitHub prints the tables as literal text. `foldAt` is the row count at which the
+ *  tables collapse; ≤ 0 folds always, Infinity never. */
+function renderCropChanges(findings: Finding[], foldAt: number): string[] {
+  const tables = renderElements(findings);
+  if (!tables.length) return [];
+  const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
+  // Small enough to read at a glance: the tables speak for themselves, no essence
+  // line (it would just echo a one- or two-row table).
+  if (rows < foldAt) return tables;
+  // Folded: the essence line is the visible stand-in for what the toggle hides.
+  return [
+    '',
+    changeEssence(findings),
+    '',
+    '<details>',
+    `<summary>${foldSummary(findings)}</summary>`,
+    ...tables,
+    '',
+    '</details>',
+  ];
+}
+
 // Computed values that follow from an element's box size or position rather than
 // its styling. On any reflow they change all the way up the ancestor chain
 // (body, main, section…), so an element whose ONLY changes are these is a reflow
@@ -548,6 +620,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     minHeight = 180,
     maxHeight = 1600,
     maxCrops = 6,
+    foldDetailsAt = 0,
   } = opts;
 
   const includeNoise = opts.includeLayoutNoise ?? false;
@@ -609,17 +682,10 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   }
 
   let totalFindings = 0;
+  let cropSeq = 0;
   for (const cg of changeGroups) {
     const { sd, findings: surfaceFindings } = cg.rep;
     totalFindings += surfaceFindings.length;
-
-    md.push('', `### ${groupTitle(surfaceFindings)}`);
-    md.push(
-      '',
-      cg.surfaces.length > 1
-        ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceList(cg.surfaces)}_`
-        : `_${formatSurfaceList(cg.surfaces)}_`,
-    );
 
     const mapA = loadStyleMap(findCapture(beforeDir, sd.surface));
     const mapB = loadStyleMap(findCapture(afterDir, sd.surface));
@@ -637,15 +703,32 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         })),
       ];
     }
+    // Read top-to-bottom: one section per crop, in page order.
+    const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
+    groups.sort((a, b) => topY(a) - topY(b));
+
+    const surfaceList =
+      cg.surfaces.length > 1
+        ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceList(cg.surfaces)}_`
+        : `_${formatSurfaceList(cg.surfaces)}_`;
 
     const surfaceJson: Record<string, unknown> = {
       surfaces: cg.surfaces,
       representative: sd.surface,
       regions: [] as unknown[],
     };
-    let n = 0;
+
     for (const g of groups) {
-      n++;
+      cropSeq++;
+      // Exactly the findings whose element lives inside THIS crop, so the tables
+      // sit directly under the screenshot that shows them — never a wall of
+      // changes spanning several crops with no way to tell which is which.
+      const regionFindings = surfaceFindings.filter((f) =>
+        g.paths.some((root) => f.path === root || f.path.startsWith(root + ' > ')),
+      );
+
+      md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
+
       const region = visible(g.after) ? g.after : g.before;
       let images: { before?: string; after?: string; composite?: string } = {};
       if (region && pngA && pngB) {
@@ -655,9 +738,9 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
           maxHeight,
           Math.max(minHeight, visible(g.before) ? g.before.h : 0, visible(g.after) ? g.after.h : 0),
         );
-        // Path-safe stem: a surface key like `hero@1280` becomes `hero-1280`
-        // so relative image links resolve cleanly in any markdown host.
-        const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${n}`;
+        // Path-safe, report-unique stem: `hero@1280` → `hero-1280-3` so relative
+        // image links resolve cleanly and two crops never collide on one filename.
+        const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}`;
         const before = cropPng(pngA, visible(g.before) ? g.before : region, w, h);
         const after = cropPng(pngB, visible(g.after) ? g.after : region, w, h);
         const composite = compositePair(before, after);
@@ -665,7 +748,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         writePng(path.join(outDir, `${stem}-after.png`), after);
         writePng(path.join(outDir, `${stem}-composite.png`), composite);
         images = { before: `${stem}-before.png`, after: `${stem}-after.png`, composite: `${stem}-composite.png` };
-        // One side-by-side image per change: clean inline render, single upload.
+        // One side-by-side image per crop: clean inline render, single upload.
         md.push(
           '',
           `![before ◀ │ ▶ after](${img(images.composite!)})`,
@@ -680,11 +763,13 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
           '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
         );
       }
+
+      // What this crop changed: a scannable essence line, then the property
+      // tables — folded under a toggle once they'd be a wall (foldDetailsAt).
+      md.push(...renderCropChanges(regionFindings, foldDetailsAt));
       (surfaceJson.regions as unknown[]).push({ paths: g.paths, before: g.before, after: g.after, images });
     }
 
-    // The findings, grouped per element, rendered once for the whole group.
-    md.push(...renderElements(surfaceFindings));
     surfaceJson.findings = surfaceFindings;
     json.push(surfaceJson);
   }
