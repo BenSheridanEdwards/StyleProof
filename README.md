@@ -18,7 +18,32 @@ On every PR, StyleProof captures a `StyleMap` from the HEAD and from the base br
 - An **approval checkbox per change**, driving a `StyleProof` commit status: red until every change is signed off, green when there are none.
 - No committed baseline to maintain — the diff is HEAD-vs-base, so the report is _exactly what this PR changes_.
 
-A second mode certifies a refactor changed _nothing_: any diff fails the job (use it for CSS-to-Tailwind migrations, design-system swaps, build-tooling changes).
+## What a report looks like
+
+One change — the hero CTA recoloured cyan → amber — posts as a single section: a side-by-side before/after cropped screenshot, a one-line summary, then the exact property change folded under a toggle.
+
+![A StyleProof report: the CTA button before (cyan) and after (amber), side by side](docs/demo-composite.png)
+
+As it renders in the PR comment (colours become live swatches; the full table sits inside the toggle):
+
+```text
+### `a.btn-solid` · 1 element restyled
+_landing @ 1280_
+
+`background-color` `rgb(95, 202, 219)` → `rgb(245, 158, 11)`
+
+▾ Show the property change
+   | Property         | Before            | After             |
+   | background-color | rgb(95, 202, 219) | rgb(245, 158, 11) |
+```
+
+## Works with any styling system
+
+StyleProof reads the browser's **computed styles** — the values it actually resolves — never your source CSS. Tailwind, CSS Modules, styled-components, Sass, vanilla CSS, inline styles: all produce the same computed output, and that's what it diffs. Elements are keyed by **DOM structure, not class name**, so a refactor that rewrites every `class` still lines up element-for-element.
+
+## Certify a refactor
+
+The same engine has a second mode that proves a change touched _nothing_ visual: with `fail-on-diff: true`, any difference at all fails the job. It's the job StyleProof was born for — certifying a CSS-to-Tailwind migration rendered byte-for-byte identical. Reach for it on any change whose whole promise is "the output is unchanged": a utility-class migration, a design-system swap, a dependency or build-tooling bump. Zero diff is the contract; one drifting longhand is a regression to investigate, not a change to approve.
 
 ## Install
 
