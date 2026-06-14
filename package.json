@@ -63,7 +63,7 @@
     "test:watch": "node --test --watch test/*.test.mjs",
     "test:e2e": "npm run build && playwright test test/smoke.e2e.spec.ts",
     "init": "node ./bin/styleproof-init.mjs",
-    "prepare": "npm run build",
+    "prepare": "npm run build && husky",
     "prepublishOnly": "npm run clean && npm run build && npm run typecheck"
   },
   "peerDependencies": {
@@ -81,6 +81,8 @@
     "globals": "^17.6.0",
     "prettier": "^3.4.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.18.0"
+    "typescript-eslint": "^8.18.0",
+    "husky": "^9.1.7",
+    "fallow": "^2.96.0"
   }
 }
