@@ -3,6 +3,10 @@ import path from 'node:path';
 import { PNG } from 'pngjs';
 import { loadStyleMap, type Rect, type StyleMap } from './capture.js';
 import { diffStyleMapDirs, type DiffCounts, type Finding, type PropChange } from './diff.js';
+import { describeChange, type ElementChange } from './describe.js';
+// Re-export the plain-English summariser so consumers (and tests) reach it
+// through the package's report module rather than a deep path.
+export { describeChange, colorName } from './describe.js';
 
 /**
  * Visual diff report: for every surface with findings, crop the before/after
@@ -11,9 +15,9 @@ import { diffStyleMapDirs, type DiffCounts, type Finding, type PropChange } from
  *
  * Cropping zooms out to the OUTERMOST changed element: changed paths that are
  * descendants of other changed paths are folded into their ancestor, nearby
- * regions are merged, and both sides are cropped at identical dimensions
- * (centered on each side's own coordinates) so the pair stays comparable
- * even when the change moved things around.
+ * regions are merged, and both sides are cropped at the SAME page rectangle (the
+ * union of where the change sits on each side) so the pair lines up exactly —
+ * the reviewer compares like-for-like instead of playing spot-the-difference.
  */
 
 export type ReportOptions = {
@@ -33,9 +37,9 @@ export type ReportOptions = {
   maxCrops?: number;
   /**
    * Row count at which a crop's property tables fold under a `<details>` toggle
-   * (default 0 = always fold; the essence line and screenshot stay visible). Set
-   * to e.g. 5 to keep small changes inline and fold only verbose ones, or
-   * `Infinity` to never fold.
+   * (default 0 = always fold; the plain-English bullets and screenshot stay
+   * visible). Set to e.g. 5 to keep small changes inline and fold only verbose
+   * ones, or `Infinity` to never fold.
    */
   foldDetailsAt?: number;
   /**
@@ -78,6 +82,17 @@ const visible = (b: Box | null): b is Box => !!b && b.w > 0 && b.h > 0;
 /** Outermost changed paths: drop any path that has a changed strict ancestor. */
 function outermost(paths: string[]): string[] {
   return paths.filter((p) => !paths.some((q) => q !== p && p.startsWith(q + ' > ')));
+}
+
+/** Group findings by their element path (one group per changed element). */
+function groupByPath(findings: Finding[]): Finding[][] {
+  const byPath = new Map<string, Finding[]>();
+  for (const f of findings) {
+    const arr = byPath.get(f.path) ?? [];
+    arr.push(f);
+    byPath.set(f.path, arr);
+  }
+  return [...byPath.values()];
 }
 
 type Group = { paths: string[]; before: Box | null; after: Box | null };
@@ -292,6 +307,14 @@ const CURRENTCOLOR_FOLLOWERS = [
   '-webkit-text-stroke-color',
 ];
 
+// "No value here" markers: a forced-state delta that doesn't apply, an unset
+// longhand, or a capture artifact where a path didn't line up. A change BETWEEN
+// two of these (e.g. `— → (gone)`) is meaningless and must never read as a diff.
+const NON_VALUE = new Set(['(state does not change it)', '(state no longer changes it)', '(unset)', '(gone)']);
+const isNonValue = (v: string): boolean => NON_VALUE.has(v);
+/** Combine longhands into a shorthand value; all-non-value sides collapse to one. */
+const combineValues = (vals: string[]): string => (vals.every(isNonValue) ? '(unset)' : vals.join(' '));
+
 export function summarizeProps(props: PropChange[]): PropChange[] {
   const map = new Map(props.map((p) => [p.prop, { ...p }]));
   for (const [logical, physical] of Object.entries(LOGICAL_TO_PHYSICAL)) {
@@ -347,13 +370,18 @@ export function summarizeProps(props: PropChange[]): PropChange[] {
     map.delete('outline-color');
     map.set('outline', {
       prop: 'outline',
-      before: `${ow.before} ${os.before} ${oc.before}`,
-      after: `${ow.after} ${os.after} ${oc.after}`,
+      before: combineValues([ow.before, os.before, oc.before]),
+      after: combineValues([ow.after, os.after, oc.after]),
     });
   }
-  return [...map.values()]
-    .map((p) => ({ prop: p.prop, before: cleanVal(p.before), after: cleanVal(p.after) }))
-    .sort((a, b) => orderIdx(a.prop) - orderIdx(b.prop) || a.prop.localeCompare(b.prop));
+  return (
+    [...map.values()]
+      .map((p) => ({ prop: p.prop, before: cleanVal(p.before), after: cleanVal(p.after) }))
+      // Drop no-ops: a value that didn't actually change, or a change between two
+      // "no value here" markers (`— → (gone)`), which carries no information.
+      .filter((p) => p.before !== p.after && !(isNonValue(p.before) && isNonValue(p.after)))
+      .sort((a, b) => orderIdx(a.prop) - orderIdx(b.prop) || a.prop.localeCompare(b.prop))
+  );
 }
 
 /** `div.who-grid`, `a.nav-cta`, `h3` — the semantic marker class, else the tag. */
@@ -433,10 +461,8 @@ function regionHeading(regionPaths: string[], findings: Finding[]): string {
   return `${label} · ${groupTitle(findings)}`;
 }
 
-// A diff state row whose value is one of these placeholders means "this state
-// has no effect here" — meaningless to show, so render it as an em dash.
-const STATE_PLACEHOLDER = new Set(['(state does not change it)', '(state no longer changes it)', '(unset)']);
-const cell = (v: string): string => (STATE_PLACEHOLDER.has(v) ? '—' : `\`${v}\``);
+// A "no value here" marker renders as an em dash rather than its literal text.
+const cell = (v: string): string => (isNonValue(v) ? '—' : `\`${v}\``);
 
 function beforeAfterTable(rows: PropChange[]): string[] {
   return [
@@ -499,16 +525,10 @@ function renderOneElement(group: Finding[]): { head: string; body: string[] } | 
  * "before"); an existing element shows before → after.
  */
 function renderElements(findings: Finding[], maxElements = 40): string[] {
-  const byPath = new Map<string, Finding[]>();
-  for (const f of findings) {
-    const arr = byPath.get(f.path) ?? [];
-    arr.push(f);
-    byPath.set(f.path, arr);
-  }
   type Block = { head: string; body: string[]; count: number };
   const blocks: Block[] = [];
   const bySig = new Map<string, Block>();
-  for (const group of byPath.values()) {
+  for (const group of groupByPath(findings)) {
     const el = renderOneElement(group);
     if (!el) continue;
     const sig = `${el.head}\n${el.body.join('\n')}`;
@@ -532,25 +552,6 @@ function renderElements(findings: Finding[], maxElements = 40): string[] {
   return out;
 }
 
-/**
- * A scannable one-liner of what a crop changed, shown ABOVE the folded tables so a
- * reviewer can judge without expanding: its top property deltas with values, the
- * rest as a count, and a flag when the change reaches into hover/focus/active — the
- * one kind of change a static before|after screenshot can't show.
- */
-function changeEssence(findings: Finding[]): string {
-  const verbs: string[] = [];
-  for (const c of ['added', 'removed', 'retagged'] as const) {
-    const k = findings.filter((f) => f.kind === 'dom' && f.change === c).length;
-    if (k) verbs.push(`${k} ${c}`);
-  }
-  const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props)));
-  const top = rows.slice(0, 3).map((r) => `\`${r.prop}\` ${cell(r.before)} → ${cell(r.after)}`);
-  const more = rows.length > top.length ? `+${rows.length - top.length} more` : '';
-  const line = [...verbs, ...top, more].filter(Boolean).join(' · ') || '_see changes_';
-  return findings.some((f) => f.kind === 'state') ? `${line} _· incl. hover/focus/active_` : line;
-}
-
 /** Plain-text `<summary>` affordance — GitHub renders markdown inside `<summary>`
  *  literally, so no backticks or bold here. */
 function foldSummary(findings: Finding[]): string {
@@ -559,29 +560,22 @@ function foldSummary(findings: Finding[]): string {
   return n === 1 ? 'Show the property change' : `Show all ${n} property changes`;
 }
 
-/** Render a crop's changes: the essence line, then the property tables — folded
- *  under a toggle once they would be a wall (the screenshot and approval checkbox
- *  above always stay visible). Blank lines around the table block are mandatory or
- *  GitHub prints the tables as literal text. `foldAt` is the row count at which the
- *  tables collapse; ≤ 0 folds always, Infinity never. */
+/** Render a crop's changes: plain-English bullets that tell the reviewer what to
+ *  look for, then the exact property tables — folded under a toggle once they would
+ *  be a wall (the screenshot and approval checkbox above always stay visible).
+ *  Blank lines around the table block are mandatory or GitHub prints the tables as
+ *  literal text. `foldAt` is the row count at which the tables collapse; ≤ 0 folds
+ *  always, Infinity never. */
 function renderCropChanges(findings: Finding[], foldAt: number): string[] {
   const tables = renderElements(findings);
   if (!tables.length) return [];
   const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
-  // Small enough to read at a glance: the tables speak for themselves, no essence
-  // line (it would just echo a one- or two-row table).
+  // Small enough to read at a glance: the tables speak for themselves.
   if (rows < foldAt) return tables;
-  // Folded: the essence line is the visible stand-in for what the toggle hides.
-  return [
-    '',
-    changeEssence(findings),
-    '',
-    '<details>',
-    `<summary>${foldSummary(findings)}</summary>`,
-    ...tables,
-    '',
-    '</details>',
-  ];
+  // Folded: plain-English bullets are the visible stand-in for what the toggle hides.
+  const bullets = describeChange(buildElementChanges(findings));
+  const summary = bullets.length ? bullets.map((b) => `- ${b}`) : ['_see changes_'];
+  return ['', ...summary, '', '<details>', `<summary>${foldSummary(findings)}</summary>`, ...tables, '', '</details>'];
 }
 
 // Computed values that follow from an element's box size or position rather than
@@ -611,9 +605,76 @@ const DERIVED_PROPS = new Set([
   'inset-inline-start',
   'inset-inline-end',
 ]);
-const hasRealChange = (f: Finding): boolean => f.kind === 'dom' || f.props.some((p) => !DERIVED_PROPS.has(p.prop));
-const stripDerived = (f: Finding): Finding =>
-  f.kind === 'dom' ? f : { ...f, props: f.props.filter((p) => !DERIVED_PROPS.has(p.prop)) };
+// Props stripped from forced :hover/:focus/:active deltas specifically. Layout
+// and grid-track values that shift when a state forces a relayout are capture
+// noise, not interaction feedback — a state finding is meant to catch a changed
+// hover/focus/active *style* (colour, outline, shadow), not a reflow.
+const STATE_STRIP = new Set([
+  ...DERIVED_PROPS,
+  'grid-template-columns',
+  'grid-template-rows',
+  'grid-template-areas',
+  'grid-auto-columns',
+  'grid-auto-rows',
+  'grid-auto-flow',
+]);
+
+/**
+ * Strip the noise the visual report shouldn't carry, cross-referencing each
+ * element's layers so the forced-state layer stops echoing the base:
+ *   - base/pseudo styles: drop size/position-derived longhands (reflow casualties);
+ *   - forced states: drop derived + grid-track props, drop a delta the BASE
+ *     already changed (a `:hover color` that just follows a recoloured base is an
+ *     echo, not a dropped variant), and drop non-value↔non-value rows;
+ *   - any finding left with no props is removed entirely.
+ */
+function cleanFindings(findings: Finding[]): Finding[] {
+  const out: Finding[] = [];
+  for (const group of groupByPath(findings)) {
+    const base = group.find((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style' && f.pseudo === null);
+    const baseChanged = new Set(base?.props.map((p) => p.prop) ?? []);
+    for (const f of group) {
+      if (f.kind === 'dom') {
+        out.push(f);
+        continue;
+      }
+      const props =
+        f.kind === 'style'
+          ? f.props.filter((p) => !DERIVED_PROPS.has(p.prop))
+          : f.props.filter(
+              (p) =>
+                !STATE_STRIP.has(p.prop) && !baseChanged.has(p.prop) && !(isNonValue(p.before) && isNonValue(p.after)),
+            );
+      if (props.length) out.push({ ...f, props });
+    }
+  }
+  return out;
+}
+
+/** Per-element view for the plain-English summariser: the base deltas (summarised)
+ *  plus which interactive states genuinely changed. */
+function buildElementChanges(findings: Finding[]): ElementChange[] {
+  const els: ElementChange[] = [];
+  for (const group of groupByPath(findings)) {
+    const dom = group.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom');
+    const styleProps = group
+      .filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style')
+      .flatMap((f) => f.props);
+    els.push({
+      label: prettyLabel(group[0].path, group[0].cls),
+      added: dom?.change === 'added',
+      removed: dom?.change === 'removed',
+      retagged: dom?.change === 'retagged',
+      props: summarizeProps(styleProps),
+      states: [
+        ...new Set(
+          group.filter((f) => f.kind === 'state').map((f) => (f as Extract<Finding, { kind: 'state' }>).state),
+        ),
+      ],
+    });
+  }
+  return els;
+}
 
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
@@ -633,13 +694,14 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const { surfaces, volatile: volatileCount } = diffStyleMapDirs(beforeDir, afterDir);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
-  // Focus each surface on styling intent: drop reflow-casualty elements (only
-  // size/position-derived changes) and strip those props from the rest, unless
-  // includeLayoutNoise is set. Surfaces left with no real change are dropped.
+  // Focus each surface on styling intent: drop reflow-casualty props, suppress
+  // forced-state echoes of base changes, and remove non-value noise (see
+  // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
+  // change are dropped.
   const prepared = surfaces
     .map((sd) => ({
       sd,
-      findings: sd.missing || includeNoise ? sd.findings : sd.findings.filter(hasRealChange).map(stripDerived),
+      findings: sd.missing || includeNoise ? sd.findings : cleanFindings(sd.findings),
     }))
     .filter((p) => p.sd.missing || p.findings.length > 0);
 
@@ -756,17 +818,18 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       const region = visible(g.after) ? g.after : g.before;
       let images: { before?: string; after?: string; composite?: string } = {};
       if (region && pngA && pngB) {
-        // Same crop dimensions on both sides so the pair reads as a pair.
-        const w = Math.max(minWidth, visible(g.before) ? g.before.w : 0, visible(g.after) ? g.after.w : 0);
-        const h = Math.min(
-          maxHeight,
-          Math.max(minHeight, visible(g.before) ? g.before.h : 0, visible(g.after) ? g.after.h : 0),
-        );
+        // Crop the SAME page rectangle from both sides — the union of where the
+        // change sits on each side — so the pair lines up exactly and the reviewer
+        // compares like-for-like instead of playing spot-the-difference. (Centring
+        // each side on its own moved box would shift the background between them.)
+        const cropBox = visible(g.before) && visible(g.after) ? union(g.before, g.after) : region;
+        const w = Math.max(minWidth, cropBox.w);
+        const h = Math.min(maxHeight, Math.max(minHeight, cropBox.h));
         // Path-safe, report-unique stem: `hero@1280` → `hero-1280-3` so relative
         // image links resolve cleanly and two crops never collide on one filename.
         const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}`;
-        const before = cropPng(pngA, visible(g.before) ? g.before : region, w, h);
-        const after = cropPng(pngB, visible(g.after) ? g.after : region, w, h);
+        const before = cropPng(pngA, cropBox, w, h);
+        const after = cropPng(pngB, cropBox, w, h);
         const composite = compositePair(before, after);
         writePng(path.join(outDir, `${stem}-before.png`), before);
         writePng(path.join(outDir, `${stem}-after.png`), after);
@@ -788,8 +851,8 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         );
       }
 
-      // What this crop changed: a scannable essence line, then the property
-      // tables — folded under a toggle once they'd be a wall (foldDetailsAt).
+      // What this crop changed: plain-English bullets, then the property tables —
+      // folded under a toggle once they'd be a wall (foldDetailsAt).
       md.push(...renderCropChanges(regionFindings, foldDetailsAt));
       (surfaceJson.regions as unknown[]).push({ paths: g.paths, before: g.before, after: g.after, images });
     }
