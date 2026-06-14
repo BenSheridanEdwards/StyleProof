@@ -386,7 +386,7 @@ export function loadStyleMap(filePath: string): StyleMap {
   try {
     raw = fs.readFileSync(filePath);
   } catch (e) {
-    throw new Error(`styleproof: cannot read capture ${filePath}: ${(e as Error).message}`);
+    throw new Error(`styleproof: cannot read capture ${filePath}: ${(e as Error).message}`, { cause: e });
   }
   try {
     const text = filePath.endsWith('.gz') ? gunzipSync(raw).toString('utf8') : raw.toString('utf8');
@@ -395,6 +395,7 @@ export function loadStyleMap(filePath: string): StyleMap {
     throw new Error(
       `styleproof: capture ${filePath} is corrupt or truncated (${(e as Error).message}). ` +
         'Re-capture it — a partial write or interrupted upload produces an unreadable .gz.',
+      { cause: e },
     );
   }
 }
