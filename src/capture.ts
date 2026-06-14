@@ -44,14 +44,42 @@ export type StyleMap = {
    * certified, instead of silently reading as "identical".
    */
   statesSkipped?: boolean;
+  /**
+   * Element paths detected as LIVE at capture time — they kept changing on
+   * their own (after motion was frozen) until the settle budget ran out, so
+   * they're nondeterministic. Excluded from `elements`/`states`/`defaults`
+   * here, and skipped by the diff (which unions both sides' volatile sets) so a
+   * stream/ticker never reads as a change. Empty/absent on a fully-settled page.
+   */
+  volatile?: string[];
 };
 
 export type CaptureOptions = {
   /**
    * Selectors for nondeterministic regions (live data, embeds, ads). The
-   * matching elements and their descendants are skipped entirely.
+   * matching elements and their descendants are skipped entirely. Usually
+   * unnecessary now that `stabilize` auto-detects live regions; use it to skip
+   * a region you know is volatile without paying the settle wait for it.
    */
   ignore?: string[];
+  /**
+   * Settle the page before capturing, and auto-exclude live regions (default
+   * on). StyleProof polls the (motion-frozen) page until its computed-style map
+   * stops changing — so async content that paints AFTER `go()` resolves (a
+   * fetch, an SSE/WebSocket stream) is captured in its loaded state, not
+   * mid-load. Any region still changing when the budget runs out is a live
+   * region by definition (it mutates with no code change); its paths are
+   * recorded in `StyleMap.volatile` and excluded from the diff, so a stream or
+   * ticker never reads as a change — no manual `ignore` needed. Text-only churn
+   * (a clock, "2m ago") never matters: the diff compares computed style, not
+   * text. Pass `false` to capture the exact frame `go()` left, or `{ interval,
+   * quietFor, timeout }` (ms) to tune the poll cadence, the no-change window
+   * that counts as settled, and the budget. Note: content that first paints
+   * after a quiet gap longer than `quietFor` can't be waited for without a
+   * signal — settle that in `go()`; anything still moving at `timeout` is
+   * treated as a live region.
+   */
+  stabilize?: boolean | { interval?: number; quietFor?: number; timeout?: number };
   /**
    * Capture forced :hover/:focus/:active state deltas (default true). This is
    * the expensive layer — O(interactive elements × 3 states) with a subtree
@@ -71,6 +99,12 @@ const INTERACTIVE = 'a, button, input, textarea, select, summary, [role="button"
 // Freeze motion so every captured value is a settled end state, not a frame
 // of an animation or a mid-flight transition after a forced :hover.
 const FREEZE_CSS = '*,*::before,*::after{animation:none!important;transition:none!important}';
+
+/** True if `path` is one of `roots` or a structural descendant of one. Shared by
+ *  the capture (excluding live regions) and the diff (skipping them). */
+export function isUnder(path: string, roots: string[]): boolean {
+  return roots.some((r) => path === r || path.startsWith(r + ' > '));
+}
 
 type CaptureArgs = { ignore: string[]; motionOnly: boolean };
 
@@ -275,6 +309,7 @@ async function captureForcedStates(
   page: Page,
   ignore: string[],
   maxInteractive: number,
+  skipPaths: string[] = [],
 ): Promise<{ states: StyleMap['states']; skipped: boolean }> {
   const client = await page.context().newCDPSession(page);
   await client.send('DOM.enable');
@@ -282,7 +317,11 @@ async function captureForcedStates(
   const { root } = await client.send('DOM.getDocument');
   const { nodeIds } = await client.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: INTERACTIVE });
   const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
-  const paths = await page.evaluate(pathsForSelector, { selector: INTERACTIVE, skipSel });
+  // Null out forced-state work for live (volatile) paths too, so they're not
+  // probed and can't reintroduce the churn the settle pass just excluded.
+  const paths = (await page.evaluate(pathsForSelector, { selector: INTERACTIVE, skipSel })).map((p) =>
+    p && skipPaths.length && isUnder(p, skipPaths) ? null : p,
+  );
 
   // The CDP DOM snapshot and the live querySelectorAll are two separate,
   // non-atomic reads. They can legitimately disagree — display:contents,
@@ -329,19 +368,93 @@ async function captureForcedStates(
   return { states, skipped: false };
 }
 
+type Elements = Record<string, ElementEntry>;
+/** Element paths that differ between two captures (added, removed, or restyled). */
+function changedElementPaths(a: Elements, b: Elements): string[] {
+  const out: string[] = [];
+  for (const p of new Set([...Object.keys(a), ...Object.keys(b)]))
+    if (JSON.stringify(a[p]) !== JSON.stringify(b[p])) out.push(p);
+  return out;
+}
+
 /**
- * Capture the page's complete style map. Drive the page to the state you
- * want first (navigate, open menus, settle fonts/animations) — the capture
- * reads whatever is in front of it.
+ * Poll the page until its computed-style map has been UNCHANGED for `quietFor`
+ * ms (it settled — async content finished painting) or the budget runs out.
+ * Requiring a sustained quiet window, not a single quiet sample, is what lets it
+ * wait THROUGH the gap before late content paints and through a streaming
+ * backfill instead of settling on the first lull. Returns the paths still
+ * changing at timeout: genuine LIVE regions, to be excluded from the capture.
+ * Reuses `capturePage` (motion already frozen by the caller), so only
+ * content/layout churn — not an animation frame — keeps it from settling.
+ */
+async function stabilizePage(
+  page: Page,
+  ignore: string[],
+  interval: number,
+  quietFor: number,
+  timeout: number,
+): Promise<string[]> {
+  const snap = async (): Promise<Elements> =>
+    (await page.evaluate(capturePage, { ignore, motionOnly: false })).elements as Elements;
+  const start = Date.now();
+  let prev = await snap();
+  let lastChangeAt = start;
+  let recent: string[] = [];
+  while (Date.now() - start < timeout) {
+    await page.waitForTimeout(interval);
+    const cur = await snap();
+    const changed = changedElementPaths(prev, cur);
+    prev = cur;
+    if (changed.length) {
+      lastChangeAt = Date.now();
+      recent = changed;
+    } else if (Date.now() - lastChangeAt >= quietFor) {
+      return []; // unchanged for the full quiet window → settled
+    }
+  }
+  return recent; // never went quiet for quietFor within budget → still-moving paths are live
+}
+
+/**
+ * Capture the page's complete style map. Drive the page to the state you want
+ * first (navigate, open menus); by default the capture then auto-settles the
+ * page and excludes live regions (see `stabilize`), so a fetch/stream that
+ * paints after `go()` resolves is captured loaded, not mid-load.
  */
 export async function captureStyleMap(page: Page, options: CaptureOptions = {}): Promise<StyleMap> {
   const ignore = options.ignore ?? [];
   const captureStates = options.captureStates ?? true;
   const maxInteractive = options.maxInteractive ?? 800;
+  const stabilize = options.stabilize ?? true;
   // Motion longhands first (FREEZE_CSS would null them), then everything else.
   const motion = await page.evaluate(capturePage, { ignore, motionOnly: true });
   await page.addStyleTag({ content: FREEZE_CSS });
+
+  // Settle: wait for async content to finish painting so base and head capture
+  // the same loaded state, and collect any region still changing on its own
+  // (a live stream/ticker) to exclude — animations are frozen above, so only
+  // real content/layout churn lands here.
+  let volatile: string[] = [];
+  if (stabilize !== false) {
+    const opt = typeof stabilize === 'object' ? stabilize : {};
+    const interval = opt.interval || 150;
+    const quietFor = opt.quietFor || 600;
+    const timeout = opt.timeout || 5000;
+    volatile = await stabilizePage(page, ignore, interval, quietFor, timeout);
+    if (volatile.length) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `styleproof: ${volatile.length} live region(s) kept changing on their own and were excluded from ` +
+          'this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so ' +
+          'they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.',
+      );
+    }
+  }
+
   const base = await page.evaluate(capturePage, { ignore, motionOnly: false });
+  // Drop live regions (and their subtrees) detected by the settle pass — done
+  // here, in Node, so the serialized capturePage stays a pure snapshot.
+  if (volatile.length) for (const p of Object.keys(base.elements)) if (isUnder(p, volatile)) delete base.elements[p];
   if (base.shadowHosts || base.sameOriginFrames) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -361,7 +474,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   let states: StyleMap['states'] = {};
   let statesSkipped = false;
   if (captureStates) {
-    const forced = await captureForcedStates(page, ignore, maxInteractive);
+    const forced = await captureForcedStates(page, ignore, maxInteractive, volatile);
     states = forced.states;
     statesSkipped = forced.skipped;
   }
@@ -370,6 +483,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     elements: base.elements,
     states,
     ...(statesSkipped ? { statesSkipped: true } : {}),
+    ...(volatile.length ? { volatile } : {}),
   };
 }
 

@@ -6,6 +6,60 @@ import { diffStyleMaps, diffStyleMapDirs, findingLabel } from '../dist/diff.js';
 import { saveStyleMap, loadStyleMap } from '../dist/capture.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
+// ------------------------------------------------------- volatile (live regions)
+
+test('diffStyleMaps skips a path flagged volatile on either side', () => {
+  const a = makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color: 'red' } } } });
+  const b = {
+    ...makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color: 'blue' } } } }),
+    volatile: ['body > div:nth-child(1)'],
+  };
+  // The colour change sits on a live region → not a finding (union: volatile on B only).
+  assert.equal(diffStyleMaps(a, b).length, 0);
+});
+
+test('diffStyleMaps skips descendants of a volatile path, incl. added/removed', () => {
+  const a = makeMap({ elements: { 'body > ul:nth-child(1)': { tag: 'ul', style: {} } } });
+  const b = {
+    ...makeMap({
+      elements: {
+        'body > ul:nth-child(1)': { tag: 'ul', style: {} },
+        // A row that exists only in B — normally a DOM "added", but it lives under
+        // a volatile region (a live list), so it must be skipped.
+        'body > ul:nth-child(1) > li:nth-child(1)': { tag: 'li', style: { color: 'red' } },
+      },
+    }),
+    volatile: ['body > ul:nth-child(1)'],
+  };
+  assert.equal(diffStyleMaps(a, b).length, 0);
+});
+
+test('diffStyleMapDirs counts volatile regions and keeps them out of findings', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  writeCapture(
+    A,
+    'home@1280',
+    makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color: 'red' } } } }),
+    null,
+  );
+  writeCapture(
+    B,
+    'home@1280',
+    {
+      ...makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color: 'blue' } } } }),
+      volatile: ['body > div:nth-child(1)'],
+    },
+    null,
+  );
+  const { surfaces, counts, volatile } = diffStyleMapDirs(A, B);
+  assert.equal(volatile, 1);
+  assert.equal(counts.style, 0);
+  assert.equal(surfaces.length, 0); // the only diff was on a live region → nothing to report
+  rmTmp(root);
+});
+
 // ---------------------------------------------------------------- diffStyleMaps
 
 test('reports a DOM-added element (present only in after)', () => {
