@@ -88,24 +88,31 @@ npx styleproof-diff __stylemaps__/before __stylemaps__/after
 
 ## Release process
 
-Releases are tag-driven. Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`,
-which builds, typechecks, lints, tests, publishes to npm, cuts a GitHub Release from the
-CHANGELOG section, and **moves the floating major tag** (`v1`) so consumers pinning
-`uses: …/styleproof@v1` always get the latest 1.x.
+Releases publish **on merge to main**, driven by the version in `package.json`.
+`.github/workflows/release.yml` runs on every push to main: if there is no `vX.Y.Z`
+tag for the current version (i.e. the merge bumped it), it builds, typechecks, lints,
+tests, publishes to npm, tags the commit, cuts a GitHub Release from the CHANGELOG
+section, **moves the floating major tag** (`v1`) so consumers pinning
+`uses: …/styleproof@v1` always get the latest 1.x, and mirrors to GitHub Packages. A
+merge that does not bump the version is a clean no-op.
+
+So a release is just a version bump in a normal PR:
 
 1. Move the `## [Unreleased]` notes into a new version section in `CHANGELOG.md`.
-2. `npm version <patch|minor|major>` — bumps `package.json` and creates the `vX.Y.Z` tag.
-3. `git push --follow-tags`.
+2. `npm version <patch|minor|major> --no-git-tag-version` — bumps `package.json` only
+   (the workflow creates the tag, not you).
+3. Open the PR, get it green, and merge. Merging publishes.
 
 The publish step is **idempotent and token-aware**: it skips when that version is already
-on npm (a re-run, or a backfilled tag) or when the `NPM_TOKEN` secret is not set. So until
-you add `NPM_TOKEN`, the workflow still cuts the Release and moves `v1`, and you publish
-with a manual `npm publish --access public` (no provenance); add `NPM_TOKEN` to publish
-automatically with provenance. You no longer move the major tag by hand.
+on npm or when the `NPM_TOKEN` secret is not set. Until you add `NPM_TOKEN`, the workflow
+still tags, cuts the Release, and moves `v1`, and you publish with a manual
+`npm publish --access public` (no provenance); add an **Automation** `NPM_TOKEN` secret to
+publish automatically with provenance. You no longer create the tag or move the major tag
+by hand.
 
 `dist/` is git-ignored on purpose; it ships via the npm `files` array (built at publish
 time), not via git — don't commit it. A manual `npm publish` works too but ships
-**without** the provenance attestation, so prefer the tag path.
+**without** the provenance attestation, so prefer the merge path.
 
 Semver: a change to captured/serialized map structure, an exported type, a CLI flag, or
 an Action input is at least a minor; anything that would make an existing committed
