@@ -114,7 +114,7 @@ runs:
           cp styleproof-report/report.md "$TMP/$REPORT_PATH/report.md"
           # Composite (before|after) crops for changes, plus single-side crops for
           # new surfaces — both are referenced by report.md's relative image links.
-          cp styleproof-report/crops/*-composite.png styleproof-report/crops/*-new.png "$TMP/$REPORT_PATH/crops/" 2>/dev/null || true
+          cp styleproof-report/crops/*-composite.png styleproof-report/crops/*-annotated.png styleproof-report/crops/*-new.png "$TMP/$REPORT_PATH/crops/" 2>/dev/null || true
 
           git -C "$TMP" add -A
           git -C "$TMP" commit -q -m "$REPORT_MSG" || true

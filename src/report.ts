@@ -26,14 +26,14 @@ export type ReportOptions = {
   outDir: string;
   /** Prefix for image URLs in report.md (default: relative paths). */
   imageBaseUrl?: string;
-  /** Padding around the union of changed rects (default 24px). */
+  /** Padding around the union of changed rects (default 12px). */
   pad?: number;
   /** Minimum crop size, for context around tiny changes (default 320×180). */
   minWidth?: number;
   minHeight?: number;
   /** Crops taller than this are clamped (default 1600px). */
   maxHeight?: number;
-  /** Max crop regions per surface before collapsing into one union crop (default 6). */
+  /** Max crop regions per surface before collapsing into one union crop (default 8). */
   maxCrops?: number;
   /**
    * Row count at which a crop's property tables fold under a `<details>` toggle
@@ -140,17 +140,20 @@ function groupRegions(paths: string[], a: StyleMap, b: StyleMap, padBy: number):
   return groups;
 }
 
-function cropPng(src: PNG, box: Box, w: number, h: number): PNG {
+// A crop plus the document-space origin it was taken from, so callers can map an
+// element's page coordinates into the crop to annotate it.
+type Crop = { png: PNG; ox: number; oy: number };
+function cropPng(src: PNG, box: Box, w: number, h: number): Crop {
   // Center the fixed-size crop on the box, clamped to the image.
   const cx = box.x + box.w / 2;
   const cy = box.y + box.h / 2;
-  const x = Math.max(0, Math.min(Math.round(cx - w / 2), src.width - w));
-  const y = Math.max(0, Math.min(Math.round(cy - h / 2), src.height - h));
+  const ox = Math.max(0, Math.min(Math.round(cx - w / 2), src.width - w));
+  const oy = Math.max(0, Math.min(Math.round(cy - h / 2), src.height - h));
   const cw = Math.min(w, src.width);
   const ch = Math.min(h, src.height);
   const out = new PNG({ width: cw, height: ch });
-  PNG.bitblt(src, out, Math.max(0, x), Math.max(0, y), cw, ch, 0, 0);
-  return out;
+  PNG.bitblt(src, out, Math.max(0, ox), Math.max(0, oy), cw, ch, 0, 0);
+  return { png: out, ox, oy };
 }
 
 // Lossless but lean: drop the alpha channel (every crop/composite is opaque),
@@ -174,6 +177,30 @@ function fillRect(png: PNG, x: number, y: number, w: number, h: number, [r, g, b
       png.data[i + 3] = 255;
     }
   }
+}
+
+// The annotation hue: a magenta no real UI palette tends to use, so an outline
+// reads as a marker, not content. Drawn as a hollow rectangle (never filled) so
+// the UI underneath stays visible — and the clean image alongside proves the box
+// isn't part of the design.
+const HILITE: RGB = [255, 0, 200];
+function strokeRect(png: PNG, x: number, y: number, w: number, h: number, t = 2, color: RGB = HILITE): void {
+  fillRect(png, x, y, w, t, color); // top
+  fillRect(png, x, y + h - t, w, t, color); // bottom
+  fillRect(png, x, y, t, h, color); // left
+  fillRect(png, x + w - t, y, t, h, color); // right
+}
+
+/** Clone a crop and outline each changed element's box (page coords mapped into
+ *  the crop via its origin), so the eye lands on exactly what the bullet named. */
+function annotateCrop(crop: Crop, rects: Rect[]): PNG {
+  const out = new PNG({ width: crop.png.width, height: crop.png.height });
+  PNG.bitblt(crop.png, out, 0, 0, crop.png.width, crop.png.height, 0, 0);
+  for (const [rx, ry, rw, rh] of rects) {
+    if (rw <= 0 || rh <= 0) continue;
+    strokeRect(out, rx - crop.ox, ry - crop.oy, rw, rh);
+  }
+  return out;
 }
 
 /**
@@ -698,11 +725,15 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     afterDir,
     outDir,
     imageBaseUrl = '',
-    pad: padBy = 24,
+    // Tighter than before (was 24) so the change fills the frame — the annotation
+    // box keeps enough context legible.
+    pad: padBy = 12,
     minWidth = 320,
     minHeight = 180,
     maxHeight = 1600,
-    maxCrops = 6,
+    // More, smaller crops before collapsing (was 6), so distinct changes get their
+    // own focused frame rather than one wide merged one.
+    maxCrops = 8,
     foldDetailsAt = 0,
   } = opts;
 
@@ -833,7 +864,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
 
       const region = visible(g.after) ? g.after : g.before;
-      let images: { before?: string; after?: string; composite?: string } = {};
+      let images: { composite?: string; annotated?: string } = {};
       if (region && pngA && pngB) {
         // Crop the SAME page rectangle from both sides — the union of where the
         // change sits on each side — so the pair lines up exactly and the reviewer
@@ -847,19 +878,32 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}`;
         const before = cropPng(pngA, cropBox, w, h);
         const after = cropPng(pngB, cropBox, w, h);
-        const composite = compositePair(before, after);
-        writePng(path.join(outDir, `${stem}-before.png`), before);
-        writePng(path.join(outDir, `${stem}-after.png`), after);
+        const composite = compositePair(before.png, after.png);
         writePng(path.join(outDir, `${stem}-composite.png`), composite);
-        images = { before: `${stem}-before.png`, after: `${stem}-after.png`, composite: `${stem}-composite.png` };
-        // One side-by-side image per crop, left as a PLAIN image (not wrapped in a
-        // link) so GitHub's built-in lightbox opens it in a zoomable popup on click —
-        // a link wrapper would navigate to the file instead.
+        // Annotated twin: outline each changed element on both sides, so the eye
+        // lands on what the bullet named. The clean image stays the default.
+        const rectsA = g.paths.map((p) => mapA.elements[p]?.rect).filter((r): r is Rect => !!r);
+        const rectsB = g.paths.map((p) => mapB.elements[p]?.rect).filter((r): r is Rect => !!r);
+        const annotated = compositePair(annotateCrop(before, rectsA), annotateCrop(after, rectsB));
+        writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
+        images = { composite: `${stem}-composite.png`, annotated: `${stem}-annotated.png` };
+        // Clean before|after shown by default (the real UI); the annotated twin —
+        // boxes marking each change — sits one click away under a toggle. Plain
+        // images (no link wrap) so a click opens the full-resolution file.
         md.push(
           '',
           `![before ◀ │ ▶ after](${img(images.composite!)})`,
           '',
-          `<sub>◀ before  ·  after ▶ — ${sd.surface} · click to zoom</sub>`,
+          `<sub>◀ before  ·  after ▶ — ${sd.surface}</sub>`,
+          '',
+          '<details>',
+          '<summary>🔍 Highlight what changed</summary>',
+          '',
+          `![annotated before ◀ │ ▶ after](${img(images.annotated!)})`,
+          '',
+          `<sub>magenta boxes mark each change — ${sd.surface}</sub>`,
+          '',
+          '</details>',
         );
       } else if (!region) {
         md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
@@ -897,7 +941,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     if (png) {
       cropSeq++;
       const h = Math.min(maxHeight, png.height);
-      const crop = cropPng(png, { x: 0, y: 0, w: png.width, h }, png.width, h);
+      const crop = cropPng(png, { x: 0, y: 0, w: png.width, h }, png.width, h).png;
       const stem = `crops/${p.sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}-new`;
       writePng(path.join(outDir, `${stem}.png`), crop);
       md.push(

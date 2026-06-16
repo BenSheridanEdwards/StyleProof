@@ -1,7 +1,8 @@
 {
-  // Test-fixture similarity (setup boilerplate across spec files) is expected
-  // and not worth contorting tests for; run the duplication analysis in production
-  // mode so it skips test/dev files. Dead-code, complexity, and security still
-  // scan the whole tree, and src/bin duplication is still caught.
-  "production": { "dupes": true }
+  // Run duplication and complexity in production mode so they skip test/dev files.
+  // Test code is procedural by nature (setup boilerplate, pixel scans), and CRAP —
+  // complexity weighted by coverage — is meaningless for a test that nothing else
+  // covers. Dead-code and security still scan the whole tree, and src/bin
+  // duplication and complexity are still caught.
+  "production": { "dupes": true, "health": true }
 }
