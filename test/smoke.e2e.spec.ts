@@ -60,6 +60,16 @@ test('captures a real page and reports an identical map as unchanged', async ({ 
   expect(diffStyleMaps(a, b)).toEqual([]);
 });
 
+test('captures colour theme tokens from :root, normalised to rgb', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    :root { --red-100: #fee2e2; --space-4: 16px; }
+    .x { color: var(--red-100); }
+  </style></head><body><span class="x">hi</span></body></html>`;
+  const map = await captureFixture(page, html);
+  expect(map.tokens?.['--red-100']).toBe('rgb(254, 226, 226)'); // hex normalised to rgb
+  expect(map.tokens?.['--space-4'], 'non-colour tokens are skipped').toBeUndefined();
+});
+
 test('catches a background-color change on a real button', async ({ page }) => {
   const a = await captureFixture(page, fixture('rgb(0, 0, 0)', 'rgb(0, 255, 0)'));
   const b = await captureFixture(page, fixture('rgb(255, 0, 0)', 'rgb(0, 255, 0)'));

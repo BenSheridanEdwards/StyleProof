@@ -3,10 +3,10 @@ import path from 'node:path';
 import { PNG } from 'pngjs';
 import { loadStyleMap, type Rect, type StyleMap } from './capture.js';
 import { diffStyleMapDirs, type DiffCounts, type Finding, type PropChange } from './diff.js';
-import { describeChange, type ElementChange } from './describe.js';
+import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
 // through the package's report module rather than a deep path.
-export { describeChange, colorName } from './describe.js';
+export { describeChange, colorName, tokenIndex, toHex } from './describe.js';
 
 /**
  * Visual diff report: for every surface with findings, crop the before/after
@@ -82,6 +82,15 @@ const visible = (b: Box | null): b is Box => !!b && b.w > 0 && b.h > 0;
 /** Outermost changed paths: drop any path that has a changed strict ancestor. */
 function outermost(paths: string[]): string[] {
   return paths.filter((p) => !paths.some((q) => q !== p && p.startsWith(q + ' > ')));
+}
+
+/** Headline counts with the zeros dropped — `0 state-delta difference(s)` is noise. */
+function changeCountLabel(shown: DiffCounts): string {
+  const parts: string[] = [];
+  if (shown.dom) parts.push(`${shown.dom} DOM change(s)`);
+  if (shown.style) parts.push(`${shown.style} computed-style difference(s)`);
+  if (shown.state) parts.push(`${shown.state} state-delta difference(s)`);
+  return parts.join(' · ');
 }
 
 /** Group findings by their element path (one group per changed element). */
@@ -461,8 +470,9 @@ function regionHeading(regionPaths: string[], findings: Finding[]): string {
   return `${label} · ${groupTitle(findings)}`;
 }
 
-// A "no value here" marker renders as an em dash rather than its literal text.
-const cell = (v: string): string => (isNonValue(v) ? '—' : `\`${v}\``);
+// A "no value here" marker renders as an em dash; colours render as `#hex` so the
+// table cell shows GitHub's live swatch.
+const cell = (v: string): string => (isNonValue(v) ? '—' : `\`${toHex(v)}\``);
 
 function beforeAfterTable(rows: PropChange[]): string[] {
   return [
@@ -566,14 +576,14 @@ function foldSummary(findings: Finding[]): string {
  *  Blank lines around the table block are mandatory or GitHub prints the tables as
  *  literal text. `foldAt` is the row count at which the tables collapse; ≤ 0 folds
  *  always, Infinity never. */
-function renderCropChanges(findings: Finding[], foldAt: number): string[] {
+function renderCropChanges(findings: Finding[], foldAt: number, ctx: DescribeCtx): string[] {
   const tables = renderElements(findings);
   if (!tables.length) return [];
   const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
   // Small enough to read at a glance: the tables speak for themselves.
   if (rows < foldAt) return tables;
   // Folded: plain-English bullets are the visible stand-in for what the toggle hides.
-  const bullets = describeChange(buildElementChanges(findings));
+  const bullets = describeChange(buildElementChanges(findings), ctx);
   const summary = bullets.length ? bullets.map((b) => `- ${b}`) : ['_see changes_'];
   return ['', ...summary, '', '<details>', `<summary>${foldSummary(findings)}</summary>`, ...tables, '', '</details>'];
 }
@@ -748,8 +758,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   } else {
     if (changeGroups.length > 0) {
       md.push(
-        `**${shown.dom} DOM change(s) · ${shown.style} computed-style difference(s) · ${shown.state} state-delta difference(s)** ` +
-          `across ${changeGroups.length} distinct change(s) in ${changedSurfaceCount} surface(s).`,
+        `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${changedSurfaceCount} surface(s).`,
       );
     }
     if (missing.length > 0) {
@@ -775,6 +784,8 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
 
     const mapA = loadStyleMap(findCapture(beforeDir, sd.surface));
     const mapB = loadStyleMap(findCapture(afterDir, sd.surface));
+    // Theme-token reverse-indexes so colour changes can name `red-200` per side.
+    const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
     const pngA = readPng(path.join(beforeDir, `${sd.surface}.png`));
     const pngB = readPng(path.join(afterDir, `${sd.surface}.png`));
 
@@ -835,12 +846,14 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         writePng(path.join(outDir, `${stem}-after.png`), after);
         writePng(path.join(outDir, `${stem}-composite.png`), composite);
         images = { before: `${stem}-before.png`, after: `${stem}-after.png`, composite: `${stem}-composite.png` };
-        // One side-by-side image per crop: clean inline render, single upload.
+        // One side-by-side image per crop, left as a PLAIN image (not wrapped in a
+        // link) so GitHub's built-in lightbox opens it in a zoomable popup on click —
+        // a link wrapper would navigate to the file instead.
         md.push(
           '',
           `![before ◀ │ ▶ after](${img(images.composite!)})`,
           '',
-          `<sub>◀ before  ·  after ▶ — ${sd.surface}</sub>`,
+          `<sub>◀ before  ·  after ▶ — ${sd.surface} · click to zoom</sub>`,
         );
       } else if (!region) {
         md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
@@ -853,7 +866,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
 
       // What this crop changed: plain-English bullets, then the property tables —
       // folded under a toggle once they'd be a wall (foldDetailsAt).
-      md.push(...renderCropChanges(regionFindings, foldDetailsAt));
+      md.push(...renderCropChanges(regionFindings, foldDetailsAt, describeCtx));
       (surfaceJson.regions as unknown[]).push({ paths: g.paths, before: g.before, after: g.after, images });
     }
 
