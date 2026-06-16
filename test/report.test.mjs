@@ -193,8 +193,8 @@ test('end-to-end: crop anchors on the real-change element, not the reflow casual
   // is the button. Anchoring on body would have produced a body-sized box.
   const region = json.surfaces[0].regions[0];
   assert.deepEqual(region.paths, ['body > div:nth-child(1) > button:nth-child(1)']);
-  // button rect [100,100,160,48] padded by 24 -> x=76 y=76 w=208 h=96
-  assert.deepEqual(region.before, { x: 76, y: 76, w: 208, h: 96 });
+  // button rect [100,100,160,48] padded by 12 (default) -> x=88 y=88 w=184 h=72
+  assert.deepEqual(region.before, { x: 88, y: 88, w: 184, h: 72 });
   rmTmp(root);
 });
 
@@ -369,13 +369,14 @@ test('property tables fold under a <details> toggle with an essence line; foldDe
   assert.match(folded, /<details>\n<summary>Show the property change<\/summary>\n\n/, 'blank line after </summary>');
   assert.match(folded, /\n\n<\/details>/, 'blank line before </details>');
 
-  // foldDetailsAt: Infinity never folds — table renders inline, no toggle, no
-  // essence line echoing it.
+  // foldDetailsAt: Infinity never folds the TABLES — they render inline, with no
+  // "Show … property changes" toggle. (The annotated-image toggle is separate and
+  // always present, so check the table fold specifically.)
   const inline = fs.readFileSync(
     generateStyleMapReport({ ...f, outDir: path.join(f.root, 'inline'), foldDetailsAt: Infinity }).reportMdPath,
     'utf8',
   );
-  assert.ok(!inline.includes('<details>'), 'foldDetailsAt: Infinity keeps tables inline');
+  assert.ok(!inline.includes('<summary>Show'), 'foldDetailsAt: Infinity keeps the tables out of a fold');
   assert.match(inline, /\| `border-radius` \| `8px` \| `9999px` \|/, 'table is present inline');
   rmTmp(f.root);
 });
@@ -763,5 +764,36 @@ test('end-to-end: responsive grids (same track count, different px) collapse to 
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.equal((md.match(/^### `div\.netgrid`/gm) || []).length, 1, 'one grouped section, not one per width');
   assert.match(md, /Identical across 2 surfaces/);
+  rmTmp(root);
+});
+
+// ---------------------------------------------- annotated crops (1.8.0)
+
+test('end-to-end: each crop has a clean image plus an annotated twin under a toggle', () => {
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    after: sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /!\[before ◀ │ ▶ after\]\(crops\/[^)]+-composite\.png\)/, 'clean composite shown');
+  assert.match(md, /<summary>🔍 Highlight what changed<\/summary>/, 'annotated toggle present');
+  assert.match(md, /!\[annotated[^\]]*\]\(crops\/[^)]+-annotated\.png\)/, 'annotated image under the toggle');
+  const crops = fs.readdirSync(path.join(outDir, 'crops'));
+  const ann = crops.find((f) => f.endsWith('-annotated.png'));
+  assert.ok(ann && crops.some((f) => f.endsWith('-composite.png')), 'both image files written');
+  // The annotated twin actually contains the magenta highlight outline.
+  const png = PNG.sync.read(fs.readFileSync(path.join(outDir, 'crops', ann)));
+  let hasHilite = false;
+  for (let i = 0; i < png.data.length; i += 4) {
+    if (png.data[i] === 255 && png.data[i + 1] === 0 && png.data[i + 2] === 200) {
+      hasHilite = true;
+      break;
+    }
+  }
+  assert.ok(hasHilite, 'annotated crop contains the highlight colour');
   rmTmp(root);
 });

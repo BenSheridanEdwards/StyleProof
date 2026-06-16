@@ -7,6 +7,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.8.0]
+
+The crop now shows you where to look — without painting over the UI.
+
+### Added
+
+- **Annotated crop, alongside the clean one.** Each crop shows the clean
+  before|after composite by default (the real UI), with an annotated twin one
+  click away under a `🔍 Highlight what changed` toggle — a thin magenta outline
+  around each changed element on both sides, so the eye lands on exactly what the
+  bullet named. Outline only (never filled), and the clean image right there
+  proves the box isn't part of the design, so the marker can be confident without
+  reading as a change.
+
+### Changed
+
+- **Tighter, more focused crops.** Default crop padding drops from 24px to 12px
+  (the change fills more of the frame), and up to 8 crop regions per surface
+  (was 6) before collapsing — so distinct changes get their own focused frame
+  instead of one wide merged one. Both are still tunable (`pad`, `maxCrops`).
+- The action now commits the annotated crops alongside the composites.
+
 ## [1.7.2]
 
 ### Fixed
