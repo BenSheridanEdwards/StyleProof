@@ -25,17 +25,17 @@ One change — the hero CTA recoloured cyan → amber — posts as a single sect
 
 ![A StyleProof report: the CTA button before (cyan) and after (amber), side by side](docs/demo-composite.png)
 
-As it renders in the PR comment (a plain-English bullet first, then the exact table inside the toggle):
+As it renders in the PR comment (a plain-English bullet first — naming the theme token and showing the hex with a live colour swatch — then the exact table inside the toggle):
 
 ```text
 ### `a.btn-solid` · 1 element restyled
 _landing @ 1280_
 
-- **`a.btn-solid`** — background cyan → amber
+- **`a.btn-solid`** — background `brand-cyan` (`#5fcadb`) → `brand-amber` (`#f59e0b`)
 
 ▾ Show the property change
-   | Property         | Before            | After             |
-   | background-color | rgb(95, 202, 219) | rgb(245, 158, 11) |
+   | Property         | Before    | After     |
+   | background-color | #5fcadb   | #f59e0b   |
 ```
 
 ## Works with any styling system

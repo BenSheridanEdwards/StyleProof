@@ -52,6 +52,14 @@ export type StyleMap = {
    * stream/ticker never reads as a change. Empty/absent on a fully-settled page.
    */
   volatile?: string[];
+  /**
+   * Colour-valued `:root` custom properties (design/theme tokens), normalised to
+   * the same `rgb(...)` form the longhands resolve to — `{ "--red-200": "rgb(254,
+   * 202, 202)" }`. Lets the report name the token behind a colour change
+   * (`red-100 → red-200`) instead of only the raw value. Captured once per
+   * surface from the document root; per-subtree overrides aren't tracked.
+   */
+  tokens?: Record<string, string>;
 };
 
 export type CaptureOptions = {
@@ -415,6 +423,32 @@ async function stabilizePage(
   return recent; // never went quiet for quietFor within budget → still-moving paths are live
 }
 
+// Serialized into the browser by page.evaluate; cannot call module helpers.
+// Colour-valued `:root` custom properties (theme tokens), each normalised to the
+// browser's `rgb(...)` form (via a probe element) so they match the resolved
+// longhand values the diff compares — letting the report name `red-200` behind a
+// colour. Non-colour tokens (spacing, etc.) are skipped.
+function capturePageTokens(): Record<string, string> {
+  const root = document.documentElement;
+  const cs = getComputedStyle(root);
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;left:-9999px';
+  document.body.appendChild(probe);
+  const tokens: Record<string, string> = {};
+  for (let i = 0; i < cs.length; i++) {
+    const name = cs.item(i);
+    if (!name.startsWith('--')) continue;
+    const raw = cs.getPropertyValue(name).trim();
+    if (!raw) continue;
+    probe.style.color = '';
+    probe.style.color = raw; // invalid (non-colour) values leave it empty
+    if (!probe.style.color) continue;
+    tokens[name] = getComputedStyle(probe).color; // canonical rgb(a)(...)
+  }
+  probe.remove();
+  return tokens;
+}
+
 /**
  * Capture the page's complete style map. Drive the page to the state you want
  * first (navigate, open menus); by default the capture then auto-settles the
@@ -478,12 +512,14 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     states = forced.states;
     statesSkipped = forced.skipped;
   }
+  const tokens = await page.evaluate(capturePageTokens);
   return {
     defaults: base.defaults,
     elements: base.elements,
     states,
     ...(statesSkipped ? { statesSkipped: true } : {}),
     ...(volatile.length ? { volatile } : {}),
+    ...(Object.keys(tokens).length ? { tokens } : {}),
   };
 }
 
