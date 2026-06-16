@@ -7,7 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [1.7.1]
+## [1.7.2]
+
+### Fixed
+
+- **Responsive variants of one change no longer show as duplicate sections.** A
+  grid whose `grid-template-columns/rows` computes to different pixels per width
+  (`282px ×2` vs `282px 228px`) was given a different signature per width, so the
+  same change rendered once per breakpoint. The signature now keys grid tracks by
+  their COUNT, so responsive widths collapse into one grouped section.
+- The `e.g. …` fold line no longer names the `+N more` overflow marker as if it
+  were a change.
 
 ### Fixed
 

@@ -138,7 +138,7 @@ const shift = (before: string, after: string, idxB?: Map<string, string>, idxA?:
 
 // --- track counting for grid columns/rows ------------------------------------
 /** Count grid tracks in a `grid-template-*` value, honouring the `Npx ×K` form. */
-function trackCount(v: string): number {
+export function trackCount(v: string): number {
   if (v === 'none' || !v) return 0;
   const rep = v.match(/×(\d+)/); // summarizeProps collapses "8px 8px 8px" → "8px ×3"
   if (rep) return Number(rep[1]);
@@ -340,8 +340,10 @@ function foldedLine(group: ElementChange[], ctx: DescribeCtx): string {
   if (lists.every((l) => sig(l) === sig(lists[0]))) return sig(lists[0]);
   const common = lists[0].filter((p) => lists.every((l) => l.includes(p)));
   if (common.length) return `${common.join(', ')} _(details vary)_`;
+  // Rank the most common REAL changes — the `+N more` overflow marker isn't a
+  // change and shouldn't be named.
   const freq = new Map<string, number>();
-  for (const l of lists) for (const p of new Set(l)) freq.set(p, (freq.get(p) ?? 0) + 1);
+  for (const l of lists) for (const p of new Set(l)) if (!/^\+\d+ more$/.test(p)) freq.set(p, (freq.get(p) ?? 0) + 1);
   const top = [...freq.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
