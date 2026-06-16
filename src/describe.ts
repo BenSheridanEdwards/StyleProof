@@ -217,13 +217,15 @@ const colorRule: Rule = (m, mark, ctx) => {
     ['border-color', 'border colour'],
   ];
   const sh = (c: PropChange) => shift(c.before, c.after, ctx.tokensBefore, ctx.tokensAfter);
+  // Collapse a role word that just repeats the token name: `text \`text\`` → `\`text\``.
+  const deRole = (s: string) => s.replace(/([\w-]+) (`\1`)/g, '$2');
   const present = fields.map(([p, w]) => [m.get(p), w] as const).filter(([c]) => c) as [PropChange, string][];
   if (!present.length) return [];
   const [first] = present;
   const same = present.length > 1 && present.every(([c]) => c.before === first[0].before && c.after === first[0].after);
   fields.forEach(([p]) => m.has(p) && mark(p));
-  if (same) return [`recoloured ${sh(first[0])}`];
-  return present.map(([c, w]) => `${w} ${sh(c)}`);
+  if (same) return [deRole(`recoloured ${sh(first[0])}`)];
+  return present.map(([c, w]) => deRole(`${w} ${sh(c)}`));
 };
 
 const fillRule: Rule = (m, mark) => {
@@ -330,13 +332,21 @@ function domVerbLines(els: ElementChange[]): string[] {
 }
 
 const sig = (phrases: string[]): string => phrases.join(', ');
-/** One line for a same-label group: the shared phrases (or the single line),
- *  flagged `(details vary)` when members aren't identical. */
+/** One line for a same-label group. Identical members → their line. Otherwise the
+ *  phrases shared by ALL (`details vary`); and if they share none, the most common
+ *  phrases (`e.g. … vary`) so the line still tells you what to look for. */
 function foldedLine(group: ElementChange[], ctx: DescribeCtx): string {
   const lists = group.map((el) => phrasesFor(el.props, ctx));
   if (lists.every((l) => sig(l) === sig(lists[0]))) return sig(lists[0]);
   const common = lists[0].filter((p) => lists.every((l) => l.includes(p)));
-  return common.length ? `${common.join(', ')} _(details vary)_` : 'restyled _(details vary)_';
+  if (common.length) return `${common.join(', ')} _(details vary)_`;
+  const freq = new Map<string, number>();
+  for (const l of lists) for (const p of new Set(l)) freq.set(p, (freq.get(p) ?? 0) + 1);
+  const top = [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([p]) => p);
+  return top.length ? `e.g. ${top.join(', ')} _(vary)_` : 'restyled _(vary)_';
 }
 
 /** Restyle phrases, folded by element label (so two near-identical `span.led`s
