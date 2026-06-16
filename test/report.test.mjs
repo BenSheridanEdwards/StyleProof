@@ -734,3 +734,34 @@ test('describeChange folds same-label elements with no shared change to "e.g. â€
   assert.match(line, /e\.g\./); // names the most common changes, not just "restyled"
   assert.match(line, /vary/);
 });
+
+// --------------------------------------------- responsive grouping (1.7.2)
+
+test('end-to-end: responsive grids (same track count, different px) collapse to one section', () => {
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  const outDir = path.join(root, 'out');
+  // The SAME change at two widths: grid-template-rows computes to different px but
+  // the same track count (2), plus an identical colour change. One section, not two.
+  const map = (rows, color) =>
+    makeMap({
+      elements: {
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'netgrid',
+          rect: [0, 0, 400, 200],
+          style: { 'grid-template-rows': rows, color },
+        },
+      },
+    });
+  writeCapture(beforeDir, 'agents@1024', map('282px 282px', 'rgb(0, 0, 0)'), solidPng(1024, 400));
+  writeCapture(afterDir, 'agents@1024', map('295px 295px', 'rgb(255, 0, 0)'), solidPng(1024, 400));
+  writeCapture(beforeDir, 'agents@1440', map('282px 228px', 'rgb(0, 0, 0)'), solidPng(1440, 400));
+  writeCapture(afterDir, 'agents@1440', map('295px 228px', 'rgb(255, 0, 0)'), solidPng(1440, 400));
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.equal((md.match(/^### `div\.netgrid`/gm) || []).length, 1, 'one grouped section, not one per width');
+  assert.match(md, /Identical across 2 surfaces/);
+  rmTmp(root);
+});
