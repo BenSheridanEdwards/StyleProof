@@ -706,3 +706,31 @@ test('describeChange caps an element to a few phrases plus a +N more count', () 
   assert.ok(line, out.join('\n'));
   assert.match(line, /\+\d+ more/);
 });
+
+// ----------------------------------------------- describe polish (1.7.1)
+
+test('describeChange does not repeat a role word that equals the token name', () => {
+  const ctx = {
+    tokensBefore: tokenIndex({ '--text': 'rgb(191, 233, 245)' }), // #bfe9f5
+    tokensAfter: tokenIndex({ '--cyan-bright': 'rgb(141, 246, 255)' }), // #8df6ff
+  };
+  const out = describeChange(
+    [{ label: 'span', props: [{ prop: 'color', before: 'rgb(191, 233, 245)', after: 'rgb(141, 246, 255)' }] }],
+    ctx,
+  );
+  const joined = out.join('\n');
+  assert.doesNotMatch(joined, /text `text`/); // no "text `text`"
+  assert.match(joined, /`text` \(`#bfe9f5`\) → `cyan-bright` \(`#8df6ff`\)/);
+});
+
+test('describeChange folds same-label elements with no shared change to "e.g. … vary"', () => {
+  const out = describeChange([
+    { label: 'span.v', props: [{ prop: 'color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' }] },
+    { label: 'span.v', props: [{ prop: 'border-radius', before: '0px', after: '8px' }] },
+  ]);
+  const line = out.find((l) => /span\.v/.test(l));
+  assert.ok(line, out.join('\n'));
+  assert.match(line, /×2/);
+  assert.match(line, /e\.g\./); // names the most common changes, not just "restyled"
+  assert.match(line, /vary/);
+});

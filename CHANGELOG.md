@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.7.1]
+
+### Fixed
+
+- A colour bullet no longer repeats a role word that matches its token name
+  (`text \`text\` (#bfe9f5)` becomes `` `text` (`#bfe9f5`) ``).
+- When several same-label elements fold but share no change, the line names the
+  most common changes (`e.g. … _(vary)_`) instead of an uninformative
+  `restyled _(details vary)_`.
+
 ## [1.7.0]
 
 Colour changes are named by their theme token, shown as hex with a live swatch,
