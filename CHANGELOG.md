@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.8.1]
+
+### Fixed
+
+- The crop annotation now boxes the **innermost** changed elements (the added
+  avatars, the restyled cards) instead of the container the crop anchors on —
+  whose box just traced the whole frame and told you nothing. An element present
+  on only one side (added/removed) is boxed only there.
+
 ## [1.8.0]
 
 The crop now shows you where to look — without painting over the UI.

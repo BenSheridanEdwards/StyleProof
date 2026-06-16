@@ -79,9 +79,17 @@ const intersects = (a: Box, b: Box): boolean =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 const visible = (b: Box | null): b is Box => !!b && b.w > 0 && b.h > 0;
 
-/** Outermost changed paths: drop any path that has a changed strict ancestor. */
+/** Outermost changed paths: drop any path that has a changed strict ancestor.
+ *  Used to ANCHOR a crop (zoom to the whole changed region, not a leaf). */
 function outermost(paths: string[]): string[] {
   return paths.filter((p) => !paths.some((q) => q !== p && p.startsWith(q + ' > ')));
+}
+
+/** Innermost changed paths: drop any path that has a changed strict descendant.
+ *  Used to ANNOTATE — box the leaf elements that actually changed (the added
+ *  avatars, the restyled cards), not their container, whose box ≈ the whole crop. */
+function innermost(paths: string[]): string[] {
+  return paths.filter((p) => !paths.some((q) => q !== p && q.startsWith(p + ' > ')));
 }
 
 /** Headline counts with the zeros dropped — `0 state-delta difference(s)` is noise. */
@@ -880,10 +888,13 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         const after = cropPng(pngB, cropBox, w, h);
         const composite = compositePair(before.png, after.png);
         writePng(path.join(outDir, `${stem}-composite.png`), composite);
-        // Annotated twin: outline each changed element on both sides, so the eye
-        // lands on what the bullet named. The clean image stays the default.
-        const rectsA = g.paths.map((p) => mapA.elements[p]?.rect).filter((r): r is Rect => !!r);
-        const rectsB = g.paths.map((p) => mapB.elements[p]?.rect).filter((r): r is Rect => !!r);
+        // Annotated twin: outline the LEAF changed elements (the added avatars, the
+        // restyled cards) on each side — not the merged container the crop anchors
+        // on, whose box would just trace the whole frame. An element present on only
+        // one side (added/removed) is boxed only there.
+        const markPaths = innermost([...new Set(regionFindings.map((f) => f.path))]);
+        const rectsA = markPaths.map((p) => mapA.elements[p]?.rect).filter((r): r is Rect => !!r);
+        const rectsB = markPaths.map((p) => mapB.elements[p]?.rect).filter((r): r is Rect => !!r);
         const annotated = compositePair(annotateCrop(before, rectsA), annotateCrop(after, rectsB));
         writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
         images = { composite: `${stem}-composite.png`, annotated: `${stem}-annotated.png` };
