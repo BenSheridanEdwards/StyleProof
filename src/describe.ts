@@ -73,10 +73,67 @@ export function colorName(v: string): string | null {
   return `${qual}${best}`;
 }
 
-const shift = (before: string, after: string): string => {
-  const cb = colorName(before);
-  const ca = colorName(after);
-  return cb && ca ? `${cb} → ${ca}` : `${before} → ${after}`;
+/** rgb/rgba → `#rrggbb` (opaque) or the rgba string (translucent); non-colours pass through. */
+export function toHex(v: string): string {
+  const c = parseColor(v);
+  if (!c) return v;
+  const [r, g, b, a] = c;
+  if (a < 1) return `rgba(${r}, ${g}, ${b}, ${a})`;
+  const h = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+
+/** Canonical key for matching a colour value against the token index. */
+function colorKey(v: string): string | null {
+  const c = parseColor(v);
+  return c ? c.join(',') : null;
+}
+
+/** Reverse-index a token map (`--red-200` → `rgb(...)`) to value → token name,
+ *  preferring a scale step (`red-200`) over an alias, then the shorter name. */
+export function tokenIndex(tokens?: Record<string, string>): Map<string, string> {
+  const idx = new Map<string, string>();
+  if (!tokens) return idx;
+  const isScale = (n: string): boolean => /-\d+$/.test(n);
+  for (const [rawName, value] of Object.entries(tokens)) {
+    const key = colorKey(value);
+    if (!key) continue;
+    const name = rawName.replace(/^--/, '');
+    const cur = idx.get(key);
+    if (!cur) {
+      idx.set(key, name);
+    } else if ((isScale(name) && !isScale(cur)) || (isScale(name) === isScale(cur) && name.length < cur.length)) {
+      idx.set(key, name);
+    }
+  }
+  return idx;
+}
+
+type ColorParts = { token: string | null; word: string | null; full: string; hex: string };
+/** Resolve one colour value to its token (if any), colour word, and `#hex`. */
+function describeColor(value: string, idx?: Map<string, string>): ColorParts {
+  if (value === 'transparent') return { token: null, word: 'transparent', full: 'transparent', hex: 'transparent' };
+  const key = colorKey(value);
+  if (!key) return { token: null, word: null, full: value, hex: value }; // not a colour
+  const token = idx?.get(key) ?? null;
+  const hex = toHex(value);
+  const word = colorName(value);
+  const full = token ? `\`${token}\` (\`${hex}\`)` : `${word} (\`${hex}\`)`;
+  return { token, word, full, hex };
+}
+
+// One side's rendering: hex-only when it's a word-level no-op, else token/word + hex.
+const sidePart = (c: ColorParts, noop: boolean): string => (noop && c.hex !== 'transparent' ? `\`${c.hex}\`` : c.full);
+
+/** `red-100 (#fee2e2) → red-200 (#fecaca)`. When neither side has a token and the
+ *  colour WORD is unchanged (two near-whites), show just the hex so a subtle change
+ *  doesn't read as a no-op. */
+const shift = (before: string, after: string, idxB?: Map<string, string>, idxA?: Map<string, string>): string => {
+  const b = describeColor(before, idxB);
+  const a = describeColor(after, idxA);
+  if (b.word === null && a.word === null) return `${before} → ${after}`; // neither is a colour
+  const noop = !b.token && !a.token && b.word !== null && b.word === a.word;
+  return `${sidePart(b, noop)} → ${sidePart(a, noop)}`;
 };
 
 // --- track counting for grid columns/rows ------------------------------------
@@ -90,8 +147,10 @@ function trackCount(v: string): number {
 
 // --- per-element phrase building: one small rule per visual category ----------
 type Vals = Map<string, PropChange>;
+/** Token reverse-indexes for each side, so colour rules can name `red-200`. */
+export type DescribeCtx = { tokensBefore?: Map<string, string>; tokensAfter?: Map<string, string> };
 /** A rule reads the element's props, marks the ones it consumed, returns phrases. */
-type Rule = (m: Vals, mark: (...p: string[]) => void) => string[];
+type Rule = (m: Vals, mark: (...p: string[]) => void, ctx: DescribeCtx) => string[];
 const round = (v: string): boolean => /50%|9999|999px/.test(v);
 
 const flexPhrase = (m: Vals, before: string): string => {
@@ -120,17 +179,23 @@ const gridRule: Rule = (m, mark) => {
     if (!g) continue;
     mark(prop);
     const [b, a] = [trackCount(g.before), trackCount(g.after)];
-    if (b !== a && (b > 0 || a > 0)) out.push(`**${word}: ${b} → ${a}**`);
+    // A 0-track side that coincides with a display change is the grid becoming
+    // (or leaving) a grid — the layout rule already names that, so don't add a
+    // confusing "columns: 3 → 0". Only emit a genuine track-count change.
+    if (b !== a && (b > 0 || a > 0) && !(m.has('display') && (b === 0 || a === 0))) {
+      out.push(`**${word}: ${b} → ${a}**`);
+    }
   }
   return out;
 };
 
+const noBorder = (v: string): boolean => /^0/.test(v) || v === '(unset)';
 const borderWidthRule: Rule = (m, mark) => {
   const bw = m.get('border-width');
   if (!bw) return [];
   mark('border-width', 'border-style', 'border-color');
-  const wasZero = /^0/.test(bw.before);
-  const isZero = /^0/.test(bw.after);
+  const wasZero = noBorder(bw.before);
+  const isZero = noBorder(bw.after);
   if (wasZero && !isZero) return [`gains a ${bw.after} border`];
   if (!wasZero && isZero) return ['loses its border'];
   return [`border ${bw.before} → ${bw.after}`];
@@ -145,19 +210,20 @@ const borderRadiusRule: Rule = (m, mark) => {
   return [`corner radius ${r.before} → ${r.after}`];
 };
 
-const colorRule: Rule = (m, mark) => {
+const colorRule: Rule = (m, mark, ctx) => {
   const fields: [string, string][] = [
     ['color', 'text'],
     ['background-color', 'background'],
     ['border-color', 'border colour'],
   ];
+  const sh = (c: PropChange) => shift(c.before, c.after, ctx.tokensBefore, ctx.tokensAfter);
   const present = fields.map(([p, w]) => [m.get(p), w] as const).filter(([c]) => c) as [PropChange, string][];
   if (!present.length) return [];
   const [first] = present;
   const same = present.length > 1 && present.every(([c]) => c.before === first[0].before && c.after === first[0].after);
   fields.forEach(([p]) => m.has(p) && mark(p));
-  if (same) return [`recoloured ${shift(first[0].before, first[0].after)}`];
-  return present.map(([c, w]) => `${w} ${shift(c.before, c.after)}`);
+  if (same) return [`recoloured ${sh(first[0])}`];
+  return present.map(([c, w]) => `${w} ${sh(c)}`);
 };
 
 const fillRule: Rule = (m, mark) => {
@@ -219,16 +285,38 @@ const RULES: Rule[] = [
   spacingRule,
 ];
 
-/** Build the English phrases for ONE element's property deltas. */
-function phrasesFor(props: PropChange[]): string[] {
+// Props that rarely matter to a visual reviewer — excluded from the "+N more"
+// tail (they're still in the table) so a bullet stays signal, not noise.
+const LOW_SIGNAL = new Set([
+  'font-family',
+  'letter-spacing',
+  'word-spacing',
+  'flex-grow',
+  'flex-shrink',
+  'flex-basis',
+  'object-fit',
+  'white-space',
+  'text-rendering',
+  '-webkit-font-smoothing',
+  '-webkit-box-orient',
+  'text-overflow',
+  'word-break',
+  'overflow-wrap',
+]);
+
+/** Build the English phrases for ONE element's deltas, capped so a bullet stays a
+ *  glance: the top `cap` rule phrases (rules are priority-ordered), then a single
+ *  "+N more" counting the rest (low-signal props excluded — they're in the table). */
+function phrasesFor(props: PropChange[], ctx: DescribeCtx, cap = 4): string[] {
   const m: Vals = new Map(props.map((p) => [p.prop, p]));
   const used = new Set<string>();
   const mark = (...ps: string[]) => ps.forEach((p) => used.add(p));
-  const out = RULES.flatMap((rule) => rule(m, mark));
-  // Anything no rule named: a quiet tail so nothing is silently lost.
-  const rest = [...m.keys()].filter((p) => !used.has(p));
-  if (rest.length) out.push(`+${rest.length} more (${rest.slice(0, 3).join(', ')}${rest.length > 3 ? '…' : ''})`);
-  return out;
+  const phrases = RULES.flatMap((rule) => rule(m, mark, ctx));
+  const rest = [...m.keys()].filter((p) => !used.has(p) && !LOW_SIGNAL.has(p)).length;
+  const shown = phrases.slice(0, cap);
+  const overflow = phrases.length - shown.length + rest;
+  if (overflow > 0) shown.push(`+${overflow} more`);
+  return shown;
 }
 
 /** Tally added/removed/retagged elements into "3 added" style lines. */
@@ -241,25 +329,45 @@ function domVerbLines(els: ElementChange[]): string[] {
   return Object.entries(verbs).map(([verb, n]) => `**${n}** element${n === 1 ? '' : 's'} ${verb}`);
 }
 
-/** Restyle phrases per element, deduped: a phrase on ONE element is labelled with
- *  it; the same phrase across many collapses to `×N` (naming one of fourteen would
- *  mislead). */
-function restyleLines(els: ElementChange[]): string[] {
-  const byLine = new Map<string, { count: number; label: string }>();
-  const order: string[] = [];
+const sig = (phrases: string[]): string => phrases.join(', ');
+/** One line for a same-label group: the shared phrases (or the single line),
+ *  flagged `(details vary)` when members aren't identical. */
+function foldedLine(group: ElementChange[], ctx: DescribeCtx): string {
+  const lists = group.map((el) => phrasesFor(el.props, ctx));
+  if (lists.every((l) => sig(l) === sig(lists[0]))) return sig(lists[0]);
+  const common = lists[0].filter((p) => lists.every((l) => l.includes(p)));
+  return common.length ? `${common.join(', ')} _(details vary)_` : 'restyled _(details vary)_';
+}
+
+/** Restyle phrases, folded by element label (so two near-identical `span.led`s
+ *  become one `×2` line with their shared changes), then deduped across labels (so
+ *  the same line on different labels collapses to `… (×N)`). */
+function restyleLines(els: ElementChange[], ctx: DescribeCtx): string[] {
+  const byLabel = new Map<string, ElementChange[]>();
   for (const el of els) {
     if (el.added || el.removed) continue; // values, not deltas — heading covers them
-    const line = phrasesFor(el.props).join(', ');
-    if (!line) continue;
+    if (!phrasesFor(el.props, ctx).length) continue;
+    const arr = byLabel.get(el.label) ?? [];
+    arr.push(el);
+    byLabel.set(el.label, arr);
+  }
+  const byLine = new Map<string, { count: number; labels: Set<string> }>();
+  const order: string[] = [];
+  for (const [label, group] of byLabel) {
+    const line = foldedLine(group, ctx);
     if (!byLine.has(line)) {
-      byLine.set(line, { count: 0, label: el.label });
+      byLine.set(line, { count: 0, labels: new Set() });
       order.push(line);
     }
-    byLine.get(line)!.count++;
+    const e = byLine.get(line)!;
+    e.count += group.length;
+    e.labels.add(label);
   }
   return order.map((line) => {
-    const { count, label } = byLine.get(line)!;
-    return count > 1 ? `${line} _(×${count})_` : `**\`${label}\`** — ${line}`;
+    const { count, labels } = byLine.get(line)!;
+    if (labels.size > 1) return `${line} _(×${count})_`;
+    const label = [...labels][0];
+    return `**\`${label}\`**${count > 1 ? ` ×${count}` : ''} — ${line}`;
   });
 }
 
@@ -268,8 +376,8 @@ function restyleLines(els: ElementChange[]): string[] {
  * phrases, then a flag for interaction-state changes a static screenshot can't
  * show. Capped so the summary stays a glance (the exact tables live in the fold).
  */
-export function describeChange(els: ElementChange[], maxBullets = 6): string[] {
-  const lines = [...domVerbLines(els), ...restyleLines(els)];
+export function describeChange(els: ElementChange[], ctx: DescribeCtx = {}, maxBullets = 6): string[] {
+  const lines = [...domVerbLines(els), ...restyleLines(els, ctx)];
   const states = [...new Set(els.flatMap((e) => e.states ?? []))];
   if (states.length) lines.push(`interaction states changed: ${states.map((s) => `\`:${s}\``).join(', ')}`);
   if (lines.length <= maxBullets) return lines;

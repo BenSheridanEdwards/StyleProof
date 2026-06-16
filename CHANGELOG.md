@@ -7,6 +7,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.7.0]
+
+Colour changes are named by their theme token, shown as hex with a live swatch,
+and the bullets stay a glance.
+
+### Added
+
+- **Theme-token linking.** A colour change now names the design token behind it —
+  ``background `red-100` (`#fee2e2`) → `red-200` (`#fecaca`)`` — not just the raw
+  value. Computed styles lose the `var(--token)` reference, so the capture now
+  records the colour-valued `:root` custom properties (`StyleMap.tokens`,
+  normalised to `rgb`) and the report matches a changed value back to its token by
+  value, preferring the scale step (`red-200`) over an alias.
+- **Hex everywhere, with swatches.** Every colour renders as `#hex` (translucent
+  ones stay `rgba`), in both the bullets and the property tables, so GitHub draws
+  its live colour swatch next to each value in the PR comment.
+- **Click any crop to enlarge.** Each before/after composite is wrapped in a link
+  to the full-resolution image, so a click opens it full size to zoom.
+
+### Changed
+
+- **Tighter bullets.** Each element is capped to its few most-visible changes
+  (then `+N more`); low-signal props (`font-family`, `letter-spacing`, …) are kept
+  out of the count; near-identical same-label elements fold to one `×N` line with
+  their shared changes (`details vary` when they don't match).
+- **No more `white → white`.** When two colours round to the same word, the bullet
+  shows just the hex so a subtle change doesn't read as a no-op.
+- **Headline drops zero counts** (`0 state-delta difference(s)` was noise), and a
+  grid that becomes flex no longer prints a confusing `columns: 3 → 0` — the layout
+  rule names it.
+
 ## [1.6.0]
 
 The report tells you what to look for, in plain English, and stops being a

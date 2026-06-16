@@ -3,7 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { generateStyleMapReport, summarizeProps, prettyLabel, describeChange, colorName } from '../dist/report.js';
+import {
+  generateStyleMapReport,
+  summarizeProps,
+  prettyLabel,
+  describeChange,
+  colorName,
+  tokenIndex,
+  toHex,
+} from '../dist/report.js';
 import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture } from './helpers.mjs';
 
 // NOTE: summarizeProps and prettyLabel must be exported from report.ts (and
@@ -213,7 +221,9 @@ test('end-to-end: header counts the collapsed total, not the longhand explosion'
   });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /\*\*0 DOM change\(s\) · 1 computed-style difference\(s\) · 0 state-delta difference\(s\)\*\*/);
+  // Zero counts are dropped from the headline; only the real one shows.
+  assert.match(md, /\*\*1 computed-style difference\(s\)\*\* across/);
+  assert.doesNotMatch(md, /0 DOM change\(s\)/);
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
   rmTmp(root);
@@ -391,7 +401,7 @@ test('a newly-added element shows the values its states take, not a bogus "befor
   assert.match(md, /\*\*Added\*\* `a\.link`/);
   assert.match(md, /Interactive states:/);
   assert.match(md, /\| State \| Property \| Value \|/);
-  assert.match(md, /`:hover` \| `color` \| `rgb\(0, 0, 255\)`/);
+  assert.match(md, /`:hover` \| `color` \| `#0000ff`/); // colours render as hex (with a GitHub swatch)
   assert.doesNotMatch(md, /state does not change it/, 'no jargon placeholder for a brand-new element');
   rmTmp(root);
 });
@@ -614,4 +624,85 @@ test('describeChange reports added/removed counts', () => {
   ]);
   assert.ok(out.some((l) => /\*\*2\*\* elements added/.test(l)));
   assert.ok(out.some((l) => /\*\*1\*\* element removed/.test(l)));
+});
+
+// ------------------------------------------------ colour tokens / hex / folding
+
+test('toHex renders opaque colours as #hex and keeps alpha as rgba', () => {
+  assert.equal(toHex('rgb(254, 226, 226)'), '#fee2e2');
+  assert.equal(toHex('rgba(0, 0, 0, 0.5)'), 'rgba(0, 0, 0, 0.5)');
+  assert.equal(toHex('none'), 'none'); // non-colour untouched
+});
+
+test('tokenIndex prefers the scale token over an alias with the same value', () => {
+  const idx = tokenIndex({
+    '--red-200': 'rgb(254, 202, 202)',
+    '--primary-background': 'rgb(254, 202, 202)', // alias
+  });
+  assert.equal(idx.get('254,202,202,1'), 'red-200');
+});
+
+test('describeChange names the theme token behind a colour change', () => {
+  const ctx = {
+    tokensBefore: tokenIndex({ '--red-100': 'rgb(254, 226, 226)' }),
+    tokensAfter: tokenIndex({ '--red-200': 'rgb(254, 202, 202)' }),
+  };
+  const out = describeChange(
+    [
+      {
+        label: 'div.card',
+        props: [{ prop: 'background-color', before: 'rgb(254, 226, 226)', after: 'rgb(254, 202, 202)' }],
+      },
+    ],
+    ctx,
+  );
+  assert.ok(
+    out.some((l) => /background `red-100` \(`#fee2e2`\) → `red-200` \(`#fecaca`\)/.test(l)),
+    out.join('\n'),
+  );
+});
+
+test('describeChange shows hex-only for a colour whose word does not change (no white → white)', () => {
+  const out = describeChange([
+    { label: 'p', props: [{ prop: 'color', before: 'rgb(255, 255, 255)', after: 'rgb(250, 250, 250)' }] },
+  ]);
+  const line = out.find((l) => /text/.test(l));
+  assert.ok(line, out.join('\n'));
+  assert.match(line, /text `#ffffff` → `#fafafa`/);
+  assert.doesNotMatch(line, /white → white/);
+});
+
+test('describeChange folds near-identical same-label elements to ×N with shared changes', () => {
+  const led = (bg) => ({
+    label: 'span.led',
+    props: [
+      { prop: 'border-radius', before: '50%', after: '8px' },
+      { prop: 'background-color', before: bg, after: 'rgb(0, 0, 0)' },
+    ],
+  });
+  const out = describeChange([led('rgb(254, 226, 226)'), led('rgb(255, 255, 0)')]);
+  const ledLine = out.find((l) => /span\.led/.test(l));
+  assert.ok(ledLine, out.join('\n'));
+  assert.match(ledLine, /×2/);
+  assert.match(ledLine, /corners squared off/); // the shared change
+  assert.match(ledLine, /details vary/); // the differing background
+});
+
+test('describeChange caps an element to a few phrases plus a +N more count', () => {
+  const out = describeChange([
+    {
+      label: 'div.busy',
+      props: [
+        { prop: 'display', before: 'block', after: 'flex' },
+        { prop: 'border-radius', before: '0px', after: '8px' },
+        { prop: 'color', before: 'rgb(0,0,0)', after: 'rgb(255,0,0)' },
+        { prop: 'box-shadow', before: 'none', after: '0 1px 2px black' },
+        { prop: 'opacity', before: '1', after: '0.5' },
+        { prop: 'font-size', before: '16px', after: '18px' },
+      ],
+    },
+  ]);
+  const line = out.find((l) => /div\.busy/.test(l));
+  assert.ok(line, out.join('\n'));
+  assert.match(line, /\+\d+ more/);
 });
