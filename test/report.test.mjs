@@ -797,3 +797,45 @@ test('end-to-end: each crop has a clean image plus an annotated twin under a tog
   assert.ok(hasHilite, 'annotated crop contains the highlight colour');
   rmTmp(root);
 });
+
+test('end-to-end: annotation boxes the changed CHILD, not its changed container', () => {
+  // Both the container (border-radius) and a small child (color) change. The
+  // highlight should trace the child, not the whole container — so the magenta
+  // footprint is small (a 40px box), not a ~400px container outline.
+  const map = (radius, childColor) =>
+    makeMap({
+      elements: {
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'box',
+          rect: [10, 10, 400, 300],
+          style: { 'border-radius': radius },
+        },
+        'body > div:nth-child(1) > span:nth-child(1)': {
+          tag: 'span',
+          cls: 'dot',
+          rect: [30, 30, 40, 40],
+          style: { color: childColor },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: map('0px', 'rgb(0, 0, 0)'),
+    after: map('8px', 'rgb(255, 0, 0)'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const ann = fs.readdirSync(path.join(outDir, 'crops')).find((f) => f.endsWith('-annotated.png'));
+  const png = PNG.sync.read(fs.readFileSync(path.join(outDir, 'crops', ann)));
+  let hilite = 0;
+  for (let i = 0; i < png.data.length; i += 4) {
+    if (png.data[i] === 255 && png.data[i + 1] === 0 && png.data[i + 2] === 200) hilite++;
+  }
+  // A 40px child box (both sides) is a few hundred px; a 400px container outline
+  // would be thousands. Generous bound that still distinguishes the two.
+  assert.ok(hilite > 0, 'child is highlighted');
+  assert.ok(hilite < 1500, `highlight footprint ${hilite} should be child-sized, not container-sized`);
+  rmTmp(root);
+});
