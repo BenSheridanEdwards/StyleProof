@@ -3,7 +3,7 @@ import path from 'node:path';
 import { PNG } from 'pngjs';
 import { loadStyleMap, type Rect, type StyleMap } from './capture.js';
 import { diffStyleMapDirs, type DiffCounts, type Finding, type PropChange } from './diff.js';
-import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
+import { describeChange, tokenIndex, toHex, trackCount, type ElementChange, type DescribeCtx } from './describe.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
 // through the package's report module rather than a deep path.
 export { describeChange, colorName, tokenIndex, toHex } from './describe.js';
@@ -419,6 +419,17 @@ function formatSurfaceList(surfaces: string[]): string {
     .join(' · ');
 }
 
+// Grid-track longhands compute to width-dependent pixels (`282px ×2` at one width,
+// `282px 228px` at another), so the SAME responsive change would otherwise get a
+// different signature per width. Key them by track COUNT — what actually
+// identifies the change — so responsive variants group into one section.
+function sigValue(c: PropChange): string {
+  if (c.prop === 'grid-template-columns' || c.prop === 'grid-template-rows') {
+    return `${c.prop}=${trackCount(c.before)}t>${trackCount(c.after)}t`;
+  }
+  return `${c.prop}=${c.before}>${c.after}`;
+}
+
 /** Canonical signature of a surface's findings: surfaces that changed in the
  *  same way collapse into one section + one image (the rects differ per width;
  *  the change itself does not). */
@@ -429,12 +440,7 @@ function signatureOf(findings: Finding[]): string {
         p: f.path,
         k: f.kind,
         t: f.kind === 'dom' ? f.change : f.kind === 'state' ? f.state : (f.pseudo ?? ''),
-        v:
-          f.kind === 'dom'
-            ? ''
-            : summarizeProps(f.props)
-                .map((c) => `${c.prop}=${c.before}>${c.after}`)
-                .join('|'),
+        v: f.kind === 'dom' ? '' : summarizeProps(f.props).map(sigValue).join('|'),
       }))
       .sort((a, b) => `${a.p}|${a.k}|${a.t}`.localeCompare(`${b.p}|${b.k}|${b.t}`)),
   );
