@@ -7,6 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.9.3]
+
+### Changed
+
+- Canonical `StyleProof`-cased GitHub URLs in `package.json` (`homepage`,
+  `repository`, `bugs`).
+
+### Fixed
+
+- The README demo image now uses an absolute `raw.githubusercontent.com` URL so it
+  renders on the npm package page — relative paths don't resolve there, so the image
+  showed broken on npmjs.com.
+
 ## [1.9.1]
 
 ### Fixed
