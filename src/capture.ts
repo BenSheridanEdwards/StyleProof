@@ -32,7 +32,22 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 type Props = Record<string, string>;
 /** Document-space bounding box: [x, y, width, height], rounded. */
 export type Rect = [number, number, number, number];
-export type ElementEntry = { tag: string; cls: string; rect?: Rect; style: Props; pseudo?: Record<string, Props> };
+export type ElementEntry = {
+  tag: string;
+  cls: string;
+  rect?: Rect;
+  style: Props;
+  pseudo?: Record<string, Props>;
+  /**
+   * The element's OWN rendered text (direct text-node children only, whitespace
+   * collapsed) — present only when capture ran with `captureText: true` (the
+   * opt-in content layer, off by default). Own-text, not subtree text, so each
+   * change is attributed to the single element that owns it. Diffed by
+   * {@link diffContentMaps}, never by the certification diff — content is
+   * advisory, not a computed-style outcome. See README "Optional: content layer".
+   */
+  text?: string;
+};
 export type StyleMap = {
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
@@ -103,6 +118,19 @@ export type CaptureOptions = {
    * minutes; raise it deliberately if you need full coverage of a huge page.
    */
   maxInteractive?: number;
+  /**
+   * Opt-in content layer (default OFF). When true, each element's own rendered
+   * text is recorded on `ElementEntry.text` so {@link diffContentMaps} can
+   * surface copy changes a pure-style diff is blind to — most importantly the
+   * silent ones where new or longer text overflows or clips its box. This is
+   * ADVISORY: it never feeds the certification diff or its blocking counts, and
+   * StyleProof stays computed-styles-first. Off by default keeps the core
+   * promise (a CSS-only refactor that rewrites text is still certified
+   * identical) intact for anyone who doesn't opt in. Text churn (clocks,
+   * "2m ago") is auto-excluded by the same live-region settle pass that already
+   * guards styles, since text now participates in change detection.
+   */
+  captureText?: boolean;
 };
 
 const INTERACTIVE = 'a, button, input, textarea, select, summary, [role="button"], [tabindex]';
@@ -137,10 +165,10 @@ export function isUnder(path: string, roots: string[]): boolean {
   return roots.some((r) => path === r || path.startsWith(r + ' > '));
 }
 
-type CaptureArgs = { ignore: string[]; motionOnly: boolean };
+type CaptureArgs = { ignore: string[]; motionOnly: boolean; captureText: boolean };
 
 // Serialized into the browser by page.evaluate; cannot call module helpers.
-function capturePage({ ignore, motionOnly }: CaptureArgs) {
+function capturePage({ ignore, motionOnly, captureText }: CaptureArgs) {
   const MOTION = /^(transition|animation)/;
   const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
   const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
@@ -206,6 +234,7 @@ function capturePage({ ignore, motionOnly }: CaptureArgs) {
     rect?: [number, number, number, number];
     style: Props;
     pseudo?: Record<string, Props>;
+    text?: string;
   };
   const elements: Record<string, Entry> = {};
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
@@ -240,6 +269,17 @@ function capturePage({ ignore, motionOnly }: CaptureArgs) {
         Math.round(r.width),
         Math.round(r.height),
       ];
+      if (captureText) {
+        // Own text only (direct text-node children, whitespace collapsed), so a
+        // parent and child never both report the same string — each change is
+        // attributed to the element that actually owns the text.
+        let t = '';
+        for (const node of Array.prototype.slice.call(el.childNodes)) {
+          if (node.nodeType === 3 /* TEXT_NODE */) t += node.textContent ?? '';
+        }
+        t = t.replace(/\s+/g, ' ').trim();
+        if (t) entry.text = t;
+      }
     }
     for (const ps of PSEUDOS) {
       if (ps === '::marker' && getComputedStyle(el).display !== 'list-item') continue;
@@ -424,9 +464,13 @@ async function stabilizePage(
   interval: number,
   quietFor: number,
   timeout: number,
+  captureText: boolean,
 ): Promise<string[]> {
+  // captureText is threaded in so text churn participates in settle detection:
+  // a clock/ticker whose text changes (with no style change) keeps the map from
+  // settling and is excluded as a live region, exactly as style churn already is.
   const snap = async (): Promise<Elements> =>
-    (await page.evaluate(capturePage, { ignore, motionOnly: false })).elements as Elements;
+    (await page.evaluate(capturePage, { ignore, motionOnly: false, captureText })).elements as Elements;
   const start = Date.now();
   let prev = await snap();
   let lastChangeAt = start;
@@ -473,10 +517,22 @@ function capturePageTokens(): Record<string, string> {
 }
 
 /** Settle the page and return the paths of live regions to exclude. */
-async function detectVolatile(page: Page, ignore: string[], stabilize: CaptureOptions['stabilize']): Promise<string[]> {
+async function detectVolatile(
+  page: Page,
+  ignore: string[],
+  stabilize: CaptureOptions['stabilize'],
+  captureText: boolean,
+): Promise<string[]> {
   if (stabilize === false) return [];
   const opt = typeof stabilize === 'object' ? stabilize : {};
-  const volatile = await stabilizePage(page, ignore, opt.interval || 150, opt.quietFor || 600, opt.timeout || 5000);
+  const volatile = await stabilizePage(
+    page,
+    ignore,
+    opt.interval || 150,
+    opt.quietFor || 600,
+    opt.timeout || 5000,
+    captureText,
+  );
   if (volatile.length) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -531,17 +587,19 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const captureStates = options.captureStates ?? true;
   const maxInteractive = options.maxInteractive ?? 800;
   const stabilize = options.stabilize ?? true;
+  const captureText = options.captureText ?? false;
   // Motion longhands first (FREEZE_CSS would null them), then everything else.
-  const motion = await page.evaluate(capturePage, { ignore, motionOnly: true });
+  // Motion never carries text — it's a settled end state of declared motion.
+  const motion = await page.evaluate(capturePage, { ignore, motionOnly: true, captureText: false });
   await page.addStyleTag({ content: FREEZE_CSS });
 
   // Settle: wait for async content to finish painting so base and head capture
   // the same loaded state, and collect any region still changing on its own
   // (a live stream/ticker) to exclude — animations are frozen above, so only
   // real content/layout churn lands here.
-  const volatile = await detectVolatile(page, ignore, stabilize);
+  const volatile = await detectVolatile(page, ignore, stabilize, captureText);
 
-  const base = await page.evaluate(capturePage, { ignore, motionOnly: false });
+  const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText });
   dropVolatile(base.elements, volatile);
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
   mergeMotion(base.elements, motion.elements);

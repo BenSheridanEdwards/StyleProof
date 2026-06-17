@@ -1,8 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { loadStyleMap, type Rect, type StyleMap } from './capture.js';
-import { diffStyleMapDirs, type DiffCounts, type Finding, type PropChange } from './diff.js';
+import { loadStyleMap, type ElementEntry, type Rect, type StyleMap } from './capture.js';
+import {
+  diffStyleMapDirs,
+  diffContentDirs,
+  type ContentChange,
+  type DiffCounts,
+  type Finding,
+  type PropChange,
+} from './diff.js';
 import { describeChange, tokenIndex, toHex, trackCount, type ElementChange, type DescribeCtx } from './describe.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
 // through the package's report module rather than a deep path.
@@ -49,6 +56,16 @@ export type ReportOptions = {
    * (`styleproof-diff`) always keeps them.
    */
   includeLayoutNoise?: boolean;
+  /**
+   * Render the opt-in content layer (default OFF): a separate, ADVISORY section
+   * listing elements whose own text changed, each with a before/after crop.
+   * Requires captures taken with `captureText: true`; otherwise there's no text
+   * to diff and the section is empty. Never affects `changedSurfaces`,
+   * `totalFindings`, or the exit code — StyleProof stays computed-styles-first;
+   * this only surfaces copy changes (and any silent overflow/clipping they
+   * cause) for the reviewer's eye.
+   */
+  includeContent?: boolean;
 };
 
 export type ReportResult = {
@@ -57,6 +74,8 @@ export type ReportResult = {
   /** New surfaces present on only one side, with no baseline to compare. */
   newSurfaces: number;
   totalFindings: number;
+  /** Advisory content-layer changes rendered (0 unless includeContent + captured text). Never gates. */
+  contentChanges: number;
   reportMdPath: string;
   reportJsonPath: string;
 };
@@ -727,6 +746,124 @@ function buildElementChanges(findings: Finding[]): ElementChange[] {
   return els;
 }
 
+/** One-line, backtick-safe display text, clipped so the report stays scannable. */
+function clipText(s: string, max = 200): string {
+  const t = s.replace(/\s+/g, ' ').replace(/`/g, "'").trim();
+  return t.length > max ? t.slice(0, max - 1) + '…' : t;
+}
+
+// Shared inputs for the opt-in content layer, bundled so each helper stays small.
+type ContentCtx = {
+  beforeDir: string;
+  afterDir: string;
+  outDir: string;
+  img: (rel: string) => string;
+  padBy: number;
+  minWidth: number;
+  minHeight: number;
+  maxHeight: number;
+};
+
+/** An element's padded box on one side, or null when it has no visible rect. */
+function paddedRect(entry: ElementEntry | undefined, padBy: number): Box | null {
+  if (!entry?.rect) return null;
+  const b = pad(rectToBox(entry.rect), padBy);
+  return visible(b) ? b : null;
+}
+
+/** Crop box for a content change: the union of where the element sits on each
+ *  side (so the pair lines up), or null if it's not visible anywhere. */
+function contentBox(mapA: StyleMap, mapB: StyleMap, p: string, padBy: number): Box | null {
+  const ba = paddedRect(mapA.elements[p], padBy);
+  const bb = paddedRect(mapB.elements[p], padBy);
+  if (ba && bb) return union(ba, bb);
+  return bb ?? ba;
+}
+
+/** before|after crop lines for one content change, or [] when there's no box or
+ *  no screenshots. Writes the composite PNG as a side effect. */
+function contentCropLines(
+  ctx: ContentCtx,
+  surface: string,
+  c: ContentChange,
+  mapA: StyleMap,
+  mapB: StyleMap,
+  pngA: PNG | null,
+  pngB: PNG | null,
+  seq: number,
+): string[] {
+  const box = contentBox(mapA, mapB, c.path, ctx.padBy);
+  if (!box || !pngA || !pngB) return [];
+  const w = Math.max(ctx.minWidth, box.w);
+  const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h));
+  const composite = compositePair(cropPng(pngA, box, w, h).png, cropPng(pngB, box, w, h).png);
+  const stem = `crops/${surface.replace(/[^a-z0-9-]/gi, '-')}-content-${seq}`;
+  writePng(path.join(ctx.outDir, `${stem}-composite.png`), composite);
+  return [
+    '',
+    `![before ◀ │ ▶ after](${ctx.img(`${stem}-composite.png`)})`,
+    '',
+    `<sub>◀ before  ·  after ▶ — ${surface}</sub>`,
+  ];
+}
+
+/** One surface's content block: heading, then per change the before/after text
+ *  and its crop. Returns the markdown plus the advanced crop counter. */
+function renderContentSurface(
+  ctx: ContentCtx,
+  surface: string,
+  changes: ContentChange[],
+  seq: number,
+): { md: string[]; seq: number } {
+  const mapA = loadStyleMap(findCapture(ctx.beforeDir, surface));
+  const mapB = loadStyleMap(findCapture(ctx.afterDir, surface));
+  const pngA = readPng(path.join(ctx.beforeDir, `${surface}.png`));
+  const pngB = readPng(path.join(ctx.afterDir, `${surface}.png`));
+  const md: string[] = ['', `### \`${surface}\` · ${changes.length} content change(s)`];
+  for (const c of changes) {
+    seq++;
+    md.push(
+      '',
+      `**\`${prettyLabel(c.path, c.cls)}\`**`,
+      '',
+      `- before: \`${clipText(c.before) || '(empty)'}\``,
+      `- after: \`${clipText(c.after) || '(empty)'}\``,
+      ...contentCropLines(ctx, surface, c, mapA, mapB, pngA, pngB, seq),
+    );
+  }
+  return { md, seq };
+}
+
+/**
+ * The opt-in content layer, rendered as its own ADVISORY section. Reuses the
+ * style report's crop/composite machinery so every copy change gets a
+ * before/after screenshot — the whole point being to make a silent text change,
+ * and any overflow or clipping it triggers, visible in review. Returns the
+ * markdown plus a count; the caller keeps both out of the gate (counts/exit live
+ * on the computed-style path).
+ */
+function renderContentSection(ctx: ContentCtx): { md: string[]; count: number } {
+  const { surfaces, count } = diffContentDirs(ctx.beforeDir, ctx.afterDir);
+  if (!count) return { md: [], count: 0 };
+  const md: string[] = [
+    '',
+    '---',
+    '',
+    '## 📝 Content changes (advisory)',
+    '',
+    `_${count} element(s) changed their own text. **Advisory only** — content is not part of the computed-style ` +
+      `certification and does not affect the check. Surfaced so a copy change the style diff can't see (and any ` +
+      `overflow or clipping it causes) is visible in review._`,
+  ];
+  let seq = 0;
+  for (const { surface, changes } of surfaces) {
+    const out = renderContentSurface(ctx, surface, changes, seq);
+    md.push(...out.md);
+    seq = out.seq;
+  }
+  return { md, count };
+}
+
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,
@@ -746,6 +883,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   } = opts;
 
   const includeNoise = opts.includeLayoutNoise ?? false;
+  const includeContent = opts.includeContent ?? false;
   const { surfaces, volatile: volatileCount } = diffStyleMapDirs(beforeDir, afterDir);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
@@ -797,9 +935,19 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const json: Array<Record<string, unknown>> = [];
   const img = (rel: string) => (imageBaseUrl ? `${imageBaseUrl.replace(/\/$/, '')}/${rel}` : rel);
 
+  // Opt-in, advisory: computed here so its count can colour the headline, but its
+  // markdown is appended at the very end and it NEVER feeds the gate below.
+  const contentSection = includeContent
+    ? renderContentSection({ beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight })
+    : { md: [], count: 0 };
+
   md.push('## 🗺️ StyleProof report', '');
   if (changeGroups.length === 0 && missing.length === 0) {
-    md.push('✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.');
+    md.push(
+      contentSection.count > 0
+        ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
+        : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
+    );
   } else {
     if (changeGroups.length > 0) {
       md.push(
@@ -819,6 +967,9 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       '',
       `_${volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — they don't affect the check._`,
     );
+  }
+  if (contentSection.count > 0 && (changeGroups.length > 0 || missing.length > 0)) {
+    md.push('', `📝 _${contentSection.count} advisory content change(s) below — they don't affect the check._`);
   }
 
   let totalFindings = 0;
@@ -975,6 +1126,8 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     json.push(surfaceJson);
   }
 
+  md.push(...contentSection.md);
+
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
   fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
@@ -983,6 +1136,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     changedSurfaces: prepared.length - missing.length,
     newSurfaces: missing.length,
     totalFindings,
+    contentChanges: contentSection.count,
     reportMdPath,
     reportJsonPath,
   };
