@@ -118,6 +118,37 @@ test('auto-excludes a perpetual live region', async ({ page }) => {
   expect(buttonCaptured, 'the static button is still captured').toBe(true);
 });
 
+test('ignores framework / non-visual DOM noise by default (meta, title, next-route-announcer)', async ({ page }) => {
+  // The body carries the kind of noise Next.js streams in / injects: a couple of
+  // <meta>, a <title>, a <script>, and the route-announcer live region — none of
+  // it visual. `b` drops the streamed meta/title (framework churn between renders)
+  // and the route announcer mutates. With the built-in ignore, none of that diffs.
+  const body = (extra: string, announce: string) => `<!doctype html><html><head><meta charset="utf-8">
+    <style>body{margin:0}.cta{color:rgb(0,0,0)}</style></head><body>
+    <main><button class="cta">go</button></main>
+    ${extra}
+    <next-route-announcer><p>${announce}</p></next-route-announcer>
+  </body></html>`;
+  const a = await captureFixture(
+    page,
+    body('<meta name="a" content="1"><title>streamed</title><script>0;</script>', 'on /a'),
+  );
+  const b = await captureFixture(page, body('', 'navigated to /b'));
+  // The streamed meta/title/script and the route-announcer churn are ignored…
+  expect(diffStyleMaps(a, b), 'framework / non-visual churn does not register as a change').toEqual([]);
+  // …and none of it was captured into elements in the first place.
+  const paths = Object.keys(a.elements).join('\n');
+  expect(
+    /(^|> )(meta|title|script|next-route-announcer)/m.test(paths),
+    'no framework/non-visual elements captured',
+  ).toBe(false);
+  // The real, visible button IS captured.
+  expect(
+    Object.values(a.elements).some((e) => e.cls === 'cta'),
+    'visible elements still captured',
+  ).toBe(true);
+});
+
 test('saveStyleMap/loadStyleMap roundtrip a real capture (.json.gz)', async ({ page }) => {
   const map = await captureFixture(page, fixture('rgb(0, 0, 0)', 'rgb(0, 255, 0)'));
   const file = path.join(os.tmpdir(), `styleproof-e2e-rt-${Math.random().toString(36).slice(2)}.json.gz`);
