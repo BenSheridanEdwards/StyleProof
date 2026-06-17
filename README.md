@@ -103,11 +103,12 @@ jobs:
       - run: npx wait-on http://localhost:3000
       - run: STYLEMAP_DIR=base npx playwright test e2e/styleproof.spec.ts
 
-      # capture the PR head
+      # capture the PR head — replay the base's recorded data so the diff is
+      # code, not live-data drift (see "Deterministic by default" below)
       - run: git checkout ${{ github.event.pull_request.head.sha }}
       - run: npm ci && npm run build && (npm run serve &)
       - run: npx wait-on http://localhost:3000
-      - run: STYLEMAP_DIR=head npx playwright test e2e/styleproof.spec.ts
+      - run: STYLEMAP_DIR=head STYLEPROOF_REPLAY_FROM=__stylemaps__/base npx playwright test e2e/styleproof.spec.ts
 
       # report + gate
       - uses: BenSheridanEdwards/styleproof@v1
@@ -121,7 +122,13 @@ jobs:
 
 **4. Require the `StyleProof` status** in branch protection. Now an unsigned visual change can't merge.
 
-> Capture both sides in the **same environment** (same machine, same env vars): if env vars change _what renders_, base and head will diff on DOM no PR touched.
+**Deterministic by default — no fixtures required.** A style diff only means something if both sides saw the same inputs; otherwise live-data drift (a backend blip, a `5m ago` timestamp, a status chip that flips) reads as a style change on a PR that touched no CSS. StyleProof handles this for you:
+
+- **Record / replay.** The base capture records each surface's data responses (anything matching `**/api/**`) to a HAR; the head capture replays them, so the head renders _its_ code against the _base's_ data — the app's own JS/CSS still load live. Backend down during a run? Both sides replay the same recording, so there's no phantom diff. Point the head capture at the base's recording with `STYLEPROOF_REPLAY_FROM=<base dir>` (see the CI step above); tune the data boundary with `STYLEPROOF_REPLAY_URL` / `replayUrl` if your API isn't under `/api`.
+- **Frozen clock.** `Date.now()` / `new Date()` are pinned to a fixed instant, so time-derived styling (`stale > 1h → red`) can't drift. Timers keep running, so settling still works.
+- **Self-check** (`STYLEPROOF_SELFCHECK=1`). Captures each surface twice and fails if they differ — a replay gap or unseeded randomness surfaces as a clear _"non-deterministic capture"_ error, never as a phantom change on an unrelated PR.
+
+> Replay covers data the page _fetches_. If your app **server-renders** differently per environment (SSR feature flags, locale), still capture both sides with the same server env so the rendered HTML matches.
 
 **Live pages just work.** Before each capture, StyleProof settles the page — it waits until the computed-style map stops changing, so async content (a fetch, an SSE/WebSocket stream backfilling a grid) is captured loaded, not mid-load. Anything still moving on its own after that is detected as a live region and excluded from the diff, so a stream or ticker never reads as a change — no manual `ignore` needed. Disable or tune with `captureStyleMap(page, { stabilize: false })` / `{ stabilize: { quietFor, timeout } }`.
 

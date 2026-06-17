@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, loadStyleMap } from '../dist/index.js';
 import { diffStyleMaps } from '../dist/index.js';
@@ -125,5 +126,93 @@ test('saveStyleMap/loadStyleMap roundtrip a real capture (.json.gz)', async ({ p
     expect(loadStyleMap(file)).toEqual(map);
   } finally {
     fs.rmSync(file, { force: true });
+  }
+});
+
+// A page whose styling depends on a live API: the chip is green when the backend
+// reports "ok" and amber otherwise — the exact shape of FLEET's vault chip. The
+// served status is mutable so we can simulate the backend drifting between runs.
+const DATA_DRIVEN_PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>
+  body { margin: 0; }
+  .chip { color: rgb(0, 200, 0); }
+  .chip.warn { color: rgb(255, 180, 0); }
+</style></head><body>
+  <span id="chip" class="chip">vault</span>
+  <script>
+    fetch('/api/state').then(r => r.json()).then(d => {
+      if (d.status !== 'ok') document.getElementById('chip').classList.add('warn');
+      document.title = 'ready';
+    });
+  </script>
+</body></html>`;
+
+async function captureServed(
+  browser: import('@playwright/test').Browser,
+  base: string,
+  har: string | null,
+  mode: 'record' | 'replay',
+): Promise<ReturnType<typeof captureStyleMap>> {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  if (har && mode === 'record')
+    await page.routeFromHAR(har, { url: '**/api/**', update: true, updateContent: 'embed' });
+  if (har && mode === 'replay') await page.routeFromHAR(har, { url: '**/api/**', update: false, notFound: 'abort' });
+  await page.goto(base, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.title === 'ready');
+  const map = await captureStyleMap(page);
+  await ctx.close(); // flushes the HAR in record mode
+  return map;
+}
+
+test('record→replay keeps a data-driven capture stable when the backend drifts', async ({ browser }) => {
+  let served = 'ok';
+  const server = http.createServer((req, res) => {
+    if ((req.url ?? '').startsWith('/api/state')) {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ status: served }));
+    } else {
+      res.setHeader('content-type', 'text/html');
+      res.end(DATA_DRIVEN_PAGE);
+    }
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address() as import('node:net').AddressInfo;
+  const base = `http://127.0.0.1:${port}`;
+  const har = path.join(os.tmpdir(), `styleproof-e2e-har-${Math.random().toString(36).slice(2)}.har`);
+  try {
+    // Baseline: record the "ok" responses (chip green).
+    const baseline = await captureServed(browser, base, har, 'record');
+    // The backend drifts — containers down, vault unreachable (chip would go amber).
+    served = 'crit';
+    // Head replays the baseline's data → renders green again, so no phantom diff.
+    const replayed = await captureServed(browser, base, har, 'replay');
+    expect(diffStyleMaps(baseline, replayed), 'replay reproduces the baseline despite backend drift').toEqual([]);
+    // Control: without replay the same drift DOES show up — proving the styling is
+    // genuinely data-driven and the test isn't trivially passing.
+    const live = await captureServed(browser, base, null, 'record');
+    expect(diffStyleMaps(baseline, live).length, 'without replay the drift surfaces as a change').toBeGreaterThan(0);
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+    fs.rmSync(har, { force: true });
+  }
+});
+
+test('page.clock.setFixedTime pins time-derived rendering without breaking settle', async ({ browser }) => {
+  // The chip text is the current year; freezing the clock makes it deterministic
+  // and (crucially) leaves in-page timers running, so a settle wait still resolves.
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head><body>
+    <span id="y"></span>
+    <script>
+      setTimeout(() => { document.getElementById('y').textContent = String(new Date().getFullYear()); document.title = 'ready'; }, 50);
+    </script></body></html>`;
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  try {
+    await page.clock.setFixedTime(new Date('2025-01-01T00:00:00Z'));
+    await page.goto('data:text/html,' + encodeURIComponent(html), { waitUntil: 'load' });
+    await page.waitForFunction(() => document.title === 'ready'); // proves timers still fire
+    expect(await page.locator('#y').textContent()).toBe('2025');
+  } finally {
+    await ctx.close();
   }
 });

@@ -1,6 +1,8 @@
 import { test } from '@playwright/test';
+import fs from 'node:fs';
 import path from 'node:path';
 import { captureStyleMap, saveStyleMap } from './capture.js';
+import { diffStyleMaps, type Finding } from './diff.js';
 import type { Page } from '@playwright/test';
 
 /**
@@ -37,11 +39,121 @@ export type DefineOptions = {
    * without screenshots still diff, but produce text-only reports.
    */
   screenshots?: boolean;
+  /**
+   * Replay a baseline run's recorded responses so a before/after diff reflects
+   * code, not live-data drift. When set (or via STYLEPROOF_REPLAY_FROM), each
+   * surface replays `<replayFrom>/<key>@<width>.har` for requests matching
+   * `replayUrl`; otherwise the run RECORDS that HAR into its own dir for the
+   * comparison run to replay. Only data URLs are intercepted, so the app's own
+   * JS/CSS still load live — the captured run renders ITS code against the
+   * baseline's data. This is what makes captures deterministic with no per-repo
+   * fixtures: record once on the base, replay on the head.
+   */
+  replayFrom?: string;
+  /**
+   * URL glob for the data boundary to record/replay (default `**\/api/**`, or
+   * STYLEPROOF_REPLAY_URL). Requests outside it (JS/CSS/fonts/images) always
+   * load live so the captured code actually runs.
+   */
+  replayUrl?: string;
+  /**
+   * Freeze `Date.now()`/`new Date()` to a fixed instant so time-derived styling
+   * (relative-age classes, "stale > 1h" flags) can't drift between runs. Timers
+   * keep running, so settling/polling still works. Default true.
+   */
+  freezeClock?: boolean;
+  /** Fixed instant for the frozen clock (default `2025-01-01T00:00:00Z`). */
+  clockTime?: string | number | Date;
+  /**
+   * Capture each surface twice and fail if the computed styles differ — proves
+   * the capture is deterministic (catches a replay gap falling through to the
+   * live backend, or unseeded client randomness) instead of letting it surface
+   * as a phantom change on an unrelated diff. Default from STYLEPROOF_SELFCHECK=1.
+   */
+  selfCheck?: boolean;
 };
+
+/** Resolved per-capture settings, shared with the helpers below. */
+type Settings = Required<Omit<DefineOptions, 'surfaces' | 'replayFrom'>> & { dir: string; replayFrom?: string };
+
+/** One-line description of the first drift finding, for the self-check error. */
+function driftDesc(f: Finding): string {
+  if (f.kind === 'dom') return `${f.path} ${f.change}`;
+  const p = f.props[0];
+  return p ? `${f.path} ${p.prop}: ${p.before} → ${p.after}` : f.path;
+}
+
+/**
+ * Pin the surface's inputs: replay the baseline's recorded data (or record ours),
+ * scoped to the data URLs so the app's own JS/CSS still load live, then freeze the
+ * clock so time-derived styling is stable.
+ */
+async function pinInputs(page: Page, harName: string, s: Settings): Promise<void> {
+  if (s.replayFrom) {
+    const har = path.join(s.replayFrom, harName);
+    if (fs.existsSync(har)) {
+      // notFound:'abort' — a request the baseline never recorded fails
+      // deterministically rather than silently hitting the live backend.
+      await page.routeFromHAR(har, { url: s.replayUrl, update: false, notFound: 'abort' });
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn(`styleproof: no replay HAR at ${har} — capturing live (NON-deterministic)`);
+    }
+  } else {
+    await page.routeFromHAR(path.join(s.baseDir, s.dir, harName), {
+      url: s.replayUrl,
+      update: true,
+      updateContent: 'embed', // single portable file, no sidecar resources
+    });
+  }
+  if (s.freezeClock) await page.clock.setFixedTime(new Date(s.clockTime));
+}
+
+/** Capture the surface again and throw if the computed styles drifted from `first`. */
+async function assertDeterministic(
+  page: Page,
+  surface: Surface,
+  first: Awaited<ReturnType<typeof captureStyleMap>>,
+): Promise<void> {
+  await surface.go(page);
+  const again = await captureStyleMap(page, { ignore: surface.ignore ?? [] });
+  const drift = diffStyleMaps(first, again);
+  if (drift.length) {
+    throw new Error(
+      `styleproof self-check failed: ${surface.key} is non-deterministic — ` +
+        `${drift.length} computed-style difference(s) between two captures of the same commit. ` +
+        `Likely a replay gap (a request not in the baseline HAR) or unseeded randomness. ` +
+        `First: ${driftDesc(drift[0])}`,
+    );
+  }
+}
+
+/** Drive one surface at one width to a settled state and save its style map (+ screenshot). */
+async function captureSurface(page: Page, surface: Surface, width: number, s: Settings): Promise<void> {
+  test.setTimeout(180_000);
+  await pinInputs(page, `${surface.key}@${width}.har`, s);
+  const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
+  await page.setViewportSize({ width, height });
+  await surface.go(page);
+  const map = await captureStyleMap(page, { ignore: surface.ignore ?? [] });
+  if (s.selfCheck) await assertDeterministic(page, surface, map);
+
+  const stem = path.join(s.baseDir, s.dir, `${surface.key}@${width}`);
+  saveStyleMap(`${stem}.json.gz`, map);
+  if (s.screenshots) {
+    // captureStyleMap froze animations/transitions, so this is the same settled
+    // state the map describes.
+    await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+  }
+}
 
 /**
  * Generate one Playwright test per surface × width that captures the style
- * map to `<baseDir>/<dir>/<key>@<width>.json.gz`.
+ * map to `<baseDir>/<dir>/<key>@<width>.json.gz`. Captures are made
+ * deterministic with no per-repo fixtures: the baseline run records each
+ * surface's data responses to a HAR, and the comparison run replays them (set
+ * STYLEPROOF_REPLAY_FROM=<baseline dir> on the comparison capture), while the
+ * clock is frozen so time-derived styling is stable.
  *
  * ```ts
  * // styleproof.spec.ts
@@ -53,25 +165,27 @@ export function defineStyleMapCapture({
   dir,
   baseDir = '__stylemaps__',
   screenshots = true,
+  replayFrom = process.env.STYLEPROOF_REPLAY_FROM,
+  replayUrl = process.env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
+  freezeClock = true,
+  clockTime = '2025-01-01T00:00:00Z',
+  selfCheck = process.env.STYLEPROOF_SELFCHECK === '1',
 }: DefineOptions): void {
   test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
+  const settings: Settings = {
+    dir: dir as string,
+    baseDir,
+    screenshots,
+    replayFrom,
+    replayUrl,
+    freezeClock,
+    clockTime,
+    selfCheck,
+  };
   test.describe('styleproof capture', () => {
     for (const surface of surfaces) {
       for (const width of surface.widths) {
-        test(`${surface.key} @ ${width}`, async ({ page }) => {
-          test.setTimeout(180_000);
-          const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
-          await page.setViewportSize({ width, height });
-          await surface.go(page);
-          const map = await captureStyleMap(page, { ignore: surface.ignore ?? [] });
-          const stem = path.join(baseDir, dir as string, `${surface.key}@${width}`);
-          saveStyleMap(`${stem}.json.gz`, map);
-          if (screenshots) {
-            // captureStyleMap froze animations/transitions, so this is the
-            // same settled state the map describes.
-            await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
-          }
-        });
+        test(`${surface.key} @ ${width}`, ({ page }) => captureSurface(page, surface, width, settings));
       }
     }
   });
