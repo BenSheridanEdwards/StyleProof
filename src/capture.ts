@@ -65,9 +65,11 @@ export type StyleMap = {
 export type CaptureOptions = {
   /**
    * Selectors for nondeterministic regions (live data, embeds, ads). The
-   * matching elements and their descendants are skipped entirely. Usually
-   * unnecessary now that `stabilize` auto-detects live regions; use it to skip
-   * a region you know is volatile without paying the settle wait for it.
+   * matching elements and their descendants are skipped entirely. Added to a
+   * built-in default that skips framework/non-visual noise (`<meta>`/`<title>`/
+   * `<script>`/`<style>`/… and `next-route-announcer`), so you rarely need it —
+   * `stabilize` also auto-detects live regions. Use it to skip a region you know
+   * is volatile without paying the settle wait for it.
    */
   ignore?: string[];
   /**
@@ -107,6 +109,27 @@ const INTERACTIVE = 'a, button, input, textarea, select, summary, [role="button"
 // Freeze motion so every captured value is a settled end state, not a frame
 // of an animation or a mid-flight transition after a forced :hover.
 const FREEZE_CSS = '*,*::before,*::after{animation:none!important;transition:none!important}';
+
+// Always skipped, merged into the caller's `ignore`. Two kinds of noise that
+// are never a visual change worth gating on but churn the DOM between runs:
+//   - non-rendered elements frameworks stream into <body> then hoist (Next.js
+//     app-router injects <meta>/<title>/<link>); they have no box to style, and
+//     their presence/order is nondeterministic. A real stylesheet change still
+//     shows up in the affected elements' computed styles, not in the <style> tag.
+//   - framework-injected live regions / overlays that mount and reorder on their
+//     own (Next.js's a11y route announcer — already a known source of CDP skew).
+const FRAMEWORK_IGNORE = [
+  'meta',
+  'title',
+  'link',
+  'script',
+  'style',
+  'base',
+  'noscript',
+  'template',
+  'next-route-announcer',
+  '[id="__next-route-announcer__"]',
+];
 
 /** True if `path` is one of `roots` or a structural descendant of one. Shared by
  *  the capture (excluding live regions) and the diff (skipping them). */
@@ -456,7 +479,9 @@ function capturePageTokens(): Record<string, string> {
  * paints after `go()` resolves is captured loaded, not mid-load.
  */
 export async function captureStyleMap(page: Page, options: CaptureOptions = {}): Promise<StyleMap> {
-  const ignore = options.ignore ?? [];
+  // Framework/non-visual noise is always skipped, so it can't read as a DOM
+  // change; the caller's `ignore` adds to it (not replaces it).
+  const ignore = [...FRAMEWORK_IGNORE, ...(options.ignore ?? [])];
   const captureStates = options.captureStates ?? true;
   const maxInteractive = options.maxInteractive ?? 800;
   const stabilize = options.stabilize ?? true;

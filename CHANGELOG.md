@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.9.1]
+
+### Fixed
+
+- **Framework / non-visual DOM noise no longer registers as a change.** Capture now skips a built-in default set of selectors — `<meta>`, `<title>`, `<link>`, `<script>`, `<style>`, `<base>`, `<noscript>`, `<template>`, and `next-route-announcer` — merged into (not replaced by) the caller's `ignore`. These are elements frameworks stream into the body and reorder (Next.js app-router injects metadata then hoists it) or inject as live regions (Next's a11y route announcer), with no visual box to diff; their churn was surfacing as phantom DOM-added/removed findings on PRs that changed no CSS. A real stylesheet change still shows up in the affected elements' computed styles, not in the `<style>` tag. _Note: this changes the captured element set slightly — re-baseline once after upgrading._
+
 ## [1.9.0]
 
 ### Added
