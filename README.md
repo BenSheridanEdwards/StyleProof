@@ -3,8 +3,8 @@
 **Know exactly what every PR changes visually, and sign it off.** StyleProof captures the browser's _computed_ styles (not pixels), diffs your PR's HEAD against its base branch, and posts a per-change report on the PR, so a styling change never ships without someone confirming it was intended.
 
 [![npm version](https://img.shields.io/npm/v/styleproof.svg)](https://www.npmjs.com/package/styleproof)
-[![CI](https://github.com/BenSheridanEdwards/styleproof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/styleproof/actions)
-[![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/styleproof/blob/main/LICENSE)
+[![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)
+[![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
 
 ## Why
 
@@ -111,14 +111,14 @@ jobs:
       - run: STYLEMAP_DIR=head STYLEPROOF_REPLAY_FROM=__stylemaps__/base npx playwright test e2e/styleproof.spec.ts
 
       # report + gate
-      - uses: BenSheridanEdwards/styleproof@v1
+      - uses: BenSheridanEdwards/StyleProof@v1
         with:
           baseline-dir: base
           fresh-dir: head
           require-approval: true # review-gate mode (omit / use fail-on-diff: true to certify)
 ```
 
-**3. Copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/styleproof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` on your default branch** — GitHub only runs `issue_comment` workflows from there, so the checkboxes do nothing until it's merged.
+**3. Copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` on your default branch** — GitHub only runs `issue_comment` workflows from there, so the checkboxes do nothing until it's merged.
 
 **4. Require the `StyleProof` status** in branch protection. Now an unsigned visual change can't merge.
 
@@ -135,7 +135,7 @@ jobs:
 
 ## Reference
 
-**Action `BenSheridanEdwards/styleproof@v1`** — key inputs:
+**Action `BenSheridanEdwards/StyleProof@v1`** — key inputs:
 
 | Input              | Default      | Purpose                                                                    |
 | ------------------ | ------------ | -------------------------------------------------------------------------- |
@@ -145,7 +145,7 @@ jobs:
 | `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.   |
 | `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection. |
 
-Outputs: `changed` (`"true"` when anything changed), `report-url`. Other inputs (`report-branch`, `inline-images`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/styleproof/blob/main/action.yml).
+Outputs: `changed` (`"true"` when anything changed), `report-url`. Other inputs (`report-branch`, `inline-images`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
 **Capture spec `defineStyleMapCapture({ surfaces, … })`** — determinism is on by default; you rarely set more than `surfaces` and `dir`:
 
@@ -178,7 +178,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 - `styleproof-diff <beforeDir> <afterDir>` — the certify gate; exits `1` on any difference.
 - `styleproof-report <beforeDir> <afterDir> --out <dir>` — render the diff to a Markdown report with before/after crops.
 
-A programmatic API (`captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, …) is also exported. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/styleproof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/styleproof/tree/main/example) workflows.
+A programmatic API (`captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, …) is also exported. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 
 ## License
 

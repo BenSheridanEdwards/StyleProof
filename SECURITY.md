@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report security issues privately through GitHub's [private vulnerability
-reporting](https://github.com/BenSheridanEdwards/styleproof/security/advisories/new)
+reporting](https://github.com/BenSheridanEdwards/StyleProof/security/advisories/new)
 rather than opening a public issue. Include a description, reproduction steps, and the
 affected version.
 

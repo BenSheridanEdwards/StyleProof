@@ -126,7 +126,7 @@ jobs:
           generate_release_notes: ${{ steps.notes.outputs.have_notes != 'true' }}
 
       # Move the major alias (e.g. v1) to this release, so consumers pinning
-      # `uses: BenSheridanEdwards/styleproof@v1` always get the latest 1.x. A
+      # `uses: BenSheridanEdwards/StyleProof@v1` always get the latest 1.x. A
       # GITHUB_TOKEN push does not retrigger workflows, so this never loops.
       - name: Move the major tag
         if: steps.check.outputs.released == 'true'

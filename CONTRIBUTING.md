@@ -7,7 +7,7 @@ way (one job, done well, no native deps) are the easiest to merge.
 ## Getting set up
 
 ```sh
-git clone https://github.com/BenSheridanEdwards/styleproof
+git clone https://github.com/BenSheridanEdwards/StyleProof
 cd styleproof
 npm install                 # also runs `npm run build` via the `prepare` script
 npx playwright install chromium   # for the smoke e2e
