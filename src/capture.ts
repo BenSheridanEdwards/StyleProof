@@ -472,6 +472,52 @@ function capturePageTokens(): Record<string, string> {
   return tokens;
 }
 
+/** Settle the page and return the paths of live regions to exclude. */
+async function detectVolatile(page: Page, ignore: string[], stabilize: CaptureOptions['stabilize']): Promise<string[]> {
+  if (stabilize === false) return [];
+  const opt = typeof stabilize === 'object' ? stabilize : {};
+  const volatile = await stabilizePage(page, ignore, opt.interval || 150, opt.quietFor || 600, opt.timeout || 5000);
+  if (volatile.length) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `styleproof: ${volatile.length} live region(s) kept changing on their own and were excluded from ` +
+        'this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so ' +
+        'they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.',
+    );
+  }
+  return volatile;
+}
+
+/** Drop live regions (and their subtrees) from the base capture, in Node so the
+ *  serialized capturePage stays a pure snapshot. */
+function dropVolatile(elements: Elements, volatile: string[]): void {
+  if (!volatile.length) return;
+  for (const p of Object.keys(elements)) if (isUnder(p, volatile)) delete elements[p];
+}
+
+/** Warn once when shadow roots / iframes were skipped (their styles aren't captured or diffed). */
+function warnUntraversed(shadowHosts?: number, sameOriginFrames?: number): void {
+  if (!shadowHosts && !sameOriginFrames) return;
+  // eslint-disable-next-line no-console
+  console.warn(
+    `styleproof: ${shadowHosts} shadow host(s) and ${sameOriginFrames} same-origin iframe(s) were ` +
+      'NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside ' +
+      'one would be reported as identical. See README "Limitations".',
+  );
+}
+
+/** Fold the pre-freeze motion longhands back onto the settled base capture. */
+function mergeMotion(elements: Elements, motion: Elements): void {
+  for (const [p, entry] of Object.entries(elements)) {
+    const m = motion[p];
+    if (!m) continue;
+    Object.assign(entry.style, m.style);
+    for (const [ps, props] of Object.entries(m.pseudo ?? {})) {
+      if (entry.pseudo?.[ps]) Object.assign(entry.pseudo[ps], props);
+    }
+  }
+}
+
 /**
  * Capture the page's complete style map. Drive the page to the state you want
  * first (navigate, open menus); by default the capture then auto-settles the
@@ -493,43 +539,12 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // the same loaded state, and collect any region still changing on its own
   // (a live stream/ticker) to exclude — animations are frozen above, so only
   // real content/layout churn lands here.
-  let volatile: string[] = [];
-  if (stabilize !== false) {
-    const opt = typeof stabilize === 'object' ? stabilize : {};
-    const interval = opt.interval || 150;
-    const quietFor = opt.quietFor || 600;
-    const timeout = opt.timeout || 5000;
-    volatile = await stabilizePage(page, ignore, interval, quietFor, timeout);
-    if (volatile.length) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `styleproof: ${volatile.length} live region(s) kept changing on their own and were excluded from ` +
-          'this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so ' +
-          'they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.',
-      );
-    }
-  }
+  const volatile = await detectVolatile(page, ignore, stabilize);
 
   const base = await page.evaluate(capturePage, { ignore, motionOnly: false });
-  // Drop live regions (and their subtrees) detected by the settle pass — done
-  // here, in Node, so the serialized capturePage stays a pure snapshot.
-  if (volatile.length) for (const p of Object.keys(base.elements)) if (isUnder(p, volatile)) delete base.elements[p];
-  if (base.shadowHosts || base.sameOriginFrames) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `styleproof: ${base.shadowHosts} shadow host(s) and ${base.sameOriginFrames} same-origin iframe(s) were ` +
-        'NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside ' +
-        'one would be reported as identical. See README "Limitations".',
-    );
-  }
-  for (const [p, entry] of Object.entries(base.elements)) {
-    const m = motion.elements[p];
-    if (!m) continue;
-    Object.assign(entry.style, m.style);
-    for (const [ps, props] of Object.entries(m.pseudo ?? {})) {
-      if (entry.pseudo?.[ps]) Object.assign(entry.pseudo[ps], props);
-    }
-  }
+  dropVolatile(base.elements, volatile);
+  warnUntraversed(base.shadowHosts, base.sameOriginFrames);
+  mergeMotion(base.elements, motion.elements);
   let states: StyleMap['states'] = {};
   let statesSkipped = false;
   if (captureStates) {
