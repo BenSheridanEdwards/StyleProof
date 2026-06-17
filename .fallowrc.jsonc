@@ -4,5 +4,11 @@
   // complexity weighted by coverage — is meaningless for a test that nothing else
   // covers. Dead-code and security still scan the whole tree, and src/bin
   // duplication and complexity are still caught.
-  "production": { "dupes": true, "health": true }
+  "production": { "dupes": true, "health": true },
+
+  // Coverage-independent complexity gate: the `fallow health` CI step fails on NEW
+  // functions over these thresholds (production mode → src/bin only, tests skipped),
+  // regardless of coverage. CRAP disabled so it measures complexity, not test gaps.
+  // .fallow/health-baseline.json grandfathers today's backlog.
+  "health": { "maxCyclomatic": 20, "maxCognitive": 15, "maxCrap": 1000000 }
 }

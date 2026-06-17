@@ -1,0 +1,35 @@
+{
+  "finding_counts": {
+    "src/capture.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/diff.ts": {
+      "complexity_critical": {
+        "count": 1
+      }
+    },
+    "src/report.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 3
+      }
+    }
+  },
+  "runtime_coverage_findings": [],
+  "target_keys": [
+    "src/diff.ts:high impact",
+    "src/describe.ts:untested risk",
+    "src/report.ts:dead code",
+    "src/capture.ts:complexity"
+  ]
+}

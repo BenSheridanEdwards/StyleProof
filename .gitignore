@@ -6,3 +6,6 @@ coverage/
 **/__stylemaps__/
 *.tgz
 .DS_Store
+
+# fallow local cache
+.fallow/*.bin
