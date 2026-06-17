@@ -147,6 +147,31 @@ jobs:
 
 Outputs: `changed` (`"true"` when anything changed), `report-url`. Other inputs (`report-branch`, `inline-images`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/styleproof/blob/main/action.yml).
 
+**Capture spec `defineStyleMapCapture({ surfaces, … })`** — determinism is on by default; you rarely set more than `surfaces` and `dir`:
+
+| Option        | Default                     | Purpose                                                                                                          |
+| ------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `surfaces`    | _required_                  | Page states to certify — each `{ key, go, widths, ignore?, height? }`. `go(page)` drives to a settled state.     |
+| `dir`         | `STYLEMAP_DIR`              | Output label (`base`/`head`); the spec is **inert until set**, so it sits safely beside your other specs.        |
+| `replayFrom`  | `STYLEPROOF_REPLAY_FROM`    | Baseline dir whose recorded responses to replay. Unset → this run **records** its HAR for the comparison to use. |
+| `replayUrl`   | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.     |
+| `freezeClock` | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works.  |
+| `clockTime`   | `2025-01-01T00:00:00Z`      | The frozen instant.                                                                                              |
+| `selfCheck`   | `STYLEPROOF_SELFCHECK=1`    | Capture each surface twice and fail on any difference — proves the capture is deterministic.                     |
+| `screenshots` | `true`                      | Save full-page screenshots for the report's before/after crops.                                                  |
+| `baseDir`     | `__stylemaps__`             | Output root directory.                                                                                           |
+
+Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<style>`/… and `next-route-announcer`) are skipped automatically; a surface's `ignore` adds to that default, it doesn't replace it.
+
+**Capture env vars** (wire CI without editing the spec):
+
+| Env                      | Purpose                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| `STYLEMAP_DIR`           | Output label; the capture is skipped entirely when unset.                     |
+| `STYLEPROOF_REPLAY_FROM` | Baseline dir to replay recorded data from — set this on the **head** capture. |
+| `STYLEPROOF_REPLAY_URL`  | Override the `**/api/**` data-boundary glob.                                  |
+| `STYLEPROOF_SELFCHECK`   | `1` to capture each surface twice and fail if the two differ.                 |
+
 **CLIs** (every flag accepts `--flag value` and `--flag=value`; `--help` lists all):
 
 - `styleproof-init` — scaffold the capture spec (and a starter `playwright.config.ts` if none exists).
