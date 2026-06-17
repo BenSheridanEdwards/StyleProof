@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.9.0]
+
+### Added
+
+- **Deterministic captures with no per-repo fixtures.** `defineStyleMapCapture` now records each surface's data responses on the baseline run and replays them on the comparison run, so a diff reflects code, not live-data drift — a backend blip or a flipped status chip no longer reads as a style change on a PR that touched no CSS. Set `STYLEPROOF_REPLAY_FROM=<base dir>` on the head capture; only data URLs (`**/api/**`, configurable via `replayUrl` / `STYLEPROOF_REPLAY_URL`) are intercepted, so the app's own JS/CSS still load live and the captured run runs its own code. If the backend is down during a run, both sides replay the same recording — no phantom diff.
+- **Frozen clock during capture** (`freezeClock`, on by default; `clockTime` to set the instant). Pins `Date.now()` / `new Date()` so time-derived styling (relative-age classes, "stale > 1h" flags) can't drift between runs; timers keep running so settling/polling still work.
+- **Capture self-check** (`STYLEPROOF_SELFCHECK=1` / `selfCheck`). Captures each surface twice and fails with a clear _"non-deterministic capture"_ error (naming the drifting element) if the two differ — so a replay gap or unseeded randomness is caught at setup time instead of surfacing as a phantom change on an unrelated PR.
+
 ## [1.8.1]
 
 ### Fixed
