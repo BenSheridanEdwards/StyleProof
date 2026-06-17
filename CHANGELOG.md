@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.9.4]
+
+### Changed
+
+- Repository URLs now use the canonical `BenSheridanEdwards/StyleProof` casing
+  everywhere — README badges, Action references, and doc links, plus the CHANGELOG
+  compare links, CONTRIBUTING, SECURITY, `action.yml`, and the release workflow.
+  (npm package-name URLs stay lowercase, as npm requires.)
+
 ## [1.9.3]
 
 ### Changed
