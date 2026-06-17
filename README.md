@@ -23,7 +23,7 @@ On every PR, StyleProof captures a `StyleMap` from the HEAD and from the base br
 
 One change — the hero CTA recoloured cyan → amber — posts as a single section: a side-by-side before/after cropped screenshot, a one-line summary, then the exact property change folded under a toggle.
 
-![A StyleProof report: the CTA button before (cyan) and after (amber), side by side](https://raw.githubusercontent.com/BenSheridanEdwards/styleproof/main/docs/demo-composite.png)
+![A StyleProof report: the CTA button before (cyan) and after (amber), side by side](https://raw.githubusercontent.com/BenSheridanEdwards/StyleProof/main/docs/demo-composite.png)
 
 As it renders in the PR comment (a plain-English bullet first — naming the theme token and showing the hex with a live colour swatch — then the exact table inside the toggle):
 
