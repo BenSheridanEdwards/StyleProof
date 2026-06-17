@@ -4,9 +4,6 @@
       "complexity_critical": {
         "count": 1
       },
-      "complexity_high": {
-        "count": 1
-      },
       "complexity_moderate": {
         "count": 1
       }
@@ -27,9 +24,9 @@
   },
   "runtime_coverage_findings": [],
   "target_keys": [
-    "src/diff.ts:high impact",
-    "src/describe.ts:untested risk",
     "src/report.ts:dead code",
+    "src/describe.ts:untested risk",
+    "src/diff.ts:high impact",
     "src/capture.ts:complexity"
   ]
 }
