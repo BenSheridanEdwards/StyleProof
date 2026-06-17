@@ -2,8 +2,10 @@
 
 ## Reporting a vulnerability
 
-Please report security issues privately to **bensheridanedwards@users.noreply.github.com** rather than opening a
-public issue. Include a description, reproduction steps, and the affected version.
+Please report security issues privately through GitHub's [private vulnerability
+reporting](https://github.com/BenSheridanEdwards/styleproof/security/advisories/new)
+rather than opening a public issue. Include a description, reproduction steps, and the
+affected version.
 
 You can expect an acknowledgement within a few working days and a fix or mitigation plan
 once the report is confirmed. Please give a reasonable window to address the issue before
