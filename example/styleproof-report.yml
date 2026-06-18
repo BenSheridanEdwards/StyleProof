@@ -38,16 +38,17 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
 
-      - name: Read PR context
-        id: pr
-        run: |
-          echo "number=$(jq -r .pr __stylemaps__/pr-context.json)" >> "$GITHUB_OUTPUT"
-          echo "head=$(jq -r .head __stylemaps__/pr-context.json)" >> "$GITHUB_OUTPUT"
-
+      # Resolve the PR number and head SHA from the TRUSTED `workflow_run` event,
+      # NOT from the artifact. The capture stage runs untrusted fork/Dependabot PR
+      # code, so everything under __stylemaps__ is attacker-controlled — a malicious
+      # PR could plant a victim PR number or an arbitrary commit SHA and make the
+      # steps below comment on / set the StyleProof status against it (a confused
+      # deputy). The action derives the identity itself from github.event.workflow_run
+      # (head_sha, then pull_requests, with a listPullRequestsAssociatedWithCommit
+      # fallback against that trusted head SHA for fork PRs), so we pass neither
+      # pr-number nor head-sha. The artifact is consumed only as diff input.
       - uses: BenSheridanEdwards/styleproof@v1
         with:
           baseline-dir: __stylemaps__/base
           fresh-dir: __stylemaps__/head
-          pr-number: ${{ steps.pr.outputs.number }}
-          head-sha: ${{ steps.pr.outputs.head }}
           require-approval: true

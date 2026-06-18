@@ -11,14 +11,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **Fork and Dependabot support.** The Action now resolves the PR number and head
   SHA in an event-aware way, so it can be driven from a `workflow_run` as well as
-  from `pull_request`. New optional `pr-number` / `head-sha` inputs let a report
-  stage carry the PR association (needed for fork PRs, whose head commit the
-  `workflow_run` payload does not link to the PR). New example workflows
-  `example/styleproof-capture.yml` (read-only `pull_request` capture + artifact
-  upload) and `example/styleproof-report.yml` (`workflow_run` report under a write
-  token, never running the PR's code) let fork and Dependabot PRs gate without
-  handing a write token to untrusted code — the secure alternative to
-  `pull_request_target`.
+  from `pull_request`. New example workflows `example/styleproof-capture.yml`
+  (read-only `pull_request` capture + artifact upload) and
+  `example/styleproof-report.yml` (`workflow_run` report under a write token, never
+  running the PR's code) let fork and Dependabot PRs gate without handing a write
+  token to untrusted code — the secure alternative to `pull_request_target`. PR
+  identity is taken only from the trusted `workflow_run` event (`head_sha`, the
+  event's `pull_requests`, and a commit→PR lookup against that same head SHA for
+  forks) — never from the capture artifact — so an untrusted PR cannot redirect the
+  privileged comment or status at a victim PR or commit.
 
 ### Fixed
 

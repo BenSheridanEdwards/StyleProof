@@ -41,14 +41,9 @@ jobs:
       - run: npx wait-on http://localhost:3000
       - run: STYLEMAP_DIR=head STYLEPROOF_REPLAY_FROM=__stylemaps__/base npx playwright test e2e/styleproof.spec.ts
 
-      # Carry the PR association into the artifact so the report stage can resolve
-      # it even for fork PRs, whose head commit the workflow_run payload does not
-      # link back to the PR.
-      - run: |
-          cat > __stylemaps__/pr-context.json <<EOF
-          { "pr": ${{ github.event.pull_request.number }}, "head": "${{ github.event.pull_request.head.sha }}" }
-          EOF
-
+      # Upload ONLY the captured style maps. The report stage resolves the PR and
+      # head SHA from the trusted workflow_run event — never from this artifact —
+      # so nothing this untrusted job writes can redirect the privileged status.
       - uses: actions/upload-artifact@v4
         with:
           name: styleproof-stylemaps

@@ -41,18 +41,6 @@ inputs:
   status-context:
     description: 'Name of the commit status set in require-approval mode (must match the approve workflow + branch protection).'
     default: 'StyleProof'
-  pr-number:
-    description: >-
-      PR number to comment on and gate. Resolved automatically on `pull_request`
-      and `workflow_run` events; set it explicitly (carried in the capture
-      artifact) when driving the report from a `workflow_run` for a fork PR, where
-      the event payload does not carry the PR association.
-    default: ''
-  head-sha:
-    description: >-
-      The PR head commit the `StyleProof` status binds to. Resolved automatically;
-      set explicitly alongside `pr-number` for the workflow_run/fork flow.
-    default: ''
 
 outputs:
   changed:
@@ -68,44 +56,45 @@ outputs:
 runs:
   using: composite
   steps:
-    # Resolve the PR number + head SHA in an event-aware way. This is what lets
-    # the report be driven from a `workflow_run` (the fork/Dependabot-safe flow:
-    # capture under the read-only `pull_request` token, then comment + set the
-    # status here under a write token) as well as directly from `pull_request`.
-    # Explicit `pr-number` / `head-sha` inputs win; otherwise we read the event.
+    # Resolve the PR number + head SHA from the TRUSTED event payload. This is what
+    # lets the report be driven from a `workflow_run` (the fork/Dependabot-safe flow:
+    # capture under the read-only `pull_request` token, then comment + set the status
+    # here under a write token) as well as directly from `pull_request`.
+    #
+    # Identity is taken only from data GitHub sets — never from the (untrusted)
+    # capture artifact — so a fork can't spoof which PR/commit the privileged status
+    # lands on. `workflow_run.head_sha` is the real captured commit; the PR is its
+    # `pull_requests` association (same-repo, incl. Dependabot) or, for forks, the
+    # open PR whose head IS that exact commit.
     - id: context
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}
         script: |
-          let prNumber = '${{ inputs.pr-number }}' ? Number('${{ inputs.pr-number }}') : undefined;
-          let headSha = '${{ inputs.head-sha }}' || undefined;
-          if (!prNumber || !headSha) {
-            if (context.eventName === 'pull_request' || context.eventName === 'pull_request_target') {
-              prNumber = prNumber || context.payload.pull_request.number;
-              headSha = headSha || context.payload.pull_request.head.sha;
-            } else if (context.eventName === 'workflow_run') {
-              const run = context.payload.workflow_run;
-              headSha = headSha || run.head_sha;
-              if (!prNumber) {
-                // Same-repo PRs (including Dependabot) carry the association here.
-                if (run.pull_requests && run.pull_requests.length) {
-                  prNumber = run.pull_requests[0].number;
-                } else {
-                  // Fork PRs don't — fall back to the PR that owns the head commit.
-                  const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                    ...context.repo,
-                    commit_sha: headSha,
-                  });
-                  const pr = data.find((p) => p.state === 'open') ?? data[0];
-                  prNumber = pr && pr.number;
-                }
-              }
+          let prNumber;
+          let headSha;
+          if (context.eventName === 'pull_request') {
+            prNumber = context.payload.pull_request.number;
+            headSha = context.payload.pull_request.head.sha;
+          } else if (context.eventName === 'workflow_run') {
+            const run = context.payload.workflow_run;
+            headSha = run.head_sha;
+            if (run.pull_requests && run.pull_requests.length) {
+              prNumber = run.pull_requests[0].number;
+            } else {
+              const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                ...context.repo,
+                commit_sha: headSha,
+              });
+              const pr = data.find((p) => p.state === 'open' && p.head.sha === headSha);
+              prNumber = pr && pr.number;
             }
           }
-          core.setOutput('pr-number', prNumber ? String(prNumber) : '');
-          core.setOutput('head-sha', headSha || '');
-          if (!prNumber || !headSha) {
+          // Emit both together or neither, so a later step can never run with one half.
+          const resolved = Boolean(prNumber) && Boolean(headSha);
+          core.setOutput('pr-number', resolved ? String(prNumber) : '');
+          core.setOutput('head-sha', resolved ? headSha : '');
+          if (!resolved) {
             core.info('StyleProof: no PR context resolved — comment/status steps will be skipped.');
           }
 
