@@ -1,0 +1,53 @@
+# StyleProof — report + gate stage (fork & Dependabot safe).
+#
+# Triggered when styleproof-capture.yml finishes. Runs from your DEFAULT branch
+# with a WRITE token, so it can post the report comment and set the StyleProof
+# status even for fork and Dependabot PRs — without ever checking out or running
+# the PR's code. It only consumes the trusted style-map artifact the capture
+# stage produced. That is exactly why it is safe where `pull_request_target`
+# (which would run the PR's code under a write token) is not.
+#
+# This file must live on your DEFAULT branch to take effect (like the approve
+# workflow).
+name: StyleProof report
+
+on:
+  workflow_run:
+    workflows: ['StyleProof capture']
+    types: [completed]
+
+permissions:
+  contents: write # push the report branch
+  pull-requests: write # post/update the comment
+  statuses: write # set the StyleProof status
+  actions: read # download the artifact from the capture run
+
+jobs:
+  report:
+    # Only for capture runs that came from a PR and succeeded.
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download captured style maps
+        uses: actions/download-artifact@v4
+        with:
+          name: styleproof-stylemaps
+          path: __stylemaps__
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Read PR context
+        id: pr
+        run: |
+          echo "number=$(jq -r .pr __stylemaps__/pr-context.json)" >> "$GITHUB_OUTPUT"
+          echo "head=$(jq -r .head __stylemaps__/pr-context.json)" >> "$GITHUB_OUTPUT"
+
+      - uses: BenSheridanEdwards/styleproof@v1
+        with:
+          baseline-dir: __stylemaps__/base
+          fresh-dir: __stylemaps__/head
+          pr-number: ${{ steps.pr.outputs.number }}
+          head-sha: ${{ steps.pr.outputs.head }}
+          require-approval: true

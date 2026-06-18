@@ -41,6 +41,18 @@ inputs:
   status-context:
     description: 'Name of the commit status set in require-approval mode (must match the approve workflow + branch protection).'
     default: 'StyleProof'
+  pr-number:
+    description: >-
+      PR number to comment on and gate. Resolved automatically on `pull_request`
+      and `workflow_run` events; set it explicitly (carried in the capture
+      artifact) when driving the report from a `workflow_run` for a fork PR, where
+      the event payload does not carry the PR association.
+    default: ''
+  head-sha:
+    description: >-
+      The PR head commit the `StyleProof` status binds to. Resolved automatically;
+      set explicitly alongside `pr-number` for the workflow_run/fork flow.
+    default: ''
 
 outputs:
   changed:
@@ -56,6 +68,47 @@ outputs:
 runs:
   using: composite
   steps:
+    # Resolve the PR number + head SHA in an event-aware way. This is what lets
+    # the report be driven from a `workflow_run` (the fork/Dependabot-safe flow:
+    # capture under the read-only `pull_request` token, then comment + set the
+    # status here under a write token) as well as directly from `pull_request`.
+    # Explicit `pr-number` / `head-sha` inputs win; otherwise we read the event.
+    - id: context
+      uses: actions/github-script@v9
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          let prNumber = '${{ inputs.pr-number }}' ? Number('${{ inputs.pr-number }}') : undefined;
+          let headSha = '${{ inputs.head-sha }}' || undefined;
+          if (!prNumber || !headSha) {
+            if (context.eventName === 'pull_request' || context.eventName === 'pull_request_target') {
+              prNumber = prNumber || context.payload.pull_request.number;
+              headSha = headSha || context.payload.pull_request.head.sha;
+            } else if (context.eventName === 'workflow_run') {
+              const run = context.payload.workflow_run;
+              headSha = headSha || run.head_sha;
+              if (!prNumber) {
+                // Same-repo PRs (including Dependabot) carry the association here.
+                if (run.pull_requests && run.pull_requests.length) {
+                  prNumber = run.pull_requests[0].number;
+                } else {
+                  // Fork PRs don't — fall back to the PR that owns the head commit.
+                  const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                    ...context.repo,
+                    commit_sha: headSha,
+                  });
+                  const pr = data.find((p) => p.state === 'open') ?? data[0];
+                  prNumber = pr && pr.number;
+                }
+              }
+            }
+          }
+          core.setOutput('pr-number', prNumber ? String(prNumber) : '');
+          core.setOutput('head-sha', headSha || '');
+          if (!prNumber || !headSha) {
+            core.info('StyleProof: no PR context resolved — comment/status steps will be skipped.');
+          }
+
     - id: diff
       shell: bash
       run: |
@@ -84,7 +137,7 @@ runs:
 
         REPO='${{ github.repository }}'
         BRANCH='${{ inputs.report-branch }}'
-        PR='${{ github.event.pull_request.number }}'
+        PR='${{ steps.context.outputs.pr-number }}'
         REPORT_PATH="pr-${PR:-${{ github.run_id }}}"
         REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
 
@@ -128,12 +181,13 @@ runs:
         echo "raw-base=https://raw.githubusercontent.com/${REPO}/${BRANCH}/${REPORT_PATH}" >> "$GITHUB_OUTPUT"
 
     - name: Upsert PR comment
-      if: github.event_name == 'pull_request'
+      if: steps.context.outputs.pr-number != ''
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}
         script: |
           const fs = require('fs');
+          const prNumber = Number('${{ steps.context.outputs.pr-number }}');
           const marker = '<!-- styleproof-report -->';
           // `changed` = reviewable before/after differences (these gate). `report`
           // also covers NEW surfaces with no baseline: still worth posting (with a
@@ -142,12 +196,12 @@ runs:
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const report = '${{ steps.diff.outputs.report }}' === 'true';
           const { data: comments } = await github.rest.issues.listComments({
-            ...context.repo, issue_number: context.issue.number, per_page: 100,
+            ...context.repo, issue_number: prNumber, per_page: 100,
           });
           const existing = comments.find((c) => c.body && c.body.includes(marker));
           const upsert = (body) => existing
             ? github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
-            : github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
 
           if (!report) {
             if (existing) await upsert(`${marker}\n## 🗺️ StyleProof report\n\n✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.`);
@@ -191,7 +245,7 @@ runs:
             // Append ?v=<sha> so raw.githubusercontent's CDN can't serve a previous
             // push's crop at the overwritten path (the committed report.md keeps
             // relative paths and is unaffected).
-            const sha = '${{ github.sha }}';
+            const sha = '${{ steps.context.outputs.head-sha }}';
             visual = regionsForComment.replace(/\]\(crops\/([^)]+)\)/g, `](${rawBase}/crops/$1?v=${sha})`);
           } else {
             // private: tables render inline; images live behind the authenticated link
@@ -200,7 +254,7 @@ runs:
           }
 
           // Bind approval to this exact commit so a post-report push can't inherit green.
-          const headSha = '${{ github.event.pull_request.head.sha }}';
+          const headSha = '${{ steps.context.outputs.head-sha }}';
           const footer = requireApproval
             ? [
                 '---',
@@ -218,13 +272,13 @@ runs:
     # instead of failing the job. Green when nothing changed; red ("needs
     # sign-off") until a write-access reviewer ticks the box. PR events only.
     - name: Set review status
-      if: github.event_name == 'pull_request' && inputs.require-approval == 'true'
+      if: steps.context.outputs.pr-number != '' && inputs.require-approval == 'true'
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}
         script: |
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
-          const sha = context.payload.pull_request.head.sha;
+          const sha = '${{ steps.context.outputs.head-sha }}';
           const url = '${{ steps.publish.outputs.url }}';
           await github.rest.repos.createCommitStatus({
             ...context.repo,
