@@ -1,0 +1,51 @@
+# StyleProof — capture stage (fork & Dependabot safe).
+#
+# Runs on the PR with a READ-ONLY token and no secrets, so it is safe on pull
+# requests from forks and from Dependabot. It only builds and captures the
+# computed-style maps and uploads them as an artifact. The privileged half — the
+# diff, the report comment, and the StyleProof status — runs in
+# styleproof-report.yml afterwards, under a write token, but never executes the
+# PR's code.
+#
+# Use this two-workflow setup (capture + report) instead of the single-job
+# styleproof.yml when your repo receives fork or Dependabot PRs. A repo that only
+# ever sees same-repo PRs can use either.
+name: StyleProof capture
+
+on: pull_request
+
+permissions:
+  contents: read # read-only — safe to run untrusted PR code
+
+concurrency:
+  group: styleproof-capture-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the base branch too
+
+      # capture the base branch
+      - run: git checkout ${{ github.event.pull_request.base.sha }}
+      - run: npm ci && npm run build && (npm run serve &) # your framework's build + serve
+      - run: npx wait-on http://localhost:3000
+      - run: STYLEMAP_DIR=base npx playwright test e2e/styleproof.spec.ts
+
+      # capture the PR head, replaying the base's recorded data (see README)
+      - run: git checkout ${{ github.event.pull_request.head.sha }}
+      - run: npm ci && npm run build && (npm run serve &)
+      - run: npx wait-on http://localhost:3000
+      - run: STYLEMAP_DIR=head STYLEPROOF_REPLAY_FROM=__stylemaps__/base npx playwright test e2e/styleproof.spec.ts
+
+      # Upload ONLY the captured style maps. The report stage resolves the PR and
+      # head SHA from the trusted workflow_run event — never from this artifact —
+      # so nothing this untrusted job writes can redirect the privileged status.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: styleproof-stylemaps
+          path: __stylemaps__
+          retention-days: 3

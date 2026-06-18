@@ -7,6 +7,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Fork and Dependabot support.** The Action now resolves the PR number and head
+  SHA in an event-aware way, so it can be driven from a `workflow_run` as well as
+  from `pull_request`. New example workflows `example/styleproof-capture.yml`
+  (read-only `pull_request` capture + artifact upload) and
+  `example/styleproof-report.yml` (`workflow_run` report under a write token, never
+  running the PR's code) let fork and Dependabot PRs gate without handing a write
+  token to untrusted code — the secure alternative to `pull_request_target`. PR
+  identity is taken only from the trusted `workflow_run` event (`head_sha`, the
+  event's `pull_requests`, and a commit→PR lookup against that same head SHA for
+  forks) — never from the capture artifact — so an untrusted PR cannot redirect the
+  privileged comment or status at a victim PR or commit.
+
+### Fixed
+
+- The README CI recipe pointed `baseline-dir` / `fresh-dir` at the bare `base` /
+  `head` labels, but captures land under `baseDir` (`__stylemaps__/base`,
+  `__stylemaps__/head`), so `styleproof-diff` failed with `no capture at base`.
+  The recipe now uses the full `__stylemaps__/<label>` paths.
+
 ## [1.9.4]
 
 ### Changed
