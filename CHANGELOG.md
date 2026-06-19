@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`approve-all` input.** In review-gate mode, render a single **Approve all
+  changes** checkbox at the top of the report instead of one box per change, so a
+  reviewer signs off every change with one tick. Off by default (per-change boxes
+  are unchanged); the `styleproof-approve` workflow accepts either shape.
 - **Fork and Dependabot support.** The Action now resolves the PR number and head
   SHA in an event-aware way, so it can be driven from a `workflow_run` as well as
   from `pull_request`. New example workflows `example/styleproof-capture.yml`

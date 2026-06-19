@@ -2,10 +2,12 @@
 #
 # issue_comment workflows only ever run from the default branch, so this must
 # live on main (not on the feature branch) to take effect. It flips the
-# `StyleProof` commit status as a write-access reviewer ticks the per-change
-# approval boxes in the StyleProof report comment: green only when EVERY box is
-# ticked. Pair it with the Action's `require-approval: true` input and a
-# branch-protection rule that requires the `StyleProof` status.
+# `StyleProof` commit status as a write-access reviewer ticks the approval
+# box(es) in the StyleProof report comment. With per-change boxes (default),
+# green only when EVERY box is ticked; with the Action's `approve-all: true`, a
+# single "Approve all changes" box signs off everything in one tick. Pair it
+# with the Action's `require-approval: true` input and a branch-protection rule
+# that requires the `StyleProof` status.
 name: StyleProof approve
 
 on:
@@ -53,11 +55,21 @@ jobs:
             if (!shaMatch) return;
             const reportSha = shaMatch[1];
 
-            // One approval checkbox per change. Green needs them ALL ticked.
-            const boxes = body.split('\n').filter((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve this change\*\*/.test(l));
-            if (boxes.length === 0) return;
-            const total = boxes.length;
-            const ticked = boxes.filter((l) => /\[[xX]\]/.test(l)).length;
+            // Two report shapes. A single "Approve all changes" box (the Action's
+            // approve-all mode) signs off everything in one tick and wins when
+            // present; otherwise one box per change, and green needs them ALL ticked.
+            const lines = body.split('\n');
+            const allBox = lines.find((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*/.test(l));
+            let total, ticked;
+            if (allBox) {
+              total = 1;
+              ticked = /\[[xX]\]/.test(allBox) ? 1 : 0;
+            } else {
+              const boxes = lines.filter((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve this change\*\*/.test(l));
+              if (boxes.length === 0) return;
+              total = boxes.length;
+              ticked = boxes.filter((l) => /\[[xX]\]/.test(l)).length;
+            }
 
             // The human who toggled the box must have write access. (`sender` on an
             // edited event is the editor; combined with the bot-authored + non-bot
@@ -90,5 +102,7 @@ jobs:
               sha: headSha,
               context: STATUS,
               state: allApproved ? 'success' : 'failure',
-              description: allApproved ? `All ${total} visual change(s) approved` : `${ticked} of ${total} change(s) approved`,
+              description: allBox
+                ? (allApproved ? 'All changes approved' : 'Tick "Approve all changes" to sign off')
+                : (allApproved ? `All ${total} visual change(s) approved` : `${ticked} of ${total} change(s) approved`),
             });
