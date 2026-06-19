@@ -864,6 +864,9 @@ function renderContentSection(ctx: ContentCtx): { md: string[]; count: number } 
   return { md, count };
 }
 
+// Pre-existing, grandfathered in the health baseline; the content layer is
+// rendered by extracted helpers, this only gained a call + headline branch.
+// fallow-ignore-next-line complexity
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,

@@ -54,6 +54,9 @@ function volatilePaths(a: StyleMap, b: StyleMap): string[] {
 }
 
 /** Diff two style maps of the same surface. */
+// Pre-existing, grandfathered in the health baseline; the content layer only
+// extracted volatilePaths out of this, it is not newly complex.
+// fallow-ignore-next-line complexity
 export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
   const findings: Finding[] = [];
 

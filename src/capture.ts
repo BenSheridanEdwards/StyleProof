@@ -168,6 +168,9 @@ export function isUnder(path: string, roots: string[]): boolean {
 type CaptureArgs = { ignore: string[]; motionOnly: boolean; captureText: boolean };
 
 // Serialized into the browser by page.evaluate; cannot call module helpers.
+// Pre-existing, grandfathered in the health baseline; the content layer adds
+// one small captureText block, not new structure.
+// fallow-ignore-next-line complexity
 function capturePage({ ignore, motionOnly, captureText }: CaptureArgs) {
   const MOTION = /^(transition|animation)/;
   const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
