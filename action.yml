@@ -41,6 +41,14 @@ inputs:
   status-context:
     description: 'Name of the commit status set in require-approval mode (must match the approve workflow + branch protection).'
     default: 'StyleProof'
+  approve-all:
+    description: >-
+      Review-gate UI. Render a SINGLE "Approve all changes" checkbox at the top
+      of the report instead of one box per change, so a reviewer signs off every
+      change with one tick. Only applies when require-approval is true; the
+      styleproof-approve workflow accepts either the single box or the per-change
+      boxes. Default: one box per change.
+    default: 'false'
 
 outputs:
   changed:
@@ -212,6 +220,7 @@ runs:
           const regions = headEnd > 0 ? lines.slice(headEnd).join('\n') : '';
 
           const requireApproval = '${{ inputs.require-approval }}' === 'true';
+          const approveAll = '${{ inputs.approve-all }}' === 'true';
           const statusContext = '${{ inputs.status-context }}';
 
           // Review-gate mode: inject one approval checkbox per section heading,
@@ -220,8 +229,10 @@ runs:
           // surface (heading carries the styleproof-new marker) gets an OPTIONAL
           // box with a distinct label the approve workflow deliberately ignores —
           // so new surfaces are acknowledgeable but never gate the check.
+          // In approve-all mode a single top-level box (added below) replaces the
+          // per-change boxes, so skip the per-heading injection here.
           const hasNew = regions.includes('<!-- styleproof-new -->');
-          const regionsForComment = requireApproval
+          const regionsForComment = requireApproval && !approveAll
             ? regions.replace(/^### .+$/gm, (line) =>
                 line.includes('<!-- styleproof-new -->')
                   ? `${line}\n\n- [ ] **Approve this new surface** _(optional — does not block the check)_`
@@ -248,12 +259,16 @@ runs:
             ? [
                 '---',
                 changed
-                  ? `_Tick **every** "Approve this change" box above to turn the **${statusContext}** check green — write access required, each box counts.${hasNew ? ' New-surface boxes are optional and never block.' : ''} A new push that changes styles re-opens it._`
+                  ? (approveAll
+                      ? `_Tick the **Approve all changes** box at the top to turn the **${statusContext}** check green — write access required, one tick signs off every change. A new push that changes styles re-opens it._`
+                      : `_Tick **every** "Approve this change" box above to turn the **${statusContext}** check green — write access required, each box counts.${hasNew ? ' New-surface boxes are optional and never block.' : ''} A new push that changes styles re-opens it._`)
                   : `_The surface(s) above are **new** — no baseline to compare, so they don't block the **${statusContext}** check (it stays green). Ticking a box just records that you've seen them; they become the baseline once this merges._`,
                 `<!-- styleproof-sha:${headSha} -->`,
               ]
             : ['---', '_To accept: regenerate the committed baseline from this build and commit it with your diff._'];
-          let body = [marker, head, '', visual, '', ...footer].join('\n');
+          // approve-all mode: a single box at the top signs off every change at once.
+          const approveAllSection = requireApproval && approveAll && changed ? ['', '- [ ] **Approve all changes**'] : [];
+          let body = [marker, head, ...approveAllSection, '', visual, '', ...footer].join('\n');
           if (body.length > 64000) body = body.slice(0, 63000) + `\n\n…truncated — see the [full report →](${url}).`;
           await upsert(body);
 

@@ -15,7 +15,7 @@ Pixel-snapshot tools miss most CSS regressions: they can't force `:hover` / `:fo
 On every PR, StyleProof captures a `StyleMap` from the HEAD and from the base branch, diffs them, and posts a Markdown comment:
 
 - A summary line, then **one section per distinct change**, with a side-by-side before/after cropped screenshot (both sides cropped from the same rectangle, so they line up exactly) and **plain-English bullets that tell you what to look for** (`columns: 2 → 3`, `recoloured cyan → amber`) above the exact property changes, folded under a toggle.
-- An **approval checkbox per change**, driving a `StyleProof` commit status: red until every change is signed off, green when there are none.
+- An **approval checkbox per change** — or, with `approve-all: true`, a single **Approve all changes** box at the top that signs off everything in one tick — driving a `StyleProof` commit status: red until signed off, green when there are none.
 - **New surfaces don't block.** A surface that exists only on the PR head (no baseline to diff — e.g. the bootstrap PR that first adds the capture spec, or a brand-new page) is shown with its screenshot under a `🆕 new surface` heading and an _optional_ approval box, but it never holds the status red. It becomes part of the baseline once merged.
 - No committed baseline to maintain — the diff is HEAD-vs-base, so the report is _exactly what this PR changes_.
 
@@ -152,13 +152,14 @@ Copy both `capture` and `report` files to `.github/workflows/` (the `report` one
 
 **Action `BenSheridanEdwards/StyleProof@v1`** — key inputs:
 
-| Input              | Default      | Purpose                                                                    |
-| ------------------ | ------------ | -------------------------------------------------------------------------- |
-| `baseline-dir`     | _required_   | Base-branch captures.                                                      |
-| `fresh-dir`        | _required_   | PR-head captures to compare.                                               |
-| `require-approval` | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.          |
-| `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.   |
-| `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection. |
+| Input              | Default      | Purpose                                                                                 |
+| ------------------ | ------------ | --------------------------------------------------------------------------------------- |
+| `baseline-dir`     | _required_   | Base-branch captures.                                                                   |
+| `fresh-dir`        | _required_   | PR-head captures to compare.                                                            |
+| `require-approval` | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.                       |
+| `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                |
+| `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.              |
+| `approve-all`      | `false`      | Review-gate UI: one **Approve all changes** box at the top instead of per-change boxes. |
 
 Outputs: `changed` (`"true"` when anything changed), `report-url`. Other inputs (`report-branch`, `inline-images`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
