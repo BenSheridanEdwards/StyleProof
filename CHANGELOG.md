@@ -23,6 +23,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **SSE streams no longer read as phantom diffs under replay.** A long-lived
+  stream can't round-trip through a HAR, so `routeFromHAR`'s url glob (default
+  `**/api/**`) would intercept an app's `EventSource` endpoint and, on the replay
+  run, abort it — dropping the app to its no-stream fallback (a different but
+  _stable_ render that settle/volatile can't catch). That surfaced as a
+  computed-style change on every diff even when no CSS changed. Capture now lets
+  `Accept: text/event-stream` requests bypass record/replay and reach the live
+  server on both runs, so both sides see the same streamed state. Stream-pushed
+  data must be deterministic at capture time (fixtures/frozen clock), as the
+  README already requires of live regions.
 - The README CI recipe pointed `baseline-dir` / `fresh-dir` at the bare `base` /
   `head` labels, but captures land under `baseDir` (`__stylemaps__/base`,
   `__stylemaps__/head`), so `styleproof-diff` failed with `no capture at base`.
