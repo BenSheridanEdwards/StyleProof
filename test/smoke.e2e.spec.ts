@@ -6,6 +6,7 @@ import http from 'node:http';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, loadStyleMap } from '../dist/index.js';
 import { diffStyleMaps } from '../dist/index.js';
+import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
 /** Navigate to inline HTML (no waiting past `load`) and run a callback. */
 async function withPage<T>(page: Page, html: string, fn: () => Promise<T>): Promise<T> {
@@ -223,6 +224,89 @@ test('record→replay keeps a data-driven capture stable when the backend drifts
     const live = await captureServed(browser, base, null, 'record');
     expect(diffStyleMaps(baseline, live).length, 'without replay the drift surfaces as a change').toBeGreaterThan(0);
   } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+    fs.rmSync(har, { force: true });
+  }
+});
+
+// A page whose styling depends on a live SSE stream: the pulse chip is dim
+// until an EventSource connects and pushes a `snapshot`, which brightens it —
+// the exact shape of FLEET's `.live-pulse` → `.live-pulse.stream`. A long-lived
+// stream cannot round-trip through a HAR, so naive replay aborts it and the chip
+// renders its dim no-stream fallback: a phantom diff against the streamed base.
+const SSE_PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>
+  body { margin: 0; }
+  .pulse { opacity: 0.85; }
+  .pulse.stream { opacity: 1; }
+</style></head><body>
+  <span id="pulse" class="pulse">live</span>
+  <script>
+    var es = new EventSource('/api/stream');
+    es.addEventListener('snapshot', function () {
+      document.getElementById('pulse').classList.add('stream');
+      document.title = 'ready';
+    });
+    es.onerror = function () { document.title = 'ready'; }; // no-stream fallback: stays dim
+  </script>
+</body></html>`;
+
+async function captureSSE(
+  browser: import('@playwright/test').Browser,
+  base: string,
+  har: string | null,
+  mode: 'record' | 'replay',
+  passStreams: boolean,
+): Promise<ReturnType<typeof captureStyleMap>> {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  if (har && mode === 'record')
+    await page.routeFromHAR(har, { url: '**/api/**', update: true, updateContent: 'embed' });
+  if (har && mode === 'replay') await page.routeFromHAR(har, { url: '**/api/**', update: false, notFound: 'abort' });
+  if (passStreams) await passLiveStreams(page, '**/api/**'); // after routeFromHAR → matches first
+  await page.goto(base, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.title === 'ready');
+  const map = await captureStyleMap(page);
+  await ctx.close();
+  return map;
+}
+
+test('passLiveStreams keeps an SSE-driven capture stable under replay (a stream cannot be HARed)', async ({
+  browser,
+}) => {
+  const open: import('node:http').ServerResponse[] = [];
+  const server = http.createServer((req, res) => {
+    if ((req.url ?? '').startsWith('/api/stream')) {
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+      res.write('event: snapshot\ndata: {"ok":true}\n\n'); // push once, keep the connection open
+      open.push(res);
+    } else {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(SSE_PAGE);
+    }
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address() as import('node:net').AddressInfo;
+  const base = `http://127.0.0.1:${port}`;
+  const har = path.join(os.tmpdir(), `styleproof-e2e-sse-${Math.random().toString(36).slice(2)}.har`);
+  try {
+    // Baseline: stream live, chip brightens to .stream (opacity 1).
+    const baseline = await captureSSE(browser, base, har, 'record', true);
+    expect(
+      Object.values(baseline.elements).some((e) => e.cls.includes('stream')),
+      'baseline captured the streamed (.stream) state',
+    ).toBe(true);
+    // With the fix: replay lets the stream through live → same .stream state, no diff.
+    const replayed = await captureSSE(browser, base, har, 'replay', true);
+    expect(diffStyleMaps(baseline, replayed), 'replay reproduces the streamed baseline').toEqual([]);
+    // Control: plain replay (no passthrough) aborts the stream → dim fallback → phantom diff.
+    const broken = await captureSSE(browser, base, har, 'replay', false);
+    expect(
+      diffStyleMaps(baseline, broken).length,
+      'without passthrough the aborted stream surfaces as a phantom change',
+    ).toBeGreaterThan(0);
+  } finally {
+    open.forEach((r) => r.end());
+    server.closeAllConnections();
     await new Promise<void>((r) => server.close(() => r()));
     fs.rmSync(har, { force: true });
   }

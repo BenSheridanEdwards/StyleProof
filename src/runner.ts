@@ -84,17 +84,40 @@ function driftDesc(f: Finding): string {
 }
 
 /**
+ * Let SSE (EventSource) requests bypass HAR record/replay and reach the live
+ * server. A long-lived stream can't round-trip through a HAR entry: recording
+ * captures at most a truncated body, and on replay the connection aborts, so the
+ * app drops to its no-stream fallback — a DIFFERENT but STABLE state that
+ * settle/volatile can't catch (it isn't moving, so it reads as a real change).
+ * Passing the stream through on BOTH record and replay keeps both sides in the
+ * same streamed state; the data it pushes must be deterministic at capture time
+ * (fixtures/frozen clock), same as any live region. Detected by the
+ * `Accept: text/event-stream` header EventSource always sends.
+ *
+ * Registered AFTER routeFromHAR so it matches first (Playwright runs the most
+ * recently added route first); non-stream requests `fallback()` to the HAR.
+ */
+export async function passLiveStreams(page: Page, url: string): Promise<void> {
+  await page.route(url, async (route) => {
+    if ((route.request().headers()['accept'] ?? '').includes('text/event-stream')) await route.continue();
+    else await route.fallback();
+  });
+}
+
+/**
  * Pin the surface's inputs: replay the baseline's recorded data (or record ours),
  * scoped to the data URLs so the app's own JS/CSS still load live, then freeze the
  * clock so time-derived styling is stable.
  */
 async function pinInputs(page: Page, harName: string, s: Settings): Promise<void> {
+  let intercepting = false;
   if (s.replayFrom) {
     const har = path.join(s.replayFrom, harName);
     if (fs.existsSync(har)) {
       // notFound:'abort' — a request the baseline never recorded fails
       // deterministically rather than silently hitting the live backend.
       await page.routeFromHAR(har, { url: s.replayUrl, update: false, notFound: 'abort' });
+      intercepting = true;
     } else {
       // eslint-disable-next-line no-console
       console.warn(`styleproof: no replay HAR at ${har} — capturing live (NON-deterministic)`);
@@ -105,7 +128,12 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<void
       update: true,
       updateContent: 'embed', // single portable file, no sidecar resources
     });
+    intercepting = true;
   }
+  // Streams can't be HAR'd; let them reach the live server so replay doesn't
+  // abort them into the app's no-stream fallback (a phantom diff). Only when a
+  // HAR route is active — otherwise everything is already live.
+  if (intercepting) await passLiveStreams(page, s.replayUrl);
   if (s.freezeClock) await page.clock.setFixedTime(new Date(s.clockTime));
 }
 
