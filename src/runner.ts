@@ -71,6 +71,13 @@ export type DefineOptions = {
    * as a phantom change on an unrelated diff. Default from STYLEPROOF_SELFCHECK=1.
    */
   selfCheck?: boolean;
+  /**
+   * Opt-in content layer (default OFF). Record each element's own rendered text
+   * so the report's optional content section can surface copy changes (run
+   * `styleproof-report --include-content`). Advisory only — never gates. See
+   * `CaptureOptions.captureText` and the README's "Optional: content layer".
+   */
+  captureText?: boolean;
 };
 
 /** Resolved per-capture settings, shared with the helpers below. */
@@ -142,9 +149,10 @@ async function assertDeterministic(
   page: Page,
   surface: Surface,
   first: Awaited<ReturnType<typeof captureStyleMap>>,
+  captureText: boolean,
 ): Promise<void> {
   await surface.go(page);
-  const again = await captureStyleMap(page, { ignore: surface.ignore ?? [] });
+  const again = await captureStyleMap(page, { ignore: surface.ignore ?? [], captureText });
   const drift = diffStyleMaps(first, again);
   if (drift.length) {
     throw new Error(
@@ -163,8 +171,8 @@ async function captureSurface(page: Page, surface: Surface, width: number, s: Se
   const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
   await page.setViewportSize({ width, height });
   await surface.go(page);
-  const map = await captureStyleMap(page, { ignore: surface.ignore ?? [] });
-  if (s.selfCheck) await assertDeterministic(page, surface, map);
+  const map = await captureStyleMap(page, { ignore: surface.ignore ?? [], captureText: s.captureText });
+  if (s.selfCheck) await assertDeterministic(page, surface, map, s.captureText);
 
   const stem = path.join(s.baseDir, s.dir, `${surface.key}@${width}`);
   saveStyleMap(`${stem}.json.gz`, map);
@@ -198,6 +206,7 @@ export function defineStyleMapCapture({
   freezeClock = true,
   clockTime = '2025-01-01T00:00:00Z',
   selfCheck = process.env.STYLEPROOF_SELFCHECK === '1',
+  captureText = false,
 }: DefineOptions): void {
   test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
   const settings: Settings = {
@@ -209,6 +218,7 @@ export function defineStyleMapCapture({
     freezeClock,
     clockTime,
     selfCheck,
+    captureText,
   };
   test.describe('styleproof capture', () => {
     for (const surface of surfaces) {

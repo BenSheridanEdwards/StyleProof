@@ -148,6 +148,26 @@ Copy both `capture` and `report` files to `.github/workflows/` (the `report` one
 
 **Live pages just work.** Before each capture, StyleProof settles the page — it waits until the computed-style map stops changing, so async content (a fetch, an SSE/WebSocket stream backfilling a grid) is captured loaded, not mid-load. Anything still moving on its own after that is detected as a live region and excluded from the diff, so a stream or ticker never reads as a change — no manual `ignore` needed. Disable or tune with `captureStyleMap(page, { stabilize: false })` / `{ stabilize: { quietFor, timeout } }`.
 
+## Optional: content layer (advisory)
+
+StyleProof is **computed-styles first**, and stays that way: a CSS-only refactor that also rewrites text is still certified identical, and live text (a clock, "2m ago") never reads as a change. But a pure-style diff is blind to copy, and copy isn't always cosmetic: **new or longer text can overflow or clip its box, silently breaking the layout.** A visual-confidence tool that can't see that isn't quite complete. So the content layer exists as an explicit **opt-in**, off by default, and **advisory** — it never feeds the certification or the gate.
+
+Turn it on in two places:
+
+```ts
+// styleproof.spec.ts — record each element's own text alongside its computed style
+defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captureText: true });
+```
+
+```bash
+# render the advisory content section (each change with a before/after crop)
+styleproof-report before after --out report --include-content
+```
+
+The report then carries a separate **📝 Content changes (advisory)** section: every element whose own text changed, with the before/after strings and a side-by-side crop, so a silent copy edit (and any overflow it causes) is visible in review. It does **not** affect `changed`, the `StyleProof` status, or the diff exit code, by design. With capture left at its default (`captureText` off), there's no text in the maps and the section is always empty, so existing setups are completely unaffected.
+
+Notes: only an element's _own_ text is recorded (so a parent and child never double-report the same string); text churn in a live region is auto-excluded by the same settle pass that guards styles; and the certification CLI (`styleproof-diff`) is deliberately left content-blind.
+
 ## Reference
 
 **Action `BenSheridanEdwards/StyleProof@v1`** — key inputs:
@@ -192,7 +212,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 - `styleproof-init` — scaffold the capture spec (and a starter `playwright.config.ts` if none exists).
 - `styleproof-diff <beforeDir> <afterDir>` — the certify gate; exits `1` on any difference.
-- `styleproof-report <beforeDir> <afterDir> --out <dir>` — render the diff to a Markdown report with before/after crops.
+- `styleproof-report <beforeDir> <afterDir> --out <dir>` — render the diff to a Markdown report with before/after crops. Add `--include-content` for the opt-in, advisory content section (see above).
 
 A programmatic API (`captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, …) is also exported. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 

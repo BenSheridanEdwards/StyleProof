@@ -14,6 +14,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # best diff precision for --changed-since and hotspots
+      # Build dist/ first so fallow can resolve the test suite's `../dist/*.js`
+      # imports — tests run against the compiled output, so without a build those
+      # imports read as "unresolved" (a false dead-code finding). dist is
+      # .gitignored, so it's resolved-against but not itself analysed.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
       - uses: fallow-rs/fallow@v2
         with:
           command: audit

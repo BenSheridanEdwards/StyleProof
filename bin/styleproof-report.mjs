@@ -28,6 +28,10 @@ options:
   --include-layout-noise    keep size/position-derived longhands (height, width,
                             transform-origin, top…) that a reflow changes up the
                             whole ancestor chain (off by default)
+  --include-content         render the opt-in content layer: an advisory section
+                            of elements whose text changed, each with a
+                            before/after crop. Needs captures taken with
+                            captureText:true; never affects the check (off by default)
   -h, --help                show this help
 
 exit: 0 no changes, 1 report generated, 2 usage error.
@@ -42,6 +46,7 @@ let foldDetailsAt;
 let minWidth;
 let minHeight;
 let includeLayoutNoise = false;
+let includeContent = false;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '-h' || a === '--help') {
@@ -63,6 +68,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--min-height=')) minHeight = Number(a.slice(13));
   else if (a === '--include-layout-noise') includeLayoutNoise = true;
   else if (a.startsWith('--include-layout-noise=')) includeLayoutNoise = a.slice(23) !== 'false';
+  else if (a === '--include-content') includeContent = true;
+  else if (a.startsWith('--include-content=')) includeContent = a.slice(18) !== 'false';
   else if (a.startsWith('--')) {
     console.error(`unknown flag: ${a}`);
     process.exit(2);
@@ -102,6 +109,7 @@ try {
     minWidth,
     minHeight,
     includeLayoutNoise,
+    includeContent,
   });
 } catch (e) {
   console.error(e.message);
@@ -117,4 +125,7 @@ console.log(
     : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );
 console.log(`report: ${result.reportMdPath}`);
+if (includeContent && result.contentChanges > 0) {
+  console.log(`📝 ${result.contentChanges} advisory content change(s) — does not affect the exit code`);
+}
 process.exit(result.changedSurfaces === 0 && result.newSurfaces === 0 ? 0 : 1);

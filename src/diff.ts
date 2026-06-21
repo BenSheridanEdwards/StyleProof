@@ -24,6 +24,11 @@ export type SurfaceDiff = {
 
 export type DiffCounts = { dom: number; style: number; state: number };
 
+/** A change to an element's own rendered text (opt-in content layer). Kept out
+ *  of `Finding`/`DiffCounts` on purpose: content is advisory, never part of the
+ *  computed-style certification or its blocking counts. */
+export type ContentChange = { path: string; cls: string; before: string; after: string };
+
 function diffProps(
   propsA: Record<string, string>,
   propsB: Record<string, string>,
@@ -42,7 +47,16 @@ function diffProps(
   return changed;
 }
 
+/** Union of both captures' live-region paths — skipped by every diff layer so a
+ *  region volatile on either side never reads as a change. */
+function volatilePaths(a: StyleMap, b: StyleMap): string[] {
+  return [...new Set([...(a.volatile ?? []), ...(b.volatile ?? [])])];
+}
+
 /** Diff two style maps of the same surface. */
+// Pre-existing, grandfathered in the health baseline; the content layer only
+// extracted volatilePaths out of this, it is not newly complex.
+// fallow-ignore-next-line complexity
 export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
   const findings: Finding[] = [];
 
@@ -50,7 +64,7 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
   // late-loading content): never diff them — their values move with no code
   // change. Union both sides so a region volatile on only one capture is still
   // skipped, in every layer (element, pseudo, forced-state).
-  const volatile = [...new Set([...(a.volatile ?? []), ...(b.volatile ?? [])])];
+  const volatile = volatilePaths(a, b);
 
   for (const p of [...new Set([...Object.keys(a.elements), ...Object.keys(b.elements)])].sort()) {
     if (volatile.length && isUnder(p, volatile)) continue;
@@ -173,6 +187,62 @@ export function diffStyleMapDirs(
     if (findings.length) surfaces.push({ surface, findings });
   }
   return { surfaces, counts, volatile };
+}
+
+/**
+ * Diff the OPT-IN content layer: elements whose own rendered text changed.
+ * Separate from {@link diffStyleMaps} by design — content never enters the
+ * certification or its counts. Yields nothing unless capture ran with
+ * `captureText: true` (no `text` on either side → nothing to compare), so it's a
+ * no-op for anyone who hasn't opted in. Add/remove of an element is left to the
+ * style diff (it surfaces there as a DOM change); this reports text that changed
+ * on an element present in BOTH captures. Volatile (live) regions are skipped,
+ * same as the style diff.
+ */
+/** Normalise captured text (absent → empty) so undefined and '' compare equal. */
+const ownText = (t?: string): string => t ?? '';
+
+export function diffContentMaps(a: StyleMap, b: StyleMap): ContentChange[] {
+  const volatile = volatilePaths(a, b);
+  // Only paths present in BOTH captures: an add/remove is a DOM change the style
+  // diff already owns, so iterating the intersection both skips them and keeps
+  // this loop branch-light. Equal text (incl. both absent → '' === '') drops out.
+  const common = Object.keys(a.elements)
+    .filter((p) => p in b.elements)
+    .sort();
+  const out: ContentChange[] = [];
+  for (const p of common) {
+    if (isUnder(p, volatile)) continue;
+    const before = ownText(a.elements[p].text);
+    const after = ownText(b.elements[p].text);
+    if (before !== after) out.push({ path: p, cls: a.elements[p].cls, before, after });
+  }
+  return out;
+}
+
+/** Per-surface content diff across two capture dirs (opt-in layer). Mirrors
+ *  {@link diffStyleMapDirs} but content-only and non-gating; surfaces present on
+ *  just one side have no baseline and are skipped (the style diff reports those
+ *  as new surfaces). */
+export function diffContentDirs(
+  dirA: string,
+  dirB: string,
+): { surfaces: { surface: string; changes: ContentChange[] }[]; count: number } {
+  const indexA = indexDir(dirA);
+  const indexB = indexDir(dirB);
+  const both = Object.keys(indexA)
+    .filter((s) => s in indexB)
+    .sort();
+  const surfaces: { surface: string; changes: ContentChange[] }[] = [];
+  let count = 0;
+  for (const surface of both) {
+    const changes = diffContentMaps(loadStyleMap(indexA[surface]), loadStyleMap(indexB[surface]));
+    if (changes.length) {
+      surfaces.push({ surface, changes });
+      count += changes.length;
+    }
+  }
+  return { surfaces, count };
 }
 
 /** Human label: structural path plus a truncated class hint. */
