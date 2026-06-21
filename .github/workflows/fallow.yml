@@ -11,7 +11,7 @@ jobs:
   fallow:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # best diff precision for --changed-since and hotspots
       # Build dist/ first so fallow can resolve the test suite's `../dist/*.js`
