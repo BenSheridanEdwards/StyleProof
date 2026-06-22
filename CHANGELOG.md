@@ -27,6 +27,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Real focus no longer makes `:focus` capture nondeterministic.** Capture froze
+  motion (`FREEZE_CSS`) and the clock but never neutralised real DOM focus, so
+  whatever element happened to hold focus at capture time (autofocus, late
+  hydration, a stray prior action) contaminated the capture across runs: it baked
+  a focus ring into the resting `elements` map, and it cancelled the forced-state
+  `:focus` delta — forcing `:focus` on an already-focused element changes nothing,
+  so the ring showed up as a delta on some runs but not others, surfacing as a
+  self-check `outline-color: … → (state does not change it)` failure on a no-op
+  PR. `captureStyleMap` now blurs the active element before any read, mirroring
+  the motion freeze; `:hover`/`:focus`/`:active` are still certified
+  deterministically via CDP `forcePseudoState`.
 - **SSE streams no longer read as phantom diffs under replay.** A long-lived
   stream can't round-trip through a HAR, so `routeFromHAR`'s url glob (default
   `**/api/**`) would intercept an app's `EventSource` endpoint and, on the replay
