@@ -90,6 +90,63 @@ test('catches a dropped :hover variant via forced-state capture (CDP)', async ({
   expect(stateFinding, 'hover delta change detected').toBeTruthy();
 });
 
+test('forced-state capture keeps CDP and page elements aligned when snapshots reorder', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    .a:hover { color: rgb(255, 0, 0); }
+    .b:hover { color: rgb(0, 0, 255); }
+  </style></head><body>
+    <main><button class="a">A</button><button class="b">B</button></main>
+    <script>
+      const realQsa = Document.prototype.querySelectorAll;
+      Document.prototype.querySelectorAll = function(selector) {
+        const result = realQsa.call(this, selector);
+        if (typeof selector === 'string' && selector.includes('button') && selector.includes('[tabindex]')) {
+          return Array.from(result).reverse();
+        }
+        return result;
+      };
+    </script>
+  </body></html>`;
+  const map = await captureFixture(page, html);
+  const hoverDeltas = Object.values(map.states).flatMap((states) => Object.values(states.hover ?? {}));
+  expect(
+    hoverDeltas.filter((delta) => delta.color === 'rgb(255, 0, 0)' || delta.color === 'rgb(0, 0, 255)').length,
+    'both button hover colours are captured even when page querySelectorAll order differs from CDP order',
+  ).toBe(2);
+});
+
+test('neutralises real focus so a focused element still yields its forced :focus delta', async ({ page }) => {
+  // Regression: a really-focused element used to contaminate the capture. The
+  // resting snapshot baked in its focus ring, and the forced-state layer computes
+  // the :focus delta as (no-force) → (CDP-forced); on an already-focused element
+  // forcing :focus changes nothing, so the ring delta vanished — nondeterministic
+  // across runs (a self-check failure). captureStyleMap now blurs first.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    .cta { outline: 0; background: rgb(0,0,0); color: rgb(255,255,255); border: 0; padding: 8px; }
+    .cta:focus { outline: 3px solid rgb(0, 95, 204); }
+  </style></head><body>
+    <main><button class="cta">go</button></main>
+  </body></html>`;
+  const map = await withPage(page, html, async () => {
+    await page.evaluate(() => (document.querySelector('.cta') as HTMLElement).focus());
+    expect(await page.evaluate(() => document.activeElement?.className), 'element really holds focus').toBe('cta');
+    return captureStyleMap(page);
+  });
+  const entry = Object.entries(map.elements).find(([, e]) => e.cls === 'cta');
+  expect(entry, 'button captured').toBeTruthy();
+  const [btnPath] = entry!;
+  // The forced :focus delta is still captured despite the element being focused…
+  const focusDelta = map.states[btnPath]?.focus;
+  expect(focusDelta, 'forced :focus delta captured even though the element was really focused').toBeTruthy();
+  const props = Object.values(focusDelta!).flatMap((d) => Object.keys(d));
+  expect(
+    props.some((p) => p.startsWith('outline')),
+    'the :focus outline ring is in the delta',
+  ).toBe(true);
+});
+
 test('auto-settles for content that paints after load (async fetch/stream)', async ({ page }) => {
   // A div appended 300ms AFTER load — a stand-in for data that renders late. A
   // naive capture at `load` would miss it; the settle pass waits THROUGH the
