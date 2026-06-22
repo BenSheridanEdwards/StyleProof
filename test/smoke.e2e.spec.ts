@@ -218,6 +218,32 @@ test('network-aware settle waits for an in-flight fetch, not just a DOM lull', a
   }
 });
 
+test('warns when capturing against a dev server (production-build hint)', async ({ page }) => {
+  // A Next.js dev signal in the DOM (a /_next/static/development/ chunk). Dev servers
+  // JIT-compile under load and flake; the capture should print a hint to use a prod
+  // build. (Detection reads the DOM element, so the 404 on file:// doesn't matter.)
+  const html =
+    `<!doctype html><html><head><meta charset="utf-8">` +
+    `<script src="/_next/static/development/_buildManifest.js"></script>` +
+    `<style>body{margin:0}.x{color:rgb(0,0,0)}</style></head><body><span class="x">hi</span></body></html>`;
+  const warnings: string[] = [];
+  const orig = console.warn;
+  // eslint-disable-next-line no-console
+  console.warn = (...args: unknown[]): void => {
+    warnings.push(args.map(String).join(' '));
+  };
+  try {
+    await withPage(page, html, () => captureStyleMap(page));
+  } finally {
+    // eslint-disable-next-line no-console
+    console.warn = orig;
+  }
+  expect(
+    warnings.some((w) => /dev server/i.test(w) && /production build/i.test(w)),
+    'a dev-server capture prints the production-build hint',
+  ).toBe(true);
+});
+
 test('auto-excludes a perpetual live region', async ({ page }) => {
   // #live mutates its own layout forever → never settles → flagged volatile and
   // excluded; the static button beside it is still captured.

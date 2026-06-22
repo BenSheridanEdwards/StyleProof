@@ -651,6 +651,42 @@ function warnUntraversed(shadowHosts?: number, sameOriginFrames?: number): void 
   );
 }
 
+let devServerWarned = false;
+
+/**
+ * Warn (once per process) when capturing against a DEV server. Dev servers
+ * JIT-compile each route on first request — slow and timing-variable under parallel
+ * CI load, so a route can settle on the loading state one run and the loaded state
+ * the next. The network-aware settle masks most of it, but a production build is
+ * faster and removes the variance entirely. Detection is best-effort from common
+ * framework HMR signals; a false negative just means no hint is printed.
+ */
+async function warnIfDevServer(page: Page): Promise<void> {
+  if (devServerWarned) return;
+  const kind = await page
+    .evaluate(() => {
+      const w = window as unknown as Record<string, unknown>;
+      const has = (sel: string): boolean => !!document.querySelector(sel);
+      const nextData = w.__NEXT_DATA__ as { buildId?: string } | undefined;
+      if (has('script[src*="/_next/static/development/"]') || nextData?.buildId === 'development')
+        return 'a Next.js dev server';
+      if (has('script[src*="/@vite/client"]') || '__vite_plugin_react_preamble_installed__' in w)
+        return 'a Vite dev server';
+      if (typeof w.$RefreshReg$ === 'function') return 'a dev server (React Refresh / HMR detected)';
+      return null;
+    })
+    .catch(() => null);
+  if (!kind) return;
+  devServerWarned = true;
+  // eslint-disable-next-line no-console
+  console.warn(
+    `styleproof: capturing against ${kind}. Dev servers JIT-compile routes on first request — slow and ` +
+      'timing-variable under parallel CI load, a frequent source of capture flakes (a route settles on the ' +
+      'loading state one run and loaded the next). Serve a PRODUCTION build for fast, stable captures — e.g. ' +
+      '`next build && next start` (or `vite build && vite preview`). See README "Determinism".',
+  );
+}
+
 /** Fold the pre-freeze motion longhands back onto the settled base capture. */
 function mergeMotion(elements: Elements, motion: Elements): void {
   for (const [p, entry] of Object.entries(elements)) {
@@ -677,6 +713,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const maxInteractive = options.maxInteractive ?? 800;
   const stabilize = options.stabilize ?? true;
   const captureText = options.captureText ?? false;
+  await warnIfDevServer(page);
   // Neutralise real focus the same way FREEZE_CSS neutralises motion: blur
   // whatever element holds focus so every read below is the no-interaction
   // resting state. Real :focus is nondeterministic across runs (autofocus, late
