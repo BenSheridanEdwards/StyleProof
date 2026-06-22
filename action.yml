@@ -139,12 +139,18 @@ runs:
           const sha = '${{ steps.context.outputs.head-sha }}';
           const STATUS = '${{ inputs.status-context }}';
           let approved = false;
+          let approver = '';
           if (changed) {
             const { data } = await github.rest.repos.listCommitStatusesForRef({ ...context.repo, ref: sha, per_page: 100 });
             const mine = data.find((s) => s.context === STATUS);
             approved = !!mine && mine.state === 'success';
+            // The approve workflow stamps "Approved by @x" into the status description,
+            // so the comment can show who signed off even on a later report re-run.
+            const m = approved && (mine.description || '').match(/Approved by @([A-Za-z0-9-]+)/);
+            if (m) approver = m[1];
           }
           core.setOutput('approved', approved ? 'true' : 'false');
+          core.setOutput('approver', approver);
 
     # Report images use RELATIVE paths so they render from the committed file (do
     # NOT pass --image-base-url — a raw.githubusercontent URL is fetched anonymously
@@ -244,20 +250,25 @@ runs:
 
           const requireApproval = '${{ inputs.require-approval }}' === 'true';
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
+          const approver = '${{ steps.gate.outputs.approver }}';
           const statusContext = '${{ inputs.status-context }}';
           // Bind approval to this exact commit so a post-report push can't inherit green.
           const headSha = '${{ steps.context.outputs.head-sha }}';
 
           const link = `### 📊 [**View the side-by-side visual report →**](${url})`;
-          // One box signs off every change. Pre-ticked on a re-run that's already
-          // approved, so the rendered state matches the (green) commit status.
-          const box = requireApproval && changed ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**`] : [];
+          // One box signs off every change. On a re-run that's already approved it's
+          // pre-ticked and carries "approved by @x" (reconstructed from the commit
+          // status), so the comment matches the green status without re-running approval.
+          const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
+          const box = requireApproval && changed ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`] : [];
           const footer = requireApproval
             ? [
                 '---',
-                changed
-                  ? `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off everything. A new push that changes styles re-opens it._`
-                  : `_The surface(s) are **new** — no baseline to compare, so they don't block the **${statusContext}** check (it stays green). They become the baseline once this merges._`,
+                !changed
+                  ? `_The surface(s) are **new** — no baseline to compare, so they don't block the **${statusContext}** check (it stays green). They become the baseline once this merges._`
+                  : approved
+                    ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles re-opens it._`
+                    : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off everything. A new push that changes styles re-opens it._`,
                 `<!-- styleproof-sha:${headSha} -->`,
               ]
             : ['---', '_To accept: regenerate the committed baseline from this build and commit it with your diff._'];

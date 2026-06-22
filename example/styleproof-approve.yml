@@ -87,10 +87,23 @@ jobs:
             const headSha = pr.data.head.sha;
             if (headSha !== reportSha) return;
 
+            // The status description is the source of truth for WHO approved, so a
+            // later report re-run (e.g. to clear a blocking check) can reconstruct
+            // "approved by @x" without this workflow having run again.
             await github.rest.repos.createCommitStatus({
               ...context.repo,
               sha: headSha,
               context: STATUS,
               state: approved ? 'success' : 'failure',
-              description: approved ? 'All changes approved' : 'Tick "Approve all changes" to sign off',
+              description: approved ? `Approved by @${actor}` : 'Tick "Approve all changes" to sign off',
             });
+
+            // Reflect the approver in the comment itself for instant feedback. Rebuild
+            // the box line from scratch (dropping any prior "approved by" suffix) so a
+            // re-tick by someone else updates it and an untick clears it. Editing our
+            // own comment via GITHUB_TOKEN never retriggers this workflow.
+            const boxRe = /^(\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*).*$/m;
+            const newBody = body.replace(boxRe, (_, head) => (approved ? `${head} — _approved by @${actor}_` : head));
+            if (newBody !== body) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: context.payload.comment.id, body: newBody });
+            }

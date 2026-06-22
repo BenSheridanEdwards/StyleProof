@@ -27,6 +27,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Approver attribution.** When a reviewer ticks **Approve all changes**, the
+  comment shows _approved by @them_ inline and the commit-status description reads
+  `Approved by @them`. The status is the source of truth, so a later report re-run
+  (e.g. to clear a blocking check) reconstructs the attribution instead of losing it.
 - **`styleproof.config.json` policy file + `blocking`.** An optional repo-root file
   for gate _policy_, separate from the Action's workflow-_plumbing_ inputs.
   `"blocking": true` makes review-gate mode also **fail the job** on unapproved

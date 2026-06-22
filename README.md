@@ -15,7 +15,7 @@ Pixel-snapshot tools miss most CSS regressions: they can't force `:hover` / `:fo
 On every PR, StyleProof captures a `StyleMap` from the HEAD and from the base branch, diffs them, and posts a Markdown comment:
 
 - A **lean summary comment** linking to a committed side-by-side report — the report is the complete source of truth (**one section per distinct change**, with a before/after cropped screenshot cropped from the same rectangle so the two sides line up exactly, **plain-English bullets that tell you what to look for** — `columns: 2 → 3`, `recoloured cyan → amber` — and the exact property changes). The comment never duplicates the report, so the two can't drift, and it renders identically on public and private repos.
-- A single **Approve all changes** checkbox in the comment, driving a `StyleProof` commit status: red until one tick signs off every change, green when there are none.
+- A single **Approve all changes** checkbox in the comment, driving a `StyleProof` commit status: red until one tick signs off every change, green when there are none. The reviewer who ticks it is recorded inline (_approved by @them_), sourced from the commit status so it survives a report re-run.
 - **New surfaces don't block.** A surface that exists only on the PR head (no baseline to diff — e.g. the bootstrap PR that first adds the capture spec, or a brand-new page) is shown in the report under a `🆕 new surface` heading but never holds the status red and needs no sign-off. It becomes part of the baseline once merged.
 - No committed baseline to maintain — the diff is HEAD-vs-base, so the report is _exactly what this PR changes_.
 
