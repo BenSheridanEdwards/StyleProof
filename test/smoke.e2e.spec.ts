@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import type { Page } from '@playwright/test';
-import { captureStyleMap, saveStyleMap, loadStyleMap } from '../dist/index.js';
+import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests } from '../dist/index.js';
 import { diffStyleMaps } from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
@@ -159,6 +159,63 @@ test('auto-settles for content that paints after load (async fetch/stream)', asy
   const hasLate = Object.values(map.elements).some((e) => e.cls === 'late');
   expect(hasLate, 'late-painted element captured after the settle wait').toBe(true);
   expect(map.volatile ?? [], 'a one-shot late load settles — not flagged volatile').toEqual([]);
+});
+
+test('network-aware settle waits for an in-flight fetch, not just a DOM lull', async ({ browser }) => {
+  // The placeholder renders at load, then the DOM sits QUIET while a slow (2s, well
+  // past the 600ms quietFor) /api/data fetch is in flight, then swaps in the loaded
+  // content. DOM-quiet alone settles on the placeholder before the response arrives;
+  // the network-aware settle holds until the fetch resolves and captures loaded —
+  // exactly the FLEET 401↔880 flake (settle on the loading state vs the loaded one).
+  const server = http.createServer((req, res) => {
+    if ((req.url ?? '').startsWith('/api/data')) {
+      setTimeout(() => {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ label: 'loaded' }));
+      }, 2000);
+    } else {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(
+        `<!doctype html><html><head><meta charset="utf-8"><style>` +
+          `body{margin:0}.row{color:rgb(50,50,50)}.row.loaded{color:rgb(0,128,0)}</style></head><body>` +
+          `<main><span id="r" class="row">loading…</span></main><script>` +
+          `fetch('/api/data').then(function(r){return r.json()}).then(function(d){` +
+          `var el=document.getElementById('r');el.textContent=d.label;el.classList.add('loaded');});` +
+          `</script></body></html>`,
+      );
+    }
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address() as import('node:net').AddressInfo;
+  const base = `http://127.0.0.1:${port}`;
+  const ctx = await browser.newContext();
+  try {
+    // Default (network-aware): holds for the 2s fetch → captures the loaded state.
+    // Arm the tracker BEFORE navigation (the runner's pattern) so the page's own load
+    // fetch is counted — exactly how defineStyleMapCapture wires it.
+    const awarePage = await ctx.newPage();
+    const reqs = trackInflightRequests(awarePage);
+    await awarePage.goto(base, { waitUntil: 'load' });
+    const aware = await captureStyleMap(awarePage, { pendingRequests: reqs.pending });
+    reqs.dispose();
+    expect(
+      Object.values(aware.elements).some((e) => e.cls.includes('loaded')),
+      'network-aware settle waited for the in-flight fetch and captured the loaded state',
+    ).toBe(true);
+
+    // Control: opt out → settles on the placeholder lull BEFORE the fetch resolves,
+    // proving the wait (not some other effect) is what captured the loaded state.
+    const naivePage = await ctx.newPage();
+    await naivePage.goto(base, { waitUntil: 'load' });
+    const naive = await captureStyleMap(naivePage, { stabilize: { waitForRequests: false } });
+    expect(
+      Object.values(naive.elements).some((e) => e.cls.includes('loaded')),
+      'DOM-quiet-only settle returned before the fetch resolved',
+    ).toBe(false);
+  } finally {
+    await ctx.close();
+    await new Promise<void>((r) => server.close(() => r()));
+  }
 });
 
 test('auto-excludes a perpetual live region', async ({ page }) => {

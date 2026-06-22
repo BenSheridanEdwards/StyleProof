@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page, Request } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
@@ -98,13 +98,20 @@ export type CaptureOptions = {
    * ticker never reads as a change — no manual `ignore` needed. Text-only churn
    * (a clock, "2m ago") never matters: the diff compares computed style, not
    * text. Pass `false` to capture the exact frame `go()` left, or `{ interval,
-   * quietFor, timeout }` (ms) to tune the poll cadence, the no-change window
-   * that counts as settled, and the budget. Note: content that first paints
-   * after a quiet gap longer than `quietFor` can't be waited for without a
-   * signal — settle that in `go()`; anything still moving at `timeout` is
-   * treated as a live region.
+   * quietFor, timeout, waitForRequests }` to tune the poll cadence, the no-change
+   * window that counts as settled, the budget (ms), and the network signal.
+   *
+   * By default the settle is **network-aware** (`waitForRequests: true`): it won't
+   * settle on the brief DOM lull BEFORE a `fetch`/XHR response arrives — it holds
+   * while data requests are in flight (excluding long-lived `EventSource`/WebSocket
+   * streams, which never finish), so late-fetched content is captured loaded, not
+   * mid-load. This is the signal a DOM-quiet window alone lacks: without it, a slow
+   * backend (e.g. a dev server under CI load) settles on the loading state on one run
+   * and the loaded state on the next — a self-check flake. Anything still moving at
+   * `timeout` is treated as a live region. Set `waitForRequests: false` to settle on
+   * DOM quiet alone.
    */
-  stabilize?: boolean | { interval?: number; quietFor?: number; timeout?: number };
+  stabilize?: boolean | { interval?: number; quietFor?: number; timeout?: number; waitForRequests?: boolean };
   /**
    * Capture forced :hover/:focus/:active state deltas (default true). This is
    * the expensive layer — O(interactive elements × 3 states) with a subtree
@@ -131,6 +138,15 @@ export type CaptureOptions = {
    * guards styles, since text now participates in change detection.
    */
   captureText?: boolean;
+  /**
+   * Advanced/internal: a getter for the count of in-flight data requests, supplied by
+   * a tracker ({@link trackInflightRequests}) armed BEFORE navigation so the page's own
+   * load fetches are counted by the network-aware settle. `defineStyleMapCapture`
+   * wires this automatically. Omit it for a direct `captureStyleMap` call and the
+   * settle arms its own tracker from capture time — which can't see a request already
+   * in flight when you called it (arm one yourself before `goto` if that matters).
+   */
+  pendingRequests?: () => number;
 };
 
 const INTERACTIVE = 'a, button, input, textarea, select, summary, [role="button"], [tabindex]';
@@ -473,6 +489,7 @@ async function stabilizePage(
   quietFor: number,
   timeout: number,
   captureText: boolean,
+  pending: () => number,
 ): Promise<string[]> {
   // captureText is threaded in so text churn participates in settle detection:
   // a clock/ticker whose text changes (with no style change) keeps the map from
@@ -491,8 +508,15 @@ async function stabilizePage(
     if (changed.length) {
       lastChangeAt = Date.now();
       recent = changed;
+    } else if (pending() > 0) {
+      // The DOM is momentarily quiet, but data requests are still in flight — this
+      // is the lull BEFORE the response paints, not a settled state. Hold the quiet
+      // window so we wait for the content to ARRIVE (no live-region path to record;
+      // network activity isn't a mutating element). Long-lived streams are excluded
+      // by the caller, so this can't hang on an SSE that never finishes.
+      lastChangeAt = Date.now();
     } else if (Date.now() - lastChangeAt >= quietFor) {
-      return []; // unchanged for the full quiet window → settled
+      return []; // DOM unchanged AND network idle for the full quiet window → settled
     }
   }
   return recent; // never went quiet for quietFor within budget → still-moving paths are live
@@ -524,32 +548,89 @@ function capturePageTokens(): Record<string, string> {
   return tokens;
 }
 
+/**
+ * Track in-flight DATA requests on `page` so the network-aware settle can wait for
+ * late-loading content to ARRIVE, not just for the DOM to go briefly quiet (the lull
+ * before a response paints). Long-lived streams (EventSource/WebSocket) never finish,
+ * so they're excluded — their painted state is handled by the live-region pass.
+ *
+ * Attach BEFORE navigation to count the page's OWN load fetches: a request already in
+ * flight when you call `captureStyleMap` fired its `request` event before any listener
+ * attached there, so only a tracker armed earlier (the runner does this before `go()`)
+ * can see it.
+ */
+export function trackInflightRequests(page: Page): { pending: () => number; dispose: () => void } {
+  const inflight = new Set<Request>();
+  const isStream = (r: Request): boolean => {
+    const t = r.resourceType();
+    return t === 'eventsource' || t === 'websocket';
+  };
+  const onStart = (r: Request): void => {
+    if (!isStream(r)) inflight.add(r);
+  };
+  const onEnd = (r: Request): void => {
+    inflight.delete(r);
+  };
+  page.on('request', onStart);
+  page.on('requestfinished', onEnd);
+  page.on('requestfailed', onEnd);
+  return {
+    pending: (): number => inflight.size,
+    dispose: (): void => {
+      page.off('request', onStart);
+      page.off('requestfinished', onEnd);
+      page.off('requestfailed', onEnd);
+    },
+  };
+}
+
 /** Settle the page and return the paths of live regions to exclude. */
 async function detectVolatile(
   page: Page,
   ignore: string[],
   stabilize: CaptureOptions['stabilize'],
   captureText: boolean,
+  externalPending?: () => number,
 ): Promise<string[]> {
   if (stabilize === false) return [];
   const opt = typeof stabilize === 'object' ? stabilize : {};
-  const volatile = await stabilizePage(
-    page,
-    ignore,
-    opt.interval || 150,
-    opt.quietFor || 600,
-    opt.timeout || 5000,
-    captureText,
-  );
-  if (volatile.length) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `styleproof: ${volatile.length} live region(s) kept changing on their own and were excluded from ` +
-        'this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so ' +
-        'they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.',
-    );
+  const waitForRequests = opt.waitForRequests ?? true;
+
+  // Prefer the runner's pre-navigation tracker (it counts the page's load fetches);
+  // otherwise arm one here as a fallback for requests that fire after this call.
+  let pending: () => number = (): number => 0;
+  let dispose: () => void = (): void => {};
+  if (waitForRequests) {
+    if (externalPending) {
+      pending = externalPending;
+    } else {
+      const t = trackInflightRequests(page);
+      pending = t.pending;
+      dispose = t.dispose;
+    }
   }
-  return volatile;
+  try {
+    const volatile = await stabilizePage(
+      page,
+      ignore,
+      opt.interval || 150,
+      opt.quietFor || 600,
+      opt.timeout || 5000,
+      captureText,
+      pending,
+    );
+    if (volatile.length) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `styleproof: ${volatile.length} live region(s) kept changing on their own and were excluded from ` +
+          'this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so ' +
+          'they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.',
+      );
+    }
+    return volatile;
+  } finally {
+    dispose();
+  }
 }
 
 /** Drop live regions (and their subtrees) from the base capture, in Node so the
@@ -615,7 +696,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // the same loaded state, and collect any region still changing on its own
   // (a live stream/ticker) to exclude — animations are frozen above, so only
   // real content/layout churn lands here.
-  const volatile = await detectVolatile(page, ignore, stabilize, captureText);
+  const volatile = await detectVolatile(page, ignore, stabilize, captureText, options.pendingRequests);
 
   const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText });
   dropVolatile(base.elements, volatile);
