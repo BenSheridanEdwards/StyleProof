@@ -596,6 +596,16 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const maxInteractive = options.maxInteractive ?? 800;
   const stabilize = options.stabilize ?? true;
   const captureText = options.captureText ?? false;
+  // Neutralise real focus the same way FREEZE_CSS neutralises motion: blur
+  // whatever element holds focus so every read below is the no-interaction
+  // resting state. Real :focus is nondeterministic across runs (autofocus, late
+  // hydration, a stray prior action) and contaminates BOTH layers — it bakes a
+  // focus ring into the resting map, AND it cancels the forced-state :focus delta
+  // (forcing :focus on an already-focused element changes nothing, so the ring
+  // shows up as a delta on some runs but not others — a self-check "non-
+  // deterministic" failure). Interaction states are certified deterministically
+  // via CDP forcePseudoState below, never via whatever happened to be focused.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   // Motion longhands first (FREEZE_CSS would null them), then everything else.
   // Motion never carries text — it's a settled end state of declared motion.
   const motion = await page.evaluate(capturePage, { ignore, motionOnly: true, captureText: false });
