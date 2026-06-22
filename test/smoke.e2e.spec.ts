@@ -90,6 +90,32 @@ test('catches a dropped :hover variant via forced-state capture (CDP)', async ({
   expect(stateFinding, 'hover delta change detected').toBeTruthy();
 });
 
+test('forced-state capture keeps CDP and page elements aligned when snapshots reorder', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    .a:hover { color: rgb(255, 0, 0); }
+    .b:hover { color: rgb(0, 0, 255); }
+  </style></head><body>
+    <main><button class="a">A</button><button class="b">B</button></main>
+    <script>
+      const realQsa = Document.prototype.querySelectorAll;
+      Document.prototype.querySelectorAll = function(selector) {
+        const result = realQsa.call(this, selector);
+        if (typeof selector === 'string' && selector.includes('button') && selector.includes('[tabindex]')) {
+          return Array.from(result).reverse();
+        }
+        return result;
+      };
+    </script>
+  </body></html>`;
+  const map = await captureFixture(page, html);
+  const hoverDeltas = Object.values(map.states).flatMap((states) => Object.values(states.hover ?? {}));
+  expect(
+    hoverDeltas.filter((delta) => delta.color === 'rgb(255, 0, 0)' || delta.color === 'rgb(0, 0, 255)').length,
+    'both button hover colours are captured even when page querySelectorAll order differs from CDP order',
+  ).toBe(2);
+});
+
 test('auto-settles for content that paints after load (async fetch/stream)', async ({ page }) => {
   // A div appended 300ms AFTER load — a stand-in for data that renders late. A
   // naive capture at `load` would miss it; the settle pass waits THROUGH the
