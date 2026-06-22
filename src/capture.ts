@@ -357,10 +357,18 @@ const STATE_SETS: Record<string, string[]> = {
   active: ['active'],
 };
 
-type PathArgs = { selector: string; skipSel: string };
+const STATE_ID_ATTR = 'data-styleproof-state-id';
 
-/** Structural paths for every selector match, index-aligned with CDP's DOM.querySelectorAll. */
-function pathsForSelector({ selector, skipSel }: PathArgs) {
+type MarkArgs = { selector: string; skipSel: string; attr: string };
+type MarkedInteractive = { id: string; path: string };
+
+/**
+ * Mark interactive elements once, then address that same element from both CDP
+ * and page.evaluate. Positional CDP nodeId ↔ querySelectorAll index alignment is
+ * flaky on hydrated apps: two non-atomic DOM snapshots can have the same count
+ * but different ordering, which produces phantom forced-state diffs.
+ */
+function markInteractiveElements({ selector, skipSel, attr }: MarkArgs): MarkedInteractive[] {
   const pathOf = (el: Element): string => {
     if (el === document.documentElement) return 'html';
     if (el === document.body) return 'body';
@@ -374,7 +382,17 @@ function pathsForSelector({ selector, skipSel }: PathArgs) {
     }
     return 'body > ' + parts.join(' > ');
   };
-  return [...document.querySelectorAll(selector)].map((el) => (skipSel && el.matches(skipSel) ? null : pathOf(el)));
+  let i = 0;
+  return [...document.querySelectorAll(selector)].flatMap((el) => {
+    if (skipSel && el.matches(skipSel)) return [];
+    const id = `sp-${i++}`;
+    el.setAttribute(attr, id);
+    return [{ id, path: pathOf(el) }];
+  });
+}
+
+function clearInteractiveMarks(attr: string): void {
+  for (const el of document.querySelectorAll(`[${attr}]`)) el.removeAttribute(attr);
 }
 
 // Forced pseudo-class states on interactive elements, via CDP so no real
@@ -389,56 +407,43 @@ async function captureForcedStates(
   await client.send('DOM.enable');
   await client.send('CSS.enable');
   const { root } = await client.send('DOM.getDocument');
-  const { nodeIds } = await client.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: INTERACTIVE });
   const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
-  // Null out forced-state work for live (volatile) paths too, so they're not
-  // probed and can't reintroduce the churn the settle pass just excluded.
-  const paths = (await page.evaluate(pathsForSelector, { selector: INTERACTIVE, skipSel })).map((p) =>
-    p && skipPaths.length && isUnder(p, skipPaths) ? null : p,
-  );
+  const marked = (
+    await page.evaluate(markInteractiveElements, { selector: INTERACTIVE, skipSel, attr: STATE_ID_ATTR })
+  ).filter((m) => !(skipPaths.length && isUnder(m.path, skipPaths)));
 
-  // The CDP DOM snapshot and the live querySelectorAll are two separate,
-  // non-atomic reads. They can legitimately disagree — display:contents,
-  // nodes detached or injected between the two calls (next-route-announcer,
-  // Playwright internals, late hydration adding [tabindex]). A mismatch is NOT
-  // a fatal error: positional nodeId↔path alignment is only valid when the
-  // counts agree, so on skew we warn and skip the forced-state layer for this
-  // surface rather than aborting the whole capture (base + pseudo layers,
-  // the load-bearing certification, still succeed).
-  if (paths.length !== nodeIds.length) {
+  const limit = Math.min(marked.length, maxInteractive);
+  if (marked.length > maxInteractive) {
     // eslint-disable-next-line no-console
     console.warn(
-      `styleproof: interactive-element count skew (CDP saw ${nodeIds.length}, page saw ${paths.length}); ` +
-        'skipping forced :hover/:focus/:active capture for this surface. This is usually a benign, ' +
-        'transient DOM difference (display:contents, injected/detached nodes). Re-run if it persists.',
-    );
-    await client.detach();
-    return { states: {}, skipped: true };
-  }
-
-  const limit = Math.min(nodeIds.length, maxInteractive);
-  if (nodeIds.length > maxInteractive) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `styleproof: ${nodeIds.length} interactive elements exceeds maxInteractive=${maxInteractive}; ` +
+      `styleproof: ${marked.length} interactive elements exceeds maxInteractive=${maxInteractive}; ` +
         `forced-state capture truncated to the first ${maxInteractive}. Raise maxInteractive to cover them all.`,
     );
   }
 
   const states: StyleMap['states'] = {};
-  for (let i = 0; i < limit; i++) {
-    const p = paths[i];
-    if (!p) continue;
-    const baseSnap: Snap = await page.evaluate(snapSubtree, { selector: INTERACTIVE, index: i });
-    for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
-      await client.send('CSS.forcePseudoState', { nodeId: nodeIds[i], forcedPseudoClasses });
-      const forcedSnap: Snap = await page.evaluate(snapSubtree, { selector: INTERACTIVE, index: i });
-      await client.send('CSS.forcePseudoState', { nodeId: nodeIds[i], forcedPseudoClasses: [] });
-      const delta = deltaBetween(baseSnap, forcedSnap);
-      if (Object.keys(delta).length) (states[p] ??= {})[stateName] = delta;
+  try {
+    for (const { id, path: p } of marked.slice(0, limit)) {
+      const selector = `[${STATE_ID_ATTR}="${id}"]`;
+      const { nodeId } = await client.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+      if (!nodeId) {
+        // eslint-disable-next-line no-console
+        console.warn(`styleproof: interactive element ${id} detached before forced-state capture; skipping it.`);
+        continue;
+      }
+      const baseSnap: Snap = await page.evaluate(snapSubtree, { selector, index: 0 });
+      for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
+        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses });
+        const forcedSnap: Snap = await page.evaluate(snapSubtree, { selector, index: 0 });
+        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+        const delta = deltaBetween(baseSnap, forcedSnap);
+        if (Object.keys(delta).length) (states[p] ??= {})[stateName] = delta;
+      }
     }
+  } finally {
+    await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
+    await client.detach();
   }
-  await client.detach();
   return { states, skipped: false };
 }
 
