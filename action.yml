@@ -18,12 +18,6 @@ inputs:
   report-branch:
     description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; never pruned.'
     default: 'styleproof-reports'
-  inline-images:
-    description: >-
-      auto | always | never. auto embeds composite images directly in the comment
-      for public repos and links the report for private repos (private comment-body
-      images cannot render). always/never force the choice.
-    default: 'auto'
   github-token:
     description: 'Token used to push the report branch and post the PR comment.'
     default: ${{ github.token }}
@@ -39,16 +33,8 @@ inputs:
       requires the `StyleProof` status.
     default: 'false'
   status-context:
-    description: 'Name of the commit status set in require-approval mode (must match the approve workflow + branch protection).'
+    description: 'Name of the commit status set in review-gate mode (must match the approve workflow + branch protection).'
     default: 'StyleProof'
-  approve-all:
-    description: >-
-      Review-gate UI. Render a SINGLE "Approve all changes" checkbox at the top
-      of the report instead of one box per change, so a reviewer signs off every
-      change with one tick. Only applies when require-approval is true; the
-      styleproof-approve workflow accepts either the single box or the per-change
-      boxes. Default: one box per change.
-    default: 'false'
 
 outputs:
   changed:
@@ -106,6 +92,26 @@ runs:
             core.info('StyleProof: no PR context resolved — comment/status steps will be skipped.');
           }
 
+    # Policy config: an optional styleproof.config.json at the consumer repo root.
+    # Today it carries one setting — `blocking` — but it's the home for future gate
+    # policy. Absent/unreadable → all defaults (non-blocking). Inputs stay the home
+    # for plumbing (dirs, token, mode); the config file is the home for policy.
+    - id: config
+      uses: actions/github-script@v9
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          const file = path.join(process.env.GITHUB_WORKSPACE || '.', 'styleproof.config.json');
+          let cfg = {};
+          try {
+            cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
+            core.info(`StyleProof: loaded ${file}`);
+          } catch (e) {
+            if (e.code !== 'ENOENT') core.warning(`StyleProof: ignoring unreadable styleproof.config.json — ${e.message}`);
+          }
+          core.setOutput('blocking', cfg.blocking === true ? 'true' : 'false');
+
     - id: diff
       shell: bash
       run: |
@@ -119,6 +125,32 @@ runs:
         # so the report is published/posted; `changed` drives the review gate.
         if [ "$code" -eq 1 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
         if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then echo "report=true" >> "$GITHUB_OUTPUT"; else echo "report=false" >> "$GITHUB_OUTPUT"; fi
+
+    # Is THIS commit's diff already signed off? Read the existing review status so a
+    # re-run after approval keeps the check green (and renders the box ticked) instead
+    # of clobbering the approval the approve workflow set. Only meaningful when changed.
+    - id: gate
+      if: steps.context.outputs.pr-number != '' && inputs.require-approval == 'true'
+      uses: actions/github-script@v9
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const changed = '${{ steps.diff.outputs.changed }}' === 'true';
+          const sha = '${{ steps.context.outputs.head-sha }}';
+          const STATUS = '${{ inputs.status-context }}';
+          let approved = false;
+          let approver = '';
+          if (changed) {
+            const { data } = await github.rest.repos.listCommitStatusesForRef({ ...context.repo, ref: sha, per_page: 100 });
+            const mine = data.find((s) => s.context === STATUS);
+            approved = !!mine && mine.state === 'success';
+            // The approve workflow stamps "Approved by @x" into the status description,
+            // so the comment can show who signed off even on a later report re-run.
+            const m = approved && (mine.description || '').match(/Approved by @([A-Za-z0-9-]+)/);
+            if (m) approver = m[1];
+          }
+          core.setOutput('approved', approved ? 'true' : 'false');
+          core.setOutput('approver', approver);
 
     # Report images use RELATIVE paths so they render from the committed file (do
     # NOT pass --image-base-url — a raw.githubusercontent URL is fetched anonymously
@@ -206,70 +238,42 @@ runs:
           }
 
           const url = '${{ steps.publish.outputs.url }}';
-          const rawBase = '${{ steps.publish.outputs.raw-base }}';
-          const mode = '${{ inputs.inline-images }}';
-          const isPrivate = !!context.payload.repository.private;
-          const embed = mode === 'always' || (mode === 'auto' && !isPrivate);
 
-          // The readable report.md carries the per-element property tables (text,
-          // so they render in the comment on any repo) plus the composite images.
+          // The committed report is the COMPLETE source of truth — side-by-side crops
+          // plus per-element property tables. The comment stays lean: the summary, one
+          // approval box, and a link. It never duplicates the report (so the two can't
+          // drift), and renders identically on public and private repos.
           const reportMd = fs.existsSync('styleproof-report/report.md') ? fs.readFileSync('styleproof-report/report.md', 'utf8') : '';
           const lines = reportMd.split('\n');
           const headEnd = lines.findIndex((l) => l.startsWith('### '));
-          const head = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
-          const regions = headEnd > 0 ? lines.slice(headEnd).join('\n') : '';
+          const summary = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
 
           const requireApproval = '${{ inputs.require-approval }}' === 'true';
-          const approveAll = '${{ inputs.approve-all }}' === 'true';
+          const approved = '${{ steps.gate.outputs.approved }}' === 'true';
+          const approver = '${{ steps.gate.outputs.approver }}';
           const statusContext = '${{ inputs.status-context }}';
-
-          // Review-gate mode: inject one approval checkbox per section heading,
-          // BEFORE the public/private rendering so both modes carry it. A real
-          // change gets a **required** box (all must be ticked for green); a NEW
-          // surface (heading carries the styleproof-new marker) gets an OPTIONAL
-          // box with a distinct label the approve workflow deliberately ignores —
-          // so new surfaces are acknowledgeable but never gate the check.
-          // In approve-all mode a single top-level box (added below) replaces the
-          // per-change boxes, so skip the per-heading injection here.
-          const hasNew = regions.includes('<!-- styleproof-new -->');
-          const regionsForComment = requireApproval && !approveAll
-            ? regions.replace(/^### .+$/gm, (line) =>
-                line.includes('<!-- styleproof-new -->')
-                  ? `${line}\n\n- [ ] **Approve this new surface** _(optional — does not block the check)_`
-                  : `${line}\n\n- [ ] **Approve this change**`)
-            : regions;
-
-          let visual;
-          if (embed) {
-            // public: rewrite relative crop paths to public raw URLs → images render inline.
-            // Append ?v=<sha> so raw.githubusercontent's CDN can't serve a previous
-            // push's crop at the overwritten path (the committed report.md keeps
-            // relative paths and is unaffected).
-            const sha = '${{ steps.context.outputs.head-sha }}';
-            visual = regionsForComment.replace(/\]\(crops\/([^)]+)\)/g, `](${rawBase}/crops/$1?v=${sha})`);
-          } else {
-            // private: tables render inline; images live behind the authenticated link
-            const tables = regionsForComment.replace(/^!\[.*$/gm, '').replace(/^<sub>.*$/gm, '').replace(/\n{3,}/g, '\n\n');
-            visual = `### 📊 [**View the side-by-side visual report →**](${url})\n\n_Before/after crops render inline there — a committed file served through your authenticated session (works in private repos)._\n${tables}`;
-          }
-
           // Bind approval to this exact commit so a post-report push can't inherit green.
           const headSha = '${{ steps.context.outputs.head-sha }}';
+
+          const link = `### 📊 [**View the side-by-side visual report →**](${url})`;
+          // One box signs off every change. On a re-run that's already approved it's
+          // pre-ticked and carries "approved by @x" (reconstructed from the commit
+          // status), so the comment matches the green status without re-running approval.
+          const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
+          const box = requireApproval && changed ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`] : [];
           const footer = requireApproval
             ? [
                 '---',
-                changed
-                  ? (approveAll
-                      ? `_Tick the **Approve all changes** box at the top to turn the **${statusContext}** check green — write access required, one tick signs off every change. A new push that changes styles re-opens it._`
-                      : `_Tick **every** "Approve this change" box above to turn the **${statusContext}** check green — write access required, each box counts.${hasNew ? ' New-surface boxes are optional and never block.' : ''} A new push that changes styles re-opens it._`)
-                  : `_The surface(s) above are **new** — no baseline to compare, so they don't block the **${statusContext}** check (it stays green). Ticking a box just records that you've seen them; they become the baseline once this merges._`,
+                !changed
+                  ? `_The surface(s) are **new** — no baseline to compare, so they don't block the **${statusContext}** check (it stays green). They become the baseline once this merges._`
+                  : approved
+                    ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles re-opens it._`
+                    : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off everything. A new push that changes styles re-opens it._`,
                 `<!-- styleproof-sha:${headSha} -->`,
               ]
             : ['---', '_To accept: regenerate the committed baseline from this build and commit it with your diff._'];
-          // approve-all mode: a single box at the top signs off every change at once.
-          const approveAllSection = requireApproval && approveAll && changed ? ['', '- [ ] **Approve all changes**'] : [];
-          let body = [marker, head, ...approveAllSection, '', visual, '', ...footer].join('\n');
-          if (body.length > 64000) body = body.slice(0, 63000) + `\n\n…truncated — see the [full report →](${url}).`;
+
+          const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
           await upsert(body);
 
     # Review-gate mode: drive a commit status the approve workflow can flip,
@@ -282,18 +286,36 @@ runs:
         github-token: ${{ inputs.github-token }}
         script: |
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
+          const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const sha = '${{ steps.context.outputs.head-sha }}';
           const url = '${{ steps.publish.outputs.url }}';
+          // Green when nothing changed OR a prior sign-off already approved this commit
+          // (so re-running the report can't clobber an approval the approve workflow set).
+          const green = !changed || approved;
           await github.rest.repos.createCommitStatus({
             ...context.repo,
             sha,
             context: '${{ inputs.status-context }}',
-            state: changed ? 'failure' : 'success',
-            description: changed
-              ? 'Visual changes need sign-off — tick the box in the report comment'
-              : 'No visual changes',
-            ...(changed && url ? { target_url: url } : {}),
+            state: green ? 'success' : 'failure',
+            description: !changed ? 'No visual changes' : approved ? 'Visual changes approved' : 'Visual changes need sign-off — tick the box in the report comment',
+            ...(changed && !approved && url ? { target_url: url } : {}),
           });
+
+    # blocking (styleproof.config.json: "blocking": true): on UNAPPROVED visual changes,
+    # fail the job so the check is red even on a repo without a branch-protection rule
+    # requiring the status. Async by design — sign off in the comment, then re-run this
+    # job; the re-run sees the approval (via the gate step) and passes. Review-gate only.
+    - name: Block on unapproved changes
+      if: >-
+        steps.context.outputs.pr-number != '' &&
+        inputs.require-approval == 'true' &&
+        steps.config.outputs.blocking == 'true' &&
+        steps.diff.outputs.changed == 'true' &&
+        steps.gate.outputs.approved != 'true'
+      shell: bash
+      run: |
+        echo "StyleProof: unapproved visual changes — tick 'Approve all changes' in the report comment, then re-run this job to clear the check." >&2
+        exit 1
 
     # Legacy refactor-certification: fail the job on any diff (default). Skipped
     # in review-gate mode, where the status check is the gate instead. Uses

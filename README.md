@@ -14,9 +14,9 @@ Pixel-snapshot tools miss most CSS regressions: they can't force `:hover` / `:fo
 
 On every PR, StyleProof captures a `StyleMap` from the HEAD and from the base branch, diffs them, and posts a Markdown comment:
 
-- A summary line, then **one section per distinct change**, with a side-by-side before/after cropped screenshot (both sides cropped from the same rectangle, so they line up exactly) and **plain-English bullets that tell you what to look for** (`columns: 2 → 3`, `recoloured cyan → amber`) above the exact property changes, folded under a toggle.
-- An **approval checkbox per change** — or, with `approve-all: true`, a single **Approve all changes** box at the top that signs off everything in one tick — driving a `StyleProof` commit status: red until signed off, green when there are none.
-- **New surfaces don't block.** A surface that exists only on the PR head (no baseline to diff — e.g. the bootstrap PR that first adds the capture spec, or a brand-new page) is shown with its screenshot under a `🆕 new surface` heading and an _optional_ approval box, but it never holds the status red. It becomes part of the baseline once merged.
+- A **lean summary comment** linking to a committed side-by-side report — the report is the complete source of truth (**one section per distinct change**, with a before/after cropped screenshot cropped from the same rectangle so the two sides line up exactly, **plain-English bullets that tell you what to look for** — `columns: 2 → 3`, `recoloured cyan → amber` — and the exact property changes). The comment never duplicates the report, so the two can't drift, and it renders identically on public and private repos.
+- A single **Approve all changes** checkbox in the comment, driving a `StyleProof` commit status: red until one tick signs off every change, green when there are none. The reviewer who ticks it is recorded inline (_approved by @them_), sourced from the commit status so it survives a report re-run.
+- **New surfaces don't block.** A surface that exists only on the PR head (no baseline to diff — e.g. the bootstrap PR that first adds the capture spec, or a brand-new page) is shown in the report under a `🆕 new surface` heading but never holds the status red and needs no sign-off. It becomes part of the baseline once merged.
 - No committed baseline to maintain — the diff is HEAD-vs-base, so the report is _exactly what this PR changes_.
 
 ## What a report looks like
@@ -111,7 +111,7 @@ jobs:
       - run: STYLEMAP_DIR=head STYLEPROOF_REPLAY_FROM=__stylemaps__/base npx playwright test e2e/styleproof.spec.ts
 
       # report + gate
-      - uses: BenSheridanEdwards/StyleProof@v1
+      - uses: BenSheridanEdwards/StyleProof@v2
         with:
           baseline-dir: __stylemaps__/base # captures land under baseDir (default __stylemaps__)
           fresh-dir: __stylemaps__/head
@@ -170,18 +170,33 @@ Notes: only an element's _own_ text is recorded (so a parent and child never dou
 
 ## Reference
 
-**Action `BenSheridanEdwards/StyleProof@v1`** — key inputs:
+**Action `BenSheridanEdwards/StyleProof@v2`** — key inputs:
 
-| Input              | Default      | Purpose                                                                                 |
-| ------------------ | ------------ | --------------------------------------------------------------------------------------- |
-| `baseline-dir`     | _required_   | Base-branch captures.                                                                   |
-| `fresh-dir`        | _required_   | PR-head captures to compare.                                                            |
-| `require-approval` | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.                       |
-| `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                |
-| `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.              |
-| `approve-all`      | `false`      | Review-gate UI: one **Approve all changes** box at the top instead of per-change boxes. |
+| Input              | Default      | Purpose                                                                    |
+| ------------------ | ------------ | -------------------------------------------------------------------------- |
+| `baseline-dir`     | _required_   | Base-branch captures.                                                      |
+| `fresh-dir`        | _required_   | PR-head captures to compare.                                               |
+| `require-approval` | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.          |
+| `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.   |
+| `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection. |
 
-Outputs: `changed` (`"true"` when anything changed), `report-url`. Other inputs (`report-branch`, `inline-images`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
+Outputs: `changed` (`"true"` when anything changed), `report-url`. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
+
+**Policy file `styleproof.config.json`** (optional, at the repo root) — gate policy that isn't workflow plumbing:
+
+| Key        | Default | Purpose                                                                                                                                                                            |
+| ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blocking` | `false` | Review-gate mode only: on **unapproved** visual changes, also **fail the job** (red ✗), so the check blocks even without a branch-protection rule requiring the status. See below. |
+
+### Blocking without branch protection
+
+A commit status only _blocks a merge_ where a branch-protection rule requires it — which needs GitHub Pro or a public repo. On a free private repo the `StyleProof` status is advisory. Set `"blocking": true` in `styleproof.config.json` to also fail the report job on unapproved changes, so the PR shows a red check regardless:
+
+```json
+{ "blocking": true }
+```
+
+It's **asynchronous by design**: approval is a checkbox tick handled by a separate workflow, so to clear the red you tick **Approve all changes**, then **re-run the StyleProof job** — the re-run sees the sign-off on the commit status and passes. (A new push that changes styles re-opens it.)
 
 **Capture spec `defineStyleMapCapture({ surfaces, … })`** — determinism is on by default; you rarely set more than `surfaces` and `dir`:
 

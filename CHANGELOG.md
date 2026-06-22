@@ -7,6 +7,38 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-22
+
+### Changed
+
+- **Single approval box is the only review-gate UI.** The report comment carries
+  one **Approve all changes** checkbox — one tick signs off every change. The
+  per-change boxes (and the `approve-all` input that opted into the single box) are
+  gone. **Breaking:** a review-gate consumer on the old per-change
+  `styleproof-approve` workflow must replace it with the updated
+  `example/styleproof-approve.yml` — the old one counts `Approve this change` boxes
+  that no longer exist, so it would never turn the status green.
+- **Lean PR comment; the committed report is the complete source of truth.** The
+  comment is now a summary + the approval box + a link to the side-by-side report.
+  Before/after crops and per-element property tables live only in the report, so
+  the comment and report can't drift and the comment renders identically on public
+  and private repos. **Breaking:** the `inline-images` input is removed (the comment
+  no longer embeds images).
+
+### Added
+
+- **Approver attribution.** When a reviewer ticks **Approve all changes**, the
+  comment shows _approved by @them_ inline and the commit-status description reads
+  `Approved by @them`. The status is the source of truth, so a later report re-run
+  (e.g. to clear a blocking check) reconstructs the attribution instead of losing it.
+- **`styleproof.config.json` policy file + `blocking`.** An optional repo-root file
+  for gate _policy_, separate from the Action's workflow-_plumbing_ inputs.
+  `"blocking": true` makes review-gate mode also **fail the job** on unapproved
+  visual changes, so the check is red even without a branch-protection rule
+  requiring the status — the blocking option for free private repos. Asynchronous by
+  design: tick **Approve all changes**, then re-run the job; the re-run reads the
+  sign-off from the commit status and passes instead of clobbering it.
+
 ## [1.10.0] - 2026-06-22
 
 ### Added

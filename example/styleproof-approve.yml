@@ -2,12 +2,12 @@
 #
 # issue_comment workflows only ever run from the default branch, so this must
 # live on main (not on the feature branch) to take effect. It flips the
-# `StyleProof` commit status as a write-access reviewer ticks the approval
-# box(es) in the StyleProof report comment. With per-change boxes (default),
-# green only when EVERY box is ticked; with the Action's `approve-all: true`, a
-# single "Approve all changes" box signs off everything in one tick. Pair it
-# with the Action's `require-approval: true` input and a branch-protection rule
-# that requires the `StyleProof` status.
+# `StyleProof` commit status when a write-access reviewer ticks the single
+# "Approve all changes" box in the StyleProof report comment — one tick signs
+# off every change. Pair it with the Action's `require-approval: true` input and
+# either a branch-protection rule requiring the `StyleProof` status, or
+# `styleproof.config.json`'s `"blocking": true` to fail the job on unapproved
+# changes (the blocking option for repos without branch protection).
 name: StyleProof approve
 
 on:
@@ -55,21 +55,12 @@ jobs:
             if (!shaMatch) return;
             const reportSha = shaMatch[1];
 
-            // Two report shapes. A single "Approve all changes" box (the Action's
-            // approve-all mode) signs off everything in one tick and wins when
-            // present; otherwise one box per change, and green needs them ALL ticked.
-            const lines = body.split('\n');
-            const allBox = lines.find((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*/.test(l));
-            let total, ticked;
-            if (allBox) {
-              total = 1;
-              ticked = /\[[xX]\]/.test(allBox) ? 1 : 0;
-            } else {
-              const boxes = lines.filter((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve this change\*\*/.test(l));
-              if (boxes.length === 0) return;
-              total = boxes.length;
-              ticked = boxes.filter((l) => /\[[xX]\]/.test(l)).length;
-            }
+            // One "Approve all changes" box signs off every change in the report.
+            // No box (e.g. a new-surfaces-only report, which never gates) → nothing
+            // to approve, leave the status as the Action set it.
+            const allBox = body.split('\n').find((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*/.test(l));
+            if (!allBox) return;
+            const approved = /\[[xX]\]/.test(allBox);
 
             // The human who toggled the box must have write access. (`sender` on an
             // edited event is the editor; combined with the bot-authored + non-bot
@@ -96,13 +87,23 @@ jobs:
             const headSha = pr.data.head.sha;
             if (headSha !== reportSha) return;
 
-            const allApproved = ticked === total;
+            // The status description is the source of truth for WHO approved, so a
+            // later report re-run (e.g. to clear a blocking check) can reconstruct
+            // "approved by @x" without this workflow having run again.
             await github.rest.repos.createCommitStatus({
               ...context.repo,
               sha: headSha,
               context: STATUS,
-              state: allApproved ? 'success' : 'failure',
-              description: allBox
-                ? (allApproved ? 'All changes approved' : 'Tick "Approve all changes" to sign off')
-                : (allApproved ? `All ${total} visual change(s) approved` : `${ticked} of ${total} change(s) approved`),
+              state: approved ? 'success' : 'failure',
+              description: approved ? `Approved by @${actor}` : 'Tick "Approve all changes" to sign off',
             });
+
+            // Reflect the approver in the comment itself for instant feedback. Rebuild
+            // the box line from scratch (dropping any prior "approved by" suffix) so a
+            // re-tick by someone else updates it and an untick clears it. Editing our
+            // own comment via GITHUB_TOKEN never retriggers this workflow.
+            const boxRe = /^(\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*).*$/m;
+            const newBody = body.replace(boxRe, (_, head) => (approved ? `${head} — _approved by @${actor}_` : head));
+            if (newBody !== body) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: context.payload.comment.id, body: newBody });
+            }
