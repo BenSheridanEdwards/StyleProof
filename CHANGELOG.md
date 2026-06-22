@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-06-22
+
 ### Added
 
 - **`approve-all` input.** In review-gate mode, render a single **Approve all
