@@ -775,16 +775,28 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // can't share a module-scope function) call ONE definition — no duplicated source.
   // It persists on `window` for every evaluate below (no navigation between them).
   await page.evaluate(injectPathOf);
-  // Motion longhands first (FREEZE_CSS would null them), then everything else.
-  // Motion never carries text — it's a settled end state of declared motion.
-  const motion = await page.evaluate(capturePage, { ignore, motionOnly: true, captureText: false });
-  await page.addStyleTag({ content: FREEZE_CSS });
+  // Freeze motion BEFORE settling: animating elements would otherwise read as
+  // perpetual churn during the settle, and any content that mounts during the
+  // settle must be frozen by the time we read it below.
+  const freezeTag = await page.addStyleTag({ content: FREEZE_CSS });
 
   // Settle: wait for async content to finish painting so base and head capture
   // the same loaded state, and collect any region still changing on its own
   // (a live stream/ticker) to exclude — animations are frozen above, so only
   // real content/layout churn lands here.
   const volatile = await detectVolatile(page, ignore, stabilize, captureText, options.pendingRequests);
+
+  // Motion longhands (transition/animation) are read separately so declared
+  // motion is verified even though every other value is a frozen end state.
+  // Read them on the SETTLED DOM, not before it: capturing pre-settle missed any
+  // element that mounts DURING the settle (e.g. a late status glyph), so its
+  // declared `animation-duration` was folded back on the run where it happened to
+  // mount early but left frozen (0s) on the run where it mounted late — a
+  // self-check "non-deterministic" flip. Lift the freeze just for this read (it
+  // nulls motion to 0s), then re-apply it before reading everything else.
+  await freezeTag.evaluate((el) => (el as HTMLStyleElement).remove());
+  const motion = await page.evaluate(capturePage, { ignore, motionOnly: true, captureText: false });
+  await page.addStyleTag({ content: FREEZE_CSS });
 
   const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText, captureComponent });
   dropVolatile(base.elements, volatile);

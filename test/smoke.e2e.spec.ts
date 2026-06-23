@@ -161,6 +161,29 @@ test('auto-settles for content that paints after load (async fetch/stream)', asy
   expect(map.volatile ?? [], 'a one-shot late load settles — not flagged volatile').toEqual([]);
 });
 
+test('declared animation on content that MOUNTS DURING the settle is captured, not frozen to 0s', async ({ page }) => {
+  // A pulsing status glyph appended 300ms after load — it mounts DURING the
+  // settle, like a live badge gated on a snapshot fetch. Its declared
+  // `animation` must be folded back the same as for elements present at load.
+  // Reading motion longhands pre-settle missed it, so animation-duration was
+  // captured frozen (0s) on the late-mount run but declared (1.6s) on the run
+  // where it mounted early — the "animation-duration 0s ↔ 1.6s" self-check flip.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body{margin:0}
+    @keyframes pulse { from { opacity: .4 } to { opacity: 1 } }
+    .glyph { animation: pulse 1.6s ease-in-out infinite; }
+  </style></head><body>
+    <main></main>
+    <script>setTimeout(function(){var s=document.createElement('span');s.className='glyph';s.textContent='●';document.querySelector('main').appendChild(s);},300)</script>
+  </body></html>`;
+  const map = await withPage(page, html, () => captureStyleMap(page));
+  const glyph = Object.values(map.elements).find((e) => e.cls === 'glyph');
+  expect(glyph, 'late-mounted glyph captured after the settle').toBeTruthy();
+  // Folded declared motion, NOT the frozen 0s. Before the fix this was undefined
+  // (frozen 0s pruned as the UA default), so the value flipped between runs.
+  expect(glyph!.style['animation-duration'], 'declared motion folded for a late mount').toBe('1.6s');
+});
+
 test('network-aware settle waits for an in-flight fetch, not just a DOM lull', async ({ browser }) => {
   // The placeholder renders at load, then the DOM sits QUIET while a slow (2s, well
   // past the 600ms quietFor) /api/data fetch is in flight, then swaps in the loaded
