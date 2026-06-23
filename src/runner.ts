@@ -1,8 +1,9 @@
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
+import { coverageGaps } from './coverage.js';
 import type { Page } from '@playwright/test';
 
 /**
@@ -13,7 +14,11 @@ import type { Page } from '@playwright/test';
 export type Surface = {
   /** Capture file name prefix; must be unique. */
   key: string;
-  /** Navigate and drive the page to the state, ending settled (fonts loaded, entrance animations done). */
+  /**
+   * Navigate and drive the page to the state. Only reach the state — StyleProof
+   * settles it for you (waits out in-flight data and fonts, freezes animations)
+   * before reading, so you don't hand-roll `networkidle`/`fonts.ready` waits here.
+   */
   go: (page: Page) => Promise<void>;
   /** Selectors for nondeterministic regions (live data, third-party embeds); skipped entirely. */
   ignore?: string[];
@@ -25,6 +30,23 @@ export type Surface = {
 
 export type DefineOptions = {
   surfaces: Surface[];
+  /**
+   * The full set of surface keys the app knows it has — its route/view universe,
+   * typically derived from a registry (e.g. an app's list of routes or view ids).
+   * When set, StyleProof emits a coverage-guard test (in the NORMAL suite, not
+   * gated on a capture dir) that fails if any expected key is neither captured (a
+   * surface) nor in `exclude`. This is what stops a newly added route from
+   * shipping uncaptured: the gate can only diff what a spec lists, so without this
+   * a forgotten surface is silently invisible. Omit to opt out (no guard).
+   */
+  expected?: string[];
+  /**
+   * Expected keys deliberately NOT captured, each mapped to the reason — a visible,
+   * reviewed opt-out ledger. Keeps the coverage guard green for known gaps without
+   * letting them hide: an entry whose key isn't in `expected` (a renamed/removed
+   * route) also fails the guard, so the ledger can't rot.
+   */
+  exclude?: Record<string, string>;
   /**
    * Output directory label. Convention: drive it from an env var so the same
    * spec captures `before`, `after`, or a CI label — and skips entirely when
@@ -65,10 +87,16 @@ export type DefineOptions = {
   /** Fixed instant for the frozen clock (default `2025-01-01T00:00:00Z`). */
   clockTime?: string | number | Date;
   /**
-   * Capture each surface twice and fail if the computed styles differ — proves
-   * the capture is deterministic (catches a replay gap falling through to the
-   * live backend, or unseeded client randomness) instead of letting it surface
-   * as a phantom change on an unrelated diff. Default from STYLEPROOF_SELFCHECK=1.
+   * Capture each surface twice and fail if the computed styles differ — proves the
+   * capture is deterministic (catches a replay gap falling through to the live
+   * backend, or unseeded client randomness) instead of letting it surface as a
+   * phantom change on an unrelated diff.
+   *
+   * Defaults ON for the RECORDING run and OFF for the REPLAY run: live nondeterminism
+   * surfaces while recording against the real backend, whereas the replay run renders
+   * against the recorded HAR and is deterministic by construction — so self-checking it
+   * just doubles the work. `STYLEPROOF_SELFCHECK=1` forces it on for both; pass
+   * `selfCheck` explicitly to override.
    */
   selfCheck?: boolean;
   /**
@@ -87,7 +115,10 @@ export type DefineOptions = {
 };
 
 /** Resolved per-capture settings, shared with the helpers below. */
-type Settings = Required<Omit<DefineOptions, 'surfaces' | 'replayFrom'>> & { dir: string; replayFrom?: string };
+type Settings = Required<Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude'>> & {
+  dir: string;
+  replayFrom?: string;
+};
 
 /** One-line description of the first drift finding, for the self-check error. */
 function driftDesc(f: Finding): string {
@@ -204,6 +235,20 @@ async function captureSurface(page: Page, surface: Surface, width: number, s: Se
 }
 
 /**
+ * Default for `selfCheck` when the consumer didn't set it: ON when RECORDING (no
+ * `replayFrom`) — that's where live nondeterminism surfaces — and OFF when REPLAYING,
+ * since the replay run renders against the recorded HAR and is deterministic by
+ * construction, so self-checking it just doubles the work. `STYLEPROOF_SELFCHECK=1`
+ * forces it on either way.
+ */
+export function defaultSelfCheck(
+  replayFrom: string | undefined,
+  env: string | undefined = process.env.STYLEPROOF_SELFCHECK,
+): boolean {
+  return env === '1' || !replayFrom;
+}
+
+/**
  * Generate one Playwright test per surface × width that captures the style
  * map to `<baseDir>/<dir>/<key>@<width>.json.gz`. Captures are made
  * deterministic with no per-repo fixtures: the baseline run records each
@@ -218,6 +263,8 @@ async function captureSurface(page: Page, surface: Surface, width: number, s: Se
  */
 export function defineStyleMapCapture({
   surfaces,
+  expected,
+  exclude = {},
   dir,
   baseDir = '__stylemaps__',
   screenshots = true,
@@ -225,11 +272,10 @@ export function defineStyleMapCapture({
   replayUrl = process.env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
   freezeClock = true,
   clockTime = '2025-01-01T00:00:00Z',
-  selfCheck = process.env.STYLEPROOF_SELFCHECK === '1',
+  selfCheck = defaultSelfCheck(replayFrom),
   captureText = false,
   captureComponent = false,
 }: DefineOptions): void {
-  test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
   const settings: Settings = {
     dir: dir as string,
     baseDir,
@@ -242,7 +288,37 @@ export function defineStyleMapCapture({
     captureText,
     captureComponent,
   };
+
+  // Coverage guard. Runs in the NORMAL test suite (NOT gated on a capture dir), so
+  // a route added without a surface fails the app's own tests — long before, and
+  // independent of, a capture run. This is the one gap captures can't catch: a
+  // surface never taken can't be diffed. Only emitted when the spec declares its
+  // `expected` universe; otherwise StyleProof keeps its prior behaviour exactly.
+  if (expected) {
+    test.describe('styleproof coverage', () => {
+      test('every expected surface is captured or explicitly excluded', () => {
+        const { uncovered, staleExclusions } = coverageGaps(
+          surfaces.map((s) => s.key),
+          expected,
+          exclude,
+        );
+        expect(
+          uncovered,
+          `StyleProof coverage gap: ${uncovered.length} expected surface(s) are neither captured ` +
+            `nor excluded — add each to \`surfaces\`, or to \`exclude\` with a reason. ` +
+            `Missing: ${uncovered.join(', ')}`,
+        ).toEqual([]);
+        expect(
+          staleExclusions,
+          `StyleProof: \`exclude\` lists surface(s) absent from \`expected\` ` +
+            `(renamed or removed?): ${staleExclusions.join(', ')}`,
+        ).toEqual([]);
+      });
+    });
+  }
+
   test.describe('styleproof capture', () => {
+    test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
     for (const surface of surfaces) {
       for (const width of surface.widths) {
         test(`${surface.key} @ ${width}`, ({ page }) => captureSurface(page, surface, width, settings));

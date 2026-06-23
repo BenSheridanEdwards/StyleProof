@@ -10,6 +10,7 @@ import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DIFF = path.join(here, '..', 'bin', 'styleproof-diff.mjs');
 const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
+const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 
 function run(script, args) {
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
@@ -207,4 +208,43 @@ test('report CLI exits 2 on a non-numeric --pad', () => {
   assert.equal(r.status, 2);
   assert.match(r.stderr, /--pad must be a number/);
   rmTmp(root);
+});
+
+test('init scaffolds a playwright.config that serves a PRODUCTION build (no dev-server trap)', () => {
+  const dir = mkTmp();
+  try {
+    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const config = fs.readFileSync(path.join(dir, 'playwright.config.ts'), 'utf8');
+    // The config starts the server itself, so a consumer can't forget to — or point it at a dev server.
+    assert.match(config, /webServer:/, 'scaffolds a webServer');
+    // The exact command builds + serves a production build (not a dev server) — the
+    // comment elsewhere mentions `next dev` as the thing to avoid, so assert the command.
+    assert.match(config, /command: 'npm run build && npm run start'/, 'the webServer serves a production build');
+    // And it says WHY, so the choice is understood, not cargo-culted.
+    assert.match(config, /PRODUCTION build/i);
+    assert.match(config, /JIT-compile|timing-variable/i, 'explains why a dev server flakes');
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('init scaffolds a MINIMAL spec — StyleProof owns the settle, so go() is not boilerplate', () => {
+  const dir = mkTmp();
+  try {
+    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const spec = fs.readFileSync(path.join(dir, 'e2e', 'styleproof.spec.ts'), 'utf8');
+    // go() must NOT hand-roll waits StyleProof already does — `networkidle` never
+    // fires under an SSE stream, and the network-aware settle waits for data/fonts.
+    assert.doesNotMatch(spec, /waitUntil: 'networkidle'/, 'go() must not wait on networkidle');
+    assert.doesNotMatch(spec, /document\.fonts\.ready/, 'settle must not re-wait fonts (StyleProof does)');
+    assert.doesNotMatch(spec, /animation: none/, 'settle must not re-freeze animations (StyleProof does)');
+    // What it DOES keep is the one thing StyleProof can't know about: scroll-reveal.
+    assert.match(spec, /window\.scrollTo/, 'settle triggers IntersectionObserver scroll-reveal');
+    // And it points at the minimal one-liner for apps with no reveal-on-scroll content.
+    assert.match(spec, /go: \(page\) => page\.goto\('\/'\)/, 'documents the minimal go() escape hatch');
+  } finally {
+    rmTmp(dir);
+  }
 });
