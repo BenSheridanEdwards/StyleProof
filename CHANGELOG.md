@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-06-23
+
+### Fixed
+
+- **Animation freeze is now deterministic for content that mounts during the
+  settle.** Motion longhands (declared `animation`/`transition`) were read _before_
+  the settle, so an element that mounts while the page settles — a status glyph
+  gated on a snapshot fetch — missed that read: its declared `animation-duration`
+  was folded back on a run where it mounted early but left frozen to `0s` on a run
+  where it mounted late, surfacing as a self-check `animation-duration: 0s ↔ 1.6s`
+  non-deterministic failure. Motion is now read on the settled DOM (the freeze is
+  lifted only for that read), so a late-mounted animated element is captured
+  identically every run.
+
 ## [2.3.0] - 2026-06-23
 
 ### Added
