@@ -39,6 +39,31 @@ defineStyleMapCapture({
 
 A route that's neither a captured surface nor an `exclude` entry fails the guard; an `exclude` key that isn't in `expected` (a renamed/removed route) fails too, so the opt-out ledger can't quietly rot. Captured surfaces beyond `expected` are fine — one route can have several states (`landing`, `landing-nav-open`). Omit `expected` and behaviour is unchanged.
 
+**Next.js: wired for you.** Run `styleproof-init` in a Next.js project and the generated spec discovers your routes (App Router `app/` + Pages Router `pages/`) at run time and wires both the surfaces and `expected` to them — so it's protected out of the box, and a page you add later is covered automatically with nothing to keep in sync:
+
+```ts
+import { defineStyleMapCapture, discoverNextRoutes } from 'styleproof';
+
+const ROUTES = discoverNextRoutes(); // [{ key, path, dynamic }, …] from app/ + pages/
+defineStyleMapCapture({
+  surfaces: ROUTES.filter((r) => !r.dynamic).map((r) => ({
+    key: r.key,
+    go: (p) => p.goto(r.path),
+    widths: [1280, 768, 390],
+  })),
+  expected: ROUTES.map((r) => r.key),
+  exclude: Object.fromEntries(
+    ROUTES.filter((r) => r.dynamic).map((r) => [
+      r.key,
+      `dynamic route ${r.path} — add a surface with a concrete param`,
+    ]),
+  ),
+  dir: process.env.STYLEMAP_DIR,
+});
+```
+
+`discoverNextRoutes(cwd?)` reads the filesystem only (route groups `(group)` and `@slots` stripped, `[param]`/`[...catchall]` flagged `dynamic`) — a heuristic, not a router; edit the generated spec for exotic routing. For any other framework, point `expected` at your own route registry as above.
+
 ## What a report looks like
 
 One change — the hero CTA recoloured cyan → amber — posts as a single section: a side-by-side before/after cropped screenshot, a one-line summary, then the exact property change folded under a toggle.
