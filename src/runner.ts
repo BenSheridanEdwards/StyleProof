@@ -83,10 +83,16 @@ export type DefineOptions = {
   /** Fixed instant for the frozen clock (default `2025-01-01T00:00:00Z`). */
   clockTime?: string | number | Date;
   /**
-   * Capture each surface twice and fail if the computed styles differ — proves
-   * the capture is deterministic (catches a replay gap falling through to the
-   * live backend, or unseeded client randomness) instead of letting it surface
-   * as a phantom change on an unrelated diff. Default from STYLEPROOF_SELFCHECK=1.
+   * Capture each surface twice and fail if the computed styles differ — proves the
+   * capture is deterministic (catches a replay gap falling through to the live
+   * backend, or unseeded client randomness) instead of letting it surface as a
+   * phantom change on an unrelated diff.
+   *
+   * Defaults ON for the RECORDING run and OFF for the REPLAY run: live nondeterminism
+   * surfaces while recording against the real backend, whereas the replay run renders
+   * against the recorded HAR and is deterministic by construction — so self-checking it
+   * just doubles the work. `STYLEPROOF_SELFCHECK=1` forces it on for both; pass
+   * `selfCheck` explicitly to override.
    */
   selfCheck?: boolean;
   /**
@@ -218,6 +224,20 @@ async function captureSurface(page: Page, surface: Surface, width: number, s: Se
 }
 
 /**
+ * Default for `selfCheck` when the consumer didn't set it: ON when RECORDING (no
+ * `replayFrom`) — that's where live nondeterminism surfaces — and OFF when REPLAYING,
+ * since the replay run renders against the recorded HAR and is deterministic by
+ * construction, so self-checking it just doubles the work. `STYLEPROOF_SELFCHECK=1`
+ * forces it on either way.
+ */
+export function defaultSelfCheck(
+  replayFrom: string | undefined,
+  env: string | undefined = process.env.STYLEPROOF_SELFCHECK,
+): boolean {
+  return env === '1' || !replayFrom;
+}
+
+/**
  * Generate one Playwright test per surface × width that captures the style
  * map to `<baseDir>/<dir>/<key>@<width>.json.gz`. Captures are made
  * deterministic with no per-repo fixtures: the baseline run records each
@@ -241,7 +261,7 @@ export function defineStyleMapCapture({
   replayUrl = process.env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
   freezeClock = true,
   clockTime = '2025-01-01T00:00:00Z',
-  selfCheck = process.env.STYLEPROOF_SELFCHECK === '1',
+  selfCheck = defaultSelfCheck(replayFrom),
   captureText = false,
 }: DefineOptions): void {
   const settings: Settings = {
