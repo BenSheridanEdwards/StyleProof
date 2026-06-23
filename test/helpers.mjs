@@ -30,6 +30,7 @@ export function makeMap({ elements = {}, defaults = {}, states = {} } = {}) {
       style: e.style ?? {},
       ...(e.pseudo ? { pseudo: e.pseudo } : {}),
       ...(e.text !== undefined ? { text: e.text } : {}),
+      ...(e.component ? { component: e.component } : {}),
     };
   }
   return { defaults, elements: els, states };

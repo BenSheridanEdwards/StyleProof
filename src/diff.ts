@@ -11,7 +11,17 @@ import { loadStyleMap, isUnder, type StyleMap } from './capture.js';
 export type PropChange = { prop: string; before: string; after: string };
 
 export type Finding =
-  | { kind: 'dom'; path: string; cls: string; change: 'added' | 'removed' | 'retagged'; detail?: string }
+  // `component` is advisory passthrough from the capture (the React component
+  // that rendered the element), carried so the report can name it — it is never
+  // compared, exactly like the content layer's text.
+  | {
+      kind: 'dom';
+      path: string;
+      cls: string;
+      change: 'added' | 'removed' | 'retagged';
+      detail?: string;
+      component?: { name: string; props?: Record<string, string> };
+    }
   | { kind: 'style'; path: string; cls: string; pseudo: string | null; props: PropChange[] }
   | { kind: 'state'; path: string; cls: string; state: string; sub: string; props: PropChange[] };
 
@@ -71,11 +81,38 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
     const ea = a.elements[p];
     const eb = b.elements[p];
     if (!ea || !eb) {
-      findings.push({ kind: 'dom', path: p, cls: (ea ?? eb)!.cls, change: !ea ? 'added' : 'removed' });
+      const present = (ea ?? eb)!;
+      findings.push({
+        kind: 'dom',
+        path: p,
+        cls: present.cls,
+        change: !ea ? 'added' : 'removed',
+        ...(!ea && eb.component ? { component: eb.component } : {}),
+      });
+      // An added element has no "before", so the style loop below is skipped —
+      // surface its full resting computed style (+ pseudos) as (unset)→value so a
+      // new element's styling is reviewable, not just its interaction-state
+      // deltas. Removed elements get none (there is no "after" to show).
+      if (!ea && eb) {
+        const defsB = b.defaults[eb.tag] ?? {};
+        for (const pseudo of [null, ...Object.keys(eb.pseudo ?? {})]) {
+          const propsB = pseudo ? (eb.pseudo?.[pseudo] ?? {}) : eb.style;
+          const pdefsB = pseudo ? (b.defaults[eb.tag + pseudo] ?? defsB) : defsB;
+          const props = diffProps({}, propsB, {}, pdefsB, '(unset)', '(unset)');
+          if (props.length) findings.push({ kind: 'style', path: p, cls: eb.cls, pseudo, props });
+        }
+      }
       continue;
     }
     if (ea.tag !== eb.tag) {
-      findings.push({ kind: 'dom', path: p, cls: ea.cls, change: 'retagged', detail: `<${ea.tag}> → <${eb.tag}>` });
+      findings.push({
+        kind: 'dom',
+        path: p,
+        cls: ea.cls,
+        change: 'retagged',
+        detail: `<${ea.tag}> → <${eb.tag}>`,
+        ...(eb.component ? { component: eb.component } : {}),
+      });
       continue;
     }
     const defsA = a.defaults[ea.tag] ?? {};

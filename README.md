@@ -228,6 +228,23 @@ The report then carries a separate **📝 Content changes (advisory)** section: 
 
 Notes: only an element's _own_ text is recorded (so a parent and child never double-report the same string); text churn in a live region is auto-excluded by the same settle pass that guards styles; and the certification CLI (`styleproof-diff`) is deliberately left content-blind.
 
+## Optional: React component layer (advisory)
+
+For a React app, knowing _which component_ rendered an element is often the fastest way to read a change. Off by default, opt in with `captureComponent`:
+
+```ts
+// styleproof.spec.ts — record the React component + props behind each element
+defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captureComponent: true });
+```
+
+Capture reads the React fiber in-page (`__reactFiber$*`/`__reactProps$*` on React 17+, `__reactInternalInstance$*` on ≤16) and records the component display name plus a **sanitized** subset of its props (primitives only — `children`, handlers, and objects are dropped) on `ElementEntry.component`. The report then names the element — **`React component: Button (variant=primary, size=sm)`** — instead of showing a bare `<button>`.
+
+Like the content layer it is **advisory**: never fed to the certification diff or the gate, so captures stay deterministic. Component names are mangled in minified production builds, so it's most useful against a dev / non-minified target; on a non-React page the fiber keys are absent and the field is simply omitted.
+
+## Newly-added elements show their full style
+
+When a PR **adds** an element, StyleProof now reports its **full resting computed style** (background, padding, font, radius, …), value-only, in addition to any interaction-state deltas — previously an added element surfaced only its `:hover`/`:focus` changes. The new element already gates via its `added` finding; this only enriches what you see, in both the report and the `styleproof-diff` CLI.
+
 ## Reference
 
 **Action `BenSheridanEdwards/StyleProof@v2`** — key inputs:

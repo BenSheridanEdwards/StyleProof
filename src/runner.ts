@@ -106,6 +106,12 @@ export type DefineOptions = {
    * `CaptureOptions.captureText` and the README's "Optional: content layer".
    */
   captureText?: boolean;
+  /**
+   * Opt-in React layer (default OFF). Record the component + sanitized props that
+   * rendered each element so the report can name `Button (variant=primary)`.
+   * Advisory only — never gates. See `CaptureOptions.captureComponent`.
+   */
+  captureComponent?: boolean;
 };
 
 /** Resolved per-capture settings, shared with the helpers below. */
@@ -211,6 +217,7 @@ async function captureSurface(page: Page, surface: Surface, width: number, s: Se
     const map = await captureStyleMap(page, {
       ignore: surface.ignore ?? [],
       captureText: s.captureText,
+      captureComponent: s.captureComponent,
       pendingRequests: requests.pending,
     });
     if (s.selfCheck) await assertDeterministic(page, surface, map, s.captureText, requests.pending);
@@ -267,6 +274,7 @@ export function defineStyleMapCapture({
   clockTime = '2025-01-01T00:00:00Z',
   selfCheck = defaultSelfCheck(replayFrom),
   captureText = false,
+  captureComponent = false,
 }: DefineOptions): void {
   const settings: Settings = {
     dir: dir as string,
@@ -278,6 +286,7 @@ export function defineStyleMapCapture({
     clockTime,
     selfCheck,
     captureText,
+    captureComponent,
   };
 
   // Coverage guard. Runs in the NORMAL test suite (NOT gated on a capture dir), so

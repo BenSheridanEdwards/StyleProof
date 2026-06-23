@@ -542,13 +542,61 @@ function beforeAfterTable(rows: PropChange[]): string[] {
   ];
 }
 
+// A brand-new element has no meaningful "before", so its resting style renders
+// value-only (the After column), mirroring the added-element interaction-states table.
+function valueTable(rows: PropChange[]): string[] {
+  return ['| Property | Value |', '| --- | --- |', ...rows.map((r) => `| \`${r.prop}\` | ${cell(r.after)} |`)];
+}
+
+/** `Button (variant=primary, size=sm)` — the React component + sanitized props
+ *  the element captured (advisory; present only with captureComponent). */
+function renderComponent(c: { name: string; props?: Record<string, string> }): string {
+  const entries = Object.entries(c.props ?? {});
+  const props = entries.length ? ` (${entries.map(([k, v]) => `${k}=${v}`).join(', ')})` : '';
+  return `\`${c.name}\`${props}`;
+}
+
 /** One element's heading + body lines (no leading blank, no ×N suffix). */
+// Base/pseudo style rows. Added elements render value-only (no meaningful before).
+function styleSection(styles: Extract<Finding, { kind: 'style' }>[], added: boolean): string[] {
+  const out: string[] = [];
+  for (const s of styles) {
+    const rows = summarizeProps(s.props);
+    if (rows.length)
+      out.push(
+        '',
+        s.pseudo ? `On \`${s.pseudo}\`:` : 'Style:',
+        '',
+        ...(added ? valueTable(rows) : beforeAfterTable(rows)),
+      );
+  }
+  return out;
+}
+
+// Forced :hover/:focus/:active rows. Added: value-only; changed: before → after.
+function statesSection(states: Extract<Finding, { kind: 'state' }>[], added: boolean): string[] {
+  const rows: string[] = [];
+  for (const st of states)
+    for (const c of summarizeProps(st.props))
+      rows.push(
+        added
+          ? `| \`:${st.state}\` | \`${c.prop}\` | ${cell(c.after)} |`
+          : `| \`:${st.state}\` | \`${c.prop}\` | ${cell(c.before)} → ${cell(c.after)} |`,
+      );
+  if (!rows.length) return [];
+  return [
+    '',
+    added ? 'Interactive states:' : 'Interactive-state changes:',
+    '',
+    added ? '| State | Property | Value |' : '| State | Property | Before → After |',
+    '| --- | --- | --- |',
+    ...rows,
+  ];
+}
+
 function renderOneElement(group: Finding[]): { head: string; body: string[] } | null {
   const label = prettyLabel(group[0].path, group[0].cls);
   const dom = group.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom');
-  const styles = group.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style');
-  const states = group.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state');
-
   if (dom?.change === 'removed') return { head: `**Removed** \`${label}\``, body: [] };
   const added = dom?.change === 'added';
   const head = added
@@ -558,29 +606,21 @@ function renderOneElement(group: Finding[]): { head: string; body: string[] } | 
       : `**\`${label}\`**`;
 
   const body: string[] = [];
-  for (const s of styles) {
-    const rows = summarizeProps(s.props);
-    if (rows.length) body.push('', s.pseudo ? `On \`${s.pseudo}\`:` : 'Style:', '', ...beforeAfterTable(rows));
-  }
-  if (states.length) {
-    const rows: string[] = [];
-    for (const st of states)
-      for (const c of summarizeProps(st.props))
-        rows.push(
-          added
-            ? `| \`:${st.state}\` | \`${c.prop}\` | ${cell(c.after)} |`
-            : `| \`:${st.state}\` | \`${c.prop}\` | ${cell(c.before)} → ${cell(c.after)} |`,
-        );
-    if (rows.length)
-      body.push(
-        '',
-        added ? 'Interactive states:' : 'Interactive-state changes:',
-        '',
-        added ? '| State | Property | Value |' : '| State | Property | Before → After |',
-        '| --- | --- | --- |',
-        ...rows,
-      );
-  }
+  // React component that rendered the element (added/retagged carry it on the dom
+  // finding) — surfaced first so a reviewer sees `Button (variant=primary)`.
+  if (dom?.component) body.push('', `React component: ${renderComponent(dom.component)}`);
+  body.push(
+    ...styleSection(
+      group.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style'),
+      added,
+    ),
+  );
+  body.push(
+    ...statesSection(
+      group.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state'),
+      added,
+    ),
+  );
   // Existing element with nothing left to show (all derived) → skip; an
   // added/removed/retagged element always renders its heading.
   if (!dom && !body.length) return null;
@@ -703,6 +743,10 @@ function cleanFindings(findings: Finding[]): Finding[] {
   for (const group of groupByPath(findings)) {
     const base = group.find((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style' && f.pseudo === null);
     const baseChanged = new Set(base?.props.map((p) => p.prop) ?? []);
+    // For an ADDED element the base style is a full (unset)→value snapshot, not a
+    // delta — so a forced-state value is never an "echo" of a base *change*; keep
+    // every state row (suppressing them would drop a real :hover/:focus value).
+    const isAdded = group.some((f) => f.kind === 'dom' && f.change === 'added');
     for (const f of group) {
       if (f.kind === 'dom') {
         out.push(f);
@@ -713,7 +757,9 @@ function cleanFindings(findings: Finding[]): Finding[] {
           ? f.props.filter((p) => !DERIVED_PROPS.has(p.prop))
           : f.props.filter(
               (p) =>
-                !STATE_STRIP.has(p.prop) && !baseChanged.has(p.prop) && !(isNonValue(p.before) && isNonValue(p.after)),
+                !STATE_STRIP.has(p.prop) &&
+                (isAdded || !baseChanged.has(p.prop)) &&
+                !(isNonValue(p.before) && isNonValue(p.after)),
             );
       if (props.length) out.push({ ...f, props });
     }
