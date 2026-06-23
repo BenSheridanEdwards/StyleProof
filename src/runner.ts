@@ -1,7 +1,7 @@
 import { test } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { captureStyleMap, saveStyleMap } from './capture.js';
+import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
 import type { Page } from '@playwright/test';
 
@@ -150,9 +150,10 @@ async function assertDeterministic(
   surface: Surface,
   first: Awaited<ReturnType<typeof captureStyleMap>>,
   captureText: boolean,
+  pending: () => number,
 ): Promise<void> {
   await surface.go(page);
-  const again = await captureStyleMap(page, { ignore: surface.ignore ?? [], captureText });
+  const again = await captureStyleMap(page, { ignore: surface.ignore ?? [], captureText, pendingRequests: pending });
   const drift = diffStyleMaps(first, again);
   if (drift.length) {
     throw new Error(
@@ -170,16 +171,28 @@ async function captureSurface(page: Page, surface: Surface, width: number, s: Se
   await pinInputs(page, `${surface.key}@${width}.har`, s);
   const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
   await page.setViewportSize({ width, height });
-  await surface.go(page);
-  const map = await captureStyleMap(page, { ignore: surface.ignore ?? [], captureText: s.captureText });
-  if (s.selfCheck) await assertDeterministic(page, surface, map, s.captureText);
+  // Arm the in-flight request tracker BEFORE go() so the surface's own load fetches
+  // count toward the network-aware settle — a request that starts during navigation
+  // fired its event before captureStyleMap could attach a listener of its own.
+  const requests = trackInflightRequests(page);
+  try {
+    await surface.go(page);
+    const map = await captureStyleMap(page, {
+      ignore: surface.ignore ?? [],
+      captureText: s.captureText,
+      pendingRequests: requests.pending,
+    });
+    if (s.selfCheck) await assertDeterministic(page, surface, map, s.captureText, requests.pending);
 
-  const stem = path.join(s.baseDir, s.dir, `${surface.key}@${width}`);
-  saveStyleMap(`${stem}.json.gz`, map);
-  if (s.screenshots) {
-    // captureStyleMap froze animations/transitions, so this is the same settled
-    // state the map describes.
-    await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+    const stem = path.join(s.baseDir, s.dir, `${surface.key}@${width}`);
+    saveStyleMap(`${stem}.json.gz`, map);
+    if (s.screenshots) {
+      // captureStyleMap froze animations/transitions, so this is the same settled
+      // state the map describes.
+      await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+    }
+  } finally {
+    requests.dispose();
   }
 }
 
