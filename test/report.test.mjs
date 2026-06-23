@@ -407,6 +407,63 @@ test('a newly-added element shows the values its states take, not a bogus "befor
   rmTmp(root);
 });
 
+test('an added element reports its full resting computed style, value-only', () => {
+  const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'btn',
+        rect: [0, 0, 90, 32],
+        // resting computed style (the thing the old report dropped for added elements)
+        style: { 'background-color': 'rgb(0, 90, 252)', padding: '6px 12px', 'border-radius': '4px' },
+      },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@1280',
+    before,
+    after,
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  assert.match(md, /\*\*Added\*\* `button\.btn`/);
+  assert.match(md, /Style:/);
+  assert.match(md, /\| Property \| Value \|/); // value-only, no bogus Before column
+  assert.match(md, /`background-color` \| `#005afc`/);
+  assert.match(md, /`padding` \| `6px 12px`/);
+  assert.match(md, /`border-radius` \| `4px`/);
+  rmTmp(root);
+});
+
+test('captureComponent: an added element names its React component + props', () => {
+  const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'btn',
+        rect: [0, 0, 90, 32],
+        style: { color: 'rgb(255, 255, 255)' },
+        component: { name: 'Button', props: { variant: 'primary', size: 'sm' } },
+      },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@1280',
+    before,
+    after,
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  assert.match(md, /React component: `Button` \(variant=primary, size=sm\)/);
+  rmTmp(root);
+});
+
 test('end-to-end: a valid composite PNG of the expected size is written', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',

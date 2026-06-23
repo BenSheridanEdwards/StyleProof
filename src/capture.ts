@@ -47,6 +47,15 @@ export type ElementEntry = {
    * advisory, not a computed-style outcome. See README "Optional: content layer".
    */
   text?: string;
+  /**
+   * The React component that rendered this element, and a sanitized subset of its
+   * props — present only when capture ran with `captureComponent: true` (opt-in,
+   * off by default). Extracted in-page from the React fiber. ADVISORY: never fed
+   * to the certification diff or its counts (like {@link ElementEntry.text}); it
+   * only enriches the report so a reviewer sees `Button (variant=primary)` rather
+   * than a bare `<button>`. Best in dev/non-minified builds (prod mangles names).
+   */
+  component?: { name: string; props?: Record<string, string> };
 };
 export type StyleMap = {
   defaults: Record<string, Props>;
@@ -139,6 +148,19 @@ export type CaptureOptions = {
    */
   captureText?: boolean;
   /**
+   * Opt-in React layer (default OFF). When true, each element records the React
+   * component that rendered it (display name) and a sanitized subset of its props
+   * on {@link ElementEntry.component}, read in-page from the React fiber
+   * (`__reactFiber$*`/`__reactProps$*` on React 17+, `__reactInternalInstance$*`
+   * on ≤16). Lets the report name `Button (variant=primary)` instead of a bare
+   * `<button>`. ADVISORY — like `captureText` it never feeds the certification
+   * diff or its blocking counts. Only primitive props (string/number/boolean) are
+   * kept (children/handlers/objects dropped); names are mangled in minified prod
+   * builds, so this is most useful against dev/non-minified output. No-op on
+   * non-React pages (fiber keys absent → field omitted).
+   */
+  captureComponent?: boolean;
+  /**
    * Advanced/internal: a getter for the count of in-flight data requests, supplied by
    * a tracker ({@link trackInflightRequests}) armed BEFORE navigation so the page's own
    * load fetches are counted by the network-aware settle. `defineStyleMapCapture`
@@ -181,18 +203,12 @@ export function isUnder(path: string, roots: string[]): boolean {
   return roots.some((r) => path === r || path.startsWith(r + ' > '));
 }
 
-type CaptureArgs = { ignore: string[]; motionOnly: boolean; captureText: boolean };
-
-// Serialized into the browser by page.evaluate; cannot call module helpers.
-// Pre-existing, grandfathered in the health baseline; the content layer adds
-// one small captureText block, not new structure.
-// fallow-ignore-next-line complexity
-function capturePage({ ignore, motionOnly, captureText }: CaptureArgs) {
-  const MOTION = /^(transition|animation)/;
-  const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
-  const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
-
-  const pathOf = (el: Element): string => {
+// Defines the structural-path helper on `window` once so the two functions
+// serialized into the page (capturePage, markInteractiveElements) share ONE
+// implementation — page.evaluate can't reference a module-scope helper, so the
+// alternative is an identical copy in each. Injected at the top of captureStyleMap.
+function injectPathOf(): void {
+  (window as unknown as { __spPathOf?: (el: Element) => string }).__spPathOf = (el: Element): string => {
     if (el === document.documentElement) return 'html';
     if (el === document.body) return 'body';
     const parts: string[] = [];
@@ -205,6 +221,22 @@ function capturePage({ ignore, motionOnly, captureText }: CaptureArgs) {
     }
     return 'body > ' + parts.join(' > ');
   };
+}
+/** In-page shape of the window after {@link injectPathOf} runs. */
+type WithPathOf = { __spPathOf: (el: Element) => string };
+
+type CaptureArgs = { ignore: string[]; motionOnly: boolean; captureText: boolean; captureComponent?: boolean };
+
+// Serialized into the browser by page.evaluate; cannot call module helpers.
+// Pre-existing, grandfathered in the health baseline; the content layer adds
+// one small captureText block, not new structure.
+// fallow-ignore-next-line complexity
+function capturePage({ ignore, motionOnly, captureText, captureComponent }: CaptureArgs) {
+  const MOTION = /^(transition|animation)/;
+  const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
+  const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
+
+  const pathOf = (window as unknown as WithPathOf).__spPathOf;
 
   // Per-tag (and per-tag-per-pseudo) UA defaults from a stylesheet-free iframe,
   // used to prune the maps. A pseudo-element's UA defaults are NOT the host
@@ -254,6 +286,54 @@ function capturePage({ ignore, motionOnly, captureText }: CaptureArgs) {
     style: Props;
     pseudo?: Record<string, Props>;
     text?: string;
+    component?: { name: string; props?: Record<string, string> };
+  };
+
+  // React stores the fiber + props on each DOM node under a hashed key. Walk up
+  // to the nearest component fiber (host fibers have a string `type`; component
+  // fibers a function/object `type`) for its display name + sanitized props.
+  type Fiber = { type: unknown; return: Fiber | null; memoizedProps?: Record<string, unknown> };
+  // Display name from a fiber `type`: function/class, or a forwardRef/memo wrapper
+  // object; '' for host fibers (string type), which keeps the walk going upward.
+  const nameOfType = (t: unknown): string => {
+    if (typeof t === 'function') {
+      const f = t as { displayName?: string; name?: string };
+      return f.displayName || f.name || '';
+    }
+    if (t && typeof t === 'object') {
+      const w = t as { displayName?: string; render?: { displayName?: string; name?: string }; type?: { displayName?: string; name?: string } };
+      const inner = w.render || w.type;
+      return w.displayName || inner?.displayName || inner?.name || '';
+    }
+    return '';
+  };
+  // Keep only primitive props (drop children/className/style/handlers/objects),
+  // capped — advisory, so never anything that could be huge or non-serializable.
+  const sanitizeProps = (mp: Record<string, unknown>): Record<string, string> => {
+    const props: Record<string, string> = {};
+    for (const k of Object.keys(mp)) {
+      if (k === 'children' || k === 'className' || k === 'style') continue;
+      const ty = typeof mp[k];
+      if (ty === 'string' || ty === 'number' || ty === 'boolean') props[k] = String(mp[k]).slice(0, 80);
+    }
+    return props;
+  };
+  const reactComponent = (el: Element): Entry['component'] => {
+    const fiberKey = Object.keys(el).find((k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+    if (!fiberKey) return undefined;
+    let fiber = (el as unknown as Record<string, Fiber | undefined>)[fiberKey] ?? null;
+    for (let hops = 0; fiber && hops < 30; fiber = fiber.return, hops++) {
+      const name = nameOfType(fiber.type);
+      if (!name || name === 'Symbol(react.fragment)') continue;
+      const out: { name: string; props?: Record<string, string> } = { name };
+      const mp = fiber.memoizedProps;
+      if (mp && typeof mp === 'object') {
+        const props = sanitizeProps(mp);
+        if (Object.keys(props).length) out.props = props;
+      }
+      return out;
+    }
+    return undefined;
   };
   const elements: Record<string, Entry> = {};
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
@@ -298,6 +378,14 @@ function capturePage({ ignore, motionOnly, captureText }: CaptureArgs) {
         }
         t = t.replace(/\s+/g, ' ').trim();
         if (t) entry.text = t;
+      }
+      if (captureComponent) {
+        try {
+          const comp = reactComponent(el);
+          if (comp) entry.component = comp;
+        } catch {
+          // non-React node or inaccessible fiber — component stays absent
+        }
       }
     }
     for (const ps of PSEUDOS) {
@@ -385,19 +473,7 @@ type MarkedInteractive = { id: string; path: string };
  * but different ordering, which produces phantom forced-state diffs.
  */
 function markInteractiveElements({ selector, skipSel, attr }: MarkArgs): MarkedInteractive[] {
-  const pathOf = (el: Element): string => {
-    if (el === document.documentElement) return 'html';
-    if (el === document.body) return 'body';
-    const parts: string[] = [];
-    let n: Element | null = el;
-    while (n && n !== document.body) {
-      const parent: Element | null = n.parentElement;
-      if (!parent) break;
-      parts.unshift(`${n.tagName.toLowerCase()}:nth-child(${Array.prototype.indexOf.call(parent.children, n) + 1})`);
-      n = parent;
-    }
-    return 'body > ' + parts.join(' > ');
-  };
+  const pathOf = (window as unknown as WithPathOf).__spPathOf;
   let i = 0;
   return [...document.querySelectorAll(selector)].flatMap((el) => {
     if (skipSel && el.matches(skipSel)) return [];
@@ -677,6 +753,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const maxInteractive = options.maxInteractive ?? 800;
   const stabilize = options.stabilize ?? true;
   const captureText = options.captureText ?? false;
+  const captureComponent = options.captureComponent ?? false;
   // Neutralise real focus the same way FREEZE_CSS neutralises motion: blur
   // whatever element holds focus so every read below is the no-interaction
   // resting state. Real :focus is nondeterministic across runs (autofocus, late
@@ -687,6 +764,11 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // deterministic" failure). Interaction states are certified deterministically
   // via CDP forcePseudoState below, never via whatever happened to be focused.
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  // Inject the structural-path helper once so both capturePage and
+  // markInteractiveElements (each serialized into the page by page.evaluate, which
+  // can't share a module-scope function) call ONE definition — no duplicated source.
+  // It persists on `window` for every evaluate below (no navigation between them).
+  await page.evaluate(injectPathOf);
   // Motion longhands first (FREEZE_CSS would null them), then everything else.
   // Motion never carries text — it's a settled end state of declared motion.
   const motion = await page.evaluate(capturePage, { ignore, motionOnly: true, captureText: false });
@@ -698,7 +780,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // real content/layout churn lands here.
   const volatile = await detectVolatile(page, ignore, stabilize, captureText, options.pendingRequests);
 
-  const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText });
+  const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText, captureComponent });
   dropVolatile(base.elements, volatile);
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
   mergeMotion(base.elements, motion.elements);

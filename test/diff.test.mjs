@@ -72,6 +72,44 @@ test('reports a DOM-added element (present only in after)', () => {
   assert.deepEqual(f[0], { kind: 'dom', path: 'body > p:nth-child(1)', cls: 'lede', change: 'added' });
 });
 
+test('an added element also yields style findings for its full resting style (before = (unset))', () => {
+  const a = makeMap({ elements: { body: { tag: 'body' } } });
+  const b = makeMap({
+    elements: {
+      body: { tag: 'body' },
+      'body > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'btn',
+        style: { 'background-color': 'rgb(0, 90, 252)', padding: '6px' },
+      },
+    },
+  });
+  const f = diffStyleMaps(a, b);
+  assert.ok(f.find((x) => x.kind === 'dom' && x.change === 'added'));
+  const style = f.find((x) => x.kind === 'style');
+  assert.ok(style, 'added element now yields a style finding for its resting style');
+  const bg = style.props.find((p) => p.prop === 'background-color');
+  assert.equal(bg.before, '(unset)'); // brand-new — no meaningful before
+  assert.equal(bg.after, 'rgb(0, 90, 252)');
+});
+
+test('an added element carries its React component on the dom finding (advisory passthrough)', () => {
+  const a = makeMap({ elements: { body: { tag: 'body' } } });
+  const b = makeMap({
+    elements: {
+      body: { tag: 'body' },
+      'body > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'btn',
+        style: {},
+        component: { name: 'Button', props: { variant: 'primary' } },
+      },
+    },
+  });
+  const dom = diffStyleMaps(a, b).find((x) => x.kind === 'dom');
+  assert.deepEqual(dom.component, { name: 'Button', props: { variant: 'primary' } });
+});
+
 test('reports a DOM-removed element (present only in before)', () => {
   const a = makeMap({
     elements: { body: { tag: 'body' }, 'body > p:nth-child(1)': { tag: 'p', cls: 'lede' } },

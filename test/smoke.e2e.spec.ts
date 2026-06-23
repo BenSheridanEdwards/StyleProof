@@ -445,3 +445,34 @@ test('page.clock.setFixedTime pins time-derived rendering without breaking settl
     await ctx.close();
   }
 });
+
+// React fiber extraction (Feature: captureComponent) only runs in-browser via
+// page.evaluate, so it can't be unit-tested — exercise it here by stamping a fake
+// fiber chain (host fiber → component fiber with memoizedProps) on a real node,
+// exactly the shape React puts on DOM nodes (__reactFiber$<hash>).
+function fiberFixture(): string {
+  return `<!doctype html><html><head><meta charset="utf-8"></head><body>
+    <main><button class="cta">Book</button></main>
+    <script>
+      var btn = document.querySelector('button');
+      function Button() {}
+      var compFiber = { type: Button, return: null, memoizedProps: { variant: 'primary', size: 'sm', children: 'Book' } };
+      btn['__reactFiber$abc'] = { type: 'button', return: compFiber, memoizedProps: {} };
+    </script>
+  </body></html>`;
+}
+
+test('captureComponent reads the React component name + sanitized props off the fiber', async ({ page }) => {
+  const map = await withPage(page, fiberFixture(), () =>
+    captureStyleMap(page, { captureComponent: true, captureStates: false }),
+  );
+  const btn = Object.values(map.elements).find((e) => e.tag === 'button');
+  // children dropped (non-primitive intent), variant/size kept.
+  expect(btn?.component).toEqual({ name: 'Button', props: { variant: 'primary', size: 'sm' } });
+});
+
+test('captureComponent is opt-in: off by default it records no component', async ({ page }) => {
+  const map = await withPage(page, fiberFixture(), () => captureStyleMap(page, { captureStates: false }));
+  const btn = Object.values(map.elements).find((e) => e.tag === 'button');
+  expect(btn?.component).toBeUndefined();
+});

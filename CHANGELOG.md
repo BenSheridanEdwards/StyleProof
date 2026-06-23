@@ -7,6 +7,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-06-23
+
+### Added
+
+- **Newly-added elements now report their full resting computed style**, not just
+  interaction-state deltas. Previously an added element surfaced only its
+  `:hover`/`:focus` changes (the diff short-circuited added elements before the
+  style loop); its background, padding, font, radius, etc. were captured but never
+  shown. The diff now emits the new element's full style as `(unset) → value`
+  findings and the report renders them value-only (no bogus "Before" column), in
+  both the PR report and the `styleproof-diff` CLI. The element already gated via
+  its `added` finding, so this enriches detail without changing what gates.
+- **`captureComponent` (opt-in, default off): surface the React component + props**
+  behind each element. With it on, capture reads the React fiber in-page
+  (`__reactFiber$*`/`__reactProps$*` on React 17+, `__reactInternalInstance$*` on
+  ≤16) to record the component display name and a sanitized subset of its props
+  (primitives only; `children`/handlers/objects dropped) on `ElementEntry.component`.
+  The report names it — `React component: Button (variant=primary, size=sm)` —
+  instead of a bare `<button>`. **Advisory only**, exactly like the content layer:
+  never fed to the certification diff or its blocking counts, so captures stay
+  deterministic. Names are mangled in minified prod builds, so it's most useful
+  against dev/non-minified output; a no-op on non-React pages.
+
 ## [2.0.0] - 2026-06-22
 
 ### Changed
