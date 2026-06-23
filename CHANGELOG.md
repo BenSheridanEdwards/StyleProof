@@ -7,6 +7,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-06-23
+
+### Added
+
+- **Newly-added elements now report their full resting computed style**, not just
+  interaction-state deltas. Previously an added element surfaced only its
+  `:hover`/`:focus` changes (the diff short-circuited added elements before the
+  style loop); its background, padding, font, radius, etc. were captured but never
+  shown. The diff now emits the new element's full style as `(unset) → value`
+  findings and the report renders them value-only (no bogus "Before" column), in
+  both the PR report and the `styleproof-diff` CLI. The element already gated via
+  its `added` finding, so this enriches detail without changing what gates.
+- **`captureComponent` (opt-in, default off): surface the React component + props**
+  behind each element. With it on, capture reads the React fiber in-page
+  (`__reactFiber$*`/`__reactProps$*` on React 17+, `__reactInternalInstance$*` on
+  ≤16) to record the component display name and a sanitized subset of its props
+  (primitives only; `children`/handlers/objects dropped) on `ElementEntry.component`.
+  The report names it — `React component: Button (variant=primary, size=sm)` —
+  instead of a bare `<button>`. **Advisory only**, exactly like the content layer:
+  never fed to the certification diff or its blocking counts, so captures stay
+  deterministic. Names are mangled in minified prod builds, so it's most useful
+  against dev/non-minified output; a no-op on non-React pages.
+
 ## [2.1.0] - 2026-06-23
 
 ### Added
@@ -30,24 +53,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `expected` to it — so a fresh install is protected without hand-wiring, and a page
   added later is covered automatically. Non-Next projects get the previous starter
   surface plus a commented guard block to point at their own route registry.
-- **Newly-added elements now report their full resting computed style**, not just
-  interaction-state deltas. Previously an added element surfaced only its
-  `:hover`/`:focus` changes (the diff short-circuited added elements before the
-  style loop); its background, padding, font, radius, etc. were captured but never
-  shown. The diff now emits the new element's full style as `(unset) → value`
-  findings and the report renders them value-only (no bogus "Before" column), in
-  both the PR report and the `styleproof-diff` CLI. The element already gated via
-  its `added` finding, so this enriches detail without changing what gates.
-- **`captureComponent` (opt-in, default off): surface the React component + props**
-  behind each element. With it on, capture reads the React fiber in-page
-  (`__reactFiber$*`/`__reactProps$*` on React 17+, `__reactInternalInstance$*` on
-  ≤16) to record the component display name and a sanitized subset of its props
-  (primitives only; `children`/handlers/objects dropped) on `ElementEntry.component`.
-  The report names it — `React component: Button (variant=primary, size=sm)` —
-  instead of a bare `<button>`. **Advisory only**, exactly like the content layer:
-  never fed to the certification diff or its blocking counts, so captures stay
-  deterministic. Names are mangled in minified prod builds, so it's most useful
-  against dev/non-minified output; a no-op on non-React pages.
+- **Network-aware settle (default on).** The settle now holds while the page's own
+  data requests are in flight — excluding long-lived `EventSource`/WebSocket streams
+  (handled by the live-region pass) — instead of only waiting for the computed-style
+  map to go quiet. So late-fetched content is captured **loaded, not mid-load**, and
+  the settle can't false-settle on a loading state before a slow backend responds —
+  the phantom-diff / self-check flake that a fixed wait produces under CI load. New
+  exported `trackInflightRequests(page)` arms the tracker; `defineStyleMapCapture`
+  arms it before each `go()` automatically.
+  Opt out with `stabilize.waitForRequests: false`.
+- **`styleproof-init` scaffolds a production-build web server.** The generated
+  `playwright.config.ts` now includes a `webServer` that runs
+  `npm run build && npm run start` (reusing a server already up), so a fresh project
+  captures against a production build by default instead of a `next dev`-style server
+  whose JIT timing variance is the top source of capture flakes.
+
+### Changed
+
+- **`selfCheck` defaults on while recording, off on replay.** The determinism guard
+  (capture twice, fail on drift) was opt-in (`STYLEPROOF_SELFCHECK=1`), so by default
+  nondeterminism shipped silently as a phantom diff. It now defaults **on when
+  recording** (no `replayFrom`), where live nondeterminism surfaces, and **off on
+  replay**, which is deterministic by construction — so a fresh
+  `defineStyleMapCapture({ surfaces })` auto-detects and names nondeterminism with no
+  2× cost on the replay run. `STYLEPROOF_SELFCHECK=1` still forces it on for both;
+  `selfCheck: false` opts out.
+- **`styleproof-init` scaffolds a minimal `settle()`.** Now that the engine's
+  network-aware settle waits out in-flight data and fonts, freezes animations, and
+  blurs focus, the generated helper drops the hand-rolled `document.fonts.ready`,
+  animation-freeze, fixed `waitForTimeout`, and `networkidle` wait (the last an
+  active trap — it never fires against an SSE stream). It keeps only what the engine
+  can't know about — scroll-reveal — and `go()` is a plain `page.goto(...)`.
 
 ## [2.0.0] - 2026-06-22
 
