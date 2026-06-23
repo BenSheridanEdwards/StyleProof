@@ -272,7 +272,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 **CLIs** (every flag accepts `--flag value` and `--flag=value`; `--help` lists all):
 
-- `styleproof-init` — scaffold the capture spec (and a starter `playwright.config.ts` if none exists).
+- `styleproof-init` — scaffold the capture spec (and, if none exists, a starter `playwright.config.ts` whose `webServer` **builds and serves a production build**, so captures never run against a flaky dev server).
 - `styleproof-diff <beforeDir> <afterDir>` — the certify gate; exits `1` on any difference.
 - `styleproof-report <beforeDir> <afterDir> --out <dir>` — render the diff to a Markdown report with before/after crops. Add `--include-content` for the opt-in, advisory content section (see above).
 
