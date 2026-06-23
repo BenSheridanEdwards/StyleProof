@@ -66,11 +66,11 @@ defineStyleMapCapture({
 
 ## What a report looks like
 
-One change — the hero CTA recoloured cyan → amber — posts as a single section: a side-by-side before/after cropped screenshot, a one-line summary, then the exact property change folded under a toggle.
+One change — the hero CTA recoloured cyan → amber — appears as a single section in the report: a side-by-side before/after cropped screenshot, a one-line summary, then the exact property change folded under a toggle.
 
 ![A StyleProof report: the CTA button before (cyan) and after (amber), side by side](https://raw.githubusercontent.com/BenSheridanEdwards/StyleProof/main/docs/demo-composite.png)
 
-As it renders in the PR comment (a plain-English bullet first — naming the theme token and showing the hex with a live colour swatch — then the exact table inside the toggle):
+As it renders in the committed report (a plain-English bullet first — naming the theme token and showing the hex with a live colour swatch — then the exact table inside the toggle). The PR comment itself stays lean — a summary plus the approval box — and links here:
 
 ```text
 ### `a.btn-solid` · 1 element restyled
@@ -273,7 +273,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 **CLIs** (every flag accepts `--flag value` and `--flag=value`; `--help` lists all):
 
 - `styleproof-init` — scaffold the capture spec (and, if none exists, a starter `playwright.config.ts` whose `webServer` **builds and serves a production build**, so captures never run against a flaky dev server).
-- `styleproof-diff <beforeDir> <afterDir>` — the certify gate; exits `1` on any difference.
+- `styleproof-diff <beforeDir> <afterDir>` — the certify gate; exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against).
 - `styleproof-report <beforeDir> <afterDir> --out <dir>` — render the diff to a Markdown report with before/after crops. Add `--include-content` for the opt-in, advisory content section (see above).
 
 A programmatic API (`captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, …) is also exported. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
