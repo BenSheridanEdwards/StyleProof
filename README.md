@@ -19,6 +19,26 @@ On every PR, StyleProof captures a `StyleMap` from the HEAD and from the base br
 - **New surfaces don't block.** A surface that exists only on the PR head (no baseline to diff — e.g. the bootstrap PR that first adds the capture spec, or a brand-new page) is shown in the report under a `🆕 new surface` heading but never holds the status red and needs no sign-off. It becomes part of the baseline once merged.
 - No committed baseline to maintain — the diff is HEAD-vs-base, so the report is _exactly what this PR changes_.
 
+## Don't let a new page ship uncaptured
+
+StyleProof diffs the surfaces your spec lists — so a page nobody added to the list is invisible to the gate. Its change has no base capture _and_ no head capture, so it never appears in any diff, and the status goes green having never looked at it. This is the one thing the captures can't catch on their own: a capture that was never taken.
+
+Declare your app's route/view universe in `expected` and StyleProof emits a coverage-guard test in your **normal** suite (it runs even without `STYLEMAP_DIR` — it's a static check, no browser). It fails the moment a route exists with no surface, so a new page can't ship uncaptured:
+
+```ts
+import { defineStyleMapCapture } from 'styleproof';
+import { ROUTES } from '../app/routes'; // your registry — wherever routes live
+
+defineStyleMapCapture({
+  dir: process.env.STYLEMAP_DIR,
+  surfaces: SURFACES,
+  expected: ROUTES.map((r) => r.id), // every route StyleProof should cover
+  exclude: { checkout: 'auth-gated — capture fixture pending' }, // visible, reviewed opt-outs (key → reason)
+});
+```
+
+A route that's neither a captured surface nor an `exclude` entry fails the guard; an `exclude` key that isn't in `expected` (a renamed/removed route) fails too, so the opt-out ledger can't quietly rot. Captured surfaces beyond `expected` are fine — one route can have several states (`landing`, `landing-nav-open`). Omit `expected` and behaviour is unchanged.
+
 ## What a report looks like
 
 One change — the hero CTA recoloured cyan → amber — posts as a single section: a side-by-side before/after cropped screenshot, a one-line summary, then the exact property change folded under a toggle.
@@ -200,17 +220,19 @@ It's **asynchronous by design**: approval is a checkbox tick handled by a separa
 
 **Capture spec `defineStyleMapCapture({ surfaces, … })`** — determinism is on by default; you rarely set more than `surfaces` and `dir`:
 
-| Option        | Default                     | Purpose                                                                                                          |
-| ------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `surfaces`    | _required_                  | Page states to certify — each `{ key, go, widths, ignore?, height? }`. `go(page)` drives to a settled state.     |
-| `dir`         | `STYLEMAP_DIR`              | Output label (`base`/`head`); the spec is **inert until set**, so it sits safely beside your other specs.        |
-| `replayFrom`  | `STYLEPROOF_REPLAY_FROM`    | Baseline dir whose recorded responses to replay. Unset → this run **records** its HAR for the comparison to use. |
-| `replayUrl`   | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.     |
-| `freezeClock` | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works.  |
-| `clockTime`   | `2025-01-01T00:00:00Z`      | The frozen instant.                                                                                              |
-| `selfCheck`   | `STYLEPROOF_SELFCHECK=1`    | Capture each surface twice and fail on any difference — proves the capture is deterministic.                     |
-| `screenshots` | `true`                      | Save full-page screenshots for the report's before/after crops.                                                  |
-| `baseDir`     | `__stylemaps__`             | Output root directory.                                                                                           |
+| Option        | Default                     | Purpose                                                                                                                                                                             |
+| ------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaces`    | _required_                  | Page states to certify — each `{ key, go, widths, ignore?, height? }`. `go(page)` drives to a settled state.                                                                        |
+| `expected`    | _none_                      | Your route/view universe. Emits a coverage-guard test (runs without a capture dir) that fails when a route has no surface and isn't excluded — so a new page can't ship uncaptured. |
+| `exclude`     | `{}`                        | `key → reason` for routes deliberately not captured. Keeps the guard green for known gaps; a key absent from `expected` fails the guard, so the ledger can't go stale.              |
+| `dir`         | `STYLEMAP_DIR`              | Output label (`base`/`head`); the spec is **inert until set**, so it sits safely beside your other specs.                                                                           |
+| `replayFrom`  | `STYLEPROOF_REPLAY_FROM`    | Baseline dir whose recorded responses to replay. Unset → this run **records** its HAR for the comparison to use.                                                                    |
+| `replayUrl`   | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.                                                                        |
+| `freezeClock` | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works.                                                                     |
+| `clockTime`   | `2025-01-01T00:00:00Z`      | The frozen instant.                                                                                                                                                                 |
+| `selfCheck`   | `STYLEPROOF_SELFCHECK=1`    | Capture each surface twice and fail on any difference — proves the capture is deterministic.                                                                                        |
+| `screenshots` | `true`                      | Save full-page screenshots for the report's before/after crops.                                                                                                                     |
+| `baseDir`     | `__stylemaps__`             | Output root directory.                                                                                                                                                              |
 
 Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<style>`/… and `next-route-announcer`) are skipped automatically; a surface's `ignore` adds to that default, it doesn't replace it.
 
