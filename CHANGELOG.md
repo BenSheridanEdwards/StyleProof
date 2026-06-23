@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-06-23
+
 ### Added
 
 - **Coverage guard (`expected` / `exclude`).** `defineStyleMapCapture` now accepts
@@ -28,6 +30,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `expected` to it — so a fresh install is protected without hand-wiring, and a page
   added later is covered automatically. Non-Next projects get the previous starter
   surface plus a commented guard block to point at their own route registry.
+- **Network-aware settle (default on).** The settle now holds while the page's own
+  data requests are in flight — excluding long-lived `EventSource`/WebSocket streams
+  (handled by the live-region pass) — instead of only waiting for the computed-style
+  map to go quiet. So late-fetched content is captured **loaded, not mid-load**, and
+  the settle can't false-settle on a loading state before a slow backend responds —
+  the phantom-diff / self-check flake that a fixed wait produces under CI load. New
+  exported `trackInflightRequests(page)` arms the tracker; `defineStyleMapCapture`
+  arms it before each `go()` automatically.
+  Opt out with `stabilize.waitForRequests: false`.
+- **`styleproof-init` scaffolds a production-build web server.** The generated
+  `playwright.config.ts` now includes a `webServer` that runs
+  `npm run build && npm run start` (reusing a server already up), so a fresh project
+  captures against a production build by default instead of a `next dev`-style server
+  whose JIT timing variance is the top source of capture flakes.
+
+### Changed
+
+- **`selfCheck` defaults on while recording, off on replay.** The determinism guard
+  (capture twice, fail on drift) was opt-in (`STYLEPROOF_SELFCHECK=1`), so by default
+  nondeterminism shipped silently as a phantom diff. It now defaults **on when
+  recording** (no `replayFrom`), where live nondeterminism surfaces, and **off on
+  replay**, which is deterministic by construction — so a fresh
+  `defineStyleMapCapture({ surfaces })` auto-detects and names nondeterminism with no
+  2× cost on the replay run. `STYLEPROOF_SELFCHECK=1` still forces it on for both;
+  `selfCheck: false` opts out.
+- **`styleproof-init` scaffolds a minimal `settle()`.** Now that the engine's
+  network-aware settle waits out in-flight data and fonts, freezes animations, and
+  blurs focus, the generated helper drops the hand-rolled `document.fonts.ready`,
+  animation-freeze, fixed `waitForTimeout`, and `networkidle` wait (the last an
+  active trap — it never fires against an SSE stream). It keeps only what the engine
+  can't know about — scroll-reveal — and `go()` is a plain `page.goto(...)`.
 
 ## [2.0.0] - 2026-06-22
 
