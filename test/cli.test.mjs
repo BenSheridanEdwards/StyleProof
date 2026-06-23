@@ -228,3 +228,23 @@ test('init scaffolds a playwright.config that serves a PRODUCTION build (no dev-
     rmTmp(dir);
   }
 });
+
+test('init scaffolds a MINIMAL spec — StyleProof owns the settle, so go() is not boilerplate', () => {
+  const dir = mkTmp();
+  try {
+    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const spec = fs.readFileSync(path.join(dir, 'e2e', 'styleproof.spec.ts'), 'utf8');
+    // go() must NOT hand-roll waits StyleProof already does — `networkidle` never
+    // fires under an SSE stream, and the network-aware settle waits for data/fonts.
+    assert.doesNotMatch(spec, /waitUntil: 'networkidle'/, 'go() must not wait on networkidle');
+    assert.doesNotMatch(spec, /document\.fonts\.ready/, 'settle must not re-wait fonts (StyleProof does)');
+    assert.doesNotMatch(spec, /animation: none/, 'settle must not re-freeze animations (StyleProof does)');
+    // What it DOES keep is the one thing StyleProof can't know about: scroll-reveal.
+    assert.match(spec, /window\.scrollTo/, 'settle triggers IntersectionObserver scroll-reveal');
+    // And it points at the minimal one-liner for apps with no reveal-on-scroll content.
+    assert.match(spec, /go: \(page\) => page\.goto\('\/'\)/, 'documents the minimal go() escape hatch');
+  } finally {
+    rmTmp(dir);
+  }
+});

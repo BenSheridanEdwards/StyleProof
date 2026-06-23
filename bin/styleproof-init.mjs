@@ -6,8 +6,8 @@
  *
  * Writes:
  *   - <dir> (default e2e/styleproof.spec.ts): a starter capture spec with a
- *     robust settle() helper (waits fonts + neutralises scroll-reveal and CSS
- *     animation/transition). For a detected Next.js app it derives surfaces AND
+ *     minimal settle() helper (triggers scroll-reveal content; StyleProof itself
+ *     handles fonts, animation freeze, and the settle). For a detected Next.js app it derives surfaces AND
  *     the `expected` coverage guard from the app's routes at run time, so a page
  *     added later can't ship without a surface; otherwise it writes one sample
  *     surface plus a commented guard block to wire to your own route registry.
@@ -34,7 +34,7 @@ options:
   -h, --help          show this help
 
 What it writes:
-  - the spec at --dir, with a settle() helper (fonts + reveal/animation freeze).
+  - the spec at --dir, with a minimal settle() helper (scroll-reveal only).
     In a Next.js app it discovers your routes at run time and wires both the
     surfaces and the \`expected\` coverage guard to them, so a new page can't ship
     uncaptured. Otherwise it writes one sample surface + a commented guard block.
@@ -77,37 +77,29 @@ if (!specPath) {
 
 // Captures read whatever is in front of them, so the page must be settled and
 // deterministic first — this helper is shared by both spec variants below.
-const SETTLE = `// Captures read whatever is in front of them, so the page must be settled and
-// deterministic first. settle() (1) waits for web fonts, (2) freezes CSS
-// animations/transitions and forces common scroll-reveal markers to their final
-// state so nothing is mid-fade, then (3) scrolls the page to trigger any
-// IntersectionObserver-driven reveals and returns to the top. Tune the reveal
-// selectors below to match your project.
+const SETTLE = `// StyleProof settles the page for you before it reads — it waits out in-flight data
+// and fonts, freezes animations/transitions, and blurs focus. The one thing it can't
+// know about is *scroll-reveal* content: elements an IntersectionObserver mounts (or
+// fades in) only once they're scrolled into view. settle() triggers that — it scrolls
+// the page so those reveals fire, forces common reveal markers to their final state so
+// nothing is caught mid-fade, then returns to the top. Tune the selectors to match
+// your project. No reveal-on-scroll content? Delete settle() and use the one-liner
+// \`go: (page) => page.goto('/')\`.
 async function settle(page: Page) {
   await page.addStyleTag({
-    content: \`
-      *, *::before, *::after {
-        animation: none !important;
-        transition: none !important;
-        animation-duration: 0s !important;
-        transition-duration: 0s !important;
-      }
-      .reveal, [data-reveal], .fade-in, .animate-in {
-        opacity: 1 !important;
-        transform: none !important;
-        visibility: visible !important;
-      }
-    \`,
+    content: \`.reveal, [data-reveal], .fade-in, .animate-in {
+      opacity: 1 !important;
+      transform: none !important;
+      visibility: visible !important;
+    }\`,
   });
   await page.evaluate(async () => {
-    await document.fonts.ready;
     for (let y = 0; y < document.body.scrollHeight; y += window.innerHeight) {
       window.scrollTo(0, y);
       await new Promise((r) => setTimeout(r, 60));
     }
     window.scrollTo(0, 0);
   });
-  await page.waitForTimeout(300);
 }`;
 
 const HEADER = `/**
@@ -144,7 +136,7 @@ const ROUTES = discoverNextRoutes();
 const SURFACES: Surface[] = ROUTES.filter((r) => !r.dynamic).map((r) => ({
   key: r.key,
   go: async (page) => {
-    await page.goto(r.path, { waitUntil: 'networkidle' });
+    await page.goto(r.path);
     await settle(page);
   },
   ignore: [], // e.g. ['.live-feed', '.ad-slot'] for nondeterministic regions
@@ -177,7 +169,7 @@ const SURFACES: Surface[] = [
   {
     key: 'home',
     go: async (page) => {
-      await page.goto('/', { waitUntil: 'networkidle' });
+      await page.goto('/');
       await settle(page);
     },
     ignore: [], // e.g. ['.live-feed', '.ad-slot'] for nondeterministic regions
