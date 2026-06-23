@@ -7,16 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [2.3.0] - 2026-06-23
-
-### Added
-
-- **`defineCrawlCapture` — discover surfaces by crawling the rendered nav.** Loads
-  a root URL, reads its same-origin `<a href>`s (filtered by `match`), and captures
-  each as a surface keyed from its URL — so a single-route SPA or client-routed app
-  (whose views like `/?tab=overview` are invisible to the filesystem-based
-  `discoverNextRoutes`) needs no hand-listed `surfaces` array that silently drifts.
-  Exposes the pure, unit-tested `selectCrawlLinks` and `defaultLinkKey` alongside it.
+## [2.3.1] - 2026-06-23
 
 ### Fixed
 
@@ -29,6 +20,24 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   non-deterministic failure. Motion is now read on the settled DOM (the freeze is
   lifted only for that read), so a late-mounted animated element is captured
   identically every run.
+
+## [2.3.0] - 2026-06-23
+
+### Added
+
+- **`defineCrawlCapture` — discover surfaces by crawling rendered links.**
+  `discoverNextRoutes` reads the filesystem, so it only sees one surface per
+  `app/**` page — blind to a single-route SPA whose views are query params
+  (`/?tab=overview`) or client-routed, which exist only in the rendered nav as its
+  links. `defineCrawlCapture({ from, match, widths, dir })` loads a root URL, reads
+  its same-origin `<a href>`s (filtered by `match`), and captures each as a surface
+  keyed from its URL (`/?tab=overview` → `overview`; override with `key`). The
+  surface set _is_ the nav, so there's no hand-maintained `surfaces` list to drift
+  out of sync. The app just has to render its nav as real links — a button-only nav
+  exposes nothing to crawl. Replay, self-check and clock-freeze behave exactly as
+  for explicit surfaces. Also exported: `selectCrawlLinks` / `defaultLinkKey` (the
+  pure link-selection helpers) and the `CrawlOptions` / `CrawlLink` / `LinkMatch`
+  types.
 
 ## [2.2.0] - 2026-06-23
 
