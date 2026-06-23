@@ -775,10 +775,15 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // can't share a module-scope function) call ONE definition — no duplicated source.
   // It persists on `window` for every evaluate below (no navigation between them).
   await page.evaluate(injectPathOf);
-  // Motion longhands first (FREEZE_CSS would null them), then everything else.
-  // Motion never carries text — it's a settled end state of declared motion.
-  const motion = await page.evaluate(capturePage, { ignore, motionOnly: true, captureText: false });
-  await page.addStyleTag({ content: FREEZE_CSS });
+  // Freeze motion FIRST, so the settle below sees only real content/layout churn,
+  // not animation. Order matters: base and motion must be read on the SAME settled
+  // DOM. Capturing motion before the settle (as this once did) reads it against the
+  // PRE-settle DOM, but the settle can repaint late async content and shift element
+  // paths — then mergeMotion can't line motion up with the post-settle base, the
+  // element keeps its frozen `0s`, and a declared `transition-duration: .15s` reads
+  // `.15s` on one capture and `0s` on the next (a load-dependent self-check flake on
+  // late-settling regions). So: freeze, settle, then read both on the settled DOM.
+  const freeze = await page.addStyleTag({ content: FREEZE_CSS });
 
   // Settle: wait for async content to finish painting so base and head capture
   // the same loaded state, and collect any region still changing on its own
@@ -786,9 +791,19 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // real content/layout churn lands here.
   const volatile = await detectVolatile(page, ignore, stabilize, captureText, options.pendingRequests);
 
+  // Base: the settled, frozen end state.
   const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText, captureComponent });
   dropVolatile(base.elements, volatile);
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
+
+  // Motion: lift the freeze and read the declared transition/animation longhands on
+  // the SAME settled DOM (paths now align with base), then re-freeze for the forced-
+  // state pass below. Declared longhands don't depend on the animation playing, and
+  // the brief unfrozen window changes no DOM structure — only base↔motion path
+  // alignment matters, and that's what this guarantees. Motion never carries text.
+  await freeze.evaluate((el) => (el as Element).remove());
+  const motion = await page.evaluate(capturePage, { ignore, motionOnly: true, captureText: false });
+  await page.addStyleTag({ content: FREEZE_CSS });
   mergeMotion(base.elements, motion.elements);
   let states: StyleMap['states'] = {};
   let statesSkipped = false;

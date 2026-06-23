@@ -7,6 +7,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-06-23
+
+### Fixed
+
+- **Motion longhands no longer get lost when the settle repaints late content.**
+  Capture read the pre-freeze motion longhands (transition/animation) BEFORE the
+  settle, then the settled, frozen base AFTER it, and folded motion onto base by
+  structural path. But the settle can repaint late async content and shift element
+  paths, so on a late-settling region `mergeMotion` couldn't line motion up with
+  base — the element kept its frozen `0s`, and a declared `transition-duration:
+0.3s` read `0.3s` on one capture and dropped on the next (a load-dependent
+  `selfCheck` flake that worsened the more surfaces a run captured). Capture now
+  freezes, settles, then reads BOTH base and motion on the same settled DOM (it
+  lifts the freeze just to read the declared longhands, then re-applies it for the
+  forced-state pass), so paths always align. No API change.
+
 ## [2.3.0] - 2026-06-23
 
 ### Added

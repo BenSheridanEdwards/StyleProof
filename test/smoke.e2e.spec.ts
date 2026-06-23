@@ -519,3 +519,36 @@ test('crawl discovery: reads a rendered nav into a deduped, keyed surface set', 
     await new Promise<void>((r) => server.close(() => r()));
   }
 });
+
+// Regression: motion longhands must survive a late render that shifts an element's
+// structural path during the settle. The capture reads motion (pre-freeze) and base
+// (post-freeze) and folds motion onto base by path — so if motion is read BEFORE the
+// settle and the settle then repaints content that shifts the path, mergeMotion can't
+// line them up and the element keeps its frozen `0s`. That was a load-dependent
+// `transition-duration: 0.3s → 0s` self-check flake on late-settling regions. The fix
+// reads BOTH on the settled DOM; here the late prepend shifts `.box` from the 1st to
+// the 2nd child mid-settle, and its declared transition must still be captured.
+function motionPathShiftFixture(): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    body{margin:0}
+    .box{ width:50px; height:10px; background:rgb(0,0,0); transition: width 0.3s ease; }
+  </style></head><body>
+    <main id="m"><div class="box"></div></main>
+    <script>
+      setTimeout(function(){
+        var s=document.createElement('div'); s.className='pre'; s.textContent='late';
+        var m=document.getElementById('m'); m.insertBefore(s, m.firstChild);
+      }, 250);
+    </script>
+  </body></html>`;
+}
+
+test('motion longhands survive a path-shifting late render (capture on the settled DOM)', async ({ page }) => {
+  const map = await withPage(page, motionPathShiftFixture(), () => captureStyleMap(page, { captureStates: false }));
+  const box = Object.values(map.elements).find((e) => e.cls.includes('box'));
+  // The late prepend shifted .box to the 2nd child; its declared transition is still
+  // captured (0.3s) because base + motion now read the same settled DOM. Pre-fix the
+  // motion was lost (read against the old path) and the frozen 0s pruned as a default,
+  // so this was `undefined`.
+  expect(box?.style['transition-duration']).toBe('0.3s');
+});
