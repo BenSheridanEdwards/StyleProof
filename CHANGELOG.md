@@ -7,6 +7,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Coverage guard (`expected` / `exclude`).** `defineStyleMapCapture` now accepts
+  `expected` — the app's route/view universe — and emits a guard test that fails
+  when a route has no captured surface and isn't in `exclude`. It runs in the
+  normal test suite (no `STYLEMAP_DIR`, no browser — a static check), closing the
+  one hole captures can't catch on their own: a new page nobody added to
+  `surfaces` is invisible to the diff (no base capture, no head capture), so the
+  gate goes green having never looked at it. `exclude` is a `key → reason` ledger
+  of deliberate opt-outs; a key absent from `expected` (a renamed/removed route)
+  fails the guard too, so the ledger can't rot. Omit `expected` and behaviour is
+  unchanged. The pure `coverageGaps(captured, expected, exclude)` helper is also
+  exported. Closes the class of regression where a brand-new view's styles ship
+  uncaptured because the surface list silently drifted from the app's routes.
+- **Coverage guard works out of the box for Next.js.** New `discoverNextRoutes()`
+  reads the App Router (`app/`) and Pages Router (`pages/`) at run time and returns
+  `{ key, path, dynamic }[]` (route groups/slots stripped, `[param]` flagged). `styleproof-init`
+  now detects a Next.js app and scaffolds a spec that wires both the surfaces and
+  `expected` to it — so a fresh install is protected without hand-wiring, and a page
+  added later is covered automatically. Non-Next projects get the previous starter
+  surface plus a commented guard block to point at their own route registry.
+
 ## [2.0.0] - 2026-06-22
 
 ### Changed
