@@ -64,6 +64,21 @@ defineStyleMapCapture({
 
 `discoverNextRoutes(cwd?)` reads the filesystem only (route groups `(group)` and `@slots` stripped, `[param]`/`[...catchall]` flagged `dynamic`) — a heuristic, not a router; edit the generated spec for exotic routing. For any other framework, point `expected` at your own route registry as above.
 
+**Single-route SPAs: crawl the nav instead.** Filesystem discovery can't see a surface that isn't a page — a tab SPA where every view is `/?tab=overview` on one `app/page.tsx`, or anything client-routed. There the surfaces exist only in the rendered nav, as its links. `defineCrawlCapture` discovers them at run time: it loads a root URL, reads its same-origin `<a href>`s, and captures each — so the surface set _is_ the nav, with no list to hand-maintain (and so none to drift).
+
+```ts
+import { defineCrawlCapture } from 'styleproof';
+
+defineCrawlCapture({
+  from: '/', // crawl the app root for links
+  match: /\?tab=/, // keep just the tab views (omit to take every same-origin link)
+  widths: [1440, 1024, 768],
+  dir: process.env.STYLEMAP_DIR,
+});
+```
+
+Each discovered link becomes a surface keyed by its URL (`/?tab=overview` → `overview`; pass `key` for a different scheme). The app only has to render its nav as real `<a href>` links — a button-only nav (`<button onClick>`) exposes nothing to crawl. Replay, self-check and clock-freeze behave exactly as for explicit surfaces; one Playwright test runs the whole sweep (the link set isn't known until the page renders).
+
 ## What a report looks like
 
 One change — the hero CTA recoloured cyan → amber — appears as a single section in the report: a side-by-side before/after cropped screenshot, a one-line summary, then the exact property change folded under a toggle.

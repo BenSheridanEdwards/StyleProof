@@ -4,6 +4,7 @@ import path from 'node:path';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
 import { coverageGaps } from './coverage.js';
+import { selectCrawlLinks, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
 
 /**
@@ -202,9 +203,10 @@ async function assertDeterministic(
   }
 }
 
-/** Drive one surface at one width to a settled state and save its style map (+ screenshot). */
+/** Drive one surface at one width to a settled state and save its style map (+ screenshot).
+ *  The caller owns the test timeout (one-per-test for explicit surfaces, one budget for
+ *  the whole crawl) so a multi-surface crawl can't reset its own deadline mid-loop. */
 async function captureSurface(page: Page, surface: Surface, width: number, s: Settings): Promise<void> {
-  test.setTimeout(180_000);
   await pinInputs(page, `${surface.key}@${width}.har`, s);
   const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
   await page.setViewportSize({ width, height });
@@ -248,6 +250,31 @@ export function defaultSelfCheck(
   return env === '1' || !replayFrom;
 }
 
+/** The capture settings every capturer shares (everything bar the surface set). */
+type CaptureConfig = Omit<DefineOptions, 'surfaces' | 'expected' | 'exclude'>;
+
+/**
+ * Apply the capture defaults once, so explicit-surface and crawl capture can't
+ * drift — the replay boundary, frozen clock and self-check policy resolve to the
+ * same thing whichever entry point you use. Env fallbacks (`STYLEPROOF_REPLAY_*`)
+ * live here too, so a single spec line keeps the documented behaviour.
+ */
+function resolveSettings(c: CaptureConfig): Settings {
+  const replayFrom = c.replayFrom ?? process.env.STYLEPROOF_REPLAY_FROM;
+  return {
+    dir: c.dir as string,
+    baseDir: c.baseDir ?? '__stylemaps__',
+    screenshots: c.screenshots ?? true,
+    replayFrom,
+    replayUrl: c.replayUrl ?? process.env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
+    freezeClock: c.freezeClock ?? true,
+    clockTime: c.clockTime ?? '2025-01-01T00:00:00Z',
+    selfCheck: c.selfCheck ?? defaultSelfCheck(replayFrom),
+    captureText: c.captureText ?? false,
+    captureComponent: c.captureComponent ?? false,
+  };
+}
+
 /**
  * Generate one Playwright test per surface × width that captures the style
  * map to `<baseDir>/<dir>/<key>@<width>.json.gz`. Captures are made
@@ -261,33 +288,9 @@ export function defaultSelfCheck(
  * defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
  * ```
  */
-export function defineStyleMapCapture({
-  surfaces,
-  expected,
-  exclude = {},
-  dir,
-  baseDir = '__stylemaps__',
-  screenshots = true,
-  replayFrom = process.env.STYLEPROOF_REPLAY_FROM,
-  replayUrl = process.env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
-  freezeClock = true,
-  clockTime = '2025-01-01T00:00:00Z',
-  selfCheck = defaultSelfCheck(replayFrom),
-  captureText = false,
-  captureComponent = false,
-}: DefineOptions): void {
-  const settings: Settings = {
-    dir: dir as string,
-    baseDir,
-    screenshots,
-    replayFrom,
-    replayUrl,
-    freezeClock,
-    clockTime,
-    selfCheck,
-    captureText,
-    captureComponent,
-  };
+export function defineStyleMapCapture(options: DefineOptions): void {
+  const { surfaces, expected, exclude = {}, dir } = options;
+  const settings = resolveSettings(options);
 
   // Coverage guard. Runs in the NORMAL test suite (NOT gated on a capture dir), so
   // a route added without a surface fails the app's own tests — long before, and
@@ -321,8 +324,103 @@ export function defineStyleMapCapture({
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
     for (const surface of surfaces) {
       for (const width of surface.widths) {
-        test(`${surface.key} @ ${width}`, ({ page }) => captureSurface(page, surface, width, settings));
+        test(`${surface.key} @ ${width}`, ({ page }) => {
+          test.setTimeout(180_000);
+          return captureSurface(page, surface, width, settings);
+        });
       }
     }
+  });
+}
+
+/** Options for {@link defineCrawlCapture}: where to crawl, how to filter/key the
+ *  links, and the viewport sweep — plus the shared capture settings. */
+export type CrawlOptions = CaptureConfig & {
+  /** URL to crawl for surface links (e.g. `/`). Its same-origin `<a href>`s become
+   *  the surface set. */
+  from: string;
+  /** Narrow the discovered links — substring, RegExp, or predicate over the URL
+   *  (e.g. `/\?tab=/` to capture only the tab views). Default: every same-origin link. */
+  match?: LinkMatch;
+  /** Derive a surface key from a link URL. Default: path+query slug (`/?tab=x` → `x`). */
+  key?: (url: URL) => string;
+  /** Viewport widths swept for every discovered surface — one per @media band. */
+  widths: number[];
+  /** Viewport height per width (default 800). */
+  height?: number | ((width: number) => number);
+  /** Selectors skipped on every surface (live regions, third-party embeds). */
+  ignore?: string[];
+  /** Max ms to wait for the crawl root's links to render before reading them
+   *  (an SPA hydrates its nav client-side). Default 15000. */
+  linkTimeout?: number;
+};
+
+/**
+ * Like {@link defineStyleMapCapture}, but the surface set is DISCOVERED at run time
+ * by crawling a page's links instead of being hand-listed — for a single-route SPA
+ * whose views are `?tab=`/client-routed and so invisible to the filesystem
+ * {@link discoverNextRoutes}. It navigates `from`, reads its same-origin `<a href>`s
+ * (filtered by `match`), and captures each as a surface keyed by `key`. The app just
+ * has to render its nav as real links; nothing to hand-maintain, so the surface list
+ * can't drift from the nav.
+ *
+ * One Playwright test does the whole sweep (the link set isn't known until a browser
+ * has rendered the page, so per-surface tests can't be generated at collection time).
+ * Per-surface failures are aggregated — one bad surface reports without hiding the
+ * rest. Replay/self-check/clock-freeze behave exactly as for explicit surfaces.
+ *
+ * ```ts
+ * // styleproof.spec.ts — capture every tab the nav links to
+ * defineCrawlCapture({ from: '/', match: /\?tab=/, widths: [1440, 1024, 768], dir: process.env.STYLEMAP_DIR });
+ * ```
+ */
+export function defineCrawlCapture(options: CrawlOptions): void {
+  const { from, match, key, widths, height, ignore, linkTimeout = 15_000, dir } = options;
+  const settings = resolveSettings(options);
+
+  test.describe('styleproof crawl-capture', () => {
+    test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
+    test('discover surfaces by crawling links, then capture each', async ({ page }) => {
+      // 1. Load the root and wait for its nav links to hydrate — an SPA renders them
+      //    client-side, so they aren't in the initial HTML.
+      await page.goto(from, { waitUntil: 'load' });
+      await page.waitForSelector('a[href]', { timeout: linkTimeout });
+      const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href')));
+      const links = selectCrawlLinks(hrefs, { base: page.url(), match, key });
+      if (links.length === 0) {
+        throw new Error(
+          `styleproof crawl: no links matched at ${from}. The nav must render same-origin ` +
+            `<a href> links (a button-only nav exposes nothing to crawl), and \`match\` must keep them.`,
+        );
+      }
+      // Budget the whole sweep up front: one test captures every surface, and
+      // captureSurface no longer sets its own timeout, so size it to the work found.
+      test.setTimeout(Math.max(180_000, links.length * widths.length * 60_000));
+
+      // 2. Capture each discovered surface. Aggregate failures so one bad surface
+      //    reports without skipping the rest — they're an independent set, not a chain.
+      const failures: string[] = [];
+      for (const link of links) {
+        for (const width of widths) {
+          const surface: Surface = {
+            key: link.key,
+            go: async (p) => {
+              await p.goto(link.url, { waitUntil: 'load' });
+            },
+            widths: [width],
+            ignore,
+            height,
+          };
+          try {
+            await captureSurface(page, surface, width, settings);
+          } catch (e) {
+            failures.push(`${link.key} @ ${width}: ${(e as Error).message}`);
+          }
+        }
+      }
+      if (failures.length) {
+        throw new Error(`styleproof crawl-capture: ${failures.length} surface(s) failed:\n${failures.join('\n')}`);
+      }
+    });
   });
 }

@@ -5,7 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests } from '../dist/index.js';
-import { diffStyleMaps } from '../dist/index.js';
+import { diffStyleMaps, selectCrawlLinks } from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
 /** Navigate to inline HTML (no waiting past `load`) and run a callback. */
@@ -475,4 +475,47 @@ test('captureComponent is opt-in: off by default it records no component', async
   const map = await withPage(page, fiberFixture(), () => captureStyleMap(page, { captureStates: false }));
   const btn = Object.values(map.elements).find((e) => e.tag === 'button');
   expect(btn?.component).toBeUndefined();
+});
+
+test('crawl discovery: reads a rendered nav into a deduped, keyed surface set', async ({ browser }) => {
+  // The discovery half of defineCrawlCapture, end to end against real Chromium: serve a
+  // nav whose links are the surfaces (tab-SPA + a real page), plus the noise a real nav
+  // carries (external, mailto, an in-page fragment, a duplicate). page.$$eval reads the
+  // hydrated hrefs exactly as the runner does, then selectCrawlLinks turns them into the
+  // capture set. Served over http (not file://) so keys come from the route, not a temp path.
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end(
+      `<!doctype html><html><head><meta charset="utf-8"></head><body><nav>` +
+        `<a href="/?tab=overview">Bridge</a>` +
+        `<a href="/?tab=faults">Faults</a>` +
+        `<a href="/docs">Docs</a>` +
+        `<a href="/?tab=overview">Bridge (dup)</a>` +
+        `<a href="https://example.com/out">External</a>` +
+        `<a href="mailto:ops@x.test">Mail</a>` +
+        `<a href="#main">Skip to content</a>` +
+        `</nav></body></html>`,
+    );
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address() as import('node:net').AddressInfo;
+  const ctx = await browser.newContext();
+  try {
+    const page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
+    const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href')));
+    const links = selectCrawlLinks(hrefs, { base: page.url() });
+    // overview + faults + docs; external/mailto/fragment dropped, duplicate collapsed.
+    expect(links).toEqual([
+      { key: 'overview', url: '/?tab=overview' },
+      { key: 'faults', url: '/?tab=faults' },
+      { key: 'docs', url: '/docs' },
+    ]);
+    // And `match` narrows to just the tab views.
+    const tabs = selectCrawlLinks(hrefs, { base: page.url(), match: /\?tab=/ });
+    expect(tabs.map((l) => l.key)).toEqual(['overview', 'faults']);
+  } finally {
+    await ctx.close();
+    await new Promise<void>((r) => server.close(() => r()));
+  }
 });
