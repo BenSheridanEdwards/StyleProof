@@ -112,11 +112,7 @@ defineStyleMapCapture({
   surfaces: [
     {
       key: 'landing',
-      go: async (page) => {
-        await page.goto('/');
-        await page.waitForLoadState('networkidle');
-        await page.evaluate(() => document.fonts.ready);
-      },
+      go: (page) => page.goto('/'), // that's it — StyleProof settles the page (in-flight data, fonts, animations) before it reads
       widths: [1280, 768, 390], // one viewport per @media band
     },
   ],
@@ -192,6 +188,25 @@ Copy both `capture` and `report` files to `.github/workflows/` (the `report` one
 > Replay covers data the page _fetches_. If your app **server-renders** differently per environment (SSR feature flags, locale), still capture both sides with the same server env so the rendered HTML matches.
 
 **Live pages just work.** Before each capture, StyleProof settles the page, and the settle is **network-aware**: it holds while the page's data requests are in flight (excluding long-lived `EventSource`/WebSocket streams, which never finish) _and_ until the computed-style map stops changing. So async content (a fetch backfilling a grid, an SSE stream) is captured **loaded, not mid-load** — and, crucially, it **can't false-settle on the loading state before a slow backend's response arrives**. That's the failure mode of a fixed wait: against a slow server (e.g. a dev server under CI load) a timer settles on the loading skeleton one run and the loaded deck the next — a phantom diff / self-check flake. Waiting on the actual request removes it. Anything still moving on its own after that is detected as a live region and excluded from the diff, so a stream or ticker never reads as a change — no manual `ignore` needed. `defineStyleMapCapture` arms the request tracker before each `go()` automatically; for a direct `captureStyleMap` call, arm one before you navigate with `trackInflightRequests(page)` and pass `{ pendingRequests }`. Disable or tune with `{ stabilize: false }` / `{ stabilize: { quietFor, timeout, waitForRequests } }`.
+
+**At a glance — almost everything is automatic.** The few knobs exist only for what StyleProof can't know about your app, and each says why:
+
+| Handled for you — zero config                               | How                                                                                      |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| In-flight data, fonts, late layout                          | network-aware settle holds until requests finish _and_ the computed styles stop changing |
+| Animations, transitions, focus ring, caret                  | frozen / blurred before the map is read                                                  |
+| Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                    |
+| Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                       |
+| Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from the diff                                 |
+| Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                |
+
+| You set this — only because it's app-specific | Why it exists                                                                                                                                                                                                    |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STYLEPROOF_REPLAY_FROM` (record / replay)    | Base and head capture at different times against a live backend; replaying the base's recorded data pins the head to the same inputs, so the diff is **your code, not data drift**. The one piece of real setup. |
+| `replayUrl` / `STYLEPROOF_REPLAY_URL`         | Your data endpoints aren't under `**/api/**`.                                                                                                                                                                    |
+| `ignore: ['.selector']`                       | You want a region gone **explicitly** — auto-exclude already handles most live regions, but a known-noisy element reads clearer named.                                                                           |
+| `clockTime`                                   | Your styling keys off a **specific** date, not just "now".                                                                                                                                                       |
+| `stabilize: { quietFor, timeout }`            | An unusually slow surface needs a longer quiet window before the map is read.                                                                                                                                    |
 
 ## Optional: content layer (advisory)
 
