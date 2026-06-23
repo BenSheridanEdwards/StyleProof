@@ -7,6 +7,8 @@ export default tseslint.config(
     ignores: [
       'dist/**',
       'node_modules/**',
+      '.claude/**', // agent worktrees nest a second checkout (own tsconfig) here — parsing it breaks lint
+
       '**/__stylemaps__/**',
       'test-results/**',
       'playwright-report/**',
