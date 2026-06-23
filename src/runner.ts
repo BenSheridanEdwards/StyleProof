@@ -14,7 +14,11 @@ import type { Page } from '@playwright/test';
 export type Surface = {
   /** Capture file name prefix; must be unique. */
   key: string;
-  /** Navigate and drive the page to the state, ending settled (fonts loaded, entrance animations done). */
+  /**
+   * Navigate and drive the page to the state. Only reach the state — StyleProof
+   * settles it for you (waits out in-flight data and fonts, freezes animations)
+   * before reading, so you don't hand-roll `networkidle`/`fonts.ready` waits here.
+   */
   go: (page: Page) => Promise<void>;
   /** Selectors for nondeterministic regions (live data, third-party embeds); skipped entirely. */
   ignore?: string[];
