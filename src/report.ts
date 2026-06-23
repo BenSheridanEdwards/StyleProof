@@ -563,7 +563,12 @@ function styleSection(styles: Extract<Finding, { kind: 'style' }>[], added: bool
   for (const s of styles) {
     const rows = summarizeProps(s.props);
     if (rows.length)
-      out.push('', s.pseudo ? `On \`${s.pseudo}\`:` : 'Style:', '', ...(added ? valueTable(rows) : beforeAfterTable(rows)));
+      out.push(
+        '',
+        s.pseudo ? `On \`${s.pseudo}\`:` : 'Style:',
+        '',
+        ...(added ? valueTable(rows) : beforeAfterTable(rows)),
+      );
   }
   return out;
 }
@@ -604,8 +609,18 @@ function renderOneElement(group: Finding[]): { head: string; body: string[] } | 
   // React component that rendered the element (added/retagged carry it on the dom
   // finding) — surfaced first so a reviewer sees `Button (variant=primary)`.
   if (dom?.component) body.push('', `React component: ${renderComponent(dom.component)}`);
-  body.push(...styleSection(group.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style'), added));
-  body.push(...statesSection(group.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state'), added));
+  body.push(
+    ...styleSection(
+      group.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style'),
+      added,
+    ),
+  );
+  body.push(
+    ...statesSection(
+      group.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state'),
+      added,
+    ),
+  );
   // Existing element with nothing left to show (all derived) → skip; an
   // added/removed/retagged element always renders its heading.
   if (!dom && !body.length) return null;

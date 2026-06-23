@@ -301,7 +301,11 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
       return f.displayName || f.name || '';
     }
     if (t && typeof t === 'object') {
-      const w = t as { displayName?: string; render?: { displayName?: string; name?: string }; type?: { displayName?: string; name?: string } };
+      const w = t as {
+        displayName?: string;
+        render?: { displayName?: string; name?: string };
+        type?: { displayName?: string; name?: string };
+      };
       const inner = w.render || w.type;
       return w.displayName || inner?.displayName || inner?.name || '';
     }
@@ -319,7 +323,9 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
     return props;
   };
   const reactComponent = (el: Element): Entry['component'] => {
-    const fiberKey = Object.keys(el).find((k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+    const fiberKey = Object.keys(el).find(
+      (k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'),
+    );
     if (!fiberKey) return undefined;
     let fiber = (el as unknown as Record<string, Fiber | undefined>)[fiberKey] ?? null;
     for (let hops = 0; fiber && hops < 30; fiber = fiber.return, hops++) {
