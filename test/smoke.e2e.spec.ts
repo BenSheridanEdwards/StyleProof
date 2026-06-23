@@ -166,7 +166,7 @@ test('network-aware settle waits for an in-flight fetch, not just a DOM lull', a
   // past the 600ms quietFor) /api/data fetch is in flight, then swaps in the loaded
   // content. DOM-quiet alone settles on the placeholder before the response arrives;
   // the network-aware settle holds until the fetch resolves and captures loaded —
-  // exactly the FLEET 401↔880 flake (settle on the loading state vs the loaded one).
+  // the classic loading-vs-loaded settle flake (settle on the loading state vs the loaded one).
   const server = http.createServer((req, res) => {
     if ((req.url ?? '').startsWith('/api/data')) {
       setTimeout(() => {
@@ -276,14 +276,14 @@ test('saveStyleMap/loadStyleMap roundtrip a real capture (.json.gz)', async ({ p
 });
 
 // A page whose styling depends on a live API: the chip is green when the backend
-// reports "ok" and amber otherwise — the exact shape of FLEET's vault chip. The
+// reports "ok" and amber otherwise — a status chip driven by backend health. The
 // served status is mutable so we can simulate the backend drifting between runs.
 const DATA_DRIVEN_PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>
   body { margin: 0; }
   .chip { color: rgb(0, 200, 0); }
   .chip.warn { color: rgb(255, 180, 0); }
 </style></head><body>
-  <span id="chip" class="chip">vault</span>
+  <span id="chip" class="chip">status</span>
   <script>
     fetch('/api/state').then(r => r.json()).then(d => {
       if (d.status !== 'ok') document.getElementById('chip').classList.add('warn');
@@ -328,7 +328,7 @@ test('record→replay keeps a data-driven capture stable when the backend drifts
   try {
     // Baseline: record the "ok" responses (chip green).
     const baseline = await captureServed(browser, base, har, 'record');
-    // The backend drifts — containers down, vault unreachable (chip would go amber).
+    // The backend drifts — the upstream reports unhealthy (chip would go amber).
     served = 'crit';
     // Head replays the baseline's data → renders green again, so no phantom diff.
     const replayed = await captureServed(browser, base, har, 'replay');
@@ -345,7 +345,7 @@ test('record→replay keeps a data-driven capture stable when the backend drifts
 
 // A page whose styling depends on a live SSE stream: the pulse chip is dim
 // until an EventSource connects and pushes a `snapshot`, which brightens it —
-// the exact shape of FLEET's `.live-pulse` → `.live-pulse.stream`. A long-lived
+// a `.live-pulse` → `.live-pulse.stream` connection-state toggle. A long-lived
 // stream cannot round-trip through a HAR, so naive replay aborts it and the chip
 // renders its dim no-stream fallback: a phantom diff against the streamed base.
 const SSE_PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>
