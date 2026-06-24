@@ -7,6 +7,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **First-class live states plus generic variants.** `Surface` now accepts
+  `liveStates`, each captured as `<surface>-<state>` with optional `setup`, `go`,
+  `widths`, `height`, and `ignore` overrides. This lets a spec certify both
+  `loading` and `loaded` (or `empty` / `error`) on the base branch and feature
+  branch, then compare matching states directly instead of relying on one moving
+  live page state. Reports label those captures as live states. Generic `variants`
+  remain available for non-live states such as nav-open or modal-open. `defineCrawlCapture`
+  accepts both and applies them to every discovered link surface.
+- **Semantic live-state candidates are auto-detected.** Captures now record
+  diagnostic metadata for `[aria-live]`, implicit live-region roles such as
+  `role=status` / `role=alert`, and `aria-busy=true`. Stable candidates are still
+  captured and compared by default; only regions that actually keep changing are
+  excluded as volatile.
+
+### Changed
+
+- **Self-check diagnostics now call out volatile root layout drift.** When a
+  capture contains volatile regions and the repeated self-check differs on
+  `html`/`body` layout properties, the error explains that ignored/live content can
+  still move document flow, includes any auto-detected live-state candidates, and
+  points users to deterministic `liveStates`.
+
 ## [3.0.0] - 2026-06-27
 
 **Milestone: the committed-map gate is how StyleProof works now.** Capture runs

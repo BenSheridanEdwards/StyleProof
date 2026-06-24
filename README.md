@@ -79,6 +79,42 @@ defineCrawlCapture({
 
 Each discovered link becomes a surface keyed by its URL (`/?tab=overview` → `overview`; pass `key` for a different scheme). The app only has to render its nav as real `<a href>` links — a button-only nav (`<button onClick>`) exposes nothing to crawl. Replay, self-check and clock-freeze behave exactly as for explicit surfaces; one Playwright test runs the whole sweep (the link set isn't known until the page renders).
 
+**Live UI states: capture each state, not an average.** StyleProof automatically
+detects semantic live-state candidates (`aria-live`, `role=status`, `role=alert`,
+`aria-busy=true`) and keeps stable ones in the normal diff. If a stream, poll, or
+live region represents product states you want certified (`loading`, `loaded`,
+`empty`, `error`), list only those pinned states with `liveStates`. StyleProof
+writes separate captures such as `dashboard-loading@1440` and
+`dashboard-loaded@1440`, so the base branch's loading state compares to the
+feature branch's loading state, and loaded compares to loaded.
+
+```ts
+defineStyleMapCapture({
+  dir: process.env.STYLEMAP_DIR,
+  surfaces: [
+    {
+      key: 'dashboard',
+      go: (page) => page.goto('/dashboard'),
+      widths: [1440, 768],
+      liveStates: [
+        {
+          key: 'loading',
+          setup: (page) =>
+            page.route('**/api/widgets', (route) => route.fulfill({ json: { status: 'loading', widgets: [] } })),
+        },
+        {
+          key: 'loaded',
+          setup: (page) =>
+            page.route('**/api/widgets', (route) =>
+              route.fulfill({ json: { status: 'loaded', widgets: [{ label: 'Revenue' }] } }),
+            ),
+        },
+      ],
+    },
+  ],
+});
+```
+
 ## What a report looks like
 
 One change — the hero CTA recoloured cyan → amber — appears as a single section in the report: a side-by-side before/after cropped screenshot, a one-line summary, then the exact property change folded under a toggle.
@@ -196,7 +232,9 @@ Copy both `capture` and `report` files to `.github/workflows/` (the `report` one
 
 > Replay covers data the page _fetches_. If your app **server-renders** differently per environment (SSR feature flags, locale), still capture both sides with the same server env so the rendered HTML matches.
 
-**Live pages just work.** Before each capture, StyleProof settles the page, and the settle is **network-aware**: it holds while the page's data requests are in flight (excluding long-lived `EventSource`/WebSocket streams, which never finish) _and_ until the computed-style map stops changing. So async content (a fetch backfilling a grid, an SSE stream) is captured **loaded, not mid-load** — and, crucially, it **can't false-settle on the loading state before a slow backend's response arrives**. That's the failure mode of a fixed wait: against a slow server (e.g. a dev server under CI load) a timer settles on the loading skeleton one run and the loaded deck the next — a phantom diff / self-check flake. Waiting on the actual request removes it. Anything still moving on its own after that is detected as a live region and excluded from the diff, so a stream or ticker never reads as a change — no manual `ignore` needed. `defineStyleMapCapture` arms the request tracker before each `go()` automatically; for a direct `captureStyleMap` call, arm one before you navigate with `trackInflightRequests(page)` and pass `{ pendingRequests }`. Disable or tune with `{ stabilize: false }` / `{ stabilize: { quietFor, timeout, waitForRequests } }`.
+**Live pages just work when the intended state is deterministic.** Before each capture, StyleProof settles the page, and the settle is **network-aware**: it holds while the page's data requests are in flight (excluding long-lived `EventSource`/WebSocket streams, which never finish) _and_ until the computed-style map stops changing. So async content (a fetch backfilling a grid, an SSE stream) is captured **loaded, not mid-load** — and, crucially, it **can't false-settle on the loading state before a slow backend's response arrives**. That's the failure mode of a fixed wait: against a slow server (e.g. a dev server under CI load) a timer settles on the loading skeleton one run and the loaded deck the next — a phantom diff / self-check flake. Waiting on the actual request removes it.
+
+Anything still moving on its own after that is detected as a volatile region and excluded from direct element comparison, so a stream or ticker never reads as a change just because its value changed. That is not the same as certifying every state of the live UI: an ignored or volatile subtree can still change `html`/`body` layout if its height changes. When those states matter, make them deterministic `liveStates` (`loading`, `loaded`, `empty`, `error`) and capture each on both branches. Self-check and reports automatically mention detected live-state candidates when volatile layout drift appears. `defineStyleMapCapture` arms the request tracker before each `go()` automatically; for a direct `captureStyleMap` call, arm one before you navigate with `trackInflightRequests(page)` and pass `{ pendingRequests }`. Disable or tune with `{ stabilize: false }` / `{ stabilize: { quietFor, timeout, waitForRequests } }`.
 
 **At a glance — almost everything is automatic.** The few knobs exist only for what StyleProof can't know about your app, and each says why:
 
@@ -206,7 +244,8 @@ Copy both `capture` and `report` files to `.github/workflows/` (the `report` one
 | Animations, transitions, focus ring, caret                  | frozen / blurred before the map is read                                                  |
 | Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                    |
 | Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                       |
-| Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from the diff                                 |
+| Semantic live-state candidates (`aria-live`, `role=status`) | auto-detected and kept in the diff when stable                                           |
+| Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from direct element comparison                |
 | Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                |
 
 | You set this — only because it's app-specific | Why it exists                                                                                                                                                                                                    |
@@ -214,6 +253,8 @@ Copy both `capture` and `report` files to `.github/workflows/` (the `report` one
 | `STYLEPROOF_REPLAY_FROM` (record / replay)    | Base and head capture at different times against a live backend; replaying the base's recorded data pins the head to the same inputs, so the diff is **your code, not data drift**. The one piece of real setup. |
 | `replayUrl` / `STYLEPROOF_REPLAY_URL`         | Your data endpoints aren't under `**/api/**`.                                                                                                                                                                    |
 | `ignore: ['.selector']`                       | You want a region gone **explicitly** — auto-exclude already handles most live regions, but a known-noisy element reads clearer named.                                                                           |
+| `liveStates: [{ key, setup, go }]`            | A live feature has real states to certify. Capture each state on base and head (`surface-loading`, `surface-loaded`) instead of relying on a single moving page state.                                           |
+| `variants: [{ key, setup, go }]`              | Non-live deterministic variants, such as nav-open or modal-open states.                                                                                                                                          |
 | `clockTime`                                   | Your styling keys off a **specific** date, not just "now".                                                                                                                                                       |
 | `stabilize: { quietFor, timeout }`            | An unusually slow surface needs a longer quiet window before the map is read.                                                                                                                                    |
 
@@ -287,19 +328,21 @@ It's **asynchronous by design**: approval is a checkbox tick handled by a separa
 
 **Capture spec `defineStyleMapCapture({ surfaces, … })`** — determinism is on by default; you rarely set more than `surfaces` and `dir`:
 
-| Option        | Default                     | Purpose                                                                                                                                                                                                 |
-| ------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `surfaces`    | _required_                  | Page states to certify — each `{ key, go, widths?, ignore?, height? }`. `go(page)` drives to a settled state. Omit `widths` to auto-detect the app's `@media` breakpoints and sweep one width per band. |
-| `expected`    | _none_                      | Your route/view universe. Emits a coverage-guard test (runs without a capture dir) that fails when a route has no surface and isn't excluded — so a new page can't ship uncaptured.                     |
-| `exclude`     | `{}`                        | `key → reason` for routes deliberately not captured. Keeps the guard green for known gaps; a key absent from `expected` fails the guard, so the ledger can't go stale.                                  |
-| `dir`         | `STYLEMAP_DIR`              | Output label (`base`/`head`); the spec is **inert until set**, so it sits safely beside your other specs.                                                                                               |
-| `replayFrom`  | `STYLEPROOF_REPLAY_FROM`    | Baseline dir whose recorded responses to replay. Unset → this run **records** its HAR for the comparison to use.                                                                                        |
-| `replayUrl`   | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.                                                                                            |
-| `freezeClock` | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works.                                                                                         |
-| `clockTime`   | `2025-01-01T00:00:00Z`      | The frozen instant.                                                                                                                                                                                     |
-| `selfCheck`   | on while recording          | Capture each surface twice and fail on any difference — proves the capture is deterministic. Off on the replay run; `STYLEPROOF_SELFCHECK=1` forces both.                                               |
-| `screenshots` | `true`                      | Save full-page screenshots for the report's before/after crops.                                                                                                                                         |
-| `baseDir`     | `__stylemaps__`             | Output root directory.                                                                                                                                                                                  |
+| Option        | Default                     | Purpose                                                                                                                                                                                                                         |
+| ------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaces`    | _required_                  | Page states to certify — each `{ key, go, widths?, ignore?, height?, liveStates?, variants? }`. `go(page)` drives to a settled state. Omit `widths` to auto-detect the app's `@media` breakpoints and sweep one width per band. |
+| `liveStates`  | _none_                      | Optional pinned live product states. Each `{ key, setup?, go?, widths?, height?, ignore? }` becomes `<surface>-<state>` and is labeled as a live state in reports.                                                              |
+| `variants`    | _none_                      | Optional non-live deterministic states under a surface. Each `{ key, setup?, go?, widths?, height?, ignore? }` becomes `<surface>-<variant>` so base/head compare matching states.                                              |
+| `expected`    | _none_                      | Your route/view universe. Emits a coverage-guard test (runs without a capture dir) that fails when a route has no surface and isn't excluded — so a new page can't ship uncaptured.                                             |
+| `exclude`     | `{}`                        | `key → reason` for routes deliberately not captured. Keeps the guard green for known gaps; a key absent from `expected` fails the guard, so the ledger can't go stale.                                                          |
+| `dir`         | `STYLEMAP_DIR`              | Output label (`base`/`head`); the spec is **inert until set**, so it sits safely beside your other specs.                                                                                                                       |
+| `replayFrom`  | `STYLEPROOF_REPLAY_FROM`    | Baseline dir whose recorded responses to replay. Unset → this run **records** its HAR for the comparison to use.                                                                                                                |
+| `replayUrl`   | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.                                                                                                                    |
+| `freezeClock` | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works.                                                                                                                 |
+| `clockTime`   | `2025-01-01T00:00:00Z`      | The frozen instant.                                                                                                                                                                                                             |
+| `selfCheck`   | on while recording          | Capture each surface twice and fail on any difference — proves the capture is deterministic. Off on the replay run; `STYLEPROOF_SELFCHECK=1` forces both.                                                                       |
+| `screenshots` | `true`                      | Save full-page screenshots for the report's before/after crops.                                                                                                                                                                 |
+| `baseDir`     | `__stylemaps__`             | Output root directory.                                                                                                                                                                                                          |
 
 Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<style>`/… and `next-route-announcer`) are skipped automatically; a surface's `ignore` adds to that default, it doesn't replace it.
 

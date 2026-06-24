@@ -541,6 +541,15 @@ test('end-to-end: a live region is auto-excluded and noted, not reported as a ch
     after: {
       ...sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
       volatile: ['body > div:nth-child(1) > button:nth-child(1)'],
+      liveCandidates: [
+        {
+          path: 'body > div:nth-child(1) > button:nth-child(1)',
+          tag: 'button',
+          cls: 'cta primary',
+          reason: 'role=status',
+          role: 'status',
+        },
+      ],
     },
   });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
@@ -548,6 +557,22 @@ test('end-to-end: a live region is auto-excluded and noted, not reported as a ch
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.match(md, /✓ All surfaces identical/);
   assert.match(md, /1 live region\(s\) auto-excluded/);
+  assert.match(md, /Auto-detected live-state candidate\(s\): button\.cta \(role=status\)/);
+  rmTmp(root);
+});
+
+test('end-to-end: live-state metadata labels the report surface', () => {
+  const before = {
+    ...sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    metadata: { surfaceKey: 'dashboard', variantKey: 'loaded', variantKind: 'live-state' },
+  };
+  const after = {
+    ...sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
+    metadata: { surfaceKey: 'dashboard', variantKey: 'loaded', variantKind: 'live-state' },
+  };
+  const { beforeDir, afterDir, outDir, root } = pairFixture({ surface: 'dashboard-loaded@1440', before, after });
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  assert.match(md, /dashboard-loaded @ 1440 · live state `loaded`/);
   rmTmp(root);
 });
 

@@ -256,6 +256,65 @@ test('auto-excludes a perpetual live region', async ({ page }) => {
   expect(buttonCaptured, 'the static button is still captured').toBe(true);
 });
 
+test('ignored live regions can still reveal root layout drift', async ({ page }) => {
+  // Ignoring the live subtree removes that element from the diff, but it does not
+  // freeze the document flow it participates in. If the live state should be
+  // certified, capture both states as surface variants instead of expecting
+  // `ignore` to hide the ancestor geometry.
+  const html = (height: number) => `<!doctype html><html><head><meta charset="utf-8"><style>
+    html, body { margin: 0; }
+    .live { display: block; width: 100%; height: ${height}px; background: rgb(1,2,3); }
+    .cta { display: block; color: rgb(0,0,0); }
+  </style></head><body>
+    <main><div class="live"></div><button class="cta">ok</button></main>
+  </body></html>`;
+
+  const short = await withPage(page, html(48), () =>
+    captureStyleMap(page, { ignore: ['.live'], stabilize: false, captureStates: false }),
+  );
+  const tall = await withPage(page, html(180), () =>
+    captureStyleMap(page, { ignore: ['.live'], stabilize: false, captureStates: false }),
+  );
+  expect(
+    Object.values(short.elements).some((e) => e.cls === 'live'),
+    'ignored live subtree is not captured directly',
+  ).toBe(false);
+
+  const findings = diffStyleMaps(short, tall);
+  const rootLayout = findings.find(
+    (f) =>
+      f.kind === 'style' &&
+      (f.path === 'html' || f.path === 'body') &&
+      f.props.some((p) => p.prop === 'block-size' || p.prop === 'height'),
+  );
+  expect(rootLayout, 'ancestor/root layout still changes when ignored live content changes size').toBeTruthy();
+});
+
+test('auto-detects semantic live-state candidates without excluding stable product UI', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    .status { display: block; color: rgb(0,128,0); }
+  </style></head><body>
+    <main><div role="status" class="status">Loaded</div></main>
+  </body></html>`;
+
+  const map = await withPage(page, html, () => captureStyleMap(page, { captureStates: false }));
+  expect(map.liveCandidates).toEqual([
+    expect.objectContaining({
+      path: 'body > main:nth-child(1) > div:nth-child(1)',
+      tag: 'div',
+      cls: 'status',
+      role: 'status',
+      reason: 'role=status',
+    }),
+  ]);
+  expect(
+    Object.values(map.elements).some((e) => e.cls === 'status'),
+    'stable live-state candidates are still captured and compared',
+  ).toBe(true);
+  expect(map.volatile ?? [], 'stable live-state candidate is not treated as volatile').toEqual([]);
+});
+
 test('ignores framework / non-visual DOM noise by default (meta, title, next-route-announcer)', async ({ page }) => {
   // The body carries the kind of noise Next.js streams in / injects: a couple of
   // <meta>, a <title>, a <script>, and the route-announcer live region — none of

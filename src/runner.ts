@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
+import {
+  captureStyleMap,
+  saveStyleMap,
+  trackInflightRequests,
+  type CaptureMetadata,
+  type LiveRegionCandidate,
+} from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
 import { coverageGaps } from './coverage.js';
 import { detectViewportWidths } from './breakpoints.js';
@@ -34,7 +40,39 @@ export type Surface = {
   widths?: number[];
   /** Viewport height: a number, or a function of the width (default 800). */
   height?: number | ((width: number) => number);
+  /**
+   * Optional deterministic states of this same surface. Each variant becomes its
+   * own capture (`<surface>-<variant>@<width>`), so base/head compare loading to
+   * loading and loaded to loaded instead of treating live UI as one fuzzy state.
+   */
+  variants?: SurfaceVariant[];
+  /**
+   * First-class live product states for this surface. Use this for loading,
+   * loaded, empty, error, streaming, etc. StyleProof records them as live-state
+   * variants so reports and diagnostics can explain why the capture was split.
+   */
+  liveStates?: SurfaceLiveState[];
 };
+
+export type SurfaceVariant = {
+  /** Capture key suffix, joined as `<surface.key>-<variant.key>`. */
+  key: string;
+  /**
+   * Seed the state before the parent surface navigates: route mocks, fixture data,
+   * localStorage/sessionStorage, feature flags, etc.
+   */
+  setup?: (page: Page) => Promise<void>;
+  /** Drive or assert the variant after the parent surface reaches its base state. */
+  go?: (page: Page) => Promise<void>;
+  /** Extra ignored selectors for this variant, appended to the parent surface's ignore list. */
+  ignore?: string[];
+  /** Override the parent viewport widths for this variant. */
+  widths?: number[];
+  /** Override the parent viewport height for this variant. */
+  height?: number | ((width: number) => number);
+};
+
+export type SurfaceLiveState = SurfaceVariant;
 
 export type DefineOptions = {
   surfaces: Surface[];
@@ -135,6 +173,98 @@ function driftDesc(f: Finding): string {
   return p ? `${f.path} ${p.prop}: ${p.before} → ${p.after}` : f.path;
 }
 
+const ROOT_LAYOUT_PATHS = new Set(['html', 'body']);
+const ROOT_LAYOUT_PROPS = new Set([
+  'block-size',
+  'height',
+  'inline-size',
+  'width',
+  'min-block-size',
+  'min-height',
+  'max-block-size',
+  'max-height',
+  'perspective-origin',
+  'transform-origin',
+]);
+
+function hasRootLayoutDrift(drift: Finding[]): boolean {
+  return drift.some(
+    (f) => f.kind === 'style' && ROOT_LAYOUT_PATHS.has(f.path) && f.props.some((p) => ROOT_LAYOUT_PROPS.has(p.prop)),
+  );
+}
+
+function liveCandidateDesc(candidate: LiveRegionCandidate): string {
+  const label = candidate.cls ? `${candidate.tag}.${candidate.cls.split(/\s+/)[0]}` : candidate.tag;
+  return `${label} (${candidate.reason}) at ${candidate.path}`;
+}
+
+export function selfCheckErrorMessage(
+  surfaceKey: string,
+  drift: Finding[],
+  volatile: string[] = [],
+  liveCandidates: LiveRegionCandidate[] = [],
+): string {
+  const first = drift[0];
+  let message =
+    `styleproof self-check failed: ${surfaceKey} is non-deterministic — ` +
+    `${drift.length} computed-style difference(s) between two captures of the same commit. ` +
+    `Likely a replay gap (a request not in the baseline HAR) or unseeded randomness.`;
+  if (volatile.length && hasRootLayoutDrift(drift)) {
+    message +=
+      ` Volatile regions were detected in this capture; root/body layout drift usually means live content ` +
+      `is still changing document flow. Model those live states with \`liveStates\` instead ` +
+      `of only ignoring the region.`;
+    if (liveCandidates.length) {
+      message += ` Auto-detected live-state candidate(s): ${liveCandidates
+        .slice(0, 3)
+        .map(liveCandidateDesc)
+        .join('; ')}.`;
+    }
+  }
+  return first ? `${message} First: ${driftDesc(first)}` : message;
+}
+
+function mergeIgnore(...groups: Array<string[] | undefined>): string[] | undefined {
+  const merged = [...new Set(groups.flatMap((g) => g ?? []))];
+  return merged.length ? merged : undefined;
+}
+
+type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates'> & { metadata?: CaptureMetadata };
+
+function expandOne(
+  surface: Surface,
+  variant: SurfaceVariant,
+  variantKind: CaptureMetadata['variantKind'],
+): ExpandedSurface {
+  return {
+    key: `${surface.key}-${variant.key}`,
+    go: async (page) => {
+      await variant.setup?.(page);
+      await surface.go(page);
+      await variant.go?.(page);
+    },
+    ignore: mergeIgnore(surface.ignore, variant.ignore),
+    widths: variant.widths ?? surface.widths,
+    height: variant.height ?? surface.height,
+    metadata: { surfaceKey: surface.key, variantKey: variant.key, variantKind },
+  };
+}
+
+export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
+  const variants = surface.variants ?? [];
+  const liveStates = surface.liveStates ?? [];
+  if (!variants.length && !liveStates.length) {
+    const { variants: _variants, liveStates: _liveStates, ...base } = surface;
+    void _variants;
+    void _liveStates;
+    return [{ ...base, metadata: { surfaceKey: surface.key } }];
+  }
+  return [
+    ...variants.map((variant) => expandOne(surface, variant, 'variant')),
+    ...liveStates.map((state) => expandOne(surface, state, 'live-state')),
+  ];
+}
+
 /**
  * Let SSE (EventSource) requests bypass HAR record/replay and reach the live
  * server. A long-lived stream can't round-trip through a HAR entry: recording
@@ -192,7 +322,7 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<void
 /** Capture the surface again and throw if the computed styles drifted from `first`. */
 async function assertDeterministic(
   page: Page,
-  surface: Surface,
+  surface: ExpandedSurface,
   first: Awaited<ReturnType<typeof captureStyleMap>>,
   captureText: boolean,
   pending: () => number,
@@ -201,11 +331,14 @@ async function assertDeterministic(
   const again = await captureStyleMap(page, { ignore: surface.ignore ?? [], captureText, pendingRequests: pending });
   const drift = diffStyleMaps(first, again);
   if (drift.length) {
+    const liveCandidates = [...(first.liveCandidates ?? []), ...(again.liveCandidates ?? [])];
     throw new Error(
-      `styleproof self-check failed: ${surface.key} is non-deterministic — ` +
-        `${drift.length} computed-style difference(s) between two captures of the same commit. ` +
-        `Likely a replay gap (a request not in the baseline HAR) or unseeded randomness. ` +
-        `First: ${driftDesc(drift[0])}`,
+      selfCheckErrorMessage(
+        surface.key,
+        drift,
+        [...new Set([...(first.volatile ?? []), ...(again.volatile ?? [])])],
+        liveCandidates,
+      ),
     );
   }
 }
@@ -213,7 +346,7 @@ async function assertDeterministic(
 /** Drive one surface at one width to a settled state and save its style map (+ screenshot).
  *  The caller owns the test timeout (one-per-test for explicit surfaces, one budget for
  *  the whole crawl) so a multi-surface crawl can't reset its own deadline mid-loop. */
-async function captureSurface(page: Page, surface: Surface, width: number, s: Settings): Promise<void> {
+async function captureSurface(page: Page, surface: ExpandedSurface, width: number, s: Settings): Promise<void> {
   await pinInputs(page, `${surface.key}@${width}.har`, s);
   const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
   await page.setViewportSize({ width, height });
@@ -228,6 +361,7 @@ async function captureSurface(page: Page, surface: Surface, width: number, s: Se
       captureText: s.captureText,
       captureComponent: s.captureComponent,
       pendingRequests: requests.pending,
+      metadata: surface.metadata,
     });
     if (s.selfCheck) await assertDeterministic(page, surface, map, s.captureText, requests.pending);
 
@@ -323,6 +457,7 @@ function resolveSettings(c: CaptureConfig): Settings {
 export function defineStyleMapCapture(options: DefineOptions): void {
   const { surfaces, expected, exclude = {}, dir } = options;
   const settings = resolveSettings(options);
+  const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
 
   // Coverage guard. Runs in the NORMAL test suite (NOT gated on a capture dir), so
   // a route added without a surface fails the app's own tests — long before, and
@@ -354,7 +489,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
 
   test.describe('styleproof capture', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
-    for (const surface of surfaces) {
+    for (const surface of captureSurfaces) {
       if (surface.widths && surface.widths.length > 0) {
         // Explicit widths: one parallelizable test per surface × width.
         for (const width of surface.widths) {
@@ -394,6 +529,10 @@ export type CrawlOptions = CaptureConfig & {
   height?: number | ((width: number) => number);
   /** Selectors skipped on every surface (live regions, third-party embeds). */
   ignore?: string[];
+  /** Deterministic variants captured for every discovered link surface. */
+  variants?: SurfaceVariant[];
+  /** First-class live product states captured for every discovered link surface. */
+  liveStates?: SurfaceLiveState[];
   /** Max ms to wait for the crawl root's links to render before reading them
    *  (an SPA hydrates its nav client-side). Default 15000. */
   linkTimeout?: number;
@@ -419,7 +558,7 @@ export type CrawlOptions = CaptureConfig & {
  * ```
  */
 export function defineCrawlCapture(options: CrawlOptions): void {
-  const { from, match, key, widths, height, ignore, linkTimeout = 15_000, dir } = options;
+  const { from, match, key, widths, height, ignore, variants, liveStates, linkTimeout = 15_000, dir } = options;
   const settings = resolveSettings(options);
 
   test.describe('styleproof crawl-capture', () => {
@@ -437,28 +576,34 @@ export function defineCrawlCapture(options: CrawlOptions): void {
             `<a href> links (a button-only nav exposes nothing to crawl), and \`match\` must keep them.`,
         );
       }
+      const captureSurfaces = links.flatMap((link) =>
+        expandSurfaceVariants({
+          key: link.key,
+          go: async (p) => {
+            await p.goto(link.url, { waitUntil: 'load' });
+          },
+          widths,
+          ignore,
+          height,
+          variants,
+          liveStates,
+        }),
+      );
       // Budget the whole sweep up front: one test captures every surface, and
       // captureSurface no longer sets its own timeout, so size it to the work found.
-      test.setTimeout(Math.max(180_000, links.length * widths.length * 60_000));
+      test.setTimeout(
+        Math.max(180_000, captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 0), 0) * 60_000),
+      );
 
       // 2. Capture each discovered surface. Aggregate failures so one bad surface
       //    reports without skipping the rest — they're an independent set, not a chain.
       const failures: string[] = [];
-      for (const link of links) {
-        for (const width of widths) {
-          const surface: Surface = {
-            key: link.key,
-            go: async (p) => {
-              await p.goto(link.url, { waitUntil: 'load' });
-            },
-            widths: [width],
-            ignore,
-            height,
-          };
+      for (const surface of captureSurfaces) {
+        for (const width of surface.widths ?? []) {
           try {
             await captureSurface(page, surface, width, settings);
           } catch (e) {
-            failures.push(`${link.key} @ ${width}: ${(e as Error).message}`);
+            failures.push(`${surface.key} @ ${width}: ${(e as Error).message}`);
           }
         }
       }
