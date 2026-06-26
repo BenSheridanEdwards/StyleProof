@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **The Action and `styleproof-report` support `--base-ref`.** The committed-map gate
+  now gets the full review experience, not just a bare diff: pass `base-ref` to the
+  Action (e.g. the PR base branch) and point `fresh-dir` at your committed maps — it
+  reads the base from git and produces the same before/after report + approval gate,
+  with no recapture. `styleproof-report --base-ref <gitref> <mapsDir>` does the same
+  on the CLI. The git-materialisation is now a shared `materializeRef` (in `gitref`)
+  used by both `styleproof-diff` and `styleproof-report`. `baseline-dir` is no longer
+  required when `base-ref` is set.
+
 ## [2.4.0] - 2026-06-26
 
 ### Added

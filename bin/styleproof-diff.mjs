@@ -26,10 +26,8 @@
  * error, 3 = only new surfaces (present on one side, no baseline to diff against).
  */
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
+import { materializeRef, GitRefError } from '../dist/gitref.js';
 
 const HELP = `styleproof-diff — certify a CSS refactor by diffing two computed-style captures
 
@@ -68,50 +66,6 @@ for (let i = 0; i < argv.length; i++) {
   } else args.push(argv[i]);
 }
 
-/** Run git, exiting 2 with a clean message on failure. */
-function git(gitArgs, { encoding = 'buffer' } = {}) {
-  const r = spawnSync('git', gitArgs, { encoding, maxBuffer: 1 << 28 });
-  return r;
-}
-
-/**
- * Materialise the captures committed at <dir> as of <ref> into a fresh temp dir,
- * so the base of the diff is e.g. main's map — no checkout, no recapture. Reads
- * only via git (no `tar`/deps); binary `.json.gz` files come through `git show`.
- */
-function materializeRef(ref, dir) {
-  const top = git(['rev-parse', '--show-toplevel'], { encoding: 'utf8' });
-  if (top.status !== 0) {
-    console.error('styleproof-diff --base-ref must run inside a git repository');
-    process.exit(2);
-  }
-  const toplevel = top.stdout.trim();
-  // -z: NUL-separated, unquoted paths (handles spaces/unicode).
-  const ls = git(['ls-tree', '-r', '-z', '--name-only', ref, '--', dir], { encoding: 'utf8' });
-  if (ls.status !== 0) {
-    console.error(`cannot read ${dir} at ${ref}: ${(ls.stderr || '').toString().trim()}`);
-    process.exit(2);
-  }
-  const files = ls.stdout.split('\0').filter(Boolean);
-  if (files.length === 0) {
-    console.error(`no committed captures at ${dir} in ${ref} — commit the maps so the base lives in git`);
-    process.exit(2);
-  }
-  const dirRepoRel = path.relative(toplevel, path.resolve(dir));
-  const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-baseref-'));
-  for (const f of files) {
-    const show = git(['show', `${ref}:${f}`]); // buffer — preserves .json.gz bytes
-    if (show.status !== 0) {
-      console.error(`cannot read ${f} at ${ref}`);
-      process.exit(2);
-    }
-    const out = path.join(dest, path.relative(dirRepoRel, f));
-    fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, show.stdout);
-  }
-  return dest;
-}
-
 let dirA;
 let dirB;
 let tmpBase = null;
@@ -124,7 +78,12 @@ if (baseRef) {
     console.error(`no capture at ${args[0]}`);
     process.exit(2);
   }
-  tmpBase = materializeRef(baseRef, args[0]);
+  try {
+    tmpBase = materializeRef(baseRef, args[0]);
+  } catch (e) {
+    console.error(e instanceof GitRefError ? `styleproof-diff --base-ref: ${e.message}` : String(e?.message ?? e));
+    process.exit(2);
+  }
   dirA = tmpBase;
   dirB = args[0];
 } else {

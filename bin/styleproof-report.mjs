@@ -10,13 +10,18 @@
  * need the .png screenshots that `defineStyleMapCapture` saves by default.
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
+import fs from 'node:fs';
 import { generateStyleMapReport } from '../dist/report.js';
+import { materializeRef, GitRefError } from '../dist/gitref.js';
 
 const HELP = `styleproof-report — reviewable before/after report from two captures
 
 usage: styleproof-report <beforeDir> <afterDir> --out <dir> [options]
+       styleproof-report --base-ref <gitref> <mapsDir> --out <dir> [options]
 
 options:
+  --base-ref <ref>          use <mapsDir> as committed at <ref> (e.g. main) as the
+                            before side — base from git, no recapture
   --out <dir>               output directory (default: styleproof-report)
   --image-base-url <url>    prefix for image URLs in report.md (default: relative)
   --pad <px>                padding around changed rects when cropping (default: 24)
@@ -47,6 +52,7 @@ let minWidth;
 let minHeight;
 let includeLayoutNoise = false;
 let includeContent = false;
+let baseRef = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '-h' || a === '--help') {
@@ -70,14 +76,36 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--include-layout-noise=')) includeLayoutNoise = a.slice(23) !== 'false';
   else if (a === '--include-content') includeContent = true;
   else if (a.startsWith('--include-content=')) includeContent = a.slice(18) !== 'false';
+  else if (a === '--base-ref') baseRef = argv[++i];
+  else if (a.startsWith('--base-ref=')) baseRef = a.slice(11);
   else if (a.startsWith('--')) {
     console.error(`unknown flag: ${a}`);
     process.exit(2);
   } else args.push(a);
 }
-if (args.length !== 2) {
-  console.error('usage: styleproof-report <beforeDir> <afterDir> --out <dir> [options]  (--help for all options)');
-  process.exit(2);
+let beforeDir;
+let afterDir;
+let tmpBase = null;
+if (baseRef) {
+  if (args.length !== 1) {
+    console.error('usage: styleproof-report --base-ref <gitref> <mapsDir> --out <dir> [options]');
+    process.exit(2);
+  }
+  try {
+    tmpBase = materializeRef(baseRef, args[0]);
+  } catch (e) {
+    console.error(e instanceof GitRefError ? `styleproof-report --base-ref: ${e.message}` : String(e?.message ?? e));
+    process.exit(2);
+  }
+  beforeDir = tmpBase;
+  afterDir = args[0];
+} else {
+  if (args.length !== 2) {
+    console.error('usage: styleproof-report <beforeDir> <afterDir> --out <dir> [options]  (--help for all options)');
+    process.exit(2);
+  }
+  beforeDir = args[0];
+  afterDir = args[1];
 }
 for (const [name, val] of [
   ['--pad', pad],
@@ -99,8 +127,8 @@ if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
 let result;
 try {
   result = generateStyleMapReport({
-    beforeDir: args[0],
-    afterDir: args[1],
+    beforeDir,
+    afterDir,
     outDir: flags.out,
     imageBaseUrl: flags.imageBaseUrl || undefined,
     pad,
@@ -114,6 +142,8 @@ try {
 } catch (e) {
   console.error(e.message);
   process.exit(2);
+} finally {
+  if (tmpBase) fs.rmSync(tmpBase, { recursive: true, force: true });
 }
 
 const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';

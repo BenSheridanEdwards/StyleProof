@@ -193,6 +193,35 @@ test('diff --base-ref: exits 2 when the ref has no committed captures at that pa
   rmTmp(repo);
 });
 
+test('report --base-ref: builds a report with the base read from a git ref', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(255, 0, 0)'), null); // restyled head
+  const out = path.join(repo, 'out');
+  const r = runIn(repo, REPORT, ['--base-ref', 'HEAD', 'maps', '--out', out]);
+  assert.equal(r.status, 1, r.stderr); // changes found vs the committed base
+  assert.match(r.stdout, /changed surface\(s\)/);
+  assert.ok(fs.existsSync(path.join(out, 'report.json')));
+  rmTmp(repo);
+});
+
+test('report --base-ref: exits 2 when the ref has no committed captures there', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  fs.writeFileSync(path.join(repo, 'readme'), 'x');
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'init'], { cwd: repo });
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null); // never committed
+  const out = path.join(repo, 'out');
+  const r = runIn(repo, REPORT, ['--base-ref', 'HEAD', 'maps', '--out', out]);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /no committed captures/);
+  rmTmp(repo);
+});
+
 // -------------------------------------------------------------- styleproof-report
 
 test('report CLI exits 0 and writes an empty report when nothing changed', () => {

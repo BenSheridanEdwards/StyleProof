@@ -10,10 +10,19 @@ branding:
 
 inputs:
   baseline-dir:
-    description: 'Directory with the committed baseline captures (.json.gz + .png).'
-    required: true
+    description: 'Directory with the committed baseline captures (.json.gz + .png). Omit when using base-ref.'
+    required: false
+  base-ref:
+    description: >-
+      Read the baseline from a git ref (e.g. the PR base branch) instead of
+      baseline-dir — the "base map lives on main, committed pre-push, CI just diffs"
+      model. Set this to the base ref and point fresh-dir at your committed maps dir;
+      the action reads <fresh-dir> as committed at <base-ref> for the before side
+      (needs `fetch-depth: 0` on checkout). Takes precedence over baseline-dir.
+    required: false
+    default: ''
   fresh-dir:
-    description: 'Directory with the freshly captured maps to compare (.json.gz + .png).'
+    description: 'Directory with the freshly captured (or committed) maps to compare (.json.gz + .png).'
     required: true
   report-branch:
     description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; never pruned.'
@@ -116,7 +125,11 @@ runs:
       shell: bash
       run: |
         set +e
-        npx styleproof-diff "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
+        if [ -n "${{ inputs.base-ref }}" ]; then
+          npx styleproof-diff --base-ref "${{ inputs.base-ref }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
+        else
+          npx styleproof-diff "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
+        fi
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
@@ -162,7 +175,11 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
         set -euo pipefail
-        npx styleproof-report "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
+        if [ -n "${{ inputs.base-ref }}" ]; then
+          npx styleproof-report --base-ref "${{ inputs.base-ref }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
+        else
+          npx styleproof-report "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
+        fi
 
         REPO='${{ github.repository }}'
         BRANCH='${{ inputs.report-branch }}'
