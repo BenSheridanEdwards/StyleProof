@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`npm run bench` — measures the committed-map gate's CI speedup.** A reproducible
+  benchmark of one in-browser capture vs one precomputed-map diff, projected to a
+  sample app. On the dev fixture: capture ≈ 1 s/surface-width, diff ≈ 0.4 ms — so the
+  per-PR compare step is ~1000s× cheaper, before counting the build + serve the
+  committed-map CI also skips. (Internal tooling; not shipped in the package.)
 - **The Action and `styleproof-report` support `--base-ref`.** The committed-map gate
   now gets the full review experience, not just a bare diff: pass `base-ref` to the
   Action (e.g. the PR base branch) and point `fresh-dir` at your committed maps — it
