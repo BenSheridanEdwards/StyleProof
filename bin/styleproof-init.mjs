@@ -209,6 +209,14 @@ const CONFIG = `import { defineConfig, devices } from '@playwright/test';
 // in-flight data either way, but a production build removes the variance at the source.)
 export default defineConfig({
   timeout: 120_000,
+  // Capture surfaces in PARALLEL. StyleProof generates one test per surface × width,
+  // each an isolated page writing a uniquely-keyed file (\`<key>@<width>.json.gz\`), with
+  // per-page record/replay and frozen clock — so they're independent and safe to run
+  // concurrently. Without this, all surfaces sit in one spec file and capture serially;
+  // with it they fan out across workers, a near-linear speedup on a multi-surface app.
+  // (\`--shard\` splits them across CI machines too; they write disjoint files into one
+  // dir.) Tune \`workers\` to your machine if needed.
+  fullyParallel: true,
   use: {
     baseURL: process.env.BASE_URL || '${baseUrl}',
   },

@@ -302,6 +302,8 @@ test('init scaffolds a playwright.config that serves a PRODUCTION build (no dev-
     // And it says WHY, so the choice is understood, not cargo-culted.
     assert.match(config, /PRODUCTION build/i);
     assert.match(config, /JIT-compile|timing-variable/i, 'explains why a dev server flakes');
+    // Surfaces capture in parallel by default — independent, uniquely-keyed tests.
+    assert.match(config, /fullyParallel: true/, 'scaffolds parallel surface capture');
   } finally {
     rmTmp(dir);
   }
