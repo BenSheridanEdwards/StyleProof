@@ -7,6 +7,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Automatic breakpoint detection — `Surface.widths` is now optional.** Omit it and
+  StyleProof reads the app's real viewport breakpoints from the loaded CSSOM at
+  capture time and sweeps one width per `@media` band — no config, no guessing.
+  Because it reads the browser's parsed stylesheets (not your source), it's
+  framework-agnostic: Tailwind, CSS Modules, styled-components, Sass and vanilla all
+  resolve to the same `@media` rules. It is authoritative **or it fails**: an
+  unreadable cross-origin stylesheet throws (so a band is never silently missed)
+  rather than guessing. `min/max-width` and range syntax (`width >= …`) are handled,
+  `em`/`rem` resolved against the root font size; container/print/height queries are
+  correctly ignored. Set `widths` explicitly to pin the sweep or to cover a JS-only
+  (`matchMedia`) breakpoint that has no CSS rule. New exports: `detectViewportWidths`,
+  `mediaTextWidthBoundaries`, `widthsFromBoundaries`.
+
 ## [2.3.1] - 2026-06-23
 
 ### Fixed

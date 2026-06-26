@@ -5,7 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests } from '../dist/index.js';
-import { diffStyleMaps, selectCrawlLinks } from '../dist/index.js';
+import { diffStyleMaps, selectCrawlLinks, detectViewportWidths } from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
 /** Navigate to inline HTML (no waiting past `load`) and run a callback. */
@@ -541,4 +541,28 @@ test('crawl discovery: reads a rendered nav into a deduped, keyed surface set', 
     await ctx.close();
     await new Promise<void>((r) => server.close(() => r()));
   }
+});
+
+test('detectViewportWidths reads the real @media breakpoints off the loaded page', async ({ page }) => {
+  // Mixed mobile-first and desktop-first rules, plus noise that must NOT register:
+  // a print query, a height query, and a container query (container-relative, not viewport).
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    @media (min-width: 768px) { .x { color: rgb(1,1,1) } }
+    @media (min-width: 1024px) { .x { color: rgb(2,2,2) } }
+    @media (max-width: 480px) { .x { color: rgb(3,3,3) } }
+    @media print { .x { color: rgb(4,4,4) } }
+    @media (min-height: 900px) { .x { color: rgb(5,5,5) } }
+    @container (min-width: 555px) { .x { color: rgb(6,6,6) } }
+  </style></head><body><main><span class="x">hi</span></main></body></html>`;
+  const widths = await withPage(page, html, () => detectViewportWidths(page));
+  // boundaries: 481 (max-width:480 + 1), 768, 1024 → base band rep 360, then each boundary.
+  // print / min-height / @container contribute nothing.
+  expect(widths).toEqual([360, 481, 768, 1024]);
+});
+
+test('detectViewportWidths returns a single width when the page has no width @media rules', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}.x{color:rgb(0,0,0)}</style></head><body><span class="x">hi</span></body></html>`;
+  const widths = await withPage(page, html, () => detectViewportWidths(page));
+  expect(widths).toEqual([1280]);
 });
