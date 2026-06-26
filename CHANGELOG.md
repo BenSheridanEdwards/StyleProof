@@ -23,6 +23,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `mediaTextWidthBoundaries`, `widthsFromBoundaries`. **`styleproof-init` now scaffolds
   surfaces with no `widths`**, so a fresh project gets zero-config breakpoint detection
   by default.
+- **Out-of-the-box committed-map gate — capture pre-push, CI just diffs.**
+  `styleproof-init` now scaffolds the whole flow as the default: a **pre-push hook**
+  (`.githooks/pre-push`) captures this branch's computed-style map against a
+  production build, commits it as a lean `.json.gz` under `stylemaps/`, and **pushes
+  it with your branch — one `git push`, never two** (the hook pushes the map commit
+  itself, because git would otherwise send only the pre-hook commit); and a
+  **browser-less CI workflow** that just diffs the committed map against the base. So
+  `main` always carries a base map and every PR is a fast comparison of precomputed
+  maps, never a recapture. (Capture belongs pre-push because it needs the app built +
+  served; the same-environment requirement is self-enforced by the self-check.)
+- **`styleproof-diff --base-ref <gitref>` — diff against a committed base in git.**
+  `styleproof-diff --base-ref main <mapsDir>` materialises the captures committed at
+  `<mapsDir>` as of `main` and diffs them against your working `<mapsDir>` — the CI
+  half of the gate above. Reads the base purely through git (`ls-tree`/`show`, no
+  `tar`/deps; binary `.json.gz` preserved), into a temp dir cleaned up after.
+- **`STYLEPROOF_BASEDIR` / `STYLEPROOF_SCREENSHOTS` env knobs** (same wiring style as
+  `STYLEPROOF_REPLAY_*`): redirect capture into a committed dir and drop screenshots
+  for lean, commit-friendly maps — without editing the spec. This is what lets the
+  pre-push hook capture committed maps from the stock generated spec.
 
 ## [2.3.1] - 2026-06-23
 

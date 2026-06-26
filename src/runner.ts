@@ -257,6 +257,31 @@ export function defaultSelfCheck(
   return env === '1' || !replayFrom;
 }
 
+/**
+ * Output base dir: explicit `baseDir` wins, then `STYLEPROOF_BASEDIR`, then the
+ * default. Lets a pre-push hook redirect capture into a COMMITTED dir (so main
+ * always carries a base map and CI just diffs precomputed maps) without editing
+ * the spec — same env-wiring philosophy as `STYLEPROOF_REPLAY_*`.
+ */
+export function resolveBaseDir(
+  baseDir: string | undefined,
+  env: string | undefined = process.env.STYLEPROOF_BASEDIR,
+): string {
+  return baseDir ?? env ?? '__stylemaps__';
+}
+
+/**
+ * Whether to save full-page screenshots: explicit `screenshots` wins, else
+ * `STYLEPROOF_SCREENSHOTS=0` turns them off — for committed maps you want the lean
+ * `.json.gz` only, never PNGs in git history. On by default otherwise.
+ */
+export function resolveScreenshots(
+  screenshots: boolean | undefined,
+  env: string | undefined = process.env.STYLEPROOF_SCREENSHOTS,
+): boolean {
+  return screenshots ?? env !== '0';
+}
+
 /** The capture settings every capturer shares (everything bar the surface set). */
 type CaptureConfig = Omit<DefineOptions, 'surfaces' | 'expected' | 'exclude'>;
 
@@ -270,8 +295,8 @@ function resolveSettings(c: CaptureConfig): Settings {
   const replayFrom = c.replayFrom ?? process.env.STYLEPROOF_REPLAY_FROM;
   return {
     dir: c.dir as string,
-    baseDir: c.baseDir ?? '__stylemaps__',
-    screenshots: c.screenshots ?? true,
+    baseDir: resolveBaseDir(c.baseDir),
+    screenshots: resolveScreenshots(c.screenshots),
     replayFrom,
     replayUrl: c.replayUrl ?? process.env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
     freezeClock: c.freezeClock ?? true,

@@ -144,6 +144,55 @@ test('diff CLI reads a plain .json capture against a .json.gz capture', () => {
   rmTmp(root);
 });
 
+// ------------------------------------------------- styleproof-diff --base-ref (base from git)
+
+function gitInit(dir) {
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  spawnSync('git', ['config', 'user.email', 't@example.test'], { cwd: dir });
+  spawnSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
+}
+const runIn = (cwd, script, a) => spawnSync(process.execPath, [script, ...a], { cwd, encoding: 'utf8' });
+const mapWith = (color) => makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color } } } });
+
+test('diff --base-ref: identical working maps vs the committed base → exit 0', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /surfaces identical/);
+  rmTmp(repo);
+});
+
+test('diff --base-ref: a restyled working map differs from the committed base → exit 1', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  // Restyle in the working tree (the pre-push head) — the committed base is unchanged.
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /computed-style difference/);
+  rmTmp(repo);
+});
+
+test('diff --base-ref: exits 2 when the ref has no committed captures at that path', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  fs.writeFileSync(path.join(repo, 'readme'), 'x');
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'init'], { cwd: repo });
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null); // never committed
+  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /no committed captures/);
+  rmTmp(repo);
+});
+
 // -------------------------------------------------------------- styleproof-report
 
 test('report CLI exits 0 and writes an empty report when nothing changed', () => {
@@ -259,6 +308,37 @@ test('init scaffolds auto breakpoints — no hardcoded widths, by design', () =>
     // detection by default — the surface sweeps the app's real @media bands.
     assert.doesNotMatch(spec, /widths: \[/, 'no hardcoded widths — detection is the default');
     assert.match(spec, /detects your @media breakpoints/, 'explains that widths are auto-detected');
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + browser-less CI diff', () => {
+  const dir = mkTmp();
+  try {
+    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+
+    // Pre-push hook: capture into a COMMITTED, LEAN dir, commit it, and push it
+    // WITH the branch — one `git push`, never two.
+    const hookPath = path.join(dir, '.githooks', 'pre-push');
+    const hook = fs.readFileSync(hookPath, 'utf8');
+    assert.match(hook, /STYLEPROOF_BASEDIR=stylemaps/, 'redirects capture into a committed dir');
+    assert.match(hook, /STYLEPROOF_SCREENSHOTS=0/, 'commits lean maps, no PNGs in git');
+    assert.match(hook, /git add stylemaps/);
+    assert.match(hook, /git commit/);
+    assert.match(hook, /git push "\$remote" HEAD/, 'pushes the map itself — no second manual push');
+    assert.match(hook, /STYLEPROOF_SKIP_CAPTURE/, 're-entry guard stops the inner push recapturing');
+    assert.doesNotMatch(hook, /push.{0,15}again/i, 'never tells the dev to push again');
+    assert.ok(fs.statSync(hookPath).mode & 0o100, 'hook is executable');
+
+    // CI does NOT run a browser — it just diffs the committed maps.
+    const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
+    assert.match(ci, /styleproof-diff --base-ref/, 'CI diffs against the base ref');
+    assert.doesNotMatch(ci, /playwright test/, 'CI never captures — maps are precomputed');
+
+    // The one-time activation is surfaced to the user.
+    assert.match(r.stdout, /core\.hooksPath \.githooks/, 'tells the user how to activate the hook');
   } finally {
     rmTmp(dir);
   }
