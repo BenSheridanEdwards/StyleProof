@@ -4,6 +4,7 @@ import path from 'node:path';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
 import { coverageGaps } from './coverage.js';
+import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
 
@@ -23,8 +24,14 @@ export type Surface = {
   go: (page: Page) => Promise<void>;
   /** Selectors for nondeterministic regions (live data, third-party embeds); skipped entirely. */
   ignore?: string[];
-  /** Viewport widths to sweep — one per @media band, so breakpoint rules are verified too. */
-  widths: number[];
+  /**
+   * Viewport widths to sweep — one per @media band, so breakpoint rules are verified
+   * too. OMIT to detect the app's real breakpoints from the loaded CSSOM and sweep one
+   * width per band automatically (no config); detection fails loudly if a stylesheet
+   * is cross-origin/unreadable rather than guess. Set it explicitly to pin the sweep
+   * or to cover a JS-only (`matchMedia`) breakpoint that has no CSS `@media` rule.
+   */
+  widths?: number[];
   /** Viewport height: a number, or a function of the width (default 800). */
   height?: number | ((width: number) => number);
 };
@@ -323,10 +330,22 @@ export function defineStyleMapCapture(options: DefineOptions): void {
   test.describe('styleproof capture', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
     for (const surface of surfaces) {
-      for (const width of surface.widths) {
-        test(`${surface.key} @ ${width}`, ({ page }) => {
-          test.setTimeout(180_000);
-          return captureSurface(page, surface, width, settings);
+      if (surface.widths && surface.widths.length > 0) {
+        // Explicit widths: one parallelizable test per surface × width.
+        for (const width of surface.widths) {
+          test(`${surface.key} @ ${width}`, ({ page }) => {
+            test.setTimeout(180_000);
+            return captureSurface(page, surface, width, settings);
+          });
+        }
+      } else {
+        // Auto widths: the band set isn't known until the page renders its CSS, so a
+        // single test loads once, detects the breakpoints, then sweeps each band.
+        test(`${surface.key} @ auto`, async ({ page }) => {
+          await surface.go(page);
+          const widths = await detectViewportWidths(page);
+          test.setTimeout(Math.max(180_000, widths.length * 60_000));
+          for (const width of widths) await captureSurface(page, surface, width, settings);
         });
       }
     }
