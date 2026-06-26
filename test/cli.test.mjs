@@ -298,6 +298,21 @@ test('init scaffolds a MINIMAL spec — StyleProof owns the settle, so go() is n
   }
 });
 
+test('init scaffolds auto breakpoints — no hardcoded widths, by design', () => {
+  const dir = mkTmp();
+  try {
+    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const spec = fs.readFileSync(path.join(dir, 'e2e', 'styleproof.spec.ts'), 'utf8');
+    // The scaffold omits widths so a fresh project gets zero-config breakpoint
+    // detection by default — the surface sweeps the app's real @media bands.
+    assert.doesNotMatch(spec, /widths: \[/, 'no hardcoded widths — detection is the default');
+    assert.match(spec, /detects your @media breakpoints/, 'explains that widths are auto-detected');
+  } finally {
+    rmTmp(dir);
+  }
+});
+
 test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + browser-less CI diff', () => {
   const dir = mkTmp();
   try {

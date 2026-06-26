@@ -9,16 +9,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Automatic breakpoint detection — `Surface.widths` is now optional.** Omit it and
+  StyleProof reads the app's real viewport breakpoints from the loaded CSSOM at
+  capture time and sweeps one width per `@media` band — no config, no guessing.
+  Because it reads the browser's parsed stylesheets (not your source), it's
+  framework-agnostic: Tailwind, CSS Modules, styled-components, Sass and vanilla all
+  resolve to the same `@media` rules. It is authoritative **or it fails**: an
+  unreadable cross-origin stylesheet throws (so a band is never silently missed)
+  rather than guessing. `min/max-width` and range syntax (`width >= …`) are handled,
+  `em`/`rem` resolved against the root font size; container/print/height queries are
+  correctly ignored. Set `widths` explicitly to pin the sweep or to cover a JS-only
+  (`matchMedia`) breakpoint that has no CSS rule. New exports: `detectViewportWidths`,
+  `mediaTextWidthBoundaries`, `widthsFromBoundaries`. **`styleproof-init` now scaffolds
+  surfaces with no `widths`**, so a fresh project gets zero-config breakpoint detection
+  by default.
 - **Out-of-the-box committed-map gate — capture pre-push, CI just diffs.**
   `styleproof-init` now scaffolds the whole flow as the default: a **pre-push hook**
   (`.githooks/pre-push`) captures this branch's computed-style map against a
   production build, commits it as a lean `.json.gz` under `stylemaps/`, and **pushes
   it with your branch — one `git push`, never two** (the hook pushes the map commit
   itself, because git would otherwise send only the pre-hook commit); and a
-  **browser-less CI workflow** that just diffs the committed map against the base. So `main` always carries a base map and
-  every PR is a fast comparison of precomputed maps, never a recapture. (Capture
-  belongs pre-push because it needs the app built + served; the same-environment
-  requirement is self-enforced by the self-check, which fails loudly on drift.)
+  **browser-less CI workflow** that just diffs the committed map against the base. So
+  `main` always carries a base map and every PR is a fast comparison of precomputed
+  maps, never a recapture. (Capture belongs pre-push because it needs the app built +
+  served; the same-environment requirement is self-enforced by the self-check.)
 - **`styleproof-diff --base-ref <gitref>` — diff against a committed base in git.**
   `styleproof-diff --base-ref main <mapsDir>` materialises the captures committed at
   `<mapsDir>` as of `main` and diffs them against your working `<mapsDir>` — the CI
