@@ -260,6 +260,37 @@ Like the content layer it is **advisory**: never fed to the certification diff o
 
 When a PR **adds** an element, StyleProof now reports its **full resting computed style** (background, padding, font, radius, …), value-only, in addition to any interaction-state deltas — previously an added element surfaced only its `:hover`/`:focus` changes. The new element already gates via its `added` finding; this only enriches what you see, in both the report and the `styleproof-diff` CLI.
 
+## Running surfaces in parallel
+
+You don't need a StyleProof-specific runner for this — `defineStyleMapCapture` emits **one Playwright test per surface × width**, each in its own page, writing a uniquely-keyed `<dir>/<key>@<width>.json.gz` (+ `.png` + `.har`). So Playwright's own parallelism applies directly and safely: separate worker processes get isolated browser contexts, and the unique filenames mean no two captures collide. Turn it up the normal way:
+
+```ts
+// playwright.config.ts
+export default defineConfig({
+  fullyParallel: true,
+  workers: process.env.CI ? 4 : '50%', // tune to the machine; each worker is a browser
+});
+```
+
+Determinism is per-page and unaffected: HAR record/replay is scoped per surface, and the frozen clock is set on each page. The coverage guard — not the worker pool — remains the thing that proves every surface was captured, so parallelism can never quietly drop one (a worker that fails a capture fails the run).
+
+**Across machines (CI): `--shard`.** Split the capture over N runners and have each capture its slice into the **same** `__stylemaps__/<dir>`; because the slices write disjoint filenames, merging is just collecting the per-shard directories into one before the diff:
+
+```yaml
+strategy:
+  matrix:
+    shard: [1, 2, 3]
+steps:
+  - run: STYLEMAP_DIR=head npx playwright test e2e/styleproof.spec.ts --shard=${{ matrix.shard }}/3
+  - uses: actions/upload-artifact@v4
+    with: { name: head-${{ matrix.shard }}, path: __stylemaps__/head }
+# a later job downloads head-1..3 into one __stylemaps__/head, then runs the Action
+```
+
+When replaying (the head capture), each shard needs the base's recorded HARs available for the surfaces it captures, so make the full base directory present on every head shard (download it before the sharded run). For most apps a single multi-worker job is simpler and plenty.
+
+**One exception — crawl capture is serial by design.** `defineCrawlCapture` discovers its surface set by rendering the page, so the list isn't known at test-collection time; it runs the whole sweep inside a **single** test and Playwright workers can't split it. It's usually a small SPA nav, so this is rarely the bottleneck — but if it is, list the surfaces explicitly with `defineStyleMapCapture` to get per-surface parallelism back.
+
 ## Reference
 
 **Action `BenSheridanEdwards/StyleProof@v2`** — key inputs:

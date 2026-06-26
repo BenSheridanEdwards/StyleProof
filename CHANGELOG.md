@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **README: "Running surfaces in parallel".** Documents that capture needs no
+  bespoke runner — `defineStyleMapCapture` emits one Playwright test per surface ×
+  width with uniquely-keyed output, so Playwright's own `workers` / `fullyParallel`
+  parallelize captures safely (isolated contexts, no file collisions), and `--shard`
+  splits them across CI machines (capture into one dir, merge the disjoint files).
+  Notes the one serial spot — `defineCrawlCapture` runs its whole sweep in a single
+  test, since the surface set isn't known until the page renders. Docs only.
+
 ## [2.3.1] - 2026-06-23
 
 ### Fixed
