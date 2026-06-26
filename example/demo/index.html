@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StyleProof demo</title>
+    <!--
+      A small, deterministic page StyleProof certifies against itself in CI
+      (test/dogfood.e2e.spec.ts). No web fonts, no animation, no JS, no live data —
+      so its computed styles are stable. Two real @media breakpoints (600 / 900) let
+      the dogfood prove automatic breakpoint detection on a real page.
+    -->
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        color: rgb(17, 24, 39);
+        background: rgb(249, 250, 251);
+      }
+      header {
+        padding: 16px 24px;
+        background: rgb(17, 24, 39);
+        color: rgb(255, 255, 255);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      header .brand {
+        font-weight: 700;
+        font-size: 18px;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+      .card {
+        padding: 16px;
+        border: 1px solid rgb(229, 231, 235);
+        border-radius: 8px;
+        background: rgb(255, 255, 255);
+      }
+      .card h2 {
+        margin: 0 0 8px;
+        font-size: 16px;
+        color: rgb(31, 41, 55);
+      }
+      .card p {
+        margin: 0;
+        color: rgb(75, 85, 99);
+      }
+      .btn {
+        display: inline-block;
+        margin-top: 12px;
+        padding: 8px 16px;
+        border: 0;
+        border-radius: 6px;
+        background: rgb(37, 99, 235);
+        color: rgb(255, 255, 255);
+        font-size: 14px;
+      }
+      .btn:hover {
+        background: rgb(29, 78, 216);
+      }
+      .btn:focus {
+        outline: 3px solid rgb(147, 197, 253);
+        outline-offset: 2px;
+      }
+
+      /* Two real breakpoints — the dogfood asserts detection finds exactly these. */
+      @media (min-width: 600px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      @media (min-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr 1fr 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="brand">StyleProof</span>
+      <span class="tag">demo</span>
+    </header>
+    <main>
+      <div class="grid">
+        <section class="card">
+          <h2>Computed, not pixels</h2>
+          <p>Every resolved longhand, every pseudo-element, every forced state.</p>
+          <button class="btn">Learn more</button>
+        </section>
+        <section class="card">
+          <h2>Any styling system</h2>
+          <p>Tailwind, CSS Modules, styled-components, Sass, vanilla.</p>
+          <button class="btn">Learn more</button>
+        </section>
+        <section class="card">
+          <h2>Swept across breakpoints</h2>
+          <p>One viewport per @media band, detected automatically.</p>
+          <button class="btn">Learn more</button>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
