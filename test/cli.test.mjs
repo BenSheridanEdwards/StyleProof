@@ -304,15 +304,17 @@ test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + bro
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
 
-    // Pre-push hook: capture into a COMMITTED, LEAN dir, commit it, then abort so
-    // the map travels with the push ("push again").
+    // Pre-push hook: capture into a COMMITTED, LEAN dir, commit it, and push it
+    // WITH the branch — one `git push`, never two.
     const hookPath = path.join(dir, '.githooks', 'pre-push');
     const hook = fs.readFileSync(hookPath, 'utf8');
     assert.match(hook, /STYLEPROOF_BASEDIR=stylemaps/, 'redirects capture into a committed dir');
     assert.match(hook, /STYLEPROOF_SCREENSHOTS=0/, 'commits lean maps, no PNGs in git');
     assert.match(hook, /git add stylemaps/);
     assert.match(hook, /git commit/);
-    assert.match(hook, /exit 1/, 'aborts so the committed map is included on the next push');
+    assert.match(hook, /git push "\$remote" HEAD/, 'pushes the map itself — no second manual push');
+    assert.match(hook, /STYLEPROOF_SKIP_CAPTURE/, 're-entry guard stops the inner push recapturing');
+    assert.doesNotMatch(hook, /push.{0,15}again/i, 'never tells the dev to push again');
     assert.ok(fs.statSync(hookPath).mode & 0o100, 'hook is executable');
 
     // CI does NOT run a browser — it just diffs the committed maps.
