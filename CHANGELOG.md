@@ -20,7 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `em`/`rem` resolved against the root font size; container/print/height queries are
   correctly ignored. Set `widths` explicitly to pin the sweep or to cover a JS-only
   (`matchMedia`) breakpoint that has no CSS rule. New exports: `detectViewportWidths`,
-  `mediaTextWidthBoundaries`, `widthsFromBoundaries`.
+  `mediaTextWidthBoundaries`, `widthsFromBoundaries`. **`styleproof-init` now scaffolds
+  surfaces with no `widths`**, so a fresh project gets zero-config breakpoint detection
+  by default.
 
 ## [2.3.1] - 2026-06-23
 
