@@ -62,6 +62,7 @@
     "test": "npm run build && node --test test/*.test.mjs",
     "test:watch": "node --test --watch test/*.test.mjs",
     "test:e2e": "npm run build && playwright test test/smoke.e2e.spec.ts",
+    "bench": "npm run build && node bench/gate-speed.mjs",
     "init": "node ./bin/styleproof-init.mjs",
     "prepare": "npm run build && husky",
     "prepublishOnly": "npm run clean && npm run build && npm run typecheck"
