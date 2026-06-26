@@ -297,3 +297,32 @@ test('init scaffolds a MINIMAL spec — StyleProof owns the settle, so go() is n
     rmTmp(dir);
   }
 });
+
+test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + browser-less CI diff', () => {
+  const dir = mkTmp();
+  try {
+    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+
+    // Pre-push hook: capture into a COMMITTED, LEAN dir, commit it, then abort so
+    // the map travels with the push ("push again").
+    const hookPath = path.join(dir, '.githooks', 'pre-push');
+    const hook = fs.readFileSync(hookPath, 'utf8');
+    assert.match(hook, /STYLEPROOF_BASEDIR=stylemaps/, 'redirects capture into a committed dir');
+    assert.match(hook, /STYLEPROOF_SCREENSHOTS=0/, 'commits lean maps, no PNGs in git');
+    assert.match(hook, /git add stylemaps/);
+    assert.match(hook, /git commit/);
+    assert.match(hook, /exit 1/, 'aborts so the committed map is included on the next push');
+    assert.ok(fs.statSync(hookPath).mode & 0o100, 'hook is executable');
+
+    // CI does NOT run a browser — it just diffs the committed maps.
+    const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
+    assert.match(ci, /styleproof-diff --base-ref/, 'CI diffs against the base ref');
+    assert.doesNotMatch(ci, /playwright test/, 'CI never captures — maps are precomputed');
+
+    // The one-time activation is surfaced to the user.
+    assert.match(r.stdout, /core\.hooksPath \.githooks/, 'tells the user how to activate the hook');
+  } finally {
+    rmTmp(dir);
+  }
+});
