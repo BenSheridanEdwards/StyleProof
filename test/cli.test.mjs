@@ -144,6 +144,55 @@ test('diff CLI reads a plain .json capture against a .json.gz capture', () => {
   rmTmp(root);
 });
 
+// ------------------------------------------------- styleproof-diff --base-ref (base from git)
+
+function gitInit(dir) {
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  spawnSync('git', ['config', 'user.email', 't@example.test'], { cwd: dir });
+  spawnSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
+}
+const runIn = (cwd, script, a) => spawnSync(process.execPath, [script, ...a], { cwd, encoding: 'utf8' });
+const mapWith = (color) => makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color } } } });
+
+test('diff --base-ref: identical working maps vs the committed base → exit 0', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /surfaces identical/);
+  rmTmp(repo);
+});
+
+test('diff --base-ref: a restyled working map differs from the committed base → exit 1', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  // Restyle in the working tree (the pre-push head) — the committed base is unchanged.
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /computed-style difference/);
+  rmTmp(repo);
+});
+
+test('diff --base-ref: exits 2 when the ref has no committed captures at that path', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  fs.writeFileSync(path.join(repo, 'readme'), 'x');
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'init'], { cwd: repo });
+  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null); // never committed
+  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /no committed captures/);
+  rmTmp(repo);
+});
+
 // -------------------------------------------------------------- styleproof-report
 
 test('report CLI exits 0 and writes an empty report when nothing changed', () => {

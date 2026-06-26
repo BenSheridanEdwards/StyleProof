@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`styleproof-diff --base-ref <gitref>` — diff against a committed base in git.**
+  `styleproof-diff --base-ref main <mapsDir>` materialises the captures committed at
+  `<mapsDir>` as of `main` and diffs them against your working `<mapsDir>` — so the
+  base map lives on `main` (committed pre-push) and the gate never recomputes it.
+  Reads the base purely through git (`ls-tree`/`show`, no `tar`/deps; binary
+  `.json.gz` preserved), into a temp dir cleaned up after. Both sides must be
+  captured in the same environment (browser + fonts) for the diff to be meaningful.
+
 ## [2.3.1] - 2026-06-23
 
 ### Fixed
