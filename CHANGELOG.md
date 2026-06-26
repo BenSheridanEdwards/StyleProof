@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **`styleproof-init` scaffolds parallel surface capture (`fullyParallel: true`).**
+  StyleProof emits one test per surface × width, each an isolated page writing a
+  uniquely-keyed file — independent and safe to run concurrently. Without
+  `fullyParallel`, all surfaces sit in one spec file and capture **serially**; with it
+  they fan out across workers. Measured: 6 surfaces went from 12.3 s (1 worker) to
+  4.9 s (4 workers) — **~2.5× faster**, byte-identical output. Profiling confirmed the
+  single-capture path is correctness-bound (the settle is a deterministic wait; forced
+  states must be isolated per element), so parallelism across surfaces — not
+  micro-optimising one capture — is the real lever.
+
 ### Added
 
 - **Dogfood: StyleProof certifies its own demo page in CI.** A new
