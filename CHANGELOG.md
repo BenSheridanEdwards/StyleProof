@@ -9,6 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Dogfood: StyleProof certifies its own demo page in CI.** A new
+  `example/demo/index.html` plus `test/dogfood.e2e.spec.ts` run the full
+  capture → detect → diff pipeline on a real multi-element page every CI run:
+  auto-detection finds the demo's `@media` breakpoints, two captures certify
+  identical (determinism), and a planted restyle is caught. `test:e2e` now runs the
+  whole `*.e2e.spec.ts` suite. (Repo-only; `example/` isn't in the published package.)
+
 - **`npm run bench` — measures the committed-map gate's CI speedup.** A reproducible
   benchmark of one in-browser capture vs one precomputed-map diff, projected to a
   sample app. On the dev fixture: capture ≈ 1 s/surface-width, diff ≈ 0.4 ms — so the

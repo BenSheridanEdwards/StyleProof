@@ -61,7 +61,7 @@
     "format:check": "prettier --check \"{src,bin,test,example}/**/*.{ts,mjs,js}\" \"*.{ts,js,mjs,json,md}\"",
     "test": "npm run build && node --test test/*.test.mjs",
     "test:watch": "node --test --watch test/*.test.mjs",
-    "test:e2e": "npm run build && playwright test test/smoke.e2e.spec.ts",
+    "test:e2e": "npm run build && playwright test",
     "bench": "npm run build && node bench/gate-speed.mjs",
     "init": "node ./bin/styleproof-init.mjs",
     "prepare": "npm run build && husky",
