@@ -7,6 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Example workflow: cache the base capture in CI (`example/styleproof-cache-base.yml`).**
+  The base map for a given base commit is identical across PRs, so the base capture
+  can be cached with `actions/cache` and recomputed only on a miss (the head is
+  always captured fresh). The cache key pins everything that changes computed styles
+  — runner OS image (fonts), arch, Playwright/Chromium version (lockfile) — plus the
+  base SHA, with **exact match only** (no `restore-keys`): a fuzzy hit from a
+  different environment would surface as phantom diffs or mask a real change. This
+  caches an _artifact_ keyed by environment; it does **not** commit StyleMaps into
+  the repo, so the diff stays HEAD-vs-base with no committed baseline. Docs only — no
+  library code change.
+
 ## [2.3.1] - 2026-06-23
 
 ### Fixed

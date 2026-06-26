@@ -1,0 +1,71 @@
+# StyleProof — single-job gate, with the BASE capture cached.
+#
+# The base map for a given base commit is identical across PRs, so recomputing it
+# every run is wasted work. This wraps ONLY the base capture in actions/cache. The
+# head is always captured fresh (it's the code under review).
+#
+# Soundness note: a StyleMap is only comparable to one captured in an IDENTICAL
+# environment (computed styles depend on the browser build and installed fonts). So
+# the cache key pins everything that moves computed styles — the runner OS image
+# (which fixes the font set), the arch, and the Playwright/Chromium version (via the
+# lockfile) — plus the base SHA. EXACT MATCH ONLY: no `restore-keys`. A fuzzy hit
+# would serve a base from a different environment, surfacing as phantom diffs or,
+# worse, masking a real change (false-clean). On a miss we simply recompute.
+#
+# Self-hosted runners: `ImageOS`/`ImageVersion` are GitHub-hosted-image fingerprints;
+# on self-hosted runners they may be empty, so add your own environment fingerprint
+# (browser + font versions) to the key, or don't cache.
+name: StyleProof (cached base)
+
+on: pull_request
+
+jobs:
+  styleproof:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the report branch
+      pull-requests: write # post/update the comment
+      statuses: write # set the StyleProof status
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the base branch too
+
+      # Restore the base capture for THIS base commit IN THIS EXACT ENVIRONMENT.
+      - name: Restore base StyleMap
+        id: base-cache
+        uses: actions/cache@v4
+        with:
+          path: __stylemaps__/base
+          key: styleproof-base-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-pw-${{ hashFiles('package-lock.json') }}-${{ github.event.pull_request.base.sha }}
+          # No restore-keys on purpose — a near-match base from a different
+          # environment is unsound to diff against.
+
+      # Capture the base branch ONLY on a cache miss. On a hit, __stylemaps__/base
+      # (maps + screenshots + the replay HAR) is already restored.
+      - name: Capture base (cache miss only)
+        if: steps.base-cache.outputs.cache-hit != 'true'
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+          npm ci && npm run build && (npm run serve &)
+          npx wait-on http://localhost:3000
+          npx playwright install --with-deps chromium
+          STYLEMAP_DIR=base npx playwright test e2e/styleproof.spec.ts
+
+      # Capture the PR head, replaying the base's recorded data (restored or fresh)
+      # so the diff is code, not live-data drift.
+      - name: Capture head
+        run: |
+          git checkout ${{ github.event.pull_request.head.sha }}
+          npm ci && npm run build && (npm run serve &)
+          npx wait-on http://localhost:3000
+          npx playwright install --with-deps chromium
+          STYLEMAP_DIR=head STYLEPROOF_REPLAY_FROM=__stylemaps__/base npx playwright test e2e/styleproof.spec.ts
+
+      # Report + gate. The post-run of actions/cache saves __stylemaps__/base after a
+      # miss, priming the cache for the next PR on the same base.
+      - uses: BenSheridanEdwards/StyleProof@v2
+        with:
+          baseline-dir: __stylemaps__/base
+          fresh-dir: __stylemaps__/head
+          require-approval: true

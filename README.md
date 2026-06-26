@@ -223,6 +223,27 @@ Copy both `capture` and `report` files to `.github/workflows/` (the `report` one
 | `clockTime`                                   | Your styling keys off a **specific** date, not just "now".                                                                                                                                                       |
 | `stabilize: { quietFor, timeout }`            | An unusually slow surface needs a longer quiet window before the map is read.                                                                                                                                    |
 
+## Optional: cache the base capture in CI (skip base recompute)
+
+The base map for a given base commit is identical across PRs, so recomputing it on every run is wasted work. You can cache **just the base capture** with `actions/cache` and recompute only on a miss — the head is always captured fresh, since it's the code under review. See [`example/styleproof-cache-base.yml`](example/styleproof-cache-base.yml) for the full job; the heart of it is:
+
+```yaml
+- name: Restore base StyleMap
+  id: base-cache
+  uses: actions/cache@v4
+  with:
+    path: __stylemaps__/base # maps + screenshots + the replay HAR
+    key: styleproof-base-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-pw-${{ hashFiles('package-lock.json') }}-${{ github.event.pull_request.base.sha }}
+
+- name: Capture base (cache miss only)
+  if: steps.base-cache.outputs.cache-hit != 'true'
+  run: # …git checkout base.sha, build, serve, STYLEMAP_DIR=base capture
+```
+
+**The key is the whole point.** A StyleMap is only comparable to one captured in an _identical_ environment — computed styles depend on the browser build and the installed fonts. So the key pins everything that moves them: the runner OS image (which fixes the font set), the arch, and the Playwright/Chromium version (via the lockfile hash), **plus** the base SHA. It uses **exact match only — no `restore-keys`** — because a fuzzy hit would serve a base captured in a _different_ environment, surfacing as phantom diffs or, worse, masking a real change (a false-clean). On a miss it simply recomputes, so the gate is never weakened — only sometimes faster.
+
+> This caches an _artifact_ keyed by environment; it does **not** commit StyleMaps into the repo. The diff stays HEAD-vs-base with no committed baseline to maintain. On self-hosted runners `ImageOS`/`ImageVersion` may be empty, so add your own environment fingerprint (browser + font versions) to the key, or don't cache.
+
 ## Optional: content layer (advisory)
 
 StyleProof is **computed-styles first**, and stays that way: a CSS-only refactor that also rewrites text is still certified identical, and live text (a clock, "2m ago") never reads as a change. But a pure-style diff is blind to copy, and copy isn't always cosmetic: **new or longer text can overflow or clip its box, silently breaking the layout.** A visual-confidence tool that can't see that isn't quite complete. So the content layer exists as an explicit **opt-in**, off by default, and **advisory** — it never feeds the certification or the gate.
