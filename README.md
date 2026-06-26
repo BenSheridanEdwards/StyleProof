@@ -256,6 +256,37 @@ Capture reads the React fiber in-page (`__reactFiber$*`/`__reactProps$*` on Reac
 
 Like the content layer it is **advisory**: never fed to the certification diff or the gate, so captures stay deterministic. Component names are mangled in minified production builds, so it's most useful against a dev / non-minified target; on a non-React page the fiber keys are absent and the field is simply omitted.
 
+## Optional: suggest viewport widths from your breakpoints (advisory)
+
+A surface's `widths` is **one viewport per `@media` band** — and a hand-picked width can fall mid-band and silently miss a breakpoint rule. `suggestWidthsFromCss` reads a stylesheet's `@media` `min-width` / `max-width` boundaries and returns a `widths` array with one width in **every** band, to review and paste:
+
+```ts
+import { suggestWidthsFromCss } from 'styleproof';
+
+const css = fs.readFileSync('dist/assets/index.css', 'utf8');
+suggestWidthsFromCss(css); // e.g. [360, 768, 1024] — one width per @media band
+```
+
+To use the breakpoints the browser actually applied (after a build, CSS-in-JS extraction, etc.), collect the stylesheet text once in a throwaway capture and print the suggestion:
+
+```ts
+const css = await page.evaluate(() =>
+  [...document.styleSheets]
+    .flatMap((s) => {
+      try {
+        return [...s.cssRules];
+      } catch {
+        return []; // cross-origin sheet — not readable
+      }
+    })
+    .map((r) => r.cssText)
+    .join('\n'),
+);
+console.log(suggestWidthsFromCss(css));
+```
+
+It's **advisory and off the capture path**: detection is necessarily incomplete — it can't see `@container` queries, JS `matchMedia` breakpoints, CSS-in-JS that isn't in a parsed sheet, or a framework's config-defined breakpoints — so it only **suggests** a starting point and never narrows what capture sweeps. `Surface.widths` stays the source of truth. Also exported, both pure and dependency-free: `breakpointsFromCss` (just the boundaries) and `suggestWidths` (the band math, for a `widths` array you already have).
+
 ## Newly-added elements show their full style
 
 When a PR **adds** an element, StyleProof now reports its **full resting computed style** (background, padding, font, radius, …), value-only, in addition to any interaction-state deltas — previously an added element surfaced only its `:hover`/`:focus` changes. The new element already gates via its `added` finding; this only enriches what you see, in both the report and the `styleproof-diff` CLI.

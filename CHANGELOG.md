@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Advisory breakpoint helper — `suggestWidthsFromCss` / `breakpointsFromCss` /
+  `suggestWidths`.** Choosing a surface's `widths` ("one viewport per `@media`
+  band") is hand-done, and a guessed width can fall mid-band and miss a breakpoint
+  rule. These pure helpers read a stylesheet's `@media` `min-width`/`max-width`
+  boundaries and **suggest** a `widths` array that puts one width in every band, to
+  review and paste. They are **advisory and off the capture path** — detection is
+  necessarily incomplete (blind to `@container`, JS `matchMedia`, CSS-in-JS, and
+  framework config), so it only suggests; it never narrows what capture sweeps, and
+  `Surface.widths` stays authoritative. Dependency-free; no StyleMap format change.
+
 ## [2.3.1] - 2026-06-23
 
 ### Fixed
