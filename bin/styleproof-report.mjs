@@ -12,16 +12,21 @@
  */
 import fs from 'node:fs';
 import { generateStyleMapReport } from '../dist/report.js';
-import { materializeRef, GitRefError } from '../dist/gitref.js';
+import { inferBaseRef, materializeRef, GitRefError } from '../dist/gitref.js';
+
+const DEFAULT_MAPS_DIR = 'stylemaps/current';
 
 const HELP = `styleproof-report — reviewable before/after report from two captures
 
-usage: styleproof-report <beforeDir> <afterDir> --out <dir> [options]
-       styleproof-report --base-ref <gitref> <mapsDir> --out <dir> [options]
+usage: styleproof-report [baseRef] [options]
+       styleproof-report --base-ref <gitref> [mapsDir] [options]
+       styleproof-report <beforeDir> <afterDir> [options]
 
 options:
-  --base-ref <ref>          use <mapsDir> as committed at <ref> (e.g. main) as the
-                            before side — base from git, no recapture
+  --base-ref <ref>          report <mapsDir> as committed at <ref> (e.g. main)
+                            against your working <mapsDir> — base from git, no recapture
+  --maps-dir <dir>          committed map dir for the base-ref flow
+                            (default: ${DEFAULT_MAPS_DIR})
   --out <dir>               output directory (default: styleproof-report)
   --image-base-url <url>    prefix for image URLs in report.md (default: relative)
   --pad <px>                padding around changed rects when cropping (default: 24)
@@ -53,6 +58,7 @@ let minHeight;
 let includeLayoutNoise = false;
 let includeContent = false;
 let baseRef = null;
+let mapsDir = DEFAULT_MAPS_DIR;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '-h' || a === '--help') {
@@ -78,6 +84,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--include-content=')) includeContent = a.slice(18) !== 'false';
   else if (a === '--base-ref') baseRef = argv[++i];
   else if (a.startsWith('--base-ref=')) baseRef = a.slice(11);
+  else if (a === '--maps-dir') mapsDir = argv[++i];
+  else if (a.startsWith('--maps-dir=')) mapsDir = a.slice(11);
   else if (a.startsWith('--')) {
     console.error(`unknown flag: ${a}`);
     process.exit(2);
@@ -86,19 +94,35 @@ for (let i = 0; i < argv.length; i++) {
 let beforeDir;
 let afterDir;
 let tmpBase = null;
-if (baseRef) {
-  if (args.length !== 1) {
-    console.error('usage: styleproof-report --base-ref <gitref> <mapsDir> --out <dir> [options]');
+if (baseRef || args.length <= 1) {
+  if (baseRef) {
+    if (args.length > 1) {
+      console.error('usage: styleproof-report --base-ref <gitref> [mapsDir] [--out <dir>] [options]');
+      process.exit(2);
+    }
+    if (args.length === 1) mapsDir = args[0];
+  } else if (args.length === 1) {
+    baseRef = args[0];
+  } else {
+    try {
+      baseRef = inferBaseRef();
+    } catch (e) {
+      console.error(e instanceof GitRefError ? `styleproof-report: ${e.message}` : String(e?.message ?? e));
+      process.exit(2);
+    }
+  }
+  if (!fs.existsSync(mapsDir)) {
+    console.error(`no capture at ${mapsDir}; run styleproof-map first`);
     process.exit(2);
   }
   try {
-    tmpBase = materializeRef(baseRef, args[0]);
+    tmpBase = materializeRef(baseRef, mapsDir);
   } catch (e) {
     console.error(e instanceof GitRefError ? `styleproof-report --base-ref: ${e.message}` : String(e?.message ?? e));
     process.exit(2);
   }
   beforeDir = tmpBase;
-  afterDir = args[0];
+  afterDir = mapsDir;
 } else {
   if (args.length !== 2) {
     console.error('usage: styleproof-report <beforeDir> <afterDir> --out <dir> [options]  (--help for all options)');

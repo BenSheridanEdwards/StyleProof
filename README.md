@@ -206,7 +206,13 @@ origin/my-base`.
 
 > **Same-environment note.** Computed styles depend on the browser build and installed fonts, so maps are only comparable when captured in the same environment (your machine, or a pinned container). The self-check fails loudly on a non-deterministic capture, so drift never passes silently.
 
-**Want the side-by-side report + one-click approval** (not just a pass/fail diff)? Use the Action, pointing it at the base ref:
+**Want the local side-by-side report** (not just a pass/fail diff)? Run `npx
+styleproof-report` after `styleproof-map`; it uses the same inferred base ref and
+`stylemaps/current` defaults as `styleproof-diff`. Pin the base with
+`styleproof-report main` or keep the manual form with `styleproof-report before
+after --out report`.
+
+**Want the side-by-side report + one-click approval**? Use the Action, pointing it at the base ref:
 
 ```yaml
 # .github/workflows/styleproof.yml
@@ -384,7 +390,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 - `styleproof-init` — scaffold **and activate** the whole gate: the capture spec, a `playwright.config.ts` (production-build `webServer`, parallel capture), the pre-push capture-and-push hook, and the browser-less CI workflow. One command. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default) instead of assuming npm.
 - `styleproof-map` — capture the current branch's computed-style map through Playwright. By default it writes lean committed maps to `stylemaps/current`; pass `--spec`, `--dir`, `--base-dir`, or `--screenshots` when you need a custom capture.
 - `styleproof-diff` — the certify gate. With no args, it diffs `stylemaps/current` against the inferred base branch; `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form. Exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
-- `styleproof-report <beforeDir> <afterDir> --out <dir>` — render the diff to a Markdown report with before/after crops. Add `--include-content` for the opt-in, advisory content section (see above); **`--base-ref <gitref> <mapsDir>`** reads the base from git like the diff CLI.
+- `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports `stylemaps/current` against the inferred base branch; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content section (see above).
 
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 

@@ -23,6 +23,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   success line says `0 changed surfaces across N captured surface(s)` instead of
   the confusing `N surfaces identical` / `0 surfaces identical` wording, and the
   `--json` payload includes `compared` so consumers can show the same count.
+- **`styleproof-report` now mirrors the diff CLI defaults.** Run
+  `styleproof-report` with no args to generate the side-by-side report from
+  `stylemaps/current` against the inferred base branch, or pass
+  `styleproof-report main` / `--base-ref main` to pin the base while keeping the
+  committed-map directory default.
 
 ### Fixed
 

@@ -289,6 +289,53 @@ test('report --base-ref: builds a report with the base read from a git ref', () 
   rmTmp(repo);
 });
 
+test('report defaults to stylemaps/current against the inferred main branch', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+  const r = runIn(repo, REPORT, []);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /changed surface\(s\)/);
+  assert.ok(fs.existsSync(path.join(repo, 'styleproof-report', 'report.json')));
+  rmTmp(repo);
+});
+
+test('report accepts a single base ref and uses stylemaps/current', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+  const out = path.join(repo, 'out');
+  const r = runIn(repo, REPORT, ['main', '--out', out]);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /changed surface\(s\)/);
+  assert.ok(fs.existsSync(path.join(out, 'report.md')));
+  rmTmp(repo);
+});
+
+test('report --base-ref uses stylemaps/current when mapsDir is omitted', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  const out = path.join(repo, 'out');
+  const r = runIn(repo, REPORT, ['--base-ref', 'HEAD', '--out', out]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /no changes/);
+  assert.ok(fs.existsSync(path.join(out, 'report.json')));
+  rmTmp(repo);
+});
+
 test('report --base-ref: exits 2 when the ref has no committed captures there', () => {
   const repo = mkTmp();
   gitInit(repo);
@@ -326,7 +373,7 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
 });
 
 test('report CLI exits 2 on wrong argument count', () => {
-  const r = run(REPORT, ['only-one']);
+  const r = run(REPORT, ['a', 'b', 'c']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /usage: styleproof-report/);
 });
