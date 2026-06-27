@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **Release workflow now verifies npm publication before tagging.** A release
+  fails before creating tags or GitHub Releases if `NPM_TOKEN` is missing, and
+  it verifies `styleproof@<version>` on npm after publishing or detecting an
+  already-published version.
+
 ## [3.1.0] - 2026-06-27
 
 ### Changed

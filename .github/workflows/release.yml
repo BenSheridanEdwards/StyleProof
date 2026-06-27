@@ -8,9 +8,9 @@ name: Release
 # version, so the version bump is the deliberate "release this" signal.
 #
 # To cut a release: bump the version in your PR (`npm version patch|minor|major
-# --no-git-tag-version`, or edit package.json + CHANGELOG), then merge. Until
-# the NPM_TOKEN secret is set the publish step is skipped (the tag + Release
-# still happen); add it for automated, provenance-signed publishing.
+# --no-git-tag-version`, or edit package.json + CHANGELOG), then merge. The
+# npm package is the canonical artifact, so NPM_TOKEN must be configured before
+# the workflow will tag or create a GitHub Release.
 on:
   push:
     branches: [main]
@@ -89,9 +89,9 @@ jobs:
         if: steps.check.outputs.released == 'true'
         run: npm run test:e2e
 
-      # Idempotent and token-aware: skip when NPM_TOKEN is unset (tag + Release
-      # still happen; publish manually until then) or when the version is somehow
-      # already on npm. Provenance needs npm >= 9.5 (Node 22) and id-token: write.
+      # Idempotent but strict: fail before tagging if NPM_TOKEN is unset, skip
+      # publish when the version is already present, then verify the registry.
+      # Provenance needs npm >= 9.5 (Node 22) and id-token: write.
       - name: Publish to npm
         if: steps.check.outputs.released == 'true'
         env:
@@ -99,12 +99,19 @@ jobs:
         run: |
           VERSION="${{ steps.check.outputs.version }}"
           if [ -z "${NODE_AUTH_TOKEN}" ]; then
-            echo "::warning::NPM_TOKEN is not set — skipping npm publish. Add the secret for automated provenance-signed releases."
+            echo "::error::NPM_TOKEN is not set — refusing to tag/release without publishing to npm."
+            exit 1
           elif npm view "styleproof@${VERSION}" version >/dev/null 2>&1; then
-            echo "::notice::styleproof@${VERSION} is already on npm — skipping publish."
+            echo "::notice::styleproof@${VERSION} is already on npm — verifying."
           else
             npm publish --provenance --access public
           fi
+          PUBLISHED="$(npm view "styleproof@${VERSION}" version)"
+          if [ "$PUBLISHED" != "$VERSION" ]; then
+            echo "::error::npm registry returned ${PUBLISHED:-<empty>} for styleproof@${VERSION}"
+            exit 1
+          fi
+          echo "::notice::Verified styleproof@${VERSION} on npm."
 
       - name: Tag the release
         if: steps.check.outputs.released == 'true'
