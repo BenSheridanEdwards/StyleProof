@@ -23,9 +23,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   success line says `0 changed surfaces across N captured surface(s)` instead of
   the confusing `N surfaces identical` / `0 surfaces identical` wording, and the
   `--json` payload includes `compared` so consumers can show the same count.
+- **`styleproof-report` now mirrors the diff CLI defaults.** Run
+  `styleproof-report` with no args to generate the side-by-side report from
+  `stylemaps/current` against the inferred base branch, or pass
+  `styleproof-report main` / `--base-ref main` to pin the base while keeping the
+  committed-map directory default.
+- **No-arg diff/report now understand stacked PRs locally.** After
+  `GITHUB_BASE_REF` and explicit `branch.<name>.gh-merge-base` config, the shared
+  base-ref inference asks `gh pr view` for the current PR base before falling back
+  to `main`/`master`, so stacked branches compare against their real review base
+  out of the box.
 
 ### Fixed
 
+- **CLI errors now lead with the recovery step.** Missing specs, unknown flags,
+  absent working maps, and missing committed base maps now print a concrete
+  `Next:` line such as `run styleproof-map`, pass `--maps-dir <dir>`, or commit
+  captures on the base branch.
 - **`styleproof-map` now runs generated capture tests correctly.** The CLI no
   longer passes the spec path as a Playwright file filter, because StyleProof's
   generated tests are registered through the package runner. It now targets the

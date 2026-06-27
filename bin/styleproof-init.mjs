@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { discoverNextRoutes } from '../dist/index.js';
+import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
 
 const HELP = `styleproof-init — scaffold a styleproof capture spec
 
@@ -55,10 +56,8 @@ let baseUrl = 'http://localhost:3000';
 let force = false;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
-  if (a === '-h' || a === '--help') {
-    process.stdout.write(HELP);
-    process.exit(0);
-  } else if (a === '--dir') specPath = argv[++i];
+  if (isHelpArg(a)) showHelpAndExit(HELP);
+  else if (a === '--dir') specPath = argv[++i];
   else if (a.startsWith('--dir=')) specPath = a.slice(6);
   else if (a === '--base-url') baseUrl = argv[++i];
   else if (a.startsWith('--base-url=')) baseUrl = a.slice(11);
