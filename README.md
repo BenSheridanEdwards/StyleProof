@@ -12,12 +12,12 @@ Pixel-snapshot tools miss most CSS regressions: they can't force `:hover` / `:fo
 
 ## What the gate does
 
-On every PR, StyleProof captures a `StyleMap` from the HEAD and from the base branch, diffs them, and posts a Markdown comment:
+On every PR, StyleProof diffs the PR head's computed-style map against the base branch's, and posts a Markdown comment:
 
 - A **lean summary comment** linking to a committed side-by-side report — the report is the complete source of truth (**one section per distinct change**, with a before/after cropped screenshot cropped from the same rectangle so the two sides line up exactly, **plain-English bullets that tell you what to look for** — `columns: 2 → 3`, `recoloured cyan → amber` — and the exact property changes). The comment never duplicates the report, so the two can't drift, and it renders identically on public and private repos.
 - A single **Approve all changes** checkbox in the comment, driving a `StyleProof` commit status: red until one tick signs off every change, green when there are none. The reviewer who ticks it is recorded inline (_approved by @them_), sourced from the commit status so it survives a report re-run.
 - **New surfaces don't block.** A surface that exists only on the PR head (no baseline to diff — e.g. the bootstrap PR that first adds the capture spec, or a brand-new page) is shown in the report under a `🆕 new surface` heading but never holds the status red and needs no sign-off. It becomes part of the baseline once merged.
-- No committed baseline to maintain — the diff is HEAD-vs-base, so the report is _exactly what this PR changes_.
+- The diff is always **head-vs-base**, so the report is _exactly what this PR changes_ — whether the maps are captured fresh in CI or (by default) committed pre-push and diffed browser-free in CI. See [Quickstart](#quickstart).
 
 ## Don't let a new page ship uncaptured
 
@@ -102,6 +102,10 @@ _landing @ 1280_
 
 StyleProof reads the browser's **computed styles** — the values it actually resolves — never your source CSS. Tailwind, CSS Modules, styled-components, Sass, vanilla CSS, inline styles: all produce the same computed output, and that's what it diffs. Elements are keyed by **DOM structure, not class name**, so a refactor that rewrites every `class` still lines up element-for-element.
 
+## Breakpoints, detected automatically
+
+Omit `widths` on a surface and StyleProof reads your app's real `@media` breakpoints from the **loaded CSSOM** at capture time and sweeps one viewport per band — no config. It's framework-agnostic for the same reason the diff is: it reads the rules the browser actually parsed, not your source, so Tailwind / CSS Modules / Sass / vanilla all resolve to the same `@media` boundaries. And it's authoritative **or it fails** — an unreadable cross-origin stylesheet throws rather than silently miss a band; it never guesses. Pin `widths` explicitly when you want a fixed sweep, or to cover a JS-only (`matchMedia`) breakpoint that has no CSS rule.
+
 ## Certify a refactor
 
 The same engine has a second mode that proves a change touched _nothing_ visual: with `fail-on-diff: true`, any difference at all fails the job. It's the job StyleProof was born for — certifying a CSS-to-Tailwind migration rendered byte-for-byte identical. Reach for it on any change whose whole promise is "the output is unchanged": a utility-class migration, a design-system swap, a dependency or build-tooling bump. Zero diff is the contract; one drifting longhand is a regression to investigate, not a change to approve.
@@ -117,70 +121,60 @@ Requires **Node ≥ 18** (ESM), **`@playwright/test` ≥ 1.40** (peer dep). Forc
 
 ## Quickstart
 
-**1. Scaffold the capture spec** (`npx styleproof-init` writes `e2e/styleproof.spec.ts`), then describe your surfaces:
+After installing (above), one command sets up — and **activates** — the whole gate:
+
+```bash
+npx styleproof-init
+```
+
+It scaffolds:
+
+- a **capture spec** (`e2e/styleproof.spec.ts`) describing your surfaces (a Next.js app gets its routes _and_ the coverage guard wired automatically — see below);
+- a **`playwright.config.ts`** that builds and serves a **production build** (never a flaky dev server) and captures surfaces **in parallel** (`fullyParallel`);
+- a **pre-push hook** (`.githooks/pre-push`, activated for you via `core.hooksPath` — it won't clobber an existing husky setup) that captures the map, commits it as a lean `.json.gz` under `stylemaps/`, and **pushes it with your branch — one `git push`, never two**;
+- a **browser-less CI workflow** that diffs your committed map against the base branch.
+
+Describe your surfaces — **omit `widths`** and StyleProof sweeps your real `@media` breakpoints automatically:
 
 ```ts
 import { defineStyleMapCapture } from 'styleproof';
 
 defineStyleMapCapture({
-  dir: process.env.STYLEMAP_DIR, // inert until set, so it lives safely beside other tests
   surfaces: [
     {
       key: 'landing',
-      go: (page) => page.goto('/'), // that's it — StyleProof settles the page (in-flight data, fonts, animations) before it reads
-      widths: [1280, 768, 390], // one viewport per @media band
+      go: (page) => page.goto('/'), // StyleProof settles the page (in-flight data, fonts, animations) before it reads
+      // no `widths` → auto-detected from your @media bands; set `widths: [1280, 768, 390]` to pin them
     },
   ],
+  dir: process.env.STYLEMAP_DIR,
 });
 ```
 
-**2. Wire CI to capture base and head, then hand both to the Action:**
+**That's the whole loop.** Capture happens **pre-push on your machine** (where the app already builds and serves); the lean map is committed and pushed; and **CI is a browser-less diff of two precomputed maps** — no build, no browser, just a fast comparison (~5400× cheaper on the compare step than re-capturing both sides in CI). `main` always carries a base map, so every PR is _your code vs the committed base_. Require the `StyleProof` status in branch protection and an unverified visual change can't merge.
+
+> **Same-environment note.** Computed styles depend on the browser build and installed fonts, so maps are only comparable when captured in the same environment (your machine, or a pinned container). The self-check fails loudly on a non-deterministic capture, so drift never passes silently.
+
+**Want the side-by-side report + one-click approval** (not just a pass/fail diff)? Use the Action, pointing it at the base ref:
 
 ```yaml
 # .github/workflows/styleproof.yml
-name: StyleProof
-on: pull_request
-
-jobs:
-  styleproof:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # push the report branch
-      pull-requests: write # post/update the comment
-      statuses: write # set the StyleProof status
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # need the base branch too
-
-      # capture the base branch
-      - run: git checkout ${{ github.event.pull_request.base.sha }}
-      - run: npm ci && npm run build && (npm run serve &) # your framework's build + serve
-      - run: npx wait-on http://localhost:3000
-      - run: STYLEMAP_DIR=base npx playwright test e2e/styleproof.spec.ts
-
-      # capture the PR head — replay the base's recorded data so the diff is
-      # code, not live-data drift (see "Deterministic by default" below)
-      - run: git checkout ${{ github.event.pull_request.head.sha }}
-      - run: npm ci && npm run build && (npm run serve &)
-      - run: npx wait-on http://localhost:3000
-      - run: STYLEMAP_DIR=head STYLEPROOF_REPLAY_FROM=__stylemaps__/base npx playwright test e2e/styleproof.spec.ts
-
-      # report + gate
-      - uses: BenSheridanEdwards/StyleProof@v2
-        with:
-          baseline-dir: __stylemaps__/base # captures land under baseDir (default __stylemaps__)
-          fresh-dir: __stylemaps__/head
-          require-approval: true # review-gate mode (omit / use fail-on-diff: true to certify)
+- uses: actions/checkout@v4
+  with: { fetch-depth: 0 } # need the base ref's committed map
+- uses: BenSheridanEdwards/StyleProof@v3
+  with:
+    base-ref: origin/${{ github.event.pull_request.base.ref }} # read the base map from git
+    fresh-dir: stylemaps/current # your committed maps
+    require-approval: true # review-gate mode (omit / use fail-on-diff: true to certify)
 ```
 
-**3. Copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` on your default branch** — GitHub only runs `issue_comment` workflows from there, so the checkboxes do nothing until it's merged.
+Then copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged).
 
-**4. Require the `StyleProof` status** in branch protection. Now an unsigned visual change can't merge.
+**Prefer to capture in CI instead of committing maps?** For a repo with many outside contributors on different machines, StyleProof can capture **both** base and head in CI and diff them there — no committed maps. See **[Forks and Dependabot](#forks-and-dependabot)** for that flow (it's also the fork-safe split). The committed-map flow above is the default because it's far faster and simpler for a single team.
 
 ## Forks and Dependabot
 
-The single-workflow setup above runs the whole gate in one `pull_request` job — which needs a **write** token to push the report branch, post the comment, and set the `StyleProof` status. That's fine for same-repo PRs, but **fork and Dependabot PRs run with a read-only `GITHUB_TOKEN`** (GitHub's security default for untrusted PRs). So the job can't post the status — and a required `StyleProof` check then sits `pending` forever, blocking the PR even though a dependency or fork change usually touches no UI at all.
+If you **capture in CI** rather than committing maps (the alternative noted at the end of the Quickstart — a better fit when many outside contributors push from different machines), the simplest setup runs the whole gate in one `pull_request` job that captures base + head and diffs them. That job needs a **write** token to push the report branch, post the comment, and set the `StyleProof` status. That's fine for same-repo PRs, but **fork and Dependabot PRs run with a read-only `GITHUB_TOKEN`** (GitHub's security default for untrusted PRs). So the job can't post the status — and a required `StyleProof` check then sits `pending` forever, blocking the PR even though a dependency or fork change usually touches no UI at all.
 
 Fix it by splitting capture from reporting, the way the approve workflow is already split out:
 
@@ -191,11 +185,11 @@ That last point is why this works where `pull_request_target` does not: StylePro
 
 **Where the PR identity comes from.** The report stage comments on the PR and sets the `StyleProof` status against a specific PR number and head commit, so those values have to be trustworthy. It takes them from the trusted `workflow_run` event — `head_sha`, then the event's `pull_requests`, with a commit→PR lookup against that **same trusted head SHA** for fork PRs (whose association the event doesn't carry directly) — and **never** from the downloaded artifact. The artifact is produced by the untrusted capture job, so treating anything in it as identity would let a malicious PR point the privileged comment and status at a victim PR or an arbitrary commit (a confused-deputy attack). The artifact therefore carries only the style-map captures, consumed purely as diff input.
 
-Copy both `capture` and `report` files to `.github/workflows/` (the `report` one must be on your default branch, like `styleproof-approve.yml`), then require the `StyleProof` status as in step 4. The single-job `styleproof.yml` above remains fine for repos that never see fork or bot PRs.
+Copy both `capture` and `report` files to `.github/workflows/` (the `report` one must be on your default branch, like `styleproof-approve.yml`), then require the `StyleProof` status in branch protection. A single combined `pull_request` job that captures base + head and diffs them is fine for repos that never see fork or bot PRs; this split is only needed for untrusted PRs.
 
 **Deterministic by default — no fixtures required.** A style diff only means something if both sides saw the same inputs; otherwise live-data drift (a backend blip, a `5m ago` timestamp, a status chip that flips) reads as a style change on a PR that touched no CSS. StyleProof handles this for you:
 
-- **Record / replay.** The base capture records each surface's data responses (anything matching `**/api/**`) to a HAR; the head capture replays them, so the head renders _its_ code against the _base's_ data — the app's own JS/CSS still load live. Backend down during a run? Both sides replay the same recording, so there's no phantom diff. Point the head capture at the base's recording with `STYLEPROOF_REPLAY_FROM=<base dir>` (see the CI step above); tune the data boundary with `STYLEPROOF_REPLAY_URL` / `replayUrl` if your API isn't under `/api`.
+- **Record / replay.** The base capture records each surface's data responses (anything matching `**/api/**`) to a HAR; the head capture replays them, so the head renders _its_ code against the _base's_ data — the app's own JS/CSS still load live. Backend down during a run? Both sides replay the same recording, so there's no phantom diff. Point the head capture at the base's recording with `STYLEPROOF_REPLAY_FROM=<base dir>` (set on the head capture); tune the data boundary with `STYLEPROOF_REPLAY_URL` / `replayUrl` if your API isn't under `/api`.
 - **Frozen clock.** `Date.now()` / `new Date()` are pinned to a fixed instant, so time-derived styling (`stale > 1h → red`) can't drift. Timers keep running, so settling still works.
 - **Self-check** — captures each surface twice and fails if they differ, so a replay gap or unseeded randomness surfaces as a clear _"non-deterministic capture"_ error, never as a phantom change on an unrelated PR. **On by default while recording** (where live nondeterminism shows up); off on the replay run, which renders against the recorded HAR and is deterministic by construction. `STYLEPROOF_SELFCHECK=1` forces it on for both; `selfCheck: false` opts out.
 - **Framework noise is skipped by default.** Non-visual and framework-injected elements never count as a change — `<meta>`/`<title>`/`<script>`/`<style>`/… (which Next.js streams into the body then hoists) and live regions like Next's `next-route-announcer`. A real stylesheet change still shows up in the affected elements' computed styles, not in the `<style>` tag. Add your own selectors with `ignore` — they extend this default, they don't replace it.
@@ -262,15 +256,16 @@ When a PR **adds** an element, StyleProof now reports its **full resting compute
 
 ## Reference
 
-**Action `BenSheridanEdwards/StyleProof@v2`** — key inputs:
+**Action `BenSheridanEdwards/StyleProof@v3`** — key inputs:
 
-| Input              | Default      | Purpose                                                                    |
-| ------------------ | ------------ | -------------------------------------------------------------------------- |
-| `baseline-dir`     | _required_   | Base-branch captures.                                                      |
-| `fresh-dir`        | _required_   | PR-head captures to compare.                                               |
-| `require-approval` | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.          |
-| `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.   |
-| `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection. |
+| Input              | Default      | Purpose                                                                                                                                |
+| ------------------ | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `fresh-dir`        | _required_   | PR-head (or committed) captures to compare.                                                                                            |
+| `base-ref`         | _none_       | Read the baseline from a git ref (e.g. the PR base branch) instead of `baseline-dir` — the committed-map flow. Needs `fetch-depth: 0`. |
+| `baseline-dir`     | _required\*_ | Base-branch captures dir. _\*Not required when `base-ref` is set._                                                                     |
+| `require-approval` | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.                                                                      |
+| `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                                                               |
+| `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.                                                             |
 
 Outputs: `changed` (`"true"` when anything changed), `report-url`. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
@@ -310,20 +305,22 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 **Capture env vars** (wire CI without editing the spec):
 
-| Env                      | Purpose                                                                       |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| `STYLEMAP_DIR`           | Output label; the capture is skipped entirely when unset.                     |
-| `STYLEPROOF_REPLAY_FROM` | Baseline dir to replay recorded data from — set this on the **head** capture. |
-| `STYLEPROOF_REPLAY_URL`  | Override the `**/api/**` data-boundary glob.                                  |
-| `STYLEPROOF_SELFCHECK`   | `1` to capture each surface twice and fail if the two differ.                 |
+| Env                      | Purpose                                                                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `STYLEMAP_DIR`           | Output label; the capture is skipped entirely when unset.                                     |
+| `STYLEPROOF_BASEDIR`     | Output root dir (default `__stylemaps__`). The committed-map hook sets this to a tracked dir. |
+| `STYLEPROOF_SCREENSHOTS` | `0` to skip full-page screenshots — lean, commit-friendly `.json.gz`-only maps.               |
+| `STYLEPROOF_REPLAY_FROM` | Baseline dir to replay recorded data from — set this on the **head** capture.                 |
+| `STYLEPROOF_REPLAY_URL`  | Override the `**/api/**` data-boundary glob.                                                  |
+| `STYLEPROOF_SELFCHECK`   | `1` to capture each surface twice and fail if the two differ.                                 |
 
 **CLIs** (every flag accepts `--flag value` and `--flag=value`; `--help` lists all):
 
-- `styleproof-init` — scaffold the capture spec (and, if none exists, a starter `playwright.config.ts` whose `webServer` **builds and serves a production build**, so captures never run against a flaky dev server).
-- `styleproof-diff <beforeDir> <afterDir>` — the certify gate; exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against).
-- `styleproof-report <beforeDir> <afterDir> --out <dir>` — render the diff to a Markdown report with before/after crops. Add `--include-content` for the opt-in, advisory content section (see above).
+- `styleproof-init` — scaffold **and activate** the whole gate: the capture spec, a `playwright.config.ts` (production-build `webServer`, parallel capture), the pre-push capture-and-push hook, and the browser-less CI workflow. One command.
+- `styleproof-diff <beforeDir> <afterDir>` — the certify gate; exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against). Use **`styleproof-diff --base-ref <gitref> <mapsDir>`** to diff your committed maps against a git ref (the committed-map flow) — no second dir, no recapture.
+- `styleproof-report <beforeDir> <afterDir> --out <dir>` — render the diff to a Markdown report with before/after crops. Add `--include-content` for the opt-in, advisory content section (see above); **`--base-ref <gitref> <mapsDir>`** reads the base from git like the diff CLI.
 
-A programmatic API (`captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, …) is also exported. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
+A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 
 ## License
 
