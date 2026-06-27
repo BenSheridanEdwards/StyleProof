@@ -586,6 +586,15 @@ test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + bro
     assert.match(ci, /Comment StyleProof result/, 'CI posts a PR receipt for clean diffs');
     assert.match(ci, /No visual changes detected/, 'clean receipts are explicit');
     assert.match(ci, /Fail on StyleProof diff/, 'CI still fails after posting the receipt when a diff exists');
+    // New surfaces (exit 3) never block — only reviewable diffs (exit 1) and
+    // errors (exit 2) hold the check red. Mirrors action.yml's gate.
+    assert.match(
+      ci,
+      /if: steps\.diff\.outputs\.exit-code != '0' && steps\.diff\.outputs\.exit-code != '3'/,
+      'CI gate excludes exit 3 (new-surface-only) so new surfaces never block',
+    );
+    assert.match(ci, /result=new/, 'a new-surface-only diff is reported as new, not changed');
+    assert.match(ci, /New surface\(s\) detected/, 'the PR receipt explains new surfaces instead of claiming a change');
     assert.doesNotMatch(ci, /playwright test/, 'CI never captures — maps are precomputed');
 
     // Activation is surfaced (this temp dir isn't a git repo, so init prints the

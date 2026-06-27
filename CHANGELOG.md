@@ -13,6 +13,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   workflow for docs-only / non-rendered paths with native path filters, but do
   not skip individual surfaces based on changed-file guesses.
 
+### Fixed
+
+- **The scaffolded CI workflow no longer blocks PRs that only add new surfaces.**
+  `styleproof init` generated a workflow that failed on any non-zero diff exit
+  code, so a new-surface-only diff (exit `3`) held the check red and the PR
+  receipt claimed "Visual changes detected" — contradicting the documented
+  contract that new surfaces never block. The gate now fails only on reviewable
+  diffs (exit `1`) and errors (exit `2`), matching `action.yml`, and the receipt
+  reports new surfaces explicitly.
+
 ## [3.1.1] - 2026-06-27
 
 ### Changed

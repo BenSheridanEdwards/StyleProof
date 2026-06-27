@@ -381,8 +381,10 @@ ${PM.setup}
           echo "exit-code=\${code}" >> "$GITHUB_OUTPUT"
           if [ "$code" -eq 0 ]; then
             echo "result=clean" >> "$GITHUB_OUTPUT"
-          elif [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then
+          elif [ "$code" -eq 1 ]; then
             echo "result=changed" >> "$GITHUB_OUTPUT"
+          elif [ "$code" -eq 3 ]; then
+            echo "result=new" >> "$GITHUB_OUTPUT"
           else
             echo "result=error" >> "$GITHUB_OUTPUT"
           fi
@@ -397,10 +399,13 @@ ${PM.setup}
           script: |
             const issue_number = context.payload.pull_request.number;
             const marker = '<!-- styleproof-report -->';
-            const clean = '\${{ steps.diff.outputs.result }}' === 'clean';
-            const body = clean
-              ? marker + '\\n## 🗺️ StyleProof report\\n\\n✓ No visual changes detected.'
-              : marker + '\\n## 🗺️ StyleProof report\\n\\nVisual changes detected. See the StyleProof check logs for the computed-style diff.';
+            const result = '\${{ steps.diff.outputs.result }}';
+            const bodies = {
+              clean: '✓ No visual changes detected.',
+              new: '🆕 New surface(s) detected — no committed baseline to diff against yet, so nothing to approve. They will be certified once their map is committed.',
+              changed: 'Visual changes detected. See the StyleProof check logs for the computed-style diff.',
+            };
+            const body = marker + '\\n## 🗺️ StyleProof report\\n\\n' + (bodies[result] || bodies.changed);
             const { data: comments } = await github.rest.issues.listComments({
               ...context.repo,
               issue_number,
@@ -413,7 +418,9 @@ ${PM.setup}
               await github.rest.issues.createComment({ ...context.repo, issue_number, body });
             }
       - name: Fail on StyleProof diff
-        if: steps.diff.outputs.exit-code != '0'
+        # Exit 1 = reviewable diffs (gate red); 2 = error. Exit 3 (new surface,
+        # no baseline) never blocks — it has nothing to approve yet.
+        if: steps.diff.outputs.exit-code != '0' && steps.diff.outputs.exit-code != '3'
         shell: bash
         run: exit \${{ steps.diff.outputs.exit-code }}
 `;
