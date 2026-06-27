@@ -61,7 +61,13 @@ for (const manager of [
     lockfile: null,
     config: /npm run build && npm run start/,
     hook: /npx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
-    workflow: [/cache: npm/, /npm ci/, /npx styleproof-diff --base-ref/],
+    workflow: [
+      /cache: npm/,
+      /npm ci/,
+      /npx styleproof-diff --base-ref/,
+      /Comment StyleProof result/,
+      /No visual changes detected/,
+    ],
   },
   {
     name: 'Yarn v1 lockfile',
@@ -72,6 +78,8 @@ for (const manager of [
       /cache: yarn/,
       /npx -y yarn@1\.22\.22 install --frozen-lockfile --non-interactive/,
       /npx -y yarn@1\.22\.22 styleproof-diff --base-ref/,
+      /Comment StyleProof result/,
+      /No visual changes detected/,
     ],
     absent: [/npm ci/],
   },
@@ -80,7 +88,13 @@ for (const manager of [
     lockfile: 'pnpm-lock.yaml',
     config: /npx -y pnpm build && npx -y pnpm start/,
     hook: /npx -y pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts/,
-    workflow: [/cache: pnpm/, /npx -y pnpm install --frozen-lockfile/, /npx -y pnpm exec styleproof-diff --base-ref/],
+    workflow: [
+      /cache: pnpm/,
+      /npx -y pnpm install --frozen-lockfile/,
+      /npx -y pnpm exec styleproof-diff --base-ref/,
+      /Comment StyleProof result/,
+      /No visual changes detected/,
+    ],
     absent: [/npm ci/],
   },
   {
@@ -88,7 +102,13 @@ for (const manager of [
     lockfile: 'bun.lock',
     config: /bun run build && bun run start/,
     hook: /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
-    workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /bunx styleproof-diff --base-ref/],
+    workflow: [
+      /oven-sh\/setup-bun@v2/,
+      /bun install --frozen-lockfile/,
+      /bunx styleproof-diff --base-ref/,
+      /Comment StyleProof result/,
+      /No visual changes detected/,
+    ],
     absent: [/npm ci/],
   },
 ]) {

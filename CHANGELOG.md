@@ -31,6 +31,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   generated tests are registered through the package runner. It now targets the
   capture suite with Playwright's grep path, matching the public
   `styleproof-init` → `styleproof-map` → `styleproof-diff` flow.
+- **Clean StyleProof PR runs now leave a visible receipt.** The Action creates or
+  updates its PR comment with `No visual changes detected.` even when there is no
+  existing report comment yet, and `styleproof-init` scaffolds the same
+  no-change PR comment for the browser-less committed-map workflow.
 - **Layout-equivalent auto-margin drift no longer creates phantom diffs.** Some
   browser/forced-state combinations can report horizontal `margin-left` /
   `margin-right` / logical margin equivalents differently even when the captured

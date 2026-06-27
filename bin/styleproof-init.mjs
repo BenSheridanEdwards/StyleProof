@@ -334,6 +334,8 @@ on: pull_request
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   styleproof:
@@ -344,8 +346,52 @@ jobs:
           fetch-depth: 0 # need the base ref to read its committed map
 ${PM.setup}
       - run: ${PM.install}
-      - name: Diff this branch's committed map against the base
-        run: ${PM.exec(`styleproof-diff --base-ref "origin/\${{ github.event.pull_request.base.ref }}"`)}
+      - id: diff
+        name: Diff this branch's committed map against the base
+        shell: bash
+        run: |
+          set +e
+          ${PM.exec(`styleproof-diff --base-ref "origin/\${{ github.event.pull_request.base.ref }}"`)} | tee styleproof-diff.txt
+          code=\${PIPESTATUS[0]}
+          set -e
+          echo "exit-code=\${code}" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 0 ]; then
+            echo "result=clean" >> "$GITHUB_OUTPUT"
+          elif [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then
+            echo "result=changed" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=error" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Comment StyleProof result
+        if: >-
+          always() &&
+          github.event_name == 'pull_request' &&
+          steps.diff.outputs.result != '' &&
+          steps.diff.outputs.result != 'error'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const issue_number = context.payload.pull_request.number;
+            const marker = '<!-- styleproof-report -->';
+            const clean = '\${{ steps.diff.outputs.result }}' === 'clean';
+            const body = clean
+              ? marker + '\\n## 🗺️ StyleProof report\\n\\n✓ No visual changes detected.'
+              : marker + '\\n## 🗺️ StyleProof report\\n\\nVisual changes detected. See the StyleProof check logs for the computed-style diff.';
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number, body });
+            }
+      - name: Fail on StyleProof diff
+        if: steps.diff.outputs.exit-code != '0'
+        shell: bash
+        run: exit \${{ steps.diff.outputs.exit-code }}
 `;
 
 function writeFileSafe(file, contents, { force: f } = {}) {
