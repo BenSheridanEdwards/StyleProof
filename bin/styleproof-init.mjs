@@ -325,6 +325,7 @@ if git cat-file -e HEAD:stylemaps/current 2>/dev/null; then
   if [ "$code" -eq 0 ]; then
     rm -f "$tmp"
     git restore --source=HEAD -- stylemaps
+    git clean -fdq -- stylemaps/current
     exit 0
   fi
 

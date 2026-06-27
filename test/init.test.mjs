@@ -130,6 +130,7 @@ for (const manager of [
       assert.match(hook, manager.hook);
       assert.match(hook, manager.hookSelfDiff);
       assert.match(hook, /git restore --source=HEAD -- stylemaps/);
+      assert.match(hook, /git clean -fdq -- stylemaps\/current/);
       assert.match(hook, /pin live states or replay\/fixture the data boundary/);
 
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
