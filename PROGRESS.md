@@ -26,7 +26,7 @@
 
 ## Next Action
 
-- Force-push the rebased PR branch, then wait for CI/Fallow on PR #88.
+- Push the updated PR branch, then wait for CI/Fallow on PR #88.
 
 ## Blockers
 
