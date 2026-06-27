@@ -15,3 +15,15 @@ test('composite action builds its checkout before running local bins', () => {
   assert.match(installStep[0], /npm run build/);
   assert.doesNotMatch(installStep[0], /npm ci .*--omit=dev/);
 });
+
+test('composite action creates a no-change PR receipt on a clean first run', () => {
+  const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+
+  assert.ok(commentStep, 'action.yml should include a PR comment step');
+  assert.match(commentStep[0], /if \(!report\) \{/);
+  assert.match(
+    commentStep[0],
+    /await upsert\(`\$\{marker\}\\n## 🗺️ StyleProof report\\n\\n✓ No visual changes detected\.`\);/,
+  );
+  assert.doesNotMatch(commentStep[0], /if \(existing\) await upsert/, 'clean first run must create a comment too');
+});

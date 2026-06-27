@@ -548,6 +548,9 @@ test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + bro
     // CI does NOT run a browser — it just diffs the committed maps.
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
     assert.match(ci, /styleproof-diff --base-ref/, 'CI diffs against the base ref');
+    assert.match(ci, /Comment StyleProof result/, 'CI posts a PR receipt for clean diffs');
+    assert.match(ci, /No visual changes detected/, 'clean receipts are explicit');
+    assert.match(ci, /Fail on StyleProof diff/, 'CI still fails after posting the receipt when a diff exists');
     assert.doesNotMatch(ci, /playwright test/, 'CI never captures — maps are precomputed');
 
     // Activation is surfaced (this temp dir isn't a git repo, so init prints the

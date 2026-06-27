@@ -261,7 +261,7 @@ runs:
             : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
 
           if (!report) {
-            if (existing) await upsert(`${marker}\n## 🗺️ StyleProof report\n\n✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.`);
+            await upsert(`${marker}\n## 🗺️ StyleProof report\n\n✓ No visual changes detected.`);
             return;
           }
 
