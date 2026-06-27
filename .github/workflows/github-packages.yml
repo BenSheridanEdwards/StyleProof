@@ -27,6 +27,8 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
 
       # GitHub Packages requires the name scoped to the repo owner. This rewrite
       # is ephemeral (CI checkout only); package.json on the branch is untouched.
