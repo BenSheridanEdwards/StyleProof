@@ -25,11 +25,17 @@ async function freePort(): Promise<number> {
   });
 }
 
+function commandEnv(env: NodeJS.ProcessEnv = {}) {
+  const merged = { ...process.env, PATH: `${PLAYWRIGHT_BIN}${path.delimiter}${process.env.PATH}`, CI: '1', ...env };
+  if (!Object.prototype.hasOwnProperty.call(env, 'GITHUB_BASE_REF')) delete merged.GITHUB_BASE_REF;
+  return merged;
+}
+
 function run(cwd: string, command: string, args: string[], env: NodeJS.ProcessEnv = {}) {
   return spawnSync(command, args, {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, PATH: `${PLAYWRIGHT_BIN}${path.delimiter}${process.env.PATH}`, CI: '1', ...env },
+    env: commandEnv(env),
   });
 }
 

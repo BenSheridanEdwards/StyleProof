@@ -28,9 +28,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
-import { materializeRef, GitRefError } from '../dist/gitref.js';
+import { cleanupBaseRefCaptureDirs, resolveBaseRefCaptureDirs } from '../dist/cli-base-ref.js';
+import { isHelpArg, missingManualCaptureMessage, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 const DEFAULT_MAPS_DIR = 'stylemaps/current';
@@ -54,48 +54,6 @@ exit: 0 identical (certified), 1 differences found, 2 usage/capture error,
       3 only new surfaces (present on one side, no baseline to diff against).
 `;
 
-function git(args) {
-  return spawnSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 28 });
-}
-
-function gitOutput(args) {
-  const r = git(args);
-  return r.status === 0 ? r.stdout.trim() : '';
-}
-
-function refExists(ref) {
-  return git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).status === 0;
-}
-
-function firstExistingRef(refs) {
-  return refs.find(refExists);
-}
-
-function inferBaseRef() {
-  if (process.env.GITHUB_BASE_REF) {
-    const fromEnv = firstExistingRef([`origin/${process.env.GITHUB_BASE_REF}`, process.env.GITHUB_BASE_REF]);
-    if (fromEnv) return fromEnv;
-    return `origin/${process.env.GITHUB_BASE_REF}`;
-  }
-
-  const branch = gitOutput(['branch', '--show-current']);
-  if (branch) {
-    const configured = gitOutput(['config', `branch.${branch}.gh-merge-base`]);
-    if (configured) {
-      const fromConfig = firstExistingRef([`origin/${configured}`, configured]);
-      if (fromConfig) return fromConfig;
-      return `origin/${configured}`;
-    }
-  }
-
-  const fallback = firstExistingRef(['origin/main', 'origin/master', 'main', 'master']);
-  if (fallback) return fallback;
-
-  throw new GitRefError(
-    'could not infer a base branch (tried GITHUB_BASE_REF, branch.<name>.gh-merge-base, origin/main, origin/master, main, master); pass a base ref, e.g. styleproof-diff main',
-  );
-}
-
 const argv = process.argv.slice(2);
 const args = [];
 let MAX = 40;
@@ -103,10 +61,8 @@ let jsonOut = null;
 let baseRef = null;
 let mapsDir = DEFAULT_MAPS_DIR;
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i] === '-h' || argv[i] === '--help') {
-    process.stdout.write(HELP);
-    process.exit(0);
-  } else if (argv[i] === '--max') MAX = Number(argv[++i]);
+  if (isHelpArg(argv[i])) showHelpAndExit(HELP);
+  else if (argv[i] === '--max') MAX = Number(argv[++i]);
   else if (argv[i].startsWith('--max=')) MAX = Number(argv[i].slice(6));
   else if (argv[i] === '--json') jsonOut = argv[++i];
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
@@ -115,47 +71,28 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i] === '--maps-dir') mapsDir = argv[++i];
   else if (argv[i].startsWith('--maps-dir=')) mapsDir = argv[i].slice(11);
   else if (argv[i].startsWith('--')) {
-    console.error(`unknown flag: ${argv[i]}`);
+    console.error(unknownFlagMessage(COMMAND, argv[i]));
     process.exit(2);
   } else args.push(argv[i]);
 }
 
 let dirA;
 let dirB;
-let tmpBase = null;
+let baseCapture = null;
 if (baseRef || args.length <= 1) {
   if (!Number.isFinite(MAX)) {
     console.error(`usage: ${COMMAND} [baseRef] [--maps-dir <dir>] [--max N] [--json <file>]`);
     process.exit(2);
   }
-  if (baseRef) {
-    if (args.length > 1) {
-      console.error(`usage: ${COMMAND} --base-ref <gitref> [mapsDir] [--max N] [--json <file>]`);
-      process.exit(2);
-    }
-    if (args.length === 1) mapsDir = args[0];
-  } else if (args.length === 1) {
-    baseRef = args[0];
-  } else {
-    try {
-      baseRef = inferBaseRef();
-    } catch (e) {
-      console.error(e instanceof GitRefError ? `${COMMAND}: ${e.message}` : String(e?.message ?? e));
-      process.exit(2);
-    }
-  }
-  if (!fs.existsSync(mapsDir)) {
-    console.error(`no capture at ${mapsDir}; run styleproof-map first`);
-    process.exit(2);
-  }
-  try {
-    tmpBase = materializeRef(baseRef, mapsDir);
-  } catch (e) {
-    console.error(e instanceof GitRefError ? `${COMMAND} --base-ref: ${e.message}` : String(e?.message ?? e));
-    process.exit(2);
-  }
-  dirA = tmpBase;
-  dirB = mapsDir;
+  baseCapture = resolveBaseRefCaptureDirs({
+    command: COMMAND,
+    baseRef,
+    mapsDir,
+    args,
+    usage: `usage: ${COMMAND} --base-ref <gitref> [mapsDir] [--max N] [--json <file>]`,
+  });
+  dirA = baseCapture.beforeDir;
+  dirB = baseCapture.afterDir;
 } else {
   if (args.length !== 2 || !Number.isFinite(MAX)) {
     console.error(`usage: ${COMMAND} <beforeDir> <afterDir> [--max N] [--json <file>]  (--help for all options)`);
@@ -164,7 +101,7 @@ if (baseRef || args.length <= 1) {
   [dirA, dirB] = args;
   for (const d of [dirA, dirB]) {
     if (!fs.existsSync(d)) {
-      console.error(`no capture at ${d}`);
+      console.error(missingManualCaptureMessage(COMMAND, d));
       process.exit(2);
     }
   }
@@ -177,7 +114,7 @@ try {
   console.error(e.message);
   process.exit(2);
 } finally {
-  if (tmpBase) fs.rmSync(tmpBase, { recursive: true, force: true });
+  cleanupBaseRefCaptureDirs(baseCapture);
 }
 const { surfaces, counts, compared } = result;
 

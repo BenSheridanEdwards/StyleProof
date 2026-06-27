@@ -83,6 +83,7 @@ test('styleproof-map exits 2 when the default spec is missing', () => {
     const r = spawnSync(process.execPath, [MAP], { cwd: root, encoding: 'utf8' });
     assert.equal(r.status, 2);
     assert.match(r.stderr, /run styleproof-init/);
+    assert.match(r.stderr, /Next: run styleproof-init/);
   } finally {
     rmTmp(root);
   }
@@ -116,12 +117,14 @@ test('diff CLI exits 2 on an unknown flag', () => {
   const r = run(DIFF, ['a', 'b', '--bogus']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /unknown flag: --bogus/);
+  assert.match(r.stderr, /Next: run styleproof-diff --help/);
 });
 
 test('diff CLI exits 2 when a capture dir does not exist', () => {
   const r = run(DIFF, ['/no/such/before', '/no/such/after']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /no capture at/);
+  assert.match(r.stderr, /Next: pass existing capture directories/);
 });
 
 test('diff CLI --json writes the structured diff to a file', () => {
@@ -191,7 +194,17 @@ function gitInit(dir) {
   spawnSync('git', ['config', 'user.email', 't@example.test'], { cwd: dir });
   spawnSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
 }
-const runIn = (cwd, script, a) => spawnSync(process.execPath, [script, ...a], { cwd, encoding: 'utf8' });
+function cliEnv(overrides = {}) {
+  const env = { ...process.env, ...overrides };
+  if (!Object.prototype.hasOwnProperty.call(overrides, 'GITHUB_BASE_REF')) delete env.GITHUB_BASE_REF;
+  return env;
+}
+const runIn = (cwd, script, a, opts = {}) =>
+  spawnSync(process.execPath, [script, ...a], {
+    cwd,
+    encoding: 'utf8',
+    env: cliEnv(opts.env),
+  });
 const mapWith = (color) => makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color } } } });
 
 test('diff --base-ref: identical working maps vs the committed base → exit 0', () => {
@@ -215,6 +228,31 @@ test('diff defaults to stylemaps/current against the inferred main branch', () =
   spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
   spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
   const r = runIn(repo, DIFF, []);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
+  rmTmp(repo);
+});
+
+test('diff defaults to the GitHub PR base for stacked local branches when gh is available', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  const binDir = path.join(repo, 'fake-bin');
+  fs.mkdirSync(binDir);
+  const fakeGh = path.join(binDir, 'gh');
+  fs.writeFileSync(fakeGh, '#!/bin/sh\nprintf "stack-base\\n"\n');
+  fs.chmodSync(fakeGh, 0o755);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'main-base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'stack-base'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 128, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'stack-base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+  const r = runIn(repo, DIFF, [], {
+    env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}`, GITHUB_BASE_REF: '' },
+  });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
   rmTmp(repo);
@@ -271,6 +309,21 @@ test('diff --base-ref: exits 2 when the ref has no committed captures at that pa
   const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /no committed captures/);
+  assert.match(r.stderr, /Next: make sure HEAD contains committed captures at maps/);
+  rmTmp(repo);
+});
+
+test('diff base-ref flow explains how to recover when the working maps are missing', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'readme'), 'x');
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  const r = runIn(repo, DIFF, ['main']);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /Next: run styleproof-map to create stylemaps\/current/);
+  assert.match(r.stderr, /pass --maps-dir <dir>/);
   rmTmp(repo);
 });
 
@@ -289,6 +342,53 @@ test('report --base-ref: builds a report with the base read from a git ref', () 
   rmTmp(repo);
 });
 
+test('report defaults to stylemaps/current against the inferred main branch', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+  const r = runIn(repo, REPORT, []);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /changed surface\(s\)/);
+  assert.ok(fs.existsSync(path.join(repo, 'styleproof-report', 'report.json')));
+  rmTmp(repo);
+});
+
+test('report accepts a single base ref and uses stylemaps/current', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+  const out = path.join(repo, 'out');
+  const r = runIn(repo, REPORT, ['main', '--out', out]);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /changed surface\(s\)/);
+  assert.ok(fs.existsSync(path.join(out, 'report.md')));
+  rmTmp(repo);
+});
+
+test('report --base-ref uses stylemaps/current when mapsDir is omitted', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  const out = path.join(repo, 'out');
+  const r = runIn(repo, REPORT, ['--base-ref', 'HEAD', '--out', out]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /no changes/);
+  assert.ok(fs.existsSync(path.join(out, 'report.json')));
+  rmTmp(repo);
+});
+
 test('report --base-ref: exits 2 when the ref has no committed captures there', () => {
   const repo = mkTmp();
   gitInit(repo);
@@ -300,6 +400,7 @@ test('report --base-ref: exits 2 when the ref has no committed captures there', 
   const r = runIn(repo, REPORT, ['--base-ref', 'HEAD', 'maps', '--out', out]);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /no committed captures/);
+  assert.match(r.stderr, /Next: make sure HEAD contains committed captures at maps/);
   rmTmp(repo);
 });
 
@@ -326,7 +427,7 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
 });
 
 test('report CLI exits 2 on wrong argument count', () => {
-  const r = run(REPORT, ['only-one']);
+  const r = run(REPORT, ['a', 'b', 'c']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /usage: styleproof-report/);
 });
@@ -335,6 +436,7 @@ test('report CLI exits 2 on an unknown flag', () => {
   const r = run(REPORT, ['a', 'b', '--nope']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /unknown flag: --nope/);
+  assert.match(r.stderr, /Next: run styleproof-report --help/);
 });
 
 // ------------------------------------------------------- error & validation paths
