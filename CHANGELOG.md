@@ -29,6 +29,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   fully-captured side — the exact false-certification the flag exists to prevent.
   Truncation now sets `statesSkipped`, and the diff reports the layer as "not
   fully captured" on the affected side.
+- **Release workflow no longer passes an empty `body_path` to the GitHub Release
+  step.** Previously a release whose CHANGELOG version section was absent (e.g. a
+  hotfix tag with no entry) passed `body_path: ''`, which `softprops/action-gh-release`
+  treats as a file to read and fails with ENOENT instead of auto-generating notes.
+  The step is now split into two mutually-exclusive steps: one with `body_path:
+notes.md`, one with `generate_release_notes: true`.
 
 ## [3.1.1] - 2026-06-27
 
