@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-06-27
+
 ### Changed
 
 - **`styleproof-init` now follows the repo's package manager.** Generated
@@ -887,7 +889,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.2...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.2...v3.1.0
 [3.0.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.1...v3.0.2
 [3.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.5.0...v3.0.0
