@@ -28,9 +28,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
-import { materializeRef, GitRefError } from '../dist/gitref.js';
+import { inferBaseRef, materializeRef, GitRefError } from '../dist/gitref.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 const DEFAULT_MAPS_DIR = 'stylemaps/current';
@@ -53,48 +52,6 @@ options:
 exit: 0 identical (certified), 1 differences found, 2 usage/capture error,
       3 only new surfaces (present on one side, no baseline to diff against).
 `;
-
-function git(args) {
-  return spawnSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 28 });
-}
-
-function gitOutput(args) {
-  const r = git(args);
-  return r.status === 0 ? r.stdout.trim() : '';
-}
-
-function refExists(ref) {
-  return git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).status === 0;
-}
-
-function firstExistingRef(refs) {
-  return refs.find(refExists);
-}
-
-function inferBaseRef() {
-  if (process.env.GITHUB_BASE_REF) {
-    const fromEnv = firstExistingRef([`origin/${process.env.GITHUB_BASE_REF}`, process.env.GITHUB_BASE_REF]);
-    if (fromEnv) return fromEnv;
-    return `origin/${process.env.GITHUB_BASE_REF}`;
-  }
-
-  const branch = gitOutput(['branch', '--show-current']);
-  if (branch) {
-    const configured = gitOutput(['config', `branch.${branch}.gh-merge-base`]);
-    if (configured) {
-      const fromConfig = firstExistingRef([`origin/${configured}`, configured]);
-      if (fromConfig) return fromConfig;
-      return `origin/${configured}`;
-    }
-  }
-
-  const fallback = firstExistingRef(['origin/main', 'origin/master', 'main', 'master']);
-  if (fallback) return fallback;
-
-  throw new GitRefError(
-    'could not infer a base branch (tried GITHUB_BASE_REF, branch.<name>.gh-merge-base, origin/main, origin/master, main, master); pass a base ref, e.g. styleproof-diff main',
-  );
-}
 
 const argv = process.argv.slice(2);
 const args = [];
