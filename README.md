@@ -234,6 +234,24 @@ Then copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwar
 
 **Prefer to capture in CI instead of committing maps?** For a repo with many outside contributors on different machines, StyleProof can capture **both** base and head in CI and diff them there — no committed maps. See **[Forks and Dependabot](#forks-and-dependabot)** for that flow (it's also the fork-safe split). The committed-map flow above is the default because it's far faster and simpler for a single team.
 
+**Want to skip work safely?** Skip the **whole** StyleProof workflow only for
+changes that cannot affect rendered output, such as docs-only edits, using your
+CI provider's native path filters. Do not skip individual surfaces from a
+StyleProof run based on a changed-file guess: shared CSS, tokens, resets,
+themes, layout primitives, and runtime styling can repaint any surface, and a
+missed surface would certify green without being measured. If you want faster
+feedback, order the highest-signal surfaces first in your spec, but still let
+the full sweep finish before treating the gate as passed.
+
+```yaml
+on:
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+```
+
 ## Forks and Dependabot
 
 If you **capture in CI** rather than committing maps (the alternative noted at the end of the Quickstart — a better fit when many outside contributors push from different machines), the simplest setup runs the whole gate in one `pull_request` job that captures base + head and diffs them. That job needs a **write** token to push the report branch, post the comment, and set the `StyleProof` status. That's fine for same-repo PRs, but **fork and Dependabot PRs run with a read-only `GITHUB_TOKEN`** (GitHub's security default for untrusted PRs). So the job can't post the status — and a required `StyleProof` check then sits `pending` forever, blocking the PR even though a dependency or fork change usually touches no UI at all.
