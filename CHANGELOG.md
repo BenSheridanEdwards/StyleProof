@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-06-27
+
 ### Added
 
 - **First-class live states plus generic variants.** `Surface` now accepts
@@ -30,6 +32,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `html`/`body` layout properties, the error explains that ignored/live content can
   still move document flow, includes any auto-detected live-state candidates, and
   points users to deterministic `liveStates`.
+- **Release proof now matches CI before publishing.** The release workflow and
+  `prepublishOnly` gate now include format checking plus browser e2e coverage before
+  npm publication, so a version cannot publish ahead of the full package proof gate.
+
+### Fixed
+
+- **The composite Action now executes the checked-out Action version.** Report jobs
+  install StyleProof's runtime dependencies under `GITHUB_ACTION_PATH` and invoke the
+  local `bin/styleproof-*` entrypoints, so `uses: BenSheridanEdwards/StyleProof@v3`
+  cannot drift to a consumer workspace install or npm's latest package.
 
 ## [3.0.0] - 2026-06-27
 
@@ -818,7 +830,30 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.0...v3.0.1
+[3.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.5.0...v3.0.0
+[2.5.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.4.0...v2.5.0
+[2.4.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.3.1...v2.4.0
+[2.3.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.3.0...v2.3.1
+[2.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.10.0...v2.0.0
+[1.10.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.9.4...v1.10.0
+[1.9.4]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.9.3...v1.9.4
+[1.9.3]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.9.2...v1.9.3
+[1.9.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.9.0...v1.9.1
+[1.9.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.8.1...v1.9.0
+[1.8.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.8.0...v1.8.1
+[1.8.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.7.2...v1.8.0
+[1.7.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.7.1...v1.7.2
+[1.7.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.3.1...v1.4.0
+[1.3.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v0.7.0...v1.0.0

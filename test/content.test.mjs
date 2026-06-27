@@ -10,16 +10,16 @@ import { makeMap, pairFixture, rmTmp, solidPng, tmpDirs, writeCapture } from './
 
 test('diffContentMaps reports an element whose own text changed', () => {
   const a = makeMap({
-    elements: { 'body > p:nth-child(1)': { tag: 'p', cls: 'lead', text: 'As Fractional CTO I took' } },
+    elements: { 'body > p:nth-child(1)': { tag: 'p', cls: 'lead', text: 'Original demo copy' } },
   });
   const b = makeMap({
-    elements: { 'body > p:nth-child(1)': { tag: 'p', cls: 'lead', text: 'As Fractional CTO, I took' } },
+    elements: { 'body > p:nth-child(1)': { tag: 'p', cls: 'lead', text: 'Updated demo copy' } },
   });
   const changes = diffContentMaps(a, b);
   assert.equal(changes.length, 1);
   assert.equal(changes[0].path, 'body > p:nth-child(1)');
-  assert.equal(changes[0].before, 'As Fractional CTO I took');
-  assert.equal(changes[0].after, 'As Fractional CTO, I took');
+  assert.equal(changes[0].before, 'Original demo copy');
+  assert.equal(changes[0].after, 'Updated demo copy');
 });
 
 test('diffContentMaps is a no-op when neither side captured text (feature off)', () => {
@@ -74,12 +74,12 @@ test('generateStyleMapReport renders the content section only when includeConten
   const png = solidPng(400, 200);
   const before = makeMap({
     elements: {
-      'body > p:nth-child(1)': { tag: 'p', cls: 'lead', rect: [0, 0, 300, 40], text: 'As Fractional CTO I took' },
+      'body > p:nth-child(1)': { tag: 'p', cls: 'lead', rect: [0, 0, 300, 40], text: 'Original demo copy' },
     },
   });
   const after = makeMap({
     elements: {
-      'body > p:nth-child(1)': { tag: 'p', cls: 'lead', rect: [0, 0, 300, 40], text: 'As Fractional CTO, I took' },
+      'body > p:nth-child(1)': { tag: 'p', cls: 'lead', rect: [0, 0, 300, 40], text: 'Updated demo copy' },
     },
   });
   writeCapture(dirs.beforeDir, 'landing@1280', before, png);
@@ -104,8 +104,8 @@ test('generateStyleMapReport renders the content section only when includeConten
   const md = fs.readFileSync(on.reportMdPath, 'utf8');
   assert.equal(on.contentChanges, 1);
   assert.ok(md.includes('## 📝 Content changes (advisory)'));
-  assert.ok(md.includes('As Fractional CTO I took'));
-  assert.ok(md.includes('As Fractional CTO, I took'));
+  assert.ok(md.includes('Original demo copy'));
+  assert.ok(md.includes('Updated demo copy'));
   assert.ok(fs.existsSync(path.join(dirs.root, 'on', 'crops', 'landing-1280-content-1-composite.png')));
 
   // …and it NEVER gates: styles are identical, so the surface count and exit basis stay 0.

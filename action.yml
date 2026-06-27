@@ -59,6 +59,16 @@ outputs:
 runs:
   using: composite
   steps:
+    # Composite actions run from a checked-out action ref, but bare `npx
+    # styleproof-*` resolves from the consumer workspace or npm latest. Install this
+    # action's runtime deps into the action checkout, then run the checked-out bins so
+    # `uses: ...@v3` truly executes v3 code.
+    - name: Install StyleProof action runtime
+      shell: bash
+      run: |
+        cd "$GITHUB_ACTION_PATH"
+        npm ci --omit=dev --omit=peer --ignore-scripts
+
     # Resolve the PR number + head SHA from the TRUSTED event payload. This is what
     # lets the report be driven from a `workflow_run` (the fork/Dependabot-safe flow:
     # capture under the read-only `pull_request` token, then comment + set the status
@@ -126,9 +136,9 @@ runs:
       run: |
         set +e
         if [ -n "${{ inputs.base-ref }}" ]; then
-          npx styleproof-diff --base-ref "${{ inputs.base-ref }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
+          node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" --base-ref "${{ inputs.base-ref }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
         else
-          npx styleproof-diff "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
+          node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
         fi
         code=${PIPESTATUS[0]}
         set -e
@@ -176,9 +186,9 @@ runs:
       run: |
         set -euo pipefail
         if [ -n "${{ inputs.base-ref }}" ]; then
-          npx styleproof-report --base-ref "${{ inputs.base-ref }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
+          node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" --base-ref "${{ inputs.base-ref }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
         else
-          npx styleproof-report "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
+          node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
         fi
 
         REPO='${{ github.repository }}'

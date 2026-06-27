@@ -3,7 +3,7 @@ name: Release
 # Publish on merge to main. When a merged change bumps the version in
 # package.json (i.e. there is no vX.Y.Z tag for it yet), this builds, tests,
 # publishes to npm, tags the commit, cuts a GitHub Release from the CHANGELOG,
-# moves the major alias (e.g. v1), and mirrors to GitHub Packages. A merge that
+# moves the major alias (e.g. v3), and mirrors to GitHub Packages. A merge that
 # does NOT bump the version is a clean no-op — npm forbids republishing a
 # version, so the version bump is the deliberate "release this" signal.
 #
@@ -70,9 +70,24 @@ jobs:
       - name: Lint
         if: steps.check.outputs.released == 'true'
         run: npm run lint
+      - name: Format check
+        if: steps.check.outputs.released == 'true'
+        run: npm run format:check
       - name: Unit tests
         if: steps.check.outputs.released == 'true'
         run: npm test
+      - name: Cache Playwright browser
+        if: steps.check.outputs.released == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Chromium
+        if: steps.check.outputs.released == 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Smoke e2e
+        if: steps.check.outputs.released == 'true'
+        run: npm run test:e2e
 
       # Idempotent and token-aware: skip when NPM_TOKEN is unset (tag + Release
       # still happen; publish manually until then) or when the version is somehow
@@ -125,8 +140,8 @@ jobs:
           body_path: ${{ steps.notes.outputs.have_notes == 'true' && 'notes.md' || '' }}
           generate_release_notes: ${{ steps.notes.outputs.have_notes != 'true' }}
 
-      # Move the major alias (e.g. v1) to this release, so consumers pinning
-      # `uses: BenSheridanEdwards/StyleProof@v1` always get the latest 1.x. A
+      # Move the major alias (e.g. v3) to this release, so consumers pinning
+      # `uses: BenSheridanEdwards/StyleProof@v3` always get the latest 3.x. A
       # GITHUB_TOKEN push does not retrigger workflows, so this never loops.
       - name: Move the major tag
         if: steps.check.outputs.released == 'true'

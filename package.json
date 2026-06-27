@@ -1,6 +1,6 @@
 {
   "name": "styleproof",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Catch every CSS change before it ships — review PRs and certify refactors by the browser's computed styles, not pixels. Works with any styling system.",
   "keywords": [
     "playwright",
@@ -65,7 +65,7 @@
     "bench": "npm run build && node bench/gate-speed.mjs",
     "init": "node ./bin/styleproof-init.mjs",
     "prepare": "npm run build && husky",
-    "prepublishOnly": "npm run clean && npm run build && npm run typecheck"
+    "prepublishOnly": "npm run clean && npm run build && npm run typecheck && npm run lint && npm run format:check && npm test && npm run test:e2e"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40"

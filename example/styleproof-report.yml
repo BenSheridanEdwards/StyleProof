@@ -47,7 +47,7 @@ jobs:
       # (head_sha, then pull_requests, with a listPullRequestsAssociatedWithCommit
       # fallback against that trusted head SHA for fork PRs), so we pass neither
       # pr-number nor head-sha. The artifact is consumed only as diff input.
-      - uses: BenSheridanEdwards/styleproof@v2
+      - uses: BenSheridanEdwards/StyleProof@v3
         with:
           baseline-dir: __stylemaps__/base
           fresh-dir: __stylemaps__/head
