@@ -14,6 +14,11 @@
 - Updated README and CHANGELOG for the report CLI defaults.
 - Generated privacy-clean report proof and copied the visible crop to
   `docs/proof/report-defaults-crop.png`.
+- Added stacked-PR base inference: after `GITHUB_BASE_REF` and explicit
+  `branch.<name>.gh-merge-base`, no-arg diff/report ask `gh pr view` for the
+  current PR base before falling back to main/master.
+- Added a fake-`gh` CLI regression proving a branch stacked on `stack-base` uses
+  that PR base instead of incorrectly diffing against `main`.
 
 ## Findings
 
@@ -24,9 +29,8 @@
 
 ## Next Action
 
-- Commit and open the `styleproof-report` defaults PR, stacked on PR #82.
-- Continue with separate PRs for stacked-PR base inference via `gh pr view` and
-  recovery-first CLI error messages.
+- Commit and open the stacked-PR base inference PR, stacked on PR #83.
+- Continue with a separate PR for recovery-first CLI error messages.
 
 ## Blockers
 
@@ -36,8 +40,8 @@
 
 - `npm run build && npm run typecheck && npm run lint && npm run format:check`
   passed.
-- `node --test test/cli.test.mjs` passed: 35 tests.
-- `npm test` passed: 176 tests.
+- `node --test test/cli.test.mjs` passed: 36 tests.
+- `npm test` passed: 177 tests.
 - `npm run test:e2e` passed: 32 tests.
 - `npm pack --dry-run --json` passed with 31 package entries; proof crop is not
   packed.
