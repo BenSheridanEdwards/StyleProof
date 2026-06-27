@@ -26,6 +26,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`styleproof-map` now runs generated capture tests correctly.** The CLI no
+  longer passes the spec path as a Playwright file filter, because StyleProof's
+  generated tests are registered through the package runner. It now targets the
+  capture suite with Playwright's grep path, matching the public
+  `styleproof-init` → `styleproof-map` → `styleproof-diff` flow.
 - **Layout-equivalent auto-margin drift no longer creates phantom diffs.** Some
   browser/forced-state combinations can report horizontal `margin-left` /
   `margin-right` / logical margin equivalents differently even when the captured

@@ -71,7 +71,7 @@ test('styleproof-map runs Playwright with committed-map defaults', () => {
       env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
     });
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /current\|stylemaps\|0\|test e2e\/styleproof\.spec\.ts/);
+    assert.match(r.stdout, /current\|stylemaps\|0\|test --grep styleproof capture/);
   } finally {
     rmTmp(root);
   }

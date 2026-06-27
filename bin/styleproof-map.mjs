@@ -18,7 +18,7 @@ const HELP = `styleproof-map — capture this branch's computed-style map
 usage: styleproof-map [options] [-- <playwright args>]
 
 options:
-  --spec <path>       StyleProof Playwright spec (default: e2e/styleproof.spec.ts)
+  --spec <path>       StyleProof spec that must exist (default: e2e/styleproof.spec.ts)
   --dir <label>       output label under --base-dir (default: current)
   --base-dir <path>   output root directory (default: stylemaps)
   --screenshots       keep screenshots for reports (default: off for committed maps)
@@ -86,7 +86,10 @@ const env = {
   STYLEPROOF_BASEDIR: baseDir,
   STYLEPROOF_SCREENSHOTS: screenshots,
 };
-const result = spawnSync(command, ['test', spec, ...playwrightArgs], { stdio: 'inherit', env });
+const result = spawnSync(command, ['test', '--grep', 'styleproof capture', ...playwrightArgs], {
+  stdio: 'inherit',
+  env,
+});
 if (result.error) {
   console.error(
     `styleproof-map: could not run Playwright (${result.error.message}). Install @playwright/test and run playwright install chromium.`,
