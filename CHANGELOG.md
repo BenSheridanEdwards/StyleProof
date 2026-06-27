@@ -29,6 +29,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   files are removed after successful capture so private API responses are not
   accidentally committed by the default pre-push flow. Use `--keep-har` or
   `STYLEPROOF_KEEP_HAR=1` for explicit record/replay workflows.
+- **Generated pre-push hooks now clean untracked no-op artifacts.** When the
+  refreshed map is semantically identical to `HEAD`, the hook restores tracked
+  `stylemaps/` files and removes untracked files under `stylemaps/current`, so a
+  clean push leaves no generated capture debris behind.
 
 ## [3.1.0] - 2026-06-27
 

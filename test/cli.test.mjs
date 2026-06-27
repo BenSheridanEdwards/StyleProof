@@ -571,6 +571,7 @@ test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + bro
       'checks whether the refreshed map is semantically unchanged',
     );
     assert.match(hook, /git restore --source=HEAD -- stylemaps/, 'restores no-op map churn before the push proceeds');
+    assert.match(hook, /git clean -fdq -- stylemaps\/current/, 'removes untracked no-op capture artifacts');
     assert.match(hook, /pin live states or replay\/fixture the data boundary/, 'explains likely live-data drift');
     assert.match(hook, /git add stylemaps/);
     assert.match(hook, /git commit/);
@@ -592,6 +593,55 @@ test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + bro
     assert.match(r.stdout, /core\.hooksPath \.githooks/, 'tells the user how to activate the hook');
   } finally {
     rmTmp(dir);
+  }
+});
+
+test('generated pre-push hook cleans untracked no-op capture artifacts', () => {
+  const repo = mkTmp();
+  try {
+    gitInit(repo);
+    const r = spawnSync(process.execPath, [INIT], { cwd: repo, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+
+    const mapDir = path.join(repo, 'stylemaps/current');
+    fs.mkdirSync(mapDir, { recursive: true });
+    fs.writeFileSync(path.join(mapDir, 'tracked.json.gz'), 'committed');
+    spawnSync('git', ['add', '.'], { cwd: repo });
+    spawnSync('git', ['commit', '-m', 'initial'], { cwd: repo });
+
+    const binDir = path.join(repo, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakeNpx = path.join(binDir, 'npx');
+    fs.writeFileSync(
+      fakeNpx,
+      `#!/bin/sh
+if [ "$1" = "styleproof-map" ]; then
+  mkdir -p stylemaps/current
+  printf fresh > stylemaps/current/tracked.json.gz
+  printf debris > stylemaps/current/untracked.json.gz
+  exit 0
+fi
+if [ "$1" = "styleproof-diff" ]; then
+  exit 0
+fi
+echo "unexpected npx $*" >&2
+exit 64
+`,
+    );
+    fs.chmodSync(fakeNpx, 0o755);
+
+    const hook = spawnSync('sh', ['.githooks/pre-push', 'origin'], {
+      cwd: repo,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+    });
+    assert.equal(hook.status, 0, hook.stderr);
+    assert.equal(fs.readFileSync(path.join(mapDir, 'tracked.json.gz'), 'utf8'), 'committed');
+    assert.equal(fs.existsSync(path.join(mapDir, 'untracked.json.gz')), false);
+    const status = spawnSync('git', ['status', '--short', '--', 'stylemaps'], { cwd: repo, encoding: 'utf8' });
+    assert.equal(status.stdout.trim(), '');
+  } finally {
+    rmTmp(repo);
   }
 });
 
