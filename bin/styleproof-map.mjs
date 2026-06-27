@@ -30,12 +30,13 @@ options:
   --base-dir <path>   output root directory (default: stylemaps)
   --screenshots       keep screenshots for reports (default: off for committed maps)
   --no-screenshots    write lean .json.gz maps only (default)
+  --keep-har          keep recorded HAR files for advanced replay workflows
   -h, --help          show this help
 
 Examples:
   styleproof-map
   styleproof-map --spec e2e/styleproof.spec.ts
-  styleproof-map --dir review --base-dir __stylemaps__ --screenshots
+  styleproof-map --dir review --base-dir __stylemaps__ --screenshots --keep-har
 `;
 
 const argv = process.argv.slice(2);
@@ -43,6 +44,7 @@ let spec = 'e2e/styleproof.spec.ts';
 let dir = process.env.STYLEMAP_DIR ?? 'current';
 let baseDir = process.env.STYLEPROOF_BASEDIR ?? 'stylemaps';
 let screenshots = process.env.STYLEPROOF_SCREENSHOTS ?? '0';
+let keepHar = process.env.STYLEPROOF_KEEP_HAR === '1';
 const playwrightArgs = [];
 
 for (let i = 0; i < argv.length; i++) {
@@ -59,6 +61,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--base-dir=')) baseDir = a.slice(11);
   else if (a === '--screenshots') screenshots = '1';
   else if (a === '--no-screenshots') screenshots = '0';
+  else if (a === '--keep-har') keepHar = true;
   else if (a.startsWith('--')) {
     console.error(unknownFlagMessage('styleproof-map', a));
     process.exit(2);
@@ -84,6 +87,15 @@ if (!fs.existsSync(spec)) {
   process.exit(2);
 }
 
+function removeHarFiles(root) {
+  if (!fs.existsSync(root)) return;
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const full = `${root}/${entry.name}`;
+    if (entry.isDirectory()) removeHarFiles(full);
+    else if (entry.isFile() && entry.name.endsWith('.har')) fs.rmSync(full, { force: true });
+  }
+}
+
 const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const env = {
   ...process.env,
@@ -99,4 +111,6 @@ if (result.error) {
   console.error(playwrightMissingMessage(result.error.message));
   process.exit(2);
 }
-process.exit(result.status ?? 1);
+const status = result.status ?? 1;
+if (status === 0 && !keepHar) removeHarFiles(`${baseDir}/${dir}`);
+process.exit(status);

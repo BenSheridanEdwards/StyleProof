@@ -62,7 +62,7 @@ test('styleproof-map runs Playwright with committed-map defaults', () => {
     const fakePlaywright = path.join(binDir, 'playwright');
     fs.writeFileSync(
       fakePlaywright,
-      '#!/bin/sh\nprintf "%s|%s|%s|%s\\n" "$STYLEMAP_DIR" "$STYLEPROOF_BASEDIR" "$STYLEPROOF_SCREENSHOTS" "$*"\n',
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.har"; printf "%s|%s|%s|%s\\n" "$STYLEMAP_DIR" "$STYLEPROOF_BASEDIR" "$STYLEPROOF_SCREENSHOTS" "$*"\n',
     );
     fs.chmodSync(fakePlaywright, 0o755);
     const r = spawnSync(process.execPath, [MAP], {
@@ -72,6 +72,33 @@ test('styleproof-map runs Playwright with committed-map defaults', () => {
     });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /current\|stylemaps\|0\|test --grep styleproof capture/);
+    assert.equal(fs.existsSync(path.join(root, 'stylemaps/current/home@1280.har')), false);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map keeps HAR files only when explicitly requested', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.har"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const r = spawnSync(process.execPath, [MAP, '--keep-har'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.existsSync(path.join(root, 'stylemaps/current/home@1280.har')), true);
   } finally {
     rmTmp(root);
   }
@@ -538,6 +565,13 @@ test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + bro
     const hookPath = path.join(dir, '.githooks', 'pre-push');
     const hook = fs.readFileSync(hookPath, 'utf8');
     assert.match(hook, /styleproof-map --spec e2e\/styleproof\.spec\.ts/, 'captures through the committed-map CLI');
+    assert.match(
+      hook,
+      /styleproof-diff --base-ref HEAD --max=20/,
+      'checks whether the refreshed map is semantically unchanged',
+    );
+    assert.match(hook, /git restore --source=HEAD -- stylemaps/, 'restores no-op map churn before the push proceeds');
+    assert.match(hook, /pin live states or replay\/fixture the data boundary/, 'explains likely live-data drift');
     assert.match(hook, /git add stylemaps/);
     assert.match(hook, /git commit/);
     assert.match(hook, /git push "\$remote" HEAD/, 'pushes the map itself — no second manual push');

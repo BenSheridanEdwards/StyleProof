@@ -2,48 +2,31 @@
 
 ## Completed
 
-- Confirmed PR #82 reached `main`; PRs #83-#85 were marked merged into their
-  stacked base branches, so the remaining v3.1.0 changes need this integration
-  PR before release.
-- Integrated the reviewed v3.1.0 stack onto current `main` in
-  `integrate/v3.1.0-stack`.
-- Added shared base-ref inference in `src/gitref.ts` so CLI entrypoints do not
-  duplicate the local/GitHub base selection logic.
-- Updated `styleproof-report` to mirror `styleproof-diff`: no args infer the
-  base and compare against `stylemaps/current`; a single arg pins the base ref;
-  `--base-ref` can omit `mapsDir`; `--maps-dir` customizes the committed-map dir.
-- Added CLI regression tests for no-arg report defaults, single-base-ref report,
-  and omitted-`mapsDir` `--base-ref`.
-- Fixed the CLI/e2e test helpers so temp git repos do not inherit GitHub
-  Actions' ambient `GITHUB_BASE_REF`, which made stacked PR CI infer the outer
-  PR base branch instead of the fixture's local `main`.
-- Updated README and CHANGELOG for the report CLI defaults.
-- Generated privacy-clean report proof and copied the visible crop to
-  `docs/proof/report-defaults-crop.png`.
-- Added stacked-PR base inference: after `GITHUB_BASE_REF` and explicit
-  `branch.<name>.gh-merge-base`, no-arg diff/report ask `gh pr view` for the
-  current PR base before falling back to main/master.
-- Added a fake-`gh` CLI regression proving a branch stacked on `stack-base` uses
-  that PR base instead of incorrectly diffing against `main`.
-- Added recovery-first CLI error helpers so missing specs, absent maps, unknown
-  flags, and missing committed base maps print a concrete `Next:` line.
-- Added CLI regressions for recovery messages on `styleproof-map`,
-  `styleproof-diff`, and `styleproof-report`.
+- Rebasing PR #88 onto current `main`, which now includes the v3.1.0 release
+  stack and follow-up release/action fixes.
+- Preserved the v3.1.0 defaults from `main`: stacked-PR base inference,
+  recovery-first CLI errors, no-arg report defaults, and clean-run PR comments.
+- Preserved the PR #88 burden-shift changes:
+  - `captureStyleMap` parks the real cursor over an ignored hover sink before
+    reading the resting map.
+  - `styleproof-map` removes HAR files after successful committed-map capture by
+    default, with `--keep-har` / `STYLEPROOF_KEEP_HAR=1` for explicit replay
+    workflows.
+  - `styleproof-init` generated hooks run a semantic diff against `HEAD`, restore
+    unchanged maps, and print a live-state/replay hint when maps really change.
+- Moved the PR #88 CHANGELOG entries back under `[Unreleased]`, because v3.1.0
+  is already released on current `main`.
 
 ## Findings
 
-- Stacked PRs can be "merged" on GitHub without advancing `main` when each PR's
-  base is another feature branch. Release proof must come from the actual
-  merged `main` tree, not from stacked PR state alone.
-- The repo had no existing committed proof-artifact convention, but the PR
-  template requires proof in the body and the user requested screenshots. The
-  proof crop is kept outside the package `files` list; `npm pack --dry-run`
-  still includes only `docs/demo-composite.png` from `docs/`.
+- The merge conflicts were real and expected: the PR touched README, CHANGELOG,
+  init tests, and generated-hook docs that were also changed by the v3.1.0 stack.
+- The implementation conflict was low-risk: source changes in `src/capture.ts`,
+  `bin/styleproof-map.mjs`, and `bin/styleproof-init.mjs` applied cleanly.
 
 ## Next Action
 
-- Open the integration PR to `main`, wait for CI/Fallow, merge it, then bump and
-  publish v3.1.0 from the verified merged `main` tree.
+- Push the updated PR branch, then wait for CI/Fallow on PR #88.
 
 ## Blockers
 
@@ -51,11 +34,11 @@
 
 ## Verification Status
 
-- `npm run clean && npm run build && npm run typecheck && npm run lint &&
-npm run format:check && npm test && npm run test:e2e && npm pack --dry-run --json`
-  passed on `integrate/v3.1.0-stack`.
-- `npm test` passed: 178 tests.
-- `npm run test:e2e` passed: 32 tests.
+- `npm run build && npm run typecheck && npm run lint && npm run format:check`
+  passed on the rebased `styleproof@3.1.0` tree.
+- `npm test` passed: 181 tests.
+- `npm run test:e2e` passed: 33 browser tests.
 - `npm pack --dry-run --json` passed with 35 package entries, including
-  `dist/cli-base-ref.*` and `dist/cli-errors.*`; the proof crop remains outside
-  the package `files` list.
+  `dist/cli-base-ref.*`, `dist/cli-errors.*`, `dist`, `bin`, README,
+  changelog, license, and docs.
+- Privacy grep passed with no private consuming-project names or paths.

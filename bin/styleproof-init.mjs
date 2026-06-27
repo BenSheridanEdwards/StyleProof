@@ -309,6 +309,30 @@ remote="$1"
 
 ${PM.exec(`styleproof-map --spec ${specPath}`)}
 
+if git cat-file -e HEAD:stylemaps/current 2>/dev/null; then
+  tmp="\${TMPDIR:-/tmp}/styleproof-pre-push-diff.$$"
+  set +e
+  ${PM.exec('styleproof-diff --base-ref HEAD --max=20')} > "$tmp"
+  code=$?
+  set -e
+
+  if [ "$code" -eq 2 ]; then
+    cat "$tmp" >&2
+    rm -f "$tmp"
+    exit 2
+  fi
+
+  if [ "$code" -eq 0 ]; then
+    rm -f "$tmp"
+    git restore --source=HEAD -- stylemaps
+    exit 0
+  fi
+
+  cat "$tmp" >&2
+  rm -f "$tmp"
+  echo "StyleProof: style map changed. If this was not an intended visual change, pin live states or replay/fixture the data boundary before pushing." >&2
+fi
+
 git add stylemaps
 git diff --cached --quiet -- stylemaps && exit 0  # map unchanged — let the push proceed
 

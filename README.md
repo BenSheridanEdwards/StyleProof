@@ -168,7 +168,7 @@ It scaffolds:
 
 - a **capture spec** (`e2e/styleproof.spec.ts`) describing your surfaces (a Next.js app gets its routes _and_ the coverage guard wired automatically — see below);
 - a **`playwright.config.ts`** that builds and serves a **production build** (never a flaky dev server) and captures surfaces **in parallel** (`fullyParallel`);
-- a **pre-push hook** (`.githooks/pre-push`, activated for you via `core.hooksPath` — it won't clobber an existing husky setup) that captures the map, commits it as a lean `.json.gz` under `stylemaps/`, and **pushes it with your branch — one `git push`, never two**;
+- a **pre-push hook** (`.githooks/pre-push`, activated for you via `core.hooksPath` — it won't clobber an existing husky setup) that captures the map, restores no-op map churn, commits real map changes as lean `.json.gz` files under `stylemaps/`, and **pushes them with your branch — one `git push`, never two**;
 - a **browser-less CI workflow** that diffs your committed map against the base branch.
 
 Describe your surfaces — **omit `widths`** and StyleProof sweeps your real `@media` breakpoints automatically:
@@ -196,15 +196,18 @@ npx styleproof-map
 npx styleproof-diff
 ```
 
-`styleproof-map` captures this branch into `stylemaps/current`. `styleproof-diff`
-then compares that committed map against the base branch automatically: in GitHub
-Actions it uses the PR base; locally it checks `branch.<name>.gh-merge-base`, then
-the current GitHub PR base via `gh pr view` (handy for stacked PRs), then
+`styleproof-map` captures this branch into `stylemaps/current` as lean committed
+maps: HAR recordings are removed by default so private API responses do not land
+in git. Keep them only for an explicit record/replay workflow with
+`styleproof-map --keep-har` (or `STYLEPROOF_KEEP_HAR=1`). `styleproof-diff` then
+compares the committed map against the base branch automatically: in GitHub
+Actions it uses the PR base; locally it checks `branch.<name>.gh-merge-base`,
+then the current GitHub PR base via `gh pr view` (handy for stacked PRs), then
 `origin/main`, `origin/master`, `main`, and `master`. Pin it when needed with
 `styleproof-diff main`, `styleproof-diff master`, or `styleproof-diff --base-ref
 origin/my-base`.
 
-**That's the whole loop.** Capture happens **pre-push on your machine** (where the app already builds and serves); the lean map is committed and pushed; and **CI is a browser-less diff of two precomputed maps** — no build, no browser, just a fast comparison (~5400× cheaper on the compare step than re-capturing both sides in CI). `main` always carries a base map, so every PR is _your code vs the committed base_. Require the `StyleProof` status in branch protection and an unverified visual change can't merge.
+**That's the whole loop.** Capture happens **pre-push on your machine** (where the app already builds and serves); the hook first diffs the refreshed map against `HEAD` and restores it when the semantic map is unchanged, otherwise it commits and pushes the lean map; and **CI is a browser-less diff of two precomputed maps** — no build, no browser, just a fast comparison (~5400× cheaper on the compare step than re-capturing both sides in CI). `main` always carries a base map, so every PR is _your code vs the committed base_. Require the `StyleProof` status in branch protection and an unverified visual change can't merge.
 
 > **Same-environment note.** Computed styles depend on the browser build and installed fonts, so maps are only comparable when captured in the same environment (your machine, or a pinned container). The self-check fails loudly on a non-deterministic capture, so drift never passes silently.
 
@@ -270,7 +273,7 @@ Anything still moving on its own after that is detected as a volatile region and
 | Handled for you — zero config                               | How                                                                                      |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | In-flight data, fonts, late layout                          | network-aware settle holds until requests finish _and_ the computed styles stop changing |
-| Animations, transitions, focus ring, caret                  | frozen / blurred before the map is read                                                  |
+| Animations, transitions, real hover/focus, caret            | frozen / neutralised before the map is read; forced states are captured separately       |
 | Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                    |
 | Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                       |
 | Layout-equivalent horizontal auto margins                   | ignored only when the captured element rectangle is unchanged                            |
