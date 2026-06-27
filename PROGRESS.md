@@ -11,6 +11,7 @@
   no-op path leaves `stylemaps/` clean.
 - Added package-manager scaffold assertions so npm, Yarn, pnpm, and Bun hooks
   all include the cleanup.
+- Opened PR #94 with local package proof.
 
 ## Findings
 
@@ -21,7 +22,7 @@
 
 ## Next Action
 
-- Push the branch and open the PR.
+- Wait for CI/Fallow on PR #94, then merge it if the checks stay green.
 
 ## Blockers
 
@@ -29,10 +30,11 @@
 
 ## Verification Status
 
-- `npm run build && node --test test/cli.test.mjs test/init.test.mjs` passed:
-  45 tests.
+- `npm run build` passed.
 - `npm run build && npm run typecheck && npm run lint && npm run format:check`
   passed.
+- `node --test test/init.test.mjs test/diff.test.mjs test/cli.test.mjs` passed:
+  74 tests.
 - `npm test` passed: 182 tests.
 - `npm run test:e2e` passed: 33 browser tests.
 - `npm pack --dry-run --json` passed with 35 package entries, including `dist`,
