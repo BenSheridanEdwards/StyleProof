@@ -13,6 +13,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   fails before creating tags or GitHub Releases if `NPM_TOKEN` is missing, and
   it verifies `styleproof@<version>` on npm after publishing or detecting an
   already-published version.
+- **Generated pre-push hooks now restore no-op map churn before committing.** The
+  hook captures through `styleproof-map`, runs a semantic diff against `HEAD`, and
+  restores `stylemaps/` when the refreshed map is identical. When the map really
+  changes, the hook prints the diff plus a concrete live-state/replay hint before
+  creating the map commit.
+
+### Fixed
+
+- **Real cursor hover no longer contaminates the resting style map.** Capture now
+  parks the mouse over an ignored 1px hover sink before reading, matching the
+  existing focus blur behavior. The canonical resting map stays unhovered while
+  the forced `:hover` layer still records the hover delta.
+- **`styleproof-map` now writes lean committed maps by default.** Recorded HAR
+  files are removed after successful capture so private API responses are not
+  accidentally committed by the default pre-push flow. Use `--keep-har` or
+  `STYLEPROOF_KEEP_HAR=1` for explicit record/replay workflows.
 
 ## [3.1.0] - 2026-06-27
 

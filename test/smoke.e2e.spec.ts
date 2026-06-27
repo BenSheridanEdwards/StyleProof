@@ -122,6 +122,34 @@ test('catches a dropped :hover variant via forced-state capture (CDP)', async ({
   expect(stateFinding, 'hover delta change detected').toBeTruthy();
 });
 
+test('neutralises real hover so the resting map still yields its forced :hover delta', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    main { padding: 80px; }
+    .cta { color: rgb(255, 255, 255); background: rgb(0, 0, 0); border: 0; padding: 8px; }
+    .cta:hover { color: rgb(0, 255, 0); }
+  </style></head><body>
+    <main><button class="cta">go</button></main>
+  </body></html>`;
+  const map = await withPage(page, html, async () => {
+    await page.locator('.cta').hover();
+    expect(await page.locator('.cta').evaluate((el) => getComputedStyle(el).color), 'element really is hovered').toBe(
+      'rgb(0, 255, 0)',
+    );
+    return captureStyleMap(page);
+  });
+  const entry = Object.entries(map.elements).find(([, e]) => e.cls === 'cta');
+  expect(entry, 'button captured').toBeTruthy();
+  const [btnPath, btn] = entry!;
+  expect(btn.style.color, 'resting map is not contaminated by the real cursor hover').toBe('rgb(255, 255, 255)');
+  const hoverDelta = map.states[btnPath]?.hover;
+  expect(hoverDelta, 'forced :hover delta is still captured').toBeTruthy();
+  expect(
+    Object.values(hoverDelta!).some((delta) => delta.color === 'rgb(0, 255, 0)'),
+    'the :hover colour is in the forced-state delta',
+  ).toBe(true);
+});
+
 test('forced-state capture keeps CDP and page elements aligned when snapshots reorder', async ({ page }) => {
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     body { margin: 0; }

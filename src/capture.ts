@@ -220,7 +220,30 @@ const FRAMEWORK_IGNORE = [
   'template',
   'next-route-announcer',
   '[id="__next-route-announcer__"]',
+  '[data-styleproof-hover-sink]',
 ];
+
+function installHoverSink(): void {
+  let sink = document.querySelector<HTMLElement>('[data-styleproof-hover-sink]');
+  if (!sink) {
+    sink = document.createElement('div');
+    sink.setAttribute('data-styleproof-hover-sink', '');
+    document.body.appendChild(sink);
+  }
+  sink.setAttribute(
+    'style',
+    [
+      'position:fixed',
+      'left:0',
+      'top:0',
+      'width:1px',
+      'height:1px',
+      'z-index:2147483647',
+      'pointer-events:auto',
+      'opacity:0',
+    ].join(';'),
+  );
+}
 
 /** True if `path` is one of `roots` or a structural descendant of one. Shared by
  *  the capture (excluding live regions) and the diff (skipping them). */
@@ -820,15 +843,17 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const stabilize = options.stabilize ?? true;
   const captureText = options.captureText ?? false;
   const captureComponent = options.captureComponent ?? false;
-  // Neutralise real focus the same way FREEZE_CSS neutralises motion: blur
-  // whatever element holds focus so every read below is the no-interaction
-  // resting state. Real :focus is nondeterministic across runs (autofocus, late
-  // hydration, a stray prior action) and contaminates BOTH layers — it bakes a
-  // focus ring into the resting map, AND it cancels the forced-state :focus delta
-  // (forcing :focus on an already-focused element changes nothing, so the ring
-  // shows up as a delta on some runs but not others — a self-check "non-
-  // deterministic" failure). Interaction states are certified deterministically
-  // via CDP forcePseudoState below, never via whatever happened to be focused.
+  // Neutralise real hover/focus the same way FREEZE_CSS neutralises motion: park
+  // the pointer over an ignored 1px sink and blur whatever element holds focus so
+  // every read below is the no-interaction resting state. Real :hover/:focus is
+  // nondeterministic across runs (the last Playwright action, autofocus, late
+  // hydration, a stray prior action) and contaminates BOTH layers — it bakes an
+  // interaction style into the resting map, AND it cancels that forced-state
+  // delta (forcing :focus on an already-focused element changes nothing). States
+  // are certified deterministically via CDP forcePseudoState below, never via
+  // whatever happened to be hovered or focused.
+  await page.evaluate(installHoverSink);
+  await page.mouse.move(0, 0);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   // Inject the structural-path helper once so both capturePage and
   // markInteractiveElements (each serialized into the page by page.evaluate, which
