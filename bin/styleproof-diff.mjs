@@ -2,8 +2,9 @@
 /**
  * Diff two computed-style map captures (see styleproof).
  *
+ *   styleproof-diff [baseRef] [--maps-dir <dir>] [--max N] [--json <file>]
+ *   styleproof-diff --base-ref <gitref> [mapsDir] [--max N] [--json <file>]
  *   styleproof-diff <beforeDir> <afterDir> [--max N] [--json <file>]
- *   styleproof-diff --base-ref <gitref> <mapsDir> [--max N] [--json <file>]
  *
  * Reports, per surface:
  *   - DOM changes (elements added/removed/retagged) — a CSS-only refactor
@@ -26,17 +27,25 @@
  * error, 3 = only new surfaces (present on one side, no baseline to diff against).
  */
 import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
 import { materializeRef, GitRefError } from '../dist/gitref.js';
 
-const HELP = `styleproof-diff — certify a CSS refactor by diffing two computed-style captures
+const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
+const DEFAULT_MAPS_DIR = 'stylemaps/current';
 
-usage: styleproof-diff <beforeDir> <afterDir> [options]
-       styleproof-diff --base-ref <gitref> <mapsDir> [options]
+const HELP = `${COMMAND} — certify a CSS refactor by diffing two computed-style map captures
+
+usage: ${COMMAND} [baseRef] [options]
+       ${COMMAND} --base-ref <gitref> [mapsDir] [options]
+       ${COMMAND} <beforeDir> <afterDir> [options]
 
 options:
   --base-ref <ref> diff <mapsDir> as committed at <ref> (e.g. main) against your
                    working <mapsDir> — base from git, no recapture
+  --maps-dir <dir> committed map dir for the base-ref flow
+                   (default: ${DEFAULT_MAPS_DIR})
   --max <n>        max lines printed per surface before truncating (default: 40)
   --json <file>    also write the full structured diff to <file>
   -h, --help       show this help
@@ -45,11 +54,54 @@ exit: 0 identical (certified), 1 differences found, 2 usage/capture error,
       3 only new surfaces (present on one side, no baseline to diff against).
 `;
 
+function git(args) {
+  return spawnSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 28 });
+}
+
+function gitOutput(args) {
+  const r = git(args);
+  return r.status === 0 ? r.stdout.trim() : '';
+}
+
+function refExists(ref) {
+  return git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).status === 0;
+}
+
+function firstExistingRef(refs) {
+  return refs.find(refExists);
+}
+
+function inferBaseRef() {
+  if (process.env.GITHUB_BASE_REF) {
+    const fromEnv = firstExistingRef([`origin/${process.env.GITHUB_BASE_REF}`, process.env.GITHUB_BASE_REF]);
+    if (fromEnv) return fromEnv;
+    return `origin/${process.env.GITHUB_BASE_REF}`;
+  }
+
+  const branch = gitOutput(['branch', '--show-current']);
+  if (branch) {
+    const configured = gitOutput(['config', `branch.${branch}.gh-merge-base`]);
+    if (configured) {
+      const fromConfig = firstExistingRef([`origin/${configured}`, configured]);
+      if (fromConfig) return fromConfig;
+      return `origin/${configured}`;
+    }
+  }
+
+  const fallback = firstExistingRef(['origin/main', 'origin/master', 'main', 'master']);
+  if (fallback) return fallback;
+
+  throw new GitRefError(
+    'could not infer a base branch (tried GITHUB_BASE_REF, branch.<name>.gh-merge-base, origin/main, origin/master, main, master); pass a base ref, e.g. styleproof-diff main',
+  );
+}
+
 const argv = process.argv.slice(2);
 const args = [];
 let MAX = 40;
 let jsonOut = null;
 let baseRef = null;
+let mapsDir = DEFAULT_MAPS_DIR;
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '-h' || argv[i] === '--help') {
     process.stdout.write(HELP);
@@ -60,6 +112,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
   else if (argv[i] === '--base-ref') baseRef = argv[++i];
   else if (argv[i].startsWith('--base-ref=')) baseRef = argv[i].slice(11);
+  else if (argv[i] === '--maps-dir') mapsDir = argv[++i];
+  else if (argv[i].startsWith('--maps-dir=')) mapsDir = argv[i].slice(11);
   else if (argv[i].startsWith('--')) {
     console.error(`unknown flag: ${argv[i]}`);
     process.exit(2);
@@ -69,26 +123,42 @@ for (let i = 0; i < argv.length; i++) {
 let dirA;
 let dirB;
 let tmpBase = null;
-if (baseRef) {
-  if (args.length !== 1 || !Number.isFinite(MAX)) {
-    console.error('usage: styleproof-diff --base-ref <gitref> <mapsDir> [--max N] [--json <file>]');
+if (baseRef || args.length <= 1) {
+  if (!Number.isFinite(MAX)) {
+    console.error(`usage: ${COMMAND} [baseRef] [--maps-dir <dir>] [--max N] [--json <file>]`);
     process.exit(2);
   }
-  if (!fs.existsSync(args[0])) {
-    console.error(`no capture at ${args[0]}`);
+  if (baseRef) {
+    if (args.length > 1) {
+      console.error(`usage: ${COMMAND} --base-ref <gitref> [mapsDir] [--max N] [--json <file>]`);
+      process.exit(2);
+    }
+    if (args.length === 1) mapsDir = args[0];
+  } else if (args.length === 1) {
+    baseRef = args[0];
+  } else {
+    try {
+      baseRef = inferBaseRef();
+    } catch (e) {
+      console.error(e instanceof GitRefError ? `${COMMAND}: ${e.message}` : String(e?.message ?? e));
+      process.exit(2);
+    }
+  }
+  if (!fs.existsSync(mapsDir)) {
+    console.error(`no capture at ${mapsDir}; run styleproof-map first`);
     process.exit(2);
   }
   try {
-    tmpBase = materializeRef(baseRef, args[0]);
+    tmpBase = materializeRef(baseRef, mapsDir);
   } catch (e) {
-    console.error(e instanceof GitRefError ? `styleproof-diff --base-ref: ${e.message}` : String(e?.message ?? e));
+    console.error(e instanceof GitRefError ? `${COMMAND} --base-ref: ${e.message}` : String(e?.message ?? e));
     process.exit(2);
   }
   dirA = tmpBase;
-  dirB = args[0];
+  dirB = mapsDir;
 } else {
   if (args.length !== 2 || !Number.isFinite(MAX)) {
-    console.error('usage: styleproof-diff <beforeDir> <afterDir> [--max N] [--json <file>]  (--help for all options)');
+    console.error(`usage: ${COMMAND} <beforeDir> <afterDir> [--max N] [--json <file>]  (--help for all options)`);
     process.exit(2);
   }
   [dirA, dirB] = args;
@@ -109,7 +179,7 @@ try {
 } finally {
   if (tmpBase) fs.rmSync(tmpBase, { recursive: true, force: true });
 }
-const { surfaces, counts } = result;
+const { surfaces, counts, compared } = result;
 
 for (const sd of surfaces) {
   if (sd.missing) {
@@ -138,7 +208,7 @@ for (const sd of surfaces) {
   if (lines.length > MAX) console.log(`  ... and ${lines.length - MAX} more lines (re-run with --max ${lines.length})`);
 }
 
-if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({ counts, surfaces }, null, 2));
+if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({ counts, surfaces, compared }, null, 2));
 
 const total = counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing).length;
@@ -148,7 +218,7 @@ const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline
 console.log(
   total === 0
     ? newSurfaces === 0
-      ? `\n✓ ${surfaceCount} surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches`
+      ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
       : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — shown for reference, no reviewable change`
     : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}`,
 );

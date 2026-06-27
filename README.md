@@ -187,6 +187,21 @@ defineStyleMapCapture({
 });
 ```
 
+The manual loop is deliberately three commands:
+
+```bash
+npx styleproof-init
+npx styleproof-map
+npx styleproof-diff
+```
+
+`styleproof-map` captures this branch into `stylemaps/current`. `styleproof-diff`
+then compares that committed map against the base branch automatically: in GitHub
+Actions it uses the PR base; locally it checks `branch.<name>.gh-merge-base`, then
+`origin/main`, `origin/master`, `main`, and `master`. Pin it when needed with
+`styleproof-diff main`, `styleproof-diff master`, or `styleproof-diff --base-ref
+origin/my-base`.
+
 **That's the whole loop.** Capture happens **pre-push on your machine** (where the app already builds and serves); the lean map is committed and pushed; and **CI is a browser-less diff of two precomputed maps** — no build, no browser, just a fast comparison (~5400× cheaper on the compare step than re-capturing both sides in CI). `main` always carries a base map, so every PR is _your code vs the committed base_. Require the `StyleProof` status in branch protection and an unverified visual change can't merge.
 
 > **Same-environment note.** Computed styles depend on the browser build and installed fonts, so maps are only comparable when captured in the same environment (your machine, or a pinned container). The self-check fails loudly on a non-deterministic capture, so drift never passes silently.
@@ -229,6 +244,12 @@ Copy both `capture` and `report` files to `.github/workflows/` (the `report` one
 - **Frozen clock.** `Date.now()` / `new Date()` are pinned to a fixed instant, so time-derived styling (`stale > 1h → red`) can't drift. Timers keep running, so settling still works.
 - **Self-check** — captures each surface twice and fails if they differ, so a replay gap or unseeded randomness surfaces as a clear _"non-deterministic capture"_ error, never as a phantom change on an unrelated PR. **On by default while recording** (where live nondeterminism shows up); off on the replay run, which renders against the recorded HAR and is deterministic by construction. `STYLEPROOF_SELFCHECK=1` forces it on for both; `selfCheck: false` opts out.
 - **Framework noise is skipped by default.** Non-visual and framework-injected elements never count as a change — `<meta>`/`<title>`/`<script>`/`<style>`/… (which Next.js streams into the body then hoists) and live regions like Next's `next-route-announcer`. A real stylesheet change still shows up in the affected elements' computed styles, not in the `<style>` tag. Add your own selectors with `ignore` — they extend this default, they don't replace it.
+- **Layout-equivalent margin noise is normalised.** If the browser reports
+  horizontal auto-centering margins (`margin-left`/`margin-right` and logical
+  equivalents) differently but the captured document-space rectangle is
+  identical, StyleProof treats that as the same rendered layout, including in
+  forced `:hover`/`:focus`/`:active` deltas. If the box moves or resizes, the
+  margin change still reports.
 
 > Replay covers data the page _fetches_. If your app **server-renders** differently per environment (SSR feature flags, locale), still capture both sides with the same server env so the rendered HTML matches.
 
@@ -244,6 +265,7 @@ Anything still moving on its own after that is detected as a volatile region and
 | Animations, transitions, focus ring, caret                  | frozen / blurred before the map is read                                                  |
 | Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                    |
 | Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                       |
+| Layout-equivalent horizontal auto margins                   | ignored only when the captured element rectangle is unchanged                            |
 | Semantic live-state candidates (`aria-live`, `role=status`) | auto-detected and kept in the diff when stable                                           |
 | Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from direct element comparison                |
 | Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                |
@@ -359,8 +381,9 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 **CLIs** (every flag accepts `--flag value` and `--flag=value`; `--help` lists all):
 
-- `styleproof-init` — scaffold **and activate** the whole gate: the capture spec, a `playwright.config.ts` (production-build `webServer`, parallel capture), the pre-push capture-and-push hook, and the browser-less CI workflow. One command.
-- `styleproof-diff <beforeDir> <afterDir>` — the certify gate; exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against). Use **`styleproof-diff --base-ref <gitref> <mapsDir>`** to diff your committed maps against a git ref (the committed-map flow) — no second dir, no recapture.
+- `styleproof-init` — scaffold **and activate** the whole gate: the capture spec, a `playwright.config.ts` (production-build `webServer`, parallel capture), the pre-push capture-and-push hook, and the browser-less CI workflow. One command. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default) instead of assuming npm.
+- `styleproof-map` — capture the current branch's computed-style map through Playwright. By default it writes lean committed maps to `stylemaps/current`; pass `--spec`, `--dir`, `--base-dir`, or `--screenshots` when you need a custom capture.
+- `styleproof-diff` — the certify gate. With no args, it diffs `stylemaps/current` against the inferred base branch; `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form. Exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
 - `styleproof-report <beforeDir> <afterDir> --out <dir>` — render the diff to a Markdown report with before/after crops. Add `--include-content` for the opt-in, advisory content section (see above); **`--base-ref <gitref> <mapsDir>`** reads the base from git like the diff CLI.
 
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.

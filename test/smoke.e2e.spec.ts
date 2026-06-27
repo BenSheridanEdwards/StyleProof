@@ -8,12 +8,19 @@ import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests } fr
 import { diffStyleMaps, selectCrawlLinks, detectViewportWidths } from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
+type PageViewport = Parameters<Page['setViewportSize']>[0];
+
 /** Navigate to inline HTML (no waiting past `load`) and run a callback. */
-async function withPage<T>(page: Page, html: string, fn: () => Promise<T>): Promise<T> {
+async function withPage<T>(
+  page: Page,
+  html: string,
+  fn: () => Promise<T>,
+  viewport: PageViewport = { width: 800, height: 600 },
+): Promise<T> {
   const file = path.join(os.tmpdir(), `styleproof-e2e-${Math.random().toString(36).slice(2)}.html`);
   fs.writeFileSync(file, html);
   try {
-    await page.setViewportSize({ width: 800, height: 600 });
+    await page.setViewportSize(viewport);
     await page.goto('file://' + file, { waitUntil: 'load' });
     return await fn();
   } finally {
@@ -60,6 +67,31 @@ test('captures a real page and reports an identical map as unchanged', async ({ 
   const a = await captureFixture(page, html);
   const b = await captureFixture(page, html);
   expect(diffStyleMaps(a, b)).toEqual([]);
+});
+
+test('layout-equivalent centered wrappers do not produce phantom diffs', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    .shell { display: block; min-height: 180px; background: rgb(246, 247, 249); }
+    .centered {
+      width: 720px;
+      height: 96px;
+      margin-left: auto;
+      margin-right: auto;
+      background: rgb(25, 80, 140);
+    }
+  </style></head><body>
+    <main class="shell"><section class="centered">centered content</section></main>
+  </body></html>`;
+  const baseline = await withPage(page, html, () => captureStyleMap(page), { width: 1366, height: 768 });
+  const repeated = JSON.parse(JSON.stringify(baseline)) as typeof baseline;
+  const centered = Object.entries(repeated.elements).find(([, element]) => element.cls === 'centered');
+  expect(centered, 'centered wrapper captured from a real page').toBeTruthy();
+  const [centeredPath] = centered!;
+  repeated.elements[centeredPath]!.style['margin-left'] = '40px';
+  repeated.elements[centeredPath]!.style['margin-right'] = '40px';
+  expect(diffStyleMaps(baseline, repeated)).toEqual([]);
 });
 
 test('captures colour theme tokens from :root, normalised to rgb', async ({ page }) => {
