@@ -12,7 +12,7 @@
  */
 import { generateStyleMapReport } from '../dist/report.js';
 import { cleanupBaseRefCaptureDirs, resolveBaseRefCaptureDirs } from '../dist/cli-base-ref.js';
-import { isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { cliErrorMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 
 const COMMAND = 'styleproof-report';
 const DEFAULT_MAPS_DIR = 'stylemaps/current';
@@ -94,13 +94,18 @@ let beforeDir;
 let afterDir;
 let baseCapture = null;
 if (baseRef || args.length <= 1) {
-  baseCapture = resolveBaseRefCaptureDirs({
-    command: COMMAND,
-    baseRef,
-    mapsDir,
-    args,
-    usage: 'usage: styleproof-report --base-ref <gitref> [mapsDir] [--out <dir>] [options]',
-  });
+  try {
+    baseCapture = resolveBaseRefCaptureDirs({
+      command: COMMAND,
+      baseRef,
+      mapsDir,
+      args,
+      usage: 'usage: styleproof-report --base-ref <gitref> [mapsDir] [--out <dir>] [options]',
+    });
+  } catch (e) {
+    console.error(cliErrorMessage(e));
+    process.exit(2);
+  }
   beforeDir = baseCapture.beforeDir;
   afterDir = baseCapture.afterDir;
 } else {

@@ -7,6 +7,10 @@ export function showHelpAndExit(help: string): never {
   process.exit(0);
 }
 
+export function cliErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function unknownFlagMessage(command: string, flag: string): string {
   return `${command}: unknown flag: ${flag}\nNext: run ${command} --help to see supported options.`;
 }

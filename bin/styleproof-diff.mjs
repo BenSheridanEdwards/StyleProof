@@ -30,7 +30,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
 import { cleanupBaseRefCaptureDirs, resolveBaseRefCaptureDirs } from '../dist/cli-base-ref.js';
-import { isHelpArg, missingManualCaptureMessage, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import {
+  cliErrorMessage,
+  isHelpArg,
+  missingManualCaptureMessage,
+  showHelpAndExit,
+  unknownFlagMessage,
+} from '../dist/cli-errors.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 const DEFAULT_MAPS_DIR = 'stylemaps/current';
@@ -84,13 +90,18 @@ if (baseRef || args.length <= 1) {
     console.error(`usage: ${COMMAND} [baseRef] [--maps-dir <dir>] [--max N] [--json <file>]`);
     process.exit(2);
   }
-  baseCapture = resolveBaseRefCaptureDirs({
-    command: COMMAND,
-    baseRef,
-    mapsDir,
-    args,
-    usage: `usage: ${COMMAND} --base-ref <gitref> [mapsDir] [--max N] [--json <file>]`,
-  });
+  try {
+    baseCapture = resolveBaseRefCaptureDirs({
+      command: COMMAND,
+      baseRef,
+      mapsDir,
+      args,
+      usage: `usage: ${COMMAND} --base-ref <gitref> [mapsDir] [--max N] [--json <file>]`,
+    });
+  } catch (e) {
+    console.error(cliErrorMessage(e));
+    process.exit(2);
+  }
   dirA = baseCapture.beforeDir;
   dirB = baseCapture.afterDir;
 } else {

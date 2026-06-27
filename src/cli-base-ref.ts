@@ -15,16 +15,16 @@ export interface BaseRefCaptureDirs {
 }
 
 function exitUsage(usage: string): never {
-  console.error(usage);
-  process.exit(2);
+  throw new Error(usage);
 }
 
 function inferBaseRefOrExit(command: string): string {
   try {
     return inferBaseRef();
   } catch (e) {
-    console.error(e instanceof GitRefError ? baseInferenceMessage(command, e.message) : errorMessage(e));
-    process.exit(2);
+    throw new Error(e instanceof GitRefError ? baseInferenceMessage(command, e.message) : errorMessage(e), {
+      cause: e,
+    });
   }
 }
 
@@ -48,8 +48,12 @@ function materializeBaseRefOrExit(command: string, baseRef: string, mapsDir: str
   try {
     return materializeRef(baseRef, mapsDir);
   } catch (e) {
-    console.error(e instanceof GitRefError ? baseMapsMessage(command, e.message, baseRef, mapsDir) : errorMessage(e));
-    process.exit(2);
+    throw new Error(
+      e instanceof GitRefError ? baseMapsMessage(command, e.message, baseRef, mapsDir) : errorMessage(e),
+      {
+        cause: e,
+      },
+    );
   }
 }
 
@@ -63,8 +67,7 @@ export function resolveBaseRefCaptureDirs(options: {
   const { command } = options;
   const { baseRef, mapsDir } = selectBaseRef(options);
   if (!fs.existsSync(mapsDir)) {
-    console.error(missingWorkingMapsMessage(command, mapsDir));
-    process.exit(2);
+    throw new Error(missingWorkingMapsMessage(command, mapsDir));
   }
   const tmpBase = materializeBaseRefOrExit(command, baseRef, mapsDir);
   return { beforeDir: tmpBase, afterDir: mapsDir, baseRef, mapsDir, tmpBase };
