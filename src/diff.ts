@@ -152,8 +152,9 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
   }
 
   // If the forced-state layer was skipped on exactly one side (CDP skew during
-  // that capture), the :hover/:focus/:active layer was not compared — flag it
-  // loudly rather than letting {} vs {} read as "identical".
+  // capture, or truncation past maxInteractive), the :hover/:focus/:active layer
+  // was not fully compared — flag it loudly rather than letting {} vs {} read as
+  // "identical".
   if (!!a.statesSkipped !== !!b.statesSkipped) {
     findings.push({
       kind: 'state',
@@ -164,8 +165,8 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
       props: [
         {
           prop: 'forced :hover/:focus/:active layer',
-          before: a.statesSkipped ? 'skipped (CDP skew)' : 'captured',
-          after: b.statesSkipped ? 'skipped (CDP skew)' : 'captured',
+          before: a.statesSkipped ? 'not fully captured' : 'captured',
+          after: b.statesSkipped ? 'not fully captured' : 'captured',
         },
       ],
     });

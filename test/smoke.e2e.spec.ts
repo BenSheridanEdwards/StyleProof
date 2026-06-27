@@ -122,6 +122,21 @@ test('catches a dropped :hover variant via forced-state capture (CDP)', async ({
   expect(stateFinding, 'hover delta change detected').toBeTruthy();
 });
 
+test('flags the forced-state layer as not certified when truncated past maxInteractive', async ({ page }) => {
+  // The page has interactive elements, but maxInteractive:0 truncates the forced
+  // -state capture entirely. statesSkipped must be set so a diff against a fully
+  // -captured side reports the layer as uncertified instead of "identical".
+  const html = fixture('rgb(0, 0, 0)', 'rgb(0, 255, 0)');
+  const truncated = await withPage(page, html, () => captureStyleMap(page, { maxInteractive: 0 }));
+  expect(truncated.statesSkipped, 'truncated forced-state layer is flagged').toBe(true);
+
+  const full = await captureFixture(page, html);
+  expect(full.statesSkipped, 'a fully-captured layer is not flagged').toBeFalsy();
+
+  const finding = diffStyleMaps(truncated, full).find((f) => f.kind === 'state' && f.state === 'forced-state capture');
+  expect(finding, 'the one-sided skip is surfaced as a loud finding').toBeTruthy();
+});
+
 test('neutralises real hover so the resting map still yields its forced :hover delta', async ({ page }) => {
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     body { margin: 0; }

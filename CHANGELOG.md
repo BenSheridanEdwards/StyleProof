@@ -22,6 +22,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   contract that new surfaces never block. The gate now fails only on reviewable
   diffs (exit `1`) and errors (exit `2`), matching `action.yml`, and the receipt
   reports new surfaces explicitly.
+- **A truncated forced-state layer is no longer silently certified as
+  identical.** When a surface had more interactive elements than
+  `maxInteractive`, capture truncated the `:hover/:focus/:active` layer but left
+  `statesSkipped` unset, so the uncaptured states read as "identical" against a
+  fully-captured side — the exact false-certification the flag exists to prevent.
+  Truncation now sets `statesSkipped`, and the diff reports the layer as "not
+  fully captured" on the affected side.
 
 ## [3.1.1] - 2026-06-27
 
