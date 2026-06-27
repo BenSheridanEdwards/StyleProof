@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-06-27
+
+### Fixed
+
+- **The composite Action now builds its checked-out source before running local
+  bins.** Because `dist/` is intentionally gitignored, the v3 Action ref could
+  install runtime dependencies and then fail when `bin/styleproof-report.mjs`
+  imported `../dist/report.js`. The Action runtime now installs the checkout's dev
+  toolchain with scripts disabled, runs `npm run build`, and executes the checked-out
+  entrypoints from that built source.
+
 ## [3.0.1] - 2026-06-27
 
 ### Added
@@ -830,7 +841,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.1...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.2...HEAD
+[3.0.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.1...v3.0.2
 [3.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.5.0...v3.0.0
 [2.5.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v2.4.0...v2.5.0

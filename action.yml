@@ -60,14 +60,15 @@ runs:
   using: composite
   steps:
     # Composite actions run from a checked-out action ref, but bare `npx
-    # styleproof-*` resolves from the consumer workspace or npm latest. Install this
-    # action's runtime deps into the action checkout, then run the checked-out bins so
-    # `uses: ...@v3` truly executes v3 code.
+    # styleproof-*` resolves from the consumer workspace or npm latest. Install and
+    # build this action checkout, then run the checked-out bins so `uses: ...@v3`
+    # truly executes v3 code even though `dist/` is not committed to git.
     - name: Install StyleProof action runtime
       shell: bash
       run: |
         cd "$GITHUB_ACTION_PATH"
-        npm ci --omit=dev --omit=peer --ignore-scripts
+        npm ci --ignore-scripts
+        npm run build
 
     # Resolve the PR number + head SHA from the TRUSTED event payload. This is what
     # lets the report be driven from a `workflow_run` (the fork/Dependabot-safe flow:
