@@ -36,6 +36,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **CLI errors now lead with the recovery step.** Missing specs, unknown flags,
+  absent working maps, and missing committed base maps now print a concrete
+  `Next:` line such as `run styleproof-map`, pass `--maps-dir <dir>`, or commit
+  captures on the base branch.
 - **`styleproof-map` now runs generated capture tests correctly.** The CLI no
   longer passes the spec path as a Playwright file filter, because StyleProof's
   generated tests are registered through the package runner. It now targets the

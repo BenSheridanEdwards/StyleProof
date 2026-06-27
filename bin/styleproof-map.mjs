@@ -12,6 +12,7 @@
  */
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { missingSpecMessage, playwrightMissingMessage, unknownFlagMessage } from '../dist/cli-errors.js';
 
 const HELP = `styleproof-map — capture this branch's computed-style map
 
@@ -55,7 +56,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--screenshots') screenshots = '1';
   else if (a === '--no-screenshots') screenshots = '0';
   else if (a.startsWith('--')) {
-    console.error(`unknown flag: ${a}`);
+    console.error(unknownFlagMessage('styleproof-map', a));
     process.exit(2);
   } else {
     spec = a;
@@ -75,7 +76,7 @@ if (!baseDir) {
   process.exit(2);
 }
 if (!fs.existsSync(spec)) {
-  console.error(`no StyleProof spec at ${spec}; run styleproof-init or pass --spec <path>`);
+  console.error(missingSpecMessage(spec));
   process.exit(2);
 }
 
@@ -91,9 +92,7 @@ const result = spawnSync(command, ['test', '--grep', 'styleproof capture', ...pl
   env,
 });
 if (result.error) {
-  console.error(
-    `styleproof-map: could not run Playwright (${result.error.message}). Install @playwright/test and run playwright install chromium.`,
-  );
+  console.error(playwrightMissingMessage(result.error.message));
   process.exit(2);
 }
 process.exit(result.status ?? 1);
