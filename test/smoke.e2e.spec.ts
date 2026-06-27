@@ -390,6 +390,24 @@ test('auto-detects semantic live-state candidates without excluding stable produ
   expect(map.volatile ?? [], 'stable live-state candidate is not treated as volatile').toEqual([]);
 });
 
+test('a caller-ignored region is not surfaced as a live candidate', async ({ page }) => {
+  // The user ignored .ad-slot; its live region must be excluded from liveCandidates
+  // too, matching every other capture pass — not just the framework defaults.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+  </style></head><body>
+    <main>
+      <div role="status" class="status">Loaded</div>
+      <aside class="ad-slot"><div aria-live="polite" class="ad-ticker">Ad</div></aside>
+    </main>
+  </body></html>`;
+
+  const map = await withPage(page, html, () => captureStyleMap(page, { captureStates: false, ignore: ['.ad-slot'] }));
+  const classes = (map.liveCandidates ?? []).map((c) => c.cls);
+  expect(classes, 'product status UI is still surfaced').toContain('status');
+  expect(classes, 'the ignored ad ticker is not surfaced as a live candidate').not.toContain('ad-ticker');
+});
+
 test('ignores framework / non-visual DOM noise by default (meta, title, next-route-announcer)', async ({ page }) => {
   // The body carries the kind of noise Next.js streams in / injects: a couple of
   // <meta>, a <title>, a <script>, and the route-announcer live region — none of

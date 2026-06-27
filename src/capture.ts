@@ -878,7 +878,9 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // Detect semantic live-state candidates automatically, but don't exclude them
   // merely for being live regions. Stable status/alert/log UI is product UI and
   // should still be captured; this metadata only improves reports and diagnostics.
-  const liveCandidates = await page.evaluate(detectLiveCandidates, { ignore: FRAMEWORK_IGNORE });
+  // Honour the caller's `ignore` too: a region the user excluded shouldn't be
+  // surfaced (or persisted) as a live candidate, matching every other capture pass.
+  const liveCandidates = await page.evaluate(detectLiveCandidates, { ignore });
 
   // Motion longhands (transition/animation) are read separately so declared
   // motion is verified even though every other value is a frozen end state.

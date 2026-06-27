@@ -15,6 +15,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Live-region detection now respects the surface's `ignore` list.** A region
+  the caller ignored was still scanned for `aria-live`/`role` and surfaced (and
+  persisted into the committed map) as a live-state candidate, unlike every other
+  capture pass which honours the merged `ignore`. Ignored regions are now excluded
+  from `liveCandidates` too.
 - **The scaffolded CI workflow no longer blocks PRs that only add new surfaces.**
   `styleproof init` generated a workflow that failed on any non-zero diff exit
   code, so a new-surface-only diff (exit `3`) held the check red and the PR
