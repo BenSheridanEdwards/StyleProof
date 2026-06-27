@@ -197,7 +197,11 @@ function cliEnv(overrides = {}) {
   return env;
 }
 const runIn = (cwd, script, a, opts = {}) =>
-  spawnSync(process.execPath, [script, ...a], { cwd, encoding: 'utf8', env: cliEnv(opts.env) });
+  spawnSync(process.execPath, [script, ...a], {
+    cwd,
+    encoding: 'utf8',
+    env: cliEnv(opts.env),
+  });
 const mapWith = (color) => makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color } } } });
 
 test('diff --base-ref: identical working maps vs the committed base → exit 0', () => {
@@ -221,6 +225,31 @@ test('diff defaults to stylemaps/current against the inferred main branch', () =
   spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
   spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
   const r = runIn(repo, DIFF, []);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
+  rmTmp(repo);
+});
+
+test('diff defaults to the GitHub PR base for stacked local branches when gh is available', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  const binDir = path.join(repo, 'fake-bin');
+  fs.mkdirSync(binDir);
+  const fakeGh = path.join(binDir, 'gh');
+  fs.writeFileSync(fakeGh, '#!/bin/sh\nprintf "stack-base\\n"\n');
+  fs.chmodSync(fakeGh, 0o755);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'main-base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'stack-base'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 128, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'stack-base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+  const r = runIn(repo, DIFF, [], {
+    env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}`, GITHUB_BASE_REF: '' },
+  });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
   rmTmp(repo);

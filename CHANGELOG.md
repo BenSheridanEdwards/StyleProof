@@ -28,6 +28,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `stylemaps/current` against the inferred base branch, or pass
   `styleproof-report main` / `--base-ref main` to pin the base while keeping the
   committed-map directory default.
+- **No-arg diff/report now understand stacked PRs locally.** After
+  `GITHUB_BASE_REF` and explicit `branch.<name>.gh-merge-base` config, the shared
+  base-ref inference asks `gh pr view` for the current PR base before falling back
+  to `main`/`master`, so stacked branches compare against their real review base
+  out of the box.
 
 ### Fixed
 
