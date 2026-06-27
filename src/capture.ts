@@ -78,10 +78,11 @@ export type StyleMap = {
   elements: Record<string, ElementEntry>;
   states: Record<string, Record<string, Record<string, Props>>>;
   /**
-   * True when the forced :hover/:focus/:active layer was skipped for this
-   * capture because of CDP/page interactive-element count skew. Persisted so a
-   * diff against a fully-captured side flags that the state layer wasn't
-   * certified, instead of silently reading as "identical".
+   * True when the forced :hover/:focus/:active layer was not fully captured for
+   * this capture — either CDP/page interactive-element count skew, or because the
+   * interactive-element count exceeded `maxInteractive` and capture was truncated.
+   * Persisted so a diff against a fully-captured side flags that the state layer
+   * wasn't certified, instead of silently reading as "identical".
    */
   statesSkipped?: boolean;
   /**
@@ -594,7 +595,8 @@ async function captureForcedStates(
   ).filter((m) => !(skipPaths.length && isUnder(m.path, skipPaths)));
 
   const limit = Math.min(marked.length, maxInteractive);
-  if (marked.length > maxInteractive) {
+  const truncated = marked.length > maxInteractive;
+  if (truncated) {
     // eslint-disable-next-line no-console
     console.warn(
       `styleproof: ${marked.length} interactive elements exceeds maxInteractive=${maxInteractive}; ` +
@@ -625,7 +627,10 @@ async function captureForcedStates(
     await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
     await client.detach();
   }
-  return { states, skipped: false };
+  // When truncated, the elements past the limit have no forced-state delta —
+  // flag the layer so the diff reports it as uncertified instead of letting the
+  // missing states read as "identical" against a fully-captured side.
+  return { states, skipped: truncated };
 }
 
 type Elements = Record<string, ElementEntry>;
