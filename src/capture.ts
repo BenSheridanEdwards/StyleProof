@@ -57,7 +57,23 @@ export type ElementEntry = {
    */
   component?: { name: string; props?: Record<string, string> };
 };
+export type CaptureMetadata = {
+  surfaceKey?: string;
+  variantKey?: string;
+  variantKind?: 'variant' | 'live-state';
+};
+export type LiveRegionCandidate = {
+  path: string;
+  tag: string;
+  cls: string;
+  reason: string;
+  role?: string;
+  ariaLive?: string;
+  ariaBusy?: string;
+};
 export type StyleMap = {
+  /** Optional runner-supplied context; ignored by the certification diff. */
+  metadata?: CaptureMetadata;
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
   states: Record<string, Record<string, Record<string, Props>>>;
@@ -76,6 +92,13 @@ export type StyleMap = {
    * stream/ticker never reads as a change. Empty/absent on a fully-settled page.
    */
   volatile?: string[];
+  /**
+   * Semantic live-state candidates detected automatically from the DOM, such as
+   * `[aria-live]`, `role=status`, `role=alert`, or `aria-busy=true`. These are
+   * diagnostics only: stable candidates are still captured and compared; only
+   * regions that actually keep changing are auto-excluded via `volatile`.
+   */
+  liveCandidates?: LiveRegionCandidate[];
   /**
    * Colour-valued `:root` custom properties (design/theme tokens), normalised to
    * the same `rgb(...)` form the longhands resolve to — `{ "--red-200": "rgb(254,
@@ -169,6 +192,8 @@ export type CaptureOptions = {
    * in flight when you called it (arm one yourself before `goto` if that matters).
    */
   pendingRequests?: () => number;
+  /** Advanced/internal: metadata to persist with the capture for report context. */
+  metadata?: CaptureMetadata;
 };
 
 const INTERACTIVE = 'a, button, input, textarea, select, summary, [role="button"], [tabindex]';
@@ -406,6 +431,41 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
   }
   frame.remove();
   return { defaults, elements, shadowHosts, sameOriginFrames };
+}
+
+type LiveCandidateArgs = { ignore: string[] };
+
+function detectLiveCandidates({ ignore }: LiveCandidateArgs): LiveRegionCandidate[] {
+  const pathOf = (window as unknown as WithPathOf).__spPathOf;
+  const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
+  const reasonsFor = (role: string, ariaLive: string, ariaBusy: string): string[] => {
+    const reasons: string[] = [];
+    if (ariaLive && ariaLive !== 'off') reasons.push(`aria-live=${ariaLive}`);
+    if (['alert', 'log', 'marquee', 'status', 'timer'].includes(role)) reasons.push(`role=${role}`);
+    if (ariaBusy === 'true') reasons.push('aria-busy=true');
+    return reasons;
+  };
+  return [document.documentElement, document.body, ...document.querySelectorAll('body *')]
+    .filter((el) => !skipSel || !el.matches(skipSel))
+    .flatMap((el): LiveRegionCandidate[] => {
+      const role = (el.getAttribute('role') ?? '').trim().toLowerCase();
+      const ariaLive = (el.getAttribute('aria-live') ?? '').trim().toLowerCase();
+      const ariaBusy = (el.getAttribute('aria-busy') ?? '').trim().toLowerCase();
+      const reasons = reasonsFor(role, ariaLive, ariaBusy);
+      return reasons.length
+        ? [
+            {
+              path: pathOf(el),
+              tag: el.tagName.toLowerCase(),
+              cls: el.getAttribute('class') || '',
+              reason: reasons.join(', '),
+              ...(role ? { role } : {}),
+              ...(ariaLive ? { ariaLive } : {}),
+              ...(ariaBusy ? { ariaBusy } : {}),
+            },
+          ]
+        : [];
+    });
 }
 
 type SubtreeArgs = { selector: string; index: number };
@@ -785,6 +845,10 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // (a live stream/ticker) to exclude — animations are frozen above, so only
   // real content/layout churn lands here.
   const volatile = await detectVolatile(page, ignore, stabilize, captureText, options.pendingRequests);
+  // Detect semantic live-state candidates automatically, but don't exclude them
+  // merely for being live regions. Stable status/alert/log UI is product UI and
+  // should still be captured; this metadata only improves reports and diagnostics.
+  const liveCandidates = await page.evaluate(detectLiveCandidates, { ignore: FRAMEWORK_IGNORE });
 
   // Motion longhands (transition/animation) are read separately so declared
   // motion is verified even though every other value is a frozen end state.
@@ -811,11 +875,13 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   }
   const tokens = await page.evaluate(capturePageTokens);
   return {
+    ...(options.metadata ? { metadata: options.metadata } : {}),
     defaults: base.defaults,
     elements: base.elements,
     states,
     ...(statesSkipped ? { statesSkipped: true } : {}),
     ...(volatile.length ? { volatile } : {}),
+    ...(liveCandidates.length ? { liveCandidates } : {}),
     ...(Object.keys(tokens).length ? { tokens } : {}),
   };
 }

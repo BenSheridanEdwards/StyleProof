@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { loadStyleMap, type ElementEntry, type Rect, type StyleMap } from './capture.js';
+import { loadStyleMap, type ElementEntry, type LiveRegionCandidate, type Rect, type StyleMap } from './capture.js';
 import {
   diffStyleMapDirs,
   diffContentDirs,
@@ -457,20 +457,70 @@ export function prettyLabel(p: string, cls: string): string {
 const surfaceBase = (s: string): string => s.replace(/@\d+$/, '');
 const surfaceWidth = (s: string): number => Number(s.match(/@(\d+)$/)?.[1] ?? 0);
 
-/** "landing @ 1280, 1080, 390 · landing-nav-open @ 1080" from the surface keys. */
-function formatSurfaceList(surfaces: string[]): string {
-  const byBase = new Map<string, number[]>();
-  for (const s of surfaces) {
-    const arr = byBase.get(surfaceBase(s)) ?? [];
-    arr.push(surfaceWidth(s));
-    byBase.set(surfaceBase(s), arr);
-  }
+function pushSurfaceWidth(byBase: Map<string, number[]>, base: string, surface: string): void {
+  const arr = byBase.get(base) ?? [];
+  arr.push(surfaceWidth(surface));
+  byBase.set(base, arr);
+}
+
+function renderSurfaceGroups(byBase: Map<string, number[]>): string {
   return [...byBase]
     .map(([base, ws]) => {
       const widths = ws.filter((w) => w > 0).sort((a, b) => b - a);
       return widths.length ? `${base} @ ${widths.join(', ')}` : base;
     })
     .join(' · ');
+}
+
+/** "landing @ 1280, 1080, 390 · landing-nav-open @ 1080" from the surface keys. */
+function formatSurfaceList(surfaces: string[]): string {
+  const byBase = new Map<string, number[]>();
+  for (const s of surfaces) pushSurfaceWidth(byBase, surfaceBase(s), s);
+  return renderSurfaceGroups(byBase);
+}
+
+function surfaceContext(...maps: Array<StyleMap | undefined>): string {
+  const metadata = maps.find((m) => m?.metadata)?.metadata;
+  if (!metadata?.variantKey) return '';
+  return metadata.variantKind === 'live-state'
+    ? `live state \`${metadata.variantKey}\``
+    : `variant \`${metadata.variantKey}\``;
+}
+
+function formatSurfaceWithContext(surface: string, ...maps: Array<StyleMap | undefined>): string {
+  const context = surfaceContext(...maps);
+  return context ? `${formatSurfaceList([surface])} · ${context}` : formatSurfaceList([surface]);
+}
+
+function formatSurfaceListWithContext(surfaces: string[], beforeDir: string): string {
+  const byBase = new Map<string, number[]>();
+  for (const surface of surfaces) {
+    const map = loadStyleMap(findCapture(beforeDir, surface));
+    const context = surfaceContext(map);
+    const base = context ? `${surfaceBase(surface)} · ${context}` : surfaceBase(surface);
+    pushSurfaceWidth(byBase, base, surface);
+  }
+  return renderSurfaceGroups(byBase);
+}
+
+function liveCandidateLabel(candidate: LiveRegionCandidate): string {
+  const label = candidate.cls ? `${candidate.tag}.${candidate.cls.split(/\s+/)[0]}` : candidate.tag;
+  return `${label} (${candidate.reason})`;
+}
+
+function captureFiles(dir: string): string[] {
+  return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /\.json(\.gz)?$/.test(f)) : [];
+}
+
+function collectLiveCandidateLabels(beforeDir: string, afterDir: string): string[] {
+  const seen = new Set<string>();
+  for (const dir of [beforeDir, afterDir]) {
+    for (const file of captureFiles(dir)) {
+      const map = loadStyleMap(path.join(dir, file));
+      for (const candidate of map.liveCandidates ?? []) seen.add(liveCandidateLabel(candidate));
+    }
+  }
+  return [...seen].sort();
 }
 
 // Grid-track longhands compute to width-dependent pixels (`282px ×2` at one width,
@@ -934,6 +984,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const includeNoise = opts.includeLayoutNoise ?? false;
   const includeContent = opts.includeContent ?? false;
   const { surfaces, volatile: volatileCount } = diffStyleMapDirs(beforeDir, afterDir);
+  const liveCandidateLabels = volatileCount > 0 ? collectLiveCandidateLabels(beforeDir, afterDir) : [];
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
   // Focus each surface on styling intent: drop reflow-casualty props, suppress
@@ -1012,9 +1063,12 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     }
   }
   if (volatileCount > 0) {
+    const candidates = liveCandidateLabels.length
+      ? ` Auto-detected live-state candidate(s): ${liveCandidateLabels.slice(0, 5).join('; ')}.`
+      : '';
     md.push(
       '',
-      `_${volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — they don't affect the check._`,
+      `_${volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — they don't affect the check.${candidates}_`,
     );
   }
   if (contentSection.count > 0 && (changeGroups.length > 0 || missing.length > 0)) {
@@ -1049,11 +1103,6 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
     groups.sort((a, b) => topY(a) - topY(b));
 
-    const surfaceList =
-      cg.surfaces.length > 1
-        ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceList(cg.surfaces)}_`
-        : `_${formatSurfaceList(cg.surfaces)}_`;
-
     const surfaceJson: Record<string, unknown> = {
       surfaces: cg.surfaces,
       representative: sd.surface,
@@ -1068,6 +1117,11 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       const regionFindings = surfaceFindings.filter((f) =>
         g.paths.some((root) => f.path === root || f.path.startsWith(root + ' > ')),
       );
+
+      const surfaceList =
+        cg.surfaces.length > 1
+          ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(cg.surfaces, beforeDir)}_`
+          : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
 
       md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
 
@@ -1105,14 +1159,14 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
           '',
           `![before ◀ │ ▶ after](${img(images.composite!)})`,
           '',
-          `<sub>◀ before  ·  after ▶ — ${sd.surface}</sub>`,
+          `<sub>◀ before  ·  after ▶ — ${formatSurfaceWithContext(sd.surface, mapA, mapB)}</sub>`,
           '',
           '<details>',
           '<summary>🔍 Highlight what changed</summary>',
           '',
           `![annotated before ◀ │ ▶ after](${img(images.annotated!)})`,
           '',
-          `<sub>magenta boxes mark each change — ${sd.surface}</sub>`,
+          `<sub>magenta boxes mark each change — ${formatSurfaceWithContext(sd.surface, mapA, mapB)}</sub>`,
           '',
           '</details>',
         );
@@ -1141,12 +1195,13 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   for (const p of missing) {
     const side = p.sd.missing === 'before' ? 'after' : 'before';
     const srcDir = side === 'after' ? afterDir : beforeDir;
+    const map = loadStyleMap(findCapture(srcDir, p.sd.surface));
     const png = readPng(path.join(srcDir, `${p.sd.surface}.png`));
     md.push(
       '',
       `### \`${p.sd.surface}\` · new surface ${NEW_SURFACE_MARKER}`,
       '',
-      `_${formatSurfaceList([p.sd.surface])}_`,
+      `_${formatSurfaceWithContext(p.sd.surface, map)}_`,
     );
     const surfaceJson: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: true };
     if (png) {
@@ -1159,7 +1214,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         '',
         `![new surface — ${side}](${img(`${stem}.png`)})`,
         '',
-        `<sub>${side} · ${p.sd.surface}${png.height > h ? ' (top of page)' : ''}</sub>`,
+        `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top of page)' : ''}</sub>`,
       );
       surfaceJson.image = `${stem}.png`;
     } else {

@@ -1,7 +1,7 @@
 export { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests } from './capture.js';
-export type { StyleMap, CaptureOptions, ElementEntry, Rect } from './capture.js';
+export type { StyleMap, CaptureOptions, CaptureMetadata, ElementEntry, LiveRegionCandidate, Rect } from './capture.js';
 export { defineStyleMapCapture, defineCrawlCapture } from './runner.js';
-export type { Surface, DefineOptions, CrawlOptions } from './runner.js';
+export type { Surface, SurfaceLiveState, SurfaceVariant, DefineOptions, CrawlOptions } from './runner.js';
 export { coverageGaps } from './coverage.js';
 export type { CoverageGaps } from './coverage.js';
 export { detectViewportWidths, mediaTextWidthBoundaries, widthsFromBoundaries } from './breakpoints.js';

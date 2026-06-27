@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultSelfCheck, resolveBaseDir, resolveScreenshots } from '../dist/runner.js';
+import {
+  defaultSelfCheck,
+  expandSurfaceVariants,
+  resolveBaseDir,
+  resolveScreenshots,
+  selfCheckErrorMessage,
+} from '../dist/runner.js';
 
 // selfCheck defaults ON when recording (no replayFrom) — where live nondeterminism
 // surfaces — and OFF when replaying (deterministic by construction). The env var
@@ -40,4 +46,87 @@ test('resolveScreenshots: STYLEPROOF_SCREENSHOTS=0 disables; on by default', () 
 test('resolveScreenshots: an explicit value wins over the env', () => {
   assert.equal(resolveScreenshots(false, undefined), false);
   assert.equal(resolveScreenshots(true, '0'), true);
+});
+
+test('expandSurfaceVariants: turns declared states into concrete capture surfaces', async () => {
+  const calls = [];
+  const variants = expandSurfaceVariants({
+    key: 'dashboard',
+    go: async () => calls.push('surface'),
+    ignore: ['.ticker'],
+    widths: [1440, 768],
+    height: 900,
+    variants: [
+      {
+        key: 'loading',
+        setup: async () => calls.push('setup-loading'),
+        go: async () => calls.push('go-loading'),
+        ignore: ['.spinner'],
+        widths: [1440],
+      },
+      { key: 'loaded', go: async () => calls.push('go-loaded') },
+    ],
+  });
+
+  assert.deepEqual(
+    variants.map((s) => s.key),
+    ['dashboard-loading', 'dashboard-loaded'],
+  );
+  assert.deepEqual(variants[0].widths, [1440]);
+  assert.deepEqual(variants[1].widths, [1440, 768]);
+  assert.equal(variants[0].height, 900);
+  assert.deepEqual(variants[0].ignore, ['.ticker', '.spinner']);
+
+  await variants[0].go({});
+  assert.deepEqual(calls, ['setup-loading', 'surface', 'go-loading']);
+});
+
+test('expandSurfaceVariants: liveStates carry live-state metadata', () => {
+  const states = expandSurfaceVariants({
+    key: 'dashboard',
+    go: async () => {},
+    widths: [1440],
+    liveStates: [{ key: 'loading' }, { key: 'loaded' }],
+  });
+
+  assert.deepEqual(
+    states.map((s) => s.key),
+    ['dashboard-loading', 'dashboard-loaded'],
+  );
+  assert.deepEqual(states[1].metadata, {
+    surfaceKey: 'dashboard',
+    variantKey: 'loaded',
+    variantKind: 'live-state',
+  });
+});
+
+test('selfCheckErrorMessage: explains volatile root layout drift as a variant problem', () => {
+  const message = selfCheckErrorMessage(
+    'dashboard-live',
+    [
+      {
+        kind: 'style',
+        path: 'html',
+        cls: '',
+        pseudo: null,
+        props: [{ prop: 'block-size', before: '800px', after: '1268px' }],
+      },
+    ],
+    ['body > main:nth-child(1) > div:nth-child(1)'],
+    [
+      {
+        path: 'body > main:nth-child(1) > div:nth-child(1)',
+        tag: 'div',
+        cls: 'status',
+        reason: 'role=status',
+        role: 'status',
+      },
+    ],
+  );
+
+  assert.match(message, /Volatile regions were detected/);
+  assert.match(message, /`liveStates`/);
+  assert.match(message, /Auto-detected live-state candidate/);
+  assert.match(message, /div.status \(role=status\)/);
+  assert.match(message, /First: html block-size: 800px → 1268px/);
 });
