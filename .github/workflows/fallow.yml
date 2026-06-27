@@ -18,7 +18,7 @@ jobs:
       # imports — tests run against the compiled output, so without a build those
       # imports read as "unresolved" (a false dead-code finding). dist is
       # .gitignored, so it's resolved-against but not itself analysed.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
