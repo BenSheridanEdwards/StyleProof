@@ -6,8 +6,9 @@
     <title>StyleProof demo</title>
     <!--
       A small, deterministic page StyleProof certifies against itself in CI
-      (test/dogfood.e2e.spec.ts). No web fonts, no animation, no JS, no live data —
-      so its computed styles are stable. Two real @media breakpoints (600 / 900) let
+      (test/dogfood.e2e.spec.ts). No web fonts, no animation, no live data —
+      only a query-driven live-state demo whose states are pinned by the test — so
+      its computed styles are stable. Two real @media breakpoints (600 / 900) let
       the dogfood prove automatic breakpoint detection on a real page.
     -->
     <style>
@@ -74,6 +75,25 @@
         outline: 3px solid rgb(147, 197, 253);
         outline-offset: 2px;
       }
+      .status-card {
+        margin: 0 0 16px;
+        padding: 12px 14px;
+        border: 1px solid rgb(147, 197, 253);
+        border-radius: 8px;
+        background: rgb(239, 246, 255);
+        color: rgb(30, 64, 175);
+        font-weight: 700;
+      }
+      .status-card.loaded {
+        border-color: rgb(110, 231, 183);
+        background: rgb(236, 253, 245);
+        color: rgb(6, 95, 70);
+      }
+      .status-card.loaded[data-tone='head'] {
+        border-color: rgb(251, 146, 60);
+        background: rgb(255, 247, 237);
+        color: rgb(154, 52, 18);
+      }
 
       /* Two real breakpoints — the dogfood asserts detection finds exactly these. */
       @media (min-width: 600px) {
@@ -94,6 +114,9 @@
       <span class="tag">demo</span>
     </header>
     <main>
+      <section class="status-card loading" role="status" aria-live="polite" aria-busy="true">
+        Preparing dashboard
+      </section>
       <div class="grid">
         <section class="card">
           <h2>Computed, not pixels</h2>
@@ -112,5 +135,15 @@
         </section>
       </div>
     </main>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const state = params.get('state') === 'loaded' ? 'loaded' : 'loading';
+      const tone = state === 'loaded' && params.get('tone') === 'head' ? 'head' : 'base';
+      const status = document.querySelector('.status-card');
+      status.className = `status-card ${state}`;
+      status.dataset.tone = tone;
+      status.setAttribute('aria-busy', state === 'loading' ? 'true' : 'false');
+      status.textContent = state === 'loading' ? 'Preparing dashboard' : 'Dashboard ready';
+    </script>
   </body>
 </html>
