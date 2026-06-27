@@ -106,7 +106,15 @@ jobs:
           else
             npm publish --provenance --access public
           fi
-          PUBLISHED="$(npm view "styleproof@${VERSION}" version)"
+          PUBLISHED=""
+          for attempt in 1 2 3 4 5 6; do
+            PUBLISHED="$(npm view "styleproof@${VERSION}" version 2>/dev/null || true)"
+            if [ "$PUBLISHED" = "$VERSION" ]; then
+              break
+            fi
+            echo "::notice::Waiting for styleproof@${VERSION} to propagate on npm (attempt ${attempt}/6)."
+            sleep 10
+          done
           if [ "$PUBLISHED" != "$VERSION" ]; then
             echo "::error::npm registry returned ${PUBLISHED:-<empty>} for styleproof@${VERSION}"
             exit 1
