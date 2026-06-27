@@ -7,6 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-27
+
+**Milestone: the committed-map gate is how StyleProof works now.** Capture runs
+**pre-push** (parallel, with auto-detected `@media` breakpoints), the lean computed-
+style map is committed and **pushed in a single `git push`**, and CI is a
+**browser-less diff** of two precomputed maps — measured ~5400× cheaper on the
+compare step, and it skips build + serve entirely. `styleproof-init` scaffolds **and
+activates** the whole gate in one command. Coverage stays **full and sound**: every
+surface is captured (parallelised) and what changed is determined by _measuring_ the
+map, never by guessing which pages a code change touched. **No breaking API changes**
+— existing specs and the classic capture-both-in-CI flow keep working unchanged; the
+major marks the new default paradigm.
+
 ### Changed
 
 - **`styleproof-init` now activates the pre-push hook for you** (`git config
