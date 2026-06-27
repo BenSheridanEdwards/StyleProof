@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **`styleproof-init` now activates the pre-push hook for you** (`git config
+core.hooksPath .githooks`), so a single `styleproof-init` is all it takes — no
+  follow-up command. It never clobbers a repo that already manages hooks: if
+  `core.hooksPath` is already set or a `.husky/` dir exists, it leaves them alone and
+  prints the one-liner instead.
+
 ## [2.5.0] - 2026-06-26
 
 ### Changed

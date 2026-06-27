@@ -368,8 +368,48 @@ test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + bro
     assert.match(ci, /styleproof-diff --base-ref/, 'CI diffs against the base ref');
     assert.doesNotMatch(ci, /playwright test/, 'CI never captures — maps are precomputed');
 
-    // The one-time activation is surfaced to the user.
+    // Activation is surfaced (this temp dir isn't a git repo, so init prints the
+    // manual one-liner rather than auto-activating).
     assert.match(r.stdout, /core\.hooksPath \.githooks/, 'tells the user how to activate the hook');
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('init in a git repo auto-activates the pre-push hook (one command, nothing else to do)', () => {
+  const dir = mkTmp();
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: dir });
+    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /activated the pre-push hook/, 'reports activation');
+    const hp = spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], {
+      cwd: dir,
+      encoding: 'utf8',
+    }).stdout.trim();
+    assert.equal(hp, '.githooks', 'core.hooksPath points at the scaffolded hooks dir');
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('init does not clobber an existing core.hooksPath (e.g. husky)', () => {
+  const dir = mkTmp();
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: dir });
+    spawnSync('git', ['config', 'core.hooksPath', '.husky'], { cwd: dir });
+    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(
+      r.stdout,
+      /activated the pre-push hook/,
+      'does not auto-activate when hooks are already managed',
+    );
+    const hp = spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], {
+      cwd: dir,
+      encoding: 'utf8',
+    }).stdout.trim();
+    assert.equal(hp, '.husky', 'leaves the existing hooksPath untouched');
   } finally {
     rmTmp(dir);
   }
