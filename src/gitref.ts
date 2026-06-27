@@ -57,7 +57,7 @@ export function inferBaseRef(env: NodeJS.ProcessEnv = process.env): string {
   if (fallback) return fallback;
 
   throw new GitRefError(
-    'could not infer a base branch (tried GITHUB_BASE_REF, branch.<name>.gh-merge-base, gh pr view, origin/main, origin/master, main, master); pass a base ref, e.g. styleproof-diff main',
+    'could not infer a base branch (tried GITHUB_BASE_REF, branch.<name>.gh-merge-base, gh pr view, origin/main, origin/master, main, master)',
   );
 }
 

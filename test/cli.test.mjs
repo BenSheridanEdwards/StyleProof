@@ -83,6 +83,7 @@ test('styleproof-map exits 2 when the default spec is missing', () => {
     const r = spawnSync(process.execPath, [MAP], { cwd: root, encoding: 'utf8' });
     assert.equal(r.status, 2);
     assert.match(r.stderr, /run styleproof-init/);
+    assert.match(r.stderr, /Next: run styleproof-init/);
   } finally {
     rmTmp(root);
   }
@@ -116,12 +117,14 @@ test('diff CLI exits 2 on an unknown flag', () => {
   const r = run(DIFF, ['a', 'b', '--bogus']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /unknown flag: --bogus/);
+  assert.match(r.stderr, /Next: run styleproof-diff --help/);
 });
 
 test('diff CLI exits 2 when a capture dir does not exist', () => {
   const r = run(DIFF, ['/no/such/before', '/no/such/after']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /no capture at/);
+  assert.match(r.stderr, /Next: pass existing capture directories/);
 });
 
 test('diff CLI --json writes the structured diff to a file', () => {
@@ -306,6 +309,21 @@ test('diff --base-ref: exits 2 when the ref has no committed captures at that pa
   const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /no committed captures/);
+  assert.match(r.stderr, /Next: make sure HEAD contains committed captures at maps/);
+  rmTmp(repo);
+});
+
+test('diff base-ref flow explains how to recover when the working maps are missing', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'readme'), 'x');
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  const r = runIn(repo, DIFF, ['main']);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /Next: run styleproof-map to create stylemaps\/current/);
+  assert.match(r.stderr, /pass --maps-dir <dir>/);
   rmTmp(repo);
 });
 
@@ -382,6 +400,7 @@ test('report --base-ref: exits 2 when the ref has no committed captures there', 
   const r = runIn(repo, REPORT, ['--base-ref', 'HEAD', 'maps', '--out', out]);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /no committed captures/);
+  assert.match(r.stderr, /Next: make sure HEAD contains committed captures at maps/);
   rmTmp(repo);
 });
 
@@ -417,6 +436,7 @@ test('report CLI exits 2 on an unknown flag', () => {
   const r = run(REPORT, ['a', 'b', '--nope']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /unknown flag: --nope/);
+  assert.match(r.stderr, /Next: run styleproof-report --help/);
 });
 
 // ------------------------------------------------------- error & validation paths

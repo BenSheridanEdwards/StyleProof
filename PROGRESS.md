@@ -22,6 +22,10 @@
   current PR base before falling back to main/master.
 - Added a fake-`gh` CLI regression proving a branch stacked on `stack-base` uses
   that PR base instead of incorrectly diffing against `main`.
+- Added recovery-first CLI error helpers so missing specs, absent maps, unknown
+  flags, and missing committed base maps print a concrete `Next:` line.
+- Added CLI regressions for recovery messages on `styleproof-map`,
+  `styleproof-diff`, and `styleproof-report`.
 
 ## Findings
 
@@ -32,8 +36,8 @@
 
 ## Next Action
 
-- Commit and open the stacked-PR base inference PR, stacked on PR #83.
-- Continue with a separate PR for recovery-first CLI error messages.
+- Commit and open the recovery-first CLI errors PR, stacked on PR #84.
+- Check GitHub CI status for the open PR stack.
 
 ## Blockers
 
@@ -43,8 +47,8 @@
 
 - `npm run build && npm run typecheck && npm run lint && npm run format:check`
   passed.
-- `node --test test/cli.test.mjs` passed: 36 tests.
-- `npm test` passed: 177 tests.
+- `node --test test/cli.test.mjs` passed: 37 tests.
+- `npm test` passed: 178 tests.
 - `npm run test:e2e` passed: 32 tests.
-- `npm pack --dry-run --json` passed with 31 package entries; proof crop is not
-  packed.
+- `npm pack --dry-run --json` passed with 33 package entries; proof crop is not
+  packed, and the new internal `dist/cli-errors.*` files are included.

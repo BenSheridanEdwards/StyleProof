@@ -13,14 +13,21 @@
 import fs from 'node:fs';
 import { generateStyleMapReport } from '../dist/report.js';
 import { inferBaseRef, materializeRef, GitRefError } from '../dist/gitref.js';
+import {
+  baseInferenceMessage,
+  baseMapsMessage,
+  missingWorkingMapsMessage,
+  unknownFlagMessage,
+} from '../dist/cli-errors.js';
 
+const COMMAND = 'styleproof-report';
 const DEFAULT_MAPS_DIR = 'stylemaps/current';
 
-const HELP = `styleproof-report — reviewable before/after report from two captures
+const HELP = `${COMMAND} — reviewable before/after report from two captures
 
-usage: styleproof-report [baseRef] [options]
-       styleproof-report --base-ref <gitref> [mapsDir] [options]
-       styleproof-report <beforeDir> <afterDir> [options]
+usage: ${COMMAND} [baseRef] [options]
+       ${COMMAND} --base-ref <gitref> [mapsDir] [options]
+       ${COMMAND} <beforeDir> <afterDir> [options]
 
 options:
   --base-ref <ref>          report <mapsDir> as committed at <ref> (e.g. main)
@@ -87,7 +94,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--maps-dir') mapsDir = argv[++i];
   else if (a.startsWith('--maps-dir=')) mapsDir = a.slice(11);
   else if (a.startsWith('--')) {
-    console.error(`unknown flag: ${a}`);
+    console.error(unknownFlagMessage(COMMAND, a));
     process.exit(2);
   } else args.push(a);
 }
@@ -107,18 +114,20 @@ if (baseRef || args.length <= 1) {
     try {
       baseRef = inferBaseRef();
     } catch (e) {
-      console.error(e instanceof GitRefError ? `styleproof-report: ${e.message}` : String(e?.message ?? e));
+      console.error(e instanceof GitRefError ? baseInferenceMessage(COMMAND, e.message) : String(e?.message ?? e));
       process.exit(2);
     }
   }
   if (!fs.existsSync(mapsDir)) {
-    console.error(`no capture at ${mapsDir}; run styleproof-map first`);
+    console.error(missingWorkingMapsMessage(COMMAND, mapsDir));
     process.exit(2);
   }
   try {
     tmpBase = materializeRef(baseRef, mapsDir);
   } catch (e) {
-    console.error(e instanceof GitRefError ? `styleproof-report --base-ref: ${e.message}` : String(e?.message ?? e));
+    console.error(
+      e instanceof GitRefError ? baseMapsMessage(COMMAND, e.message, baseRef, mapsDir) : String(e?.message ?? e),
+    );
     process.exit(2);
   }
   beforeDir = tmpBase;

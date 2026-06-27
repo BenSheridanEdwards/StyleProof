@@ -30,6 +30,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
 import { inferBaseRef, materializeRef, GitRefError } from '../dist/gitref.js';
+import {
+  baseInferenceMessage,
+  baseMapsMessage,
+  missingManualCaptureMessage,
+  missingWorkingMapsMessage,
+  unknownFlagMessage,
+} from '../dist/cli-errors.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 const DEFAULT_MAPS_DIR = 'stylemaps/current';
@@ -72,7 +79,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i] === '--maps-dir') mapsDir = argv[++i];
   else if (argv[i].startsWith('--maps-dir=')) mapsDir = argv[i].slice(11);
   else if (argv[i].startsWith('--')) {
-    console.error(`unknown flag: ${argv[i]}`);
+    console.error(unknownFlagMessage(COMMAND, argv[i]));
     process.exit(2);
   } else args.push(argv[i]);
 }
@@ -97,18 +104,20 @@ if (baseRef || args.length <= 1) {
     try {
       baseRef = inferBaseRef();
     } catch (e) {
-      console.error(e instanceof GitRefError ? `${COMMAND}: ${e.message}` : String(e?.message ?? e));
+      console.error(e instanceof GitRefError ? baseInferenceMessage(COMMAND, e.message) : String(e?.message ?? e));
       process.exit(2);
     }
   }
   if (!fs.existsSync(mapsDir)) {
-    console.error(`no capture at ${mapsDir}; run styleproof-map first`);
+    console.error(missingWorkingMapsMessage(COMMAND, mapsDir));
     process.exit(2);
   }
   try {
     tmpBase = materializeRef(baseRef, mapsDir);
   } catch (e) {
-    console.error(e instanceof GitRefError ? `${COMMAND} --base-ref: ${e.message}` : String(e?.message ?? e));
+    console.error(
+      e instanceof GitRefError ? baseMapsMessage(COMMAND, e.message, baseRef, mapsDir) : String(e?.message ?? e),
+    );
     process.exit(2);
   }
   dirA = tmpBase;
@@ -121,7 +130,7 @@ if (baseRef || args.length <= 1) {
   [dirA, dirB] = args;
   for (const d of [dirA, dirB]) {
     if (!fs.existsSync(d)) {
-      console.error(`no capture at ${d}`);
+      console.error(missingManualCaptureMessage(COMMAND, d));
       process.exit(2);
     }
   }
