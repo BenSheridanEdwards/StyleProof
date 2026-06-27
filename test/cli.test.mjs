@@ -194,11 +194,16 @@ function gitInit(dir) {
   spawnSync('git', ['config', 'user.email', 't@example.test'], { cwd: dir });
   spawnSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
 }
+function cliEnv(overrides = {}) {
+  const env = { ...process.env, ...overrides };
+  if (!Object.prototype.hasOwnProperty.call(overrides, 'GITHUB_BASE_REF')) delete env.GITHUB_BASE_REF;
+  return env;
+}
 const runIn = (cwd, script, a, opts = {}) =>
   spawnSync(process.execPath, [script, ...a], {
     cwd,
     encoding: 'utf8',
-    env: opts.env ? { ...process.env, ...opts.env } : process.env,
+    env: cliEnv(opts.env),
   });
 const mapWith = (color) => makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color } } } });
 

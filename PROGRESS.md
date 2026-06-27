@@ -11,6 +11,9 @@
   `--base-ref` can omit `mapsDir`; `--maps-dir` customizes the committed-map dir.
 - Added CLI regression tests for no-arg report defaults, single-base-ref report,
   and omitted-`mapsDir` `--base-ref`.
+- Fixed the CLI/e2e test helpers so temp git repos do not inherit GitHub
+  Actions' ambient `GITHUB_BASE_REF`, which made stacked PR CI infer the outer
+  PR base branch instead of the fixture's local `main`.
 - Updated README and CHANGELOG for the report CLI defaults.
 - Generated privacy-clean report proof and copied the visible crop to
   `docs/proof/report-defaults-crop.png`.
