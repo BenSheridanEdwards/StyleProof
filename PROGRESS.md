@@ -7,19 +7,26 @@
 - Bumped `package.json` and `package-lock.json` from `3.1.0` to `3.1.1`.
 - Moved the current `[Unreleased]` changelog entries into
   `## [3.1.1] - 2026-06-27` and updated compare links.
+- PR #95 merged into `main`; the release rerun published `styleproof@3.1.1`,
+  created the `v3.1.1` GitHub Release, and moved the `v3` tag.
+- Started a release-hardening fix after the GitHub Packages mirror failed.
 
 ## Findings
 
-- npm still reports `styleproof@3.1.0`, so the merged default hardening and
-  generated-hook cleanup are not installable from npm until this version bump is
-  merged and the release workflow publishes `3.1.1`.
-- The release workflow uses the package version as the release signal and will
-  build, test, publish to npm, tag `v3.1.1`, create the GitHub Release, and move
-  the `v3` alias after merge.
+- The first release run did publish `styleproof@3.1.1`, but failed immediately
+  after publish because npm registry propagation briefly returned 404 during the
+  verification step.
+- Rerunning the release job completed npm verification, `v3.1.1`, GitHub
+  Release creation, and moving the `v3` tag.
+- The GitHub Packages mirror failed because it rewrites `package.json` to the
+  scoped mirror name and then `npm publish` reruns `prepublishOnly`; the package
+  smoke test correctly imports unscoped `styleproof`, which cannot resolve after
+  the temporary scope rename.
 
 ## Next Action
 
-- Commit, push, and open the release PR.
+- Open and merge the workflow-hardening PR, then rerun the GitHub Packages
+  mirror for `3.1.1`.
 
 ## Blockers
 
@@ -33,9 +40,13 @@
 - `npm pack --dry-run --json` passed and produced `styleproof-3.1.1.tgz` with
   35 package entries, including `dist`, `bin`, README, changelog, license, and
   docs.
-- `npm view styleproof version` still reports `3.1.0`.
-- `npm view styleproof@3.1.1 version` returns 404, confirming `3.1.1` has not
-  already been published.
-- `git tag --list 'v3.1.1'` returned no local tag.
+- `npm view styleproof version` now reports `3.1.1`.
+- `git ls-remote --tags origin 'v3.1.1' 'v3'` shows both tags at
+  `4a3db7a4f7a2b3c31db893828419f7a1f80ee78b`.
+- `gh release view v3.1.1` shows a published, non-draft GitHub Release.
+- Failed GitHub Packages log isolated the mirror failure to
+  `ERR_MODULE_NOT_FOUND: Cannot find package 'styleproof'` inside
+  `test/package-smoke.test.mjs` after the mirror workflow temporarily scoped the
+  package name.
 - Privacy grep over the changed files found no private consuming-project
   references.

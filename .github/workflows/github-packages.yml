@@ -41,7 +41,7 @@ jobs:
           if npm view "@bensheridanedwards/styleproof@$VERSION" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
             echo "@bensheridanedwards/styleproof@$VERSION already on GitHub Packages — skipping."
           else
-            npm publish
+            npm publish --ignore-scripts
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
