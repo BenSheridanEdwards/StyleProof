@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Documented the sound way to skip StyleProof work: skip the **entire** CI
+  workflow for docs-only / non-rendered paths with native path filters, but do
+  not skip individual surfaces based on changed-file guesses.
+
 ## [3.1.1] - 2026-06-27
 
 ### Changed
