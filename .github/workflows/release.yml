@@ -78,7 +78,7 @@ jobs:
         run: npm test
       - name: Cache Playwright browser
         if: steps.check.outputs.released == 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
