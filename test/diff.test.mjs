@@ -163,6 +163,68 @@ test('ignores custom properties (--*) even when they differ', () => {
   assert.deepEqual(diffStyleMaps(a, b), []);
 });
 
+test('ignores layout-equivalent horizontal margin drift when the element rect is unchanged', () => {
+  const a = makeMap({
+    elements: {
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'content',
+        rect: [40, 0, 1200, 800],
+        style: {
+          'margin-left': '0px',
+          'margin-right': '0px',
+          'margin-inline-start': '0px',
+          'margin-inline-end': '0px',
+          width: '1200px',
+        },
+      },
+    },
+  });
+  const b = makeMap({
+    elements: {
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'content',
+        rect: [40, 0, 1200, 800],
+        style: {
+          'margin-left': '40px',
+          'margin-right': '40px',
+          'margin-inline-start': '40px',
+          'margin-inline-end': '40px',
+          width: '1200px',
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(diffStyleMaps(a, b), []);
+});
+
+test('keeps horizontal margin changes when the element rect moves', () => {
+  const a = makeMap({
+    elements: {
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        rect: [0, 0, 1200, 800],
+        style: { 'margin-left': '0px' },
+      },
+    },
+  });
+  const b = makeMap({
+    elements: {
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        rect: [40, 0, 1200, 800],
+        style: { 'margin-left': '40px' },
+      },
+    },
+  });
+
+  const f = diffStyleMaps(a, b);
+  assert.equal(f.length, 1);
+  assert.deepEqual(f[0].props, [{ prop: 'margin-left', before: '0px', after: '40px' }]);
+});
+
 test('a property newly set on one side falls back to per-tag default on the other', () => {
   // `before` does not list margin-top (so it falls back to the div default 8px);
   // `after` sets it to 0px. The fallback makes this a real 8px -> 0px change.
@@ -227,6 +289,42 @@ test('reports a forced-state (hover) delta change', () => {
   assert.equal(f[0].state, 'hover');
   assert.equal(f[0].sub, 'body > a:nth-child(1)');
   assert.deepEqual(f[0].props, [{ prop: 'color', before: 'rgb(0, 0, 255)', after: '(state no longer changes it)' }]);
+});
+
+test('ignores layout-equivalent margin drift inside forced-state deltas', () => {
+  const a = makeMap({
+    elements: {
+      'body > button:nth-child(1)': { tag: 'button', cls: 'root', rect: [0, 0, 1200, 800] },
+      'body > button:nth-child(1) > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'content',
+        rect: [40, 0, 1200, 800],
+      },
+    },
+    states: {
+      'body > button:nth-child(1)': {
+        hover: {
+          'body > button:nth-child(1) > div:nth-child(1)': {
+            'margin-left': '40px',
+            'margin-right': '40px',
+          },
+        },
+      },
+    },
+  });
+  const b = makeMap({
+    elements: {
+      'body > button:nth-child(1)': { tag: 'button', cls: 'root', rect: [0, 0, 1200, 800] },
+      'body > button:nth-child(1) > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'content',
+        rect: [40, 0, 1200, 800],
+      },
+    },
+    states: { 'body > button:nth-child(1)': { hover: {} } },
+  });
+
+  assert.deepEqual(diffStyleMaps(a, b), []);
 });
 
 test('findings are sorted by structural path', () => {

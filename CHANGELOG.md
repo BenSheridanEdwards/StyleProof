@@ -7,6 +7,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **`styleproof-init` now follows the repo's package manager.** Generated
+  Playwright configs, pre-push hooks, and browser-less CI workflows detect
+  `bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or `package-lock.json`
+  and scaffold matching build, install, `styleproof-map`, and `styleproof-diff`
+  commands instead of assuming npm everywhere.
+- **The committed-map flow is now a three-command CLI path.** Run
+  `styleproof-init`, `styleproof-map`, then `styleproof-diff`. `styleproof-map`
+  captures the current branch into `stylemaps/current`, while `styleproof-diff`
+  now defaults to that map directory and infers the base ref from GitHub Actions,
+  `branch.<name>.gh-merge-base`, `origin/main`, `origin/master`, `main`, or
+  `master` (or accepts `styleproof-diff main` / `--base-ref main`). The zero-diff
+  success line says `0 changed surfaces across N captured surface(s)` instead of
+  the confusing `N surfaces identical` / `0 surfaces identical` wording, and the
+  `--json` payload includes `compared` so consumers can show the same count.
+
+### Fixed
+
+- **Layout-equivalent auto-margin drift no longer creates phantom diffs.** Some
+  browser/forced-state combinations can report horizontal `margin-left` /
+  `margin-right` / logical margin equivalents differently even when the captured
+  document-space rectangle is unchanged. StyleProof now drops only those
+  margin-longhand differences when the element's rect is identical on both sides,
+  including inside forced `:hover`/`:focus`/`:active` deltas. If the rect moves,
+  the margin change still reports.
+
 ## [3.0.2] - 2026-06-27
 
 ### Fixed

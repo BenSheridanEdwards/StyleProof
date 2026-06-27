@@ -8,6 +8,7 @@ import { saveStyleMap } from '../dist/capture.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
 const DIFF = path.join(here, '..', 'bin', 'styleproof-diff.mjs');
 const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
@@ -48,13 +49,52 @@ function identicalPair() {
   return { root, A, B };
 }
 
+// ---------------------------------------------------------------- styleproof-map
+
+test('styleproof-map runs Playwright with committed-map defaults', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nprintf "%s|%s|%s|%s\\n" "$STYLEMAP_DIR" "$STYLEPROOF_BASEDIR" "$STYLEPROOF_SCREENSHOTS" "$*"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const r = spawnSync(process.execPath, [MAP], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /current\|stylemaps\|0\|test e2e\/styleproof\.spec\.ts/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map exits 2 when the default spec is missing', () => {
+  const root = mkTmp();
+  try {
+    const r = spawnSync(process.execPath, [MAP], { cwd: root, encoding: 'utf8' });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /run styleproof-init/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 // ---------------------------------------------------------------- styleproof-diff
 
 test('diff CLI exits 0 when captures are identical', () => {
   const { root, A, B } = identicalPair();
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /surfaces identical/);
+  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
   rmTmp(root);
 });
 
@@ -67,7 +107,7 @@ test('diff CLI exits 1 when captures differ', () => {
 });
 
 test('diff CLI exits 2 on wrong argument count', () => {
-  const r = run(DIFF, ['only-one-dir']);
+  const r = run(DIFF, ['a', 'b', 'c']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /usage: styleproof-diff/);
 });
@@ -144,7 +184,7 @@ test('diff CLI reads a plain .json capture against a .json.gz capture', () => {
   rmTmp(root);
 });
 
-// ------------------------------------------------- styleproof-diff --base-ref (base from git)
+// ------------------------------------------------- styleproof-diff --base-ref
 
 function gitInit(dir) {
   spawnSync('git', ['init', '-q'], { cwd: dir });
@@ -162,7 +202,48 @@ test('diff --base-ref: identical working maps vs the committed base → exit 0',
   spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
   const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /surfaces identical/);
+  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
+  rmTmp(repo);
+});
+
+test('diff defaults to stylemaps/current against the inferred main branch', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+  const r = runIn(repo, DIFF, []);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
+  rmTmp(repo);
+});
+
+test('diff accepts a single base ref and uses stylemaps/current', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+  const r = runIn(repo, DIFF, ['main']);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /computed-style difference/);
+  rmTmp(repo);
+});
+
+test('diff --base-ref uses stylemaps/current when mapsDir is omitted', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
   rmTmp(repo);
 });
 
@@ -354,8 +435,7 @@ test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + bro
     // WITH the branch — one `git push`, never two.
     const hookPath = path.join(dir, '.githooks', 'pre-push');
     const hook = fs.readFileSync(hookPath, 'utf8');
-    assert.match(hook, /STYLEPROOF_BASEDIR=stylemaps/, 'redirects capture into a committed dir');
-    assert.match(hook, /STYLEPROOF_SCREENSHOTS=0/, 'commits lean maps, no PNGs in git');
+    assert.match(hook, /styleproof-map --spec e2e\/styleproof\.spec\.ts/, 'captures through the committed-map CLI');
     assert.match(hook, /git add stylemaps/);
     assert.match(hook, /git commit/);
     assert.match(hook, /git push "\$remote" HEAD/, 'pushes the map itself — no second manual push');

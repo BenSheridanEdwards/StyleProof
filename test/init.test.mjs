@@ -16,6 +16,7 @@ function touch(root, rel) {
   fs.writeFileSync(f, '');
 }
 const readSpec = (root) => fs.readFileSync(path.join(root, 'e2e/styleproof.spec.ts'), 'utf8');
+const readFile = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 test('styleproof-init: Next.js app → routes-aware spec wires surfaces + the coverage guard', () => {
   const root = mkTmp();
@@ -53,3 +54,62 @@ test('styleproof-init: non-Next project → generic spec with a commented guard,
     rmTmp(root);
   }
 });
+
+for (const manager of [
+  {
+    name: 'npm by default',
+    lockfile: null,
+    config: /npm run build && npm run start/,
+    hook: /npx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
+    workflow: [/cache: npm/, /npm ci/, /npx styleproof-diff --base-ref/],
+  },
+  {
+    name: 'Yarn v1 lockfile',
+    lockfile: 'yarn.lock',
+    config: /npx -y yarn@1\.22\.22 build && npx -y yarn@1\.22\.22 start/,
+    hook: /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts/,
+    workflow: [
+      /cache: yarn/,
+      /npx -y yarn@1\.22\.22 install --frozen-lockfile --non-interactive/,
+      /npx -y yarn@1\.22\.22 styleproof-diff --base-ref/,
+    ],
+    absent: [/npm ci/],
+  },
+  {
+    name: 'pnpm lockfile',
+    lockfile: 'pnpm-lock.yaml',
+    config: /npx -y pnpm build && npx -y pnpm start/,
+    hook: /npx -y pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts/,
+    workflow: [/cache: pnpm/, /npx -y pnpm install --frozen-lockfile/, /npx -y pnpm exec styleproof-diff --base-ref/],
+    absent: [/npm ci/],
+  },
+  {
+    name: 'Bun lockfile',
+    lockfile: 'bun.lock',
+    config: /bun run build && bun run start/,
+    hook: /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
+    workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /bunx styleproof-diff --base-ref/],
+    absent: [/npm ci/],
+  },
+]) {
+  test(`styleproof-init: generated commands follow ${manager.name}`, () => {
+    const root = mkTmp();
+    try {
+      if (manager.lockfile) touch(root, manager.lockfile);
+      const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+      assert.equal(res.status, 0, res.stderr);
+
+      const config = readFile(root, 'playwright.config.ts');
+      assert.match(config, manager.config);
+
+      const hook = readFile(root, '.githooks/pre-push');
+      assert.match(hook, manager.hook);
+
+      const workflow = readFile(root, '.github/workflows/styleproof.yml');
+      for (const pattern of manager.workflow) assert.match(workflow, pattern);
+      for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}

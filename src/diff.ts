@@ -57,6 +57,26 @@ function diffProps(
   return changed;
 }
 
+const LAYOUT_EQUIVALENT_MARGIN_PROPS = new Set([
+  'margin-left',
+  'margin-right',
+  'margin-inline-start',
+  'margin-inline-end',
+]);
+
+function sameRect(a?: [number, number, number, number], b?: [number, number, number, number]): boolean {
+  return !!a && !!b && a.every((v, i) => v === b[i]);
+}
+
+function dropLayoutEquivalentMarginProps(
+  props: PropChange[],
+  a?: StyleMap['elements'][string],
+  b?: StyleMap['elements'][string],
+): PropChange[] {
+  if (!sameRect(a?.rect, b?.rect)) return props;
+  return props.filter((p) => !LAYOUT_EQUIVALENT_MARGIN_PROPS.has(p.prop));
+}
+
 /** Union of both captures' live-region paths — skipped by every diff layer so a
  *  region volatile on either side never reads as a change. */
 function volatilePaths(a: StyleMap, b: StyleMap): string[] {
@@ -125,7 +145,8 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
       // tag defaults for maps written before that fix.
       const pdefsA = pseudo ? (a.defaults[ea.tag + pseudo] ?? defsA) : defsA;
       const pdefsB = pseudo ? (b.defaults[eb.tag + pseudo] ?? defsB) : defsB;
-      const props = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
+      const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
+      const props = pseudo ? rawProps : dropLayoutEquivalentMarginProps(rawProps, ea, eb);
       if (props.length) findings.push({ kind: 'style', path: p, cls: ea.cls, pseudo, props });
     }
   }
@@ -167,7 +188,8 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
           '(state does not change it)',
           '(state no longer changes it)',
         );
-        if (props.length) findings.push({ kind: 'state', path: p, cls, state, sub, props });
+        const filtered = dropLayoutEquivalentMarginProps(props, a.elements[sub], b.elements[sub]);
+        if (filtered.length) findings.push({ kind: 'state', path: p, cls, state, sub, props: filtered });
       }
     }
   }
@@ -198,7 +220,7 @@ function indexDir(dir: string): Record<string, string> {
 export function diffStyleMapDirs(
   dirA: string,
   dirB: string,
-): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number } {
+): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number; compared: number } {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
@@ -223,7 +245,7 @@ export function diffStyleMapDirs(
     tallyCounts(findings, counts);
     if (findings.length) surfaces.push({ surface, findings });
   }
-  return { surfaces, counts, volatile };
+  return { surfaces, counts, volatile, compared: names.length };
 }
 
 /**
