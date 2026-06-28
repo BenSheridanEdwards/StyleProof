@@ -122,6 +122,8 @@ One change — the hero CTA recoloured cyan → amber — appears as a single se
 
 ![A StyleProof report: the CTA button before (cyan) and after (amber), side by side](https://raw.githubusercontent.com/BenSheridanEdwards/StyleProof/main/docs/demo-composite.png)
 
+📄 **[See a full live report](docs/demo/report.md)** — rendered by the current code with real images (clean before/after, the highlighted twin, a magnified zoom for a sub-pixel change, and a `🆕 new surface`). It's regenerated and verified on every PR (`npm run demo:report`), so it always reflects exactly what StyleProof produces today.
+
 As it renders in the committed report (a plain-English bullet first — naming the theme token and showing the hex with a live colour swatch — then the exact table inside the toggle). The PR comment itself stays lean — a summary plus the approval box — and links here:
 
 ```text
