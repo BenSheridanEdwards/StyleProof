@@ -1,28 +1,19 @@
 name: 'styleproof report'
 description: >-
-  Diff styleproof captures against a committed baseline. When styles
-  changed, commit a compact side-by-side report to an orphan branch and post it
-  to the PR — inline images for public repos, a link for private repos (where a
-  committed file's images render through the viewer's authenticated session).
+  Diff two StyleProof capture directories, publish a compact side-by-side report
+  to an orphan branch, and post it to the PR — inline images for public repos, a
+  link for private repos (where a committed file's images render through the
+  viewer's authenticated session).
 branding:
   icon: 'layers'
   color: 'blue'
 
 inputs:
   baseline-dir:
-    description: 'Directory with the committed baseline captures (.json.gz + .png). Omit when using base-ref.'
-    required: false
-  base-ref:
-    description: >-
-      Read the baseline from a git ref (e.g. the PR base branch) instead of
-      baseline-dir — the "base map lives on main, committed pre-push, CI just diffs"
-      model. Set this to the base ref and point fresh-dir at your committed maps dir;
-      the action reads <fresh-dir> as committed at <base-ref> for the before side
-      (needs `fetch-depth: 0` on checkout). Takes precedence over baseline-dir.
-    required: false
-    default: ''
+    description: 'Directory with restored or freshly captured base-branch maps (.json.gz + .png).'
+    required: true
   fresh-dir:
-    description: 'Directory with the freshly captured (or committed) maps to compare (.json.gz + .png).'
+    description: 'Directory with restored or freshly captured PR-head maps to compare (.json.gz + .png).'
     required: true
   report-branch:
     description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; never pruned.'
@@ -31,7 +22,7 @@ inputs:
     description: 'Token used to push the report branch and post the PR comment.'
     default: ${{ github.token }}
   fail-on-diff:
-    description: 'Legacy refactor-certification mode: fail the job when any difference is found. Ignored when require-approval is true.'
+    description: 'Certify mode: fail the job when any difference is found. Ignored when require-approval is true.'
     default: 'true'
   require-approval:
     description: >-
@@ -136,11 +127,7 @@ runs:
       shell: bash
       run: |
         set +e
-        if [ -n "${{ inputs.base-ref }}" ]; then
-          node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" --base-ref "${{ inputs.base-ref }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
-        else
-          node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
-        fi
+        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
@@ -186,11 +173,7 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
         set -euo pipefail
-        if [ -n "${{ inputs.base-ref }}" ]; then
-          node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" --base-ref "${{ inputs.base-ref }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
-        else
-          node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
-        fi
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
 
         REPO='${{ github.repository }}'
         BRANCH='${{ inputs.report-branch }}'
@@ -299,7 +282,7 @@ runs:
                     : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off everything. A new push that changes styles re-opens it._`,
                 `<!-- styleproof-sha:${headSha} -->`,
               ]
-            : ['---', '_To accept: regenerate the committed baseline from this build and commit it with your diff._'];
+            : ['---', '_To accept: rebuild the map with `styleproof-map`, then rerun the report._'];
 
           const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
           await upsert(body);
@@ -345,7 +328,7 @@ runs:
         echo "StyleProof: unapproved visual changes — tick 'Approve all changes' in the report comment, then re-run this job to clear the check." >&2
         exit 1
 
-    # Legacy refactor-certification: fail the job on any diff (default). Skipped
+    # Certify mode: fail the job on any diff (default). Skipped
     # in review-gate mode, where the status check is the gate instead. Uses
     # `report` (not `changed`) so a new surface with no baseline also fails the
     # certification — "nothing changed" means the capture set didn't grow either.
@@ -353,5 +336,5 @@ runs:
       if: steps.diff.outputs.report == 'true' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true'
       shell: bash
       run: |
-        echo 'Style changes detected — review the PR comment. To accept, regenerate the baseline and commit it.' >&2
+        echo 'Style changes detected — review the PR comment. To accept, rebuild the map with styleproof-map and rerun the report.' >&2
         exit 1

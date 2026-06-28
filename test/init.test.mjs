@@ -60,28 +60,26 @@ for (const manager of [
     name: 'npm by default',
     lockfile: null,
     config: /npm run build && npm run start/,
-    hook: /npx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
-    hookSelfDiff: /npx styleproof-diff --base-ref HEAD --max=20/,
     workflow: [
       /cache: npm/,
       /npm ci/,
-      /npx styleproof-diff --base-ref/,
-      /Comment StyleProof result/,
-      /No visual changes detected/,
+      /npx styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir __stylemaps__ --spec e2e\/styleproof\.spec\.ts/,
+      /npx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir __stylemaps__ --no-upload/,
+      /BenSheridanEdwards\/StyleProof@v3/,
+      /baseline-dir: __stylemaps__\/base/,
+      /fresh-dir: __stylemaps__\/head/,
     ],
   },
   {
     name: 'Yarn v1 lockfile',
     lockfile: 'yarn.lock',
     config: /npx -y yarn@1\.22\.22 build && npx -y yarn@1\.22\.22 start/,
-    hook: /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts/,
-    hookSelfDiff: /npx -y yarn@1\.22\.22 styleproof-diff --base-ref HEAD --max=20/,
     workflow: [
       /cache: yarn/,
       /npx -y yarn@1\.22\.22 install --frozen-lockfile --non-interactive/,
-      /npx -y yarn@1\.22\.22 styleproof-diff --base-ref/,
-      /Comment StyleProof result/,
-      /No visual changes detected/,
+      /npx -y yarn@1\.22\.22 styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir __stylemaps__ --spec e2e\/styleproof\.spec\.ts/,
+      /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir __stylemaps__ --no-upload/,
+      /BenSheridanEdwards\/StyleProof@v3/,
     ],
     absent: [/npm ci/],
   },
@@ -89,14 +87,12 @@ for (const manager of [
     name: 'pnpm lockfile',
     lockfile: 'pnpm-lock.yaml',
     config: /npx -y pnpm build && npx -y pnpm start/,
-    hook: /npx -y pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts/,
-    hookSelfDiff: /npx -y pnpm exec styleproof-diff --base-ref HEAD --max=20/,
     workflow: [
       /cache: pnpm/,
       /npx -y pnpm install --frozen-lockfile/,
-      /npx -y pnpm exec styleproof-diff --base-ref/,
-      /Comment StyleProof result/,
-      /No visual changes detected/,
+      /npx -y pnpm exec styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir __stylemaps__ --spec e2e\/styleproof\.spec\.ts/,
+      /npx -y pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir __stylemaps__ --no-upload/,
+      /BenSheridanEdwards\/StyleProof@v3/,
     ],
     absent: [/npm ci/],
   },
@@ -104,14 +100,12 @@ for (const manager of [
     name: 'Bun lockfile',
     lockfile: 'bun.lock',
     config: /bun run build && bun run start/,
-    hook: /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
-    hookSelfDiff: /bunx styleproof-diff --base-ref HEAD --max=20/,
     workflow: [
       /oven-sh\/setup-bun@v2/,
       /bun install --frozen-lockfile/,
-      /bunx styleproof-diff --base-ref/,
-      /Comment StyleProof result/,
-      /No visual changes detected/,
+      /bunx styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir __stylemaps__ --spec e2e\/styleproof\.spec\.ts/,
+      /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir __stylemaps__ --no-upload/,
+      /BenSheridanEdwards\/StyleProof@v3/,
     ],
     absent: [/npm ci/],
   },
@@ -126,12 +120,8 @@ for (const manager of [
       const config = readFile(root, 'playwright.config.ts');
       assert.match(config, manager.config);
 
-      const hook = readFile(root, '.githooks/pre-push');
-      assert.match(hook, manager.hook);
-      assert.match(hook, manager.hookSelfDiff);
-      assert.match(hook, /git restore --source=HEAD -- stylemaps/);
-      assert.match(hook, /git clean -fdq -- stylemaps\/current/);
-      assert.match(hook, /pin live states or replay\/fixture the data boundary/);
+      assert.equal(fs.existsSync(path.join(root, '.githooks', 'pre-push')), false);
+      assert.match(readFile(root, '.gitignore'), /\.styleproof\//);
 
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
       for (const pattern of manager.workflow) assert.match(workflow, pattern);

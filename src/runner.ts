@@ -393,9 +393,8 @@ export function defaultSelfCheck(
 
 /**
  * Output base dir: explicit `baseDir` wins, then `STYLEPROOF_BASEDIR`, then the
- * default. Lets a pre-push hook redirect capture into a COMMITTED dir (so main
- * always carries a base map and CI just diffs precomputed maps) without editing
- * the spec — same env-wiring philosophy as `STYLEPROOF_REPLAY_*`.
+ * default. Lets CLIs and CI redirect capture into cache/fallback dirs without
+ * editing the spec — same env-wiring philosophy as `STYLEPROOF_REPLAY_*`.
  */
 export function resolveBaseDir(
   baseDir: string | undefined,
@@ -406,8 +405,8 @@ export function resolveBaseDir(
 
 /**
  * Whether to save full-page screenshots: explicit `screenshots` wins, else
- * `STYLEPROOF_SCREENSHOTS=0` turns them off — for committed maps you want the lean
- * `.json.gz` only, never PNGs in git history. On by default otherwise.
+ * `STYLEPROOF_SCREENSHOTS=0` turns them off. On by default so restored map bundles
+ * can generate reviewable reports without recapturing.
  */
 export function resolveScreenshots(
   screenshots: boolean | undefined,

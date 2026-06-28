@@ -4,6 +4,7 @@
  * region, plus the exact property changes, as markdown ready for a PR
  * comment.
  *
+ *   styleproof-report [baseRef] --out <dir> [options]   # cached map store
  *   styleproof-report <beforeDir> <afterDir> --out <dir> [options]
  *
  * Both capture dirs need the .json.gz maps; side-by-side images additionally
@@ -11,23 +12,28 @@
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
 import { generateStyleMapReport } from '../dist/report.js';
-import { cleanupBaseRefCaptureDirs, resolveBaseRefCaptureDirs } from '../dist/cli-base-ref.js';
 import { cliErrorMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import {
+  DEFAULT_MAP_STORE_BRANCH,
+  DEFAULT_REMOTE,
+  assertCompatibleMapDirs,
+  cleanupCachedCaptureDirs,
+  resolveCachedCaptureDirs,
+} from '../dist/map-store.js';
 
 const COMMAND = 'styleproof-report';
-const DEFAULT_MAPS_DIR = 'stylemaps/current';
 
 const HELP = `${COMMAND} — reviewable before/after report from two captures
 
 usage: ${COMMAND} [baseRef] [options]
-       ${COMMAND} --base-ref <gitref> [mapsDir] [options]
        ${COMMAND} <beforeDir> <afterDir> [options]
 
 options:
-  --base-ref <ref>          report <mapsDir> as committed at <ref> (e.g. main)
-                            against your working <mapsDir> — base from git, no recapture
-  --maps-dir <dir>          committed map dir for the base-ref flow
-                            (default: ${DEFAULT_MAPS_DIR})
+  --spec <path>              StyleProof spec used to select compatible cached maps
+                             (default: e2e/styleproof.spec.ts)
+  --cache-branch <b>         map store branch for default cached-map mode
+                             (default: ${DEFAULT_MAP_STORE_BRANCH})
+  --remote <name>            git remote for the map store (default: ${DEFAULT_REMOTE})
   --out <dir>               output directory (default: styleproof-report)
   --image-base-url <url>    prefix for image URLs in report.md (default: relative)
   --pad <px>                padding around changed rects when cropping (default: 24)
@@ -58,8 +64,9 @@ let minWidth;
 let minHeight;
 let includeLayoutNoise = false;
 let includeContent = false;
-let baseRef = null;
-let mapsDir = DEFAULT_MAPS_DIR;
+let spec = 'e2e/styleproof.spec.ts';
+let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? DEFAULT_MAP_STORE_BRANCH;
+let remote = process.env.STYLEPROOF_REMOTE ?? DEFAULT_REMOTE;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
@@ -81,10 +88,12 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--include-layout-noise=')) includeLayoutNoise = a.slice(23) !== 'false';
   else if (a === '--include-content') includeContent = true;
   else if (a.startsWith('--include-content=')) includeContent = a.slice(18) !== 'false';
-  else if (a === '--base-ref') baseRef = argv[++i];
-  else if (a.startsWith('--base-ref=')) baseRef = a.slice(11);
-  else if (a === '--maps-dir') mapsDir = argv[++i];
-  else if (a.startsWith('--maps-dir=')) mapsDir = a.slice(11);
+  else if (a === '--spec') spec = argv[++i];
+  else if (a.startsWith('--spec=')) spec = a.slice(7);
+  else if (a === '--cache-branch') cacheBranch = argv[++i];
+  else if (a.startsWith('--cache-branch=')) cacheBranch = a.slice(15);
+  else if (a === '--remote') remote = argv[++i];
+  else if (a.startsWith('--remote=')) remote = a.slice(9);
   else if (a.startsWith('--')) {
     console.error(unknownFlagMessage(COMMAND, a));
     process.exit(2);
@@ -92,22 +101,30 @@ for (let i = 0; i < argv.length; i++) {
 }
 let beforeDir;
 let afterDir;
-let baseCapture = null;
-if (baseRef || args.length <= 1) {
+let cacheCapture = null;
+if (args.length <= 1) {
   try {
-    baseCapture = resolveBaseRefCaptureDirs({
+    cacheCapture = resolveCachedCaptureDirs({
       command: COMMAND,
-      baseRef,
-      mapsDir,
       args,
-      usage: 'usage: styleproof-report --base-ref <gitref> [mapsDir] [--out <dir>] [options]',
+      spec,
+      branch: cacheBranch,
+      remote,
+      baseUrl: process.env.BASE_URL,
+      usage: 'usage: styleproof-report [baseRef] [--out <dir>] [options]',
     });
+    beforeDir = cacheCapture.beforeDir;
+    afterDir = cacheCapture.afterDir;
   } catch (e) {
-    console.error(cliErrorMessage(e));
+    console.error(
+      [
+        `${COMMAND}: cached maps are not available for this report`,
+        cliErrorMessage(e),
+        'Next: run styleproof-map on the base and head commits to upload maps, or let CI recapture both sides.',
+      ].join('\n'),
+    );
     process.exit(2);
   }
-  beforeDir = baseCapture.beforeDir;
-  afterDir = baseCapture.afterDir;
 } else {
   if (args.length !== 2) {
     console.error('usage: styleproof-report <beforeDir> <afterDir> --out <dir> [options]  (--help for all options)');
@@ -135,6 +152,7 @@ if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
 
 let result;
 try {
+  assertCompatibleMapDirs(beforeDir, afterDir);
   result = generateStyleMapReport({
     beforeDir,
     afterDir,
@@ -152,7 +170,7 @@ try {
   console.error(e.message);
   process.exit(2);
 } finally {
-  cleanupBaseRefCaptureDirs(baseCapture);
+  cleanupCachedCaptureDirs(cacheCapture);
 }
 
 const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';

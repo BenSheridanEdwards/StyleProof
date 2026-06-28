@@ -9,6 +9,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Local-first reusable map bundles are now the default v3 flow.** `styleproof-map`
+  writes `.styleproof/maps/current`, records a `styleproof-manifest.json` with the
+  commit SHA and capture compatibility key, and uploads the bundle to a dedicated
+  `styleproof-maps` branch when the working tree was clean and a git remote is
+  available. The upload happens from the explicit `styleproof-map` command, not
+  from a git hook, so generated maps no longer enter PR branch history.
 - **The report now surfaces tiny changes by default.** Every changed region shows
   the clean before/after crop **and** a highlighted twin (magenta boxes marking each
   change) without expanding anything, and names the changed element next to the image
@@ -16,6 +22,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (≤ `zoomBelow`, default 64px) a magnified zoom crop is added so a sub-pixel change
   (e.g. a 2px caret bump) is obvious at a glance instead of hiding in a collapsed
   section. New `zoomBelow` report option tunes or disables it. ([#97](https://github.com/BenSheridanEdwards/StyleProof/issues/97))
+
+### Changed
+
+- **`styleproof-init` no longer generates or activates a pre-push hook.** It now
+  scaffolds `.gitignore` cache entries and a cache-first PR workflow that restores
+  base/head maps from `styleproof-maps`, runs the full StyleProof report action
+  when both bundles are present, and recaptures both sides in CI only on cache miss
+  or incompatible cache.
+- **`styleproof-diff` and `styleproof-report` now default to cached maps by commit
+  SHA.** No-arg and single base argument usage restores base/head bundles from the map
+  store, while explicit `<beforeDir> <afterDir>` usage remains for CI fallback
+  captures and custom comparisons. The old committed-map `--base-ref`/`--maps-dir`
+  mode is removed from v3 so generated maps no longer have any supported path into
+  PR branch history.
+
+### Fixed
+
+- `styleproof-diff` and report generation now ignore `styleproof-manifest.json`
+  when discovering surface map files, so manifest-backed bundles do not get parsed
+  as captures.
 
 ## [3.1.2] - 2026-06-28
 

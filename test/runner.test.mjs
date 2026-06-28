@@ -24,8 +24,8 @@ test('defaultSelfCheck: STYLEPROOF_SELFCHECK=1 forces it on even when replaying'
   assert.equal(defaultSelfCheck('__stylemaps__/base', '1'), true);
 });
 
-// baseDir/screenshots env overrides — what lets a pre-push hook redirect capture
-// into a COMMITTED, lean (no-PNG) dir without editing the spec.
+// baseDir/screenshots env overrides — what lets CLIs and CI redirect capture
+// into cache/fallback dirs without editing the spec.
 test('resolveBaseDir: explicit option wins over env and default', () => {
   assert.equal(resolveBaseDir('custom', 'stylemaps'), 'custom');
 });

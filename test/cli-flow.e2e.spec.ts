@@ -27,7 +27,9 @@ async function freePort(): Promise<number> {
 
 function commandEnv(env: NodeJS.ProcessEnv = {}) {
   const merged = { ...process.env, PATH: `${PLAYWRIGHT_BIN}${path.delimiter}${process.env.PATH}`, CI: '1', ...env };
-  if (!Object.prototype.hasOwnProperty.call(env, 'GITHUB_BASE_REF')) delete merged.GITHUB_BASE_REF;
+  for (const key of ['GITHUB_BASE_REF', 'GITHUB_SHA', 'GITHUB_HEAD_SHA']) {
+    if (!Object.prototype.hasOwnProperty.call(env, key)) delete merged[key];
+  }
   return merged;
 }
 
@@ -91,22 +93,28 @@ test('styleproof-init → styleproof-map → styleproof-diff works in a generate
     git(app, ['config', 'user.email', 'styleproof@example.test']);
     git(app, ['config', 'user.name', 'StyleProof Test']);
     git(app, ['checkout', '-qb', 'main']);
+    const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cli-flow-remote-'));
+    git(remote, ['init', '--bare', '-q']);
+    git(app, ['remote', 'add', 'origin', remote]);
 
     const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
     expect(init.status, init.stderr).toBe(0);
     expect(init.stdout).toContain('created e2e/styleproof.spec.ts');
-
-    const baseMap = run(app, process.execPath, [MAP]);
-    expect(baseMap.status, baseMap.stderr + baseMap.stdout).toBe(0);
-    expect(fs.readdirSync(path.join(app, 'stylemaps/current')).some((file) => /^home@\d+\.json\.gz$/.test(file))).toBe(
-      true,
-    );
-
     git(app, ['add', '-A']);
-    git(app, ['commit', '-qm', 'base maps']);
-    git(app, ['checkout', '-qb', 'feature']);
+    git(app, ['commit', '-qm', 'styleproof setup']);
 
-    const headMap = run(app, process.execPath, [MAP]);
+    const baseMap = run(app, process.execPath, [MAP], { STYLEPROOF_UPLOAD: '1' });
+    expect(baseMap.status, baseMap.stderr + baseMap.stdout).toBe(0);
+    expect(
+      fs.readdirSync(path.join(app, '.styleproof/maps/current')).some((file) => /^home@\d+\.json\.gz$/.test(file)),
+    ).toBe(true);
+
+    git(app, ['checkout', '-qb', 'feature']);
+    fs.writeFileSync(path.join(app, 'feature.txt'), 'feature');
+    git(app, ['add', '-A']);
+    git(app, ['commit', '-qm', 'feature']);
+
+    const headMap = run(app, process.execPath, [MAP], { STYLEPROOF_UPLOAD: '1' });
     expect(headMap.status, headMap.stderr + headMap.stdout).toBe(0);
 
     const diff = run(app, process.execPath, [DIFF]);

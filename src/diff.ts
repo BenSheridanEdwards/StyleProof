@@ -211,7 +211,7 @@ function indexDir(dir: string): Record<string, string> {
   return Object.fromEntries(
     fs
       .readdirSync(dir)
-      .filter((f) => /\.json(\.gz)?$/.test(f))
+      .filter((f) => f !== 'styleproof-manifest.json' && /\.json(\.gz)?$/.test(f))
       .map((f) => [f.replace(/\.json(\.gz)?$/, ''), path.join(dir, f)]),
   );
 }
