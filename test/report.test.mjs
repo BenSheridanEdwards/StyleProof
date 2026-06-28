@@ -198,6 +198,74 @@ test('end-to-end: crop anchors on the real-change element, not the reflow casual
   rmTmp(root);
 });
 
+test('end-to-end: a tiny change gets a magnified zoom crop and the highlight shows by default', () => {
+  const caret = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
+        // 12×16 caret — far below the 64px zoom threshold, so a colour change here
+        // is imperceptible at 1:1 and must get a magnified crop.
+        'body > span:nth-child(1)': { tag: 'span', cls: 'caret', rect: [40, 40, 12, 16], style: { color } },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: caret('rgb(0, 0, 0)'),
+    after: caret('rgb(255, 0, 0)'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  assert.equal(res.changedSurfaces, 1);
+
+  const region = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces[0].regions[0];
+  assert.match(region.images.zoom, /-zoom\.png$/, 'a zoom image is recorded for the tiny change');
+  assert.match(region.images.annotated, /-annotated\.png$/);
+  assert.ok(fs.existsSync(path.join(outDir, region.images.zoom)), 'the zoom png is actually written');
+
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /🔬 magnified \d+× — change too small to see at 1:1/, 'zoom is captioned with its factor');
+  assert.match(md, /🔍 magenta boxes mark each change/, 'the highlight is shown by default');
+  assert.match(md, /changed: `span\.caret`/, 'the changed element is named next to the image');
+  assert.doesNotMatch(
+    md,
+    /<summary>🔍 Highlight what changed<\/summary>/,
+    'highlight is no longer hidden behind a toggle',
+  );
+  rmTmp(root);
+});
+
+test('end-to-end: a large change gets no zoom crop (visible at 1:1)', () => {
+  const panel = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'panel',
+          rect: [0, 0, 400, 300], // well above the zoom threshold
+          style: { 'background-color': color },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: panel('rgb(0, 0, 0)'),
+    after: panel('rgb(255, 0, 0)'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const region = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces[0].regions[0];
+  assert.equal(region.images.zoom, undefined, 'no zoom image for a clearly-visible change');
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.doesNotMatch(md, /🔬 magnified/, 'no zoom caption for a large change');
+  assert.match(md, /🔍 magenta boxes mark each change/, 'highlight still shown by default');
+  rmTmp(root);
+});
+
 test('end-to-end: header counts the collapsed total, not the longhand explosion', () => {
   // Four padding longhands change but collapse to one `padding` shorthand row,
   // so the header must say 1 computed-style difference, not 4.
@@ -851,7 +919,7 @@ test('end-to-end: responsive grids (same track count, different px) collapse to 
 
 // ---------------------------------------------- annotated crops (1.8.0)
 
-test('end-to-end: each crop has a clean image plus an annotated twin under a toggle', () => {
+test('end-to-end: each crop shows a clean image plus a highlighted twin by default', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
     before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
@@ -862,8 +930,8 @@ test('end-to-end: each crop has a clean image plus an annotated twin under a tog
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.match(md, /!\[before ◀ │ ▶ after\]\(crops\/[^)]+-composite\.png\)/, 'clean composite shown');
-  assert.match(md, /<summary>🔍 Highlight what changed<\/summary>/, 'annotated toggle present');
-  assert.match(md, /!\[annotated[^\]]*\]\(crops\/[^)]+-annotated\.png\)/, 'annotated image under the toggle');
+  assert.doesNotMatch(md, /<summary>🔍 Highlight what changed<\/summary>/, 'highlight is not hidden behind a toggle');
+  assert.match(md, /!\[highlighted[^\]]*\]\(crops\/[^)]+-annotated\.png\)/, 'highlighted image shown by default');
   const crops = fs.readdirSync(path.join(outDir, 'crops'));
   const ann = crops.find((f) => f.endsWith('-annotated.png'));
   assert.ok(ann && crops.some((f) => f.endsWith('-composite.png')), 'both image files written');

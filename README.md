@@ -118,7 +118,7 @@ defineStyleMapCapture({
 
 ## What a report looks like
 
-One change — the hero CTA recoloured cyan → amber — appears as a single section in the report: a side-by-side before/after cropped screenshot, a one-line summary, then the exact property change folded under a toggle.
+One change — the hero CTA recoloured cyan → amber — appears as a single section in the report: a side-by-side before/after cropped screenshot, the same crop again with magenta boxes marking exactly what changed, a one-line summary, then the exact property change folded under a toggle. A change too small to see at 1:1 (say a 2px icon tweak) also gets a magnified zoom crop, so a sub-pixel change can't slip past a reviewer.
 
 ![A StyleProof report: the CTA button before (cyan) and after (amber), side by side](https://raw.githubusercontent.com/BenSheridanEdwards/StyleProof/main/docs/demo-composite.png)
 
