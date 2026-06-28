@@ -32,7 +32,7 @@ export default tseslint.config(
   // Node scripts: the CLIs, the test files, and config files. console is the
   // interface here.
   {
-    files: ['bin/**/*.mjs', 'test/**/*.mjs', 'bench/**/*.mjs', '*.js', '*.mjs'],
+    files: ['bin/**/*.mjs', 'test/**/*.mjs', 'bench/**/*.mjs', 'scripts/**/*.mjs', '*.js', '*.mjs'],
     languageOptions: { globals: { ...globals.node } },
     rules: { 'no-console': 'off' },
   },
