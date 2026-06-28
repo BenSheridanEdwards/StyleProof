@@ -555,7 +555,9 @@ function liveCandidateLabel(candidate: LiveRegionCandidate): string {
 }
 
 function captureFiles(dir: string): string[] {
-  return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /\.json(\.gz)?$/.test(f)) : [];
+  return fs.existsSync(dir)
+    ? fs.readdirSync(dir).filter((f) => f !== 'styleproof-manifest.json' && /\.json(\.gz)?$/.test(f))
+    : [];
 }
 
 function collectLiveCandidateLabels(beforeDir: string, afterDir: string): string[] {

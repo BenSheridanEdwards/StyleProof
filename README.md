@@ -18,7 +18,7 @@ On every PR, StyleProof diffs the PR head's computed-style map against the base 
 - A single **Approve all changes** checkbox in the comment, driving a `StyleProof` commit status: red until one tick signs off every change, green when there are none. The reviewer who ticks it is recorded inline (_approved by @them_), sourced from the commit status so it survives a report re-run.
 - **Clean runs leave a receipt too.** When no visual changes are detected, StyleProof still creates or updates the PR comment with `✓ No visual changes detected.`, so a green status has a visible record instead of only a silent check.
 - **New surfaces don't block.** A surface that exists only on the PR head (no baseline to diff — e.g. the bootstrap PR that first adds the capture spec, or a brand-new page) is shown in the report under a `🆕 new surface` heading but never holds the status red and needs no sign-off. It becomes part of the baseline once merged.
-- The diff is always **head-vs-base**, so the report is _exactly what this PR changes_ — whether the maps are captured fresh in CI or (by default) committed pre-push and diffed browser-free in CI. See [Quickstart](#quickstart).
+- The diff is always **head-vs-base**, so the report is _exactly what this PR changes_ — whether the maps are restored from the `styleproof-maps` cache or recaptured in CI on a cache miss. See [Quickstart](#quickstart).
 
 ## Don't let a new page ship uncaptured
 
@@ -158,7 +158,7 @@ Requires **Node ≥ 18** (ESM), **`@playwright/test` ≥ 1.40** (peer dep). Forc
 
 ## Quickstart
 
-After installing (above), one command sets up — and **activates** — the whole gate:
+After installing (above), one command sets up the whole gate:
 
 ```bash
 npx styleproof-init
@@ -168,8 +168,8 @@ It scaffolds:
 
 - a **capture spec** (`e2e/styleproof.spec.ts`) describing your surfaces (a Next.js app gets its routes _and_ the coverage guard wired automatically — see below);
 - a **`playwright.config.ts`** that builds and serves a **production build** (never a flaky dev server) and captures surfaces **in parallel** (`fullyParallel`);
-- a **pre-push hook** (`.githooks/pre-push`, activated for you via `core.hooksPath` — it won't clobber an existing husky setup) that captures the map, restores no-op map churn, commits real map changes as lean `.json.gz` files under `stylemaps/`, and **pushes them with your branch — one `git push`, never two**;
-- a **browser-less CI workflow** that diffs your committed map against the base branch.
+- `.gitignore` entries for `.styleproof/`, `test-results/`, and `playwright-report/`;
+- a **cache-first CI workflow** that restores reusable maps from the `styleproof-maps` branch and generates the report without a browser when both maps are already built.
 
 Describe your surfaces — **omit `widths`** and StyleProof sweeps your real `@media` breakpoints automatically:
 
@@ -196,43 +196,54 @@ npx styleproof-map
 npx styleproof-diff
 ```
 
-`styleproof-map` captures this branch into `stylemaps/current` as lean committed
-maps: HAR recordings are removed by default so private API responses do not land
-in git. Keep them only for an explicit record/replay workflow with
-`styleproof-map --keep-har` (or `STYLEPROOF_KEEP_HAR=1`). `styleproof-diff` then
-compares the committed map against the base branch automatically: in GitHub
-Actions it uses the PR base; locally it checks `branch.<name>.gh-merge-base`,
-then the current GitHub PR base via `gh pr view` (handy for stacked PRs), then
-`origin/main`, `origin/master`, `main`, and `master`. Pin it when needed with
-`styleproof-diff main`, `styleproof-diff master`, or `styleproof-diff --base-ref
-origin/my-base`.
+`styleproof-map` captures the current commit into `.styleproof/maps/current`,
+writes a manifest, and uploads the bundle
+to the dedicated `styleproof-maps` branch when the working tree was clean and a
+git remote is available. Nothing under `.styleproof/` belongs in the PR branch.
+HAR recordings are removed before upload by default so private API responses do
+not land in the map store. Keep them locally only for an explicit record/replay
+workflow with `styleproof-map --keep-har` (or `STYLEPROOF_KEEP_HAR=1`).
 
-**That's the whole loop.** Capture happens **pre-push on your machine** (where the app already builds and serves); the hook first diffs the refreshed map against `HEAD` and restores it when the semantic map is unchanged, otherwise it commits and pushes the lean map; and **CI is a browser-less diff of two precomputed maps** — no build, no browser, just a fast comparison (~5400× cheaper on the compare step than re-capturing both sides in CI). `main` always carries a base map, so every PR is _your code vs the committed base_. Require the `StyleProof` status in branch protection and an unverified visual change can't merge.
+`styleproof-diff` restores the base and head maps from `styleproof-maps`
+automatically: in GitHub Actions it uses the PR base/head SHAs; locally it checks
+`branch.<name>.gh-merge-base`, then the current GitHub PR base via `gh pr view`
+(handy for stacked PRs), then `origin/main`, `origin/master`, `main`, and
+`master`. Pin the base with `styleproof-diff main` or `styleproof-diff master`.
 
-> **Same-environment note.** Computed styles depend on the browser build and installed fonts, so maps are only comparable when captured in the same environment (your machine, or a pinned container). The self-check fails loudly on a non-deterministic capture, so drift never passes silently.
+**That's the whole loop.** Build the map outside CI when possible by running
+`styleproof-map` after committing. On the PR, CI first restores the base/head
+bundles and only generates the report — no build, no browser. If either bundle
+is missing or incompatible, CI recaptures both sides in the same pinned
+environment before reporting. Correctness wins over a stale cache, but the hot
+path is report-only.
+
+> **Same-environment note.** Computed styles depend on the browser build and installed fonts, so maps are only comparable when captured in the same runtime environment. StyleProof records a compatibility key to select the right cached bundle and refuses to compare maps captured under different browser/platform settings; CI then recaptures both sides instead of producing a bogus report.
 
 **Want the local side-by-side report** (not just a pass/fail diff)? Run `npx
 styleproof-report` after `styleproof-map`; it uses the same inferred base ref and
-`stylemaps/current` defaults as `styleproof-diff`. Pin the base with
+the same cached-map defaults as `styleproof-diff`. Pin the base with
 `styleproof-report main` or keep the manual form with `styleproof-report before
 after --out report`.
 
-**Want the side-by-side report + one-click approval**? Use the Action, pointing it at the base ref:
+**Want the side-by-side report + one-click approval**? `styleproof-init` scaffolds
+this for you. If you wire it by hand, restore or capture two dirs first, then use
+the Action on those dirs:
 
 ```yaml
 # .github/workflows/styleproof.yml
 - uses: actions/checkout@v4
-  with: { fetch-depth: 0 } # need the base ref's committed map
+- run: npx styleproof-map --restore --sha "${{ github.event.pull_request.base.sha }}" --dir base --base-dir __stylemaps__
+- run: npx styleproof-map --restore --sha "${{ github.event.pull_request.head.sha }}" --dir head --base-dir __stylemaps__
 - uses: BenSheridanEdwards/StyleProof@v3
   with:
-    base-ref: origin/${{ github.event.pull_request.base.ref }} # read the base map from git
-    fresh-dir: stylemaps/current # your committed maps
+    baseline-dir: __stylemaps__/base
+    fresh-dir: __stylemaps__/head
     require-approval: true # review-gate mode (omit / use fail-on-diff: true to certify)
 ```
 
 Then copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged).
 
-**Prefer to capture in CI instead of committing maps?** For a repo with many outside contributors on different machines, StyleProof can capture **both** base and head in CI and diff them there — no committed maps. See **[Forks and Dependabot](#forks-and-dependabot)** for that flow (it's also the fork-safe split). The committed-map flow above is the default because it's far faster and simpler for a single team.
+**Prefer to always capture in CI?** For a repo with many outside contributors on different machines, StyleProof can capture **both** base and head in CI and diff them there. See **[Forks and Dependabot](#forks-and-dependabot)** for that flow (it's also the fork-safe split). The default cache-first flow is faster for same-repo teams because local `styleproof-map` can build the head map before CI starts.
 
 **Want to skip work safely?** Skip the **whole** StyleProof workflow only for
 changes that cannot affect rendered output, such as docs-only edits, using your
@@ -254,7 +265,7 @@ on:
 
 ## Forks and Dependabot
 
-If you **capture in CI** rather than committing maps (the alternative noted at the end of the Quickstart — a better fit when many outside contributors push from different machines), the simplest setup runs the whole gate in one `pull_request` job that captures base + head and diffs them. That job needs a **write** token to push the report branch, post the comment, and set the `StyleProof` status. That's fine for same-repo PRs, but **fork and Dependabot PRs run with a read-only `GITHUB_TOKEN`** (GitHub's security default for untrusted PRs). So the job can't post the status — and a required `StyleProof` check then sits `pending` forever, blocking the PR even though a dependency or fork change usually touches no UI at all.
+If you **always capture in CI** rather than restoring maps from `styleproof-maps` (a better fit when many outside contributors push from different machines), the simplest setup runs the whole gate in one `pull_request` job that captures base + head and diffs them. That job needs a **write** token to push the report branch, post the comment, and set the `StyleProof` status. That's fine for same-repo PRs, but **fork and Dependabot PRs run with a read-only `GITHUB_TOKEN`** (GitHub's security default for untrusted PRs). So the job can't post the status — and a required `StyleProof` check then sits `pending` forever, blocking the PR even though a dependency or fork change usually touches no UI at all.
 
 Fix it by splitting capture from reporting, the way the approve workflow is already split out:
 
@@ -350,14 +361,13 @@ When a PR **adds** an element, StyleProof now reports its **full resting compute
 
 **Action `BenSheridanEdwards/StyleProof@v3`** — key inputs:
 
-| Input              | Default      | Purpose                                                                                                                                |
-| ------------------ | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `fresh-dir`        | _required_   | PR-head (or committed) captures to compare.                                                                                            |
-| `base-ref`         | _none_       | Read the baseline from a git ref (e.g. the PR base branch) instead of `baseline-dir` — the committed-map flow. Needs `fetch-depth: 0`. |
-| `baseline-dir`     | _required\*_ | Base-branch captures dir. _\*Not required when `base-ref` is set._                                                                     |
-| `require-approval` | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.                                                                      |
-| `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                                                               |
-| `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.                                                             |
+| Input              | Default      | Purpose                                                                             |
+| ------------------ | ------------ | ----------------------------------------------------------------------------------- |
+| `fresh-dir`        | _required_   | PR-head captures restored from `styleproof-maps` or freshly captured in CI.         |
+| `baseline-dir`     | _required_   | Base-branch captures dir restored from `styleproof-maps` or freshly captured in CI. |
+| `require-approval` | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.                   |
+| `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.            |
+| `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.          |
 
 Outputs: `changed` (`"true"` when anything changed), `report-url`. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
@@ -399,21 +409,23 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 **Capture env vars** (wire CI without editing the spec):
 
-| Env                      | Purpose                                                                                       |
-| ------------------------ | --------------------------------------------------------------------------------------------- |
-| `STYLEMAP_DIR`           | Output label; the capture is skipped entirely when unset.                                     |
-| `STYLEPROOF_BASEDIR`     | Output root dir (default `__stylemaps__`). The committed-map hook sets this to a tracked dir. |
-| `STYLEPROOF_SCREENSHOTS` | `0` to skip full-page screenshots — lean, commit-friendly `.json.gz`-only maps.               |
-| `STYLEPROOF_REPLAY_FROM` | Baseline dir to replay recorded data from — set this on the **head** capture.                 |
-| `STYLEPROOF_REPLAY_URL`  | Override the `**/api/**` data-boundary glob.                                                  |
-| `STYLEPROOF_SELFCHECK`   | `1` to capture each surface twice and fail if the two differ.                                 |
+| Env                       | Purpose                                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `STYLEMAP_DIR`            | Output label; the capture is skipped entirely when unset.                                                             |
+| `STYLEPROOF_BASEDIR`      | Output root dir (runner default `__stylemaps__`; `styleproof-map` CLI default `.styleproof/maps`).                    |
+| `STYLEPROOF_SCREENSHOTS`  | `0` to skip full-page screenshots. The CLI keeps screenshots by default so reports can crop maps restored from cache. |
+| `STYLEPROOF_REPLAY_FROM`  | Baseline dir to replay recorded data from — set this on the **head** capture.                                         |
+| `STYLEPROOF_REPLAY_URL`   | Override the `**/api/**` data-boundary glob.                                                                          |
+| `STYLEPROOF_SELFCHECK`    | `1` to capture each surface twice and fail if the two differ.                                                         |
+| `STYLEPROOF_UPLOAD`       | `1` to require map-store upload; `0` to capture locally only.                                                         |
+| `STYLEPROOF_CACHE_BRANCH` | Map store branch (default `styleproof-maps`).                                                                         |
 
 **CLIs** (every flag accepts `--flag value` and `--flag=value`; `--help` lists all):
 
-- `styleproof-init` — scaffold **and activate** the whole gate: the capture spec, a `playwright.config.ts` (production-build `webServer`, parallel capture), the pre-push capture-and-push hook, and the browser-less CI workflow. One command. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default) instead of assuming npm.
-- `styleproof-map` — capture the current branch's computed-style map through Playwright. By default it writes lean committed maps to `stylemaps/current`; pass `--spec`, `--dir`, `--base-dir`, or `--screenshots` when you need a custom capture.
-- `styleproof-diff` — the certify gate. With no args, it diffs `stylemaps/current` against the inferred base branch (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form. Exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
-- `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports `stylemaps/current` against the inferred base branch; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content section (see above).
+- `styleproof-init` — scaffold the gate: the capture spec, a `playwright.config.ts` (production-build `webServer`, parallel capture), `.gitignore` cache entries, and the cache-first report workflow. One command. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default) instead of assuming npm.
+- `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote exists. Pass `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, or `--no-screenshots` for custom flows.
+- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
+- `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content section (see above).
 
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 

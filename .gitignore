@@ -4,6 +4,7 @@ test-results/
 playwright-report/
 coverage/
 **/__stylemaps__/
+.styleproof/
 *.tgz
 .DS_Store
 

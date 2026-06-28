@@ -27,3 +27,11 @@ test('composite action creates a no-change PR receipt on a clean first run', () 
   );
   assert.doesNotMatch(commentStep[0], /if \(existing\) await upsert/, 'clean first run must create a comment too');
 });
+
+test('composite action only compares explicit base/head directories', () => {
+  assert.match(actionYml, /baseline-dir:[\s\S]*?required: true/);
+  assert.doesNotMatch(actionYml, /base-ref:/);
+  assert.doesNotMatch(actionYml, /--base-ref/);
+  assert.match(actionYml, /styleproof-diff\.mjs" "\$\{\{ inputs\.baseline-dir \}\}" "\$\{\{ inputs\.fresh-dir \}\}"/);
+  assert.match(actionYml, /styleproof-report\.mjs" "\$\{\{ inputs\.baseline-dir \}\}" "\$\{\{ inputs\.fresh-dir \}\}"/);
+});

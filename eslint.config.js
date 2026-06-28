@@ -10,6 +10,7 @@ export default tseslint.config(
       '.claude/**', // agent worktrees nest a second checkout (own tsconfig) here — parsing it breaks lint
 
       '**/__stylemaps__/**',
+      '.styleproof/**',
       'test-results/**',
       'playwright-report/**',
       'docs/**',

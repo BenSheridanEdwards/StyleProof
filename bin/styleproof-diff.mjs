@@ -2,8 +2,7 @@
 /**
  * Diff two computed-style map captures (see styleproof).
  *
- *   styleproof-diff [baseRef] [--maps-dir <dir>] [--max N] [--json <file>]
- *   styleproof-diff --base-ref <gitref> [mapsDir] [--max N] [--json <file>]
+ *   styleproof-diff [baseRef] [--max N] [--json <file>]
  *   styleproof-diff <beforeDir> <afterDir> [--max N] [--json <file>]
  *
  * Reports, per surface:
@@ -15,12 +14,9 @@
  *     longer does (or now changes differently) — the classic dropped
  *     `hover:` variant a screenshot can never catch.
  *
- * --base-ref reads the base from a git ref instead of a second directory: it
- * materialises the captures committed at <mapsDir> as of <gitref> (e.g. `main`)
- * and diffs them against your working <mapsDir>. That's the "base map lives on
- * main, CI just diffs" flow — commit each branch's maps (pre-push), and the gate
- * never recomputes the base. Both sides must be captured in the same environment
- * (browser + fonts) for the diff to be meaningful.
+ * No-arg and single base argument usage restore base/head maps from the StyleProof
+ * map store branch by commit SHA. To compare already-restored/captured maps,
+ * pass explicit before/after directories.
  *
  * Custom properties (--*) are ignored: they are inputs, not outcomes (see
  * README). Exit code 0 = identical, 1 = reviewable differences, 2 = usage/capture
@@ -29,7 +25,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
-import { cleanupBaseRefCaptureDirs, resolveBaseRefCaptureDirs } from '../dist/cli-base-ref.js';
+import {
+  DEFAULT_MAP_STORE_BRANCH,
+  DEFAULT_REMOTE,
+  assertCompatibleMapDirs,
+  cleanupCachedCaptureDirs,
+  resolveCachedCaptureDirs,
+} from '../dist/map-store.js';
 import {
   cliErrorMessage,
   isHelpArg,
@@ -39,19 +41,19 @@ import {
 } from '../dist/cli-errors.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
-const DEFAULT_MAPS_DIR = 'stylemaps/current';
 
 const HELP = `${COMMAND} — certify a CSS refactor by diffing two computed-style map captures
 
 usage: ${COMMAND} [baseRef] [options]
-       ${COMMAND} --base-ref <gitref> [mapsDir] [options]
        ${COMMAND} <beforeDir> <afterDir> [options]
 
 options:
-  --base-ref <ref> diff <mapsDir> as committed at <ref> (e.g. main) against your
-                   working <mapsDir> — base from git, no recapture
-  --maps-dir <dir> committed map dir for the base-ref flow
-                   (default: ${DEFAULT_MAPS_DIR})
+  --spec <path>     StyleProof spec used to select compatible cached maps
+                   (default: e2e/styleproof.spec.ts)
+  --cache-branch <b>
+                   map store branch for default cached-map mode
+                   (default: ${DEFAULT_MAP_STORE_BRANCH})
+  --remote <name>   git remote for the map store (default: ${DEFAULT_REMOTE})
   --max <n>        max lines printed per surface before truncating (default: 40)
   --json <file>    also write the full structured diff to <file>
   -h, --help       show this help
@@ -64,18 +66,21 @@ const argv = process.argv.slice(2);
 const args = [];
 let MAX = 40;
 let jsonOut = null;
-let baseRef = null;
-let mapsDir = DEFAULT_MAPS_DIR;
+let spec = 'e2e/styleproof.spec.ts';
+let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? DEFAULT_MAP_STORE_BRANCH;
+let remote = process.env.STYLEPROOF_REMOTE ?? DEFAULT_REMOTE;
 for (let i = 0; i < argv.length; i++) {
   if (isHelpArg(argv[i])) showHelpAndExit(HELP);
   else if (argv[i] === '--max') MAX = Number(argv[++i]);
   else if (argv[i].startsWith('--max=')) MAX = Number(argv[i].slice(6));
   else if (argv[i] === '--json') jsonOut = argv[++i];
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
-  else if (argv[i] === '--base-ref') baseRef = argv[++i];
-  else if (argv[i].startsWith('--base-ref=')) baseRef = argv[i].slice(11);
-  else if (argv[i] === '--maps-dir') mapsDir = argv[++i];
-  else if (argv[i].startsWith('--maps-dir=')) mapsDir = argv[i].slice(11);
+  else if (argv[i] === '--spec') spec = argv[++i];
+  else if (argv[i].startsWith('--spec=')) spec = argv[i].slice(7);
+  else if (argv[i] === '--cache-branch') cacheBranch = argv[++i];
+  else if (argv[i].startsWith('--cache-branch=')) cacheBranch = argv[i].slice(15);
+  else if (argv[i] === '--remote') remote = argv[++i];
+  else if (argv[i].startsWith('--remote=')) remote = argv[i].slice(9);
   else if (argv[i].startsWith('--')) {
     console.error(unknownFlagMessage(COMMAND, argv[i]));
     process.exit(2);
@@ -84,26 +89,34 @@ for (let i = 0; i < argv.length; i++) {
 
 let dirA;
 let dirB;
-let baseCapture = null;
-if (baseRef || args.length <= 1) {
+let cacheCapture = null;
+if (args.length <= 1) {
   if (!Number.isFinite(MAX)) {
-    console.error(`usage: ${COMMAND} [baseRef] [--maps-dir <dir>] [--max N] [--json <file>]`);
+    console.error(`usage: ${COMMAND} [baseRef] [--max N] [--json <file>]`);
     process.exit(2);
   }
   try {
-    baseCapture = resolveBaseRefCaptureDirs({
+    cacheCapture = resolveCachedCaptureDirs({
       command: COMMAND,
-      baseRef,
-      mapsDir,
       args,
-      usage: `usage: ${COMMAND} --base-ref <gitref> [mapsDir] [--max N] [--json <file>]`,
+      spec,
+      branch: cacheBranch,
+      remote,
+      baseUrl: process.env.BASE_URL,
+      usage: `usage: ${COMMAND} [baseRef] [--max N] [--json <file>]`,
     });
+    dirA = cacheCapture.beforeDir;
+    dirB = cacheCapture.afterDir;
   } catch (e) {
-    console.error(cliErrorMessage(e));
+    console.error(
+      [
+        `${COMMAND}: cached maps are not available for this comparison`,
+        cliErrorMessage(e),
+        'Next: run styleproof-map on the base and head commits to upload maps, or let CI recapture both sides.',
+      ].join('\n'),
+    );
     process.exit(2);
   }
-  dirA = baseCapture.beforeDir;
-  dirB = baseCapture.afterDir;
 } else {
   if (args.length !== 2 || !Number.isFinite(MAX)) {
     console.error(`usage: ${COMMAND} <beforeDir> <afterDir> [--max N] [--json <file>]  (--help for all options)`);
@@ -120,12 +133,13 @@ if (baseRef || args.length <= 1) {
 
 let result;
 try {
+  assertCompatibleMapDirs(dirA, dirB);
   result = diffStyleMapDirs(dirA, dirB);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
 } finally {
-  cleanupBaseRefCaptureDirs(baseCapture);
+  cleanupCachedCaptureDirs(cacheCapture);
 }
 const { surfaces, counts, compared } = result;
 

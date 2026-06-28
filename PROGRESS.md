@@ -1,5 +1,63 @@
 # Progress
 
+## Active Task: local-first StyleProof map cache
+
+## Completed
+
+- Pulled latest `main` and branched `codex/local-first-styleproof-cache`.
+- Verified the current default is the source of the conflict class: `styleproof-map`
+  writes `stylemaps/current`, `styleproof-init` generates a pre-push hook that
+  commits/pushes `stylemaps`, and generated CI diffs committed maps from git.
+- Replaced the default with local-first map bundles under `.styleproof/maps`,
+  manifest compatibility keys, a `styleproof-maps` branch store, cache restore
+  for `styleproof-diff` / `styleproof-report`, and a generated cache-first CI
+  workflow with a two-sided capture fallback.
+- Removed generated pre-push hook activation and added `.styleproof/`,
+  `test-results/`, and `playwright-report/` ignore scaffolding.
+- Removed the old committed-map `--base-ref` / `--maps-dir` compatibility path
+  from the v3 CLI and Action surface so generated maps no longer have a supported
+  route into PR branch history.
+- Narrowed manifest compare checks to the runtime environment; the stricter
+  compatibility key still selects cache bundles, but spec/lockfile changes can
+  recapture both sides in CI and compare normally.
+- Updated README, CHANGELOG, and tests for the new v3 default.
+
+## Findings
+
+- The committed-map default solves CI time by putting generated binary state in
+  normal branch history. That is not the right default for v3 because branches
+  naturally collide on the same generated paths.
+- The next default should be local-first reusable bundles: `styleproof-map`
+  builds maps outside git history, CI restores/downloads those bundles, and CI
+  captures only when the bundle is missing or incompatible.
+- Local map builds can happen outside CI when the local capture environment
+  matches the CI compatibility key. If not, the generated workflow recaptures
+  both sides in CI rather than comparing unlike maps.
+- The cache key must stay stricter than the compare check. A PR that changes the
+  StyleProof spec or dependencies may legitimately invalidate cached bundles and
+  fall back to CI capture, but that recaptured pair should still compare.
+
+## Next Action
+
+- Commit, push, and open the PR with the proof below.
+
+## Blockers
+
+- None currently.
+
+## Verification Status
+
+- `npm run prepublishOnly` passed: clean, build, typecheck, lint, format check,
+  178 Node tests, and 35 Playwright e2e tests.
+- `npm pack --dry-run --json` passed and produced `styleproof-3.1.2.tgz` with
+  35 package entries, including `dist/map-store.d.ts` / `dist/map-store.js` and
+  no `dist/cli-base-ref.*` files.
+- Privacy grep over the worktree found no private consuming-project references.
+
+---
+
+## Previous Task: 3.1.1 release follow-up
+
 ## Completed
 
 - Started the StyleProof `3.1.1` release bump after PR #88 and PR #94 merged

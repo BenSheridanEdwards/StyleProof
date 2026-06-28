@@ -32,8 +32,8 @@ export function playwrightMissingMessage(message: string): string {
 export function missingWorkingMapsMessage(command: string, dir: string): string {
   return [
     `${command}: no capture at ${dir}`,
-    `Next: run styleproof-map to create ${dir}, then commit the updated maps.`,
-    'If your maps live elsewhere, pass --maps-dir <dir>.',
+    `Next: run styleproof-map to create ${dir}, or run styleproof-map --restore --sha <commit> to restore it from the map store.`,
+    'If your maps live elsewhere, pass explicit capture directories.',
   ].join('\n');
 }
 
@@ -48,12 +48,5 @@ export function baseInferenceMessage(command: string, message: string): string {
   return [
     `${command}: ${message}`,
     `Next: pass a base ref explicitly, e.g. ${command} main, or set git config branch.<name>.gh-merge-base main.`,
-  ].join('\n');
-}
-
-export function baseMapsMessage(command: string, message: string, baseRef: string, mapsDir: string): string {
-  return [
-    `${command}: ${message}`,
-    `Next: make sure ${baseRef} contains committed captures at ${mapsDir}. On the base branch, run styleproof-map and commit ${mapsDir}.`,
   ].join('\n');
 }

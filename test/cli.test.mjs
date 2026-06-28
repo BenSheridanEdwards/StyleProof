@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { saveStyleMap } from '../dist/capture.js';
+import { DEFAULT_MAP_STORE_BRANCH, MAP_MANIFEST, expectedCompatibilityKey } from '../dist/map-store.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -51,7 +52,7 @@ function identicalPair() {
 
 // ---------------------------------------------------------------- styleproof-map
 
-test('styleproof-map runs Playwright with committed-map defaults', () => {
+test('styleproof-map runs Playwright with local cache defaults', () => {
   const root = mkTmp();
   try {
     const spec = path.join(root, 'e2e/styleproof.spec.ts');
@@ -71,8 +72,9 @@ test('styleproof-map runs Playwright with committed-map defaults', () => {
       env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
     });
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /current\|stylemaps\|0\|test --grep styleproof capture/);
-    assert.equal(fs.existsSync(path.join(root, 'stylemaps/current/home@1280.har')), false);
+    assert.match(r.stdout, /current\|\.styleproof\/maps\|1\|test --grep styleproof capture/);
+    assert.equal(fs.existsSync(path.join(root, '.styleproof/maps/current/home@1280.har')), false);
+    assert.ok(fs.existsSync(path.join(root, '.styleproof/maps/current', MAP_MANIFEST)));
   } finally {
     rmTmp(root);
   }
@@ -98,7 +100,8 @@ test('styleproof-map keeps HAR files only when explicitly requested', () => {
       env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
     });
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(fs.existsSync(path.join(root, 'stylemaps/current/home@1280.har')), true);
+    assert.equal(fs.existsSync(path.join(root, '.styleproof/maps/current/home@1280.har')), true);
+    assert.ok(fs.existsSync(path.join(root, '.styleproof/maps/current', MAP_MANIFEST)));
   } finally {
     rmTmp(root);
   }
@@ -195,6 +198,16 @@ test('diff CLI --max truncates the per-surface listing and prints a hint', () =>
   rmTmp(root);
 });
 
+test('diff CLI allows different cache keys when the runtime environment matches', () => {
+  const { root, A, B } = differingPair();
+  writeManifest(A, 'base-sha', 'base-spec-key');
+  writeManifest(B, 'head-sha', 'head-spec-key');
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /computed-style difference/);
+  rmTmp(root);
+});
+
 test('diff CLI reads a plain .json capture against a .json.gz capture', () => {
   const root = mkTmp();
   const A = path.join(root, 'a');
@@ -214,7 +227,7 @@ test('diff CLI reads a plain .json capture against a .json.gz capture', () => {
   rmTmp(root);
 });
 
-// ------------------------------------------------- styleproof-diff --base-ref
+// ------------------------------------------------- cached styleproof-diff/report
 
 function gitInit(dir) {
   spawnSync('git', ['init', '-q'], { cwd: dir });
@@ -234,26 +247,118 @@ const runIn = (cwd, script, a, opts = {}) =>
   });
 const mapWith = (color) => makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', style: { color } } } });
 
-test('diff --base-ref: identical working maps vs the committed base → exit 0', () => {
-  const repo = mkTmp();
-  gitInit(repo);
-  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
-  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
-  rmTmp(repo);
-});
+function writeSpec(repo) {
+  fs.mkdirSync(path.join(repo, 'e2e'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'e2e/styleproof.spec.ts'), '// styleproof spec');
+}
 
-test('diff defaults to stylemaps/current against the inferred main branch', () => {
+function commitAll(repo, message) {
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', message], { cwd: repo });
+  return spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+}
+
+function addBareOrigin(repo) {
+  const remote = mkTmp('styleproof-remote-');
+  spawnSync('git', ['init', '--bare', '-q'], { cwd: remote });
+  spawnSync('git', ['remote', 'add', 'origin', remote], { cwd: repo });
+  return remote;
+}
+
+function writeManifest(dir, sha, compatibilityKey) {
+  fs.writeFileSync(
+    path.join(dir, MAP_MANIFEST),
+    JSON.stringify(
+      {
+        version: 1,
+        packageVersion: 'test',
+        sha,
+        dirty: false,
+        spec: 'e2e/styleproof.spec.ts',
+        specHash: 'test',
+        platform: process.platform,
+        arch: process.arch,
+        nodeMajor: process.versions.node.split('.')[0],
+        screenshots: true,
+        har: false,
+        compatibilityKey,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function seedMapStore(repo, bundles) {
+  const remoteUrl = spawnSync('git', ['remote', 'get-url', 'origin'], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+  const store = mkTmp('styleproof-map-store-');
+  try {
+    spawnSync('git', ['init', '-q', '-b', DEFAULT_MAP_STORE_BRANCH], { cwd: store });
+    spawnSync('git', ['config', 'user.email', 'styleproof@example.test'], { cwd: store });
+    spawnSync('git', ['config', 'user.name', 'StyleProof Test'], { cwd: store });
+    fs.writeFileSync(path.join(store, 'README.md'), '# StyleProof maps\n');
+    for (const bundle of bundles) {
+      const dest = path.join(store, bundle.sha, bundle.compatibilityKey);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.cpSync(bundle.dir, dest, { recursive: true });
+    }
+    spawnSync('git', ['add', '-A'], { cwd: store });
+    spawnSync('git', ['commit', '-qm', 'seed maps'], { cwd: store });
+    spawnSync('git', ['remote', 'add', 'origin', remoteUrl], { cwd: store });
+    spawnSync('git', ['push', '-q', 'origin', `HEAD:${DEFAULT_MAP_STORE_BRANCH}`], { cwd: store });
+  } finally {
+    rmTmp(store);
+  }
+}
+
+function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main' } = {}) {
   const repo = mkTmp();
   gitInit(repo);
+  addBareOrigin(repo);
   spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+  writeSpec(repo);
+  const baseSha = commitAll(repo, 'base');
+  if (baseBranch !== 'main') {
+    spawnSync('git', ['checkout', '-qb', baseBranch], { cwd: repo });
+    fs.writeFileSync(path.join(repo, 'stack.txt'), baseBranch);
+    commitAll(repo, baseBranch);
+  }
   spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'feature.txt'), 'feature');
+  const headSha = commitAll(repo, 'feature');
+
+  const compatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
+  const baseDir = path.join(repo, 'seed-base');
+  const headDir = path.join(repo, 'seed-head');
+  writeCapture(baseDir, 'home@1280', mapWith('rgb(0, 0, 0)'), null);
+  writeCapture(headDir, 'home@1280', mapWith(headColor), null);
+  writeManifest(
+    baseDir,
+    baseBranch === 'main'
+      ? baseSha
+      : spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim(),
+    compatibilityKey,
+  );
+  writeManifest(headDir, headSha, compatibilityKey);
+  seedMapStore(repo, [
+    {
+      sha:
+        baseBranch === 'main'
+          ? baseSha
+          : spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim(),
+      compatibilityKey,
+      dir: baseDir,
+    },
+    { sha: headSha, compatibilityKey, dir: headDir },
+  ]);
+  fs.rmSync(baseDir, { recursive: true, force: true });
+  fs.rmSync(headDir, { recursive: true, force: true });
+  return { repo, baseSha, headSha, compatibilityKey };
+}
+
+test('diff defaults to cached maps against the inferred main branch', () => {
+  const { repo } = setupCachedComparison();
   const r = runIn(repo, DIFF, []);
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
@@ -261,22 +366,12 @@ test('diff defaults to stylemaps/current against the inferred main branch', () =
 });
 
 test('diff defaults to the GitHub PR base for stacked local branches when gh is available', () => {
-  const repo = mkTmp();
-  gitInit(repo);
+  const { repo } = setupCachedComparison({ baseBranch: 'stack-base' });
   const binDir = path.join(repo, 'fake-bin');
   fs.mkdirSync(binDir);
   const fakeGh = path.join(binDir, 'gh');
   fs.writeFileSync(fakeGh, '#!/bin/sh\nprintf "stack-base\\n"\n');
   fs.chmodSync(fakeGh, 0o755);
-  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'main-base'], { cwd: repo });
-  spawnSync('git', ['checkout', '-qb', 'stack-base'], { cwd: repo });
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 128, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'stack-base'], { cwd: repo });
-  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
   const r = runIn(repo, DIFF, [], {
     env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}`, GITHUB_BASE_REF: '' },
   });
@@ -285,99 +380,36 @@ test('diff defaults to the GitHub PR base for stacked local branches when gh is 
   rmTmp(repo);
 });
 
-test('diff accepts a single base ref and uses stylemaps/current', () => {
-  const repo = mkTmp();
-  gitInit(repo);
-  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
-  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+test('diff accepts a single base ref and uses cached maps', () => {
+  const { repo } = setupCachedComparison({ headColor: 'rgb(255, 0, 0)' });
   const r = runIn(repo, DIFF, ['main']);
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /computed-style difference/);
   rmTmp(repo);
 });
 
-test('diff --base-ref uses stylemaps/current when mapsDir is omitted', () => {
+test('diff default flow explains how to recover when cached maps are missing', () => {
   const repo = mkTmp();
   gitInit(repo);
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
-  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD']);
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
-  rmTmp(repo);
-});
-
-test('diff --base-ref: a restyled working map differs from the committed base → exit 1', () => {
-  const repo = mkTmp();
-  gitInit(repo);
-  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
-  // Restyle in the working tree (the pre-push head) — the committed base is unchanged.
-  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
-  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
-  assert.equal(r.status, 1, r.stderr);
-  assert.match(r.stdout, /computed-style difference/);
-  rmTmp(repo);
-});
-
-test('diff --base-ref: exits 2 when the ref has no committed captures at that path', () => {
-  const repo = mkTmp();
-  gitInit(repo);
-  fs.writeFileSync(path.join(repo, 'readme'), 'x');
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'init'], { cwd: repo });
-  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null); // never committed
-  const r = runIn(repo, DIFF, ['--base-ref', 'HEAD', 'maps']);
-  assert.equal(r.status, 2);
-  assert.match(r.stderr, /no committed captures/);
-  assert.match(r.stderr, /Next: make sure HEAD contains committed captures at maps/);
-  rmTmp(repo);
-});
-
-test('diff base-ref flow explains how to recover when the working maps are missing', () => {
-  const repo = mkTmp();
-  gitInit(repo);
+  addBareOrigin(repo);
   spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeSpec(repo);
   fs.writeFileSync(path.join(repo, 'readme'), 'x');
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
-  const r = runIn(repo, DIFF, ['main']);
-  assert.equal(r.status, 2);
-  assert.match(r.stderr, /Next: run styleproof-map to create stylemaps\/current/);
-  assert.match(r.stderr, /pass --maps-dir <dir>/);
-  rmTmp(repo);
-});
-
-test('report --base-ref: builds a report with the base read from a git ref', () => {
-  const repo = mkTmp();
-  gitInit(repo);
-  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
-  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(255, 0, 0)'), null); // restyled head
-  const out = path.join(repo, 'out');
-  const r = runIn(repo, REPORT, ['--base-ref', 'HEAD', 'maps', '--out', out]);
-  assert.equal(r.status, 1, r.stderr); // changes found vs the committed base
-  assert.match(r.stdout, /changed surface\(s\)/);
-  assert.ok(fs.existsSync(path.join(out, 'report.json')));
-  rmTmp(repo);
-});
-
-test('report defaults to stylemaps/current against the inferred main branch', () => {
-  const repo = mkTmp();
-  gitInit(repo);
-  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
   spawnSync('git', ['add', '-A'], { cwd: repo });
   spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
   spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+  fs.writeFileSync(path.join(repo, 'feature'), 'x');
+  spawnSync('git', ['add', '-A'], { cwd: repo });
+  spawnSync('git', ['commit', '-qm', 'feature'], { cwd: repo });
+  const r = runIn(repo, DIFF, ['main']);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /cached maps are not available/);
+  assert.match(r.stderr, /run styleproof-map on the base and head commits/);
+  rmTmp(repo);
+});
+
+test('report defaults to cached maps against the inferred main branch', () => {
+  const { repo } = setupCachedComparison({ headColor: 'rgb(255, 0, 0)' });
   const r = runIn(repo, REPORT, []);
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /changed surface\(s\)/);
@@ -385,49 +417,13 @@ test('report defaults to stylemaps/current against the inferred main branch', ()
   rmTmp(repo);
 });
 
-test('report accepts a single base ref and uses stylemaps/current', () => {
-  const repo = mkTmp();
-  gitInit(repo);
-  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
-  spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(255, 0, 0)'), null);
+test('report accepts a single base ref and uses cached maps', () => {
+  const { repo } = setupCachedComparison({ headColor: 'rgb(255, 0, 0)' });
   const out = path.join(repo, 'out');
   const r = runIn(repo, REPORT, ['main', '--out', out]);
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /changed surface\(s\)/);
   assert.ok(fs.existsSync(path.join(out, 'report.md')));
-  rmTmp(repo);
-});
-
-test('report --base-ref uses stylemaps/current when mapsDir is omitted', () => {
-  const repo = mkTmp();
-  gitInit(repo);
-  writeCapture(path.join(repo, 'stylemaps/current'), 'home@1280', mapWith('rgb(0, 0, 0)'), null);
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
-  const out = path.join(repo, 'out');
-  const r = runIn(repo, REPORT, ['--base-ref', 'HEAD', '--out', out]);
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /no changes/);
-  assert.ok(fs.existsSync(path.join(out, 'report.json')));
-  rmTmp(repo);
-});
-
-test('report --base-ref: exits 2 when the ref has no committed captures there', () => {
-  const repo = mkTmp();
-  gitInit(repo);
-  fs.writeFileSync(path.join(repo, 'readme'), 'x');
-  spawnSync('git', ['add', '-A'], { cwd: repo });
-  spawnSync('git', ['commit', '-qm', 'init'], { cwd: repo });
-  writeCapture(path.join(repo, 'maps'), 'home@1280', mapWith('rgb(0, 0, 0)'), null); // never committed
-  const out = path.join(repo, 'out');
-  const r = runIn(repo, REPORT, ['--base-ref', 'HEAD', 'maps', '--out', out]);
-  assert.equal(r.status, 2);
-  assert.match(r.stderr, /no committed captures/);
-  assert.match(r.stderr, /Next: make sure HEAD contains committed captures at maps/);
   rmTmp(repo);
 });
 
@@ -464,6 +460,16 @@ test('report CLI exits 2 on an unknown flag', () => {
   assert.equal(r.status, 2);
   assert.match(r.stderr, /unknown flag: --nope/);
   assert.match(r.stderr, /Next: run styleproof-report --help/);
+});
+
+test('committed-map compatibility flags are not supported in the v3 CLI', () => {
+  const diff = run(DIFF, ['--base-ref', 'main']);
+  assert.equal(diff.status, 2);
+  assert.match(diff.stderr, /unknown flag: --base-ref/);
+
+  const report = run(REPORT, ['--maps-dir', 'stylemaps/current']);
+  assert.equal(report.status, 2);
+  assert.match(report.stderr, /unknown flag: --maps-dir/);
 });
 
 // ------------------------------------------------------- error & validation paths
@@ -554,135 +560,39 @@ test('init scaffolds auto breakpoints — no hardcoded widths, by design', () =>
   }
 });
 
-test('init scaffolds the out-of-the-box gate: pre-push capture+commit hook + browser-less CI diff', () => {
+test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow, no git hook', () => {
   const dir = mkTmp();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
 
-    // Pre-push hook: capture into a COMMITTED, LEAN dir, commit it, and push it
-    // WITH the branch — one `git push`, never two.
-    const hookPath = path.join(dir, '.githooks', 'pre-push');
-    const hook = fs.readFileSync(hookPath, 'utf8');
-    assert.match(hook, /styleproof-map --spec e2e\/styleproof\.spec\.ts/, 'captures through the committed-map CLI');
-    assert.match(
-      hook,
-      /styleproof-diff --base-ref HEAD --max=20/,
-      'checks whether the refreshed map is semantically unchanged',
-    );
-    assert.match(hook, /git restore --source=HEAD -- stylemaps/, 'restores no-op map churn before the push proceeds');
-    assert.match(hook, /git clean -fdq -- stylemaps\/current/, 'removes untracked no-op capture artifacts');
-    assert.match(hook, /pin live states or replay\/fixture the data boundary/, 'explains likely live-data drift');
-    assert.match(hook, /git add stylemaps/);
-    assert.match(hook, /git commit/);
-    assert.match(hook, /git push "\$remote" HEAD/, 'pushes the map itself — no second manual push');
-    assert.match(hook, /STYLEPROOF_SKIP_CAPTURE/, 're-entry guard stops the inner push recapturing');
-    assert.doesNotMatch(hook, /push.{0,15}again/i, 'never tells the dev to push again');
-    assert.ok(fs.statSync(hookPath).mode & 0o100, 'hook is executable');
+    assert.equal(fs.existsSync(path.join(dir, '.githooks', 'pre-push')), false, 'init does not create a pre-push hook');
+    assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 
-    // CI does NOT run a browser — it just diffs the committed maps.
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
-    assert.match(ci, /styleproof-diff --base-ref/, 'CI diffs against the base ref');
-    assert.match(ci, /Comment StyleProof result/, 'CI posts a PR receipt for clean diffs');
-    assert.match(ci, /No visual changes detected/, 'clean receipts are explicit');
-    assert.match(ci, /Fail on StyleProof diff/, 'CI still fails after posting the receipt when a diff exists');
-    // New surfaces (exit 3) never block — only reviewable diffs (exit 1) and
-    // errors (exit 2) hold the check red. Mirrors action.yml's gate.
-    assert.match(
-      ci,
-      /if: steps\.diff\.outputs\.exit-code != '0' && steps\.diff\.outputs\.exit-code != '3'/,
-      'CI gate excludes exit 3 (new-surface-only) so new surfaces never block',
-    );
-    assert.match(ci, /result=new/, 'a new-surface-only diff is reported as new, not changed');
-    assert.match(ci, /New surface\(s\) detected/, 'the PR receipt explains new surfaces instead of claiming a change');
-    assert.doesNotMatch(ci, /playwright test/, 'CI never captures — maps are precomputed');
+    assert.match(ci, /styleproof-map --restore --sha "\$BASE_SHA"/, 'CI first restores cached maps');
+    assert.match(ci, /capture-needed=true/, 'CI records cache misses');
+    assert.match(ci, /Capture maps in CI on cache miss/, 'CI has a correctness fallback');
+    assert.match(ci, /STYLEPROOF_REPLAY_FROM=__stylemaps__\/base/, 'fallback replays base data for head');
+    assert.match(ci, /BenSheridanEdwards\/StyleProof@v3/, 'workflow uses the full report action');
+    assert.match(ci, /require-approval: true/, 'workflow enables the approval report gate');
+    assert.doesNotMatch(ci, /git add stylemaps/);
+    assert.doesNotMatch(ci, /core\.hooksPath/);
 
-    // Activation is surfaced (this temp dir isn't a git repo, so init prints the
-    // manual one-liner rather than auto-activating).
-    assert.match(r.stdout, /core\.hooksPath \.githooks/, 'tells the user how to activate the hook');
+    assert.match(r.stdout, /local-first maps, CI report when cached/);
   } finally {
     rmTmp(dir);
   }
 });
 
-test('generated pre-push hook cleans untracked no-op capture artifacts', () => {
-  const repo = mkTmp();
-  try {
-    gitInit(repo);
-    const r = spawnSync(process.execPath, [INIT], { cwd: repo, encoding: 'utf8' });
-    assert.equal(r.status, 0, r.stderr);
-
-    const mapDir = path.join(repo, 'stylemaps/current');
-    fs.mkdirSync(mapDir, { recursive: true });
-    fs.writeFileSync(path.join(mapDir, 'tracked.json.gz'), 'committed');
-    spawnSync('git', ['add', '.'], { cwd: repo });
-    spawnSync('git', ['commit', '-m', 'initial'], { cwd: repo });
-
-    const binDir = path.join(repo, 'fake-bin');
-    fs.mkdirSync(binDir);
-    const fakeNpx = path.join(binDir, 'npx');
-    fs.writeFileSync(
-      fakeNpx,
-      `#!/bin/sh
-if [ "$1" = "styleproof-map" ]; then
-  mkdir -p stylemaps/current
-  printf fresh > stylemaps/current/tracked.json.gz
-  printf debris > stylemaps/current/untracked.json.gz
-  exit 0
-fi
-if [ "$1" = "styleproof-diff" ]; then
-  exit 0
-fi
-echo "unexpected npx $*" >&2
-exit 64
-`,
-    );
-    fs.chmodSync(fakeNpx, 0o755);
-
-    const hook = spawnSync('sh', ['.githooks/pre-push', 'origin'], {
-      cwd: repo,
-      encoding: 'utf8',
-      env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
-    });
-    assert.equal(hook.status, 0, hook.stderr);
-    assert.equal(fs.readFileSync(path.join(mapDir, 'tracked.json.gz'), 'utf8'), 'committed');
-    assert.equal(fs.existsSync(path.join(mapDir, 'untracked.json.gz')), false);
-    const status = spawnSync('git', ['status', '--short', '--', 'stylemaps'], { cwd: repo, encoding: 'utf8' });
-    assert.equal(status.stdout.trim(), '');
-  } finally {
-    rmTmp(repo);
-  }
-});
-
-test('init in a git repo auto-activates the pre-push hook (one command, nothing else to do)', () => {
-  const dir = mkTmp();
-  try {
-    spawnSync('git', ['init', '-q'], { cwd: dir });
-    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /activated the pre-push hook/, 'reports activation');
-    const hp = spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], {
-      cwd: dir,
-      encoding: 'utf8',
-    }).stdout.trim();
-    assert.equal(hp, '.githooks', 'core.hooksPath points at the scaffolded hooks dir');
-  } finally {
-    rmTmp(dir);
-  }
-});
-
-test('init does not clobber an existing core.hooksPath (e.g. husky)', () => {
+test('init in a git repo does not mutate core.hooksPath', () => {
   const dir = mkTmp();
   try {
     spawnSync('git', ['init', '-q'], { cwd: dir });
     spawnSync('git', ['config', 'core.hooksPath', '.husky'], { cwd: dir });
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
-    assert.doesNotMatch(
-      r.stdout,
-      /activated the pre-push hook/,
-      'does not auto-activate when hooks are already managed',
-    );
+    assert.doesNotMatch(r.stdout, /activated the pre-push hook/);
     const hp = spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], {
       cwd: dir,
       encoding: 'utf8',

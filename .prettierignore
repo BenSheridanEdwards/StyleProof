@@ -2,6 +2,7 @@ dist
 node_modules
 package-lock.json
 **/__stylemaps__
+.styleproof
 test-results
 playwright-report
 coverage
