@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **The report now surfaces tiny changes by default.** Every changed region shows
+  the clean before/after crop **and** a highlighted twin (magenta boxes marking each
+  change) without expanding anything, and names the changed element next to the image
+  (e.g. `changed: span.caret`). When the changed element's footprint is small
+  (≤ `zoomBelow`, default 64px) a magnified zoom crop is added so a sub-pixel change
+  (e.g. a 2px caret bump) is obvious at a glance instead of hiding in a collapsed
+  section. New `zoomBelow` report option tunes or disables it. ([#97](https://github.com/BenSheridanEdwards/StyleProof/issues/97))
+
 ## [3.1.2] - 2026-06-28
 
 ### Added

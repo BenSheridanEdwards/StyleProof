@@ -40,6 +40,12 @@ export type ReportOptions = {
   minHeight?: number;
   /** Crops taller than this are clamped (default 1600px). */
   maxHeight?: number;
+  /**
+   * Changed-element footprint (max of its width/height, in px) at or below which a
+   * magnified zoom crop is added so a sub-pixel change is visible by default
+   * (default 64). Set to 0 to disable zoom crops.
+   */
+  zoomBelow?: number;
   /** Max crop regions per surface before collapsing into one union crop (default 8). */
   maxCrops?: number;
   /**
@@ -97,6 +103,13 @@ const union = (a: Box, b: Box): Box => {
 const intersects = (a: Box, b: Box): boolean =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 const visible = (b: Box | null): b is Box => !!b && b.w > 0 && b.h > 0;
+
+/** Bounding box that encloses every rect (the changed-element footprint). */
+function unionRects(rects: Rect[]): Box | null {
+  const boxes = rects.map(rectToBox).filter(visible);
+  if (!boxes.length) return null;
+  return boxes.reduce(union);
+}
 
 /** Outermost changed paths: drop any path that has a changed strict ancestor.
  *  Used to ANCHOR a crop (zoom to the whole changed region, not a leaf). */
@@ -252,6 +265,39 @@ function compositePair(before: PNG, after: PNG): PNG {
   PNG.bitblt(after, canvas, 0, 0, after.width, after.height, rightX, PAD);
   fillRect(canvas, PAD + w + GAP / 2 - 1, PAD, 2, h, [48, 54, 61]); // divider
   return canvas;
+}
+
+// Integer nearest-neighbor upscale. Nearest-neighbor (not smoothing) so the
+// zoom invents no colours that weren't captured — a magnified crop is still a
+// faithful pixel-for-pixel view, just bigger.
+function scalePng(src: PNG, s: number): PNG {
+  if (s <= 1) return src;
+  const out = new PNG({ width: src.width * s, height: src.height * s });
+  for (let y = 0; y < out.height; y++) {
+    const sy = Math.floor(y / s);
+    for (let x = 0; x < out.width; x++) {
+      const si = (sy * src.width + Math.floor(x / s)) << 2;
+      const oi = (y * out.width + x) << 2;
+      out.data[oi] = src.data[si];
+      out.data[oi + 1] = src.data[si + 1];
+      out.data[oi + 2] = src.data[si + 2];
+      out.data[oi + 3] = src.data[si + 3];
+    }
+  }
+  return out;
+}
+
+// A magnified crop centered on the changed box, for changes too small to see at
+// 1:1 (e.g. a 2px font bump on a caret). Crops the tight context box, upscales by
+// an integer factor, then outlines the changes (stroke scaled to stay visible).
+function zoomCrop(src: PNG, box: Box, rects: Rect[], factor: number): PNG {
+  const crop = cropPng(src, box, box.w, box.h);
+  const scaled = scalePng(crop.png, factor);
+  const t = Math.max(2, factor);
+  for (const [rx, ry, rw, rh] of rects) {
+    strokeRect(scaled, (rx - crop.ox) * factor, (ry - crop.oy) * factor, rw * factor, rh * factor, t);
+  }
+  return scaled;
 }
 
 function readPng(file: string): PNG | null {
@@ -975,6 +1021,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     minWidth = 320,
     minHeight = 180,
     maxHeight = 1600,
+    zoomBelow = 64,
     // More, smaller crops before collapsing (was 6), so distinct changes get their
     // own focused frame rather than one wide merged one.
     maxCrops = 8,
@@ -1126,7 +1173,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
 
       const region = visible(g.after) ? g.after : g.before;
-      let images: { composite?: string; annotated?: string } = {};
+      let images: { composite?: string; annotated?: string; zoom?: string } = {};
       if (region && pngA && pngB) {
         // Crop the SAME page rectangle from both sides — the union of where the
         // change sits on each side — so the pair lines up exactly and the reviewer
@@ -1152,24 +1199,59 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         const annotated = compositePair(annotateCrop(before, rectsA), annotateCrop(after, rectsB));
         writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
         images = { composite: `${stem}-composite.png`, annotated: `${stem}-annotated.png` };
-        // Clean before|after shown by default (the real UI); the annotated twin —
-        // boxes marking each change — sits one click away under a toggle. Plain
-        // images (no link wrap) so a click opens the full-resolution file.
+
+        // Name the changed element(s) so the reviewer knows where to look without
+        // expanding anything (e.g. `changed: span.caret`).
+        const changedNames = [
+          ...new Set(
+            markPaths
+              .map((p) => mapA.elements[p] ?? mapB.elements[p])
+              .filter((e): e is ElementEntry => !!e)
+              .map((e) => (e.cls ? `${e.tag}.${e.cls.split(/\s+/)[0]}` : e.tag)),
+          ),
+        ].slice(0, 3);
+        const changedLabel = changedNames.length ? ` — changed: \`${changedNames.join('`, `')}\`` : '';
+        const ctxLabel = formatSurfaceWithContext(sd.surface, mapA, mapB);
+
+        // A sub-pixel change (e.g. a 2px font bump on a caret) is invisible at 1:1,
+        // so when the changed-element footprint is small, add a magnified crop that
+        // makes it obvious without the reviewer hunting. Anchored on the leaf rects.
+        const changed = unionRects([...rectsA, ...rectsB]);
+        const maxDim = changed ? Math.max(changed.w, changed.h) : 0;
+        let zoomFactor = 0;
+        if (zoomBelow > 0 && changed && maxDim > 0 && maxDim <= zoomBelow) {
+          const zBox = pad(changed, Math.max(maxDim, 16)); // ~3× the change for context
+          zoomFactor = Math.min(8, Math.max(2, Math.round(240 / Math.max(zBox.w, zBox.h))));
+          const zoom = compositePair(
+            zoomCrop(pngA, zBox, rectsA, zoomFactor),
+            zoomCrop(pngB, zBox, rectsB, zoomFactor),
+          );
+          writePng(path.join(outDir, `${stem}-zoom.png`), zoom);
+          images.zoom = `${stem}-zoom.png`;
+        }
+
+        // Both views shown by default: the clean before|after (the real UI) and the
+        // highlighted twin (magenta boxes on each change) so a reviewer sees WHAT
+        // changed and WHERE without expanding anything. Plain images (no link wrap)
+        // so a click opens the full-resolution file.
         md.push(
           '',
           `![before ◀ │ ▶ after](${img(images.composite!)})`,
           '',
-          `<sub>◀ before  ·  after ▶ — ${formatSurfaceWithContext(sd.surface, mapA, mapB)}</sub>`,
+          `<sub>◀ before  ·  after ▶ — ${ctxLabel}</sub>`,
           '',
-          '<details>',
-          '<summary>🔍 Highlight what changed</summary>',
+          `![highlighted before ◀ │ ▶ after](${img(images.annotated!)})`,
           '',
-          `![annotated before ◀ │ ▶ after](${img(images.annotated!)})`,
-          '',
-          `<sub>magenta boxes mark each change — ${formatSurfaceWithContext(sd.surface, mapA, mapB)}</sub>`,
-          '',
-          '</details>',
+          `<sub>🔍 magenta boxes mark each change${changedLabel}</sub>`,
         );
+        if (images.zoom) {
+          md.push(
+            '',
+            `![zoomed before ◀ │ ▶ after](${img(images.zoom)})`,
+            '',
+            `<sub>🔬 magnified ${zoomFactor}× — change too small to see at 1:1${changedLabel}</sub>`,
+          );
+        }
       } else if (!region) {
         md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
       } else {
