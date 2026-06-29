@@ -50,7 +50,8 @@ function liveSurface(tone: 'base' | 'head') {
 }
 
 function popupSurface(tone: 'base' | 'head') {
-  const dialogBackground = tone === 'base' ? 'rgb(255, 255, 255)' : 'rgb(219, 234, 254)';
+  const detailsBackground = tone === 'base' ? 'rgb(255, 255, 255)' : 'rgb(219, 234, 254)';
+  const historyBackground = tone === 'base' ? 'rgb(254, 249, 195)' : 'rgb(254, 226, 226)';
   return {
     key: 'demo-popup',
     widths: [POPUP_WIDTH],
@@ -60,24 +61,34 @@ function popupSurface(tone: 'base' | 'head') {
         <style>
           body { margin: 0; font-family: system-ui, sans-serif; background: rgb(248, 250, 252); }
           main { min-height: 480px; display: grid; place-items: center; }
+          .actions { display: flex; gap: 12px; }
           button { padding: 12px 18px; border-radius: 8px; border: 1px solid rgb(37, 99, 235); background: rgb(37, 99, 235); color: white; font-weight: 700; }
           [role="dialog"] { position: fixed; inset: 120px auto auto 50%; width: 320px; transform: translateX(-50%); padding: 24px; border: 2px solid rgb(30, 64, 175); background: rgb(255, 255, 255); box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18); }
           [role="dialog"][hidden] { display: none; }
         </style>
         <main>
-          <button id="open" type="button">Open details</button>
-          <section id="details" role="dialog" aria-modal="true" hidden>
-            <h1>Details</h1>
-            <p>Stable popup content.</p>
+          <div class="actions">
+            <button id="open-details" type="button">Open details</button>
+            <button id="open-history" type="button">Open history</button>
+          </div>
+          <section id="popup" role="dialog" aria-modal="true" hidden>
+            <h1 id="popup-title">Details</h1>
+            <p id="popup-copy">Stable popup content.</p>
           </section>
         </main>
         <script>
-          document.getElementById('open').addEventListener('click', () => {
-            const details = document.getElementById('details');
-            details.hidden = false;
-            details.dataset.state = 'open';
-            details.style.background = '${dialogBackground}';
-          });
+          function openPopup(kind) {
+            const popup = document.getElementById('popup');
+            popup.hidden = false;
+            popup.dataset.state = 'open';
+            popup.dataset.kind = kind;
+            popup.style.background = kind === 'details' ? '${detailsBackground}' : '${historyBackground}';
+            document.getElementById('popup-title').textContent = kind === 'details' ? 'Details' : 'History';
+            document.getElementById('popup-copy').textContent =
+              kind === 'details' ? 'Stable popup content.' : 'Second popup, same mount path.';
+          }
+          document.getElementById('open-details').addEventListener('click', () => openPopup('details'));
+          document.getElementById('open-history').addEventListener('click', () => openPopup('history'));
         </script>
       `);
     },
@@ -214,29 +225,44 @@ test('dogfood: liveStates split the demo and report only loaded-to-loaded restyl
   expect(md).toContain('background');
 });
 
-test('dogfood: popups split click-open dialog state and report its restyle', () => {
+test('dogfood: popups split each click-open dialog state and report restyles', () => {
   const beforeDir = path.join(POPUP_ROOT, 'popup-base');
   const afterDir = path.join(POPUP_ROOT, 'popup-head');
   const outDir = path.join(POPUP_ROOT, 'report');
-  const popupSurfaceKey = `demo-popup-popup-01@${POPUP_WIDTH}`;
+  const detailsSurfaceKey = `demo-popup-popup-01@${POPUP_WIDTH}`;
+  const historySurfaceKey = `demo-popup-popup-02@${POPUP_WIDTH}`;
 
-  const popupBefore = loadStyleMap(path.join(beforeDir, `${popupSurfaceKey}.json.gz`));
-  const popupAfter = loadStyleMap(path.join(afterDir, `${popupSurfaceKey}.json.gz`));
+  const detailsBefore = loadStyleMap(path.join(beforeDir, `${detailsSurfaceKey}.json.gz`));
+  const detailsAfter = loadStyleMap(path.join(afterDir, `${detailsSurfaceKey}.json.gz`));
+  const historyBefore = loadStyleMap(path.join(beforeDir, `${historySurfaceKey}.json.gz`));
+  const historyAfter = loadStyleMap(path.join(afterDir, `${historySurfaceKey}.json.gz`));
 
-  expect(popupBefore.metadata).toEqual({
+  expect(detailsBefore.metadata).toEqual({
     surfaceKey: 'demo-popup',
     variantKey: 'popup-01',
     variantKind: 'popup',
   });
+  expect(historyBefore.metadata).toEqual({
+    surfaceKey: 'demo-popup',
+    variantKey: 'popup-02',
+    variantKind: 'popup',
+  });
   expect(
-    diffStyleMaps(popupBefore, popupAfter).some(
+    diffStyleMaps(detailsBefore, detailsAfter).some(
       (finding) => finding.kind === 'style' && finding.props.some((p) => p.prop === 'background-color'),
     ),
-    'the click-open dialog background change is caught',
+    'the first click-open dialog background change is caught',
+  ).toBe(true);
+  expect(
+    diffStyleMaps(historyBefore, historyAfter).some(
+      (finding) => finding.kind === 'style' && finding.props.some((p) => p.prop === 'background-color'),
+    ),
+    'the second click-open dialog background change is caught even though it uses the same mount path',
   ).toBe(true);
 
   const report = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  expect(report.changedSurfaces).toBe(1);
+  expect(report.changedSurfaces).toBe(2);
   const md = fs.readFileSync(report.reportMdPath, 'utf8');
   expect(md).toContain('demo-popup-popup-01 @ 720 · popup `popup-01`');
+  expect(md).toContain('demo-popup-popup-02 @ 720 · popup `popup-02`');
 });

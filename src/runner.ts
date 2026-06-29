@@ -570,13 +570,11 @@ async function capturePopupCandidate(
   s: Settings,
   options: ResolvedPopupCaptureOptions,
   candidate: PopupCandidate,
-  seen: Set<string>,
 ): Promise<void> {
   const requests = trackInflightRequests(page);
   try {
     const popupKey = await openPopupCandidate(page, surface, width, height, options, candidate);
-    if (!popupKey || seen.has(popupKey)) return;
-    seen.add(popupKey);
+    if (!popupKey) return;
 
     const popupId = `popup-${String(candidate.index + 1).padStart(2, '0')}`;
     const map = await captureOpenedPopupMap(page, surface, s, requests.pending, popupId);
@@ -614,9 +612,8 @@ async function capturePopupSurfaces(
 
   await surface.go(page);
   const candidates = await markPopupCandidates(page, options);
-  const seen = new Set<string>();
   for (const candidate of candidates) {
-    await capturePopupCandidate(page, surface, width, height, s, options, candidate, seen);
+    await capturePopupCandidate(page, surface, width, height, s, options, candidate);
   }
 }
 
