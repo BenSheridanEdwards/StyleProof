@@ -1,6 +1,6 @@
 {
   "name": "styleproof",
-  "version": "3.1.2",
+  "version": "3.1.3",
   "description": "Catch every CSS change before it ships — review PRs and certify refactors by the browser's computed styles, not pixels. Works with any styling system.",
   "keywords": [
     "playwright",

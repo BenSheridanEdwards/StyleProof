@@ -20,6 +20,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const DEMO = 'file://' + path.join(here, '..', 'example', 'demo', 'index.html');
 const LIVE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-dogfood-live-'));
 const LIVE_WIDTH = 900;
+const POPUP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-dogfood-popup-'));
+const POPUP_WIDTH = 720;
 
 function liveUrl(state: 'loading' | 'loaded', tone: 'base' | 'head'): string {
   return `${DEMO}?state=${state}&tone=${tone}`;
@@ -47,6 +49,41 @@ function liveSurface(tone: 'base' | 'head') {
   };
 }
 
+function popupSurface(tone: 'base' | 'head') {
+  const dialogBackground = tone === 'base' ? 'rgb(255, 255, 255)' : 'rgb(219, 234, 254)';
+  return {
+    key: 'demo-popup',
+    widths: [POPUP_WIDTH],
+    popups: true,
+    go: async (page) => {
+      await page.setContent(`
+        <style>
+          body { margin: 0; font-family: system-ui, sans-serif; background: rgb(248, 250, 252); }
+          main { min-height: 480px; display: grid; place-items: center; }
+          button { padding: 12px 18px; border-radius: 8px; border: 1px solid rgb(37, 99, 235); background: rgb(37, 99, 235); color: white; font-weight: 700; }
+          [role="dialog"] { position: fixed; inset: 120px auto auto 50%; width: 320px; transform: translateX(-50%); padding: 24px; border: 2px solid rgb(30, 64, 175); background: rgb(255, 255, 255); box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18); }
+          [role="dialog"][hidden] { display: none; }
+        </style>
+        <main>
+          <button id="open" type="button">Open details</button>
+          <section id="details" role="dialog" aria-modal="true" hidden>
+            <h1>Details</h1>
+            <p>Stable popup content.</p>
+          </section>
+        </main>
+        <script>
+          document.getElementById('open').addEventListener('click', () => {
+            const details = document.getElementById('details');
+            details.hidden = false;
+            details.dataset.state = 'open';
+            details.style.background = '${dialogBackground}';
+          });
+        </script>
+      `);
+    },
+  };
+}
+
 test.describe('dogfood live-state base capture', () => {
   defineStyleMapCapture({
     surfaces: [liveSurface('base')],
@@ -67,8 +104,29 @@ test.describe('dogfood live-state head capture', () => {
   });
 });
 
+test.describe('dogfood popup base capture', () => {
+  defineStyleMapCapture({
+    surfaces: [popupSurface('base')],
+    dir: 'popup-base',
+    baseDir: POPUP_ROOT,
+    screenshots: true,
+    selfCheck: true,
+  });
+});
+
+test.describe('dogfood popup head capture', () => {
+  defineStyleMapCapture({
+    surfaces: [popupSurface('head')],
+    dir: 'popup-head',
+    baseDir: POPUP_ROOT,
+    screenshots: true,
+    selfCheck: true,
+  });
+});
+
 test.afterAll(() => {
   fs.rmSync(LIVE_ROOT, { recursive: true, force: true });
+  fs.rmSync(POPUP_ROOT, { recursive: true, force: true });
 });
 
 test('dogfood: detects the demo real @media breakpoints (auto widths)', async ({ page }) => {
@@ -154,4 +212,31 @@ test('dogfood: liveStates split the demo and report only loaded-to-loaded restyl
   expect(md).toContain('demo-live-loaded @ 900 · live state `loaded`');
   expect(md).not.toContain('demo-live-loading @ 900');
   expect(md).toContain('background');
+});
+
+test('dogfood: popups split click-open dialog state and report its restyle', () => {
+  const beforeDir = path.join(POPUP_ROOT, 'popup-base');
+  const afterDir = path.join(POPUP_ROOT, 'popup-head');
+  const outDir = path.join(POPUP_ROOT, 'report');
+  const popupSurfaceKey = `demo-popup-popup-01@${POPUP_WIDTH}`;
+
+  const popupBefore = loadStyleMap(path.join(beforeDir, `${popupSurfaceKey}.json.gz`));
+  const popupAfter = loadStyleMap(path.join(afterDir, `${popupSurfaceKey}.json.gz`));
+
+  expect(popupBefore.metadata).toEqual({
+    surfaceKey: 'demo-popup',
+    variantKey: 'popup-01',
+    variantKind: 'popup',
+  });
+  expect(
+    diffStyleMaps(popupBefore, popupAfter).some(
+      (finding) => finding.kind === 'style' && finding.props.some((p) => p.prop === 'background-color'),
+    ),
+    'the click-open dialog background change is caught',
+  ).toBe(true);
+
+  const report = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  expect(report.changedSurfaces).toBe(1);
+  const md = fs.readFileSync(report.reportMdPath, 'utf8');
+  expect(md).toContain('demo-popup-popup-01 @ 720 · popup `popup-01`');
 });

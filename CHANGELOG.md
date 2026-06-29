@@ -7,8 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.1.3] - 2026-06-29
+
 ### Added
 
+- **Optional automatic popup capture.** `defineStyleMapCapture` and
+  `defineCrawlCapture` now accept `popups: true` or `{ max, triggers, overlays,
+timeoutMs }`. When enabled, StyleProof clicks visible safe triggers after each
+  base surface capture and saves persistent dialogs, popovers, menus, listboxes,
+  tooltips, and open data-state overlays as `<surface>-popup-XX` captures with
+  popup labels in reports.
 - **Local-first reusable map bundles are now the default v3 flow.** `styleproof-map`
   writes `.styleproof/maps/current`, records a `styleproof-manifest.json` with the
   commit SHA and capture compatibility key, and uploads the bundle to a dedicated
@@ -994,7 +1002,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.2...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.3...HEAD
+[3.1.3]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.0.2...v3.1.0
