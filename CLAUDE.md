@@ -12,6 +12,10 @@ State assumptions before writing code. Surface tradeoffs. Ask before guessing on
 
 Write the minimum code that solves the task. No speculative features. No abstractions for single-use code. If the solution looks over-engineered, simplify it.
 
+Use Ponytail for coding, review, refactor, and design tasks unless the user says
+otherwise. Default level: `full`: delete code, reuse existing patterns, and use
+stdlib or native platform features before adding abstractions or dependencies.
+
 ### Surgical Changes
 
 Touch only what the task requires. Do not reformat, rename, or refactor adjacent code unless it is required for the change. Match existing style.
