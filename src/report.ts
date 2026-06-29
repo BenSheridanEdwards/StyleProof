@@ -528,9 +528,9 @@ function formatSurfaceList(surfaces: string[]): string {
 function surfaceContext(...maps: Array<StyleMap | undefined>): string {
   const metadata = maps.find((m) => m?.metadata)?.metadata;
   if (!metadata?.variantKey) return '';
-  return metadata.variantKind === 'live-state'
-    ? `live state \`${metadata.variantKey}\``
-    : `variant \`${metadata.variantKey}\``;
+  if (metadata.variantKind === 'live-state') return `live state \`${metadata.variantKey}\``;
+  if (metadata.variantKind === 'popup') return `popup \`${metadata.variantKey}\``;
+  return `variant \`${metadata.variantKey}\``;
 }
 
 function formatSurfaceWithContext(surface: string, ...maps: Array<StyleMap | undefined>): string {

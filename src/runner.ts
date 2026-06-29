@@ -52,6 +52,12 @@ export type Surface = {
    * variants so reports and diagnostics can explain why the capture was split.
    */
   liveStates?: SurfaceLiveState[];
+  /**
+   * Opt in to automatically opening visible click-triggered popups after the base
+   * surface is captured. Captures persistent dialogs, popovers, menus, listboxes,
+   * tooltips, and open data-state overlays as `<surface>-popup-XX`.
+   */
+  popups?: boolean | PopupCaptureOptions;
 };
 
 export type SurfaceVariant = {
@@ -73,6 +79,19 @@ export type SurfaceVariant = {
 };
 
 export type SurfaceLiveState = SurfaceVariant;
+
+export type PopupCaptureOptions = {
+  /** Enable/disable popup discovery for this surface or capture run. */
+  enabled?: boolean;
+  /** Max visible trigger controls to try per surface/width (default 20). */
+  max?: number;
+  /** CSS selector for visible controls to click. */
+  triggers?: string;
+  /** CSS selector for visible popup/overlay roots that mean a click opened state. */
+  overlays?: string;
+  /** Max ms to wait for a clicked control to reveal an overlay (default 750). */
+  timeoutMs?: number;
+};
 
 export type DefineOptions = {
   surfaces: Surface[];
@@ -158,12 +177,18 @@ export type DefineOptions = {
    * Advisory only — never gates. See `CaptureOptions.captureComponent`.
    */
   captureComponent?: boolean;
+  /**
+   * Opt-in automatic popup/modal capture for every surface. Existing suites keep
+   * their exact capture set unless this is enabled.
+   */
+  popups?: boolean | PopupCaptureOptions;
 };
 
 /** Resolved per-capture settings, shared with the helpers below. */
-type Settings = Required<Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude'>> & {
+type Settings = Required<Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude' | 'popups'>> & {
   dir: string;
   replayFrom?: string;
+  popups: ResolvedPopupCaptureOptions;
 };
 
 /** One-line description of the first drift finding, for the self-check error. */
@@ -229,6 +254,124 @@ function mergeIgnore(...groups: Array<string[] | undefined>): string[] | undefin
   return merged.length ? merged : undefined;
 }
 
+const POPUP_TRIGGER_ATTR = 'data-styleproof-popup-trigger';
+const DEFAULT_POPUP_TRIGGERS = [
+  'button:not([disabled]):not([type="submit"]):not([type="reset"])',
+  '[role="button"]:not([aria-disabled="true"])',
+  '[aria-haspopup]',
+  '[popovertarget]',
+  'summary',
+  'a[href^="#"]',
+].join(', ');
+const DEFAULT_POPUP_OVERLAYS = [
+  'dialog[open]',
+  '[popover]',
+  '[role="dialog"]',
+  '[role="alertdialog"]',
+  '[role="menu"]',
+  '[role="listbox"]',
+  '[role="tooltip"]',
+  '[data-state="open"]:not(button):not(a):not(summary)',
+].join(', ');
+
+type ResolvedPopupCaptureOptions = Required<PopupCaptureOptions>;
+type PopupCandidate = { index: number };
+type PopupDomSnapshot = { keys: string[]; indexes: number[] };
+
+export function resolvePopupCaptureOptions(
+  input: boolean | PopupCaptureOptions | undefined,
+): ResolvedPopupCaptureOptions {
+  if (input === false || input === undefined) {
+    return {
+      enabled: false,
+      max: 20,
+      triggers: DEFAULT_POPUP_TRIGGERS,
+      overlays: DEFAULT_POPUP_OVERLAYS,
+      timeoutMs: 750,
+    };
+  }
+  const options = input === true ? {} : input;
+  return {
+    enabled: options.enabled ?? true,
+    max: Math.max(0, Math.floor(options.max ?? 20)),
+    triggers: options.triggers ?? DEFAULT_POPUP_TRIGGERS,
+    overlays: options.overlays ?? DEFAULT_POPUP_OVERLAYS,
+    timeoutMs: Math.max(0, Math.floor(options.timeoutMs ?? 750)),
+  };
+}
+
+async function popupDomSnapshot(
+  page: Page,
+  options: {
+    popupSelector: string;
+    triggerSelector?: string;
+    attr?: string;
+    max?: number;
+  },
+): Promise<PopupDomSnapshot> {
+  return page.evaluate(({ popupSelector, triggerSelector, attr, max = 0 }) => {
+    const qsa = (sel: string): Element[] => {
+      try {
+        return [...document.querySelectorAll(sel)];
+      } catch {
+        return [];
+      }
+    };
+    const visible = (el: Element): boolean => {
+      const rect = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const pathOf = (el: Element): string => {
+      const parts: string[] = [];
+      let cur: Element | null = el;
+      while (cur && cur !== document.documentElement) {
+        const parent = cur.parentElement;
+        const tag = cur.tagName.toLowerCase();
+        const id = cur.id ? `#${cur.id}` : '';
+        const role = cur.getAttribute('role');
+        const sameTag = parent ? [...parent.children].filter((child) => child.tagName === cur!.tagName) : [cur];
+        const nth = sameTag.length > 1 ? `:nth-of-type(${sameTag.indexOf(cur) + 1})` : '';
+        parts.unshift(`${tag}${id}${role ? `[role="${role}"]` : ''}${nth}`);
+        cur = cur.parentElement;
+      }
+      return parts.join(' > ');
+    };
+    const popups = qsa(popupSelector).filter(visible);
+    const keys = popups.map(pathOf);
+    if (!triggerSelector || !attr) return { keys, indexes: [] };
+
+    const safeTrigger = (el: Element): boolean => {
+      const tag = el.tagName.toLowerCase();
+      if (el.matches(':disabled, [aria-disabled="true"]')) return false;
+      if (tag === 'input' || tag === 'select' || tag === 'textarea') return false;
+      if (tag === 'a') return (el as HTMLAnchorElement).getAttribute('href')?.startsWith('#') ?? false;
+      return true;
+    };
+
+    for (const el of qsa(`[${attr}]`)) el.removeAttribute(attr);
+    const candidates = qsa(triggerSelector).filter(
+      (el) => visible(el) && !popups.some((popup) => popup !== el && popup.contains(el)) && safeTrigger(el),
+    );
+    candidates.slice(0, max).forEach((el, index) => el.setAttribute(attr, String(index)));
+    return { keys, indexes: candidates.slice(0, max).map((_, index) => index) };
+  }, options);
+}
+
+async function visiblePopupKeys(page: Page, selector: string): Promise<string[]> {
+  return (await popupDomSnapshot(page, { popupSelector: selector })).keys;
+}
+
+async function markPopupCandidates(page: Page, options: ResolvedPopupCaptureOptions): Promise<PopupCandidate[]> {
+  const snapshot = await popupDomSnapshot(page, {
+    triggerSelector: options.triggers,
+    popupSelector: options.overlays,
+    attr: POPUP_TRIGGER_ATTR,
+    max: options.max,
+  });
+  return snapshot.indexes.map((index) => ({ index }));
+}
+
 type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates'> & { metadata?: CaptureMetadata };
 
 function expandOne(
@@ -246,6 +389,7 @@ function expandOne(
     ignore: mergeIgnore(surface.ignore, variant.ignore),
     widths: variant.widths ?? surface.widths,
     height: variant.height ?? surface.height,
+    popups: surface.popups,
     metadata: { surfaceKey: surface.key, variantKey: variant.key, variantKind },
   };
 }
@@ -343,6 +487,139 @@ async function assertDeterministic(
   }
 }
 
+async function openPopupCandidate(
+  page: Page,
+  surface: ExpandedSurface,
+  width: number,
+  height: number,
+  options: ResolvedPopupCaptureOptions,
+  candidate: PopupCandidate,
+): Promise<string | undefined> {
+  await page.setViewportSize({ width, height });
+  await page.keyboard.press('Escape').catch(() => {});
+  await surface.go(page);
+  const before = new Set(await visiblePopupKeys(page, options.overlays));
+  const candidates = await markPopupCandidates(page, options);
+  if (!candidates.some((c) => c.index === candidate.index)) return undefined;
+
+  await page
+    .locator(`[${POPUP_TRIGGER_ATTR}="${candidate.index}"]`)
+    .first()
+    .click({ timeout: Math.max(500, options.timeoutMs), noWaitAfter: true })
+    .catch(() => undefined);
+
+  const deadline = Date.now() + options.timeoutMs;
+  do {
+    const opened = (await visiblePopupKeys(page, options.overlays)).find((key) => !before.has(key));
+    if (opened) return opened;
+    await page.waitForTimeout(50);
+  } while (Date.now() < deadline);
+  return undefined;
+}
+
+function popupMetadata(surface: ExpandedSurface, popupId: string): CaptureMetadata {
+  return {
+    surfaceKey: surface.metadata?.surfaceKey ?? surface.key,
+    variantKey: surface.metadata?.variantKey ? `${surface.metadata.variantKey}/${popupId}` : popupId,
+    variantKind: 'popup',
+  };
+}
+
+async function captureOpenedPopupMap(
+  page: Page,
+  surface: ExpandedSurface,
+  s: Settings,
+  pending: () => number,
+  popupId: string,
+): Promise<Awaited<ReturnType<typeof captureStyleMap>>> {
+  return captureStyleMap(page, {
+    ignore: surface.ignore ?? [],
+    captureText: s.captureText,
+    captureComponent: s.captureComponent,
+    pendingRequests: pending,
+    metadata: popupMetadata(surface, popupId),
+  });
+}
+
+async function assertPopupDeterministic(
+  page: Page,
+  surface: ExpandedSurface,
+  width: number,
+  height: number,
+  options: ResolvedPopupCaptureOptions,
+  candidate: PopupCandidate,
+  popupId: string,
+  first: Awaited<ReturnType<typeof captureStyleMap>>,
+  s: Settings,
+  pending: () => number,
+): Promise<void> {
+  const againKey = await openPopupCandidate(page, surface, width, height, options, candidate);
+  if (!againKey) throw new Error(`styleproof self-check failed: ${surface.key}-${popupId} popup did not reopen`);
+  const again = await captureOpenedPopupMap(page, surface, s, pending, popupId);
+  const drift = diffStyleMaps(first, again);
+  if (drift.length) {
+    throw new Error(selfCheckErrorMessage(`${surface.key}-${popupId}`, drift, first.volatile, first.liveCandidates));
+  }
+}
+
+async function capturePopupCandidate(
+  page: Page,
+  surface: ExpandedSurface,
+  width: number,
+  height: number,
+  s: Settings,
+  options: ResolvedPopupCaptureOptions,
+  candidate: PopupCandidate,
+  seen: Set<string>,
+): Promise<void> {
+  const requests = trackInflightRequests(page);
+  try {
+    const popupKey = await openPopupCandidate(page, surface, width, height, options, candidate);
+    if (!popupKey || seen.has(popupKey)) return;
+    seen.add(popupKey);
+
+    const popupId = `popup-${String(candidate.index + 1).padStart(2, '0')}`;
+    const map = await captureOpenedPopupMap(page, surface, s, requests.pending, popupId);
+    if (s.selfCheck)
+      await assertPopupDeterministic(
+        page,
+        surface,
+        width,
+        height,
+        options,
+        candidate,
+        popupId,
+        map,
+        s,
+        requests.pending,
+      );
+
+    const stem = path.join(s.baseDir, s.dir, `${surface.key}-${popupId}@${width}`);
+    saveStyleMap(`${stem}.json.gz`, map);
+    if (s.screenshots) await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+  } finally {
+    requests.dispose();
+  }
+}
+
+async function capturePopupSurfaces(
+  page: Page,
+  surface: ExpandedSurface,
+  width: number,
+  height: number,
+  s: Settings,
+): Promise<void> {
+  const options = resolvePopupCaptureOptions(surface.popups ?? s.popups);
+  if (!options.enabled || options.max === 0) return;
+
+  await surface.go(page);
+  const candidates = await markPopupCandidates(page, options);
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    await capturePopupCandidate(page, surface, width, height, s, options, candidate, seen);
+  }
+}
+
 /** Drive one surface at one width to a settled state and save its style map (+ screenshot).
  *  The caller owns the test timeout (one-per-test for explicit surfaces, one budget for
  *  the whole crawl) so a multi-surface crawl can't reset its own deadline mid-loop. */
@@ -372,6 +649,7 @@ async function captureSurface(page: Page, surface: ExpandedSurface, width: numbe
       // state the map describes.
       await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
     }
+    await capturePopupSurfaces(page, surface, width, height, s);
   } finally {
     requests.dispose();
   }
@@ -437,6 +715,7 @@ function resolveSettings(c: CaptureConfig): Settings {
     selfCheck: c.selfCheck ?? defaultSelfCheck(replayFrom),
     captureText: c.captureText ?? false,
     captureComponent: c.captureComponent ?? false,
+    popups: resolvePopupCaptureOptions(c.popups),
   };
 }
 
@@ -532,6 +811,8 @@ export type CrawlOptions = CaptureConfig & {
   variants?: SurfaceVariant[];
   /** First-class live product states captured for every discovered link surface. */
   liveStates?: SurfaceLiveState[];
+  /** Opt-in automatic popup/modal capture for every discovered link surface. */
+  popups?: boolean | PopupCaptureOptions;
   /** Max ms to wait for the crawl root's links to render before reading them
    *  (an SPA hydrates its nav client-side). Default 15000. */
   linkTimeout?: number;
@@ -557,7 +838,7 @@ export type CrawlOptions = CaptureConfig & {
  * ```
  */
 export function defineCrawlCapture(options: CrawlOptions): void {
-  const { from, match, key, widths, height, ignore, variants, liveStates, linkTimeout = 15_000, dir } = options;
+  const { from, match, key, widths, height, ignore, variants, liveStates, popups, linkTimeout = 15_000, dir } = options;
   const settings = resolveSettings(options);
 
   test.describe('styleproof crawl-capture', () => {
@@ -586,6 +867,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           height,
           variants,
           liveStates,
+          popups,
         }),
       );
       // Budget the whole sweep up front: one test captures every surface, and

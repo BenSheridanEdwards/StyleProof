@@ -60,7 +60,7 @@ export type ElementEntry = {
 export type CaptureMetadata = {
   surfaceKey?: string;
   variantKey?: string;
-  variantKind?: 'variant' | 'live-state';
+  variantKind?: 'variant' | 'live-state' | 'popup';
 };
 export type LiveRegionCandidate = {
   path: string;

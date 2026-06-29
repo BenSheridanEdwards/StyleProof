@@ -4,6 +4,7 @@ import {
   defaultSelfCheck,
   expandSurfaceVariants,
   resolveBaseDir,
+  resolvePopupCaptureOptions,
   resolveScreenshots,
   selfCheckErrorMessage,
 } from '../dist/runner.js';
@@ -46,6 +47,22 @@ test('resolveScreenshots: STYLEPROOF_SCREENSHOTS=0 disables; on by default', () 
 test('resolveScreenshots: an explicit value wins over the env', () => {
   assert.equal(resolveScreenshots(false, undefined), false);
   assert.equal(resolveScreenshots(true, '0'), true);
+});
+
+test('resolvePopupCaptureOptions: off by default and opt-in when enabled', () => {
+  assert.equal(resolvePopupCaptureOptions(undefined).enabled, false);
+  assert.equal(resolvePopupCaptureOptions(true).enabled, true);
+});
+
+test('resolvePopupCaptureOptions: clamps numeric options', () => {
+  assert.deepEqual(
+    {
+      enabled: resolvePopupCaptureOptions({ max: 2.7, timeoutMs: -5 }).enabled,
+      max: resolvePopupCaptureOptions({ max: 2.7, timeoutMs: -5 }).max,
+      timeoutMs: resolvePopupCaptureOptions({ max: 2.7, timeoutMs: -5 }).timeoutMs,
+    },
+    { enabled: true, max: 2, timeoutMs: 0 },
+  );
 });
 
 test('expandSurfaceVariants: turns declared states into concrete capture surfaces', async () => {
