@@ -1,3 +1,9 @@
+#!/usr/bin/env sh
+set -e
+
+echo "› build + typecheck + lint + format"
+npm run build && npm run typecheck && npm run lint && npm run format:check
 
 # fallow — block the commit on new findings in the changes you're staging
+echo "› fallow"
 npx fallow audit --base HEAD
