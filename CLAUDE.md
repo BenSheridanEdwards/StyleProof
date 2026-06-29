@@ -96,3 +96,16 @@ The PR template has a required **Proof** section — fill it in.
 ## Stay privacy-clean
 
 Never reference a private project (its name, repos, PR numbers, internal URLs, or real UI/CSS shapes) in code, comments, tests, fixtures, commit messages, or PR text. Use generic examples (`home`, `pricing`, `ROUTES`). Grep the diff and the PR body before pushing.
+
+## PR Proof Law
+
+Before opening, updating, or marking a PR ready, read
+`.agents/DEFINITION_OF_DONE.md` and
+`.agents/skills/pr-inline-screenshot-proof/SKILL.md`.
+
+- Screenshot proof must be committed to the branch and embedded inline in the PR
+  body with `![alt](...png?raw=1)`.
+- Bare screenshot links, local paths, relative paths, and placeholders are not
+  proof.
+- If no rendered or behavioural proof applies, write `Not applicable` with the
+  technical reason in the PR proof section.
