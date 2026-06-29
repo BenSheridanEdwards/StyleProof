@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Popup capture no longer collapses distinct triggers that reuse the same
+  overlay mount.** Each visible trigger slot that opens a persistent overlay now
+  gets its own `<surface>-popup-XX` map, so separate modals or menus rendered at
+  the same DOM path are captured instead of being deduped away.
+
 ## [3.1.3] - 2026-06-29
 
 ### Added
