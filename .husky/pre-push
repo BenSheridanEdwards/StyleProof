@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+set -e
+
+echo "› unit tests"
+# Git hook env leaks into the temp repos used by CLI tests.
+unset $(git rev-parse --local-env-vars)
+npm test
