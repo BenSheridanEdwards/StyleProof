@@ -13,6 +13,13 @@ and proved with deterministic evidence.
 - For package/release changes, `npm pack --dry-run --json` succeeds and the packed
   package contains the expected `dist`, `bin`, docs, changelog, and license files.
 
+## Local gates
+
+- Pre-commit runs build, typecheck, lint, format check, and Fallow.
+- Pre-push runs `npm test`.
+- `npm run test:e2e` and `npm pack --dry-run --json` stay explicit because they depend on the
+  touched surface.
+
 ## Public surface
 
 - README and `CHANGELOG.md` `[Unreleased]` are updated for public API, CLI,
