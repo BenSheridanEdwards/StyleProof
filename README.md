@@ -1,6 +1,9 @@
 # StyleProof
 
-**Know exactly what every PR changes visually, and sign it off.** StyleProof captures the browser's _computed_ styles (not pixels), diffs your PR's HEAD against its base branch, and posts a per-change report on the PR, so a styling change never ships without someone confirming it was intended.
+**StyleProof is a PR gate for visual CSS changes.** You tell it which app states
+matter. It opens those states in a real browser, records the browser's computed
+styles, compares the PR head against the base branch, and posts a reviewable PR
+report. Intentional visual changes get approved; unexpected ones block or fail.
 
 [![npm version](https://img.shields.io/npm/v/styleproof.svg)](https://www.npmjs.com/package/styleproof)
 [![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)
@@ -9,7 +12,10 @@
 ## Contents
 
 - [Why](#why)
-- [What the gate does](#what-the-gate-does)
+- [The short version](#the-short-version)
+- [What it catches](#what-it-catches)
+- [What you own](#what-you-own)
+- [What the PR gets](#what-the-pr-gets)
 - [Don't let a new page ship uncaptured](#dont-let-a-new-page-ship-uncaptured)
 - [What a report looks like](#what-a-report-looks-like)
 - [Works with any styling system](#works-with-any-styling-system)
@@ -27,17 +33,86 @@
 
 ## Why
 
-Pixel-snapshot tools miss most CSS regressions: they can't force `:hover` / `:focus` / `:active`, can't see hidden or off-screen elements, can't reach between-breakpoint rules, and blur away sub-pixel drift. StyleProof reads the **computed style** of every element instead — every resolved longhand, every pseudo-element, the deltas `:hover` / `:focus` / `:active` apply (forced via CDP, no mouse), swept across each `@media` breakpoint.
+Use StyleProof when a PR can change CSS, design tokens, component classes,
+layout, or hidden/open UI states and you want CI to say whether the browser's
+rendered styles actually changed. Unit and e2e tests prove behavior; StyleProof
+proves the visual contract for the states you declared.
 
-## What the gate does
+It is useful for:
 
-On every PR, StyleProof diffs the PR head's computed-style map against the base branch's, and posts a Markdown comment:
+- certifying a "no visual change" refactor such as CSS Modules to Tailwind;
+- reviewing intentional visual changes with exact before/after style evidence;
+- catching accidental changes that only appear at one breakpoint;
+- catching open-state regressions in dialogs, dropdowns, listboxes, popovers, and
+  toasts;
+- failing CI when a required route, component, or UI state exists but has no
+  capture.
 
-- A **lean summary comment** linking to a committed side-by-side report — the report is the complete source of truth (**one section per distinct change**, with a before/after cropped screenshot cropped from the same rectangle so the two sides line up exactly, **plain-English bullets that tell you what to look for** — `columns: 2 → 3`, `recoloured cyan → amber` — and the exact property changes). The comment never duplicates the report, so the two can't drift, and it renders identically on public and private repos.
-- A single **Approve all changes** checkbox in the comment, driving a `StyleProof` commit status: red until one tick signs off every change, green when there are none. The reviewer who ticks it is recorded inline (_approved by @them_), sourced from the commit status so it survives a report re-run.
-- **Clean runs leave a receipt too.** When no visual changes are detected, StyleProof still creates or updates the PR comment with `✓ No visual changes detected.`, so a green status has a visible record instead of only a silent check.
-- **New surfaces don't block.** A surface that exists only on the PR head (no baseline to diff — e.g. the bootstrap PR that first adds the capture spec, or a brand-new page) is shown in the report under a `🆕 new surface` heading but never holds the status red and needs no sign-off. It becomes part of the baseline once merged.
-- The diff is always **head-vs-base**, so the report is _exactly what this PR changes_ — whether the maps are restored from the `styleproof-maps` cache or recaptured in CI on a cache miss. See [Quickstart](#quickstart).
+The important boundary: StyleProof only certifies states it can reach. If a state
+matters, list it as a surface, variant, popup, live state, or component-catalog
+surface. `expected` turns that inventory into a guard, so an uncaptured new page,
+component, modal, dropdown, or toast fails as missing coverage instead of
+silently passing.
+
+## The short version
+
+1. A **surface** is one UI state to certify: a route, tab, modal-open state,
+   dropdown-open state, toast-visible state, loading state, etc.
+2. You list surfaces in a Playwright-style spec.
+3. StyleProof opens each surface at real breakpoint widths and records computed
+   styles for every captured element.
+4. On a PR, it compares base vs head and reports exactly which rendered styles
+   changed.
+5. The PR gets a `StyleProof` status: green when nothing changed, red until
+   someone approves intentional changes, or failing when certification mode is
+   configured.
+
+StyleProof is not a screenshot diff. Screenshots appear in the report so humans
+can see the change, but the gate compares browser-computed CSS: resolved
+longhands, pseudo-elements, layout boxes, motion longhands, and forced
+`:hover`/`:focus`/`:active` deltas.
+
+## What it catches
+
+- A button recoloured by a token, utility class, CSS module, inline style, or
+  design-system change.
+- A layout shift at one breakpoint but not another.
+- A dropped `:hover`, `:focus`, or `:active` style.
+- A modal, menu, listbox, popover, sheet, or toast whose open state changed.
+- A supposedly no-op refactor, such as CSS-to-Tailwind, that changed rendered
+  output.
+
+## What you own
+
+StyleProof can only certify states it reaches. You own the app-specific list of
+states that matter:
+
+- routes and views belong in `surfaces`;
+- open states belong in `variants` or `popups`;
+- loading/loaded/empty/error states belong in `liveStates`;
+- component catalogs can be wired through `discoverComponentFiles`;
+- required-but-not-yet-captured states belong in `expected`, where the coverage
+  guard fails until they are captured or explicitly excluded with a reason.
+
+That boundary is deliberate. StyleProof should not guess destructive flows,
+auth-only fixtures, or which product state your component needs. It should make
+missing coverage loud.
+
+## What the PR gets
+
+On every PR, StyleProof posts a small summary comment that links to the committed
+full report. The report groups each distinct visual change with:
+
+- before/after crops from the same page rectangle;
+- highlighted crops that box the changed element;
+- a plain-English summary such as `columns: 2 -> 3` or
+  `background brand-cyan -> brand-amber`;
+- the exact computed CSS properties that changed.
+
+In review-gate mode, one **Approve all changes** checkbox turns the `StyleProof`
+status green for that commit. Clean runs still leave a receipt: `No visual
+changes detected.` New surfaces are shown as new baselines; coverage gaps are
+handled by `expected`.
 
 ## Don't let a new page ship uncaptured
 
@@ -98,6 +173,79 @@ defineCrawlCapture({
 ```
 
 Each discovered link becomes a surface keyed by its URL (`/?tab=overview` → `overview`; pass `key` for a different scheme). The app only has to render its nav as real `<a href>` links — a button-only nav (`<button onClick>`) exposes nothing to crawl. Replay, self-check and clock-freeze behave exactly as for explicit surfaces; one Playwright test runs the whole sweep (the link set isn't known until the page renders).
+
+**Component inventory: fail when the catalog misses a component.** StyleProof
+cannot render arbitrary component files by itself across frameworks; props,
+providers, loaders, portals, and app shell context are app-owned. What it can do
+reliably is inventory component files and make your catalog/story route prove it
+has a capture for each one:
+
+```ts
+import { componentCatalogSurfaces, defineStyleMapCapture, discoverComponentFiles } from 'styleproof';
+
+const COMPONENTS = discoverComponentFiles({
+  roots: ['src/components'],
+  ignore: [/\/icons\//],
+});
+
+defineStyleMapCapture({
+  surfaces: componentCatalogSurfaces(COMPONENTS, {
+    url: (component) => `/styleproof/components/${component.key}`,
+    widths: [390, 1024],
+  }),
+  expected: COMPONENTS.map((component) => component.key),
+  exclude: {
+    'component-payment-card': 'needs a billing provider fixture',
+  },
+  dir: process.env.STYLEMAP_DIR,
+});
+```
+
+Use Storybook, Ladle, a framework route, or a tiny app-specific catalog for
+`/styleproof/components/:key`. The inventory feeds both `surfaces` and
+`expected`, so a new component file appears immediately and CI fails until it has
+a rendered surface or an explicit exclusion.
+
+**Dialogs, popovers and menus: capture the open state as a variant.** StyleProof
+cannot guess which app-specific button opens a modal, but once you tell it the
+interaction, it compares matching states on base and head (`home-dialog-open` to
+`home-dialog-open`). Keep these under the route/view that owns them:
+
+```ts
+const SURFACES: Surface[] = [
+  {
+    key: 'home',
+    go: (page) => page.goto('/'),
+    variants: [
+      {
+        key: 'dialog-open',
+        go: async (page) => {
+          await page.getByRole('button', { name: /open settings/i }).click();
+          await page.getByRole('dialog').waitFor();
+        },
+      },
+      {
+        key: 'popover-open',
+        go: async (page) => {
+          await page.getByRole('button', { name: /more/i }).click();
+          await page.locator('[popover], [role="menu"]').first().waitFor();
+        },
+      },
+    ],
+  },
+];
+```
+
+Non-live `variants` add captures; the owning surface still captures too. Use
+`liveStates` instead when the default live state is too fuzzy and only pinned
+states such as `loading`, `loaded`, `empty`, or `error` should be compared.
+
+When `popups: true` is enabled, StyleProof also tries visible safe triggers and
+captures opened dialogs, menus, listboxes, modal roots, popovers, tooltips, and
+toast/status roots. Each saved map includes `overlays` proof metadata for
+semantic roots that were actually present in the computed-style map, so tests can
+assert a capture reached `role="dialog"`, `aria-modal`, `role="menu"`,
+`role="listbox"`, or hot-toast text.
 
 **Harvest one-step variants.** Routes are not the whole UI: drawers, tabs,
 dialogs, empty form errors, selects, and other one-step states need their own
@@ -388,16 +536,16 @@ Anything still moving on its own after that is detected as a volatile region and
 | Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from direct element comparison                |
 | Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                |
 
-| You set this — only because it's app-specific | Why it exists                                                                                                                                                                                                                                                           |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STYLEPROOF_REPLAY_FROM` (record / replay)    | Base and head capture at different times against a live backend; replaying the base's recorded data pins the head to the same inputs, so the diff is **your code, not data drift**. The one piece of real setup.                                                        |
-| `replayUrl` / `STYLEPROOF_REPLAY_URL`         | Your data endpoints aren't under `**/api/**`.                                                                                                                                                                                                                           |
-| `ignore: ['.selector']`                       | You want a region gone **explicitly** — auto-exclude already handles most live regions, but a known-noisy element reads clearer named.                                                                                                                                  |
-| `liveStates: [{ key, setup, go }]`            | A live feature has real states to certify. Capture each state on base and head (`surface-loading`, `surface-loaded`) instead of relying on a single moving page state.                                                                                                  |
-| `variants: [{ key, setup, go }]`              | Non-live deterministic variants, such as nav-open or modal-open states.                                                                                                                                                                                                 |
-| `popups: true`                                | Visible click-triggered overlays should be discovered automatically. Captures each matching trigger's persistent dialogs, popovers, menus, listboxes, and open data-state overlays as `surface-popup-XX`; keep hover-only or destructive states as explicit `variants`. |
-| `clockTime`                                   | Your styling keys off a **specific** date, not just "now".                                                                                                                                                                                                              |
-| `stabilize: { quietFor, timeout }`            | An unusually slow surface needs a longer quiet window before the map is read.                                                                                                                                                                                           |
+| You set this — only because it's app-specific | Why it exists                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STYLEPROOF_REPLAY_FROM` (record / replay)    | Base and head capture at different times against a live backend; replaying the base's recorded data pins the head to the same inputs, so the diff is **your code, not data drift**. The one piece of real setup.                                                                                         |
+| `replayUrl` / `STYLEPROOF_REPLAY_URL`         | Your data endpoints aren't under `**/api/**`.                                                                                                                                                                                                                                                            |
+| `ignore: ['.selector']`                       | You want a region gone **explicitly** — auto-exclude already handles most live regions, but a known-noisy element reads clearer named.                                                                                                                                                                   |
+| `liveStates: [{ key, setup, go }]`            | A live feature has real states to certify. Capture each state on base and head (`surface-loading`, `surface-loaded`) instead of relying on a single moving page state.                                                                                                                                   |
+| `variants: [{ key, setup, go }]`              | Non-live deterministic variants, such as nav-open, modal-open, toast-visible, or overlay-expanded states.                                                                                                                                                                                                |
+| `popups: true`                                | Visible click-triggered overlays should be discovered automatically. Captures each matching trigger's persistent dialogs, modal roots, popovers, menus, listboxes, toast/status roots, and open data-state overlays as `surface-popup-XX`; keep hover-only or destructive states as explicit `variants`. |
+| `clockTime`                                   | Your styling keys off a **specific** date, not just "now".                                                                                                                                                                                                                                               |
+| `stabilize: { quietFor, timeout }`            | An unusually slow surface needs a longer quiet window before the map is read.                                                                                                                                                                                                                            |
 
 ## Optional: content layer (advisory)
 
@@ -468,22 +616,22 @@ It's **asynchronous by design**: approval is a checkbox tick handled by a separa
 
 **Capture spec `defineStyleMapCapture({ surfaces, … })`** — determinism is on by default; you rarely set more than `surfaces` and `dir`:
 
-| Option        | Default                     | Purpose                                                                                                                                                                                                                                  |
-| ------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `surfaces`    | _required_                  | Page states to certify — each `{ key, go, widths?, ignore?, height?, liveStates?, variants?, popups? }`. `go(page)` drives to a settled state. Omit `widths` to auto-detect the app's `@media` breakpoints and sweep one width per band. |
-| `liveStates`  | _none_                      | Optional pinned live product states. Each `{ key, setup?, go?, widths?, height?, ignore? }` becomes `<surface>-<state>` and is labeled as a live state in reports.                                                                       |
-| `variants`    | _none_                      | Optional non-live deterministic states under a surface. Each `{ key, setup?, go?, widths?, height?, ignore? }` becomes `<surface>-<variant>` so base/head compare matching states.                                                       |
-| `popups`      | `false`                     | Optional automatic popup capture. Set `true` or `{ max, triggers, overlays, timeoutMs }` to click visible safe triggers and save each opened overlay state as `<surface>-popup-XX`.                                                      |
-| `expected`    | _none_                      | Your route/view universe. Emits a coverage-guard test (runs without a capture dir) that fails when a route has no surface and isn't excluded — so a new page can't ship uncaptured.                                                      |
-| `exclude`     | `{}`                        | `key → reason` for routes deliberately not captured. Keeps the guard green for known gaps; a key absent from `expected` fails the guard, so the ledger can't go stale.                                                                   |
-| `dir`         | `STYLEMAP_DIR`              | Output label (`base`/`head`); the spec is **inert until set**, so it sits safely beside your other specs.                                                                                                                                |
-| `replayFrom`  | `STYLEPROOF_REPLAY_FROM`    | Baseline dir whose recorded responses to replay. Unset → this run **records** its HAR for the comparison to use.                                                                                                                         |
-| `replayUrl`   | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.                                                                                                                             |
-| `freezeClock` | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works.                                                                                                                          |
-| `clockTime`   | `2025-01-01T00:00:00Z`      | The frozen instant.                                                                                                                                                                                                                      |
-| `selfCheck`   | on while recording          | Capture each surface twice and fail on any difference — proves the capture is deterministic. Off on the replay run; `STYLEPROOF_SELFCHECK=1` forces both.                                                                                |
-| `screenshots` | `true`                      | Save full-page screenshots for the report's before/after crops.                                                                                                                                                                          |
-| `baseDir`     | `__stylemaps__`             | Output root directory.                                                                                                                                                                                                                   |
+| Option        | Default                     | Purpose                                                                                                                                                                                                                                                 |
+| ------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaces`    | _required_                  | Page states to certify — each `{ key, go, widths?, ignore?, height?, liveStates?, variants?, popups? }`. `go(page)` drives to a settled state. Omit `widths` to auto-detect the app's `@media` breakpoints and sweep one width per band.                |
+| `liveStates`  | _none_                      | Optional pinned live product states. Each `{ key, setup?, go?, widths?, height?, ignore? }` becomes `<surface>-<state>` and is labeled as a live state in reports.                                                                                      |
+| `variants`    | _none_                      | Optional non-live deterministic states under a surface. The base surface still captures; each variant becomes `<surface>-<variant>` so base/head compare matching states.                                                                               |
+| `popups`      | `false`                     | Optional automatic popup capture. Set `true` or `{ max, triggers, overlays, timeoutMs }` to click visible safe triggers and save each opened overlay state as `<surface>-popup-XX`; maps include `overlays` proof metadata for captured semantic roots. |
+| `expected`    | _none_                      | Your route/view/state/component universe. Emits a coverage-guard test (runs without a capture dir) that fails when a required key has no surface and isn't excluded.                                                                                    |
+| `exclude`     | `{}`                        | `key → reason` for routes deliberately not captured. Keeps the guard green for known gaps; a key absent from `expected` fails the guard, so the ledger can't go stale.                                                                                  |
+| `dir`         | `STYLEMAP_DIR`              | Output label (`base`/`head`); the spec is **inert until set**, so it sits safely beside your other specs.                                                                                                                                               |
+| `replayFrom`  | `STYLEPROOF_REPLAY_FROM`    | Baseline dir whose recorded responses to replay. Unset → this run **records** its HAR for the comparison to use.                                                                                                                                        |
+| `replayUrl`   | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.                                                                                                                                            |
+| `freezeClock` | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works.                                                                                                                                         |
+| `clockTime`   | `2025-01-01T00:00:00Z`      | The frozen instant.                                                                                                                                                                                                                                     |
+| `selfCheck`   | on while recording          | Capture each surface twice and fail on any difference — proves the capture is deterministic. Off on the replay run; `STYLEPROOF_SELFCHECK=1` forces both.                                                                                               |
+| `screenshots` | `true`                      | Save full-page screenshots for the report's before/after crops.                                                                                                                                                                                         |
+| `baseDir`     | `__stylemaps__`             | Output root directory.                                                                                                                                                                                                                                  |
 
 Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<style>`/… and `next-route-announcer`) are skipped automatically; a surface's `ignore` adds to that default, it doesn't replace it.
 

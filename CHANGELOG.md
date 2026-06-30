@@ -7,12 +7,54 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.1.5] - 2026-06-29
+
 ### Added
 
 - Added `harvestStyleVariants` and the `styleproof-variants` CLI to discover
   one-step UI state variants from a running app. The crawler tries semantic
   controls, keeps only actions that change computed styles, dedupes equivalent
   outcomes, and reports live-state candidates that need fixtures or opt-outs.
+- **Captured maps now include semantic overlay proof metadata.** Visible dialog,
+  menu, listbox, modal, popover, tooltip, and toast roots that are present in the
+  captured DOM are recorded under `overlays`, filtered to paths that are actually
+  in the computed-style map. Downstream suites can now assert that a popup map
+  captured `role="dialog"`, `aria-modal`, `role="menu"`, `role="listbox"`, or
+  hot-toast text instead of only asserting that a popup file exists.
+- **Component inventory coverage is now available through
+  `discoverComponentFiles`.** It scans explicit component roots across common
+  framework file types and returns stable `component-*` keys, so teams can wire a
+  Storybook/Ladle/custom catalog into `expected` and fail CI when a component file
+  has no rendered StyleProof surface or reviewed exclusion. `componentCatalogSurfaces`
+  turns the same inventory into catalog URL capture surfaces so the surface list
+  and expected list cannot drift apart.
+
+### Changed
+
+- **`styleproof-init` now points modal, popover, menu, tab, and form-error
+  captures at `variants`.** The generated generic spec includes commented
+  `dialog-open` and `popover-open` examples under the base surface, so app-owned
+  UI states compare state-to-state instead of becoming orphan root surfaces.
+- **The coverage guard now checks expanded variant keys.** Projects can put
+  required states such as `dashboard-user-menu-open`, `dashboard-toast-visible`,
+  or component catalog keys in `expected`; StyleProof fails unless those exact
+  surfaces are captured or explicitly excluded.
+- **Non-live variants now keep the base capture.** Dialog, menu, popover, toast,
+  and overlay captures augment the owning surface instead of replacing its normal
+  page capture. `liveStates` continue to model explicit pinned live states.
+- **Automatic popup capture now treats modal attributes, dropdown roles, and
+  toast roots as default overlay candidates.** The default selector includes
+  `[aria-modal="true"]`, `role="menu"`, `role="listbox"`, hot-toast/Sonner-style
+  toast markers, and status/alert toast roots. Popup matching also compares a
+  semantic/text signature, so a reused mount or toast host can still be captured
+  when its visible state changes.
+
+### Fixed
+
+- Computed-style diffs now ignore sub-pixel `transform-origin` and
+  `perspective-origin` jitter while still reporting meaningful origin changes.
+
+## [3.1.4] - 2026-06-29
 
 ### Fixed
 
@@ -1016,7 +1058,9 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.3...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.5...HEAD
+[3.1.5]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.4...v3.1.5
+[3.1.4]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.3...v3.1.4
 [3.1.3]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.0...v3.1.1

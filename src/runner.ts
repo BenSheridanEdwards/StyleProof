@@ -96,8 +96,10 @@ export type PopupCaptureOptions = {
 export type DefineOptions = {
   surfaces: Surface[];
   /**
-   * The full set of surface keys the app knows it has — its route/view universe,
-   * typically derived from a registry (e.g. an app's list of routes or view ids).
+   * The full set of surface keys the app knows it has — its route/view/state
+   * universe, typically derived from registries (e.g. routes plus modal/menu
+   * flows). Include expanded variant keys such as `dashboard-dialog-open` when
+   * those states must be certified.
    * When set, StyleProof emits a coverage-guard test (in the NORMAL suite, not
    * gated on a capture dir) that fails if any expected key is neither captured (a
    * surface) nor in `exclude`. This is what stops a newly added route from
@@ -266,11 +268,19 @@ const DEFAULT_POPUP_TRIGGERS = [
 const DEFAULT_POPUP_OVERLAYS = [
   'dialog[open]',
   '[popover]',
+  '[aria-modal="true"]',
   '[role="dialog"]',
   '[role="alertdialog"]',
   '[role="menu"]',
   '[role="listbox"]',
   '[role="tooltip"]',
+  '[data-hot-toast]',
+  '[data-sonner-toast]',
+  '[data-toast]',
+  '.hot-toast',
+  '[class*="toast" i]',
+  '[role="alert"]',
+  '[role="status"]',
   '[data-state="open"]:not(button):not(a):not(summary)',
 ].join(', ');
 
@@ -337,8 +347,22 @@ async function popupDomSnapshot(
       }
       return parts.join(' > ');
     };
+    const popupKey = (el: Element): string => {
+      const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+      return [
+        pathOf(el),
+        el.getAttribute('role') ?? '',
+        el.getAttribute('aria-modal') ?? '',
+        el.getAttribute('aria-live') ?? '',
+        el.getAttribute('data-state') ?? '',
+        el.getAttribute('data-hot-toast') ?? '',
+        el.getAttribute('data-sonner-toast') ?? '',
+        el.getAttribute('data-toast') ?? '',
+        text,
+      ].join('|');
+    };
     const popups = qsa(popupSelector).filter(visible);
-    const keys = popups.map(pathOf);
+    const keys = popups.map(popupKey);
     if (!triggerSelector || !attr) return { keys, indexes: [] };
 
     const safeTrigger = (el: Element): boolean => {
@@ -397,16 +421,17 @@ function expandOne(
 export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
   const variants = surface.variants ?? [];
   const liveStates = surface.liveStates ?? [];
+  const { variants: _variants, liveStates: _liveStates, ...base } = surface;
+  const baseSurface = { ...base, metadata: { surfaceKey: surface.key } };
+  void _variants;
+  void _liveStates;
   if (!variants.length && !liveStates.length) {
-    const { variants: _variants, liveStates: _liveStates, ...base } = surface;
-    void _variants;
-    void _liveStates;
-    return [{ ...base, metadata: { surfaceKey: surface.key } }];
+    return [baseSurface];
   }
-  return [
-    ...variants.map((variant) => expandOne(surface, variant, 'variant')),
-    ...liveStates.map((state) => expandOne(surface, state, 'live-state')),
-  ];
+  const expandedVariants = variants.map((variant) => expandOne(surface, variant, 'variant'));
+  if (!liveStates.length) return [baseSurface, ...expandedVariants];
+
+  return [...expandedVariants, ...liveStates.map((state) => expandOne(surface, state, 'live-state'))];
 }
 
 /**
@@ -743,7 +768,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     test.describe('styleproof coverage', () => {
       test('every expected surface is captured or explicitly excluded', () => {
         const { uncovered, staleExclusions } = coverageGaps(
-          surfaces.map((s) => s.key),
+          captureSurfaces.map((s) => s.key),
           expected,
           exclude,
         );

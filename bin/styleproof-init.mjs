@@ -176,9 +176,27 @@ const SURFACES: Surface[] = [
     // No widths → StyleProof detects your @media breakpoints from the loaded CSS and
     // sweeps one viewport per band. Pass an explicit array (e.g. 1280, 768, 390) to pin them (or to
     // cover a JS-only matchMedia breakpoint that has no CSS @media rule).
+    // Non-live UI states belong here as variants, so the base branch's
+    // dialog-open state compares to the head branch's dialog-open state.
+    // variants: [
+    //   {
+    //     key: 'dialog-open',
+    //     go: async (page) => {
+    //       await page.getByRole('button', { name: /open settings/i }).click();
+    //       await page.getByRole('dialog').waitFor();
+    //     },
+    //   },
+    //   {
+    //     key: 'popover-open',
+    //     go: async (page) => {
+    //       await page.getByRole('button', { name: /more/i }).click();
+    //       await page.locator('[popover], [role="menu"]').first().waitFor();
+    //     },
+    //   },
+    // ],
   },
-  // Add one surface per distinct page state: open menus, dialogs, selected
-  // tabs, form errors — anything whose styling you want certified.
+  // Add more surfaces for distinct routes/views; add menus, dialogs, popovers,
+  // selected tabs, and form errors as variants of the route/view that owns them.
 ];
 
 defineStyleMapCapture({

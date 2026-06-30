@@ -38,11 +38,15 @@ test('coverageGaps: an exclude entry absent from expected is a stale exclusion',
 // ------------------------------------------------------- extra captured states are allowed
 
 test('coverageGaps: a captured surface not in expected is allowed (multi-state route)', () => {
-  // `home-nav-open` is a second captured STATE of the `home` route, not a route of
-  // its own — it must not be required in `expected`.
+  // Teams can require only the route at first; extra captured states remain fine.
   const { uncovered, staleExclusions } = coverageGaps(['home', 'home-nav-open'], ['home']);
   assert.deepEqual(uncovered, []);
   assert.deepEqual(staleExclusions, []);
+});
+
+test('coverageGaps: expected state keys are enforceable', () => {
+  const { uncovered } = coverageGaps(['home', 'home-dialog-open'], ['home', 'home-dialog-open', 'home-menu-open']);
+  assert.deepEqual(uncovered, ['home-menu-open']);
 });
 
 // ------------------------------------------------------- mixed: some covered, some not

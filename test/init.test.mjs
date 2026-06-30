@@ -49,6 +49,12 @@ test('styleproof-init: non-Next project → generic spec with a commented guard,
     assert.doesNotMatch(spec, /discoverNextRoutes\(\)/); // not called
     assert.match(spec, /Coverage guard \(recommended\)/);
     assert.match(spec, /key: 'home'/);
+    assert.match(spec, /variants: \[/);
+    assert.match(spec, /key: 'dialog-open'/);
+    assert.match(spec, /getByRole\('dialog'\)\.waitFor\(\)/);
+    assert.match(spec, /key: 'popover-open'/);
+    assert.match(spec, /\[popover\], \[role="menu"\]/);
+    assert.doesNotMatch(spec, /Add one surface per distinct page state/);
     assert.match(res.stdout, /no Next\.js routes detected/);
   } finally {
     rmTmp(root);

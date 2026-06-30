@@ -8,6 +8,7 @@ import {
   resolveScreenshots,
   selfCheckErrorMessage,
 } from '../dist/runner.js';
+import { coverageGaps } from '../dist/coverage.js';
 
 // selfCheck defaults ON when recording (no replayFrom) — where live nondeterminism
 // surfaces — and OFF when replaying (deterministic by construction). The env var
@@ -54,6 +55,20 @@ test('resolvePopupCaptureOptions: off by default and opt-in when enabled', () =>
   assert.equal(resolvePopupCaptureOptions(true).enabled, true);
 });
 
+test('resolvePopupCaptureOptions: default overlays include semantic popups and toasts', () => {
+  const overlays = resolvePopupCaptureOptions(true).overlays;
+  for (const selector of [
+    '[role="dialog"]',
+    '[aria-modal="true"]',
+    '[role="menu"]',
+    '[role="listbox"]',
+    '[data-hot-toast]',
+    '[role="status"]',
+  ]) {
+    assert.match(overlays, new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
+
 test('resolvePopupCaptureOptions: clamps numeric options', () => {
   assert.deepEqual(
     {
@@ -65,9 +80,9 @@ test('resolvePopupCaptureOptions: clamps numeric options', () => {
   );
 });
 
-test('expandSurfaceVariants: turns declared states into concrete capture surfaces', async () => {
+test('expandSurfaceVariants: keeps the base capture and adds declared variants', async () => {
   const calls = [];
-  const variants = expandSurfaceVariants({
+  const surfaces = expandSurfaceVariants({
     key: 'dashboard',
     go: async () => calls.push('surface'),
     ignore: ['.ticker'],
@@ -75,27 +90,28 @@ test('expandSurfaceVariants: turns declared states into concrete capture surface
     height: 900,
     variants: [
       {
-        key: 'loading',
-        setup: async () => calls.push('setup-loading'),
-        go: async () => calls.push('go-loading'),
-        ignore: ['.spinner'],
+        key: 'dialog-open',
+        setup: async () => calls.push('setup-dialog'),
+        go: async () => calls.push('go-dialog'),
+        ignore: ['.modal-clock'],
         widths: [1440],
       },
-      { key: 'loaded', go: async () => calls.push('go-loaded') },
+      { key: 'menu-open', go: async () => calls.push('go-menu') },
     ],
   });
 
   assert.deepEqual(
-    variants.map((s) => s.key),
-    ['dashboard-loading', 'dashboard-loaded'],
+    surfaces.map((s) => s.key),
+    ['dashboard', 'dashboard-dialog-open', 'dashboard-menu-open'],
   );
-  assert.deepEqual(variants[0].widths, [1440]);
-  assert.deepEqual(variants[1].widths, [1440, 768]);
-  assert.equal(variants[0].height, 900);
-  assert.deepEqual(variants[0].ignore, ['.ticker', '.spinner']);
+  assert.deepEqual(surfaces[0].metadata, { surfaceKey: 'dashboard' });
+  assert.deepEqual(surfaces[1].widths, [1440]);
+  assert.deepEqual(surfaces[2].widths, [1440, 768]);
+  assert.equal(surfaces[1].height, 900);
+  assert.deepEqual(surfaces[1].ignore, ['.ticker', '.modal-clock']);
 
-  await variants[0].go({});
-  assert.deepEqual(calls, ['setup-loading', 'surface', 'go-loading']);
+  await surfaces[1].go({});
+  assert.deepEqual(calls, ['setup-dialog', 'surface', 'go-dialog']);
 });
 
 test('expandSurfaceVariants: liveStates carry live-state metadata', () => {
@@ -115,6 +131,19 @@ test('expandSurfaceVariants: liveStates carry live-state metadata', () => {
     variantKey: 'loaded',
     variantKind: 'live-state',
   });
+});
+
+test('expanded variant keys can satisfy the coverage guard', () => {
+  const surfaces = expandSurfaceVariants({
+    key: 'dashboard',
+    go: async () => {},
+    variants: [{ key: 'dialog-open' }, { key: 'menu-open' }],
+  }).map((s) => s.key);
+
+  assert.deepEqual(coverageGaps(surfaces, ['dashboard-dialog-open', 'dashboard-menu-open']).uncovered, []);
+  assert.deepEqual(coverageGaps(surfaces, ['dashboard-dialog-open', 'dashboard-tooltip-open']).uncovered, [
+    'dashboard-tooltip-open',
+  ]);
 });
 
 test('selfCheckErrorMessage: explains volatile root layout drift as a variant problem', () => {
