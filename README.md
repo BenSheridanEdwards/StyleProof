@@ -6,6 +6,25 @@
 [![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)
 [![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
 
+## Contents
+
+- [Why](#why)
+- [What the gate does](#what-the-gate-does)
+- [Don't let a new page ship uncaptured](#dont-let-a-new-page-ship-uncaptured)
+- [What a report looks like](#what-a-report-looks-like)
+- [Works with any styling system](#works-with-any-styling-system)
+- [Breakpoints, detected automatically](#breakpoints-detected-automatically)
+- [Certify a refactor](#certify-a-refactor)
+- [Install](#install)
+- [Quickstart](#quickstart)
+- [Forks and Dependabot](#forks-and-dependabot)
+- [Optional: content layer](#optional-content-layer-advisory)
+- [Optional: React component layer](#optional-react-component-layer-advisory)
+- [Newly-added elements show their full style](#newly-added-elements-show-their-full-style)
+- [Reference](#reference)
+  - [Blocking without branch protection](#blocking-without-branch-protection)
+- [License](#license)
+
 ## Why
 
 Pixel-snapshot tools miss most CSS regressions: they can't force `:hover` / `:focus` / `:active`, can't see hidden or off-screen elements, can't reach between-breakpoint rules, and blur away sub-pixel drift. StyleProof reads the **computed style** of every element instead — every resolved longhand, every pseudo-element, the deltas `:hover` / `:focus` / `:active` apply (forced via CDP, no mouse), swept across each `@media` breakpoint.
