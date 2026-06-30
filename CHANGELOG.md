@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-06-30
+
 ### Added
 
 - Added optional `styleproof-map --crawl-base-url ... --crawl-route ...` pre-map
@@ -1072,7 +1074,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.5...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.5...v3.2.0
 [3.1.5]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.4...v3.1.5
 [3.1.4]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.3...v3.1.4
 [3.1.3]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.2...v3.1.3
