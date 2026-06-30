@@ -5,6 +5,8 @@ playwright-report/
 coverage/
 **/__stylemaps__/
 .styleproof/
+.gitnexus/
+graphify-out/
 *.tgz
 .DS_Store
 

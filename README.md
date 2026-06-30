@@ -258,9 +258,17 @@ styles. It also reports live-state candidates that need fixtures or opt-outs.
 styleproof-variants --base-url http://localhost:3000 --route / --route settings=/settings
 ```
 
-Use it as a manifest generator, not a replacement for review. The generated JSON
-is deliberately not read by `styleproof-map`; approve the states you want, then
-copy them into your capture spec as ordinary `variants` / `liveStates`.
+Use it as a manifest generator, not a replacement for review. To refresh that
+manifest as part of the map loop, pass the same crawl inputs to `styleproof-map`;
+it runs the crawler before Playwright captures the maps:
+
+```bash
+styleproof-map --crawl-base-url http://localhost:3000 --crawl-route / --crawl-route settings=/settings
+```
+
+The app must already be reachable at `--crawl-base-url`. If Playwright's
+`webServer` is the thing starting the app, keep route-link crawling inside the
+capture run with `defineCrawlCapture`.
 
 ```json
 {
@@ -393,7 +401,7 @@ npx styleproof-init
 It scaffolds:
 
 - a **capture spec** (`e2e/styleproof.spec.ts`) describing your surfaces (a Next.js app gets its routes _and_ the coverage guard wired automatically — see below);
-- a **`playwright.config.ts`** that builds and serves a **production build** (never a flaky dev server) and captures surfaces **in parallel** (`fullyParallel`);
+- a dedicated **`playwright.styleproof.config.ts`** that builds and serves a **production build** (never a flaky dev server), scopes discovery to the StyleProof spec, and captures surfaces **in parallel** (`fullyParallel`) without disturbing your app's existing Playwright config;
 - `.gitignore` entries for `.styleproof/`, `test-results/`, and `playwright-report/`;
 - a **cache-first CI workflow** that restores reusable maps from the `styleproof-maps` branch and generates the report without a browser when both maps are already built.
 
@@ -637,21 +645,24 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 **Capture env vars** (wire CI without editing the spec):
 
-| Env                       | Purpose                                                                                                               |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `STYLEMAP_DIR`            | Output label; the capture is skipped entirely when unset.                                                             |
-| `STYLEPROOF_BASEDIR`      | Output root dir (runner default `__stylemaps__`; `styleproof-map` CLI default `.styleproof/maps`).                    |
-| `STYLEPROOF_SCREENSHOTS`  | `0` to skip full-page screenshots. The CLI keeps screenshots by default so reports can crop maps restored from cache. |
-| `STYLEPROOF_REPLAY_FROM`  | Baseline dir to replay recorded data from — set this on the **head** capture.                                         |
-| `STYLEPROOF_REPLAY_URL`   | Override the `**/api/**` data-boundary glob.                                                                          |
-| `STYLEPROOF_SELFCHECK`    | `1` to capture each surface twice and fail if the two differ.                                                         |
-| `STYLEPROOF_UPLOAD`       | `1` to require map-store upload; `0` to capture locally only.                                                         |
-| `STYLEPROOF_CACHE_BRANCH` | Map store branch (default `styleproof-maps`).                                                                         |
+| Env                         | Purpose                                                                                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `STYLEMAP_DIR`              | Output label; the capture is skipped entirely when unset.                                                             |
+| `STYLEPROOF_BASEDIR`        | Output root dir (runner default `__stylemaps__`; `styleproof-map` CLI default `.styleproof/maps`).                    |
+| `STYLEPROOF_SCREENSHOTS`    | `0` to skip full-page screenshots. The CLI keeps screenshots by default so reports can crop maps restored from cache. |
+| `STYLEPROOF_REPLAY_FROM`    | Baseline dir to replay recorded data from — set this on the **head** capture.                                         |
+| `STYLEPROOF_REPLAY_URL`     | Override the `**/api/**` data-boundary glob.                                                                          |
+| `STYLEPROOF_SELFCHECK`      | `1` to capture each surface twice and fail if the two differ.                                                         |
+| `STYLEPROOF_UPLOAD`         | `1` to require map-store upload; `0` to capture locally only.                                                         |
+| `STYLEPROOF_CACHE_BRANCH`   | Map store branch (default `styleproof-maps`).                                                                         |
+| `STYLEPROOF_CRAWL_BASE_URL` | App URL for the optional pre-map `styleproof-variants` crawl.                                                         |
+| `STYLEPROOF_CRAWL_ROUTES`   | Comma-separated routes for the optional pre-map crawl, e.g. `/,settings=/settings`.                                   |
+| `STYLEPROOF_CRAWL_STRICT`   | `1` to fail the optional pre-map crawl on live-state fixtures or skipped candidates.                                  |
 
 **CLIs** (every flag accepts `--flag value` and `--flag=value`; `--help` lists all):
 
-- `styleproof-init` — scaffold the gate: the capture spec, a `playwright.config.ts` (production-build `webServer`, parallel capture), `.gitignore` cache entries, and the cache-first report workflow. One command. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default) instead of assuming npm.
-- `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote exists. Pass `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, or `--no-screenshots` for custom flows.
+- `styleproof-init` — scaffold the gate: the capture spec, a dedicated `playwright.styleproof.config.ts` (production-build `webServer`, parallel capture), `.gitignore` cache entries, and the cache-first report workflow. One command. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default), respect pnpm/Corepack version pins, and detect Vite/Next production preview commands instead of assuming every repo has `start`.
+- `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote exists. Pass `--crawl-base-url` plus repeated `--crawl-route` to run `styleproof-variants` before capture, `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, or `--no-screenshots` for custom flows.
 - `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
 - `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content section (see above).
 - `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.

@@ -7,6 +7,8 @@ export default tseslint.config(
     ignores: [
       'dist/**',
       'node_modules/**',
+      '.gitnexus/**',
+      'graphify-out/**',
       '.claude/**', // agent worktrees nest a second checkout (own tsconfig) here — parsing it breaks lint
 
       '**/__stylemaps__/**',
