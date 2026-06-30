@@ -8,10 +8,10 @@
  * This is the one failure StyleProof can't catch from the captures alone, because
  * it's about a capture that was never taken.
  *
- * `expected` closes the hole: a spec declares its full route/surface universe
- * (e.g. an app's view registry), and the guard fails when that universe drifts
- * from what's actually captured — turning a silent coverage hole into a red test,
- * in the app's own suite, the moment the route is added.
+ * `expected` closes the hole: a spec declares its full route/view/state universe
+ * (e.g. an app's route + overlay-flow registry), and the guard fails when that
+ * universe drifts from what's actually captured — turning a silent coverage hole
+ * into a red test, in the app's own suite, the moment the route or flow is added.
  */
 
 export type CoverageGaps = {
@@ -27,8 +27,9 @@ export type CoverageGaps = {
  *
  * A surface is covered if it's captured OR listed in `exclude` (a deliberate,
  * documented opt-out — `key → reason`). Captured surfaces NOT in `expected` are
- * allowed: one route legitimately has several captured states (`landing`,
- * `landing-nav-open`), and only the routes themselves form the universe.
+ * allowed: a project may start by requiring only route keys, then tighten the
+ * universe with explicit state keys such as `landing-nav-open` or
+ * `dashboard-dialog-open`.
  *
  * Pure and side-effect-free so it's unit-testable; `defineStyleMapCapture` wraps
  * it in a Playwright test that runs in the normal suite (not gated on a capture

@@ -71,6 +71,16 @@ export type LiveRegionCandidate = {
   ariaLive?: string;
   ariaBusy?: string;
 };
+export type CapturedOverlay = {
+  path: string;
+  tag: string;
+  cls: string;
+  reason: string;
+  role?: string;
+  ariaModal?: string;
+  ariaLive?: string;
+  text?: string;
+};
 export type StyleMap = {
   /** Optional runner-supplied context; ignored by the certification diff. */
   metadata?: CaptureMetadata;
@@ -100,6 +110,14 @@ export type StyleMap = {
    * regions that actually keep changing are auto-excluded via `volatile`.
    */
   liveCandidates?: LiveRegionCandidate[];
+  /**
+   * Visible semantic overlay roots that were present in the captured DOM and
+   * whose paths are present in `elements`. This is diagnostic/proof metadata:
+   * dialogs, menus, listboxes, modal roots and toast roots are still certified by
+   * the normal computed-style map, while this list lets tests prove those states
+   * were actually reached and captured.
+   */
+  overlays?: CapturedOverlay[];
   /**
    * Colour-valued `:root` custom properties (design/theme tokens), normalised to
    * the same `rgb(...)` form the longhands resolve to — `{ "--red-200": "rgb(254,
@@ -458,6 +476,7 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
 }
 
 type LiveCandidateArgs = { ignore: string[] };
+type OverlayCandidateArgs = { ignore: string[] };
 
 function detectLiveCandidates({ ignore }: LiveCandidateArgs): LiveRegionCandidate[] {
   const pathOf = (window as unknown as WithPathOf).__spPathOf;
@@ -489,6 +508,67 @@ function detectLiveCandidates({ ignore }: LiveCandidateArgs): LiveRegionCandidat
             },
           ]
         : [];
+    });
+}
+
+function detectOverlayCandidates({ ignore }: OverlayCandidateArgs): CapturedOverlay[] {
+  const pathOf = (window as unknown as WithPathOf).__spPathOf;
+  const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
+  const visible = (el: Element): boolean => {
+    if ((el as HTMLElement).hidden || el.getAttribute('aria-hidden') === 'true') return false;
+    const rect = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+  };
+  const textOf = (el: Element): string => (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const toastish = (el: Element): boolean => {
+    const haystack = [
+      el.id,
+      el.getAttribute('class'),
+      el.getAttribute('data-testid'),
+      el.getAttribute('data-hot-toast'),
+      el.getAttribute('data-sonner-toast'),
+      el.getAttribute('data-toast'),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return /\b(toast|hot-toast|sonner)\b/.test(haystack);
+  };
+  const reasonsFor = (el: Element, role: string, ariaModal: string): string[] => {
+    const reasons: string[] = [];
+    if (el instanceof HTMLDialogElement && el.open) reasons.push('dialog[open]');
+    if (el.hasAttribute('popover')) reasons.push('popover');
+    if (['dialog', 'alertdialog', 'menu', 'listbox', 'tooltip'].includes(role)) reasons.push(`role=${role}`);
+    if (ariaModal === 'true') reasons.push('aria-modal=true');
+    if (toastish(el)) reasons.push('toast');
+    if (el.hasAttribute('data-hot-toast')) reasons.push('data-hot-toast');
+    if (el.hasAttribute('data-sonner-toast')) reasons.push('data-sonner-toast');
+    if ((role === 'status' || role === 'alert') && toastish(el)) reasons.push(`role=${role}`);
+    return [...new Set(reasons)];
+  };
+
+  return [document.documentElement, document.body, ...document.querySelectorAll('body *')]
+    .filter((el) => (!skipSel || !el.matches(skipSel)) && visible(el))
+    .flatMap((el): CapturedOverlay[] => {
+      const role = (el.getAttribute('role') ?? '').trim().toLowerCase();
+      const ariaModal = (el.getAttribute('aria-modal') ?? '').trim().toLowerCase();
+      const ariaLive = (el.getAttribute('aria-live') ?? '').trim().toLowerCase();
+      const reasons = reasonsFor(el, role, ariaModal);
+      if (!reasons.length) return [];
+      const text = textOf(el);
+      return [
+        {
+          path: pathOf(el),
+          tag: el.tagName.toLowerCase(),
+          cls: el.getAttribute('class') || '',
+          reason: reasons.join(', '),
+          ...(role ? { role } : {}),
+          ...(ariaModal ? { ariaModal } : {}),
+          ...(ariaLive ? { ariaLive } : {}),
+          ...(text ? { text } : {}),
+        },
+      ];
     });
 }
 
@@ -896,6 +976,9 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
 
   const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText, captureComponent });
   dropVolatile(base.elements, volatile);
+  const overlays = (await page.evaluate(detectOverlayCandidates, { ignore })).filter(
+    (overlay) => base.elements[overlay.path],
+  );
   warnUntraversed(base.shadowHosts, base.sameOriginFrames);
   mergeMotion(base.elements, motion.elements);
   let states: StyleMap['states'] = {};
@@ -914,6 +997,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     ...(statesSkipped ? { statesSkipped: true } : {}),
     ...(volatile.length ? { volatile } : {}),
     ...(liveCandidates.length ? { liveCandidates } : {}),
+    ...(overlays.length ? { overlays } : {}),
     ...(Object.keys(tokens).length ? { tokens } : {}),
   };
 }

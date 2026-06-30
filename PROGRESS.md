@@ -1,35 +1,34 @@
 # Progress
 
-## Active Task: automatic popup and modal capture
+## Active Task: captured state coverage PR clarity
 
 ## Completed
 
-- Created isolated worktree `/Users/agents/Projects/StyleProof-auto-popup-capture`
-  on branch `codex/auto-popup-capture`.
-- Verified the existing capture runner expands explicit `variants` and
-  `liveStates`, but it does not discover visible modal/popup states on its own.
-- Confirmed the fix belongs in `src/runner.ts`, where every explicit and crawled
-  surface passes through `captureSurface`.
-- Added opt-in `popups` capture for declared and crawled surfaces, with popup
-  metadata/report labels and deterministic `surface-popup-XX` map names.
-- Bumped the package to `3.1.3` and moved the changelog entries into a
-  `2026-06-29` release section.
+- PR #111 is on branch `codex/modal-popup-variant-scaffold` for package version
+  `3.1.5`.
+- Implemented enforceable expanded variant coverage, non-live variants that keep
+  the base capture, component inventory helpers, semantic overlay metadata, and
+  broader default popup selectors for dialogs, menus, listboxes, popovers, and
+  toast/status roots.
+- Verified the popup e2e fixture asserts `role="dialog"`, `aria-modal`,
+  `role="menu"`, `role="listbox"`, and hot-toast/status text are present in the
+  saved maps.
+- Clarified the README around why a team would use StyleProof: behavior tests
+  prove behavior, StyleProof proves the rendered style contract for declared
+  UI states and fails missing coverage through `expected`.
 
 ## Findings
 
-- A declared surface only captures the state reached by its `go()` function.
-  Existing `variants` can model modal-open states, but the tool currently cannot
-  discover those states from visible trigger controls.
-- `captureStyleMap` neutralizes hover/focus before reading styles, so automatic
-  discovery should target persistent click-open states (dialogs, popovers, menus,
-  listboxes, and open data-state overlays). Hover-only states remain explicit
-  variants.
+- The current PR body and committed proof images were too downstream-specific
+  for a public library PR and did not plainly explain the goal.
+- The right proof is privacy-clean: generic semantic overlay fixtures plus the
+  focused e2e assertion that saved computed-style maps contain those overlay
+  roots and catch restyles inside them.
 
 ## Next Action
 
-- Push the StyleProof branch, open/merge the release PR, confirm npm publishes
-  `styleproof@3.1.3`, then bump the consuming project and run its StyleProof
-  check.
+- Replace downstream proof images with a privacy-clean semantic overlay proof
+  screenshot, update the PR body, run focused verification, then push.
 
 ## Blockers
 
@@ -37,14 +36,4 @@
 
 ## Verification Status
 
-- `npm run prepublishOnly` passed on `styleproof@3.1.3`: clean, build,
-  typecheck, lint, format check, 180 Node tests, and 38 Playwright e2e tests.
-- `npm pack --dry-run --json` passed and produced `styleproof-3.1.3.tgz` with
-  35 package entries, including `dist`, `bin`, README, changelog, license, and
-  demo image files.
-- `npm view styleproof version` reports `3.1.2`; `npm view styleproof@3.1.3`
-  reports not published yet.
-- `npm whoami` fails with E401 locally, so publication needs the repository
-  release workflow and its `NPM_TOKEN` secret.
-- Privacy grep over the current worktree found no private consuming-project
-  references in changed source/docs/tests.
+- Pending this cleanup.

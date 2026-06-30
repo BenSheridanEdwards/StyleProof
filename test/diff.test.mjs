@@ -163,6 +163,59 @@ test('ignores custom properties (--*) even when they differ', () => {
   assert.deepEqual(diffStyleMaps(a, b), []);
 });
 
+test('ignores sub-pixel transform/perspective origin jitter', () => {
+  const a = makeMap({
+    elements: {
+      'body > svg:nth-child(1) > text:nth-child(1)': {
+        tag: 'text',
+        style: {
+          'perspective-origin': '23.9844px 48.7188px',
+          'transform-origin': '285.781px 30.6094px',
+        },
+      },
+    },
+  });
+  const b = makeMap({
+    elements: {
+      'body > svg:nth-child(1) > text:nth-child(1)': {
+        tag: 'text',
+        style: {
+          'perspective-origin': '24px 48.7188px',
+          'transform-origin': '285.797px 30.6094px',
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(diffStyleMaps(a, b), []);
+});
+
+test('keeps meaningful transform/perspective origin changes', () => {
+  const a = makeMap({
+    elements: {
+      'body > svg:nth-child(1) > text:nth-child(1)': {
+        tag: 'text',
+        style: { 'perspective-origin': '24px 48px', 'transform-origin': '100px 100px' },
+      },
+    },
+  });
+  const b = makeMap({
+    elements: {
+      'body > svg:nth-child(1) > text:nth-child(1)': {
+        tag: 'text',
+        style: { 'perspective-origin': '32px 48px', 'transform-origin': '100px 130px' },
+      },
+    },
+  });
+
+  const f = diffStyleMaps(a, b);
+  assert.equal(f.length, 1);
+  assert.deepEqual(f[0].props, [
+    { prop: 'perspective-origin', before: '24px 48px', after: '32px 48px' },
+    { prop: 'transform-origin', before: '100px 100px', after: '100px 130px' },
+  ]);
+});
+
 test('ignores layout-equivalent horizontal margin drift when the element rect is unchanged', () => {
   const a = makeMap({
     elements: {

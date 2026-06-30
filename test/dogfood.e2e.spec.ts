@@ -51,7 +51,9 @@ function liveSurface(tone: 'base' | 'head') {
 
 function popupSurface(tone: 'base' | 'head') {
   const detailsBackground = tone === 'base' ? 'rgb(255, 255, 255)' : 'rgb(219, 234, 254)';
-  const historyBackground = tone === 'base' ? 'rgb(254, 249, 195)' : 'rgb(254, 226, 226)';
+  const menuBackground = tone === 'base' ? 'rgb(254, 249, 195)' : 'rgb(254, 226, 226)';
+  const listboxBackground = tone === 'base' ? 'rgb(240, 253, 244)' : 'rgb(220, 252, 231)';
+  const toastBackground = tone === 'base' ? 'rgb(255, 255, 255)' : 'rgb(254, 242, 242)';
   return {
     key: 'demo-popup',
     widths: [POPUP_WIDTH],
@@ -63,32 +65,44 @@ function popupSurface(tone: 'base' | 'head') {
           main { min-height: 480px; display: grid; place-items: center; }
           .actions { display: flex; gap: 12px; }
           button { padding: 12px 18px; border-radius: 8px; border: 1px solid rgb(37, 99, 235); background: rgb(37, 99, 235); color: white; font-weight: 700; }
-          [role="dialog"] { position: fixed; inset: 120px auto auto 50%; width: 320px; transform: translateX(-50%); padding: 24px; border: 2px solid rgb(30, 64, 175); background: rgb(255, 255, 255); box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18); }
-          [role="dialog"][hidden] { display: none; }
+          [role="dialog"], [role="menu"], [role="listbox"], [data-hot-toast] { position: fixed; inset: 120px auto auto 50%; width: 320px; transform: translateX(-50%); padding: 24px; border: 2px solid rgb(30, 64, 175); background: rgb(255, 255, 255); box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18); }
+          [role="menu"] { inset-block-start: 170px; }
+          [role="listbox"] { inset-block-start: 220px; }
+          [data-hot-toast] { inset-block-start: 270px; }
+          [hidden] { display: none; }
         </style>
         <main>
           <div class="actions">
             <button id="open-details" type="button">Open details</button>
-            <button id="open-history" type="button">Open history</button>
+            <button id="open-menu" type="button" aria-haspopup="menu">Open menu</button>
+            <button id="open-listbox" type="button" aria-haspopup="listbox">Open listbox</button>
+            <button id="open-toast" type="button">Show toast</button>
           </div>
-          <section id="popup" role="dialog" aria-modal="true" hidden>
+          <section id="details" role="dialog" aria-modal="true" hidden>
             <h1 id="popup-title">Details</h1>
             <p id="popup-copy">Stable popup content.</p>
           </section>
+          <nav id="menu" role="menu" hidden>
+            <button role="menuitem" type="button">Merge now</button>
+          </nav>
+          <ul id="listbox" role="listbox" hidden>
+            <li role="option" aria-selected="true">Reviewer queue</li>
+          </ul>
+          <div id="toast" class="hot-toast" data-hot-toast="visible" role="status" aria-live="polite" hidden>
+            Hot toast saved
+          </div>
         </main>
         <script>
-          function openPopup(kind) {
-            const popup = document.getElementById('popup');
+          function show(id, background) {
+            const popup = document.getElementById(id);
             popup.hidden = false;
             popup.dataset.state = 'open';
-            popup.dataset.kind = kind;
-            popup.style.background = kind === 'details' ? '${detailsBackground}' : '${historyBackground}';
-            document.getElementById('popup-title').textContent = kind === 'details' ? 'Details' : 'History';
-            document.getElementById('popup-copy').textContent =
-              kind === 'details' ? 'Stable popup content.' : 'Second popup, same mount path.';
+            popup.style.background = background;
           }
-          document.getElementById('open-details').addEventListener('click', () => openPopup('details'));
-          document.getElementById('open-history').addEventListener('click', () => openPopup('history'));
+          document.getElementById('open-details').addEventListener('click', () => show('details', '${detailsBackground}'));
+          document.getElementById('open-menu').addEventListener('click', () => show('menu', '${menuBackground}'));
+          document.getElementById('open-listbox').addEventListener('click', () => show('listbox', '${listboxBackground}'));
+          document.getElementById('open-toast').addEventListener('click', () => show('toast', '${toastBackground}'));
         </script>
       `);
     },
@@ -225,44 +239,76 @@ test('dogfood: liveStates split the demo and report only loaded-to-loaded restyl
   expect(md).toContain('background');
 });
 
-test('dogfood: popups split each click-open dialog state and report restyles', () => {
+function expectOverlay(
+  map: ReturnType<typeof loadStyleMap>,
+  predicate: (overlay: NonNullable<ReturnType<typeof loadStyleMap>['overlays']>[number]) => boolean,
+  label: string,
+) {
+  expect(map.overlays?.some(predicate), label).toBe(true);
+}
+
+test('dogfood: popups capture semantic dialog, dropdown, listbox and toast states', () => {
   const beforeDir = path.join(POPUP_ROOT, 'popup-base');
   const afterDir = path.join(POPUP_ROOT, 'popup-head');
   const outDir = path.join(POPUP_ROOT, 'report');
   const detailsSurfaceKey = `demo-popup-popup-01@${POPUP_WIDTH}`;
-  const historySurfaceKey = `demo-popup-popup-02@${POPUP_WIDTH}`;
+  const menuSurfaceKey = `demo-popup-popup-02@${POPUP_WIDTH}`;
+  const listboxSurfaceKey = `demo-popup-popup-03@${POPUP_WIDTH}`;
+  const toastSurfaceKey = `demo-popup-popup-04@${POPUP_WIDTH}`;
 
   const detailsBefore = loadStyleMap(path.join(beforeDir, `${detailsSurfaceKey}.json.gz`));
   const detailsAfter = loadStyleMap(path.join(afterDir, `${detailsSurfaceKey}.json.gz`));
-  const historyBefore = loadStyleMap(path.join(beforeDir, `${historySurfaceKey}.json.gz`));
-  const historyAfter = loadStyleMap(path.join(afterDir, `${historySurfaceKey}.json.gz`));
+  const menuBefore = loadStyleMap(path.join(beforeDir, `${menuSurfaceKey}.json.gz`));
+  const menuAfter = loadStyleMap(path.join(afterDir, `${menuSurfaceKey}.json.gz`));
+  const listboxBefore = loadStyleMap(path.join(beforeDir, `${listboxSurfaceKey}.json.gz`));
+  const listboxAfter = loadStyleMap(path.join(afterDir, `${listboxSurfaceKey}.json.gz`));
+  const toastBefore = loadStyleMap(path.join(beforeDir, `${toastSurfaceKey}.json.gz`));
+  const toastAfter = loadStyleMap(path.join(afterDir, `${toastSurfaceKey}.json.gz`));
 
   expect(detailsBefore.metadata).toEqual({
     surfaceKey: 'demo-popup',
     variantKey: 'popup-01',
     variantKind: 'popup',
   });
-  expect(historyBefore.metadata).toEqual({
+  expect(menuBefore.metadata).toEqual({
     surfaceKey: 'demo-popup',
     variantKey: 'popup-02',
     variantKind: 'popup',
   });
-  expect(
-    diffStyleMaps(detailsBefore, detailsAfter).some(
+  expect(listboxBefore.metadata?.variantKey).toBe('popup-03');
+  expect(toastBefore.metadata?.variantKey).toBe('popup-04');
+  expectOverlay(
+    detailsBefore,
+    (overlay) => overlay.role === 'dialog' && overlay.ariaModal === 'true',
+    'role="dialog" + aria-modal popup is captured',
+  );
+  expectOverlay(menuBefore, (overlay) => overlay.role === 'menu', 'role="menu" dropdown is captured');
+  expectOverlay(listboxBefore, (overlay) => overlay.role === 'listbox', 'role="listbox" dropdown is captured');
+  expectOverlay(
+    toastBefore,
+    (overlay) =>
+      overlay.role === 'status' &&
+      overlay.reason.includes('data-hot-toast') &&
+      (overlay.text ?? '').includes('Hot toast saved'),
+    'hot-toast status text is captured',
+  );
+
+  const changedBackground = (before: typeof detailsBefore, after: typeof detailsAfter) =>
+    diffStyleMaps(before, after).some(
       (finding) => finding.kind === 'style' && finding.props.some((p) => p.prop === 'background-color'),
-    ),
-    'the first click-open dialog background change is caught',
-  ).toBe(true);
-  expect(
-    diffStyleMaps(historyBefore, historyAfter).some(
-      (finding) => finding.kind === 'style' && finding.props.some((p) => p.prop === 'background-color'),
-    ),
-    'the second click-open dialog background change is caught even though it uses the same mount path',
-  ).toBe(true);
+    );
+  expect(changedBackground(detailsBefore, detailsAfter), 'the click-open dialog background change is caught').toBe(
+    true,
+  );
+  expect(changedBackground(menuBefore, menuAfter), 'the menu dropdown background change is caught').toBe(true);
+  expect(changedBackground(listboxBefore, listboxAfter), 'the listbox dropdown background change is caught').toBe(true);
+  expect(changedBackground(toastBefore, toastAfter), 'the hot-toast background change is caught').toBe(true);
 
   const report = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  expect(report.changedSurfaces).toBe(2);
+  expect(report.changedSurfaces).toBe(4);
   const md = fs.readFileSync(report.reportMdPath, 'utf8');
   expect(md).toContain('demo-popup-popup-01 @ 720 · popup `popup-01`');
   expect(md).toContain('demo-popup-popup-02 @ 720 · popup `popup-02`');
+  expect(md).toContain('demo-popup-popup-03 @ 720 · popup `popup-03`');
+  expect(md).toContain('demo-popup-popup-04 @ 720 · popup `popup-04`');
 });

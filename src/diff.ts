@@ -63,6 +63,8 @@ const LAYOUT_EQUIVALENT_MARGIN_PROPS = new Set([
   'margin-inline-start',
   'margin-inline-end',
 ]);
+const SUBPIXEL_ORIGIN_PROPS = new Set(['perspective-origin', 'transform-origin']);
+const ORIGIN_EPSILON_PX = 0.05;
 
 function sameRect(a?: [number, number, number, number], b?: [number, number, number, number]): boolean {
   return !!a && !!b && a.every((v, i) => v === b[i]);
@@ -75,6 +77,26 @@ function dropLayoutEquivalentMarginProps(
 ): PropChange[] {
   if (!sameRect(a?.rect, b?.rect)) return props;
   return props.filter((p) => !LAYOUT_EQUIVALENT_MARGIN_PROPS.has(p.prop));
+}
+
+function pxParts(value: string): number[] | null {
+  const parts = value.trim().split(/\s+/);
+  if (parts.length < 2 || parts.length > 3) return null;
+  const values = parts.map((part) => {
+    const match = /^(-?\d+(?:\.\d+)?)px$/.exec(part);
+    return match ? Number(match[1]) : Number.NaN;
+  });
+  return values.every(Number.isFinite) ? values : null;
+}
+
+function sameSubpixelOrigin(before: string, after: string): boolean {
+  const a = pxParts(before);
+  const b = pxParts(after);
+  return !!a && !!b && a.length === b.length && a.every((v, i) => Math.abs(v - b[i]!) <= ORIGIN_EPSILON_PX);
+}
+
+function dropSubpixelOriginProps(props: PropChange[]): PropChange[] {
+  return props.filter((p) => !SUBPIXEL_ORIGIN_PROPS.has(p.prop) || !sameSubpixelOrigin(p.before, p.after));
 }
 
 /** Union of both captures' live-region paths — skipped by every diff layer so a
@@ -146,7 +168,7 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
       const pdefsA = pseudo ? (a.defaults[ea.tag + pseudo] ?? defsA) : defsA;
       const pdefsB = pseudo ? (b.defaults[eb.tag + pseudo] ?? defsB) : defsB;
       const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
-      const props = pseudo ? rawProps : dropLayoutEquivalentMarginProps(rawProps, ea, eb);
+      const props = dropSubpixelOriginProps(pseudo ? rawProps : dropLayoutEquivalentMarginProps(rawProps, ea, eb));
       if (props.length) findings.push({ kind: 'style', path: p, cls: ea.cls, pseudo, props });
     }
   }
@@ -189,7 +211,9 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
           '(state does not change it)',
           '(state no longer changes it)',
         );
-        const filtered = dropLayoutEquivalentMarginProps(props, a.elements[sub], b.elements[sub]);
+        const filtered = dropSubpixelOriginProps(
+          dropLayoutEquivalentMarginProps(props, a.elements[sub], b.elements[sub]),
+        );
         if (filtered.length) findings.push({ kind: 'state', path: p, cls, state, sub, props: filtered });
       }
     }
