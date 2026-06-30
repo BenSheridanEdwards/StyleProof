@@ -49,6 +49,9 @@ jobs:
       - name: Format check
         if: matrix.node == '22'
         run: npm run format:check
+      - name: Privacy check
+        if: matrix.node == '22'
+        run: npm run privacy:check
 
       # The committed demo report (docs/demo/) must match what the current report
       # renderer produces — so every PR shows the REAL report, never a stale one.
