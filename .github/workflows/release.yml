@@ -73,6 +73,9 @@ jobs:
       - name: Format check
         if: steps.check.outputs.released == 'true'
         run: npm run format:check
+      - name: Privacy check
+        if: steps.check.outputs.released == 'true'
+        run: npm run privacy:check
       - name: Unit tests
         if: steps.check.outputs.released == 'true'
         run: npm test
