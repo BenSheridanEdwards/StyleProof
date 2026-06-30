@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
+const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 function run(command, args, options = {}) {
   return spawnSync(command, args, {
@@ -23,6 +24,17 @@ function run(command, args, options = {}) {
   });
 }
 
+function runNpm(args, options = {}) {
+  return run(npmCommand, args, {
+    shell: process.platform === 'win32',
+    ...options,
+  });
+}
+
+function commandFailure(result) {
+  return result.stderr || result.error?.message || result.stdout;
+}
+
 function peerVersion(name) {
   const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
   const version = lock.packages?.[`node_modules/${name}`]?.version;
@@ -33,8 +45,8 @@ function peerVersion(name) {
 test('packed package installs with its peer and exposes API plus CLI help', { timeout: 90_000 }, () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-pack-smoke-'));
   try {
-    const pack = run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', tmp], { cwd: root });
-    assert.equal(pack.status, 0, pack.stderr);
+    const pack = runNpm(['pack', '--json', '--ignore-scripts', '--pack-destination', tmp], { cwd: root });
+    assert.equal(pack.status, 0, commandFailure(pack));
     const [{ filename }] = JSON.parse(pack.stdout);
     const tarball = path.join(tmp, filename);
     assert.ok(fs.existsSync(tarball), `missing packed tarball at ${tarball}`);
@@ -42,14 +54,13 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
     const app = path.join(tmp, 'app');
     fs.mkdirSync(app);
     fs.writeFileSync(path.join(app, 'package.json'), JSON.stringify({ type: 'module' }, null, 2));
-    const install = run(
-      'npm',
+    const install = runNpm(
       ['install', '--ignore-scripts', tarball, `@playwright/test@${peerVersion('@playwright/test')}`],
       {
         cwd: app,
       },
     );
-    assert.equal(install.status, 0, install.stderr);
+    assert.equal(install.status, 0, commandFailure(install));
 
     const importCheck = run(
       process.execPath,

@@ -11,6 +11,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Added `harvestStyleVariants` and the `styleproof-variants` CLI to discover
+  one-step UI state variants from a running app. The crawler tries semantic
+  controls, keeps only actions that change computed styles, dedupes equivalent
+  outcomes, and reports live-state candidates that need fixtures or opt-outs.
 - **Captured maps now include semantic overlay proof metadata.** Visible dialog,
   menu, listbox, modal, popover, tooltip, and toast roots that are present in the
   captured DOM are recorded under `overlays`, filtered to paths that are actually
@@ -1054,7 +1058,9 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.3...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.5...HEAD
+[3.1.5]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.4...v3.1.5
+[3.1.4]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.3...v3.1.4
 [3.1.3]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.0...v3.1.1

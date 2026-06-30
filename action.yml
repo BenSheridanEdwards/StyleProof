@@ -76,28 +76,16 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
-          let prNumber;
-          let headSha;
-          if (context.eventName === 'pull_request') {
-            prNumber = context.payload.pull_request.number;
-            headSha = context.payload.pull_request.head.sha;
-          } else if (context.eventName === 'workflow_run') {
-            const run = context.payload.workflow_run;
-            headSha = run.head_sha;
-            if (run.pull_requests && run.pull_requests.length) {
-              prNumber = run.pull_requests[0].number;
-            } else {
-              const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                ...context.repo,
-                commit_sha: headSha,
-              });
-              const pr = data.find((p) => p.state === 'open' && p.head.sha === headSha);
-              prNumber = pr && pr.number;
-            }
-          }
+          const { resolveActionContext } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/action-context.js`);
+          const { prNumber, headSha } = await resolveActionContext({
+            eventName: context.eventName,
+            payload: context.payload,
+            repo: context.repo,
+            github,
+          });
           // Emit both together or neither, so a later step can never run with one half.
           const resolved = Boolean(prNumber) && Boolean(headSha);
-          core.setOutput('pr-number', resolved ? String(prNumber) : '');
+          core.setOutput('pr-number', resolved ? prNumber : '');
           core.setOutput('head-sha', resolved ? headSha : '');
           if (!resolved) {
             core.info('StyleProof: no PR context resolved — comment/status steps will be skipped.');

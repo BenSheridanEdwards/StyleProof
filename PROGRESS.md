@@ -1,11 +1,53 @@
 # Progress
 
-## Active Task: captured state coverage PR clarity
+## Active Task: variant crawler
+
+## Completed
+
+- Added `harvestStyleVariants` and `styleproof-variants` for one-step state
+  discovery from a running app.
+- Added browser coverage that replays harvested in-place variants against fresh
+  before/after computed-style maps.
+
+## Findings
+
+- The crawler is a manifest generator. Destructive labels, navigation, action
+  failures, and live-state candidates remain explicit review outputs.
+
+## Next Action
+
+- Open the PR and merge after GitHub checks pass.
+
+## Blockers
+
+- None currently.
+
+## Verification Status
+
+- `npm run build` passed.
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm run format:check` passed.
+- `npx fallow audit --base HEAD` passed.
+- `./node_modules/.bin/playwright test test/variant-crawler.e2e.spec.ts`
+  passed.
+- `npm test` passed: 181 Node tests.
+- `npm run test:e2e` passed: 39 Playwright tests.
+- `npm pack --dry-run --json` passed and includes `bin/styleproof-variants.mjs`
+  plus `dist/variant-crawler.d.ts` / `dist/variant-crawler.js`.
+
+---
+
+## Active Task: automatic popup and modal capture
 
 ## Completed
 
 - PR #111 is on branch `codex/modal-popup-variant-scaffold` for package version
   `3.1.5`.
+- Merged current `origin/main` into the branch and resolved conflicts in
+  `CHANGELOG.md`, `PROGRESS.md`, and `README.md`.
+- Preserved the merged `styleproof-variants` crawler docs/exports alongside this
+  PR's component inventory and captured-state coverage docs.
 - Implemented enforceable expanded variant coverage, non-live variants that keep
   the base capture, component inventory helpers, semantic overlay metadata, and
   broader default popup selectors for dialogs, menus, listboxes, popovers, and
@@ -27,8 +69,7 @@
 
 ## Next Action
 
-- Replace downstream proof images with a privacy-clean semantic overlay proof
-  screenshot, update the PR body, run focused verification, then push.
+- Push the resolved merge branch and let GitHub checks rerun on the merge result.
 
 ## Blockers
 
@@ -36,4 +77,13 @@
 
 ## Verification Status
 
-- Pending this cleanup.
+- `npm ci` passed after the merge worktree was missing local dependencies.
+- `npm run build && npm run typecheck` passed.
+- `npm run lint && npm run format:check` passed.
+- `npm test` passed: 201 Node tests.
+- `npm run test:e2e` passed: 39 Playwright tests.
+- `npm run demo:report` regenerated the committed demo report cleanly.
+- `npm run privacy:check` passed: 53 public text files scanned.
+- `npm pack --dry-run --json` passed for `styleproof@3.1.5` with 42 package
+  entries including `dist/components.*`, `dist/variant-crawler.*`, and
+  `bin/styleproof-variants.mjs`.

@@ -49,6 +49,9 @@ jobs:
       - name: Format check
         if: matrix.node == '22'
         run: npm run format:check
+      - name: Privacy check
+        if: matrix.node == '22'
+        run: npm run privacy:check
 
       # The committed demo report (docs/demo/) must match what the current report
       # renderer produces — so every PR shows the REAL report, never a stale one.
@@ -73,3 +76,23 @@ jobs:
 
       - name: Smoke e2e
         run: npm run test:e2e
+
+  cli-smoke:
+    name: cli smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: node --test test/package-smoke.test.mjs
