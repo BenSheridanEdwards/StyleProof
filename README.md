@@ -80,6 +80,21 @@ defineCrawlCapture({
 
 Each discovered link becomes a surface keyed by its URL (`/?tab=overview` → `overview`; pass `key` for a different scheme). The app only has to render its nav as real `<a href>` links — a button-only nav (`<button onClick>`) exposes nothing to crawl. Replay, self-check and clock-freeze behave exactly as for explicit surfaces; one Playwright test runs the whole sweep (the link set isn't known until the page renders).
 
+**Harvest one-step variants.** Routes are not the whole UI: drawers, tabs,
+dialogs, empty form errors, selects, and other one-step states need their own
+captures. `styleproof-variants` opens a running app, tries semantic controls
+(`[aria-expanded]`, tabs, summaries, selects, required forms, etc.), captures a
+baseline and post-action StyleMap, and keeps only actions that change computed
+styles. It also reports live-state candidates that need fixtures or opt-outs.
+
+```bash
+styleproof-variants --base-url http://localhost:3000 --route / --route settings=/settings
+```
+
+Use it as a manifest generator, not a replacement for review: destructive labels
+are skipped, duplicate computed-style outcomes are deduped, and `--strict` exits
+non-zero when live-state fixtures or skipped candidates remain unresolved.
+
 **Live UI states: capture each state, not an average.** StyleProof automatically
 detects semantic live-state candidates (`aria-live`, `role=status`, `role=alert`,
 `aria-busy=true`) and keeps stable ones in the normal diff. If a stream, poll, or
@@ -430,6 +445,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 - `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote exists. Pass `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, or `--no-screenshots` for custom flows.
 - `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
 - `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content section (see above).
+- `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
 
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 

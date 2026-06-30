@@ -13,6 +13,7 @@ const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
 const DIFF = path.join(here, '..', 'bin', 'styleproof-diff.mjs');
 const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
+const VARIANTS = path.join(here, '..', 'bin', 'styleproof-variants.mjs');
 
 function run(script, args) {
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
@@ -117,6 +118,14 @@ test('styleproof-map exits 2 when the default spec is missing', () => {
   } finally {
     rmTmp(root);
   }
+});
+
+test('styleproof-variants documents the required running-app input', () => {
+  const r = run(VARIANTS, ['--help']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /--base-url <url>/);
+  assert.match(r.stdout, /--route <route>/);
+  assert.match(r.stdout, /--strict/);
 });
 
 // ---------------------------------------------------------------- styleproof-diff

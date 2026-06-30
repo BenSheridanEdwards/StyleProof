@@ -16,6 +16,17 @@ export { discoverNextRoutes } from './routes.js';
 export type { DiscoveredRoute } from './routes.js';
 export { selectCrawlLinks, defaultLinkKey } from './crawl.js';
 export type { CrawlLink, LinkMatch, SelectLinksOptions } from './crawl.js';
+export { harvestStyleVariants } from './variant-crawler.js';
+export type {
+  HarvestAction,
+  HarvestedLiveState,
+  HarvestedRoute,
+  HarvestedVariant,
+  HarvestRoute,
+  HarvestSkip,
+  VariantHarvest,
+  VariantHarvestOptions,
+} from './variant-crawler.js';
 export { diffStyleMaps, diffStyleMapDirs, diffContentMaps, diffContentDirs, findingLabel } from './diff.js';
 export type { Finding, PropChange, SurfaceDiff, DiffCounts, ContentChange } from './diff.js';
 export { generateStyleMapReport, summarizeProps, prettyLabel } from './report.js';
