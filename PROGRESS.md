@@ -1,5 +1,43 @@
 # Progress
 
+## Active Task: variant crawler
+
+## Completed
+
+- Added `harvestStyleVariants` and `styleproof-variants` for one-step state
+  discovery from a running app.
+- Added browser coverage that replays harvested in-place variants against fresh
+  before/after computed-style maps.
+
+## Findings
+
+- The crawler is a manifest generator. Destructive labels, navigation, action
+  failures, and live-state candidates remain explicit review outputs.
+
+## Next Action
+
+- Open the PR and merge after GitHub checks pass.
+
+## Blockers
+
+- None currently.
+
+## Verification Status
+
+- `npm run build` passed.
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm run format:check` passed.
+- `npx fallow audit --base HEAD` passed.
+- `./node_modules/.bin/playwright test test/variant-crawler.e2e.spec.ts`
+  passed.
+- `npm test` passed: 181 Node tests.
+- `npm run test:e2e` passed: 39 Playwright tests.
+- `npm pack --dry-run --json` passed and includes `bin/styleproof-variants.mjs`
+  plus `dist/variant-crawler.d.ts` / `dist/variant-crawler.js`.
+
+---
+
 ## Active Task: automatic popup and modal capture
 
 ## Completed

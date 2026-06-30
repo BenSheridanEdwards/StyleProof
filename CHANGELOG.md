@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Added `harvestStyleVariants` and the `styleproof-variants` CLI to discover
+  one-step UI state variants from a running app. The crawler tries semantic
+  controls, keeps only actions that change computed styles, dedupes equivalent
+  outcomes, and reports live-state candidates that need fixtures or opt-outs.
+
 ### Fixed
 
 - **Popup capture no longer collapses distinct triggers that reuse the same
