@@ -11,6 +11,7 @@ export const DEFAULT_MAP_LABEL = 'current';
 export const DEFAULT_MAP_STORE_BRANCH = 'styleproof-maps';
 export const DEFAULT_REMOTE = 'origin';
 export const MAP_MANIFEST = 'styleproof-manifest.json';
+const GENERATED_DIRTY_ALLOWLIST = new Set(['next-env.d.ts']);
 
 export class MapStoreError extends Error {}
 
@@ -153,7 +154,13 @@ export function refSha(ref: string, cwd = process.cwd()): string {
 }
 
 export function workingTreeDirty(cwd = process.cwd()): boolean {
-  return gitOutput(cwd, ['status', '--porcelain']) !== '';
+  const r = runGit(cwd, ['status', '--porcelain']);
+  const status = r.status === 0 ? r.stdout.trimEnd() : '';
+  if (!status) return false;
+  return status.split(/\r?\n/).some((line) => {
+    const file = line.slice(3).trim();
+    return file && !GENERATED_DIRTY_ALLOWLIST.has(file);
+  });
 }
 
 export function remoteExists(remote = DEFAULT_REMOTE, cwd = process.cwd()): boolean {

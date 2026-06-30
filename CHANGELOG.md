@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Added optional `styleproof-map --crawl-base-url ... --crawl-route ...` pre-map
+  variant crawling, so automation can refresh the generated variant manifest
+  immediately before map capture.
+
+### Changed
+
+- `styleproof-init` now writes a dedicated `playwright.styleproof.config.ts`,
+  scopes discovery to the StyleProof spec, detects Vite/Next production preview
+  commands, and respects pnpm/Corepack pins in generated commands.
+- Map upload dirty-tree detection now ignores Next's generated `next-env.d.ts`
+  shim, while normal source edits still block upload.
+
 ## [3.1.5] - 2026-06-29
 
 ### Added

@@ -108,6 +108,54 @@ test('styleproof-map keeps HAR files only when explicitly requested', () => {
   }
 });
 
+test('styleproof-map runs configured variant crawl before Playwright capture', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    const log = path.join(root, 'order.log');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakeVariants = path.join(binDir, 'styleproof-variants');
+    fs.writeFileSync(fakeVariants, '#!/bin/sh\nprintf "crawl:%s\\n" "$*" >> "$STYLEPROOF_TEST_LOG"\n');
+    fs.chmodSync(fakeVariants, 0o755);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; printf "map:%s\\n" "$*" >> "$STYLEPROOF_TEST_LOG"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const r = spawnSync(
+      process.execPath,
+      [
+        MAP,
+        '--crawl-base-url',
+        'http://127.0.0.1:3000',
+        '--crawl-route',
+        '/',
+        '--crawl-route',
+        'settings=/settings',
+        '--crawl-out',
+        'styleproof.variants.generated.json',
+        '--crawl-strict',
+      ],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}`, STYLEPROOF_TEST_LOG: log },
+      },
+    );
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [
+      'crawl:--base-url http://127.0.0.1:3000 --out styleproof.variants.generated.json --route / --route settings=/settings --strict',
+      'map:test --grep styleproof capture',
+    ]);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-map exits 2 when the default spec is missing', () => {
   const root = mkTmp();
   try {
@@ -515,12 +563,12 @@ test('report CLI exits 2 on a non-numeric --pad', () => {
   rmTmp(root);
 });
 
-test('init scaffolds a playwright.config that serves a PRODUCTION build (no dev-server trap)', () => {
+test('init scaffolds a dedicated StyleProof Playwright config that serves a PRODUCTION build', () => {
   const dir = mkTmp();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
-    const config = fs.readFileSync(path.join(dir, 'playwright.config.ts'), 'utf8');
+    const config = fs.readFileSync(path.join(dir, 'playwright.styleproof.config.ts'), 'utf8');
     // The config starts the server itself, so a consumer can't forget to — or point it at a dev server.
     assert.match(config, /webServer:/, 'scaffolds a webServer');
     // The exact command builds + serves a production build (not a dev server) — the
@@ -531,6 +579,9 @@ test('init scaffolds a playwright.config that serves a PRODUCTION build (no dev-
     assert.match(config, /JIT-compile|timing-variable/i, 'explains why a dev server flakes');
     // Surfaces capture in parallel by default — independent, uniquely-keyed tests.
     assert.match(config, /fullyParallel: true/, 'scaffolds parallel surface capture');
+    assert.match(config, /testDir: "\.\/e2e"/, 'scopes Playwright discovery to the StyleProof spec directory');
+    assert.match(config, /testMatch: "styleproof\.spec\.ts"/, 'scopes Playwright discovery to the StyleProof spec');
+    assert.match(config, /env: \{ PORT: '3000' \}/, 'passes the configured port to production servers');
   } finally {
     rmTmp(dir);
   }
