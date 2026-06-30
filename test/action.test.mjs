@@ -6,6 +6,7 @@ import test from 'node:test';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
+const dogfoodYml = fs.readFileSync(path.join(here, '..', '.github/workflows/action-dogfood.yml'), 'utf8');
 
 test('composite action builds its checkout before running local bins', () => {
   const installStep = actionYml.match(/- name: Install StyleProof action runtime[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
@@ -34,4 +35,14 @@ test('composite action only compares explicit base/head directories', () => {
   assert.doesNotMatch(actionYml, /--base-ref/);
   assert.match(actionYml, /styleproof-diff\.mjs" "\$\{\{ inputs\.baseline-dir \}\}" "\$\{\{ inputs\.fresh-dir \}\}"/);
   assert.match(actionYml, /styleproof-report\.mjs" "\$\{\{ inputs\.baseline-dir \}\}" "\$\{\{ inputs\.fresh-dir \}\}"/);
+});
+
+test('dogfood workflow runs the local composite action against clean, changed, and new-surface maps', () => {
+  assert.match(dogfoodYml, /uses: \.\/\n/g);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 3);
+  assert.match(dogfoodYml, /action-dogfood\/clean-base/);
+  assert.match(dogfoodYml, /action-dogfood\/changed-base/);
+  assert.match(dogfoodYml, /action-dogfood\/new-base/);
+  assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
+  assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'false'/);
 });
