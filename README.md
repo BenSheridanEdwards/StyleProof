@@ -16,7 +16,7 @@ report. Intentional visual changes get approved; unexpected ones block or fail.
 - [What it catches](#what-it-catches)
 - [What you own](#what-you-own)
 - [What the PR gets](#what-the-pr-gets)
-- [Don't let a new page ship uncaptured](#dont-let-a-new-page-ship-uncaptured)
+- [Auto-discovery](#auto-discovery)
 - [What a report looks like](#what-a-report-looks-like)
 - [Works with any styling system](#works-with-any-styling-system)
 - [Breakpoints, detected automatically](#breakpoints-detected-automatically)
@@ -58,7 +58,7 @@ silently passing.
 
 1. A **surface** is one UI state to certify: a route, tab, modal-open state,
    dropdown-open state, toast-visible state, loading state, etc.
-2. You list surfaces in a Playwright-style spec.
+2. You list or auto-discover surfaces in a Playwright-style spec.
 3. StyleProof opens each surface at real breakpoint widths and records computed
    styles for every captured element.
 4. On a PR, it compares base vs head and reports exactly which rendered styles
@@ -94,6 +94,12 @@ states that matter:
 - required-but-not-yet-captured states belong in `expected`, where the coverage
   guard fails until they are captured or explicitly excluded with a reason.
 
+Auto-discovery is a key feature, not a side path: StyleProof can discover
+Next.js routes, crawl real nav links, inventory component files, harvest
+one-step variants, click safe popups, detect breakpoints, and flag live or
+volatile regions. You review the app-specific leftovers; StyleProof keeps the
+mechanical inventory from drifting.
+
 That boundary is deliberate. StyleProof should not guess destructive flows,
 auth-only fixtures, or which product state your component needs. It should make
 missing coverage loud.
@@ -114,9 +120,19 @@ status green for that commit. Clean runs still leave a receipt: `No visual
 changes detected.` New surfaces are shown as new baselines; coverage gaps are
 handled by `expected`.
 
-## Don't let a new page ship uncaptured
+## Auto-discovery
 
-StyleProof diffs the surfaces your spec lists — so a page nobody added to the list is invisible to the gate. Its change has no base capture _and_ no head capture, so it never appears in any diff, and the status goes green having never looked at it. This is the one thing the captures can't catch on their own: a capture that was never taken.
+StyleProof's auto-discovery keeps the boring inventory out of your hands where it
+can be inferred safely: Next.js routes, crawlable links, component files,
+semantic popups, one-step variants, breakpoints, and volatile/live candidates.
+The key loop is simple: discover what the app exposes, capture what is safe, and
+fail loudly for anything that still needs an owner.
+
+StyleProof diffs the surfaces your spec lists or discovers — so a page nobody
+added to either set is invisible to the gate. Its change has no base capture
+_and_ no head capture, so it never appears in any diff, and the status goes
+green having never looked at it. This is the one thing the captures can't catch
+on their own: a capture that was never taken.
 
 Declare your app's route/view universe in `expected` and StyleProof emits a coverage-guard test in your **normal** suite (it runs even without `STYLEMAP_DIR` — it's a static check, no browser). It fails the moment a route exists with no surface, so a new page can't ship uncaptured:
 
