@@ -91,9 +91,51 @@ styles. It also reports live-state candidates that need fixtures or opt-outs.
 styleproof-variants --base-url http://localhost:3000 --route / --route settings=/settings
 ```
 
-Use it as a manifest generator, not a replacement for review: destructive labels
-are skipped, duplicate computed-style outcomes are deduped, and `--strict` exits
-non-zero when live-state fixtures or skipped candidates remain unresolved.
+Use it as a manifest generator, not a replacement for review. The generated JSON
+is deliberately not read by `styleproof-map`; approve the states you want, then
+copy them into your capture spec as ordinary `variants` / `liveStates`.
+
+```json
+{
+  "routes": [
+    {
+      "key": "settings",
+      "url": "/settings",
+      "variants": [
+        {
+          "key": "plan-selected",
+          "action": "select-option",
+          "selector": "select[aria-label=\"Plan\"]",
+          "value": "pro"
+        }
+      ],
+      "liveStates": [{ "key": "status", "fixtureRequired": true }],
+      "skipped": []
+    }
+  ]
+}
+```
+
+```ts
+defineStyleMapCapture({
+  surfaces: [
+    {
+      key: 'settings',
+      go: (page) => page.goto('/settings'),
+      variants: [
+        {
+          key: 'plan-selected',
+          go: (page) => page.locator('select[aria-label="Plan"]').selectOption('pro'),
+        },
+      ],
+    },
+  ],
+});
+```
+
+Destructive labels are skipped, duplicate computed-style outcomes are deduped,
+and `--strict` exits non-zero when live-state fixtures or skipped candidates
+remain unresolved.
 
 **Live UI states: capture each state, not an average.** StyleProof automatically
 detects semantic live-state candidates (`aria-live`, `role=status`, `role=alert`,
