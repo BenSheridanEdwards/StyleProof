@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- New `styleproof-capture <url>` CLI: one-shot capture of a single URL's
+  computed-style map — no spec, no config — for a deployed page, a static
+  export, or a standalone HTML mockup. Writes the same `<key>@<width>.json.gz`
+  (+ `.png`) shape a surface capture does, so `styleproof-diff` compares it
+  against any other capture. Enables a design-fidelity check: capture a mockup
+  as the target, then diff each build against it. Also exported programmatically
+  as `captureUrlToDir` / `runCaptureUrl` / `parseCaptureUrlArgs`.
+
 ### Fixed
 
 - GitHub Action reports now publish every generated crop PNG, including zoom

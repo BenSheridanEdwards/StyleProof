@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import type { Page } from '@playwright/test';
-import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests } from '../dist/index.js';
+import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests, captureUrlToDir } from '../dist/index.js';
 import { diffStyleMaps, selectCrawlLinks, detectViewportWidths } from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
@@ -717,4 +717,50 @@ test('detectViewportWidths returns a single width when the page has no width @me
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}.x{color:rgb(0,0,0)}</style></head><body><span class="x">hi</span></body></html>`;
   const widths = await withPage(page, html, () => detectViewportWidths(page));
   expect(widths).toEqual([1280]);
+});
+
+test('captureUrlToDir writes diff-compatible <key>@<width> maps (+ screenshots) for a URL', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: sans-serif; }
+    .card { background: rgb(240, 240, 245); padding: 24px; }
+    .cta { background: rgb(20, 120, 255); color: rgb(255, 255, 255); border: 0; padding: 12px 20px; }
+    @media (max-width: 700px) { .card { padding: 12px; } }
+  </style></head><body>
+    <main class="card"><h1>Pricing</h1><button class="cta">Book a call</button></main>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-cap-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-cap-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const results = await captureUrlToDir(page, {
+      url: 'file://' + file,
+      key: 'pricing',
+      widths: [1440, 600], // straddle the 700px breakpoint
+      out,
+      ignore: [],
+      height: 800,
+      screenshots: true,
+    });
+
+    expect(results.map((r) => r.width)).toEqual([1440, 600]);
+    for (const width of [1440, 600]) {
+      const map = path.join(out, `pricing@${width}.json.gz`);
+      const shot = path.join(out, `pricing@${width}.png`);
+      expect(fs.existsSync(map), `${map} written`).toBe(true);
+      expect(fs.existsSync(shot), `${shot} written`).toBe(true);
+      // A written map is valid and self-consistent (the diff a fidelity check runs).
+      expect(diffStyleMaps(loadStyleMap(map), loadStyleMap(map)), 'self-diff is clean').toEqual([]);
+    }
+
+    // The breakpoint actually took effect: .card padding differs across the two widths.
+    const pad = (width: number) =>
+      Object.values(loadStyleMap(path.join(out, `pricing@${width}.json.gz`)).elements).find((e) => e.cls === 'card')
+        ?.style['padding-top'];
+    expect(pad(1440)).toBe('24px');
+    expect(pad(600)).toBe('12px');
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
 });

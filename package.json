@@ -38,6 +38,7 @@
   "bin": {
     "styleproof-init": "./bin/styleproof-init.mjs",
     "styleproof-map": "./bin/styleproof-map.mjs",
+    "styleproof-capture": "./bin/styleproof-capture.mjs",
     "styleproof-diff": "./bin/styleproof-diff.mjs",
     "styleproof-report": "./bin/styleproof-report.mjs",
     "styleproof-variants": "./bin/styleproof-variants.mjs"
