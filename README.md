@@ -413,6 +413,8 @@ You watch one number as you implement: the diff starts large and shrinks toward 
 
 (`styleproof-map` is the spec-driven flow for your own app's surfaces, with the coverage guard, map store, and record/replay; `styleproof-capture` is the one-shot for a page you just point at.) It writes `design/pricing@1440.json.gz` (+ `.png`), the same shape any capture writes, so `styleproof-diff` compares it against anything. Omit `--widths` to auto-detect the page's own `@media` breakpoints; pin them for a page whose CSS is cross-origin (a font stylesheet, say), since detection reads every sheet and fails loudly rather than guess. `--wait <selector>` holds until the intended state is on screen; `--ignore <selector>` skips a live region. Capture both sides in the same browser + fonts, since that's what "identical" is measured against.
 
+**One capture is one state.** `styleproof-capture` records the page as `--wait` leaves it — a design that's mostly modals, drawers, and popovers has most of its surface behind clicks that a single capture never reaches. To cover a whole interactive design, drive each state and capture it under its own `--key`: either the programmatic `captureUrlToDir` / `captureStyleMap` (open the modal, then capture) or a `defineStyleMapCapture` spec whose surfaces click their way to each state. Same output either way, so `styleproof-diff` still compares the lot against your build.
+
 ## Install
 
 ```bash
