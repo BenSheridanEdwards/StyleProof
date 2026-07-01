@@ -13,7 +13,31 @@ test('defaults: just a url', () => {
     waitSelector: undefined,
     height: 800,
     screenshots: true,
+    crawl: false,
+    maxDepth: 3,
+    maxActionsPerState: 30,
+    maxStates: 60,
+    resetStorage: true,
   });
+});
+
+test('crawl flags parse', () => {
+  const o = parseCaptureUrlArgs([
+    'u',
+    '--crawl',
+    '--max-depth',
+    '4',
+    '--max-actions',
+    '20',
+    '--max-states',
+    '80',
+    '--no-reset-storage',
+  ]);
+  assert.equal(o.crawl, true);
+  assert.equal(o.maxDepth, 4);
+  assert.equal(o.maxActionsPerState, 20);
+  assert.equal(o.maxStates, 80);
+  assert.equal(o.resetStorage, false);
 });
 
 test('flags: spaced and inline forms both parse', () => {

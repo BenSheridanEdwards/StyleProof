@@ -44,9 +44,32 @@ export type CaptureUrlOptions = {
   height: number;
   /** Also write a full-page `.png` per capture (default true). */
   screenshots: boolean;
+  /**
+   * Crawl the URL's whole interactive surface instead of capturing one state:
+   * drive every non-destructive control, recurse into what opens, capture each
+   * discovered surface under a derived key. See {@link crawlAndCapture}.
+   */
+  crawl: boolean;
+  /** crawl: recursion depth into opened surfaces (default 3). */
+  maxDepth: number;
+  /** crawl: controls tried per state (default 30). */
+  maxActionsPerState: number;
+  /** crawl: total surfaces before stopping (default 60). */
+  maxStates: number;
+  /** crawl: clear storage on each reset so replay is deterministic (default true). */
+  resetStorage: boolean;
 };
 
-const DEFAULTS = { key: 'page', height: 800, screenshots: true };
+const DEFAULTS = {
+  key: 'page',
+  height: 800,
+  screenshots: true,
+  crawl: false,
+  maxDepth: 3,
+  maxActionsPerState: 30,
+  maxStates: 60,
+  resetStorage: true,
+};
 
 function positiveNumber(raw: string, flag: string): number {
   const n = Number(raw);
@@ -73,10 +96,15 @@ const VALUE_FLAGS: Record<string, (o: CaptureUrlOptions, v: string) => void> = {
   '--ignore': (o, v) => o.ignore.push(v),
   '--wait': (o, v) => (o.waitSelector = v),
   '--height': (o, v) => (o.height = positiveNumber(v, '--height')),
+  '--max-depth': (o, v) => (o.maxDepth = positiveNumber(v, '--max-depth')),
+  '--max-actions': (o, v) => (o.maxActionsPerState = positiveNumber(v, '--max-actions')),
+  '--max-states': (o, v) => (o.maxStates = positiveNumber(v, '--max-states')),
 };
 const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--screenshots': (o) => (o.screenshots = true),
   '--no-screenshots': (o) => (o.screenshots = false),
+  '--crawl': (o) => (o.crawl = true),
+  '--no-reset-storage': (o) => (o.resetStorage = false),
 };
 
 // Apply one argv token to the accumulator; returns the index to resume from
@@ -118,6 +146,11 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
     waitSelector: undefined,
     height: DEFAULTS.height,
     screenshots: DEFAULTS.screenshots,
+    crawl: DEFAULTS.crawl,
+    maxDepth: DEFAULTS.maxDepth,
+    maxActionsPerState: DEFAULTS.maxActionsPerState,
+    maxStates: DEFAULTS.maxStates,
+    resetStorage: DEFAULTS.resetStorage,
   };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) i = applyArg(o, argv, i, positional);

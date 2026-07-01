@@ -413,7 +413,16 @@ You watch one number as you implement: the diff starts large and shrinks toward 
 
 (`styleproof-map` is the spec-driven flow for your own app's surfaces, with the coverage guard, map store, and record/replay; `styleproof-capture` is the one-shot for a page you just point at.) It writes `design/pricing@1440.json.gz` (+ `.png`), the same shape any capture writes, so `styleproof-diff` compares it against anything. Omit `--widths` to auto-detect the page's own `@media` breakpoints; pin them for a page whose CSS is cross-origin (a font stylesheet, say), since detection reads every sheet and fails loudly rather than guess. `--wait <selector>` holds until the intended state is on screen; `--ignore <selector>` skips a live region. Capture both sides in the same browser + fonts, since that's what "identical" is measured against.
 
-**One capture is one state.** `styleproof-capture` records the page as `--wait` leaves it — a design that's mostly modals, drawers, and popovers has most of its surface behind clicks that a single capture never reaches. To cover a whole interactive design, drive each state and capture it under its own `--key`: either the programmatic `captureUrlToDir` / `captureStyleMap` (open the modal, then capture) or a `defineStyleMapCapture` spec whose surfaces click their way to each state. Same output either way, so `styleproof-diff` still compares the lot against your build.
+### Crawl the whole interactive design: `--crawl`
+
+A design is mostly _behind clicks_ — modals, drawers, popovers, tabs that don't exist in the DOM until you open them. A single capture sees only the landing state. `--crawl` maps the rest for you: point it at the URL and it drives every non-destructive control, keeps whatever opens a structurally new surface, and recurses into it — a modal's tabs, a drawer's sub-views, a popover's panels — capturing each under a derived key. No spec, no selectors, no hand-holding.
+
+```bash
+styleproof-capture https://example.com --crawl --out design    # maps every reachable surface
+styleproof-diff design .styleproof/maps/current                # diff the whole surface vs your build
+```
+
+It's deterministic (document order, deduped by a structural signature so the same surface reached two ways is captured once), bounded (`--max-depth` / `--max-actions` / `--max-states`), and self-settling — it waits for an async app (React/Vue/Babel that boots after `load`) to mount before reading, so a bare crawl of a client-rendered page still captures the mounted UI. Each surface is captured in place the moment it's reached, so a deep or animated click-path is never the thing that drops it. **Destructive-looking controls (delete, deploy, pay, revoke…) are never clicked** — mapping must not mutate; states gated behind one of those need a spec. Prefer the spec-driven `defineStyleMapCapture` when you want stable, named keys and the coverage guard; reach for `--crawl` to map a design (or a third-party page) you don't have a spec for.
 
 ## Install
 

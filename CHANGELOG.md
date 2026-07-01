@@ -17,6 +17,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `<key>@<width>.json.gz` (+ `.png`) shape any capture does, so `styleproof-diff`
   compares it against anything. Also exported programmatically as
   `captureUrlToDir` / `runCaptureUrl` / `parseCaptureUrlArgs`.
+- `styleproof-capture --crawl`: map a whole interactive design from one URL with
+  no spec and no selectors. Drives every non-destructive control, keeps whatever
+  opens a structurally new surface, and recurses into it (a modal's tabs, a
+  drawer's sub-views, a popover's panels), capturing each under a derived key.
+  Deterministic and deduped by a structural signature; bounded by
+  `--max-depth` / `--max-actions` / `--max-states`; self-settling for async
+  (React/Vue/Babel) apps; captures each surface in place so a deep/animated
+  click-path never drops it; and it never clicks destructive-looking controls.
+  Exported programmatically as `crawlAndCapture`.
 
 ### Fixed
 

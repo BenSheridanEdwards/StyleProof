@@ -19,27 +19,40 @@
 import { chromium } from '@playwright/test';
 import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
 import { UsageError, parseCaptureUrlArgs, runCaptureUrl } from '../dist/capture-url.js';
+import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 
 const COMMAND = 'styleproof-capture';
 
-const HELP = `${COMMAND} — capture a single URL's computed-style map (one shot, no spec)
+const HELP = `${COMMAND} — capture a page's computed-style map(s) (no spec, no config)
 
 usage: ${COMMAND} <url> [options]
 
-options:
+one state (default): capture the page as it loads
   --key <name>      capture file prefix, <key>@<width>.json.gz (default: page)
-  --widths <csv>    viewport widths to sweep, e.g. 1440,1024,768. Omit to detect
-                    the page's own @media breakpoints (fails loudly on a
-                    cross-origin/unreadable stylesheet — pass widths for those)
-  --out <dir>       output directory (default: styleproof-capture)
   --wait <selector> wait for this selector to be visible before capturing
+  --widths <csv>    viewport widths, e.g. 1440,1024,768. Omit to detect the
+                    page's own @media breakpoints (fails on cross-origin CSS —
+                    pass widths for those). Crawl defaults to 1280 when omitted.
+
+whole surface: --crawl
+  --crawl           drive every non-destructive control, recurse into what opens,
+                    and capture each discovered surface under a derived key — for
+                    a design that's mostly modals/drawers/popovers. Destructive
+                    -looking controls (delete/deploy/pay/revoke…) are never clicked.
+  --max-depth <n>   recursion depth into opened surfaces (default: 3)
+  --max-actions <n> controls tried per state (default: 30)
+  --max-states <n>  total surfaces before stopping (default: 60)
+  --no-reset-storage  don't clear localStorage between steps (default: clear)
+
+common:
+  --out <dir>       output directory (default: styleproof-capture)
   --ignore <sel>    skip a nondeterministic region (repeatable)
   --height <px>     viewport height (default: 800)
   --no-screenshots  write lean .json.gz maps only (screenshots on by default)
   -h, --help        show this help
 
-Then diff it against another capture:
-  ${COMMAND} https://example.com/pricing --key pricing --widths 1440,768 --out design
+Then diff against another capture — zero diff = pixel-identical:
+  ${COMMAND} https://example.com --crawl --out design
   styleproof-diff design .styleproof/maps/current
 
 exit: 0 captured, 2 usage error, 3 capture failed.
@@ -59,7 +72,43 @@ try {
   throw e;
 }
 
+async function runCrawl() {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    const crawlOpts = {
+      url: opts.url,
+      out: opts.out,
+      widths: opts.widths.length ? opts.widths : [1280],
+      ignore: opts.ignore,
+      height: opts.height,
+      screenshots: opts.screenshots,
+      waitSelector: opts.waitSelector,
+      maxDepth: opts.maxDepth,
+      maxActionsPerState: opts.maxActionsPerState,
+      maxStates: opts.maxStates,
+      resetStorage: opts.resetStorage,
+    };
+    const report = await crawlAndCapture(page, crawlOpts);
+    const failedSet = new Set(report.failed);
+    for (const s of report.surfaces) {
+      const mark = failedSet.has(s.key) ? ' — SKIPPED (path did not replay)' : '';
+      console.log(`  ${'·'.repeat(s.depth)}${s.key} (${s.elements} elements)${mark}`);
+    }
+    console.log(
+      `✓ ${report.captured}/${report.surfaces.length} surface(s) × ${crawlOpts.widths.length} width(s) → ${opts.out}  ` +
+        `(${report.actionsTried} actions tried, ${report.skipped} skipped${report.failed.length ? `, ${report.failed.length} unreplayable` : ''})`,
+    );
+  } finally {
+    await browser.close();
+  }
+}
+
 try {
+  if (opts.crawl) {
+    await runCrawl();
+    process.exit(0);
+  }
   const results = await runCaptureUrl(opts, () => chromium.launch());
   for (const r of results) console.log(`captured ${r.map}${r.screenshot ? ` (+ ${r.screenshot})` : ''}`);
   console.log(`✓ ${results.length} capture(s) → ${opts.out}`);

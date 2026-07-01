@@ -5,7 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests, captureUrlToDir } from '../dist/index.js';
-import { diffStyleMaps, selectCrawlLinks, detectViewportWidths } from '../dist/index.js';
+import { diffStyleMaps, selectCrawlLinks, detectViewportWidths, crawlAndCapture } from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
 type PageViewport = Parameters<Page['setViewportSize']>[0];
@@ -759,6 +759,76 @@ test('captureUrlToDir writes diff-compatible <key>@<width> maps (+ screenshots) 
         ?.style['padding-top'];
     expect(pad(1440)).toBe('24px');
     expect(pad(600)).toBe('12px');
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('crawlAndCapture drives interactions and maps a modal + its nested tab', async ({ page }) => {
+  // A page whose real surface is behind clicks: a hidden dialog opened by a button,
+  // with two tabs inside. A one-shot capture sees only the base; the crawler must
+  // open the dialog (depth 1) and switch to the second tab (depth 2).
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .modal { display: none; position: fixed; inset: 20% 25%; background: rgb(240,240,245); padding: 20px; }
+    .modal.open { display: block; }
+    .panel { display: none; }
+    .panel.on { display: block; }
+    button { cursor: pointer; }
+  </style></head><body>
+    <main><button id="open">Open dialog</button></main>
+    <div class="modal" id="m">
+      <button class="tab" data-t="1">Tab one</button>
+      <button class="tab" data-t="2">Tab two</button>
+      <div class="panel on" data-c="1">Panel one</div>
+      <div class="panel" data-c="2"><p>Panel two differs</p><ul><li>a</li><li>b</li></ul></div>
+    </div>
+    <script>
+      document.getElementById('open').onclick = () => document.getElementById('m').classList.add('open');
+      for (const t of document.querySelectorAll('.tab')) t.onclick = () => {
+        for (const c of document.querySelectorAll('.panel')) c.classList.toggle('on', c.dataset.c === t.dataset.t);
+      };
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-crawl-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-crawl-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      waitSelector: '#open',
+      maxDepth: 3,
+      maxActionsPerState: 20,
+      maxStates: 20,
+      resetStorage: true,
+    });
+
+    const keys = report.surfaces.map((s) => s.key);
+    // base + the opened dialog + the second tab, all reached by driving.
+    expect(keys).toContain('base');
+    expect(
+      report.surfaces.some((s) => s.depth === 1),
+      'opened the dialog (depth 1)',
+    ).toBe(true);
+    expect(
+      report.surfaces.some((s) => s.depth === 2),
+      'reached a nested tab (depth 2)',
+    ).toBe(true);
+    expect(report.captured).toBeGreaterThanOrEqual(3);
+
+    // Every captured surface wrote a diff-compatible map at the requested width.
+    for (const s of report.surfaces) {
+      if (report.failed.includes(s.key)) continue;
+      const map = path.join(out, `${s.key}@900.json.gz`);
+      expect(fs.existsSync(map), `${s.key} map written`).toBe(true);
+      expect(diffStyleMaps(loadStyleMap(map), loadStyleMap(map))).toEqual([]);
+    }
   } finally {
     fs.rmSync(file, { force: true });
     fs.rmSync(out, { recursive: true, force: true });
