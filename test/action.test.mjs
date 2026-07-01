@@ -37,6 +37,14 @@ test('composite action only compares explicit base/head directories', () => {
   assert.match(actionYml, /styleproof-report\.mjs" "\$\{\{ inputs\.baseline-dir \}\}" "\$\{\{ inputs\.fresh-dir \}\}"/);
 });
 
+test('composite action publishes every generated report crop', () => {
+  const publishStep = actionYml.match(/- id: publish[\s\S]*?(?=\n\s{4}- name: Upsert PR comment)/);
+
+  assert.ok(publishStep, 'action.yml should include a report publish step');
+  assert.match(publishStep[0], /cp styleproof-report\/crops\/\*\.png "\$TMP\/\$REPORT_PATH\/crops\/"/);
+  assert.doesNotMatch(publishStep[0], /\*-composite\.png.*\*-annotated\.png.*\*-new\.png/);
+});
+
 test('dogfood workflow runs the local composite action against clean, changed, and new-surface maps', () => {
   assert.match(dogfoodYml, /uses: \.\/\n/g);
   assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 3);

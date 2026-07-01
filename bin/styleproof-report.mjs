@@ -36,8 +36,8 @@ options:
   --remote <name>            git remote for the map store (default: ${DEFAULT_REMOTE})
   --out <dir>               output directory (default: styleproof-report)
   --image-base-url <url>    prefix for image URLs in report.md (default: relative)
-  --pad <px>                padding around changed rects when cropping (default: 24)
-  --max-crops <n>           max crop regions per surface before collapsing (default: 6)
+  --pad <px>                padding around changed rects when cropping (default: 12)
+  --max-crops <n>           max crop regions per surface before collapsing (default: 8)
   --fold-details-at <n>     row count at which a crop's property tables fold under a
                             <details> toggle (default: 0 = always; 'Infinity' = never)
   --min-width <px>          minimum crop width, for context (default: 320)

@@ -508,6 +508,15 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
   rmTmp(root);
 });
 
+test('report CLI help states current crop defaults', () => {
+  const r = run(REPORT, ['--help']);
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /--pad <px>[\s\S]*default: 12/);
+  assert.match(r.stdout, /--max-crops <n>[\s\S]*default: 8/);
+  assert.doesNotMatch(r.stdout, /default: 24/);
+  assert.doesNotMatch(r.stdout, /default: 6/);
+});
+
 test('report CLI exits 2 on wrong argument count', () => {
   const r = run(REPORT, ['a', 'b', 'c']);
   assert.equal(r.status, 2);
