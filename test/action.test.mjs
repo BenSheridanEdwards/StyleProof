@@ -51,3 +51,10 @@ test('dogfood workflow runs on every same-repo PR', () => {
   assert.match(dogfoodYml, /pull_request:\s*\n\npermissions:/);
   assert.doesNotMatch(dogfoodYml, /\n\s+paths:/);
 });
+
+test('dogfood workflow asserts the PR report comment and branch artifact', () => {
+  assert.ok(dogfoodYml.includes('Assert PR report was published'));
+  assert.ok(dogfoodYml.includes('<!-- styleproof-report -->'));
+  assert.ok(dogfoodYml.includes('/issues/${PR_NUMBER}/comments'));
+  assert.ok(dogfoodYml.includes('/contents/${report_path}?ref=${REPORT_BRANCH}'));
+});
