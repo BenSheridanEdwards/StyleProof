@@ -572,11 +572,11 @@ test('end-to-end: a surface missing on one side is reported as a new surface, no
   writeCapture(beforeDir, 'about@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  // Framed as a new surface (non-blocking), carrying the marker the PR comment
-  // uses to attach an OPTIONAL approval box — never the misleading "0 changes".
+  // Framed as a new surface, carrying the marker the PR comment uses for approval
+  // policy — never the misleading "0 changes".
   assert.match(md, /### `about@1280` · new surface <!-- styleproof-new -->/);
   assert.match(md, /🆕 \*\*1 new surface\(s\)\*\*/);
-  assert.match(md, /doesn't block the check/);
+  assert.match(md, /Approve them before they become the baseline/);
   assert.doesNotMatch(md, /0 DOM change\(s\)/); // no contradictory "0 changes" headline
   rmTmp(root);
 });

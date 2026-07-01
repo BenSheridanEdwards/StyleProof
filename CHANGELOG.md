@@ -72,6 +72,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [3.1.4] - 2026-06-29
 
+### Changed
+
+- New surfaces now require approval in review-gate mode. A new-surface-only diff
+  still exits `3`, but the Action marks `changed=true`, posts the report, and
+  holds the `StyleProof` status red until the reviewer approves it. Certify mode
+  was already strict because it fails on any report.
+
 ### Fixed
 
 - **Popup capture no longer collapses distinct triggers that reuse the same

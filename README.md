@@ -52,7 +52,9 @@ The important boundary: StyleProof only certifies states it can reach. If a stat
 matters, list it as a surface, variant, popup, live state, or component-catalog
 surface. `expected` turns that inventory into a guard, so an uncaptured new page,
 component, modal, dropdown, or toast fails as missing coverage instead of
-silently passing.
+silently passing. A surface that exists only on the PR head is still reviewable:
+in review-gate mode it holds the status red until approved, then becomes part of
+the baseline once merged.
 
 ## The short version
 
@@ -117,8 +119,8 @@ full report. The report groups each distinct visual change with:
 
 In review-gate mode, one **Approve all changes** checkbox turns the `StyleProof`
 status green for that commit. Clean runs still leave a receipt: `No visual
-changes detected.` New surfaces are shown as new baselines; coverage gaps are
-handled by `expected`.
+changes detected.` New surfaces are shown as new baselines and require approval;
+coverage gaps are handled by `expected`.
 
 ## Auto-discovery
 
@@ -620,7 +622,7 @@ When a PR **adds** an element, StyleProof now reports its **full resting compute
 | `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.            |
 | `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.          |
 
-Outputs: `changed` (`"true"` when anything changed), `report-url`. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
+Outputs: `changed` (`"true"` when any existing surface changed, or a new surface needs approval), `report-url`. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
 **Policy file `styleproof.config.json`** (optional, at the repo root) — gate policy that isn't workflow plumbing:
 
@@ -679,7 +681,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 - `styleproof-init` — scaffold the gate: the capture spec, a dedicated `playwright.styleproof.config.ts` (production-build `webServer`, parallel capture), `.gitignore` cache entries, and the cache-first report workflow. One command. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default), respect pnpm/Corepack version pins, and detect Vite/Next production preview commands instead of assuming every repo has `start`.
 - `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote exists. Pass `--crawl-base-url` plus repeated `--crawl-route` to run `styleproof-variants` before capture, `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, or `--no-screenshots` for custom flows.
-- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
+- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical), `1` on a diff, `2` on a usage/capture error, `3` when only new surfaces are present (no baseline to diff against; approval policy decides whether to gate). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
 - `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content section (see above).
 - `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
 

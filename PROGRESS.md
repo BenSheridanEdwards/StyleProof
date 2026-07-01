@@ -1,5 +1,39 @@
 # Progress
 
+## Active Task: new surfaces require approval
+
+## Completed
+
+- Changed the composite Action so `styleproof-diff` exit `3` (new surfaces with
+  no baseline) sets `changed=true`, posts the report, and requires approval in
+  review-gate mode.
+- Updated report/CLI wording, README, CHANGELOG, approval workflow comments, and
+  action dogfood expectations to match the new policy.
+
+## Findings
+
+- `styleproof-diff` remains a pure map comparator: new surfaces still exit `3`
+  rather than being counted as computed-style findings.
+- Certify mode was already strict because it fails on any report; the gap was
+  review-gate mode treating new-surface-only reports as green.
+
+## Next Action
+
+- Open a PR when requested.
+
+## Blockers
+
+- None currently.
+
+## Verification Status
+
+- `npm run build && node --test test/action.test.mjs test/report.test.mjs`
+  passed.
+- `npm test` passed: 192 Node tests.
+- `npm run lint && npm run format:check && npm run privacy:check` passed.
+
+---
+
 ## Active Task: variant crawler
 
 ## Completed

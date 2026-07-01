@@ -2,7 +2,7 @@
 
 **2 computed-style difference(s)** across 1 distinct change(s) in 1 surface(s).
 
-🆕 **1 new surface(s)** captured with no baseline to compare — shown below for reference. New surfaces don't block the check.
+🆕 **1 new surface(s)** captured with no baseline to compare — shown below for review. Approve them before they become the baseline.
 
 ### `span.caret` · 1 element restyled
 
@@ -70,4 +70,4 @@ _pricing @ 900_
 
 <sub>after · pricing @ 900</sub>
 
-_No baseline to compare against — this surface is new, so it doesn't block the check. It becomes part of the baseline once this merges._
+_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._

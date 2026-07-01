@@ -44,7 +44,15 @@ test('dogfood workflow runs the local composite action against clean, changed, a
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
-  assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'false'/);
+  assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'true'/);
+});
+
+test('composite action requires approval for new-surface-only reports', () => {
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/);
+
+  assert.ok(diffStep, 'action.yml should include a diff step');
+  assert.match(diffStep[0], /\[ "\$code" -eq 1 \] \|\| \[ "\$code" -eq 3 \]/);
+  assert.match(diffStep[0], /echo "changed=true"/);
 });
 
 test('dogfood workflow runs on every same-repo PR', () => {

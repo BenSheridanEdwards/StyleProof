@@ -89,8 +89,7 @@ export type ReportResult = {
 type Box = { x: number; y: number; w: number; h: number };
 
 // Hidden marker appended to a new-surface heading. Invisible in rendered
-// markdown; lets the PR-comment layer attach an OPTIONAL "approve" box to a new
-// surface (vs the required box on a real change), so new surfaces never gate.
+// markdown; lets the PR-comment layer recognize one-sided surfaces.
 const NEW_SURFACE_MARKER = '<!-- styleproof-new -->';
 
 const rectToBox = (r: Rect): Box => ({ x: r[0], y: r[1], w: r[2], h: r[3] });
@@ -1106,8 +1105,8 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     if (missing.length > 0) {
       if (changeGroups.length > 0) md.push('');
       md.push(
-        `🆕 **${missing.length} new surface(s)** captured with no baseline to compare — shown below for reference. ` +
-          `New surfaces don't block the check.`,
+        `🆕 **${missing.length} new surface(s)** captured with no baseline to compare — shown below for review. ` +
+          `Approve them before they become the baseline.`,
       );
     }
   }
@@ -1274,8 +1273,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   }
 
   // New surfaces: present on only one side, so there's nothing to diff. Show the
-  // captured side as a single screenshot for reference and mark the heading so the
-  // PR comment can attach an OPTIONAL approval box — these never gate the check.
+  // captured side as a single screenshot and mark the heading for the PR comment.
   for (const p of missing) {
     const side = p.sd.missing === 'before' ? 'after' : 'before';
     const srcDir = side === 'after' ? afterDir : beforeDir;
@@ -1309,7 +1307,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     }
     md.push(
       '',
-      `_No baseline to compare against — this surface is new, so it doesn't block the check. It becomes part of the baseline once this merges._`,
+      `_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._`,
     );
     json.push(surfaceJson);
   }

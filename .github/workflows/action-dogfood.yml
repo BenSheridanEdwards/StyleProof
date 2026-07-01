@@ -64,5 +64,5 @@ jobs:
 
       - name: Assert new-surface-only output
         run: |
-          test '${{ steps.new-surface.outputs.changed }}' = 'false'
+          test '${{ steps.new-surface.outputs.changed }}' = 'true'
           test -n '${{ steps.new-surface.outputs.report-url }}'

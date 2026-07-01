@@ -181,7 +181,7 @@ console.log(
   total === 0
     ? newSurfaces === 0
       ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
-      : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — shown for reference, no reviewable change`
+      : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}`,
 );
 // 0 = identical, 1 = reviewable differences, 3 = only new surfaces (no baseline,
