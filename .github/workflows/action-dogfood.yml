@@ -66,3 +66,24 @@ jobs:
         run: |
           test '${{ steps.new-surface.outputs.changed }}' = 'false'
           test -n '${{ steps.new-surface.outputs.report-url }}'
+
+      - name: Assert PR report was published
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPORT_BRANCH: styleproof-action-dogfood
+        run: |
+          set -euo pipefail
+          report_path="pr-${PR_NUMBER}/report.md"
+          report_url="https://github.com/${GITHUB_REPOSITORY}/blob/${REPORT_BRANCH}/${report_path}"
+          body="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq 'map(select(.body | contains("<!-- styleproof-report -->"))) | last | .body // ""')"
+          printf '%s\n' "$body" | grep -F '<!-- styleproof-report -->'
+          printf '%s\n' "$body" | grep -F "$report_url"
+
+          for i in 1 2 3 4 5; do
+            gh api "repos/${GITHUB_REPOSITORY}/contents/${report_path}?ref=${REPORT_BRANCH}" --jq .path | grep -Fx "$report_path" && exit 0
+            sleep $((i * 2))
+          done
+          echo "StyleProof report file missing at ${REPORT_BRANCH}/${report_path}" >&2
+          exit 1
