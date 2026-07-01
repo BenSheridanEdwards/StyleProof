@@ -178,7 +178,7 @@ console.log(
   result.changedSurfaces === 0
     ? result.newSurfaces === 0
       ? '✓ no changes — empty report written'
-      : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for reference`
+      : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
     : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );
 console.log(`report: ${result.reportMdPath}`);

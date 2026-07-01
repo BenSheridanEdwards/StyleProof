@@ -39,9 +39,9 @@ inputs:
 outputs:
   changed:
     description: >-
-      "true" when an existing surface changed (computed style, pseudo-element, DOM,
-      or state). A brand-new surface with no baseline is NOT a change and leaves
-      this "false" — it's reported for reference but never gates.
+      "true" when review is required: an existing surface changed (computed style,
+      pseudo-element, DOM, or state), or a brand-new surface was captured with no
+      baseline and must be approved before becoming part of the baseline.
     value: ${{ steps.diff.outputs.changed }}
   report-url:
     description: 'Blob URL of the committed report (when changed).'
@@ -119,10 +119,9 @@ runs:
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
-        # 1 = reviewable changes (gate on these); 3 = only NEW surfaces with no
-        # baseline (report them, but they never gate). `report` fires for either,
-        # so the report is published/posted; `changed` drives the review gate.
-        if [ "$code" -eq 1 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+        # 1 = computed-style differences; 3 = only NEW surfaces with no baseline.
+        # Both need human review in approval mode; `report` publishes the receipt.
+        if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
         if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then echo "report=true" >> "$GITHUB_OUTPUT"; else echo "report=false" >> "$GITHUB_OUTPUT"; fi
 
     # Is THIS commit's diff already signed off? Read the existing review status so a
@@ -217,10 +216,8 @@ runs:
           const fs = require('fs');
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
           const marker = '<!-- styleproof-report -->';
-          // `changed` = reviewable before/after differences (these gate). `report`
-          // also covers NEW surfaces with no baseline: still worth posting (with a
-          // screenshot), but they never gate — so a new-surfaces-only run posts the
-          // report yet leaves the check green.
+          // `changed` = review required: before/after differences OR new surfaces
+          // with no baseline. `report` posts the receipt for either.
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const report = '${{ steps.diff.outputs.report }}' === 'true';
           const { data: comments } = await github.rest.issues.listComments({
@@ -264,10 +261,10 @@ runs:
             ? [
                 '---',
                 !changed
-                  ? `_The surface(s) are **new** — no baseline to compare, so they don't block the **${statusContext}** check (it stays green). They become the baseline once this merges._`
+                  ? `_No visual changes detected — the **${statusContext}** check is green._`
                   : approved
-                    ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles re-opens it._`
-                    : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off everything. A new push that changes styles re-opens it._`,
+                    ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
+                    : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`,
                 `<!-- styleproof-sha:${headSha} -->`,
               ]
             : ['---', '_To accept: rebuild the map with `styleproof-map`, then rerun the report._'];
@@ -288,7 +285,7 @@ runs:
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const sha = '${{ steps.context.outputs.head-sha }}';
           const url = '${{ steps.publish.outputs.url }}';
-          // Green when nothing changed OR a prior sign-off already approved this commit
+          // Green when no review is needed OR a prior sign-off already approved this commit
           // (so re-running the report can't clobber an approval the approve workflow set).
           const green = !changed || approved;
           await github.rest.repos.createCommitStatus({
@@ -296,11 +293,11 @@ runs:
             sha,
             context: '${{ inputs.status-context }}',
             state: green ? 'success' : 'failure',
-            description: !changed ? 'No visual changes' : approved ? 'Visual changes approved' : 'Visual changes need sign-off — tick the box in the report comment',
+            description: !changed ? 'No visual changes' : approved ? 'StyleProof changes approved' : 'StyleProof changes need sign-off — tick the box in the report comment',
             ...(changed && !approved && url ? { target_url: url } : {}),
           });
 
-    # blocking (styleproof.config.json: "blocking": true): on UNAPPROVED visual changes,
+    # blocking (styleproof.config.json: "blocking": true): on UNAPPROVED changes/new surfaces,
     # fail the job so the check is red even on a repo without a branch-protection rule
     # requiring the status. Async by design — sign off in the comment, then re-run this
     # job; the re-run sees the approval (via the gate step) and passes. Review-gate only.
@@ -313,7 +310,7 @@ runs:
         steps.gate.outputs.approved != 'true'
       shell: bash
       run: |
-        echo "StyleProof: unapproved visual changes — tick 'Approve all changes' in the report comment, then re-run this job to clear the check." >&2
+        echo "StyleProof: unapproved visual changes or new surfaces — tick 'Approve all changes' in the report comment, then re-run this job to clear the check." >&2
         exit 1
 
     # Certify mode: fail the job on any diff (default). Skipped

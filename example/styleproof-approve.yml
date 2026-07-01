@@ -4,7 +4,7 @@
 # live on main (not on the feature branch) to take effect. It flips the
 # `StyleProof` commit status when a write-access reviewer ticks the single
 # "Approve all changes" box in the StyleProof report comment — one tick signs
-# off every change. Pair it with the Action's `require-approval: true` input and
+# off every changed or new surface. Pair it with the Action's `require-approval: true` input and
 # either a branch-protection rule requiring the `StyleProof` status, or
 # `styleproof.config.json`'s `"blocking": true` to fail the job on unapproved
 # changes (the blocking option for repos without branch protection).
@@ -55,9 +55,8 @@ jobs:
             if (!shaMatch) return;
             const reportSha = shaMatch[1];
 
-            // One "Approve all changes" box signs off every change in the report.
-            // No box (e.g. a new-surfaces-only report, which never gates) → nothing
-            // to approve, leave the status as the Action set it.
+            // One "Approve all changes" box signs off every changed or new surface.
+            // No box means nothing to approve, leave the status as the Action set it.
             const allBox = body.split('\n').find((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*/.test(l));
             if (!allBox) return;
             const approved = /\[[xX]\]/.test(allBox);
