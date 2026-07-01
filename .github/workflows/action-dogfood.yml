@@ -3,15 +3,6 @@ name: Action dogfood
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - action.yml
-      - bin/styleproof-diff.mjs
-      - bin/styleproof-report.mjs
-      - scripts/action-dogfood-fixtures.mjs
-      - src/**
-      - package.json
-      - package-lock.json
-      - .github/workflows/action-dogfood.yml
 
 permissions:
   contents: write
