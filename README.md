@@ -21,7 +21,7 @@ report. Intentional visual changes get approved; unexpected ones block or fail.
 - [Works with any styling system](#works-with-any-styling-system)
 - [Breakpoints, detected automatically](#breakpoints-detected-automatically)
 - [Certify a refactor](#certify-a-refactor)
-- [Capture a URL directly](#capture-a-url-directly)
+- [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel)
 - [Install](#install)
 - [Quickstart](#quickstart)
 - [Forks and Dependabot](#forks-and-dependabot)
@@ -400,21 +400,18 @@ Omit `widths` on a surface and StyleProof reads your app's real `@media` breakpo
 
 The same engine has a second mode that proves a change touched _nothing_ visual: with `fail-on-diff: true`, any difference at all fails the job. It's the job StyleProof was born for — certifying a CSS-to-Tailwind migration rendered byte-for-byte identical. Reach for it on any change whose whole promise is "the output is unchanged": a utility-class migration, a design-system swap, a dependency or build-tooling bump. Zero diff is the contract; one drifting longhand is a regression to investigate, not a change to approve.
 
-## Capture a URL directly
+## Match a design pixel-for-pixel
 
-`styleproof-map` is the spec-driven flow for **your own app's** surfaces — it gives you the coverage guard, the map store, and record/replay. For a page you just want to point at — a **deployed URL**, a **static export**, or a **standalone HTML mockup** — reach for `styleproof-capture`: one shot, no spec, no config.
+When you build a design in production, "looks the same" is a judgement call — and small gaps ship. `styleproof-capture` makes it an objective check: point it at the **design** (a deployed mockup, a static export, a standalone HTML file), point it at your **build**, and diff. Zero diff means the production UI renders _identically_ to the design; anything else is named exactly, down to the computed style, so you know precisely what's still off.
 
 ```bash
 styleproof-capture https://example.com/pricing --key pricing --widths 1440,1024,768 --out design
+styleproof-diff design .styleproof/maps/current   # design vs build — zero diff = pixel-identical
 ```
 
-It writes `design/pricing@1440.json.gz` (+ `.png`) — the same shape a surface capture writes, so `styleproof-diff` compares it against any other capture:
+You watch one number as you implement: the diff starts large and shrinks toward zero, and it hits zero the moment the built page matches the design. It's the objective version of putting the mockup and the app side by side and squinting.
 
-```bash
-styleproof-diff design .styleproof/maps/current   # design target vs your build
-```
-
-The payoff is a **design-fidelity check**: capture a mockup once as the target, then diff each build against it — a diff that shrinks toward zero as the implementation converges (and pinpoints the exact longhands still off). Omit `--widths` to auto-detect the page's own `@media` breakpoints; pin them for a page whose CSS is cross-origin (a font stylesheet, say), since detection reads every sheet and fails loudly rather than guess. `--wait <selector>` holds until the intended state is on screen; `--ignore <selector>` skips a live region. Both sides must be captured in the same browser + fonts for the diff to be meaningful.
+(`styleproof-map` is the spec-driven flow for your own app's surfaces, with the coverage guard, map store, and record/replay; `styleproof-capture` is the one-shot for a page you just point at.) It writes `design/pricing@1440.json.gz` (+ `.png`), the same shape any capture writes, so `styleproof-diff` compares it against anything. Omit `--widths` to auto-detect the page's own `@media` breakpoints; pin them for a page whose CSS is cross-origin (a font stylesheet, say), since detection reads every sheet and fails loudly rather than guess. `--wait <selector>` holds until the intended state is on screen; `--ignore <selector>` skips a live region. Capture both sides in the same browser + fonts, since that's what "identical" is measured against.
 
 ## Install
 
