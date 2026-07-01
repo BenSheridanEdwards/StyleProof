@@ -46,3 +46,8 @@ test('dogfood workflow runs the local composite action against clean, changed, a
   assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
   assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'false'/);
 });
+
+test('dogfood workflow runs on every same-repo PR', () => {
+  assert.match(dogfoodYml, /pull_request:\s*\n\npermissions:/);
+  assert.doesNotMatch(dogfoodYml, /\n\s+paths:/);
+});
