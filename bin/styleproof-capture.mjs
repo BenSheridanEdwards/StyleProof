@@ -35,13 +35,14 @@ one state (default): capture the page as it loads
                     pass widths for those). Crawl defaults to 1280 when omitted.
 
 whole surface: --crawl
-  --crawl           drive every non-destructive control, recurse into what opens,
-                    and capture each discovered surface under a derived key — for
-                    a design that's mostly modals/drawers/popovers. Destructive
-                    -looking controls (delete/deploy/pay/revoke…) are never clicked.
-  --max-depth <n>   recursion depth into opened surfaces (default: 3)
-  --max-actions <n> controls tried per state (default: 30)
-  --max-states <n>  total surfaces before stopping (default: 60)
+  --crawl           EXHAUSTIVE: drive every non-destructive control, recurse into
+                    what opens, and capture every discovered surface under a derived
+                    key — runs to natural termination, no budget. For a design that's
+                    mostly modals/drawers/popovers. Destructive-looking controls
+                    (delete/deploy/pay/revoke…) are never clicked.
+  --max-depth <n>   throttle recursion depth (default: unbounded)
+  --max-actions <n> throttle controls tried per state (default: unbounded)
+  --max-states <n>  throttle total surfaces (default: unbounded)
   --no-reset-storage  don't clear localStorage between steps (default: clear)
 
 common:
@@ -88,16 +89,15 @@ async function runCrawl() {
       maxActionsPerState: opts.maxActionsPerState,
       maxStates: opts.maxStates,
       resetStorage: opts.resetStorage,
+      // Stream each surface as it is captured, so progress is visible live and an
+      // interrupted run still shows exactly what it mapped.
+      onSurface: (s, ok) =>
+        console.log(`  ${'·'.repeat(s.depth)}${s.key} (${s.elements} elements)${ok ? '' : ' — CAPTURE FAILED'}`),
     };
     const report = await crawlAndCapture(page, crawlOpts);
-    const failedSet = new Set(report.failed);
-    for (const s of report.surfaces) {
-      const mark = failedSet.has(s.key) ? ' — SKIPPED (path did not replay)' : '';
-      console.log(`  ${'·'.repeat(s.depth)}${s.key} (${s.elements} elements)${mark}`);
-    }
     console.log(
       `✓ ${report.captured}/${report.surfaces.length} surface(s) × ${crawlOpts.widths.length} width(s) → ${opts.out}  ` +
-        `(${report.actionsTried} actions tried, ${report.skipped} skipped${report.failed.length ? `, ${report.failed.length} unreplayable` : ''})`,
+        `(${report.actionsTried} actions tried, ${report.skipped} skipped${report.failed.length ? `, ${report.failed.length} capture-failed` : ''})`,
     );
   } finally {
     await browser.close();

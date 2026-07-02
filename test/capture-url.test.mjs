@@ -14,9 +14,9 @@ test('defaults: just a url', () => {
     height: 800,
     screenshots: true,
     crawl: false,
-    maxDepth: 3,
-    maxActionsPerState: 30,
-    maxStates: 60,
+    maxDepth: 1000,
+    maxActionsPerState: 100000,
+    maxStates: 100000,
     resetStorage: true,
   });
 });

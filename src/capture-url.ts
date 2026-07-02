@@ -52,9 +52,9 @@ export type CaptureUrlOptions = {
   crawl: boolean;
   /** crawl: recursion depth into opened surfaces (default 3). */
   maxDepth: number;
-  /** crawl: controls tried per state (default 30). */
+  /** crawl: fresh controls driven per state (default: unbounded — try them all). */
   maxActionsPerState: number;
-  /** crawl: total surfaces before stopping (default 60). */
+  /** crawl: safety backstop on total surfaces (default: unbounded — exhaustive). */
   maxStates: number;
   /** crawl: clear storage on each reset so replay is deterministic (default true). */
   resetStorage: boolean;
@@ -65,9 +65,10 @@ const DEFAULTS = {
   height: 800,
   screenshots: true,
   crawl: false,
-  maxDepth: 3,
-  maxActionsPerState: 30,
-  maxStates: 60,
+  // Exhaustive by default — these are safety backstops, not budgets.
+  maxDepth: 1000,
+  maxActionsPerState: 100000,
+  maxStates: 100000,
   resetStorage: true,
 };
 

@@ -18,14 +18,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   compares it against anything. Also exported programmatically as
   `captureUrlToDir` / `runCaptureUrl` / `parseCaptureUrlArgs`.
 - `styleproof-capture --crawl`: map a whole interactive design from one URL with
-  no spec and no selectors. Drives every non-destructive control, keeps whatever
-  opens a structurally new surface, and recurses into it (a modal's tabs, a
-  drawer's sub-views, a popover's panels), capturing each under a derived key.
-  Deterministic and deduped by a structural signature; bounded by
-  `--max-depth` / `--max-actions` / `--max-states`; self-settling for async
-  (React/Vue/Babel) apps; captures each surface in place so a deep/animated
-  click-path never drops it; and it never clicks destructive-looking controls.
-  Exported programmatically as `crawlAndCapture`.
+  no spec and no selectors — EXHAUSTIVE by default, running until every
+  non-destructive control has been driven once and every structurally new surface
+  captured (a modal's tabs, a drawer's sub-views, a popover's panels), each under
+  a derived key. The sweep works in place with lazy, fingerprint-verified resets:
+  a no-op click costs nothing, only state-changing clicks pay a fresh
+  navigation + replay, and children are never attributed to the wrong parent.
+  Deterministic, deduped by a structural fingerprint, self-settling for async
+  (React/Vue/Babel) apps, discovery pinned to one viewport width, progress
+  streamed per captured surface, and destructive-looking controls are never
+  clicked. `--max-depth` / `--max-actions` / `--max-states` exist only as
+  throttles. Exported programmatically as `crawlAndCapture`.
 
 ### Fixed
 

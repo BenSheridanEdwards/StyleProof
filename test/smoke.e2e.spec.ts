@@ -834,3 +834,63 @@ test('crawlAndCapture drives interactions and maps a modal + its nested tab', as
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('crawl family-retry re-tries a persistent mode-switcher in each sibling tab', async ({ page }) => {
+  // A dialog with two tabs and one EDIT toggle that persists across tabs: the
+  // toggle's effect depends on which tab is open, so after being driven once
+  // (from tab one), it must be re-tried in tab two — four dialog states total.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .modal { display: none; position: fixed; inset: 15% 20%; background: rgb(245,245,250); padding: 16px; }
+    .modal.open { display: block; }
+    .panel { display: none; } .panel.on { display: block; }
+    .modal.editing .panel.on { outline: 3px solid rgb(200,30,30); }
+    .modal.editing .pen { background: rgb(200,30,30); color: rgb(255,255,255); }
+    button { cursor: pointer; }
+  </style></head><body>
+    <main><button id="open">Open dialog</button></main>
+    <div class="modal" id="m">
+      <button class="tab" data-t="1">Tab one</button>
+      <button class="tab" data-t="2">Tab two</button>
+      <button class="pen" id="pen">Edit</button>
+      <div class="panel on" data-c="1">Panel one <input value="a"></div>
+      <div class="panel" data-c="2">Panel two <ul><li>x</li><li>y</li></ul></div>
+    </div>
+    <script>
+      document.getElementById('open').onclick = () => document.getElementById('m').classList.add('open');
+      document.getElementById('pen').onclick = () => document.getElementById('m').classList.toggle('editing');
+      for (const t of document.querySelectorAll('.tab')) t.onclick = () => {
+        for (const c of document.querySelectorAll('.panel')) c.classList.toggle('on', c.dataset.c === t.dataset.t);
+      };
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-fam-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-fam-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    expect(report.failed).toEqual([]);
+    // Count captured dialog states where the EDIT toggle is active: the pen was
+    // driven from tab one AND family-retried from tab two → two editing states.
+    let editingStates = 0;
+    for (const s of report.surfaces) {
+      const map = loadStyleMap(path.join(out, `${s.key}@900.json.gz`));
+      if (Object.values(map.elements).some((e) => String(e.cls).split(/\s+/).includes('editing'))) editingStates++;
+    }
+    expect(editingStates, 'editing captured in both tabs via family retry').toBeGreaterThanOrEqual(2);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
