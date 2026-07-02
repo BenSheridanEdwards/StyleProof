@@ -42,7 +42,10 @@ const PALETTE: [string, [number, number, number]][] = [
 ];
 
 function parseColor(v: string): [number, number, number, number] | null {
-  const m = v.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,/\s]+([\d.]+))?\s*\)/i);
+  // Anchored: only a value that IS a colour parses. An embedded colour inside a
+  // gradient/shadow/url must not stand in for the whole value — that once made a
+  // report show the same "representative" rgba on both sides of a real diff.
+  const m = v.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,/\s]+([\d.]+))?\s*\)$/i);
   if (!m) return null;
   return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? 1 : Number(m[4])];
 }

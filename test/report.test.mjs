@@ -107,9 +107,16 @@ test('summarizeProps folds repeated tokens (368px 368px 368px -> 368px x3)', () 
   assert.deepEqual(out, [{ prop: 'grid-template-columns', before: '368px ×3', after: '300px ×3' }]);
 });
 
-test('summarizeProps rounds decimals to one place', () => {
+test('summarizeProps keeps decimals verbatim — no display rounding', () => {
   const out = summarizeProps([{ prop: 'line-height', before: '26.666px', after: '24.04px' }]);
-  assert.deepEqual(out, [{ prop: 'line-height', before: '26.7px', after: '24px' }]);
+  assert.deepEqual(out, [{ prop: 'line-height', before: '26.666px', after: '24.04px' }]);
+});
+
+test('summarizeProps keeps a real 0.18 → 0.2 alpha change (rounding used to erase it as a no-op)', () => {
+  const out = summarizeProps([
+    { prop: 'background-color', before: 'rgba(0, 20, 30, 0.18)', after: 'rgba(0, 20, 30, 0.2)' },
+  ]);
+  assert.deepEqual(out, [{ prop: 'background-color', before: 'rgba(0, 20, 30, 0.18)', after: 'rgba(0, 20, 30, 0.2)' }]);
 });
 
 test('summarizeProps maps fully-transparent black to the keyword transparent', () => {
@@ -506,6 +513,43 @@ test('an added element reports its full resting computed style, value-only', () 
   rmTmp(root);
 });
 
+// Regression for F.L.E.E.T pr-419: a gradient diff rendered as the same
+// "representative" rgba in BOTH cells — the real change (a dropped `0px` stop)
+// was invisible. Long values must excerpt around the differing substring.
+test('a long gradient diff excerpts the differing substring, never an equal pair', () => {
+  const grad = (firstStop) =>
+    `repeating-linear-gradient(0deg, rgba(0, 0, 0, 0)${firstStop}, rgba(0, 0, 0, 0) 2px, rgba(0, 20, 30, 0.18) 3px)`;
+  const mapWith = (bg) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'scanlines',
+          rect: [0, 0, 1280, 800],
+          style: { 'background-image': bg },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@1280',
+    before: mapWith(grad(' 0px')),
+    after: mapWith(grad('')),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  const row = md.split('\n').find((l) => l.includes('`background-image`'));
+  assert.ok(row, 'background-image row present');
+  const [, beforeCell, afterCell] = row
+    .split('|')
+    .map((c) => c.trim())
+    .filter(Boolean);
+  assert.notEqual(beforeCell, afterCell, 'Before and After cells must actually differ');
+  assert.match(beforeCell, /0px/, 'the dropped stop is visible in the Before excerpt');
+  rmTmp(root);
+});
+
 test('captureComponent: an added element names its React component + props', () => {
   const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
   const after = makeMap({
@@ -783,6 +827,11 @@ test('toHex renders opaque colours as #hex and keeps alpha as rgba', () => {
   assert.equal(toHex('rgb(254, 226, 226)'), '#fee2e2');
   assert.equal(toHex('rgba(0, 0, 0, 0.5)'), 'rgba(0, 0, 0, 0.5)');
   assert.equal(toHex('none'), 'none'); // non-colour untouched
+  // A colour EMBEDDED in a longer value must not stand in for the whole value
+  // (pr-419: a gradient rendered as the same rgba on both sides of a real diff).
+  const g = 'repeating-linear-gradient(0deg, rgba(0, 0, 0, 0), rgba(0, 20, 30, 0.18) 3px)';
+  assert.equal(toHex(g), g);
+  assert.equal(toHex('rgba(0, 0, 0, 0.5) 0px 2px 4px'), 'rgba(0, 0, 0, 0.5) 0px 2px 4px');
 });
 
 test('tokenIndex prefers the scale token over an alias with the same value', () => {
