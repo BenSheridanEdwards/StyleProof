@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { Browser, Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
-import type { SetupStep } from './crawl-surfaces.js';
+import { runSetup, type SetupStep } from './crawl-surfaces.js';
 
 /**
  * One-shot capture of a single URL's computed-style map — no spec, no config,
@@ -65,6 +65,9 @@ export type CaptureUrlOptions = {
   /** crawl: JSON file of deterministic setup steps (login, unlock, seed input)
    *  run after every fresh navigation. See {@link loadSetupSteps}. */
   setupFile?: string;
+  /** Loaded setup steps (set by the CLI from `setupFile`); applied after every
+   *  navigation in BOTH modes, so a gated page's single state is capturable too. */
+  setup?: SetupStep[];
   /** crawl: also capture automatic `loading`/`error` data states of the entry
    *  page (default true). */
   dataStates: boolean;
@@ -200,6 +203,7 @@ export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Prom
     await page.setViewportSize({ width: 1280, height: opts.height });
     await page.goto(opts.url, { waitUntil: 'load' });
     if (opts.waitSelector) await page.locator(opts.waitSelector).first().waitFor({ state: 'visible' });
+    if (opts.setup?.length) await runSetup(page, opts.setup);
     widths = await detectViewportWidths(page);
   }
 
@@ -210,6 +214,7 @@ export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Prom
     try {
       await page.goto(opts.url, { waitUntil: 'load' });
       if (opts.waitSelector) await page.locator(opts.waitSelector).first().waitFor({ state: 'visible' });
+      if (opts.setup?.length) await runSetup(page, opts.setup);
       const map = await captureStyleMap(page, {
         ignore: opts.ignore,
         pendingRequests: requests.pending,

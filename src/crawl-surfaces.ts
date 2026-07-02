@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
+import { detectViewportWidths } from './breakpoints.js';
 
 /**
  * Surface crawler: deterministically map a single URL's WHOLE interactive
@@ -36,7 +37,7 @@ import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.
  */
 
 export type CrawlStep = {
-  action: 'click' | 'select-option';
+  action: 'click' | 'select-option' | 'fill-input';
   selector: string;
   label: string;
   reason: string;
@@ -116,7 +117,7 @@ export const CRAWL_DEFAULTS = {
 };
 
 type RawCandidate = {
-  action: 'click' | 'select-option';
+  action: 'click' | 'select-option' | 'fill-input';
   selector: string;
   label: string;
   reason: string;
@@ -205,8 +206,39 @@ function collectClickable(): RawCandidate[] {
     if (cursor === 'pointer' || cursor === 'grab') pool.add(el);
   }
 
+  // Neutral text inputs are typed automatically with a deterministic value —
+  // a search box or filter needs no secrets. Credential-semantic fields
+  // (type=password, autocomplete username/current-password/new-password/
+  // one-time-code) are NEVER auto-filled: those are --setup territory.
+  const FILLABLE =
+    'input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="tel"],input[type="url"],input[type="number"],textarea';
+  const CRED_AUTOCOMPLETE = /username|current-password|new-password|one-time-code/i;
+  const AUTO_VALUE: Record<string, string> = {
+    email: 'sample@example.com',
+    url: 'https://example.com',
+    tel: '5550100',
+    number: '1',
+  };
+
   const seen = new Set<string>();
   const out: RawCandidate[] = [];
+  for (const el of document.querySelectorAll(FILLABLE)) {
+    if (CRED_AUTOCOMPLETE.test(el.getAttribute('autocomplete') ?? '')) continue;
+    if (el.closest(':disabled,[aria-disabled="true"]') || (el as HTMLInputElement).readOnly) continue;
+    if (!visible(el)) continue;
+    const selector = selectorFor(el);
+    if (seen.has(selector)) continue;
+    seen.add(selector);
+    const kind = el.getAttribute('type') ?? 'text';
+    out.push({
+      action: 'fill-input',
+      selector,
+      label: labelFor(el) === el.tagName.toLowerCase() ? (el.getAttribute('placeholder') ?? 'input') : labelFor(el),
+      reason: 'auto-fill',
+      value: AUTO_VALUE[kind] ?? 'sample text',
+      unsafe: false,
+    });
+  }
   for (const el of pool) {
     if (el instanceof HTMLAnchorElement && el.href) continue; // links navigate — handled by link crawl, not here
     if (el.closest(':disabled,[aria-disabled="true"]')) continue;
@@ -362,7 +394,7 @@ const SETUP_RUNNERS: Record<SetupStep['action'], (page: Page, s: SetupStep) => P
 /** Run the caller's deterministic setup steps (login, unlock, seed input). A
  *  non-optional step that fails throws loudly — a half-established gate must
  *  never silently crawl the ungated page instead. */
-async function runSetup(page: Page, steps: SetupStep[]): Promise<void> {
+export async function runSetup(page: Page, steps: SetupStep[]): Promise<void> {
   for (const s of steps) {
     try {
       await SETUP_RUNNERS[s.action](page, s);
@@ -371,6 +403,24 @@ async function runSetup(page: Page, steps: SetupStep[]): Promise<void> {
       throw new Error(`setup step failed (${s.action} ${s.selector ?? s.url ?? ''})`, { cause: e });
     }
   }
+}
+
+/** Reveal scroll-gated content deterministically: IntersectionObserver mounts,
+ *  lazy sections. One bounded pass per load (same scroll every time, so replay
+ *  and fingerprints stay stable); capped so an infinite feed can't spin it. */
+async function scrollReveal(page: Page): Promise<void> {
+  await page
+    .evaluate(async () => {
+      const step = Math.max(200, window.innerHeight);
+      let y = 0;
+      for (let i = 0; i < 20 && y <= document.body.scrollHeight; i++) {
+        window.scrollTo(0, y);
+        y += step;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      window.scrollTo(0, 0);
+    })
+    .catch(() => {});
 }
 
 async function gotoFresh(page: Page, opts: SurfaceCrawlOptions): Promise<void> {
@@ -385,12 +435,18 @@ async function gotoFresh(page: Page, opts: SurfaceCrawlOptions): Promise<void> {
     await runSetup(page, opts.setup);
     await settleDom(page); // the steps changed page state — let it land
   }
+  await scrollReveal(page);
+  await settleDom(page);
 }
 
 async function perform(page: Page, s: { action: string; selector: string; value?: string }): Promise<void> {
   const target = page.locator(s.selector).first();
   if (s.action === 'select-option') {
     await target.selectOption(s.value ?? '');
+    return;
+  }
+  if (s.action === 'fill-input') {
+    await target.fill(s.value ?? '', { timeout: 5000 });
     return;
   }
   await target.waitFor({ state: 'attached', timeout: 5000 });
@@ -648,11 +704,13 @@ async function recordDataState(
   page: Page,
   opts: SurfaceCrawlOptions,
   mode: 'loading' | 'error',
-  dataUrls: Set<string>,
   st: CrawlState,
 ): Promise<void> {
+  // Match by resource TYPE, not by URL: real apps cache-bust (?t=...), so the
+  // re-load's data URLs never equal the observed ones. Any fetch/xhr is data.
   await page.route('**/*', async (route) => {
-    if (!dataUrls.has(route.request().url())) return route.continue();
+    const kind = route.request().resourceType();
+    if (kind !== 'fetch' && kind !== 'xhr') return route.continue();
     if (mode === 'error') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
     // loading: leave the request pending forever — the skeleton IS the state.
   });
@@ -690,6 +748,15 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   };
   page.on('request', onRequest);
   await gotoFresh(page, opts);
+  // No widths given? Detect the page's real @media breakpoints (like the
+  // one-shot path does) and sweep one width per band — automatically. Detection
+  // reads every stylesheet; if one is cross-origin/unreadable it falls back to
+  // the single default width rather than dying.
+  if (opts.widths.length === 0) {
+    const widths = await detectViewportWidths(page).catch(() => [1280]);
+    opts = { ...opts, widths };
+    if ((widths[0] ?? 1280) !== 1280) await gotoFresh(page, opts); // re-pin discovery width BEFORE the base fingerprint
+  }
   page.off('request', onRequest);
   const defined = await page.evaluate(collectDefinedClasses).catch(() => [] as string[]);
   const fp = await fingerprint(page);
@@ -710,8 +777,8 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   // error render exist in every data-driven app but almost never in a click
   // path. Captured out of the box; identical-to-base renders dedup away.
   if (opts.dataStates !== false && dataUrls.size > 0) {
-    await recordDataState(page, opts, 'loading', dataUrls, st);
-    await recordDataState(page, opts, 'error', dataUrls, st);
+    await recordDataState(page, opts, 'loading', st);
+    await recordDataState(page, opts, 'error', st);
   }
 
   let actionsTried = 0;

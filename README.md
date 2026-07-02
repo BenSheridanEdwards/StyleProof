@@ -455,7 +455,7 @@ CAPTURE_USER=demo CAPTURE_PASS=… styleproof-capture https://example.com --craw
 
 ### What the crawler can and cannot reach — honestly
 
-The crawl's vocabulary is **click, select, and your setup steps**. Within it, mapping is exhaustive. Outside it, states are not reached by crawling — and the coverage verifier is what keeps that honest: anything unreached is _named_, never silently missed.
+The crawl's vocabulary is **click, select, neutral typing, scrolling, and your setup steps** — and it sweeps the page's real `@media` breakpoints automatically when you give it none. Within it, mapping is exhaustive. Outside it, states are not reached by crawling — and the coverage verifier is what keeps that honest: anything unreached is _named_, never silently missed.
 
 | State                                                                        | Reached by                                                                                                                                                                            |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

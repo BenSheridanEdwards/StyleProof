@@ -1229,7 +1229,7 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
     </style></head><body>
       <main id="root"><div class="loading">loading…</div></main>
       <script>
-        fetch('data.json')
+        fetch('data.json?t=' + Date.now())
           .then((r) => { if (!r.ok) throw new Error('bad'); return r.json(); })
           .then((d) => { document.getElementById('root').innerHTML = '<div class="loaded">' + d.items.join(', ') + '</div>'; })
           .catch(() => { document.getElementById('root').innerHTML = '<div class="error">could not load</div>'; });
@@ -1237,7 +1237,8 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
     </body></html>`,
   );
   const server = http.createServer((req, res) => {
-    const f = path.join(dir, req.url === '/' ? 'index.html' : (req.url ?? ''));
+    const clean = (req.url ?? '').split('?')[0]; // the fetch cache-busts — serve by pathname
+    const f = path.join(dir, clean === '/' ? 'index.html' : clean);
     if (!fs.existsSync(f)) return void res.writeHead(404).end();
     res.writeHead(200, { 'content-type': f.endsWith('.json') ? 'application/json' : 'text/html' });
     res.end(fs.readFileSync(f));
@@ -1265,6 +1266,177 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
     fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('neutral inputs are auto-filled; credential-semantic fields never are', async ({ page }) => {
+  // Typing needs no secrets when the input is a search box: the crawl fills a
+  // deterministic value and captures what renders. The password unlock stays
+  // untouched — and the verifier names its state class.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .box { padding: 20px; background: rgb(240,240,245); }
+    .results { display: none; background: rgb(220,235,255); padding: 10px; }
+    body.searching .results { display: block; }
+    .secret { display: none; } .secret.unlocked { display: block; }
+  </style></head><body>
+    <main class="box">
+      <input id="q" type="search" placeholder="search">
+      <input id="pw" type="password" autocomplete="current-password" placeholder="password">
+    </main>
+    <div class="results">results list</div>
+    <div class="secret">secret area</div>
+    <script>
+      document.getElementById('q').addEventListener('input', (e) =>
+        document.body.classList.toggle('searching', e.target.value.length > 0));
+      document.getElementById('pw').addEventListener('input', (e) => {
+        if (e.target.value === 'hunter2') document.querySelector('.secret').classList.add('unlocked');
+      });
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-fill-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-fill-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    expect(report.coverage.missing, 'search state reached; password state named').toEqual(['unlocked']);
+    expect(report.surfaces.length).toBeGreaterThanOrEqual(2); // base + searching
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('scroll-revealed content is mapped with zero config', async ({ page }) => {
+  // A section that mounts only when scrolled into view (IntersectionObserver):
+  // the deterministic scroll pass reveals it on every load, so it is part of the
+  // base surface and its classes are covered.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .top { height: 1600px; background: rgb(240,240,245); }
+    .lazy { min-height: 40px; }
+    .revealed { background: rgb(220,245,220); padding: 20px; }
+  </style></head><body>
+    <div class="top">above the fold</div>
+    <div class="lazy" id="lazy"></div>
+    <script>
+      new IntersectionObserver((entries, obs) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          document.getElementById('lazy').innerHTML = '<div class="revealed">revealed content</div>';
+          obs.disconnect();
+        }
+      }).observe(document.getElementById('lazy'));
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-scroll-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-scroll-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    expect(report.coverage.missing).toEqual([]);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('crawl auto-detects breakpoint widths when none are given', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; } .card { padding: 24px; background: rgb(240,240,245); }
+    @media (max-width: 700px) { .card { padding: 12px; } }
+  </style></head><body><main class="card">content</main></body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-bp-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-bp-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    const widths = new Set(fs.readdirSync(out).map((f) => f.split('@')[1]?.replace('.json.gz', '')));
+    expect(widths.size, 'one width per detected @media band').toBeGreaterThanOrEqual(2);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('one-shot capture honours setup steps for a gated page', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; } .gate { padding: 20px; }
+    .inside { display: none; padding: 20px; background: rgb(220,245,220); }
+    .inside.open { display: block; }
+    button { cursor: pointer; }
+  </style></head><body>
+    <main class="gate"><input id="pw" type="password"><button id="go">Enter</button></main>
+    <div class="inside" id="i">inside content</div>
+    <script>document.getElementById('go').onclick = () => {
+      if (document.getElementById('pw').value === 'sesame') document.getElementById('i').classList.add('open');
+    };</script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-oneshot-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-oneshot-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    await captureUrlToDir(page, {
+      url: 'file://' + file,
+      key: 'gated',
+      widths: [900],
+      out,
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      crawl: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+      requireFullCoverage: false,
+      dataStates: true,
+      setup: [
+        { action: 'fill', selector: '#pw', value: 'sesame' },
+        { action: 'click', selector: '#go' },
+        { action: 'waitFor', selector: '.inside.open' },
+      ],
+    });
+    const map = loadStyleMap(path.join(out, 'gated@900.json.gz'));
+    expect(
+      Object.values(map.elements).some((e) => String(e.cls) === 'inside open'),
+      'the gated state was captured in one-shot mode',
+    ).toBe(true);
+  } finally {
+    fs.rmSync(file, { force: true });
     fs.rmSync(out, { recursive: true, force: true });
   }
 });

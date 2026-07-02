@@ -32,7 +32,7 @@ one state (default): capture the page as it loads
   --wait <selector> wait for this selector to be visible before capturing
   --widths <csv>    viewport widths, e.g. 1440,1024,768. Omit to detect the
                     page's own @media breakpoints (fails on cross-origin CSS —
-                    pass widths for those). Crawl defaults to 1280 when omitted.
+                    pass widths for those). The crawl auto-detects too.
 
 whole surface: --crawl
   --crawl           EXHAUSTIVE: drive every non-destructive control, recurse into
@@ -78,6 +78,7 @@ let setupSteps;
 try {
   opts = parseCaptureUrlArgs(argv);
   setupSteps = opts.setupFile ? loadSetupSteps(opts.setupFile) : undefined;
+  opts.setup = setupSteps; // one-shot capture honours setup steps too
 } catch (e) {
   if (e instanceof UsageError) {
     console.error(`${COMMAND}: ${e.message}\nNext: run ${COMMAND} --help to see supported options.`);
@@ -93,7 +94,7 @@ async function runCrawl() {
     const crawlOpts = {
       url: opts.url,
       out: opts.out,
-      widths: opts.widths.length ? opts.widths : [1280],
+      widths: opts.widths, // empty = auto-detect the page's real breakpoints
       ignore: opts.ignore,
       height: opts.height,
       screenshots: opts.screenshots,
