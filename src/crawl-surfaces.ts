@@ -61,6 +61,22 @@ export type CrawlReport = {
   coverage: CrawlCoverage;
 };
 
+/**
+ * One deterministic step run after every fresh navigation, BEFORE the crawl
+ * looks at the page — how input-gated states (a login form, a search box)
+ * become crawlable. Values come from the caller with `${ENV_VAR}` interpolation
+ * done at load time, so secrets live in the environment, never in files or maps.
+ * `optional: true` skips the step silently when its selector isn't present
+ * (e.g. a cookie-session app that only shows the login form once).
+ */
+export type SetupStep = {
+  action: 'goto' | 'fill' | 'click' | 'waitFor';
+  url?: string;
+  selector?: string;
+  value?: string;
+  optional?: boolean;
+};
+
 export type SurfaceCrawlOptions = {
   url: string;
   out: string;
@@ -69,6 +85,13 @@ export type SurfaceCrawlOptions = {
   height: number;
   screenshots: boolean;
   waitSelector?: string;
+  /** Deterministic steps (login, unlock, seed input) run after EVERY fresh
+   *  navigation, so each reset re-establishes the gated state identically. */
+  setup?: SetupStep[];
+  /** Also capture automatic data states of the entry page: `loading` (data
+   *  requests stalled — the skeleton) and `error` (data requests fulfilled with
+   *  a 500). Default true; states that render identically to base are skipped. */
+  dataStates?: boolean;
   /** Throttle: recursion depth into opened surfaces (base = 0). Default: unbounded. */
   maxDepth: number;
   /** Throttle: fresh controls driven per state. Default: unbounded — try them all. */
@@ -314,6 +337,42 @@ async function waitSettled(page: Page): Promise<void> {
  * leave the viewport wherever it finished (e.g. a mobile band where half the
  * controls are hidden).
  */
+/** One runner per setup action — a table, so adding an action is one entry. */
+const SETUP_RUNNERS: Record<SetupStep['action'], (page: Page, s: SetupStep) => Promise<void>> = {
+  goto: async (page, s) => {
+    await page.goto(s.url ?? '', { waitUntil: 'load' });
+  },
+  fill: async (page, s) => {
+    await page
+      .locator(s.selector ?? '')
+      .first()
+      .fill(s.value ?? '', { timeout: 10000 });
+  },
+  click: async (page, s) => {
+    await perform(page, { action: 'click', selector: s.selector ?? '' });
+  },
+  waitFor: async (page, s) => {
+    await page
+      .locator(s.selector ?? '')
+      .first()
+      .waitFor({ state: 'visible', timeout: 10000 });
+  },
+};
+
+/** Run the caller's deterministic setup steps (login, unlock, seed input). A
+ *  non-optional step that fails throws loudly — a half-established gate must
+ *  never silently crawl the ungated page instead. */
+async function runSetup(page: Page, steps: SetupStep[]): Promise<void> {
+  for (const s of steps) {
+    try {
+      await SETUP_RUNNERS[s.action](page, s);
+    } catch (e) {
+      if (s.optional) continue;
+      throw new Error(`setup step failed (${s.action} ${s.selector ?? s.url ?? ''})`, { cause: e });
+    }
+  }
+}
+
 async function gotoFresh(page: Page, opts: SurfaceCrawlOptions): Promise<void> {
   await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
   await page.goto(opts.url, { waitUntil: 'load' });
@@ -322,6 +381,10 @@ async function gotoFresh(page: Page, opts: SurfaceCrawlOptions): Promise<void> {
   const ready = opts.waitSelector ? page.locator(opts.waitSelector).first() : null;
   if (ready) await ready.waitFor({ state: 'visible' }).catch(() => {});
   await waitSettled(page);
+  if (opts.setup?.length) {
+    await runSetup(page, opts.setup);
+    await settleDom(page); // the steps changed page state — let it land
+  }
 }
 
 async function perform(page: Page, s: { action: string; selector: string; value?: string }): Promise<void> {
@@ -448,12 +511,22 @@ async function record(
   st.surfaces.push(surface);
   st.queue.push({ path: newPath, depth, sig: fp.sig });
   for (const c of fp.classes) st.classes.add(c);
+  await captureAndReport(page, opts, surface, st);
+}
+
+/** Capture the current page as `surface` at every width and report the outcome. */
+async function captureAndReport(
+  page: Page,
+  opts: SurfaceCrawlOptions,
+  surface: CrawledSurface,
+  st: CrawlState,
+): Promise<void> {
   let ok = true;
   try {
-    await captureInPlace(page, key, opts);
+    await captureInPlace(page, surface.key, opts);
     st.captured++;
   } catch {
-    st.failed.push(key);
+    st.failed.push(surface.key);
     ok = false;
   }
   opts.onSurface?.(surface, ok);
@@ -568,12 +641,56 @@ async function sweepState(
   return { tried, skipped };
 }
 
+/** Capture one synthetic data state of the entry page (its data requests stalled
+ *  or failed) in place, deduped and coverage-counted like any surface — but never
+ *  queued: a stalled app is not a state to crawl deeper from. */
+async function recordDataState(
+  page: Page,
+  opts: SurfaceCrawlOptions,
+  mode: 'loading' | 'error',
+  dataUrls: Set<string>,
+  st: CrawlState,
+): Promise<void> {
+  await page.route('**/*', async (route) => {
+    if (!dataUrls.has(route.request().url())) return route.continue();
+    if (mode === 'error') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+    // loading: leave the request pending forever — the skeleton IS the state.
+  });
+  try {
+    await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
+    await page.goto(opts.url, { waitUntil: 'load' });
+    await settleDom(page, 2500); // no networkidle wait — a stalled request never goes idle
+    const fp = await fingerprint(page);
+    if (st.seen.has(fp.sig)) return; // renders identically to a captured state (e.g. SSR)
+    st.seen.add(fp.sig);
+    for (const c of fp.classes) st.classes.add(c);
+    const key = deriveKey(
+      [{ action: 'click', selector: `(data:${mode})`, label: mode, reason: 'data-state' }],
+      st.used,
+    );
+    const surface: CrawledSurface = { key, depth: 0, path: [], elements: fp.elements };
+    st.surfaces.push(surface);
+    await captureAndReport(page, opts, surface, st);
+  } finally {
+    await page.unroute('**/*');
+  }
+}
+
 /** Depth-first discovery + in-place capture of every reachable surface. Depth-first
  *  so a surface's OWN sub-states (a modal's tab → its toggles) are mapped while the
  *  branch is fresh; with no budget, order affects time-to-depth, not coverage. */
 async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlReport> {
   fs.mkdirSync(opts.out, { recursive: true });
+  // Watch the entry load's data requests so the automatic data states know what
+  // to stall/fail. Armed before navigation to see the app's own boot fetches.
+  const dataUrls = new Set<string>();
+  const onRequest = (req: { resourceType: () => string; url: () => string }) => {
+    const t = req.resourceType();
+    if (t === 'fetch' || t === 'xhr') dataUrls.add(req.url());
+  };
+  page.on('request', onRequest);
   await gotoFresh(page, opts);
+  page.off('request', onRequest);
   const defined = await page.evaluate(collectDefinedClasses).catch(() => [] as string[]);
   const fp = await fingerprint(page);
   const st: CrawlState = {
@@ -588,6 +705,14 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     failed: [],
   };
   await record(page, opts, [], 0, fp, st);
+
+  // Automatic data states of the entry page — the loading skeleton and the
+  // error render exist in every data-driven app but almost never in a click
+  // path. Captured out of the box; identical-to-base renders dedup away.
+  if (opts.dataStates !== false && dataUrls.size > 0) {
+    await recordDataState(page, opts, 'loading', dataUrls, st);
+    await recordDataState(page, opts, 'error', dataUrls, st);
+  }
 
   let actionsTried = 0;
   let skipped = 0;

@@ -7,6 +7,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `styleproof-capture --setup <file>`: deterministic steps (goto/fill/click/
+  waitFor) run after every fresh navigation, so input-gated states — a login,
+  an unlock code, seeded input — become crawlable. `${ENV_VAR}` in values is
+  interpolated from the environment at load time, so credentials never live in
+  the file or the maps; a failed non-optional step aborts loudly.
+- Automatic data states: the crawl watches the entry page's data requests and
+  additionally captures `loading` (requests stalled — the skeleton) and `error`
+  (requests fulfilled with 500) out of the box. Identical-to-base renders dedup
+  away; `--no-data-states` to skip.
+- README: "What the crawler can and cannot reach — honestly" — the crawl
+  vocabulary, what each state class is reached by, and the verifier contract
+  that anything unreached is named, never silently missed.
+
 ## [3.3.0] - 2026-07-02
 
 ### Added

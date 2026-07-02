@@ -1142,3 +1142,129 @@ test('bare crawl of a client-rendered page: the app mounts AFTER load and is sti
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('setup steps unlock an input-gated state; without them the verifier names the gap', async ({ page }) => {
+  // A client-side password gate: the vault section renders only after the right
+  // passphrase. Without setup, the crawl cannot type — the verifier must NAME the
+  // gated classes. With setup steps (fill + click, run on every reset), the vault
+  // is crawled like any surface and coverage is complete.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .gate { padding: 20px; background: rgb(240,240,245); }
+    .vault { display: none; padding: 20px; background: rgb(220,245,220); }
+    .vault.open { display: block; }
+    .vault-detail { display: none; background: rgb(200,235,200); padding: 10px; }
+    .vault-detail.open { display: block; }
+    button { cursor: pointer; }
+  </style></head><body>
+    <main class="gate">
+      <input id="pw" type="password" placeholder="passphrase">
+      <button id="unlock">Unlock</button>
+    </main>
+    <div class="vault" id="v">
+      vault content
+      <button id="more">Show detail</button>
+      <div class="vault-detail" id="vd">secret detail</div>
+    </div>
+    <script>
+      document.getElementById('unlock').onclick = () => {
+        if (document.getElementById('pw').value === 'open-sesame')
+          document.getElementById('v').classList.add('open');
+      };
+      document.getElementById('more').onclick = () => document.getElementById('vd').classList.add('open');
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-gate-${Math.random().toString(36).slice(2)}.html`);
+  const outA = path.join(os.tmpdir(), `styleproof-gate-a-${Math.random().toString(36).slice(2)}`);
+  const outB = path.join(os.tmpdir(), `styleproof-gate-b-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  const base = {
+    url: 'file://' + file,
+    ignore: [],
+    widths: [900],
+    height: 700,
+    screenshots: false,
+    maxDepth: 1000,
+    maxActionsPerState: 100000,
+    maxStates: 100000,
+    resetStorage: true,
+  };
+  try {
+    // WITHOUT setup: honest failure — the gated classes are named, not silently missed.
+    const blind = await crawlAndCapture(page, { ...base, out: outA });
+    expect(blind.coverage.missing).toContain('open'); // the state class the unlock adds
+
+    // WITH setup: the gate is re-established on every reset, so even the vault's
+    // own nested control (detail) is crawled behind it.
+    const steps = [
+      { action: 'fill', selector: '#pw', value: 'open-sesame' },
+      { action: 'click', selector: '#unlock' },
+      { action: 'waitFor', selector: '.vault.open' },
+    ];
+    const unlocked = await crawlAndCapture(page, { ...base, out: outB, setup: steps });
+    expect(unlocked.coverage.missing).toEqual([]);
+    expect(
+      unlocked.surfaces.some((s) => s.key.includes('detail')),
+      'nested control behind the gate crawled',
+    ).toBe(true);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(outA, { recursive: true, force: true });
+    fs.rmSync(outB, { recursive: true, force: true });
+  }
+});
+
+test('automatic data states: loading (stalled) and error (500) captured out of the box', async ({ page }) => {
+  // A data-driven page: skeleton until the fetch resolves, error render on 500.
+  // The crawl must capture loaded (base), loading, and error — with no config.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-data-'));
+  fs.writeFileSync(path.join(dir, 'data.json'), JSON.stringify({ items: ['a', 'b'] }));
+  fs.writeFileSync(
+    path.join(dir, 'index.html'),
+    `<!doctype html><html><head><meta charset="utf-8"><style>
+      body { margin: 0; font-family: sans-serif; }
+      .loading { padding: 20px; background: rgb(240,240,245); }
+      .loaded { padding: 20px; background: rgb(220,245,220); }
+      .error { padding: 20px; background: rgb(250,220,220); }
+    </style></head><body>
+      <main id="root"><div class="loading">loading…</div></main>
+      <script>
+        fetch('data.json')
+          .then((r) => { if (!r.ok) throw new Error('bad'); return r.json(); })
+          .then((d) => { document.getElementById('root').innerHTML = '<div class="loaded">' + d.items.join(', ') + '</div>'; })
+          .catch(() => { document.getElementById('root').innerHTML = '<div class="error">could not load</div>'; });
+      </script>
+    </body></html>`,
+  );
+  const server = http.createServer((req, res) => {
+    const f = path.join(dir, req.url === '/' ? 'index.html' : (req.url ?? ''));
+    if (!fs.existsSync(f)) return void res.writeHead(404).end();
+    res.writeHead(200, { 'content-type': f.endsWith('.json') ? 'application/json' : 'text/html' });
+    res.end(fs.readFileSync(f));
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  const port = (server.address() as { port: number }).port;
+  const out = path.join(os.tmpdir(), `styleproof-data-out-${Math.random().toString(36).slice(2)}`);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: `http://127.0.0.1:${port}/index.html`,
+      out,
+      ignore: [],
+      widths: [900],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    const keys = report.surfaces.map((s) => s.key);
+    expect(keys).toContain('loading');
+    expect(keys).toContain('error');
+    expect(report.coverage.missing, 'loaded + loading + error all rendered somewhere').toEqual([]);
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});

@@ -18,7 +18,7 @@
  */
 import { chromium } from '@playwright/test';
 import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
-import { UsageError, parseCaptureUrlArgs, runCaptureUrl } from '../dist/capture-url.js';
+import { UsageError, parseCaptureUrlArgs, runCaptureUrl, loadSetupSteps } from '../dist/capture-url.js';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 
 const COMMAND = 'styleproof-capture';
@@ -44,6 +44,13 @@ whole surface: --crawl
                     exit 4 unless every class the page's stylesheets define was
                     rendered in a captured surface — the machine check that
                     NOTHING in the design was missed (coverage is always printed)
+  --setup <file>    JSON steps (goto/fill/click/waitFor) run after EVERY fresh
+                    navigation — how input-gated states (login, unlock) become
+                    crawlable. \${ENV_VAR} in value/url is read from the
+                    environment, so secrets never live in the file or the maps.
+  --no-data-states  skip the automatic loading/error captures of the entry page
+                    (on by default: data requests stalled → loading skeleton;
+                    fulfilled with 500 → error render)
   --max-depth <n>   throttle recursion depth (default: unbounded)
   --max-actions <n> throttle controls tried per state (default: unbounded)
   --max-states <n>  throttle total surfaces (default: unbounded)
@@ -67,8 +74,10 @@ const argv = process.argv.slice(2);
 if (isHelpArg(argv[0])) showHelpAndExit(HELP);
 
 let opts;
+let setupSteps;
 try {
   opts = parseCaptureUrlArgs(argv);
+  setupSteps = opts.setupFile ? loadSetupSteps(opts.setupFile) : undefined;
 } catch (e) {
   if (e instanceof UsageError) {
     console.error(`${COMMAND}: ${e.message}\nNext: run ${COMMAND} --help to see supported options.`);
@@ -93,6 +102,8 @@ async function runCrawl() {
       maxActionsPerState: opts.maxActionsPerState,
       maxStates: opts.maxStates,
       resetStorage: opts.resetStorage,
+      setup: setupSteps,
+      dataStates: opts.dataStates,
       // Stream each surface as it is captured, so progress is visible live and an
       // interrupted run still shows exactly what it mapped.
       onSurface: (s, ok) =>

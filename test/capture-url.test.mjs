@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCaptureUrlArgs, UsageError } from '../dist/capture-url.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { parseCaptureUrlArgs, loadSetupSteps, UsageError } from '../dist/capture-url.js';
 
 test('defaults: just a url', () => {
   const o = parseCaptureUrlArgs(['https://example.com/pricing']);
@@ -19,6 +22,8 @@ test('defaults: just a url', () => {
     maxStates: 100000,
     resetStorage: true,
     requireFullCoverage: false,
+    setupFile: undefined,
+    dataStates: true,
   });
 });
 
@@ -90,4 +95,36 @@ test('usage errors throw UsageError', () => {
   assert.throws(() => parseCaptureUrlArgs(['u', '--height', 'tall']), UsageError, 'non-numeric height');
   assert.throws(() => parseCaptureUrlArgs(['u', '--height', '0']), UsageError, 'non-positive height');
   assert.throws(() => parseCaptureUrlArgs(['u', '--key']), UsageError, 'flag missing value');
+});
+
+test('gated-state flags parse', () => {
+  const o = parseCaptureUrlArgs(['u', '--setup', 'steps.json', '--no-data-states']);
+  assert.equal(o.setupFile, 'steps.json');
+  assert.equal(o.dataStates, false);
+});
+
+test('loadSetupSteps: validates, and interpolates ${ENV} so secrets stay out of files', () => {
+  const file = path.join(os.tmpdir(), `sp-setup-${Math.random().toString(36).slice(2)}.json`);
+  fs.writeFileSync(
+    file,
+    JSON.stringify([
+      { action: 'fill', selector: '#user', value: '${SP_TEST_USER}' },
+      { action: 'fill', selector: '#pass', value: '${SP_TEST_PASS}' },
+      { action: 'click', selector: '#go' },
+      { action: 'waitFor', selector: '.inside', optional: true },
+    ]),
+  );
+  try {
+    const steps = loadSetupSteps(file, { SP_TEST_USER: 'alice', SP_TEST_PASS: 's3cret' });
+    assert.equal(steps[0].value, 'alice');
+    assert.equal(steps[1].value, 's3cret');
+    assert.equal(steps[3].optional, true);
+    assert.throws(() => loadSetupSteps(file, {}), UsageError, 'missing env var is loud');
+    fs.writeFileSync(file, JSON.stringify([{ action: 'hover', selector: 'x' }]));
+    assert.throws(() => loadSetupSteps(file, {}), UsageError, 'unknown action is loud');
+    fs.writeFileSync(file, JSON.stringify({ action: 'click' }));
+    assert.throws(() => loadSetupSteps(file, {}), UsageError, 'non-array is loud');
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
 });
