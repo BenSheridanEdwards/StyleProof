@@ -51,6 +51,8 @@ whole surface: --crawl
   --no-data-states  skip the automatic loading/error captures of the entry page
                     (on by default: data requests stalled → loading skeleton;
                     fulfilled with 500 → error render)
+  --workers <n>     concurrent sweep workers (default 4); same surface set as a
+                    serial crawl — pass 1 for byte-stable key attribution
   --max-depth <n>   throttle recursion depth (default: unbounded)
   --max-actions <n> throttle controls tried per state (default: unbounded)
   --max-states <n>  throttle total surfaces (default: unbounded)
@@ -105,6 +107,9 @@ async function runCrawl() {
       resetStorage: opts.resetStorage,
       setup: setupSteps,
       dataStates: opts.dataStates,
+      workers: opts.workers,
+      // each worker page in its OWN context, so storage resets can't interfere
+      newPage: async () => (await browser.newContext()).newPage(),
       // Stream each surface as it is captured, so progress is visible live and an
       // interrupted run still shows exactly what it mapped.
       onSurface: (s, ok) =>

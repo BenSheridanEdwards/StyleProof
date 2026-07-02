@@ -104,6 +104,15 @@ export type SurfaceCrawlOptions = {
   /** Called as each surface is recorded (captured=false when its full capture failed).
    *  Lets CLIs stream progress instead of reporting only at the end. */
   onSurface?: (surface: CrawledSurface, captured: boolean) => void;
+  /** Concurrent sweep workers (default 4). Each worker gets its own page from
+   *  `newPage`; without a factory the crawl runs single-page regardless. The
+   *  surface SET is identical to a serial crawl (same dedup sets); only which
+   *  path first claims a shape — and so dup-key suffixes — can vary run to run.
+   *  Use workers: 1 for byte-stable key attribution. */
+  workers?: number;
+  /** Factory for worker pages — create each in its OWN browser context so
+   *  storage resets cannot interfere across concurrent sweeps. */
+  newPage?: () => Promise<Page>;
 };
 
 // Exhaustive by default — these ceilings are safety backstops, not budgets.
@@ -114,6 +123,7 @@ export const CRAWL_DEFAULTS = {
   maxActionsPerState: 100000,
   maxStates: 100000,
   resetStorage: true,
+  workers: 4,
 };
 
 type RawCandidate = {
@@ -568,12 +578,16 @@ async function record(
   depth: number,
   fp: { sig: string; elements: number; classes: string[] },
   st: CrawlState,
+  sink: QueueEntry[],
   retryOnly = false,
 ): Promise<void> {
   const key = deriveKey(newPath, st.used);
   const surface: CrawledSurface = { key, depth, path: newPath, elements: fp.elements };
   st.surfaces.push(surface);
-  st.queue.push({ path: newPath, depth, sig: fp.sig, retryOnly });
+  // Children buffer in the sweep's sink and enter the shared queue only when the
+  // parent's sweep completes — family retry reads the parent's changer registry,
+  // which is only complete then. (Serial mode passes st.queue directly.)
+  sink.push({ path: newPath, depth, sig: fp.sig, retryOnly });
   for (const c of fp.classes) st.classes.add(c);
   await captureAndReport(page, opts, surface, st);
 }
@@ -618,6 +632,7 @@ async function driveCandidate(
   entry: QueueEntry,
   c: RawCandidate,
   st: CrawlState,
+  sink: QueueEntry[],
 ): Promise<{ inState: boolean; skipped: boolean }> {
   // (retry-only lineage is inherited: a consumed state's descendants can also
   // only be mode-switch views, never fresh-candidate exploration.)
@@ -646,7 +661,7 @@ async function driveCandidate(
     reason: c.reason,
     ...(c.value ? { value: c.value } : {}),
   };
-  await record(page, opts, [...entry.path, step], entry.depth + 1, fp, st, entry.retryOnly || !persists);
+  await record(page, opts, [...entry.path, step], entry.depth + 1, fp, st, sink, entry.retryOnly || !persists);
   return { inState: false, skipped: false };
 }
 
@@ -691,6 +706,7 @@ async function sweepState(
   opts: SurfaceCrawlOptions,
   entry: QueueEntry,
   st: CrawlState,
+  sink: QueueEntry[],
 ): Promise<{ tried: number; skipped: number }> {
   if (!(await resetToState(page, opts, entry.path, entry.sig))) return { tried: 0, skipped: 0 };
   const all = await page.evaluate(collectClickable).catch(() => [] as RawCandidate[]);
@@ -711,7 +727,7 @@ async function sweepState(
       continue;
     }
     tried++;
-    const r = await driveCandidate(page, opts, entry, c, st);
+    const r = await driveCandidate(page, opts, entry, c, st, sink);
     inState = r.inState;
     if (r.skipped) skipped++;
   }
@@ -755,6 +771,56 @@ async function recordDataState(
   }
 }
 
+/**
+ * Sweep the queue with N concurrent workers, each on its own page. LIFO keeps
+ * the depth-first bias; a worker's discovered children enter the shared queue
+ * only when its sweep completes (see record). The surface SET matches a serial
+ * crawl — dedup sets are shared and mutated synchronously — only dup-key
+ * suffix attribution can vary with timing.
+ */
+async function runPool(
+  primary: Page,
+  opts: SurfaceCrawlOptions,
+  st: CrawlState,
+  counters: { tried: number; skipped: number },
+): Promise<void> {
+  const target = Math.max(1, opts.workers ?? 1);
+  const pages: Page[] = [primary];
+  while (opts.newPage && pages.length < target) {
+    const extra = await opts.newPage();
+    if (opts.resetStorage) await armResetStorage(extra);
+    pages.push(extra);
+  }
+  let active = 0;
+  await new Promise<void>((resolve) => {
+    const pump = (): void => {
+      while (pages.length > 0 && st.queue.length > 0 && st.surfaces.length < opts.maxStates) {
+        const entry = st.queue.pop()!; // LIFO → depth-first
+        if (entry.depth >= opts.maxDepth) continue;
+        const worker = pages.pop()!;
+        active++;
+        const sink: QueueEntry[] = [];
+        sweepState(worker, opts, entry, st, sink)
+          .then((r) => {
+            counters.tried += r.tried;
+            counters.skipped += r.skipped;
+          })
+          .catch(() => {
+            /* fail-soft: the state's surface was already captured in place */
+          })
+          .finally(() => {
+            st.queue.push(...sink);
+            pages.push(worker);
+            active--;
+            pump();
+          });
+      }
+      if (active === 0 && (st.queue.length === 0 || st.surfaces.length >= opts.maxStates)) resolve();
+    };
+    pump();
+  });
+}
+
 /** Depth-first discovery + in-place capture of every reachable surface. Depth-first
  *  so a surface's OWN sub-states (a modal's tab → its toggles) are mapped while the
  *  branch is fresh; with no budget, order affects time-to-depth, not coverage. */
@@ -792,7 +858,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     captured: 0,
     failed: [],
   };
-  await record(page, opts, [], 0, fp, st, false);
+  await record(page, opts, [], 0, fp, st, st.queue, false);
 
   // Automatic data states of the entry page — the loading skeleton and the
   // error render exist in every data-driven app but almost never in a click
@@ -802,20 +868,13 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     await recordDataState(page, opts, 'error', st);
   }
 
-  let actionsTried = 0;
-  let skipped = 0;
-  while (st.queue.length > 0 && st.surfaces.length < opts.maxStates) {
-    const entry = st.queue.pop()!; // LIFO → depth-first
-    if (entry.depth >= opts.maxDepth) continue;
-    const r = await sweepState(page, opts, entry, st);
-    actionsTried += r.tried;
-    skipped += r.skipped;
-  }
+  const counters = { tried: 0, skipped: 0 };
+  await runPool(page, opts, st, counters);
   const missing = defined.filter((c) => !st.classes.has(c)).sort();
   return {
     surfaces: st.surfaces,
-    actionsTried,
-    skipped,
+    actionsTried: counters.tried,
+    skipped: counters.skipped,
     captured: st.captured,
     failed: st.failed,
     coverage: { defined: defined.length, rendered: defined.length - missing.length, missing },
@@ -827,18 +886,20 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
  * natural termination by default. Returns the surfaces mapped (with the click-path
  * that reached each), how many actions were tried/skipped, and captured/failed.
  */
+/** Clear storage before the app's code runs on EVERY load, so each gotoFresh is
+ *  a clean slate in one navigation (no clear-then-reload round trip). */
+async function armResetStorage(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch {
+      /* storage unavailable (e.g. file://) — ignore */
+    }
+  });
+}
+
 export async function crawlAndCapture(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlReport> {
-  if (opts.resetStorage) {
-    // Clear storage before the app's code runs on EVERY load, so each gotoFresh is
-    // a clean slate in one navigation (no clear-then-reload round trip).
-    await page.addInitScript(() => {
-      try {
-        localStorage.clear();
-        sessionStorage.clear();
-      } catch {
-        /* storage unavailable (e.g. file://) — ignore */
-      }
-    });
-  }
+  if (opts.resetStorage) await armResetStorage(page);
   return discover(page, opts);
 }

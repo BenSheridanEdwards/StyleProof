@@ -24,6 +24,7 @@ test('defaults: just a url', () => {
     requireFullCoverage: false,
     setupFile: undefined,
     dataStates: true,
+    workers: 4,
   });
 });
 
@@ -98,9 +99,10 @@ test('usage errors throw UsageError', () => {
 });
 
 test('gated-state flags parse', () => {
-  const o = parseCaptureUrlArgs(['u', '--setup', 'steps.json', '--no-data-states']);
+  const o = parseCaptureUrlArgs(['u', '--setup', 'steps.json', '--no-data-states', '--workers', '2']);
   assert.equal(o.setupFile, 'steps.json');
   assert.equal(o.dataStates, false);
+  assert.equal(o.workers, 2);
 });
 
 test('loadSetupSteps: validates, and interpolates ${ENV} so secrets stay out of files', () => {

@@ -71,6 +71,8 @@ export type CaptureUrlOptions = {
   /** crawl: also capture automatic `loading`/`error` data states of the entry
    *  page (default true). */
   dataStates: boolean;
+  /** crawl: concurrent sweep workers (default 4). 1 = byte-stable key attribution. */
+  workers: number;
 };
 
 const DEFAULTS = {
@@ -85,6 +87,7 @@ const DEFAULTS = {
   resetStorage: true,
   requireFullCoverage: false,
   dataStates: true,
+  workers: 4,
 };
 
 function positiveNumber(raw: string, flag: string): number {
@@ -116,6 +119,7 @@ const VALUE_FLAGS: Record<string, (o: CaptureUrlOptions, v: string) => void> = {
   '--max-actions': (o, v) => (o.maxActionsPerState = positiveNumber(v, '--max-actions')),
   '--max-states': (o, v) => (o.maxStates = positiveNumber(v, '--max-states')),
   '--setup': (o, v) => (o.setupFile = v),
+  '--workers': (o, v) => (o.workers = positiveNumber(v, '--workers')),
 };
 const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--screenshots': (o) => (o.screenshots = true),
@@ -174,6 +178,7 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
     requireFullCoverage: DEFAULTS.requireFullCoverage,
     setupFile: undefined,
     dataStates: DEFAULTS.dataStates,
+    workers: DEFAULTS.workers,
   };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) i = applyArg(o, argv, i, positional);

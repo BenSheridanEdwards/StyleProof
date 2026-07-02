@@ -1502,3 +1502,62 @@ test('consuming actions never spawn a decision lattice; their mode-views stay re
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('parallel workers produce the same surface set as a serial crawl', async ({ page, browser }) => {
+  // Same fixture as the mode-lattice test: three persistent modes = exactly 8
+  // structurally distinct states. With 3 workers on separate contexts the SET
+  // must be identical (shared dedup), coverage complete, nothing failed —
+  // parallelism buys wall-clock, never coverage.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .card { cursor: grab; background: rgb(240,240,245); padding: 16px; width: 200px; }
+    .detail { display: none; background: rgb(220,235,255); padding: 10px; }
+    .detail.open { display: block; }
+    .shared { display: none; background: rgb(255,240,220); padding: 10px; }
+    .shared.open { display: block; }
+    body.alt .card { background: rgb(200,220,200); }
+    button { cursor: pointer; }
+  </style></head><body>
+    <div class="card" id="c">Draggable card (click opens detail)</div>
+    <div class="detail" id="d">detail panel</div>
+    <button id="a">Open shared</button><button id="b">Also open shared</button>
+    <div class="shared" id="s">shared panel</div>
+    <select id="sel"><option value="x">x</option><option value="alt">alt</option></select>
+    <script>
+      document.getElementById('c').onclick = () => document.getElementById('d').classList.add('open');
+      for (const id of ['a','b']) document.getElementById(id).onclick = () => document.getElementById('s').classList.add('open');
+      document.getElementById('sel').onchange = (e) => document.body.classList.toggle('alt', e.target.value === 'alt');
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-par-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-par-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  const contexts: import('@playwright/test').BrowserContext[] = [];
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+      workers: 3,
+      newPage: async () => {
+        const ctx = await browser.newContext();
+        contexts.push(ctx);
+        return ctx.newPage();
+      },
+    });
+    expect(report.surfaces.length, 'identical mode lattice under parallelism').toBe(8);
+    expect(report.coverage.missing).toEqual([]);
+    expect(report.failed).toEqual([]);
+  } finally {
+    for (const ctx of contexts) await ctx.close();
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
