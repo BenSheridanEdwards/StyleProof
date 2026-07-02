@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Browser, Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
+import { runSetup, type SetupStep } from './crawl-surfaces.js';
 
 /**
  * One-shot capture of a single URL's computed-style map — no spec, no config,
@@ -61,6 +62,15 @@ export type CaptureUrlOptions = {
   /** crawl: exit non-zero unless every class the page's stylesheets define was
    *  rendered in at least one captured surface (default false — report only). */
   requireFullCoverage: boolean;
+  /** crawl: JSON file of deterministic setup steps (login, unlock, seed input)
+   *  run after every fresh navigation. See {@link loadSetupSteps}. */
+  setupFile?: string;
+  /** Loaded setup steps (set by the CLI from `setupFile`); applied after every
+   *  navigation in BOTH modes, so a gated page's single state is capturable too. */
+  setup?: SetupStep[];
+  /** crawl: also capture automatic `loading`/`error` data states of the entry
+   *  page (default true). */
+  dataStates: boolean;
 };
 
 const DEFAULTS = {
@@ -74,6 +84,7 @@ const DEFAULTS = {
   maxStates: 100000,
   resetStorage: true,
   requireFullCoverage: false,
+  dataStates: true,
 };
 
 function positiveNumber(raw: string, flag: string): number {
@@ -104,6 +115,7 @@ const VALUE_FLAGS: Record<string, (o: CaptureUrlOptions, v: string) => void> = {
   '--max-depth': (o, v) => (o.maxDepth = positiveNumber(v, '--max-depth')),
   '--max-actions': (o, v) => (o.maxActionsPerState = positiveNumber(v, '--max-actions')),
   '--max-states': (o, v) => (o.maxStates = positiveNumber(v, '--max-states')),
+  '--setup': (o, v) => (o.setupFile = v),
 };
 const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--screenshots': (o) => (o.screenshots = true),
@@ -111,6 +123,8 @@ const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--crawl': (o) => (o.crawl = true),
   '--no-reset-storage': (o) => (o.resetStorage = false),
   '--require-full-coverage': (o) => (o.requireFullCoverage = true),
+  '--data-states': (o) => (o.dataStates = true),
+  '--no-data-states': (o) => (o.dataStates = false),
 };
 
 // Apply one argv token to the accumulator; returns the index to resume from
@@ -158,6 +172,8 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
     maxStates: DEFAULTS.maxStates,
     resetStorage: DEFAULTS.resetStorage,
     requireFullCoverage: DEFAULTS.requireFullCoverage,
+    setupFile: undefined,
+    dataStates: DEFAULTS.dataStates,
   };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) i = applyArg(o, argv, i, positional);
@@ -187,6 +203,7 @@ export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Prom
     await page.setViewportSize({ width: 1280, height: opts.height });
     await page.goto(opts.url, { waitUntil: 'load' });
     if (opts.waitSelector) await page.locator(opts.waitSelector).first().waitFor({ state: 'visible' });
+    if (opts.setup?.length) await runSetup(page, opts.setup);
     widths = await detectViewportWidths(page);
   }
 
@@ -197,6 +214,7 @@ export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Prom
     try {
       await page.goto(opts.url, { waitUntil: 'load' });
       if (opts.waitSelector) await page.locator(opts.waitSelector).first().waitFor({ state: 'visible' });
+      if (opts.setup?.length) await runSetup(page, opts.setup);
       const map = await captureStyleMap(page, {
         ignore: opts.ignore,
         pendingRequests: requests.pending,
@@ -232,4 +250,41 @@ export async function runCaptureUrl(
   } finally {
     await browser.close();
   }
+}
+
+const SETUP_ACTIONS = new Set(['goto', 'fill', 'click', 'waitFor']);
+
+/**
+ * Load and validate a `--setup` steps file, interpolating `${ENV_VAR}` in every
+ * `value` and `url` from the environment — so credentials for an input-gated
+ * page live in env vars, never in the file, the shell history, or the maps.
+ * Throws {@link UsageError} on a malformed file or a missing variable.
+ */
+export function loadSetupSteps(file: string, env: NodeJS.ProcessEnv = process.env): SetupStep[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    throw new UsageError(`--setup: cannot read ${file}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (!Array.isArray(parsed)) throw new UsageError('--setup: the file must be a JSON array of steps');
+  const interpolate = (raw: string): string =>
+    raw.replace(/\$\{([A-Z0-9_]+)\}/gi, (_, name: string) => {
+      const v = env[name];
+      if (v === undefined) throw new UsageError(`--setup: environment variable ${name} is not set`);
+      return v;
+    });
+  return parsed.map((raw, i) => {
+    const step = raw as SetupStep;
+    if (!SETUP_ACTIONS.has(step.action))
+      throw new UsageError(`--setup: step ${i} has unknown action "${String(step.action)}"`);
+    if (step.action === 'goto' && !step.url) throw new UsageError(`--setup: step ${i} (goto) needs a url`);
+    if (step.action !== 'goto' && !step.selector)
+      throw new UsageError(`--setup: step ${i} (${step.action}) needs a selector`);
+    return {
+      ...step,
+      ...(step.url ? { url: interpolate(step.url) } : {}),
+      ...(step.value ? { value: interpolate(step.value) } : {}),
+    };
+  });
 }

@@ -430,6 +430,47 @@ What makes exhaustive affordable is that the sweep works **in place**: standing 
 
 **Destructive-looking controls (delete, deploy, pay, revoke…) are never clicked** — mapping must not mutate; states gated behind one of those need a spec. Prefer the spec-driven `defineStyleMapCapture` when you want stable, named keys and the coverage guard; reach for `--crawl` to map a design (or a third-party page) you don't have a spec for.
 
+### Data states, out of the box
+
+Every data-driven page has states that almost never sit on a click path: the **loading skeleton** and the **error render**. The crawl captures both automatically — it watches the entry page's data requests, then re-loads once with them **stalled** (the skeleton is the settled state, captured as `loading`) and once with them **fulfilled as 500** (captured as `error`). States that render identically to the base (e.g. server-rendered pages) dedup away silently. On by default; `--no-data-states` to skip. Deeper data states — a specific empty list, a partial payload — are fixture territory: model them as `liveStates`/`variants` in a spec.
+
+### Input-gated states: `--setup`
+
+A crawler clicks and selects; it does not guess your password. States behind typed input — a login, an unlock code, a seeded search — become crawlable with a deterministic setup file, run after **every** fresh navigation so each reset re-establishes the gate identically:
+
+```json
+[
+  { "action": "fill", "selector": "#user", "value": "${CAPTURE_USER}" },
+  { "action": "fill", "selector": "#pass", "value": "${CAPTURE_PASS}" },
+  { "action": "click", "selector": "#sign-in" },
+  { "action": "waitFor", "selector": ".dashboard" }
+]
+```
+
+```bash
+CAPTURE_USER=demo CAPTURE_PASS=… styleproof-capture https://example.com --crawl --setup login.json --out design
+```
+
+`${ENV_VAR}` in `value`/`url` is interpolated from the environment at load time — **credentials never live in the file, the shell history, or the captured maps.** A non-optional step that fails aborts the crawl loudly (a half-established gate must never silently crawl the ungated page); mark a step `"optional": true` when it legitimately may not apply (a cookie-session app that shows the login form only once).
+
+### What the crawler can and cannot reach — honestly
+
+The crawl's vocabulary is **click, select, neutral typing, scrolling, and your setup steps** — and it sweeps the page's real `@media` breakpoints automatically when you give it none. Within it, mapping is exhaustive. Outside it, states are not reached by crawling — and the coverage verifier is what keeps that honest: anything unreached is _named_, never silently missed.
+
+| State                                                                        | Reached by                                                                                                                                                                            |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Click-opened surfaces (modals, drawers, popovers, tabs, toggles)             | crawl, automatically                                                                                                                                                                  |
+| Mode × sibling combinations (a tab's edit state, a decided list's other tab) | crawl — family retry                                                                                                                                                                  |
+| Loading / error data states of the entry page                                | crawl — automatic data states                                                                                                                                                         |
+| Login / unlock / typed input                                                 | `--setup` steps                                                                                                                                                                       |
+| `:hover` / `:focus` / `:active` styling                                      | the forced-state layer of every capture                                                                                                                                               |
+| Deeper data states (empty, partial, streaming)                               | spec `liveStates` / `variants` with fixtures                                                                                                                                          |
+| States behind destructive actions                                            | a spec, deliberately — the crawl never clicks them                                                                                                                                    |
+| Drag-and-drop, keyboard-shortcut, scroll-triggered states                    | a spec driving them explicitly                                                                                                                                                        |
+| Components not mounted anywhere in the UI                                    | a component catalog page (each component per prop-state is a surface — Storybook/Ladle stories work; `discoverComponentFiles` fails CI when a component file has no captured surface) |
+
+The rule of thumb: **a rendered state is a function of props, data, and input.** Control all three — mock the data, script the input, mount the component — and every state a component can render is a capturable surface. The verifier tells you, by name, which ones you haven't controlled yet.
+
 ## Install
 
 ```bash

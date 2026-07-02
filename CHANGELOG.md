@@ -7,6 +7,40 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `styleproof-capture --setup <file>`: deterministic steps (goto/fill/click/
+  waitFor) run after every fresh navigation, so input-gated states — a login,
+  an unlock code, seeded input — become crawlable. `${ENV_VAR}` in values is
+  interpolated from the environment at load time, so credentials never live in
+  the file or the maps; a failed non-optional step aborts loudly.
+- Automatic data states: the crawl watches the entry page's data requests and
+  additionally captures `loading` (requests stalled — the skeleton) and `error`
+  (requests fulfilled with 500) out of the box. Identical-to-base renders dedup
+  away; `--no-data-states` to skip.
+- README: "What the crawler can and cannot reach — honestly" — the crawl
+  vocabulary, what each state class is reached by, and the verifier contract
+  that anything unreached is named, never silently missed.
+- Automatic neutral-input fill: text/search/email/tel/url/number inputs and
+  textareas are typed with a deterministic value, so input-driven states (a
+  search's results, a filter's rendering) are crawled with no config.
+  Credential-semantic fields (type=password, autocomplete username/
+  current-password/new-password/one-time-code) are never auto-filled — that is
+  `--setup` territory, the only input the tool cannot derive.
+- Automatic scroll reveal: a bounded, deterministic scroll pass on every load
+  mounts IntersectionObserver/lazy content before discovery, so scroll-gated
+  sections are part of the mapped surface.
+- The crawl now auto-detects the page's real `@media` breakpoints when no
+  `--widths` are given (like the one-shot path), sweeping one width per band.
+- `--setup` steps are honoured by the one-shot (non-crawl) capture too, so a
+  gated page's single state is capturable directly.
+
+### Fixed
+
+- Automatic data states now intercept by resource type (fetch/XHR) instead of
+  exact URL — apps that cache-bust their requests (`?t=...`) previously
+  slipped past the stall and produced no `loading` capture.
+
 ## [3.3.0] - 2026-07-02
 
 ### Added

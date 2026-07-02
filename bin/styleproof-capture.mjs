@@ -18,7 +18,7 @@
  */
 import { chromium } from '@playwright/test';
 import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
-import { UsageError, parseCaptureUrlArgs, runCaptureUrl } from '../dist/capture-url.js';
+import { UsageError, parseCaptureUrlArgs, runCaptureUrl, loadSetupSteps } from '../dist/capture-url.js';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 
 const COMMAND = 'styleproof-capture';
@@ -32,7 +32,7 @@ one state (default): capture the page as it loads
   --wait <selector> wait for this selector to be visible before capturing
   --widths <csv>    viewport widths, e.g. 1440,1024,768. Omit to detect the
                     page's own @media breakpoints (fails on cross-origin CSS —
-                    pass widths for those). Crawl defaults to 1280 when omitted.
+                    pass widths for those). The crawl auto-detects too.
 
 whole surface: --crawl
   --crawl           EXHAUSTIVE: drive every non-destructive control, recurse into
@@ -44,6 +44,13 @@ whole surface: --crawl
                     exit 4 unless every class the page's stylesheets define was
                     rendered in a captured surface — the machine check that
                     NOTHING in the design was missed (coverage is always printed)
+  --setup <file>    JSON steps (goto/fill/click/waitFor) run after EVERY fresh
+                    navigation — how input-gated states (login, unlock) become
+                    crawlable. \${ENV_VAR} in value/url is read from the
+                    environment, so secrets never live in the file or the maps.
+  --no-data-states  skip the automatic loading/error captures of the entry page
+                    (on by default: data requests stalled → loading skeleton;
+                    fulfilled with 500 → error render)
   --max-depth <n>   throttle recursion depth (default: unbounded)
   --max-actions <n> throttle controls tried per state (default: unbounded)
   --max-states <n>  throttle total surfaces (default: unbounded)
@@ -67,8 +74,11 @@ const argv = process.argv.slice(2);
 if (isHelpArg(argv[0])) showHelpAndExit(HELP);
 
 let opts;
+let setupSteps;
 try {
   opts = parseCaptureUrlArgs(argv);
+  setupSteps = opts.setupFile ? loadSetupSteps(opts.setupFile) : undefined;
+  opts.setup = setupSteps; // one-shot capture honours setup steps too
 } catch (e) {
   if (e instanceof UsageError) {
     console.error(`${COMMAND}: ${e.message}\nNext: run ${COMMAND} --help to see supported options.`);
@@ -84,7 +94,7 @@ async function runCrawl() {
     const crawlOpts = {
       url: opts.url,
       out: opts.out,
-      widths: opts.widths.length ? opts.widths : [1280],
+      widths: opts.widths, // empty = auto-detect the page's real breakpoints
       ignore: opts.ignore,
       height: opts.height,
       screenshots: opts.screenshots,
@@ -93,6 +103,8 @@ async function runCrawl() {
       maxActionsPerState: opts.maxActionsPerState,
       maxStates: opts.maxStates,
       resetStorage: opts.resetStorage,
+      setup: setupSteps,
+      dataStates: opts.dataStates,
       // Stream each surface as it is captured, so progress is visible live and an
       // interrupted run still shows exactly what it mapped.
       onSurface: (s, ok) =>
