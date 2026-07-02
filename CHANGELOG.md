@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Parallel crawl: `--workers <n>` (default 4) sweeps queued states concurrently,
+  each worker on its own browser context. The surface set is identical to a
+  serial crawl — dedup sets are shared, and a state's children only join the
+  queue when its sweep completes, so family retry never reads a half-built
+  changer registry. Only dup-key suffix attribution can vary with timing; pass
+  `--workers 1` for byte-stable keys. Exhaustive runs drop from hours to
+  minutes on lattice-heavy designs.
+
 ## [3.4.0] - 2026-07-02
 
 ### Fixed
