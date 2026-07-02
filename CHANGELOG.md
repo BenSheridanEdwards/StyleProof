@@ -29,6 +29,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   streamed per captured surface, and destructive-looking controls are never
   clicked. `--max-depth` / `--max-actions` / `--max-states` exist only as
   throttles. Exported programmatically as `crawlAndCapture`.
+- Crawl coverage verifier: after `--crawl`, every class the page's own
+  stylesheets define (parsed CSSOM) is checked against the classes rendered
+  across all captured surfaces, and the never-seen residue is printed — dead
+  CSS, or a state the crawl could not reach. `--require-full-coverage` makes
+  any residue exit 4, so "the design is fully covered, nothing missing" is a
+  machine-checked property. On `CrawlReport.coverage` programmatically.
 
 ### Fixed
 

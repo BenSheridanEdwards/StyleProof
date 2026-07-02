@@ -44,6 +44,12 @@ export type CrawlStep = {
 };
 
 export type CrawledSurface = { key: string; depth: number; path: CrawlStep[]; elements: number };
+
+/** Did the crawl SEE everything the design styles? `missing` lists classes the
+ *  page's own stylesheets select on that never appeared in any captured surface —
+ *  dead CSS, or a state the crawl could not reach. Empty missing = full coverage. */
+export type CrawlCoverage = { defined: number; rendered: number; missing: string[] };
+
 export type CrawlReport = {
   surfaces: CrawledSurface[];
   actionsTried: number;
@@ -52,6 +58,7 @@ export type CrawlReport = {
   captured: number;
   /** Keys of surfaces discovered but whose full capture failed. */
   failed: string[];
+  coverage: CrawlCoverage;
 };
 
 export type SurfaceCrawlOptions = {
@@ -210,21 +217,58 @@ function collectClickable(): RawCandidate[] {
  *  new state, while any mount/unmount/class flip does. ~30ms vs the full
  *  computed-style walk it replaces for change detection. */
 /* c8 ignore start */
-function domShape(): { shape: string; elements: number } {
+function domShape(): { shape: string; elements: number; classes: string[] } {
   const SKIP = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'NOSCRIPT', 'TEMPLATE']);
   const parts: string[] = [];
+  const classes = new Set<string>();
   for (const el of document.body.getElementsByTagName('*')) {
     if (SKIP.has(el.tagName)) continue;
-    parts.push(`${el.tagName}.${el.getAttribute('class') ?? ''}`);
+    const cls = el.getAttribute('class') ?? '';
+    parts.push(`${el.tagName}.${cls}`);
+    for (const c of cls.split(/\s+/)) if (c) classes.add(c);
   }
-  return { shape: parts.join('\n'), elements: parts.length };
+  return { shape: parts.join('\n'), elements: parts.length, classes: [...classes] };
+}
+/* c8 ignore stop */
+
+/** Runs in the browser: every class name the page's OWN stylesheets select on —
+ *  the design's defined vocabulary, read from the parsed CSSOM (inline and
+ *  same-origin sheets; unreadable cross-origin sheets are skipped). Coverage is
+ *  checked against this, so "fully covered" means every class the design styles
+ *  was seen rendered in at least one captured surface. */
+/* c8 ignore start */
+function collectDefinedClasses(): string[] {
+  const out = new Set<string>();
+  const scan = (rules?: CSSRuleList): void => {
+    if (!rules) return;
+    for (const rule of rules) {
+      const r = rule as CSSStyleRule & CSSGroupingRule;
+      if (r.selectorText) {
+        const re = /\.([A-Za-z_][A-Za-z0-9_-]*)/g;
+        for (let m = re.exec(r.selectorText); m; m = re.exec(r.selectorText)) out.add(m[1]);
+      }
+      if (r.cssRules) scan(r.cssRules);
+    }
+  };
+  for (const sheet of document.styleSheets) {
+    try {
+      scan(sheet.cssRules);
+    } catch {
+      /* cross-origin sheet — not the design's own vocabulary */
+    }
+  }
+  return [...out];
 }
 /* c8 ignore stop */
 
 /** Structural fingerprint of the page's CURRENT state. Dedup key for surfaces. */
-async function fingerprint(page: Page): Promise<{ sig: string; elements: number }> {
+async function fingerprint(page: Page): Promise<{ sig: string; elements: number; classes: string[] }> {
   const fp = await page.evaluate(domShape);
-  return { sig: createHash('sha256').update(fp.shape).digest('hex').slice(0, 16), elements: fp.elements };
+  return {
+    sig: createHash('sha256').update(fp.shape).digest('hex').slice(0, 16),
+    elements: fp.elements,
+    classes: fp.classes,
+  };
 }
 
 /** Wait for the DOM to stop changing (element count stable) — a cheap post-click
@@ -373,6 +417,8 @@ type CrawlState = {
    *  actions (approve/deny rows) disappear and are never re-tried, so decision
    *  chains don't multiply. */
   changersFrom: Map<string, { c: RawCandidate; persists: boolean }[]>;
+  /** Union of class names rendered in captured surfaces — the coverage numerator. */
+  classes: Set<string>;
   surfaces: CrawledSurface[];
   queue: QueueEntry[];
   captured: number;
@@ -386,14 +432,14 @@ async function record(
   opts: SurfaceCrawlOptions,
   newPath: CrawlStep[],
   depth: number,
-  elements: number,
-  sig: string,
+  fp: { sig: string; elements: number; classes: string[] },
   st: CrawlState,
 ): Promise<void> {
   const key = deriveKey(newPath, st.used);
-  const surface: CrawledSurface = { key, depth, path: newPath, elements };
+  const surface: CrawledSurface = { key, depth, path: newPath, elements: fp.elements };
   st.surfaces.push(surface);
-  st.queue.push({ path: newPath, depth, sig });
+  st.queue.push({ path: newPath, depth, sig: fp.sig });
+  for (const c of fp.classes) st.classes.add(c);
   let ok = true;
   try {
     await captureInPlace(page, key, opts);
@@ -453,7 +499,7 @@ async function driveCandidate(
     reason: c.reason,
     ...(c.value ? { value: c.value } : {}),
   };
-  await record(page, opts, [...entry.path, step], entry.depth + 1, fp.elements, fp.sig, st);
+  await record(page, opts, [...entry.path, step], entry.depth + 1, fp, st);
   return { inState: false, skipped: false };
 }
 
@@ -520,18 +566,20 @@ async function sweepState(
 async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlReport> {
   fs.mkdirSync(opts.out, { recursive: true });
   await gotoFresh(page, opts);
+  const defined = await page.evaluate(collectDefinedClasses).catch(() => [] as string[]);
   const fp = await fingerprint(page);
   const st: CrawlState = {
     seen: new Set([fp.sig]),
     used: new Set(),
     tried: new Set(),
     changersFrom: new Map(),
+    classes: new Set(),
     surfaces: [],
     queue: [],
     captured: 0,
     failed: [],
   };
-  await record(page, opts, [], 0, fp.elements, fp.sig, st);
+  await record(page, opts, [], 0, fp, st);
 
   let actionsTried = 0;
   let skipped = 0;
@@ -542,7 +590,15 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     actionsTried += r.tried;
     skipped += r.skipped;
   }
-  return { surfaces: st.surfaces, actionsTried, skipped, captured: st.captured, failed: st.failed };
+  const missing = defined.filter((c) => !st.classes.has(c)).sort();
+  return {
+    surfaces: st.surfaces,
+    actionsTried,
+    skipped,
+    captured: st.captured,
+    failed: st.failed,
+    coverage: { defined: defined.length, rendered: defined.length - missing.length, missing },
+  };
 }
 
 /**

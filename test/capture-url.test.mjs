@@ -18,6 +18,7 @@ test('defaults: just a url', () => {
     maxActionsPerState: 100000,
     maxStates: 100000,
     resetStorage: true,
+    requireFullCoverage: false,
   });
 });
 
@@ -32,12 +33,14 @@ test('crawl flags parse', () => {
     '--max-states',
     '80',
     '--no-reset-storage',
+    '--require-full-coverage',
   ]);
   assert.equal(o.crawl, true);
   assert.equal(o.maxDepth, 4);
   assert.equal(o.maxActionsPerState, 20);
   assert.equal(o.maxStates, 80);
   assert.equal(o.resetStorage, false);
+  assert.equal(o.requireFullCoverage, true);
 });
 
 test('flags: spaced and inline forms both parse', () => {

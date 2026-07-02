@@ -426,6 +426,8 @@ It's **exhaustive by default**: the crawl stops when there is nothing left to dr
 
 What makes exhaustive affordable is that the sweep works **in place**: standing in a state, each control is clicked right where the page is, and a cheap DOM fingerprint decides what happened — a no-op click costs nothing, and only a state-changing click pays a reset (fresh navigation + replay of the click-path), which is then **verified by fingerprint** so children are never attributed to the wrong parent. New surfaces are captured at every width the moment they're reached — a deep or animated click-path is never re-driven to capture, so it can't be the thing that drops a surface. Progress streams as it goes, one line per captured surface.
 
+**And it proves nothing was missed.** After the crawl, StyleProof compares every class the page's own stylesheets define (read from the parsed CSSOM) against the classes actually rendered across the captured surfaces, and prints what — if anything — was never seen. `--require-full-coverage` turns any residue into exit code 4, so "the design is fully covered" is a CI-checkable property, not a judgement call. What's left is either dead CSS (delete it) or a state the crawl couldn't reach (drive it with a spec, or file the gap).
+
 **Destructive-looking controls (delete, deploy, pay, revoke…) are never clicked** — mapping must not mutate; states gated behind one of those need a spec. Prefer the spec-driven `defineStyleMapCapture` when you want stable, named keys and the coverage guard; reach for `--crawl` to map a design (or a third-party page) you don't have a spec for.
 
 ## Install

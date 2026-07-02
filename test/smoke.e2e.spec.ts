@@ -894,3 +894,68 @@ test('crawl family-retry re-tries a persistent mode-switcher in each sibling tab
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('crawl coverage verifier: full coverage passes, exactly the dead CSS is flagged', async ({ page }) => {
+  // The quality lock: every class the page's stylesheets define must be seen
+  // rendered in some captured surface. This fixture's whole surface is reachable
+  // by driving (dialog, two tabs, an edit toggle, a popover) EXCEPT one
+  // deliberately dead rule — coverage.missing must name exactly that class.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .card { background: rgb(240,240,245); padding: 20px; }
+    .modal { display: none; position: fixed; inset: 15% 20%; background: rgb(250,250,255); padding: 16px; }
+    .modal.open { display: block; }
+    .panel { display: none; } .panel.on { display: block; }
+    .modal.editing .panel.on { outline: 3px solid rgb(200,30,30); }
+    .pop { display: none; position: fixed; right: 8px; top: 8px; background: rgb(230,240,255); padding: 8px; }
+    .pop.open { display: block; }
+    .never-rendered { color: rgb(1,2,3); } /* dead CSS — nothing ever has this class */
+    button { cursor: pointer; }
+  </style></head><body>
+    <main class="card">
+      <button id="open">Open dialog</button>
+      <button id="more">More info</button>
+    </main>
+    <div class="pop" id="p">popover content</div>
+    <div class="modal" id="m">
+      <button class="tab" data-t="1">Tab one</button>
+      <button class="tab" data-t="2">Tab two</button>
+      <button id="pen">Edit</button>
+      <div class="panel on" data-c="1">Panel one</div>
+      <div class="panel" data-c="2">Panel two <em>differs</em></div>
+    </div>
+    <script>
+      document.getElementById('open').onclick = () => document.getElementById('m').classList.add('open');
+      document.getElementById('more').onclick = () => document.getElementById('p').classList.toggle('open');
+      document.getElementById('pen').onclick = () => document.getElementById('m').classList.toggle('editing');
+      for (const t of document.querySelectorAll('.tab')) t.onclick = () => {
+        for (const c of document.querySelectorAll('.panel')) c.classList.toggle('on', c.dataset.c === t.dataset.t);
+      };
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-cov-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-cov-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    expect(report.failed).toEqual([]);
+    // The crawl reached every real surface, so the ONLY unrendered class is the
+    // deliberately dead one — this is the machine check that nothing was missed.
+    expect(report.coverage.missing).toEqual(['never-rendered']);
+    expect(report.coverage.rendered).toBe(report.coverage.defined - 1);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});

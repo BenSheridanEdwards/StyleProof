@@ -58,6 +58,9 @@ export type CaptureUrlOptions = {
   maxStates: number;
   /** crawl: clear storage on each reset so replay is deterministic (default true). */
   resetStorage: boolean;
+  /** crawl: exit non-zero unless every class the page's stylesheets define was
+   *  rendered in at least one captured surface (default false — report only). */
+  requireFullCoverage: boolean;
 };
 
 const DEFAULTS = {
@@ -70,6 +73,7 @@ const DEFAULTS = {
   maxActionsPerState: 100000,
   maxStates: 100000,
   resetStorage: true,
+  requireFullCoverage: false,
 };
 
 function positiveNumber(raw: string, flag: string): number {
@@ -106,6 +110,7 @@ const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--no-screenshots': (o) => (o.screenshots = false),
   '--crawl': (o) => (o.crawl = true),
   '--no-reset-storage': (o) => (o.resetStorage = false),
+  '--require-full-coverage': (o) => (o.requireFullCoverage = true),
 };
 
 // Apply one argv token to the accumulator; returns the index to resume from
@@ -152,6 +157,7 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
     maxActionsPerState: DEFAULTS.maxActionsPerState,
     maxStates: DEFAULTS.maxStates,
     resetStorage: DEFAULTS.resetStorage,
+    requireFullCoverage: DEFAULTS.requireFullCoverage,
   };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) i = applyArg(o, argv, i, positional);

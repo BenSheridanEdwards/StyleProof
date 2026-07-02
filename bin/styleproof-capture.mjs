@@ -40,6 +40,10 @@ whole surface: --crawl
                     key — runs to natural termination, no budget. For a design that's
                     mostly modals/drawers/popovers. Destructive-looking controls
                     (delete/deploy/pay/revoke…) are never clicked.
+  --require-full-coverage
+                    exit 4 unless every class the page's stylesheets define was
+                    rendered in a captured surface — the machine check that
+                    NOTHING in the design was missed (coverage is always printed)
   --max-depth <n>   throttle recursion depth (default: unbounded)
   --max-actions <n> throttle controls tried per state (default: unbounded)
   --max-states <n>  throttle total surfaces (default: unbounded)
@@ -56,7 +60,7 @@ Then diff against another capture — zero diff = pixel-identical:
   ${COMMAND} https://example.com --crawl --out design
   styleproof-diff design .styleproof/maps/current
 
-exit: 0 captured, 2 usage error, 3 capture failed.
+exit: 0 captured, 2 usage error, 3 capture failed, 4 coverage gap (--require-full-coverage).
 `;
 
 const argv = process.argv.slice(2);
@@ -99,6 +103,16 @@ async function runCrawl() {
       `✓ ${report.captured}/${report.surfaces.length} surface(s) × ${crawlOpts.widths.length} width(s) → ${opts.out}  ` +
         `(${report.actionsTried} actions tried, ${report.skipped} skipped${report.failed.length ? `, ${report.failed.length} capture-failed` : ''})`,
     );
+    const cov = report.coverage;
+    if (cov.missing.length === 0) {
+      console.log(`✓ coverage: all ${cov.defined} stylesheet classes rendered in at least one captured surface`);
+    } else {
+      console.log(
+        `⚠ coverage: ${cov.rendered}/${cov.defined} stylesheet classes rendered — ${cov.missing.length} never seen ` +
+          `(dead CSS, or a state the crawl could not reach):\n    ${cov.missing.join(' ')}`,
+      );
+      if (opts.requireFullCoverage) process.exit(4);
+    }
   } finally {
     await browser.close();
   }
