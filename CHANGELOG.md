@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Report tables never show an equal-looking Before/After pair for a real diff.
+  A colour embedded in a compound value (gradient, shadow) no longer stands in
+  for the whole value — `toHex` only converts values that ARE a colour — and
+  long value pairs (gradients, data URIs) are excerpted around the differing
+  substring with a little shared context on each side.
+- Report values render verbatim: display rounding of decimals is gone (alpha
+  `0.18` was shown as `0.2`, and a real `0.18 → 0.2` change could be dropped
+  as a no-op after rounding).
+
 ### Added
 
 - Parallel crawl: `--workers <n>` (default 4) sweeps queued states concurrently,

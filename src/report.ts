@@ -634,9 +634,9 @@ function regionHeading(regionPaths: string[], findings: Finding[]): string {
 const cell = (v: string): string => (isNonValue(v) ? '—' : `\`${toHex(v)}\``);
 
 // Long values (gradients, data URIs) would swamp the table, but truncating each
-// side independently can show two IDENTICAL cells for a real diff (pr-419: both
+// side independently can show two IDENTICAL cells for a real diff: both
 // sides of a gradient rendered as the same rgba while the actual change — a
-// dropped `0px` stop — was elsewhere in the string). Instead, trim the shared
+// dropped `0px` stop — was elsewhere in the string. Instead, trim the shared
 // prefix/suffix and show each side's differing substring with a little context.
 const EXCERPT_AT = 64; // both sides at or under this → show whole values
 const EXCERPT_CTX = 12; // chars of shared context kept around the diff

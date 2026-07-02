@@ -513,7 +513,7 @@ test('an added element reports its full resting computed style, value-only', () 
   rmTmp(root);
 });
 
-// Regression for F.L.E.E.T pr-419: a gradient diff rendered as the same
+// Regression, seen in a downstream report: a gradient diff rendered as the same
 // "representative" rgba in BOTH cells — the real change (a dropped `0px` stop)
 // was invisible. Long values must excerpt around the differing substring.
 test('a long gradient diff excerpts the differing substring, never an equal pair', () => {
@@ -828,7 +828,7 @@ test('toHex renders opaque colours as #hex and keeps alpha as rgba', () => {
   assert.equal(toHex('rgba(0, 0, 0, 0.5)'), 'rgba(0, 0, 0, 0.5)');
   assert.equal(toHex('none'), 'none'); // non-colour untouched
   // A colour EMBEDDED in a longer value must not stand in for the whole value
-  // (pr-419: a gradient rendered as the same rgba on both sides of a real diff).
+  // (seen downstream: a gradient rendered as the same rgba on both sides of a real diff).
   const g = 'repeating-linear-gradient(0deg, rgba(0, 0, 0, 0), rgba(0, 20, 30, 0.18) 3px)';
   assert.equal(toHex(g), g);
   assert.equal(toHex('rgba(0, 0, 0, 0.5) 0px 2px 4px'), 'rgba(0, 0, 0, 0.5) 0px 2px 4px');
