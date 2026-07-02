@@ -1006,10 +1006,12 @@ test('crawl discovery breadth: cursor:grab cards and <select> options are driven
     });
     // grab card, select restyle, and the shared panel all reached; nothing missing.
     expect(report.coverage.missing).toEqual([]);
-    // Three persistent modes (detail, shared, alt) => the full 2^3 combination
-    // lattice, each state captured EXACTLY once. The second button opening the
-    // same panel adds nothing — broken dedup would double states beyond 8.
-    expect(report.surfaces.length, 'full mode lattice, deduped').toBe(8);
+    // Three persistent modes (detail, shared, alt): base + each single mode +
+    // every PAIRWISE combination = 7. Retries don't compound, so the 3-way
+    // product is deliberately not walked — it adds no render vocabulary, and
+    // anything class-visible only at 3-way depth would be named by the
+    // verifier. The second button opening the same panel adds nothing.
+    expect(report.surfaces.length, 'pairwise mode lattice, deduped').toBe(7);
   } finally {
     fs.rmSync(file, { force: true });
     fs.rmSync(out, { recursive: true, force: true });
@@ -1504,10 +1506,10 @@ test('consuming actions never spawn a decision lattice; their mode-views stay re
 });
 
 test('parallel workers produce the same surface set as a serial crawl', async ({ page, browser }) => {
-  // Same fixture as the mode-lattice test: three persistent modes = exactly 8
-  // structurally distinct states. With 3 workers on separate contexts the SET
-  // must be identical (shared dedup), coverage complete, nothing failed —
-  // parallelism buys wall-clock, never coverage.
+  // Same fixture as the mode-lattice test: three persistent modes = 7 pairwise
+  // states. With 3 workers on separate contexts the SET must be identical
+  // (shared dedup), coverage complete, nothing failed — parallelism buys
+  // wall-clock, never coverage.
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     body { margin: 0; font-family: sans-serif; }
     .card { cursor: grab; background: rgb(240,240,245); padding: 16px; width: 200px; }
@@ -1552,7 +1554,7 @@ test('parallel workers produce the same surface set as a serial crawl', async ({
         return ctx.newPage();
       },
     });
-    expect(report.surfaces.length, 'identical mode lattice under parallelism').toBe(8);
+    expect(report.surfaces.length, 'identical pairwise lattice under parallelism').toBe(7);
     expect(report.coverage.missing).toEqual([]);
     expect(report.failed).toEqual([]);
   } finally {
