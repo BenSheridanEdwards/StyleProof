@@ -221,11 +221,19 @@ function domShape(): { shape: string; elements: number; classes: string[] } {
   const SKIP = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'NOSCRIPT', 'TEMPLATE']);
   const parts: string[] = [];
   const classes = new Set<string>();
-  for (const el of document.body.getElementsByTagName('*')) {
-    if (SKIP.has(el.tagName)) continue;
+  const add = (el: Element): void => {
     const cls = el.getAttribute('class') ?? '';
     parts.push(`${el.tagName}.${cls}`);
     for (const c of cls.split(/\s+/)) if (c) classes.add(c);
+  };
+  // html/body themselves first: state classes there (a theme switch, modal-open)
+  // are a common pattern and restyle the whole page without touching any
+  // descendant's class — invisible to a descendants-only walk.
+  add(document.documentElement);
+  add(document.body);
+  for (const el of document.body.getElementsByTagName('*')) {
+    if (SKIP.has(el.tagName)) continue;
+    add(el);
   }
   return { shape: parts.join('\n'), elements: parts.length, classes: [...classes] };
 }
