@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Consuming actions (controls that disappear when used — resolve/approve/dismiss
+  rows) no longer spawn a combinatorial decision lattice. Their result-states are
+  captured and swept RETRY-ONLY: the parent's persistent mode-switchers still
+  apply (a resolved list's tab view stays reachable), but no fresh candidates are
+  collected there — removed rows shift sibling nth-of-type selectors, which made
+  the same logical controls look "fresh" in every decided subset and could stall
+  an exhaustive crawl for hours adding zero coverage. Found live, on a
+  decision-heavy page whose crawl went 449 surfaces / 6 new classes before the
+  rule; with it, the same shape converges in single digits with full coverage.
+
 ### Added
 
 - `styleproof-capture --setup <file>`: deterministic steps (goto/fill/click/
