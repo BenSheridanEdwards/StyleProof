@@ -7,6 +7,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-07-02
+
+### Added
+
+- New `styleproof-capture <url>` CLI: capture a single page (a deployed URL, a
+  static export, or a standalone HTML mockup) so you can prove a production build
+  renders identically to its design. Point it at the design and at the build,
+  diff the two, and zero diff means pixel-identical — anything else is named down
+  to the computed style. One shot, no spec, no config; writes the same
+  `<key>@<width>.json.gz` (+ `.png`) shape any capture does, so `styleproof-diff`
+  compares it against anything. Also exported programmatically as
+  `captureUrlToDir` / `runCaptureUrl` / `parseCaptureUrlArgs`.
+- `styleproof-capture --crawl`: map a whole interactive design from one URL with
+  no spec and no selectors — EXHAUSTIVE by default, running until every
+  non-destructive control has been driven once and every structurally new surface
+  captured (a modal's tabs, a drawer's sub-views, a popover's panels), each under
+  a derived key. The sweep works in place with lazy, fingerprint-verified resets:
+  a no-op click costs nothing, only state-changing clicks pay a fresh
+  navigation + replay, and children are never attributed to the wrong parent.
+  Deterministic, deduped by a structural fingerprint, self-settling for async
+  (React/Vue/Babel) apps, discovery pinned to one viewport width, progress
+  streamed per captured surface, and destructive-looking controls are never
+  clicked. `--max-depth` / `--max-actions` / `--max-states` exist only as
+  throttles. Exported programmatically as `crawlAndCapture`.
+- Crawl coverage verifier: after `--crawl`, every class the page's own
+  stylesheets define (parsed CSSOM) is checked against the classes rendered
+  across all captured surfaces, and the never-seen residue is printed — dead
+  CSS, or a state the crawl could not reach. `--require-full-coverage` makes
+  any residue exit 4, so "the design is fully covered, nothing missing" is a
+  machine-checked property. On `CrawlReport.coverage` programmatically.
+
 ### Fixed
 
 - GitHub Action reports now publish every generated crop PNG, including zoom

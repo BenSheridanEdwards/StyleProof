@@ -1,6 +1,6 @@
 {
   "name": "styleproof",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Catch every CSS change before it ships — review PRs and certify refactors by the browser's computed styles, not pixels. Works with any styling system.",
   "keywords": [
     "playwright",
@@ -38,6 +38,7 @@
   "bin": {
     "styleproof-init": "./bin/styleproof-init.mjs",
     "styleproof-map": "./bin/styleproof-map.mjs",
+    "styleproof-capture": "./bin/styleproof-capture.mjs",
     "styleproof-diff": "./bin/styleproof-diff.mjs",
     "styleproof-report": "./bin/styleproof-report.mjs",
     "styleproof-variants": "./bin/styleproof-variants.mjs"

@@ -21,6 +21,7 @@ report. Intentional visual changes get approved; unexpected ones block or fail.
 - [Works with any styling system](#works-with-any-styling-system)
 - [Breakpoints, detected automatically](#breakpoints-detected-automatically)
 - [Certify a refactor](#certify-a-refactor)
+- [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel)
 - [Install](#install)
 - [Quickstart](#quickstart)
 - [Forks and Dependabot](#forks-and-dependabot)
@@ -398,6 +399,36 @@ Omit `widths` on a surface and StyleProof reads your app's real `@media` breakpo
 ## Certify a refactor
 
 The same engine has a second mode that proves a change touched _nothing_ visual: with `fail-on-diff: true`, any difference at all fails the job. It's the job StyleProof was born for — certifying a CSS-to-Tailwind migration rendered byte-for-byte identical. Reach for it on any change whose whole promise is "the output is unchanged": a utility-class migration, a design-system swap, a dependency or build-tooling bump. Zero diff is the contract; one drifting longhand is a regression to investigate, not a change to approve.
+
+## Match a design pixel-for-pixel
+
+When you build a design in production, "looks the same" is a judgement call — and small gaps ship. `styleproof-capture` makes it an objective check: point it at the **design** (a deployed mockup, a static export, a standalone HTML file), point it at your **build**, and diff. Zero diff means the production UI renders _identically_ to the design; anything else is named exactly, down to the computed style, so you know precisely what's still off.
+
+```bash
+styleproof-capture https://example.com/pricing --key pricing --widths 1440,1024,768 --out design
+styleproof-diff design .styleproof/maps/current   # design vs build — zero diff = pixel-identical
+```
+
+You watch one number as you implement: the diff starts large and shrinks toward zero, and it hits zero the moment the built page matches the design. It's the objective version of putting the mockup and the app side by side and squinting.
+
+(`styleproof-map` is the spec-driven flow for your own app's surfaces, with the coverage guard, map store, and record/replay; `styleproof-capture` is the one-shot for a page you just point at.) It writes `design/pricing@1440.json.gz` (+ `.png`), the same shape any capture writes, so `styleproof-diff` compares it against anything. Omit `--widths` to auto-detect the page's own `@media` breakpoints; pin them for a page whose CSS is cross-origin (a font stylesheet, say), since detection reads every sheet and fails loudly rather than guess. `--wait <selector>` holds until the intended state is on screen; `--ignore <selector>` skips a live region. Capture both sides in the same browser + fonts, since that's what "identical" is measured against.
+
+### Crawl the whole interactive design: `--crawl`
+
+A design is mostly _behind clicks_ — modals, drawers, popovers, tabs that don't exist in the DOM until you open them. A single capture sees only the landing state. `--crawl` maps the rest for you: point it at the URL and it drives every non-destructive control, keeps whatever opens a structurally new surface, and recurses into it — a modal's tabs, a drawer's sub-views, a popover's panels — capturing each under a derived key. No spec, no selectors, no hand-holding.
+
+```bash
+styleproof-capture https://example.com --crawl --out design    # maps every reachable surface
+styleproof-diff design .styleproof/maps/current                # diff the whole surface vs your build
+```
+
+It's **exhaustive by default**: the crawl stops when there is nothing left to drive — every control tried once, every structurally new surface captured — not at a budget. Termination is guaranteed by dedup (controls dedup by selector, surfaces by a structural fingerprint), and the `--max-depth` / `--max-actions` / `--max-states` flags exist only as deliberate throttles. It's deterministic (document order; the same surface reached two ways is captured once) and self-settling — it waits for an async app (React/Vue/Babel that boots after `load`) to mount before reading, so a bare crawl of a client-rendered page still captures the mounted UI.
+
+What makes exhaustive affordable is that the sweep works **in place**: standing in a state, each control is clicked right where the page is, and a cheap DOM fingerprint decides what happened — a no-op click costs nothing, and only a state-changing click pays a reset (fresh navigation + replay of the click-path), which is then **verified by fingerprint** so children are never attributed to the wrong parent. New surfaces are captured at every width the moment they're reached — a deep or animated click-path is never re-driven to capture, so it can't be the thing that drops a surface. Progress streams as it goes, one line per captured surface.
+
+**And it proves nothing was missed.** After the crawl, StyleProof compares every class the page's own stylesheets define (read from the parsed CSSOM) against the classes actually rendered across the captured surfaces, and prints what — if anything — was never seen. `--require-full-coverage` turns any residue into exit code 4, so "the design is fully covered" is a CI-checkable property, not a judgement call. What's left is either dead CSS (delete it) or a state the crawl couldn't reach (drive it with a spec, or file the gap).
+
+**Destructive-looking controls (delete, deploy, pay, revoke…) are never clicked** — mapping must not mutate; states gated behind one of those need a spec. Prefer the spec-driven `defineStyleMapCapture` when you want stable, named keys and the coverage guard; reach for `--crawl` to map a design (or a third-party page) you don't have a spec for.
 
 ## Install
 

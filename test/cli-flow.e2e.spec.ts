@@ -124,3 +124,49 @@ test('styleproof-init → styleproof-map → styleproof-diff works in a generate
     fs.rmSync(app, { recursive: true, force: true });
   }
 });
+
+test('styleproof-capture --crawl --require-full-coverage: exit 0 when covered, exit 4 on residue', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cov-cli-'));
+  const covered = path.join(dir, 'covered.html');
+  const withDead = path.join(dir, 'dead.html');
+  const page = (extraCss: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
+      body { margin: 0; } .card { padding: 20px; background: rgb(240,240,245); }
+      .modal { display: none; position: fixed; inset: 20% 25%; background: rgb(250,250,255); }
+      .modal.open { display: block; } ${extraCss}
+      button { cursor: pointer; }
+    </style></head><body>
+      <main class="card"><button id="open">Open</button></main>
+      <div class="modal" id="m">modal content</div>
+      <script>document.getElementById('open').onclick = () => document.getElementById('m').classList.add('open');</script>
+    </body></html>`;
+  fs.writeFileSync(covered, page(''));
+  fs.writeFileSync(withDead, page('.ghost { color: rgb(9,9,9); }'));
+  try {
+    const ok = run(dir, 'node', [
+      CAPTURE,
+      'file://' + covered,
+      '--crawl',
+      '--no-screenshots',
+      '--out',
+      path.join(dir, 'a'),
+      '--require-full-coverage',
+    ]);
+    expect(ok.stdout).toContain('✓ coverage: all');
+    expect(ok.status, 'fully covered page exits 0').toBe(0);
+
+    const gap = run(dir, 'node', [
+      CAPTURE,
+      'file://' + withDead,
+      '--crawl',
+      '--no-screenshots',
+      '--out',
+      path.join(dir, 'b'),
+      '--require-full-coverage',
+    ]);
+    expect(gap.stdout).toContain('ghost');
+    expect(gap.status, 'coverage residue exits 4').toBe(4);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

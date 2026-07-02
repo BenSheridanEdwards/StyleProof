@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import type { Page } from '@playwright/test';
-import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests } from '../dist/index.js';
-import { diffStyleMaps, selectCrawlLinks, detectViewportWidths } from '../dist/index.js';
+import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests, captureUrlToDir } from '../dist/index.js';
+import { diffStyleMaps, selectCrawlLinks, detectViewportWidths, crawlAndCapture } from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
 type PageViewport = Parameters<Page['setViewportSize']>[0];
@@ -717,4 +717,428 @@ test('detectViewportWidths returns a single width when the page has no width @me
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}.x{color:rgb(0,0,0)}</style></head><body><span class="x">hi</span></body></html>`;
   const widths = await withPage(page, html, () => detectViewportWidths(page));
   expect(widths).toEqual([1280]);
+});
+
+test('captureUrlToDir writes diff-compatible <key>@<width> maps (+ screenshots) for a URL', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: sans-serif; }
+    .card { background: rgb(240, 240, 245); padding: 24px; }
+    .cta { background: rgb(20, 120, 255); color: rgb(255, 255, 255); border: 0; padding: 12px 20px; }
+    @media (max-width: 700px) { .card { padding: 12px; } }
+  </style></head><body>
+    <main class="card"><h1>Pricing</h1><button class="cta">Book a call</button></main>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-cap-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-cap-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const results = await captureUrlToDir(page, {
+      url: 'file://' + file,
+      key: 'pricing',
+      widths: [1440, 600], // straddle the 700px breakpoint
+      out,
+      ignore: [],
+      height: 800,
+      screenshots: true,
+    });
+
+    expect(results.map((r) => r.width)).toEqual([1440, 600]);
+    for (const width of [1440, 600]) {
+      const map = path.join(out, `pricing@${width}.json.gz`);
+      const shot = path.join(out, `pricing@${width}.png`);
+      expect(fs.existsSync(map), `${map} written`).toBe(true);
+      expect(fs.existsSync(shot), `${shot} written`).toBe(true);
+      // A written map is valid and self-consistent (the diff a fidelity check runs).
+      expect(diffStyleMaps(loadStyleMap(map), loadStyleMap(map)), 'self-diff is clean').toEqual([]);
+    }
+
+    // The breakpoint actually took effect: .card padding differs across the two widths.
+    const pad = (width: number) =>
+      Object.values(loadStyleMap(path.join(out, `pricing@${width}.json.gz`)).elements).find((e) => e.cls === 'card')
+        ?.style['padding-top'];
+    expect(pad(1440)).toBe('24px');
+    expect(pad(600)).toBe('12px');
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('crawlAndCapture drives interactions and maps a modal + its nested tab', async ({ page }) => {
+  // A page whose real surface is behind clicks: a hidden dialog opened by a button,
+  // with two tabs inside. A one-shot capture sees only the base; the crawler must
+  // open the dialog (depth 1) and switch to the second tab (depth 2).
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .modal { display: none; position: fixed; inset: 20% 25%; background: rgb(240,240,245); padding: 20px; }
+    .modal.open { display: block; }
+    .panel { display: none; }
+    .panel.on { display: block; }
+    button { cursor: pointer; }
+  </style></head><body>
+    <main><button id="open">Open dialog</button></main>
+    <div class="modal" id="m">
+      <button class="tab" data-t="1">Tab one</button>
+      <button class="tab" data-t="2">Tab two</button>
+      <div class="panel on" data-c="1">Panel one</div>
+      <div class="panel" data-c="2"><p>Panel two differs</p><ul><li>a</li><li>b</li></ul></div>
+    </div>
+    <script>
+      document.getElementById('open').onclick = () => document.getElementById('m').classList.add('open');
+      for (const t of document.querySelectorAll('.tab')) t.onclick = () => {
+        for (const c of document.querySelectorAll('.panel')) c.classList.toggle('on', c.dataset.c === t.dataset.t);
+      };
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-crawl-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-crawl-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      waitSelector: '#open',
+      maxDepth: 3,
+      maxActionsPerState: 20,
+      maxStates: 20,
+      resetStorage: true,
+    });
+
+    const keys = report.surfaces.map((s) => s.key);
+    // base + the opened dialog + the second tab, all reached by driving.
+    expect(keys).toContain('base');
+    expect(
+      report.surfaces.some((s) => s.depth === 1),
+      'opened the dialog (depth 1)',
+    ).toBe(true);
+    expect(
+      report.surfaces.some((s) => s.depth === 2),
+      'reached a nested tab (depth 2)',
+    ).toBe(true);
+    expect(report.captured).toBeGreaterThanOrEqual(3);
+
+    // Every captured surface wrote a diff-compatible map at the requested width.
+    for (const s of report.surfaces) {
+      if (report.failed.includes(s.key)) continue;
+      const map = path.join(out, `${s.key}@900.json.gz`);
+      expect(fs.existsSync(map), `${s.key} map written`).toBe(true);
+      expect(diffStyleMaps(loadStyleMap(map), loadStyleMap(map))).toEqual([]);
+    }
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('crawl family-retry re-tries a persistent mode-switcher in each sibling tab', async ({ page }) => {
+  // A dialog with two tabs and one EDIT toggle that persists across tabs: the
+  // toggle's effect depends on which tab is open, so after being driven once
+  // (from tab one), it must be re-tried in tab two — four dialog states total.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .modal { display: none; position: fixed; inset: 15% 20%; background: rgb(245,245,250); padding: 16px; }
+    .modal.open { display: block; }
+    .panel { display: none; } .panel.on { display: block; }
+    .modal.editing .panel.on { outline: 3px solid rgb(200,30,30); }
+    .modal.editing .pen { background: rgb(200,30,30); color: rgb(255,255,255); }
+    button { cursor: pointer; }
+  </style></head><body>
+    <main><button id="open">Open dialog</button></main>
+    <div class="modal" id="m">
+      <button class="tab" data-t="1">Tab one</button>
+      <button class="tab" data-t="2">Tab two</button>
+      <button class="pen" id="pen">Edit</button>
+      <div class="panel on" data-c="1">Panel one <input value="a"></div>
+      <div class="panel" data-c="2">Panel two <ul><li>x</li><li>y</li></ul></div>
+    </div>
+    <script>
+      document.getElementById('open').onclick = () => document.getElementById('m').classList.add('open');
+      document.getElementById('pen').onclick = () => document.getElementById('m').classList.toggle('editing');
+      for (const t of document.querySelectorAll('.tab')) t.onclick = () => {
+        for (const c of document.querySelectorAll('.panel')) c.classList.toggle('on', c.dataset.c === t.dataset.t);
+      };
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-fam-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-fam-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    expect(report.failed).toEqual([]);
+    // Count captured dialog states where the EDIT toggle is active: the pen was
+    // driven from tab one AND family-retried from tab two → two editing states.
+    let editingStates = 0;
+    for (const s of report.surfaces) {
+      const map = loadStyleMap(path.join(out, `${s.key}@900.json.gz`));
+      if (Object.values(map.elements).some((e) => String(e.cls).split(/\s+/).includes('editing'))) editingStates++;
+    }
+    expect(editingStates, 'editing captured in both tabs via family retry').toBeGreaterThanOrEqual(2);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('crawl coverage verifier: full coverage passes, exactly the dead CSS is flagged', async ({ page }) => {
+  // The quality lock: every class the page's stylesheets define must be seen
+  // rendered in some captured surface. This fixture's whole surface is reachable
+  // by driving (dialog, two tabs, an edit toggle, a popover) EXCEPT one
+  // deliberately dead rule — coverage.missing must name exactly that class.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .card { background: rgb(240,240,245); padding: 20px; }
+    .modal { display: none; position: fixed; inset: 15% 20%; background: rgb(250,250,255); padding: 16px; }
+    .modal.open { display: block; }
+    .panel { display: none; } .panel.on { display: block; }
+    .modal.editing .panel.on { outline: 3px solid rgb(200,30,30); }
+    .pop { display: none; position: fixed; right: 8px; top: 8px; background: rgb(230,240,255); padding: 8px; }
+    .pop.open { display: block; }
+    .never-rendered { color: rgb(1,2,3); } /* dead CSS — nothing ever has this class */
+    button { cursor: pointer; }
+  </style></head><body>
+    <main class="card">
+      <button id="open">Open dialog</button>
+      <button id="more">More info</button>
+    </main>
+    <div class="pop" id="p">popover content</div>
+    <div class="modal" id="m">
+      <button class="tab" data-t="1">Tab one</button>
+      <button class="tab" data-t="2">Tab two</button>
+      <button id="pen">Edit</button>
+      <div class="panel on" data-c="1">Panel one</div>
+      <div class="panel" data-c="2">Panel two <em>differs</em></div>
+    </div>
+    <script>
+      document.getElementById('open').onclick = () => document.getElementById('m').classList.add('open');
+      document.getElementById('more').onclick = () => document.getElementById('p').classList.toggle('open');
+      document.getElementById('pen').onclick = () => document.getElementById('m').classList.toggle('editing');
+      for (const t of document.querySelectorAll('.tab')) t.onclick = () => {
+        for (const c of document.querySelectorAll('.panel')) c.classList.toggle('on', c.dataset.c === t.dataset.t);
+      };
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-cov-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-cov-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    expect(report.failed).toEqual([]);
+    // The crawl reached every real surface, so the ONLY unrendered class is the
+    // deliberately dead one — this is the machine check that nothing was missed.
+    expect(report.coverage.missing).toEqual(['never-rendered']);
+    expect(report.coverage.rendered).toBe(report.coverage.defined - 1);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('crawl discovery breadth: cursor:grab cards and <select> options are driven; duplicate paths dedup', async ({
+  page,
+}) => {
+  // A draggable (cursor:grab) card that opens a panel on click, a select that
+  // restyles on change, and TWO buttons opening the SAME panel — the crawler must
+  // find the grab card (not just cursor:pointer), drive the select, and capture
+  // the shared panel once.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .card { cursor: grab; background: rgb(240,240,245); padding: 16px; width: 200px; }
+    .detail { display: none; background: rgb(220,235,255); padding: 10px; }
+    .detail.open { display: block; }
+    .shared { display: none; background: rgb(255,240,220); padding: 10px; }
+    .shared.open { display: block; }
+    body.alt .card { background: rgb(200,220,200); }
+    button { cursor: pointer; }
+  </style></head><body>
+    <div class="card" id="c">Draggable card (click opens detail)</div>
+    <div class="detail" id="d">detail panel</div>
+    <button id="a">Open shared</button><button id="b">Also open shared</button>
+    <div class="shared" id="s">shared panel</div>
+    <select id="sel"><option value="x">x</option><option value="alt">alt</option></select>
+    <script>
+      document.getElementById('c').onclick = () => document.getElementById('d').classList.add('open');
+      for (const id of ['a','b']) document.getElementById(id).onclick = () => document.getElementById('s').classList.add('open');
+      document.getElementById('sel').onchange = (e) => document.body.classList.toggle('alt', e.target.value === 'alt');
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-breadth-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-breadth-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    // grab card, select restyle, and the shared panel all reached; nothing missing.
+    expect(report.coverage.missing).toEqual([]);
+    // Three persistent modes (detail, shared, alt) => the full 2^3 combination
+    // lattice, each state captured EXACTLY once. The second button opening the
+    // same panel adds nothing — broken dedup would double states beyond 8.
+    expect(report.surfaces.length, 'full mode lattice, deduped').toBe(8);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('crawl never clicks destructive-looking controls, and the verifier names what stays unreached', async ({
+  page,
+}) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; } .card { padding: 16px; background: rgb(240,240,245); }
+    .boom { display: none; background: rgb(255,0,0); } body.nuked .boom { display: block; }
+    button { cursor: pointer; }
+  </style></head><body>
+    <main class="card"><button id="del">Delete everything</button></main>
+    <div class="boom">irreversible result</div>
+    <script>document.getElementById('del').onclick = () => document.body.classList.add('nuked');</script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-danger-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-danger-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    expect(report.skipped, 'the delete button was skipped, not clicked').toBeGreaterThanOrEqual(1);
+    expect(report.surfaces.length, 'no nuked state was ever created').toBe(1);
+    // The guard is SAFE because the verifier is honest: the state class the
+    // destructive click would have added is named as never-seen.
+    expect(report.coverage.missing).toContain('nuked');
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('multi-width crawl: discovery stays at widths[0] while every surface is captured at every width', async ({
+  page,
+}) => {
+  // The trigger is HIDDEN below 600px. If discovery leaked to the narrow width
+  // (the old viewport bug), the modal would never be found — it must be found at
+  // 900 and still captured at both 900 AND 500.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; } .card { padding: 16px; background: rgb(240,240,245); }
+    .modal { display: none; position: fixed; inset: 20% 25%; background: rgb(250,250,255); }
+    .modal.open { display: block; }
+    @media (max-width: 600px) { #open { display: none; } }
+    button { cursor: pointer; }
+  </style></head><body>
+    <main class="card"><button id="open">Open dialog</button></main>
+    <div class="modal" id="m">modal content</div>
+    <script>document.getElementById('open').onclick = () => document.getElementById('m').classList.add('open');</script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-widths-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-widths-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900, 500],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    const modal = report.surfaces.find((s) => s.key !== 'base');
+    expect(modal, 'modal discovered despite trigger hidden at 500px').toBeTruthy();
+    for (const width of [900, 500]) {
+      expect(fs.existsSync(path.join(out, `${modal!.key}@${width}.json.gz`)), `captured @${width}`).toBe(true);
+    }
+    expect(report.coverage.missing).toEqual([]);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('bare crawl of a client-rendered page: the app mounts AFTER load and is still fully mapped', async ({ page }) => {
+  // The UI does not exist at `load` — it mounts 350ms later (async framework
+  // boot). With no waitSelector and no hints, the crawl must settle, find the
+  // mounted button, and map the dialog behind it.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; } .app { padding: 16px; background: rgb(240,240,245); }
+    .modal { display: none; position: fixed; inset: 20% 25%; background: rgb(250,250,255); }
+    .modal.open { display: block; }
+    button { cursor: pointer; }
+  </style></head><body>
+    <div id="root"></div>
+    <script>
+      setTimeout(() => {
+        document.getElementById('root').innerHTML =
+          '<main class="app"><button id="open">Open dialog</button></main><div class="modal" id="m">modal content</div>';
+        document.getElementById('open').onclick = () => document.getElementById('m').classList.add('open');
+      }, 350);
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-async-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-async-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    expect(report.surfaces.length, 'base + mounted dialog').toBeGreaterThanOrEqual(2);
+    expect(report.coverage.missing).toEqual([]);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
 });
