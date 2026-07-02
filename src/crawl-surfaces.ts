@@ -519,7 +519,14 @@ async function captureInPlace(page: Page, key: string, opts: SurfaceCrawlOptions
   }
 }
 
-type QueueEntry = { path: CrawlStep[]; depth: number; sig: string };
+/** retryOnly: this state was reached through a CONSUMING action (a control that
+ *  disappeared when used — an approve/deny row, a dismiss). Such states are swept
+ *  with the parent's persistent mode-switchers ONLY, never fresh candidates:
+ *  consumed rows re-render their siblings, shifting nth-of-type selectors so the
+ *  same logical controls look "fresh" in every decided-subset — the combinatorial
+ *  decision lattice. Mode-switch views of a consumed state (its RESOLVED tab)
+ *  stay reachable; the lattice does not. */
+type QueueEntry = { path: CrawlStep[]; depth: number; sig: string; retryOnly: boolean };
 
 /** Identity of a state for the changer registry: the click-path that defines it. */
 function stateKey(steps: CrawlStep[]): string {
@@ -561,11 +568,12 @@ async function record(
   depth: number,
   fp: { sig: string; elements: number; classes: string[] },
   st: CrawlState,
+  retryOnly = false,
 ): Promise<void> {
   const key = deriveKey(newPath, st.used);
   const surface: CrawledSurface = { key, depth, path: newPath, elements: fp.elements };
   st.surfaces.push(surface);
-  st.queue.push({ path: newPath, depth, sig: fp.sig });
+  st.queue.push({ path: newPath, depth, sig: fp.sig, retryOnly });
   for (const c of fp.classes) st.classes.add(c);
   await captureAndReport(page, opts, surface, st);
 }
@@ -611,6 +619,8 @@ async function driveCandidate(
   c: RawCandidate,
   st: CrawlState,
 ): Promise<{ inState: boolean; skipped: boolean }> {
+  // (retry-only lineage is inherited: a consumed state's descendants can also
+  // only be mode-switch views, never fresh-candidate exploration.)
   const outcome = await tryInPlace(page, c);
   if (outcome === 'noop') return { inState: true, skipped: false }; // still in the state — no reset needed
   if (outcome === 'failed' || outcome === 'navigated') return { inState: false, skipped: true };
@@ -636,7 +646,7 @@ async function driveCandidate(
     reason: c.reason,
     ...(c.value ? { value: c.value } : {}),
   };
-  await record(page, opts, [...entry.path, step], entry.depth + 1, fp, st);
+  await record(page, opts, [...entry.path, step], entry.depth + 1, fp, st, entry.retryOnly || !persists);
   return { inState: false, skipped: false };
 }
 
@@ -658,6 +668,24 @@ function familyRetries(entry: QueueEntry, all: RawCandidate[], st: CrawlState): 
     .map((x) => x.c);
 }
 
+/** The work list for one state's sweep: fresh controls first (already-driven
+ *  global chrome would otherwise starve a deep surface's own controls; the
+ *  throttle applies to fresh ones), then the parent's persistent mode-switchers
+ *  re-tried in THIS sibling mode. A state reached through a consuming action
+ *  collects NO fresh candidates — see QueueEntry.retryOnly. */
+function sweepWorkList(
+  entry: QueueEntry,
+  all: RawCandidate[],
+  opts: SurfaceCrawlOptions,
+  st: CrawlState,
+): { c: RawCandidate; retry: boolean }[] {
+  const fresh = entry.retryOnly ? [] : all.filter((c) => !st.tried.has(c.selector)).slice(0, opts.maxActionsPerState);
+  return [
+    ...fresh.map((c) => ({ c, retry: false })),
+    ...familyRetries(entry, all, st).map((c) => ({ c, retry: true })),
+  ];
+}
+
 async function sweepState(
   page: Page,
   opts: SurfaceCrawlOptions,
@@ -666,14 +694,7 @@ async function sweepState(
 ): Promise<{ tried: number; skipped: number }> {
   if (!(await resetToState(page, opts, entry.path, entry.sig))) return { tried: 0, skipped: 0 };
   const all = await page.evaluate(collectClickable).catch(() => [] as RawCandidate[]);
-  // Fresh controls first (already-driven global chrome would otherwise starve a
-  // deep surface's own controls; the throttle applies to fresh ones), then the
-  // parent's persistent mode-switchers re-tried in THIS sibling mode.
-  const fresh = all.filter((c) => !st.tried.has(c.selector)).slice(0, opts.maxActionsPerState);
-  const work = [
-    ...fresh.map((c) => ({ c, retry: false })),
-    ...familyRetries(entry, all, st).map((c) => ({ c, retry: true })),
-  ];
+  const work = sweepWorkList(entry, all, opts, st);
 
   let tried = 0;
   let skipped = 0;
@@ -771,7 +792,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     captured: 0,
     failed: [],
   };
-  await record(page, opts, [], 0, fp, st);
+  await record(page, opts, [], 0, fp, st, false);
 
   // Automatic data states of the entry page — the loading skeleton and the
   // error render exist in every data-driven app but almost never in a click

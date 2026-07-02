@@ -1440,3 +1440,65 @@ test('one-shot capture honours setup steps for a gated page', async ({ page }) =
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('consuming actions never spawn a decision lattice; their mode-views stay reachable', async ({ page }) => {
+  // Two resolvable rows that REMOVE themselves when actioned (sibling selectors
+  // shift — the classic drift that makes consumed controls look "fresh" again),
+  // plus a persistent Done tab. The crawl must: action each row once, re-try the
+  // persistent tab inside the resolved states (reaching the done-item render),
+  // and never explore the resolved-subset lattice.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; font-family: sans-serif; }
+    .inbox { padding: 16px; background: rgb(240,240,245); }
+    .row { padding: 8px; background: rgb(250,250,255); }
+    .donetab { display: none; padding: 12px; background: rgb(230,230,240); }
+    body.show-done .donetab { display: block; }
+    .done-item { background: rgb(220,245,220); padding: 6px; }
+    button { cursor: pointer; }
+  </style></head><body>
+    <main class="inbox">
+      <button id="tab">Done tab</button>
+      <div class="row">item one <button class="resolve">Resolve item one</button></div>
+      <div class="row">item two <button class="resolve">Resolve item two</button></div>
+    </main>
+    <div class="donetab" id="done"></div>
+    <script>
+      document.getElementById('tab').onclick = () => document.body.classList.toggle('show-done');
+      for (const b of document.querySelectorAll('.resolve')) b.onclick = (e) => {
+        const row = e.target.closest('.row');
+        const item = document.createElement('div');
+        item.className = 'done-item';
+        item.textContent = row.textContent;
+        document.getElementById('done').appendChild(item);
+        row.remove(); // selectors of remaining rows SHIFT — the drift trap
+      };
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-consume-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-consume-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    // done-item is renderable ONLY as a mode-view of a consumed state
+    // (resolve → done tab) — it must be covered, with nothing missing.
+    expect(report.coverage.missing).toEqual([]);
+    // and the crawl CONVERGES: no resolved-subset lattice, no drift re-clicks.
+    // base, tab-open, resolve×2, tab-inside-resolved views — single digits, not 2^n.
+    expect(report.surfaces.length).toBeLessThanOrEqual(8);
+    expect(report.surfaces.length).toBeGreaterThanOrEqual(4); // the two resolved-states share one structure — they dedup
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
