@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Crawl candidate collection collapses inherited-cursor subtrees to their
+  OUTERMOST clickable. `cursor` is an inherited CSS property, so a clickable card
+  makes every descendant compute `cursor: pointer`; each became its own candidate
+  even though clicking any of them just bubbles to the card's handler (the same
+  surface). Each redundant candidate paid a drive + verified reset — the dominant
+  cost of a large crawl. Measured on a 241-class design: base candidates 557 → 22,
+  whole coverage crawl ~40min → ~6min (240/241, unchanged). Semantic controls
+  nested in a clickable container are still kept.
 - `--until-covered` reaches deep coverage: it now terminates on the queue
   draining (or full coverage), not a fixed "N surfaces without a new class"
   plateau — a plateau cut the crawl off before a productive deep state (an

@@ -247,7 +247,27 @@ function collectClickable(): RawCandidate[] {
   for (const el of document.querySelectorAll('body *')) {
     if (pool.has(el)) continue;
     const cursor = getComputedStyle(el).cursor;
-    if (cursor === 'pointer' || cursor === 'grab') pool.add(el);
+    if (cursor !== 'pointer' && cursor !== 'grab') continue;
+    // `cursor` is an INHERITED property: a clickable card makes every descendant
+    // compute cursor:pointer, and clicking any descendant just bubbles to the
+    // card's own handler — the SAME surface. Left unchecked, a card with N
+    // children becomes N+1 candidates, each paying a drive + verified reset to
+    // map one surface (the dominant cost of a large crawl). Add only the
+    // OUTERMOST clickable in an inherited-cursor subtree: skip when an ancestor
+    // is already a candidate. Semantic controls (button, a, [role]) are seeded
+    // above and skipped by the guard at the top of the loop, so a real button
+    // nested inside a clickable card is never dropped. (querySelectorAll walks
+    // document order, so an ancestor is always pooled before its descendants.)
+    let anc = el.parentElement;
+    let nested = false;
+    while (anc && anc !== document.body) {
+      if (pool.has(anc)) {
+        nested = true;
+        break;
+      }
+      anc = anc.parentElement;
+    }
+    if (!nested) pool.add(el);
   }
 
   // Neutral text inputs are typed automatically with a deterministic value —
