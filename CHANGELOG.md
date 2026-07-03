@@ -20,6 +20,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Crawl reset settle no longer waits on `networkidle`: it polls DOM-growth to
+  detect the mounted app (unchanged) and then waits for `document.fonts.ready`
+  specifically (fonts are part of the computed style the diff compares, so they
+  must be loaded — but that is the deterministic signal, cache-warm on repeat
+  loads). networkidle waited a 500ms idle window ON TOP of a cross-origin font
+  sheet that lingered ~1s per load with no bearing on readiness; since every
+  state reset re-navigates, that dominated crawl time. Measured: settle 911ms →
+  105ms per reset (~8.7x), whole-crawl surface rate ~5/min → ~17/min.
+
 - Crawl is now breadth-first (was depth-first): every shallow surface — nav
   tabs, opened panels, the tabs inside a dossier — is exhausted before drilling
   deeper. Depth-first starved breadth: one append-generator branch drilled past

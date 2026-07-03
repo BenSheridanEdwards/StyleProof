@@ -397,14 +397,26 @@ async function settleDom(page: Page, maxMs = 1200): Promise<void> {
  *  non-trivial. Generic — no app-specific selector needed, so a bare crawl of a
  *  Babel/React/Vue page that boots after `load` still captures the mounted UI. */
 async function waitSettled(page: Page): Promise<void> {
-  await page.waitForLoadState('networkidle').catch(() => {});
+  // DOM-growth settle is the PRIMARY readiness signal — it detects an
+  // async-mounted app (the DOM stops growing and is non-trivial) without an
+  // app-specific selector, and it also catches fetch-painted content (that
+  // grows the DOM). We deliberately do NOT gate on networkidle: it waits a
+  // 500ms idle window ON TOP of any lingering request, and a single cross-origin
+  // asset — a Google-Fonts stylesheet — keeps the network "busy" ~1s per load
+  // with no bearing on readiness. gotoFresh runs once per state (plus per
+  // retry), so that dominated crawl time (measured: ~995ms of every ~1531ms
+  // reset). Instead we wait for FONTS specifically — they ARE part of the
+  // computed style the diff compares, so they must be loaded before capture,
+  // but document.fonts.ready is the deterministic signal (and resolves from the
+  // page's cache on repeat loads, so it's ~free after the first).
   let prev = -1;
   for (let i = 0; i < 40; i++) {
     const n = await page.evaluate(() => document.body.getElementsByTagName('*').length);
-    if (n > 5 && n === prev) return;
+    if (n > 5 && n === prev) break;
     prev = n;
     await page.waitForTimeout(100);
   }
+  await page.evaluate(() => document.fonts.ready.then(() => true)).catch(() => {});
 }
 
 /**
