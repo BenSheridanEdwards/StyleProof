@@ -107,6 +107,7 @@ async function runCrawl() {
       resetStorage: opts.resetStorage,
       setup: setupSteps,
       dataStates: opts.dataStates,
+      stopWhenCovered: opts.untilCovered,
       workers: opts.workers,
       // each worker page in its OWN context, so storage resets can't interfere
       newPage: async () => (await browser.newContext()).newPage(),

@@ -93,6 +93,14 @@ export type SurfaceCrawlOptions = {
    *  requests stalled — the skeleton) and `error` (data requests fulfilled with
    *  a 500). Default true; states that render identically to base are skipped. */
   dataStates?: boolean;
+  /** Coverage-oriented termination: stop as soon as every class the page's
+   *  stylesheets define has been rendered (full coverage) OR coverage stops
+   *  improving (no new class for a plateau of surfaces — it has converged short
+   *  of full, and the rest is dead CSS or a genuinely-gated state). Off by
+   *  default (exhaustive: map every surface). On, the crawl is a fast coverage
+   *  check — it stops the moment it has SEEN everything, instead of enumerating
+   *  every combinatorial surface that adds no new vocabulary. */
+  stopWhenCovered?: boolean;
   /** Throttle: recursion depth into opened surfaces (base = 0). Default: unbounded. */
   maxDepth: number;
   /** Throttle: fresh controls driven per state. Default: unbounded — try them all. */
@@ -119,7 +127,14 @@ export type SurfaceCrawlOptions = {
 export const CRAWL_DEFAULTS = {
   height: 900,
   screenshots: true,
-  maxDepth: 1000,
+  // ponytail: depth 16 is exhaustive for real UI — no human-navigable surface
+  // is 16 clicks from load. Past that you're not finding surfaces, you're
+  // riding an append-generator (a composer that adds a row per click) whose
+  // every appended node is a fresh tag-path identity, so it recurses forever.
+  // The cap terminates those chains; the coverage verifier still NAMES any
+  // class left unrendered, so a too-low cap fails loudly rather than lying.
+  // Raise with --max-depth if a design genuinely nests deeper.
+  maxDepth: 16,
   maxActionsPerState: 100000,
   maxStates: 100000,
   resetStorage: true,
@@ -173,7 +188,7 @@ function deriveKey(steps: CrawlStep[], used: Set<string>): string {
 function collectClickable(): RawCandidate[] {
   const SEMANTIC = 'button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form';
   const DANGER =
-    /\b(delete|remove|destroy|logout|log ?out|sign ?out|publish|deploy|pay|purchase|buy|checkout|archive|disconnect|revoke|reset|wipe|drop)\b/i;
+    /\b(delete|remove|destroy|logout|log ?out|sign ?out|publish|deploy|pay|purchase|buy|checkout|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew)\b/i;
   const esc = (v: string): string => CSS.escape(v);
   const quote = (v: string): string => JSON.stringify(v);
   const visible = (el: Element): boolean => {
@@ -390,14 +405,26 @@ async function settleDom(page: Page, maxMs = 1200): Promise<void> {
  *  non-trivial. Generic — no app-specific selector needed, so a bare crawl of a
  *  Babel/React/Vue page that boots after `load` still captures the mounted UI. */
 async function waitSettled(page: Page): Promise<void> {
-  await page.waitForLoadState('networkidle').catch(() => {});
+  // DOM-growth settle is the PRIMARY readiness signal — it detects an
+  // async-mounted app (the DOM stops growing and is non-trivial) without an
+  // app-specific selector, and it also catches fetch-painted content (that
+  // grows the DOM). We deliberately do NOT gate on networkidle: it waits a
+  // 500ms idle window ON TOP of any lingering request, and a single cross-origin
+  // asset — a Google-Fonts stylesheet — keeps the network "busy" ~1s per load
+  // with no bearing on readiness. gotoFresh runs once per state (plus per
+  // retry), so that dominated crawl time (measured: ~995ms of every ~1531ms
+  // reset). Instead we wait for FONTS specifically — they ARE part of the
+  // computed style the diff compares, so they must be loaded before capture,
+  // but document.fonts.ready is the deterministic signal (and resolves from the
+  // page's cache on repeat loads, so it's ~free after the first).
   let prev = -1;
   for (let i = 0; i < 40; i++) {
     const n = await page.evaluate(() => document.body.getElementsByTagName('*').length);
-    if (n > 5 && n === prev) return;
+    if (n > 5 && n === prev) break;
     prev = n;
     await page.waitForTimeout(100);
   }
+  await page.evaluate(() => document.fonts.ready.then(() => true)).catch(() => {});
 }
 
 /**
@@ -664,6 +691,7 @@ async function driveCandidate(
   st: CrawlState,
   sink: QueueEntry[],
   viaRetry: boolean,
+  presentIds: Set<string> = new Set(),
 ): Promise<{ inState: boolean; skipped: boolean }> {
   // (retry-only lineage is inherited: a consumed state's descendants can also
   // only be mode-switch views, never fresh-candidate exploration.)
@@ -692,17 +720,37 @@ async function driveCandidate(
     reason: c.reason,
     ...(c.value ? { value: c.value } : {}),
   };
-  await record(
-    page,
-    opts,
-    [...entry.path, step],
-    entry.depth + 1,
-    fp,
-    st,
-    sink,
-    entry.retryOnly || !persists,
-    viaRetry,
-  );
+  const childPath = [...entry.path, step];
+  const childRetryOnly = entry.retryOnly || !persists;
+  await record(page, opts, childPath, entry.depth + 1, fp, st, sink, childRetryOnly, viaRetry);
+
+  // DESCEND IN PLACE. We are standing in the surface this click just opened,
+  // reached by a reliable forward click. Sweep its OWN fresh controls now, while
+  // we are here, rather than leaving it for the queued entry to re-reach by
+  // reset+replay — which is both slower (a reset per candidate) and, at depth,
+  // starved: a dossier's many activity-filter combinations flood the queue and
+  // bury the deep sweep (an expanded run inside an expanded automation) so it
+  // never runs. The queued entry still executes for family-retry (pairwise)
+  // coverage; global `tried` means its fresh list is already empty here, so this
+  // does not double-drive. Bounded by maxDepth; a persistent toggle re-seen with
+  // the same identity is `tried`, so no cycle.
+  if (persists && entry.depth + 1 < opts.maxDepth) {
+    const child: QueueEntry = {
+      path: childPath,
+      depth: entry.depth + 1,
+      sig: fp.sig,
+      retryOnly: childRetryOnly,
+      viaRetry,
+    };
+    // Exclude controls that were ALSO present in the parent (mode-switchers,
+    // shared chrome): those are breadth, owned by the queued family-retry.
+    // Descend only into controls genuinely NEW to this surface — a run row that
+    // exists only after the job expanded — which is exactly the deep nested UI
+    // the reset-replay path starves.
+    await sweepCandidatesHere(page, opts, child, st, sink, /* freshOnly */ true, presentIds).catch(() => {
+      /* fail-soft: the surface was already captured; deeper descent is best-effort */
+    });
+  }
   return { inState: false, skipped: false };
 }
 
@@ -739,30 +787,52 @@ function familyRetries(entry: QueueEntry, all: RawCandidate[], st: CrawlState): 
  *  global chrome would otherwise starve a deep surface's own controls; the
  *  throttle applies to fresh ones), then the parent's persistent mode-switchers
  *  re-tried in THIS sibling mode. A state reached through a consuming action
- *  collects NO fresh candidates — see QueueEntry.retryOnly. */
+ *  collects NO fresh candidates — see QueueEntry.retryOnly.
+ *
+ *  `freshOnly` drops the family-retries: the in-place descent of a
+ *  freshly-opened surface explores its own new UI (DEPTH), but must NOT re-apply
+ *  the parent's mode-switchers — that is the pairwise BREADTH, owned by the
+ *  queued sweep. Re-applying them while descending would compound modes into
+ *  N-way products (the very thing "retries don't compound" prevents). */
 function sweepWorkList(
   entry: QueueEntry,
   all: RawCandidate[],
   opts: SurfaceCrawlOptions,
   st: CrawlState,
+  freshOnly = false,
+  excludeIds: Set<string> = new Set(),
 ): { c: RawCandidate; retry: boolean }[] {
-  const fresh = entry.retryOnly ? [] : all.filter((c) => !st.tried.has(c.identity)).slice(0, opts.maxActionsPerState);
+  const fresh = entry.retryOnly
+    ? []
+    : all.filter((c) => !st.tried.has(c.identity) && !excludeIds.has(c.identity)).slice(0, opts.maxActionsPerState);
   return [
     ...fresh.map((c) => ({ c, retry: false })),
-    ...familyRetries(entry, all, st).map((c) => ({ c, retry: true })),
+    ...(freshOnly ? [] : familyRetries(entry, all, st).map((c) => ({ c, retry: true }))),
   ];
 }
 
-async function sweepState(
+/** Drive one state's work list from where the page ALREADY stands (no reset). A
+ *  no-op click leaves the page in the state and the loop continues; a
+ *  state-changing click drives the child in place (see driveCandidate) and then
+ *  a verified reset returns here before the next candidate. Split out from
+ *  sweepState so driveCandidate can call it to DESCEND a freshly-opened surface
+ *  in place — reaching that surface via a forward click is reliable, so its deep
+ *  descendants are captured on the first visit instead of via a later reset. */
+async function sweepCandidatesHere(
   page: Page,
   opts: SurfaceCrawlOptions,
   entry: QueueEntry,
   st: CrawlState,
   sink: QueueEntry[],
+  freshOnly = false,
+  excludeIds: Set<string> = new Set(),
 ): Promise<{ tried: number; skipped: number }> {
-  if (!(await resetToState(page, opts, entry.path, entry.sig))) return { tried: 0, skipped: 0 };
   const all = await page.evaluate(collectClickable).catch(() => [] as RawCandidate[]);
-  const work = sweepWorkList(entry, all, opts, st);
+  const work = sweepWorkList(entry, all, opts, st, freshOnly, excludeIds);
+  // Controls present HERE — passed to each child's in-place descent as its
+  // exclude set, so the descent skips this surface's mode-switchers/chrome and
+  // only drills genuinely new nested UI.
+  const presentIds = new Set(all.map((c) => c.identity));
 
   let tried = 0;
   let skipped = 0;
@@ -779,11 +849,22 @@ async function sweepState(
       continue;
     }
     tried++;
-    const r = await driveCandidate(page, opts, entry, c, st, sink, retry);
+    const r = await driveCandidate(page, opts, entry, c, st, sink, retry, presentIds);
     inState = r.inState;
     if (r.skipped) skipped++;
   }
   return { tried, skipped };
+}
+
+async function sweepState(
+  page: Page,
+  opts: SurfaceCrawlOptions,
+  entry: QueueEntry,
+  st: CrawlState,
+  sink: QueueEntry[],
+): Promise<{ tried: number; skipped: number }> {
+  if (!(await resetToState(page, opts, entry.path, entry.sig))) return { tried: 0, skipped: 0 };
+  return sweepCandidatesHere(page, opts, entry, st, sink);
 }
 
 /** Capture one synthetic data state of the entry page (its data requests stalled
@@ -835,6 +916,7 @@ async function runPool(
   opts: SurfaceCrawlOptions,
   st: CrawlState,
   counters: { tried: number; skipped: number },
+  defined: string[] = [],
 ): Promise<void> {
   const target = Math.max(1, opts.workers ?? 1);
   const pages: Page[] = [primary];
@@ -843,11 +925,39 @@ async function runPool(
     if (opts.resetStorage) await armResetStorage(extra);
     pages.push(extra);
   }
+
+  // Coverage-oriented early stop (opt-in). Every defined class SEEN => stop
+  // (full coverage). No new class for PLATEAU surfaces => coverage has
+  // converged, and the queue's remaining work is combinatorial breadth that
+  // adds no vocabulary (the same view under a different filter) — stop and let
+  // the caller report whatever, if anything, is still missing. `target.every`
+  // runs only when the class count actually grows, so this is cheap.
+  const PLATEAU = 60;
+  const cover = opts.stopWhenCovered && defined.length > 0 ? defined : null;
+  let prevSize = st.classes.size;
+  let growthAt = st.surfaces.length;
+  let covered = false;
+  const converged = (): boolean => {
+    if (!cover) return false;
+    if (st.classes.size > prevSize) {
+      prevSize = st.classes.size;
+      growthAt = st.surfaces.length;
+      if (cover.every((c) => st.classes.has(c))) covered = true;
+    }
+    return covered || st.surfaces.length - growthAt >= PLATEAU;
+  };
+
   let active = 0;
   await new Promise<void>((resolve) => {
     const pump = (): void => {
-      while (pages.length > 0 && st.queue.length > 0 && st.surfaces.length < opts.maxStates) {
-        const entry = st.queue.pop()!; // LIFO → depth-first
+      while (pages.length > 0 && st.queue.length > 0 && st.surfaces.length < opts.maxStates && !converged()) {
+        const entry = st.queue.shift()!; // FIFO → breadth-first: exhaust every
+        // shallow surface (nav tabs, opened panels — where distinct UI lives)
+        // before drilling. Depth-first starves breadth: one append-generator
+        // branch drills to depth 20+ while sibling tabs sit unpopped, so real
+        // surfaces (an OAuth card, a skills grid) go uncaptured. Dedup is
+        // set-based, so order never changes WHAT is found — only that shallow
+        // is found first, which is what full coverage needs.
         if (entry.depth >= opts.maxDepth) continue;
         const worker = pages.pop()!;
         active++;
@@ -867,7 +977,7 @@ async function runPool(
             pump();
           });
       }
-      if (active === 0 && (st.queue.length === 0 || st.surfaces.length >= opts.maxStates)) resolve();
+      if (active === 0 && (st.queue.length === 0 || st.surfaces.length >= opts.maxStates || converged())) resolve();
     };
     pump();
   });
@@ -921,7 +1031,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   }
 
   const counters = { tried: 0, skipped: 0 };
-  await runPool(page, opts, st, counters);
+  await runPool(page, opts, st, counters, defined);
   const missing = defined.filter((c) => !st.classes.has(c)).sort();
   return {
     surfaces: st.surfaces,

@@ -20,23 +20,51 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Control identity is now SEMANTIC, not positional: the driven-once dedup keys
-  on tag ancestry (no indices, no classes) + label + role — what stays stable
-  across every re-render — instead of nth-of-type selectors. Mode switches
-  re-render subtrees and re-mint positional selectors for the same logical
-  controls, which made every combination view refill the fresh-candidate pool
-  (a crawl inflated past 2,500 surfaces through that leak). Positional clones
-  with identical tag-path AND label (a repeated row's expand button) merge —
-  one is explored; distinctly-labeled controls stay distinct; anything hidden
-  behind a merge is still NAMED by the coverage verifier.
-- Family retries no longer compound: a state reached via a retry still explores
-  its genuinely-new UI, but never re-retries mode-switchers. Every PAIRWISE
-  combination of independent modes is captured (a tab's edit state, a decided
-  list's other tab); 3-way-and-deeper toggle products — which multiply surfaces
-  without new render vocabulary — are not walked. Observed live: an exhaustive
-  crawl inflated past 725 surfaces in the N-way product tail; the pairwise walk
-  covers the same vocabulary in a fraction of the states. Anything class-visible
-  only at deeper combination depth is still NAMED by the coverage verifier.
+- Crawl reset settle no longer waits on `networkidle`: it polls DOM-growth to
+  detect the mounted app (unchanged) and then waits for `document.fonts.ready`
+  specifically (fonts are part of the computed style the diff compares, so they
+  must be loaded — but that is the deterministic signal, cache-warm on repeat
+  loads). networkidle waited a 500ms idle window ON TOP of a cross-origin font
+  sheet that lingered ~1s per load with no bearing on readiness; since every
+  state reset re-navigates, that dominated crawl time. Measured: settle 911ms →
+  105ms per reset (~8.7x), whole-crawl surface rate ~5/min → ~17/min.
+
+- Crawl is now breadth-first (was depth-first): every shallow surface — nav
+  tabs, opened panels, the tabs inside a dossier — is exhausted before drilling
+  deeper. Depth-first starved breadth: one append-generator branch drilled past
+  depth 20 while sibling tabs sat unvisited, so real surfaces (an OAuth card, a
+  skills grid, a markdown editor) went uncaptured — measured live as 48 defined
+  classes never rendered across ~12 surfaces. Dedup is set-based, so order
+  changes only WHICH surface is found first, never the final set.
+- `maxDepth` default 1000 -> 16: exhaustive for real UI (nothing human-navigable
+  is 16 clicks from load) while terminating append-generator chains, whose every
+  appended node is a fresh tag-path identity. The coverage verifier still names
+  any class left unrendered, so a too-low cap fails loudly rather than lying.
+
+- The never-click guard now also covers state-mutating verbs (rotate,
+  provision, seal, regenerate, renew): mapping must not mutate, and a mutating
+  control that persists after its click re-labels its surroundings with fresh
+  data on every press — an unbounded mutation farm a crawl must not walk.
+  Observed live: credential-rotation cells minted new identities per press,
+  inflating a crawl past 470 surfaces at depth 23. Their render states are
+  seed-data territory (and anything unreached is named by the verifier).
+- Freshly-opened surfaces are swept IN PLACE (forward-drive), not only queued
+  for a later reset+replay. Reaching a surface by a forward click is reliable;
+  re-reaching it by reset is slow (a reset per candidate) and, at depth, starved
+  — a dossier's many filter combinations flood the queue and bury the deep
+  sweep, so an expanded run row inside an expanded job was captured 0 times
+  despite being reachable (now 29). The descent drives only fresh controls new
+  to the surface (excludes parent-present mode-switchers), so pairwise mode
+  coverage is unchanged and the lattice stays pairwise.
+
+### Added
+
+- `--until-covered`: stop the crawl as soon as every class the page's
+  stylesheets define has rendered (full coverage) or coverage stops improving
+  (no new class for a plateau of surfaces). Turns an exhaustive crawl into a
+  fast coverage check that stops once it has SEEN everything, instead of
+  enumerating every combinatorial surface that adds no new vocabulary. Opt-in;
+  exhaustive remains the default.
 
 ## [3.5.0] - 2026-07-02
 
