@@ -38,6 +38,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   covers the same vocabulary in a fraction of the states. Anything class-visible
   only at deeper combination depth is still NAMED by the coverage verifier.
 
+## [3.5.0] - 2026-07-02
+
 ### Added
 
 - Parallel crawl: `--workers <n>` (default 4) sweeps queued states concurrently,
