@@ -129,6 +129,12 @@ export const CRAWL_DEFAULTS = {
 type RawCandidate = {
   action: 'click' | 'select-option' | 'fill-input';
   selector: string;
+  /** SEMANTIC control identity: the class-context path (no positional indices)
+   *  plus tag and label. The same logical control re-rendered in a different
+   *  mode context keeps its identity even though its positional selector
+   *  drifts — this is what the driven-once dedup keys on. Positional
+   *  `selector` remains what actually gets clicked in a given state. */
+  identity: string;
   label: string;
   reason: string;
   value?: string;
@@ -205,6 +211,19 @@ function collectClickable(): RawCandidate[] {
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 80) || el.tagName.toLowerCase();
+  const identityFor = (el: Element): string => {
+    // Tag-path only — NO classes and NO indices: classes carry state (body.alt,
+    // .on) and would re-contextualize the same control per mode; indices carry
+    // position and drift on re-render. Tag ancestry + label is what stays
+    // stable across every context the same logical control appears in.
+    const parts: string[] = [];
+    let cur: Element | null = el;
+    while (cur && cur !== document.documentElement) {
+      parts.unshift(cur.tagName.toLowerCase());
+      cur = cur.parentElement;
+    }
+    return `${parts.join('>')}|${labelFor(el)}|${el.getAttribute('role') ?? ''}`;
+  };
 
   // Semantic controls first (stable, meaningful), then anything styled clickable.
   // `grab` counts too: a draggable card is routinely ALSO a click target (open on
@@ -243,6 +262,7 @@ function collectClickable(): RawCandidate[] {
     out.push({
       action: 'fill-input',
       selector,
+      identity: identityFor(el),
       label: labelFor(el) === el.tagName.toLowerCase() ? (el.getAttribute('placeholder') ?? 'input') : labelFor(el),
       reason: 'auto-fill',
       value: AUTO_VALUE[kind] ?? 'sample text',
@@ -261,11 +281,20 @@ function collectClickable(): RawCandidate[] {
     if (el instanceof HTMLSelectElement) {
       const next = [...el.options].find((o) => !o.disabled && o.value !== el.value);
       if (next)
-        out.push({ action: 'select-option', selector, label, reason: 'select-option', value: next.value, unsafe });
+        out.push({
+          action: 'select-option',
+          selector,
+          identity: identityFor(el),
+          label,
+          reason: 'select-option',
+          value: next.value,
+          unsafe,
+        });
     } else {
       out.push({
         action: 'click',
         selector,
+        identity: identityFor(el),
         label,
         reason: el.getAttribute('role') === 'tab' ? 'tab' : 'click',
         unsafe,
@@ -536,7 +565,7 @@ async function captureInPlace(page: Page, key: string, opts: SurfaceCrawlOptions
  *  same logical controls look "fresh" in every decided-subset — the combinatorial
  *  decision lattice. Mode-switch views of a consumed state (its RESOLVED tab)
  *  stay reachable; the lattice does not. */
-type QueueEntry = { path: CrawlStep[]; depth: number; sig: string; retryOnly: boolean };
+type QueueEntry = { path: CrawlStep[]; depth: number; sig: string; retryOnly: boolean; viaRetry: boolean };
 
 /** Identity of a state for the changer registry: the click-path that defines it. */
 function stateKey(steps: CrawlStep[]): string {
@@ -580,6 +609,7 @@ async function record(
   st: CrawlState,
   sink: QueueEntry[],
   retryOnly = false,
+  viaRetry = false,
 ): Promise<void> {
   const key = deriveKey(newPath, st.used);
   const surface: CrawledSurface = { key, depth, path: newPath, elements: fp.elements };
@@ -587,7 +617,7 @@ async function record(
   // Children buffer in the sweep's sink and enter the shared queue only when the
   // parent's sweep completes — family retry reads the parent's changer registry,
   // which is only complete then. (Serial mode passes st.queue directly.)
-  sink.push({ path: newPath, depth, sig: fp.sig, retryOnly });
+  sink.push({ path: newPath, depth, sig: fp.sig, retryOnly, viaRetry });
   for (const c of fp.classes) st.classes.add(c);
   await captureAndReport(page, opts, surface, st);
 }
@@ -633,6 +663,7 @@ async function driveCandidate(
   c: RawCandidate,
   st: CrawlState,
   sink: QueueEntry[],
+  viaRetry: boolean,
 ): Promise<{ inState: boolean; skipped: boolean }> {
   // (retry-only lineage is inherited: a consumed state's descendants can also
   // only be mode-switch views, never fresh-candidate exploration.)
@@ -648,7 +679,7 @@ async function driveCandidate(
     .catch(() => false);
   const from = stateKey(entry.path);
   const list = st.changersFrom.get(from) ?? [];
-  if (!list.some((x) => x.c.selector === c.selector)) list.push({ c, persists });
+  if (!list.some((x) => x.c.identity === c.identity)) list.push({ c, persists });
   st.changersFrom.set(from, list);
 
   const fp = await fingerprint(page);
@@ -661,7 +692,17 @@ async function driveCandidate(
     reason: c.reason,
     ...(c.value ? { value: c.value } : {}),
   };
-  await record(page, opts, [...entry.path, step], entry.depth + 1, fp, st, sink, entry.retryOnly || !persists);
+  await record(
+    page,
+    opts,
+    [...entry.path, step],
+    entry.depth + 1,
+    fp,
+    st,
+    sink,
+    entry.retryOnly || !persists,
+    viaRetry,
+  );
   return { inState: false, skipped: false };
 }
 
@@ -674,13 +715,24 @@ async function driveCandidate(
 /** The family-retry list for a state: its parent's persistent mode-switchers that
  *  are visible right now — minus the step that created this state itself. */
 function familyRetries(entry: QueueEntry, all: RawCandidate[], st: CrawlState): RawCandidate[] {
+  // RETRIES DO NOT COMPOUND: a state reached via a family retry still explores
+  // its genuinely-new UI (fresh selectors), but never re-retries mode-switchers.
+  // Every PAIRWISE mode combination is captured; N-way products of independent
+  // toggles are not walked — they multiply states without new render vocabulary,
+  // and anything class-visible only at 3-way depth is still NAMED by the
+  // coverage verifier.
+  if (entry.viaRetry) return [];
   if (entry.path.length === 0) return [];
   const parentKey = stateKey(entry.path.slice(0, -1));
   const ownSelector = entry.path[entry.path.length - 1].selector;
-  const visibleNow = new Set(all.map((c) => c.selector));
+  // Match registered changers to THIS state's candidates by semantic identity —
+  // the mode switch re-rendered the subtree, so positional selectors drifted;
+  // the current candidate carries the right selector for this state.
+  const byIdentity = new Map(all.map((c) => [c.identity, c]));
   return (st.changersFrom.get(parentKey) ?? [])
-    .filter((x) => x.persists && x.c.selector !== ownSelector && visibleNow.has(x.c.selector))
-    .map((x) => x.c);
+    .filter((x) => x.persists && x.c.selector !== ownSelector)
+    .map((x) => byIdentity.get(x.c.identity))
+    .filter((c): c is RawCandidate => Boolean(c));
 }
 
 /** The work list for one state's sweep: fresh controls first (already-driven
@@ -694,7 +746,7 @@ function sweepWorkList(
   opts: SurfaceCrawlOptions,
   st: CrawlState,
 ): { c: RawCandidate; retry: boolean }[] {
-  const fresh = entry.retryOnly ? [] : all.filter((c) => !st.tried.has(c.selector)).slice(0, opts.maxActionsPerState);
+  const fresh = entry.retryOnly ? [] : all.filter((c) => !st.tried.has(c.identity)).slice(0, opts.maxActionsPerState);
   return [
     ...fresh.map((c) => ({ c, retry: false })),
     ...familyRetries(entry, all, st).map((c) => ({ c, retry: true })),
@@ -721,13 +773,13 @@ async function sweepState(
       if (!(await resetToState(page, opts, entry.path, entry.sig))) break; // abandon rest, fail-soft
       inState = true;
     }
-    if (!retry) st.tried.add(c.selector);
+    if (!retry) st.tried.add(c.identity);
     if (c.unsafe) {
       skipped++;
       continue;
     }
     tried++;
-    const r = await driveCandidate(page, opts, entry, c, st, sink);
+    const r = await driveCandidate(page, opts, entry, c, st, sink, retry);
     inState = r.inState;
     if (r.skipped) skipped++;
   }
@@ -858,7 +910,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     captured: 0,
     failed: [],
   };
-  await record(page, opts, [], 0, fp, st, st.queue, false);
+  await record(page, opts, [], 0, fp, st, st.queue, false, false);
 
   // Automatic data states of the entry page — the loading skeleton and the
   // error render exist in every data-driven app but almost never in a click
