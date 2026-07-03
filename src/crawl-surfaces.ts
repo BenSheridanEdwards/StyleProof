@@ -342,6 +342,15 @@ function domShape(): { shape: string; elements: number; classes: string[] } {
   add(document.body);
   for (const el of document.body.getElementsByTagName('*')) {
     if (SKIP.has(el.tagName)) continue;
+    // Skip non-page artifacts that pollute the fingerprint: StyleProof's own
+    // injected hover-sink (added by a capture, so present when a state is
+    // captured in place but NOT on a fresh load) and framework route-announcers.
+    // Counting them made a state's in-place fingerprint differ from its
+    // reset+replay fingerprint, so every reset to depth >= 2 failed verification
+    // (and the same pollution split dedup, capturing one surface as two). They
+    // are not part of the page.
+    if (el.hasAttribute('data-styleproof-hover-sink')) continue;
+    if (el.tagName === 'NEXT-ROUTE-ANNOUNCER' || el.id === '__next-route-announcer__') continue;
     add(el);
   }
   return { shape: parts.join('\n'), elements: parts.length, classes: [...classes] };

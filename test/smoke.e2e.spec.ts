@@ -1563,3 +1563,65 @@ test('parallel workers produce the same surface set as a serial crawl', async ({
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('reset-replay reaches depth >= 2: a pairwise mode-combo behind a depth-2 reset is captured, not lost to fingerprint pollution', async ({
+  page,
+}) => {
+  // A panel (depth 1) holds two tabs and an EDIT toggle. The `.yedit` class only
+  // renders in the tabY × edit COMBINATION — reachable only by resetting to the
+  // tabY state (DEPTH 2: open panel → tab Y) and re-driving edit as a family
+  // retry (the in-place descent excludes the parent-present edit button, so it
+  // never reaches the combo forward). That reset is verified by fingerprint.
+  // StyleProof injects a hover-sink <div> during a capture; if it is counted in
+  // the fingerprint, the tabY state captured IN PLACE (sink present) never equals
+  // the same state reached by reset+replay from a fresh load (sink absent), so the
+  // depth-2 reset FAILS and `.yedit` is never rendered. Excluding the sink makes
+  // the reset verify, so full coverage requires the fix.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    .hidden { display: none; } .on { display: block; }
+    button:hover { outline: 1px solid red; } /* forces the hover-sink to be injected during capture */
+    .xview { color: rgb(10,10,10); } .yview { color: rgb(20,20,20); }
+    .xedit { color: rgb(30,30,30); } .yedit { color: rgb(40,40,40); }
+  </style></head><body>
+    <button id="a">open outer</button>
+    <div class="hidden" id="outer"><button id="o">open panel</button>
+      <div class="hidden" id="panel">
+        <button id="tx">tab X</button><button id="ty">tab Y</button><button id="ed">edit</button>
+        <div id="content"></div>
+      </div>
+    </div>
+    <script>
+      let tab = 'x', edit = false;
+      const render = () => { content.innerHTML = '<div class="' + tab + (edit ? 'edit' : 'view') + '">' + tab + (edit ? ' editing' : ' viewing') + '</div>'; };
+      a.onclick = () => { outer.classList.add('on'); };
+      o.onclick = () => { panel.classList.add('on'); render(); };
+      tx.onclick = () => { tab = 'x'; render(); };
+      ty.onclick = () => { tab = 'y'; render(); };
+      ed.onclick = () => { edit = true; render(); };
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-reset-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-reset-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    const report = await crawlAndCapture(page, {
+      url: 'file://' + file,
+      out,
+      widths: [900],
+      ignore: [],
+      height: 700,
+      screenshots: false,
+      maxDepth: 1000,
+      maxActionsPerState: 100000,
+      maxStates: 100000,
+      resetStorage: true,
+    });
+    // `.yedit` is reachable only by a verified reset back to the tabY state and
+    // re-driving edit; with the hover-sink counted in the fingerprint that reset
+    // fails, so `.yedit` goes missing. Empty missing => the fix holds.
+    expect(report.coverage.missing).toEqual([]);
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
