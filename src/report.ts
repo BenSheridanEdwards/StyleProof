@@ -395,7 +395,9 @@ const orderIdx = (p: string): number => {
 };
 
 function cleanVal(v: string): string {
-  let s = v.replace(/-?\d+\.\d+/g, (m) => String(Math.round(parseFloat(m) * 10) / 10));
+  // Verbatim by design: no rounding. Rounding once showed alpha 0.18 as 0.2 —
+  // and could erase a real 0.18→0.2 diff entirely via the no-op filter below.
+  let s = v;
   if (!s.includes('(')) {
     const toks = s.split(' ');
     if (toks.length > 1 && new Set(toks).size === 1) s = `${toks[0]} ×${toks.length}`;
@@ -631,11 +633,45 @@ function regionHeading(regionPaths: string[], findings: Finding[]): string {
 // table cell shows GitHub's live swatch.
 const cell = (v: string): string => (isNonValue(v) ? '—' : `\`${toHex(v)}\``);
 
+// Long values (gradients, data URIs) would swamp the table, but truncating each
+// side independently can show two IDENTICAL cells for a real diff: both
+// sides of a gradient rendered as the same rgba while the actual change — a
+// dropped `0px` stop — was elsewhere in the string. Instead, trim the shared
+// prefix/suffix and show each side's differing substring with a little context.
+const EXCERPT_AT = 64; // both sides at or under this → show whole values
+const EXCERPT_CTX = 12; // chars of shared context kept around the diff
+const EXCERPT_MAX = 96; // hard cap per excerpt; the diff itself may be huge
+export function excerptPair(before: string, after: string): [string, string] {
+  if (before.length <= EXCERPT_AT && after.length <= EXCERPT_AT) return [before, after];
+  let p = 0;
+  while (p < before.length && p < after.length && before[p] === after[p]) p++;
+  let s = 0;
+  const maxS = Math.min(before.length, after.length) - p;
+  while (s < maxS && before[before.length - 1 - s] === after[after.length - 1 - s]) s++;
+  const cut = (v: string): string => {
+    const start = Math.max(0, p - EXCERPT_CTX);
+    let end = Math.min(v.length, v.length - s + EXCERPT_CTX);
+    if (end - start > EXCERPT_MAX) end = start + EXCERPT_MAX;
+    return (start > 0 ? '…' : '') + v.slice(start, end) + (end < v.length ? '…' : '');
+  };
+  return [cut(before), cut(after)];
+}
+
+/** Before/After cells as a pair, so long values excerpt around their actual diff. */
+function cellPair(before: string, after: string): [string, string] {
+  if (isNonValue(before) || isNonValue(after)) return [cell(before), cell(after)];
+  const [b, a] = excerptPair(before, after);
+  return [`\`${toHex(b)}\``, `\`${toHex(a)}\``];
+}
+
 function beforeAfterTable(rows: PropChange[]): string[] {
   return [
     '| Property | Before | After |',
     '| --- | --- | --- |',
-    ...rows.map((r) => `| \`${r.prop}\` | ${cell(r.before)} | ${cell(r.after)} |`),
+    ...rows.map((r) => {
+      const [b, a] = cellPair(r.before, r.after);
+      return `| \`${r.prop}\` | ${b} | ${a} |`;
+    }),
   ];
 }
 
@@ -674,12 +710,14 @@ function styleSection(styles: Extract<Finding, { kind: 'style' }>[], added: bool
 function statesSection(states: Extract<Finding, { kind: 'state' }>[], added: boolean): string[] {
   const rows: string[] = [];
   for (const st of states)
-    for (const c of summarizeProps(st.props))
+    for (const c of summarizeProps(st.props)) {
+      const [b, a] = cellPair(c.before, c.after);
       rows.push(
         added
           ? `| \`:${st.state}\` | \`${c.prop}\` | ${cell(c.after)} |`
-          : `| \`:${st.state}\` | \`${c.prop}\` | ${cell(c.before)} → ${cell(c.after)} |`,
+          : `| \`:${st.state}\` | \`${c.prop}\` | ${b} → ${a} |`,
       );
+    }
   if (!rows.length) return [];
   return [
     '',
