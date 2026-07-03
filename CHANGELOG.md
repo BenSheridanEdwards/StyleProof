@@ -20,6 +20,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Crawl is now breadth-first (was depth-first): every shallow surface — nav
+  tabs, opened panels, the tabs inside a dossier — is exhausted before drilling
+  deeper. Depth-first starved breadth: one append-generator branch drilled past
+  depth 20 while sibling tabs sat unvisited, so real surfaces (an OAuth card, a
+  skills grid, a markdown editor) went uncaptured — measured live as 48 defined
+  classes never rendered across ~12 surfaces. Dedup is set-based, so order
+  changes only WHICH surface is found first, never the final set.
+- `maxDepth` default 1000 -> 16: exhaustive for real UI (nothing human-navigable
+  is 16 clicks from load) while terminating append-generator chains, whose every
+  appended node is a fresh tag-path identity. The coverage verifier still names
+  any class left unrendered, so a too-low cap fails loudly rather than lying.
+
 - The never-click guard now also covers state-mutating verbs (rotate,
   provision, seal, regenerate, renew): mapping must not mutate, and a mutating
   control that persists after its click re-labels its surroundings with fresh

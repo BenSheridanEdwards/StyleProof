@@ -119,7 +119,14 @@ export type SurfaceCrawlOptions = {
 export const CRAWL_DEFAULTS = {
   height: 900,
   screenshots: true,
-  maxDepth: 1000,
+  // ponytail: depth 16 is exhaustive for real UI — no human-navigable surface
+  // is 16 clicks from load. Past that you're not finding surfaces, you're
+  // riding an append-generator (a composer that adds a row per click) whose
+  // every appended node is a fresh tag-path identity, so it recurses forever.
+  // The cap terminates those chains; the coverage verifier still NAMES any
+  // class left unrendered, so a too-low cap fails loudly rather than lying.
+  // Raise with --max-depth if a design genuinely nests deeper.
+  maxDepth: 16,
   maxActionsPerState: 100000,
   maxStates: 100000,
   resetStorage: true,
@@ -847,7 +854,13 @@ async function runPool(
   await new Promise<void>((resolve) => {
     const pump = (): void => {
       while (pages.length > 0 && st.queue.length > 0 && st.surfaces.length < opts.maxStates) {
-        const entry = st.queue.pop()!; // LIFO → depth-first
+        const entry = st.queue.shift()!; // FIFO → breadth-first: exhaust every
+        // shallow surface (nav tabs, opened panels — where distinct UI lives)
+        // before drilling. Depth-first starves breadth: one append-generator
+        // branch drills to depth 20+ while sibling tabs sit unpopped, so real
+        // surfaces (an OAuth card, a skills grid) go uncaptured. Dedup is
+        // set-based, so order never changes WHAT is found — only that shallow
+        // is found first, which is what full coverage needs.
         if (entry.depth >= opts.maxDepth) continue;
         const worker = pages.pop()!;
         active++;
