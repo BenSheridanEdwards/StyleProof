@@ -93,6 +93,14 @@ export type SurfaceCrawlOptions = {
    *  requests stalled — the skeleton) and `error` (data requests fulfilled with
    *  a 500). Default true; states that render identically to base are skipped. */
   dataStates?: boolean;
+  /** Coverage-oriented termination: stop as soon as every class the page's
+   *  stylesheets define has been rendered (full coverage) OR coverage stops
+   *  improving (no new class for a plateau of surfaces — it has converged short
+   *  of full, and the rest is dead CSS or a genuinely-gated state). Off by
+   *  default (exhaustive: map every surface). On, the crawl is a fast coverage
+   *  check — it stops the moment it has SEEN everything, instead of enumerating
+   *  every combinatorial surface that adds no new vocabulary. */
+  stopWhenCovered?: boolean;
   /** Throttle: recursion depth into opened surfaces (base = 0). Default: unbounded. */
   maxDepth: number;
   /** Throttle: fresh controls driven per state. Default: unbounded — try them all. */
@@ -908,6 +916,7 @@ async function runPool(
   opts: SurfaceCrawlOptions,
   st: CrawlState,
   counters: { tried: number; skipped: number },
+  defined: string[] = [],
 ): Promise<void> {
   const target = Math.max(1, opts.workers ?? 1);
   const pages: Page[] = [primary];
@@ -916,10 +925,32 @@ async function runPool(
     if (opts.resetStorage) await armResetStorage(extra);
     pages.push(extra);
   }
+
+  // Coverage-oriented early stop (opt-in). Every defined class SEEN => stop
+  // (full coverage). No new class for PLATEAU surfaces => coverage has
+  // converged, and the queue's remaining work is combinatorial breadth that
+  // adds no vocabulary (the same view under a different filter) — stop and let
+  // the caller report whatever, if anything, is still missing. `target.every`
+  // runs only when the class count actually grows, so this is cheap.
+  const PLATEAU = 60;
+  const cover = opts.stopWhenCovered && defined.length > 0 ? defined : null;
+  let prevSize = st.classes.size;
+  let growthAt = st.surfaces.length;
+  let covered = false;
+  const converged = (): boolean => {
+    if (!cover) return false;
+    if (st.classes.size > prevSize) {
+      prevSize = st.classes.size;
+      growthAt = st.surfaces.length;
+      if (cover.every((c) => st.classes.has(c))) covered = true;
+    }
+    return covered || st.surfaces.length - growthAt >= PLATEAU;
+  };
+
   let active = 0;
   await new Promise<void>((resolve) => {
     const pump = (): void => {
-      while (pages.length > 0 && st.queue.length > 0 && st.surfaces.length < opts.maxStates) {
+      while (pages.length > 0 && st.queue.length > 0 && st.surfaces.length < opts.maxStates && !converged()) {
         const entry = st.queue.shift()!; // FIFO → breadth-first: exhaust every
         // shallow surface (nav tabs, opened panels — where distinct UI lives)
         // before drilling. Depth-first starves breadth: one append-generator
@@ -946,7 +977,7 @@ async function runPool(
             pump();
           });
       }
-      if (active === 0 && (st.queue.length === 0 || st.surfaces.length >= opts.maxStates)) resolve();
+      if (active === 0 && (st.queue.length === 0 || st.surfaces.length >= opts.maxStates || converged())) resolve();
     };
     pump();
   });
@@ -1000,7 +1031,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   }
 
   const counters = { tried: 0, skipped: 0 };
-  await runPool(page, opts, st, counters);
+  await runPool(page, opts, st, counters, defined);
   const missing = defined.filter((c) => !st.classes.has(c)).sort();
   return {
     surfaces: st.surfaces,

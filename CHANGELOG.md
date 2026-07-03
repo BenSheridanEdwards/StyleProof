@@ -48,24 +48,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Observed live: credential-rotation cells minted new identities per press,
   inflating a crawl past 470 surfaces at depth 23. Their render states are
   seed-data territory (and anything unreached is named by the verifier).
+- Freshly-opened surfaces are swept IN PLACE (forward-drive), not only queued
+  for a later reset+replay. Reaching a surface by a forward click is reliable;
+  re-reaching it by reset is slow (a reset per candidate) and, at depth, starved
+  — a dossier's many filter combinations flood the queue and bury the deep
+  sweep, so an expanded run row inside an expanded job was captured 0 times
+  despite being reachable (now 29). The descent drives only fresh controls new
+  to the surface (excludes parent-present mode-switchers), so pairwise mode
+  coverage is unchanged and the lattice stays pairwise.
 
-- Control identity is now SEMANTIC, not positional: the driven-once dedup keys
-  on tag ancestry (no indices, no classes) + label + role — what stays stable
-  across every re-render — instead of nth-of-type selectors. Mode switches
-  re-render subtrees and re-mint positional selectors for the same logical
-  controls, which made every combination view refill the fresh-candidate pool
-  (a crawl inflated past 2,500 surfaces through that leak). Positional clones
-  with identical tag-path AND label (a repeated row's expand button) merge —
-  one is explored; distinctly-labeled controls stay distinct; anything hidden
-  behind a merge is still NAMED by the coverage verifier.
-- Family retries no longer compound: a state reached via a retry still explores
-  its genuinely-new UI, but never re-retries mode-switchers. Every PAIRWISE
-  combination of independent modes is captured (a tab's edit state, a decided
-  list's other tab); 3-way-and-deeper toggle products — which multiply surfaces
-  without new render vocabulary — are not walked. Observed live: an exhaustive
-  crawl inflated past 725 surfaces in the N-way product tail; the pairwise walk
-  covers the same vocabulary in a fraction of the states. Anything class-visible
-  only at deeper combination depth is still NAMED by the coverage verifier.
+### Added
+
+- `--until-covered`: stop the crawl as soon as every class the page's
+  stylesheets define has rendered (full coverage) or coverage stops improving
+  (no new class for a plateau of surfaces). Turns an exhaustive crawl into a
+  fast coverage check that stops once it has SEEN everything, instead of
+  enumerating every combinatorial surface that adds no new vocabulary. Opt-in;
+  exhaustive remains the default.
 
 ## [3.5.0] - 2026-07-02
 

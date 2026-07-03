@@ -62,6 +62,11 @@ export type CaptureUrlOptions = {
   /** crawl: exit non-zero unless every class the page's stylesheets define was
    *  rendered in at least one captured surface (default false — report only). */
   requireFullCoverage: boolean;
+  /** crawl: stop as soon as coverage is complete (every defined class seen) or
+   *  has converged (no new class for a plateau of surfaces). Turns the crawl
+   *  into a FAST coverage check that stops once it has seen everything, instead
+   *  of enumerating every combinatorial surface. Default false (exhaustive). */
+  untilCovered: boolean;
   /** crawl: JSON file of deterministic setup steps (login, unlock, seed input)
    *  run after every fresh navigation. See {@link loadSetupSteps}. */
   setupFile?: string;
@@ -86,6 +91,7 @@ const DEFAULTS = {
   maxStates: 100000,
   resetStorage: true,
   requireFullCoverage: false,
+  untilCovered: false,
   dataStates: true,
   workers: 4,
 };
@@ -127,6 +133,7 @@ const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--crawl': (o) => (o.crawl = true),
   '--no-reset-storage': (o) => (o.resetStorage = false),
   '--require-full-coverage': (o) => (o.requireFullCoverage = true),
+  '--until-covered': (o) => (o.untilCovered = true),
   '--data-states': (o) => (o.dataStates = true),
   '--no-data-states': (o) => (o.dataStates = false),
 };
@@ -176,6 +183,7 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
     maxStates: DEFAULTS.maxStates,
     resetStorage: DEFAULTS.resetStorage,
     requireFullCoverage: DEFAULTS.requireFullCoverage,
+    untilCovered: DEFAULTS.untilCovered,
     setupFile: undefined,
     dataStates: DEFAULTS.dataStates,
     workers: DEFAULTS.workers,

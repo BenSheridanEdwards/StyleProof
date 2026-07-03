@@ -22,6 +22,7 @@ test('defaults: just a url', () => {
     maxStates: 100000,
     resetStorage: true,
     requireFullCoverage: false,
+    untilCovered: false,
     setupFile: undefined,
     dataStates: true,
     workers: 4,
@@ -47,6 +48,13 @@ test('crawl flags parse', () => {
   assert.equal(o.maxStates, 80);
   assert.equal(o.resetStorage, false);
   assert.equal(o.requireFullCoverage, true);
+});
+
+test('flags: --until-covered opts into coverage-oriented early stop', () => {
+  const o = parseCaptureUrlArgs(['http://x', '--crawl', '--until-covered']);
+  assert.equal(o.untilCovered, true);
+  // default stays exhaustive when the flag is absent
+  assert.equal(parseCaptureUrlArgs(['http://x', '--crawl']).untilCovered, false);
 });
 
 test('flags: spaced and inline forms both parse', () => {
