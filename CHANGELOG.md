@@ -20,6 +20,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- The never-click guard now also covers state-mutating verbs (rotate,
+  provision, seal, regenerate, renew): mapping must not mutate, and a mutating
+  control that persists after its click re-labels its surroundings with fresh
+  data on every press — an unbounded mutation farm a crawl must not walk.
+  Observed live: credential-rotation cells minted new identities per press,
+  inflating a crawl past 470 surfaces at depth 23. Their render states are
+  seed-data territory (and anything unreached is named by the verifier).
+
 - Control identity is now SEMANTIC, not positional: the driven-once dedup keys
   on tag ancestry (no indices, no classes) + label + role — what stays stable
   across every re-render — instead of nth-of-type selectors. Mode switches

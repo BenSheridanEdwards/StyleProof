@@ -173,7 +173,7 @@ function deriveKey(steps: CrawlStep[], used: Set<string>): string {
 function collectClickable(): RawCandidate[] {
   const SEMANTIC = 'button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form';
   const DANGER =
-    /\b(delete|remove|destroy|logout|log ?out|sign ?out|publish|deploy|pay|purchase|buy|checkout|archive|disconnect|revoke|reset|wipe|drop)\b/i;
+    /\b(delete|remove|destroy|logout|log ?out|sign ?out|publish|deploy|pay|purchase|buy|checkout|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew)\b/i;
   const esc = (v: string): string => CSS.escape(v);
   const quote = (v: string): string => JSON.stringify(v);
   const visible = (el: Element): boolean => {
