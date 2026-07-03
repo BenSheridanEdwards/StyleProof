@@ -9,6 +9,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Reset-replay to depth >= 2 no longer fails: the crawler's structural
+  fingerprint counted StyleProof's OWN injected hover-sink `<div>` (added during
+  a capture, so present when a state is captured in place but absent on a fresh
+  reset+replay). Every such reset failed its fingerprint verification, so any
+  surface reachable ONLY by re-driving from a deep state — a pairwise mode
+  combination like a tab's edit view — was silently lost. The fingerprint now
+  excludes the sink (and framework route-announcers). Measured: depth-2..5
+  resets went from all-fail to all-pass.
+
+### Fixed
+
 - Report tables never show an equal-looking Before/After pair for a real diff.
   A colour embedded in a compound value (gradient, shadow) no longer stands in
   for the whole value — `toHex` only converts values that ARE a colour — and
