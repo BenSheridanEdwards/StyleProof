@@ -7,6 +7,31 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- `--until-covered` reaches deep coverage: it now terminates on the queue
+  draining (or full coverage), not a fixed "N surfaces without a new class"
+  plateau — a plateau cut the crawl off before a productive deep state (an
+  automation whose expandable run row is its last candidate) was ever swept.
+  Coverage mode also (a) prunes the queue to surfaces that add new render
+  vocabulary — a structural repeat like the ninth agent's identical dossier is
+  captured once but not re-drilled — and (b) uses the breadth-first queue rather
+  than the depth-first in-place descent, so distinct components are reached fast
+  and each drilled once via now-reliable resets. Measured on a 241-class design:
+  240/241 (the one gap a post-decision state reachable only with a setup step),
+  where a plateau-stopped crawl left the deep automation run-detail unmapped.
+
+### Fixed
+
+- Reset-replay to depth >= 2 no longer fails: the crawler's structural
+  fingerprint counted StyleProof's OWN injected hover-sink `<div>` (added during
+  a capture, so present when a state is captured in place but absent on a fresh
+  reset+replay). Every such reset failed its fingerprint verification, so any
+  surface reachable ONLY by re-driving from a deep state — a pairwise mode
+  combination like a tab's edit view — was silently lost. The fingerprint now
+  excludes the sink (and framework route-announcers). Measured: depth-2..5
+  resets went from all-fail to all-pass.
+
 ### Fixed
 
 - Report tables never show an equal-looking Before/After pair for a real diff.

@@ -342,6 +342,15 @@ function domShape(): { shape: string; elements: number; classes: string[] } {
   add(document.body);
   for (const el of document.body.getElementsByTagName('*')) {
     if (SKIP.has(el.tagName)) continue;
+    // Skip non-page artifacts that pollute the fingerprint: StyleProof's own
+    // injected hover-sink (added by a capture, so present when a state is
+    // captured in place but NOT on a fresh load) and framework route-announcers.
+    // Counting them made a state's in-place fingerprint differ from its
+    // reset+replay fingerprint, so every reset to depth >= 2 failed verification
+    // (and the same pollution split dedup, capturing one surface as two). They
+    // are not part of the page.
+    if (el.hasAttribute('data-styleproof-hover-sink')) continue;
+    if (el.tagName === 'NEXT-ROUTE-ANNOUNCER' || el.id === '__next-route-announcer__') continue;
     add(el);
   }
   return { shape: parts.join('\n'), elements: parts.length, classes: [...classes] };
@@ -641,12 +650,39 @@ async function record(
   const key = deriveKey(newPath, st.used);
   const surface: CrawledSurface = { key, depth, path: newPath, elements: fp.elements };
   st.surfaces.push(surface);
+  let addsVocab = false;
+  for (const c of fp.classes)
+    if (!st.classes.has(c)) {
+      st.classes.add(c);
+      addsVocab = true;
+    }
   // Children buffer in the sweep's sink and enter the shared queue only when the
   // parent's sweep completes — family retry reads the parent's changer registry,
   // which is only complete then. (Serial mode passes st.queue directly.)
-  sink.push({ path: newPath, depth, sig: fp.sig, retryOnly, viaRetry });
-  for (const c of fp.classes) st.classes.add(c);
-  await captureAndReport(page, opts, surface, st);
+  //
+  // COVERAGE-GUIDED QUEUE PRUNING: in --until-covered mode, a surface that adds
+  // NO new render vocabulary is a structural repeat (the ninth agent's dossier,
+  // identical to the first) — don't queue it for a sweep, because its subtree is
+  // the same repeats and contributes nothing to coverage. This is what turns the
+  // exhaustive breadth-first crawl into a FAST coverage check: the queue drains
+  // to the few distinct components, each still drilled to depth (its own new
+  // vocabulary keeps it queued) via now-reliable resets. Base (depth 0) always
+  // seeds. Exhaustive mode (default) queues everything, so the surface-by-surface
+  // diff still sees every state.
+  const keep = !opts.stopWhenCovered || addsVocab || depth === 0;
+  if (keep) {
+    sink.push({ path: newPath, depth, sig: fp.sig, retryOnly, viaRetry });
+  }
+  // Skip the expensive style-map capture (getComputedStyle over every element,
+  // per width) for coverage-redundant surfaces: in --until-covered mode a surface
+  // that adds no vocabulary needs no map — its classes were already counted from
+  // the fingerprint above — so paying the capture is pure waste. This is the
+  // difference between a fast coverage check and re-capturing hundreds of
+  // structural repeats. Distinct (vocab-adding) surfaces are still captured, so
+  // the run leaves a usable map set behind.
+  if (keep) {
+    await captureAndReport(page, opts, surface, st);
+  }
 }
 
 /** Capture the current page as `surface` at every width and report the outcome. */
@@ -727,14 +763,19 @@ async function driveCandidate(
   // DESCEND IN PLACE. We are standing in the surface this click just opened,
   // reached by a reliable forward click. Sweep its OWN fresh controls now, while
   // we are here, rather than leaving it for the queued entry to re-reach by
-  // reset+replay — which is both slower (a reset per candidate) and, at depth,
-  // starved: a dossier's many activity-filter combinations flood the queue and
-  // bury the deep sweep (an expanded run inside an expanded automation) so it
-  // never runs. The queued entry still executes for family-retry (pairwise)
-  // coverage; global `tried` means its fresh list is already empty here, so this
-  // does not double-drive. Bounded by maxDepth; a persistent toggle re-seen with
-  // the same identity is `tried`, so no cycle.
-  if (persists && entry.depth + 1 < opts.maxDepth) {
+  // reset+replay. In EXHAUSTIVE mode this is the win: it maps a deep branch (an
+  // expanded run inside an expanded automation) while the page is already there,
+  // instead of via a fragile deep replay. The queued entry still executes for
+  // family-retry (pairwise) coverage; global `tried` means its fresh list is
+  // already empty here, so this does not double-drive.
+  //
+  // But descent is DEPTH-FIRST: it drills the first candidate's whole subtree
+  // before the base sweep reaches the next candidate, so a page whose distinct
+  // vocabulary lives across many components (a roster of dossiers) covers slowly.
+  // In --until-covered mode we therefore SKIP the in-place descent and let the
+  // breadth-first queue + coverage-guided pruning reach every component fast and
+  // drill each once — now that resets are reliable, the queue reaches depth too.
+  if (!opts.stopWhenCovered && persists && entry.depth + 1 < opts.maxDepth) {
     const child: QueueEntry = {
       path: childPath,
       depth: entry.depth + 1,
@@ -926,25 +967,25 @@ async function runPool(
     pages.push(extra);
   }
 
-  // Coverage-oriented early stop (opt-in). Every defined class SEEN => stop
-  // (full coverage). No new class for PLATEAU surfaces => coverage has
-  // converged, and the queue's remaining work is combinatorial breadth that
-  // adds no vocabulary (the same view under a different filter) — stop and let
-  // the caller report whatever, if anything, is still missing. `target.every`
-  // runs only when the class count actually grows, so this is cheap.
-  const PLATEAU = 60;
+  // Coverage-oriented early stop (opt-in): the moment every defined class has
+  // been SEEN, stop — the rest of the queue is redundant for a coverage check.
+  // We do NOT plateau-stop on "N surfaces without a new class": a productive
+  // deep state (an automation whose expandable run row is its last candidate)
+  // adds its vocabulary only after many no-new siblings, so a plateau cuts the
+  // crawl off before that state's sweep even starts. Termination instead comes
+  // from the queue draining — and it drains fast because coverage-guided pruning
+  // (see record) never queues a structural repeat. `cover.every` runs only when
+  // the class count actually grows, so this is cheap.
   const cover = opts.stopWhenCovered && defined.length > 0 ? defined : null;
   let prevSize = st.classes.size;
-  let growthAt = st.surfaces.length;
   let covered = false;
   const converged = (): boolean => {
     if (!cover) return false;
-    if (st.classes.size > prevSize) {
+    if (!covered && st.classes.size > prevSize) {
       prevSize = st.classes.size;
-      growthAt = st.surfaces.length;
       if (cover.every((c) => st.classes.has(c))) covered = true;
     }
-    return covered || st.surfaces.length - growthAt >= PLATEAU;
+    return covered;
   };
 
   let active = 0;
