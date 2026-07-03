@@ -683,6 +683,7 @@ async function driveCandidate(
   st: CrawlState,
   sink: QueueEntry[],
   viaRetry: boolean,
+  presentIds: Set<string> = new Set(),
 ): Promise<{ inState: boolean; skipped: boolean }> {
   // (retry-only lineage is inherited: a consumed state's descendants can also
   // only be mode-switch views, never fresh-candidate exploration.)
@@ -711,17 +712,37 @@ async function driveCandidate(
     reason: c.reason,
     ...(c.value ? { value: c.value } : {}),
   };
-  await record(
-    page,
-    opts,
-    [...entry.path, step],
-    entry.depth + 1,
-    fp,
-    st,
-    sink,
-    entry.retryOnly || !persists,
-    viaRetry,
-  );
+  const childPath = [...entry.path, step];
+  const childRetryOnly = entry.retryOnly || !persists;
+  await record(page, opts, childPath, entry.depth + 1, fp, st, sink, childRetryOnly, viaRetry);
+
+  // DESCEND IN PLACE. We are standing in the surface this click just opened,
+  // reached by a reliable forward click. Sweep its OWN fresh controls now, while
+  // we are here, rather than leaving it for the queued entry to re-reach by
+  // reset+replay — which is both slower (a reset per candidate) and, at depth,
+  // starved: a dossier's many activity-filter combinations flood the queue and
+  // bury the deep sweep (an expanded run inside an expanded automation) so it
+  // never runs. The queued entry still executes for family-retry (pairwise)
+  // coverage; global `tried` means its fresh list is already empty here, so this
+  // does not double-drive. Bounded by maxDepth; a persistent toggle re-seen with
+  // the same identity is `tried`, so no cycle.
+  if (persists && entry.depth + 1 < opts.maxDepth) {
+    const child: QueueEntry = {
+      path: childPath,
+      depth: entry.depth + 1,
+      sig: fp.sig,
+      retryOnly: childRetryOnly,
+      viaRetry,
+    };
+    // Exclude controls that were ALSO present in the parent (mode-switchers,
+    // shared chrome): those are breadth, owned by the queued family-retry.
+    // Descend only into controls genuinely NEW to this surface — a run row that
+    // exists only after the job expanded — which is exactly the deep nested UI
+    // the reset-replay path starves.
+    await sweepCandidatesHere(page, opts, child, st, sink, /* freshOnly */ true, presentIds).catch(() => {
+      /* fail-soft: the surface was already captured; deeper descent is best-effort */
+    });
+  }
   return { inState: false, skipped: false };
 }
 
@@ -758,30 +779,52 @@ function familyRetries(entry: QueueEntry, all: RawCandidate[], st: CrawlState): 
  *  global chrome would otherwise starve a deep surface's own controls; the
  *  throttle applies to fresh ones), then the parent's persistent mode-switchers
  *  re-tried in THIS sibling mode. A state reached through a consuming action
- *  collects NO fresh candidates — see QueueEntry.retryOnly. */
+ *  collects NO fresh candidates — see QueueEntry.retryOnly.
+ *
+ *  `freshOnly` drops the family-retries: the in-place descent of a
+ *  freshly-opened surface explores its own new UI (DEPTH), but must NOT re-apply
+ *  the parent's mode-switchers — that is the pairwise BREADTH, owned by the
+ *  queued sweep. Re-applying them while descending would compound modes into
+ *  N-way products (the very thing "retries don't compound" prevents). */
 function sweepWorkList(
   entry: QueueEntry,
   all: RawCandidate[],
   opts: SurfaceCrawlOptions,
   st: CrawlState,
+  freshOnly = false,
+  excludeIds: Set<string> = new Set(),
 ): { c: RawCandidate; retry: boolean }[] {
-  const fresh = entry.retryOnly ? [] : all.filter((c) => !st.tried.has(c.identity)).slice(0, opts.maxActionsPerState);
+  const fresh = entry.retryOnly
+    ? []
+    : all.filter((c) => !st.tried.has(c.identity) && !excludeIds.has(c.identity)).slice(0, opts.maxActionsPerState);
   return [
     ...fresh.map((c) => ({ c, retry: false })),
-    ...familyRetries(entry, all, st).map((c) => ({ c, retry: true })),
+    ...(freshOnly ? [] : familyRetries(entry, all, st).map((c) => ({ c, retry: true }))),
   ];
 }
 
-async function sweepState(
+/** Drive one state's work list from where the page ALREADY stands (no reset). A
+ *  no-op click leaves the page in the state and the loop continues; a
+ *  state-changing click drives the child in place (see driveCandidate) and then
+ *  a verified reset returns here before the next candidate. Split out from
+ *  sweepState so driveCandidate can call it to DESCEND a freshly-opened surface
+ *  in place — reaching that surface via a forward click is reliable, so its deep
+ *  descendants are captured on the first visit instead of via a later reset. */
+async function sweepCandidatesHere(
   page: Page,
   opts: SurfaceCrawlOptions,
   entry: QueueEntry,
   st: CrawlState,
   sink: QueueEntry[],
+  freshOnly = false,
+  excludeIds: Set<string> = new Set(),
 ): Promise<{ tried: number; skipped: number }> {
-  if (!(await resetToState(page, opts, entry.path, entry.sig))) return { tried: 0, skipped: 0 };
   const all = await page.evaluate(collectClickable).catch(() => [] as RawCandidate[]);
-  const work = sweepWorkList(entry, all, opts, st);
+  const work = sweepWorkList(entry, all, opts, st, freshOnly, excludeIds);
+  // Controls present HERE — passed to each child's in-place descent as its
+  // exclude set, so the descent skips this surface's mode-switchers/chrome and
+  // only drills genuinely new nested UI.
+  const presentIds = new Set(all.map((c) => c.identity));
 
   let tried = 0;
   let skipped = 0;
@@ -798,11 +841,22 @@ async function sweepState(
       continue;
     }
     tried++;
-    const r = await driveCandidate(page, opts, entry, c, st, sink, retry);
+    const r = await driveCandidate(page, opts, entry, c, st, sink, retry, presentIds);
     inState = r.inState;
     if (r.skipped) skipped++;
   }
   return { tried, skipped };
+}
+
+async function sweepState(
+  page: Page,
+  opts: SurfaceCrawlOptions,
+  entry: QueueEntry,
+  st: CrawlState,
+  sink: QueueEntry[],
+): Promise<{ tried: number; skipped: number }> {
+  if (!(await resetToState(page, opts, entry.path, entry.sig))) return { tried: 0, skipped: 0 };
+  return sweepCandidatesHere(page, opts, entry, st, sink);
 }
 
 /** Capture one synthetic data state of the entry page (its data requests stalled
