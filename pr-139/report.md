@@ -1,13 +1,30 @@
 ## 🗺️ StyleProof report
 
-🆕 **1 new surface(s)** captured with no baseline to compare — shown below for review. Approve them before they become the baseline.
+**1 computed-style difference(s)** across 1 distinct change(s) in 1 surface(s).
 
-### `pricing@320` · new surface <!-- styleproof-new -->
+### `main.panel` · 1 element restyled
 
-_pricing @ 320_
+_home @ 320_
 
-![new surface — after](crops/pricing-320-1-new.png)
+![before ◀ │ ▶ after](crops/home-320-1-composite.png)
 
-<sub>after · pricing @ 320</sub>
+<sub>◀ before  ·  after ▶ — home @ 320</sub>
 
-_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._
+![highlighted before ◀ │ ▶ after](crops/home-320-1-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `main.panel`</sub>
+
+- **`main.panel`** — text black (`#000000`) → red (`#ff0000`)
+
+<details>
+<summary>Show the property change</summary>
+
+**`main.panel`**
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `color` | `#000000` | `#ff0000` |
+
+</details>
