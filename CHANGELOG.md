@@ -20,6 +20,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Control identity is now SEMANTIC, not positional: the driven-once dedup keys
+  on tag ancestry (no indices, no classes) + label + role — what stays stable
+  across every re-render — instead of nth-of-type selectors. Mode switches
+  re-render subtrees and re-mint positional selectors for the same logical
+  controls, which made every combination view refill the fresh-candidate pool
+  (a crawl inflated past 2,500 surfaces through that leak). Positional clones
+  with identical tag-path AND label (a repeated row's expand button) merge —
+  one is explored; distinctly-labeled controls stay distinct; anything hidden
+  behind a merge is still NAMED by the coverage verifier.
 - Family retries no longer compound: a state reached via a retry still explores
   its genuinely-new UI, but never re-retries mode-switchers. Every PAIRWISE
   combination of independent modes is captured (a tab's edit state, a decided

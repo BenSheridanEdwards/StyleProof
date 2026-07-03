@@ -129,6 +129,12 @@ export const CRAWL_DEFAULTS = {
 type RawCandidate = {
   action: 'click' | 'select-option' | 'fill-input';
   selector: string;
+  /** SEMANTIC control identity: the class-context path (no positional indices)
+   *  plus tag and label. The same logical control re-rendered in a different
+   *  mode context keeps its identity even though its positional selector
+   *  drifts — this is what the driven-once dedup keys on. Positional
+   *  `selector` remains what actually gets clicked in a given state. */
+  identity: string;
   label: string;
   reason: string;
   value?: string;
@@ -205,6 +211,19 @@ function collectClickable(): RawCandidate[] {
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 80) || el.tagName.toLowerCase();
+  const identityFor = (el: Element): string => {
+    // Tag-path only — NO classes and NO indices: classes carry state (body.alt,
+    // .on) and would re-contextualize the same control per mode; indices carry
+    // position and drift on re-render. Tag ancestry + label is what stays
+    // stable across every context the same logical control appears in.
+    const parts: string[] = [];
+    let cur: Element | null = el;
+    while (cur && cur !== document.documentElement) {
+      parts.unshift(cur.tagName.toLowerCase());
+      cur = cur.parentElement;
+    }
+    return `${parts.join('>')}|${labelFor(el)}|${el.getAttribute('role') ?? ''}`;
+  };
 
   // Semantic controls first (stable, meaningful), then anything styled clickable.
   // `grab` counts too: a draggable card is routinely ALSO a click target (open on
@@ -243,6 +262,7 @@ function collectClickable(): RawCandidate[] {
     out.push({
       action: 'fill-input',
       selector,
+      identity: identityFor(el),
       label: labelFor(el) === el.tagName.toLowerCase() ? (el.getAttribute('placeholder') ?? 'input') : labelFor(el),
       reason: 'auto-fill',
       value: AUTO_VALUE[kind] ?? 'sample text',
@@ -261,11 +281,20 @@ function collectClickable(): RawCandidate[] {
     if (el instanceof HTMLSelectElement) {
       const next = [...el.options].find((o) => !o.disabled && o.value !== el.value);
       if (next)
-        out.push({ action: 'select-option', selector, label, reason: 'select-option', value: next.value, unsafe });
+        out.push({
+          action: 'select-option',
+          selector,
+          identity: identityFor(el),
+          label,
+          reason: 'select-option',
+          value: next.value,
+          unsafe,
+        });
     } else {
       out.push({
         action: 'click',
         selector,
+        identity: identityFor(el),
         label,
         reason: el.getAttribute('role') === 'tab' ? 'tab' : 'click',
         unsafe,
@@ -650,7 +679,7 @@ async function driveCandidate(
     .catch(() => false);
   const from = stateKey(entry.path);
   const list = st.changersFrom.get(from) ?? [];
-  if (!list.some((x) => x.c.selector === c.selector)) list.push({ c, persists });
+  if (!list.some((x) => x.c.identity === c.identity)) list.push({ c, persists });
   st.changersFrom.set(from, list);
 
   const fp = await fingerprint(page);
@@ -696,10 +725,14 @@ function familyRetries(entry: QueueEntry, all: RawCandidate[], st: CrawlState): 
   if (entry.path.length === 0) return [];
   const parentKey = stateKey(entry.path.slice(0, -1));
   const ownSelector = entry.path[entry.path.length - 1].selector;
-  const visibleNow = new Set(all.map((c) => c.selector));
+  // Match registered changers to THIS state's candidates by semantic identity —
+  // the mode switch re-rendered the subtree, so positional selectors drifted;
+  // the current candidate carries the right selector for this state.
+  const byIdentity = new Map(all.map((c) => [c.identity, c]));
   return (st.changersFrom.get(parentKey) ?? [])
-    .filter((x) => x.persists && x.c.selector !== ownSelector && visibleNow.has(x.c.selector))
-    .map((x) => x.c);
+    .filter((x) => x.persists && x.c.selector !== ownSelector)
+    .map((x) => byIdentity.get(x.c.identity))
+    .filter((c): c is RawCandidate => Boolean(c));
 }
 
 /** The work list for one state's sweep: fresh controls first (already-driven
@@ -713,7 +746,7 @@ function sweepWorkList(
   opts: SurfaceCrawlOptions,
   st: CrawlState,
 ): { c: RawCandidate; retry: boolean }[] {
-  const fresh = entry.retryOnly ? [] : all.filter((c) => !st.tried.has(c.selector)).slice(0, opts.maxActionsPerState);
+  const fresh = entry.retryOnly ? [] : all.filter((c) => !st.tried.has(c.identity)).slice(0, opts.maxActionsPerState);
   return [
     ...fresh.map((c) => ({ c, retry: false })),
     ...familyRetries(entry, all, st).map((c) => ({ c, retry: true })),
@@ -740,7 +773,7 @@ async function sweepState(
       if (!(await resetToState(page, opts, entry.path, entry.sig))) break; // abandon rest, fail-soft
       inState = true;
     }
-    if (!retry) st.tried.add(c.selector);
+    if (!retry) st.tried.add(c.identity);
     if (c.unsafe) {
       skipped++;
       continue;
