@@ -650,7 +650,8 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.doesNotMatch(ci, /git add stylemaps/);
     assert.doesNotMatch(ci, /core\.hooksPath/);
 
-    assert.match(r.stdout, /local-first maps, CI report when cached/);
+    assert.match(r.stdout, /it runs on your first PR with no extra steps/, 'guidance leads with zero-config');
+    assert.match(r.stdout, /Optional, faster/, 'the local map pre-cache is framed as an optional speedup');
   } finally {
     rmTmp(dir);
   }

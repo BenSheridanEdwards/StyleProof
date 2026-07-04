@@ -7,16 +7,46 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-07-05
+
+### Added
+
+- **Zero-config out of the box** — `styleproof-init` now scaffolds a crawl-by-default
+  spec for any non-Next.js app: `defineCrawlCapture({ from: '/', settle, inventory: true })`
+  captures every surface the nav links to (the root plus each same-origin `<a href>`)
+  with **nothing to hand-list** — the surface set is discovered from the rendered nav and
+  can't drift from it. Next.js keeps filesystem route discovery; both variants now enable
+  the inventory guard by default.
+- **`defineCrawlCapture` auto-width** — omit `widths` and StyleProof detects each
+  discovered surface's `@media` breakpoints and sweeps one viewport per band, the same
+  zero-config behaviour explicit surfaces already had.
+- **`defineCrawlCapture` `settle` hook** — run an app-specific step (e.g. trigger
+  scroll-reveal) after navigating to each crawled surface, for parity with a hand-listed
+  surface's `go`.
+- **`inventory` spec option** — `defineStyleMapCapture` / `defineCrawlCapture` now forward
+  `inventory: true` to the capture, so turning the inventory guard on (a removed nav item
+  fails `styleproof-diff`) is a one-line opt-in from a spec, no manual `captureStyleMap`.
+- The crawl now always covers its `from` root on an unfiltered crawl, so a home page not
+  linked in its own nav — or a single-page app with no links — is still captured.
+
+### Changed
+
+- `styleproof-init` guidance now leads with "it runs on your first PR with no extra
+  steps" (CI captures both sides on a cache miss); the local `npx styleproof-map`
+  pre-cache is framed as an optional speedup, not a required first step.
+
 ### Tests / docs
 
 - **Dogfood: the "100% surfaced" contract** — `test/pr-surfacing.e2e.spec.ts` runs the
   real capture → diff → report flow for every change class (resting style,
   `:hover/:focus/:active` drop, `::before/::after`, DOM add/remove/retag, a removed nav
   item via the inventory guard, a new surface, and a clean no-op) and asserts each is
-  surfaced — with the last two levels going through the actual `styleproof-diff` /
-  `styleproof-report` CLIs, so the confidence is in the PR report, not just library
-  calls. Closes the four classes that previously had no end-to-end proof (`:active`
-  drop, DOM removed, retag, pseudo-element change). No behaviour change; test/doc only.
+  surfaced — the last two levels through the actual `styleproof-diff` / `styleproof-report`
+  CLIs. Closes the four classes that previously had no end-to-end proof (`:active` drop,
+  DOM removed, retag, pseudo-element change).
+- **Dogfood: zero-config flow** — `test/cli-flow.e2e.spec.ts` runs `styleproof-init` on a
+  real multi-page app and proves the generated crawl spec captures every page (root +
+  pricing + about), multi-width, with the inventory harvested — no spec editing.
 - **`docs/what-it-catches.md`** — states what StyleProof catches and its honest boundary
   (surfaces it never captured), so a green check is earned, not assumed.
 

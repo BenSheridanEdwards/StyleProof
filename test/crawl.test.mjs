@@ -15,6 +15,22 @@ test('selectCrawlLinks: tab-SPA links — keyed by query value, root-relative ur
   ]);
 });
 
+test('selectCrawlLinks: includeSelf captures the crawl root as the first surface, deduped', () => {
+  // A single-page app (no links) or a nav that doesn't link back to '/' still yields
+  // the root as a surface — always covered, never doubled.
+  assert.deepEqual(pick([], { includeSelf: true }), [{ key: 'index', url: '/' }]);
+  assert.deepEqual(
+    pick(['/about', '/'], { includeSelf: true }),
+    [
+      { key: 'index', url: '/' },
+      { key: 'about', url: '/about' },
+    ],
+    'root first, and a nav-linked "/" is not duplicated',
+  );
+  // Without includeSelf, the root is a surface only if the nav links to it.
+  assert.deepEqual(pick(['/about'], {}), [{ key: 'about', url: '/about' }]);
+});
+
 test('selectCrawlLinks: resolves relative + absolute same-origin hrefs alike', () => {
   const links = pick(['/?tab=a', 'https://app.test/?tab=b', '?tab=c']);
   assert.deepEqual(

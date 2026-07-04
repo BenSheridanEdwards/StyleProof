@@ -184,6 +184,15 @@ export type DefineOptions = {
    * their exact capture set unless this is enabled.
    */
   popups?: boolean | PopupCaptureOptions;
+  /**
+   * Opt-in inventory guard (default OFF). Harvest each surface's navigable
+   * affordances — route links, `role=tab`/`menuitem`, button-only nav — into
+   * `StyleMap.inventory`, so `styleproof-diff` fails when a nav item / route the UI
+   * used to offer disappears (acknowledge intentional removals in
+   * `styleproof.inventory.json`). Additive; ignored by the certification style diff.
+   * See `docs/inventory-guard.md`.
+   */
+  inventory?: boolean;
 };
 
 /** Resolved per-capture settings, shared with the helpers below. */
@@ -659,6 +668,7 @@ async function captureSurface(page: Page, surface: ExpandedSurface, width: numbe
       ignore: surface.ignore ?? [],
       captureText: s.captureText,
       captureComponent: s.captureComponent,
+      inventory: s.inventory,
       pendingRequests: requests.pending,
       metadata: surface.metadata,
     });
@@ -738,6 +748,7 @@ function resolveSettings(c: CaptureConfig): Settings {
     captureText: c.captureText ?? false,
     captureComponent: c.captureComponent ?? false,
     popups: resolvePopupCaptureOptions(c.popups),
+    inventory: c.inventory ?? false,
   };
 }
 
@@ -823,10 +834,16 @@ export type CrawlOptions = CaptureConfig & {
   match?: LinkMatch;
   /** Derive a surface key from a link URL. Default: path+query slug (`/?tab=x` → `x`). */
   key?: (url: URL) => string;
-  /** Viewport widths swept for every discovered surface — one per @media band. */
-  widths: number[];
+  /** Viewport widths swept for every discovered surface. Omit to auto-detect each
+   *  surface's @media breakpoints (one viewport per band) — the same zero-config
+   *  behaviour as an explicit surface with no `widths`. */
+  widths?: number[];
   /** Viewport height per width (default 800). */
   height?: number | ((width: number) => number);
+  /** Run after navigating to each discovered link, before capture — e.g. to trigger
+   *  scroll-reveal content. The built-in font/animation/network settle always runs;
+   *  this is the app-specific hook, the crawl's parity with a hand-listed surface's `go`. */
+  settle?: (page: Page) => Promise<void>;
   /** Selectors skipped on every surface (live regions, third-party embeds). */
   ignore?: string[];
   /** Deterministic variants captured for every discovered link surface. */
@@ -860,18 +877,41 @@ export type CrawlOptions = CaptureConfig & {
  * ```
  */
 export function defineCrawlCapture(options: CrawlOptions): void {
-  const { from, match, key, widths, height, ignore, variants, liveStates, popups, linkTimeout = 15_000, dir } = options;
+  const {
+    from,
+    match,
+    key,
+    widths,
+    height,
+    ignore,
+    variants,
+    liveStates,
+    popups,
+    linkTimeout = 15_000,
+    dir,
+    settle,
+  } = options;
   const settings = resolveSettings(options);
 
-  test.describe('styleproof crawl-capture', () => {
+  // Title contains "styleproof capture" so the same `--grep 'styleproof capture'`
+  // that styleproof-map uses to select capture tests picks up crawl specs too.
+  test.describe('styleproof capture (crawl)', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
       // 1. Load the root and wait for its nav links to hydrate — an SPA renders them
       //    client-side, so they aren't in the initial HTML.
       await page.goto(from, { waitUntil: 'load' });
-      await page.waitForSelector('a[href]', { timeout: linkTimeout });
+      // Wait for the nav's links to hydrate (an SPA renders them client-side). A link-less
+      // page is fine for an unfiltered crawl — it still captures `from` itself (includeSelf);
+      // a `match`-filtered crawl genuinely needs links, so let its timeout surface.
+      await page.waitForSelector('a[href]', { timeout: linkTimeout }).catch((e) => {
+        if (match !== undefined) throw e;
+      });
       const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href')));
-      const links = selectCrawlLinks(hrefs, { base: page.url(), match, key });
+      // Unfiltered crawl → also capture `from` itself, so the root is always covered and
+      // a single-page (or no-nav-self-link) app still yields a surface. A `match`-filtered
+      // crawl captures only the links the caller asked for.
+      const links = selectCrawlLinks(hrefs, { base: page.url(), match, key, includeSelf: match === undefined });
       if (links.length === 0) {
         throw new Error(
           `styleproof crawl: no links matched at ${from}. The nav must render same-origin ` +
@@ -883,6 +923,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           key: link.key,
           go: async (p) => {
             await p.goto(link.url, { waitUntil: 'load' });
+            if (settle) await settle(p);
           },
           widths,
           ignore,
@@ -894,15 +935,29 @@ export function defineCrawlCapture(options: CrawlOptions): void {
       );
       // Budget the whole sweep up front: one test captures every surface, and
       // captureSurface no longer sets its own timeout, so size it to the work found.
+      // With auto-width the band count isn't known until each surface renders, so
+      // assume up to 4 bands per surface.
       test.setTimeout(
-        Math.max(180_000, captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 0), 0) * 60_000),
+        Math.max(180_000, captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0) * 60_000),
       );
 
       // 2. Capture each discovered surface. Aggregate failures so one bad surface
       //    reports without skipping the rest — they're an independent set, not a chain.
       const failures: string[] = [];
       for (const surface of captureSurfaces) {
-        for (const width of surface.widths ?? []) {
+        // Auto-width parity with explicit surfaces: no widths given → navigate once and
+        // detect this surface's @media bands, then sweep one viewport per band.
+        let sweep = surface.widths;
+        if (!sweep || sweep.length === 0) {
+          try {
+            await surface.go(page);
+            sweep = await detectViewportWidths(page);
+          } catch (e) {
+            failures.push(`${surface.key} @ auto: ${(e as Error).message}`);
+            continue;
+          }
+        }
+        for (const width of sweep) {
           try {
             await captureSurface(page, surface, width, settings);
           } catch (e) {

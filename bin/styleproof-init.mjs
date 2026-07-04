@@ -153,64 +153,37 @@ defineStyleMapCapture({
   exclude: Object.fromEntries(
     ROUTES.filter((r) => r.dynamic).map((r) => [r.key, \`dynamic route (\${r.path}) — add a surface with a concrete param\`]),
   ),
+  inventory: true, // also fail the diff when a nav item / route the UI used to offer disappears
   dir: process.env.STYLEMAP_DIR,
 });
 `;
 
-// Non-Next project: one sample surface + a commented guard block to wire to
-// whatever the project uses as a route/view registry.
+// Non-Next project: crawl every surface the nav links to, so ANY app captures its
+// whole reachable surface out of the box with nothing to hand-list. The crawl reads
+// the rendered nav; the surface set can't drift from it.
 const GENERIC_SPEC = `import type { Page } from '@playwright/test';
-import { defineStyleMapCapture, type Surface } from 'styleproof';
+import { defineCrawlCapture } from 'styleproof';
 
 ${HEADER}
 
 ${SETTLE}
 
-const SURFACES: Surface[] = [
-  {
-    key: 'home',
-    go: async (page) => {
-      await page.goto('/');
-      await settle(page);
-    },
-    ignore: [], // e.g. ['.live-feed', '.ad-slot'] for nondeterministic regions
-    // No widths → StyleProof detects your @media breakpoints from the loaded CSS and
-    // sweeps one viewport per band. Pass an explicit array (e.g. 1280, 768, 390) to pin them (or to
-    // cover a JS-only matchMedia breakpoint that has no CSS @media rule).
-    // Non-live UI states belong here as variants, so the base branch's
-    // dialog-open state compares to the head branch's dialog-open state.
-    // variants: [
-    //   {
-    //     key: 'dialog-open',
-    //     go: async (page) => {
-    //       await page.getByRole('button', { name: /open settings/i }).click();
-    //       await page.getByRole('dialog').waitFor();
-    //     },
-    //   },
-    //   {
-    //     key: 'popover-open',
-    //     go: async (page) => {
-    //       await page.getByRole('button', { name: /more/i }).click();
-    //       await page.locator('[popover], [role="menu"]').first().waitFor();
-    //     },
-    //   },
-    // ],
-  },
-  // Add more surfaces for distinct routes/views; add menus, dialogs, popovers,
-  // selected tabs, and form errors as variants of the route/view that owns them.
-];
-
-defineStyleMapCapture({
-  surfaces: SURFACES,
-  // Coverage guard (recommended): declare every route your app knows about so a
-  // newly added page can't ship without a surface. Wire \`expected\` to your route
-  // registry — a routes/views list, your router config, or a glob of your pages —
-  // and StyleProof fails the suite (no STYLEMAP_DIR needed) when a route has no
-  // surface and isn't excluded. (A Next.js app gets this auto-wired; see
-  // \`discoverNextRoutes\` in the README.)
-  //   expected: ROUTES.map((r) => r.id),
-  //   exclude: { checkout: 'auth-gated — fixture pending' },
+// Zero-config capture: crawl every surface your nav links to from '/'. The surface set
+// is DISCOVERED from the rendered nav, so it can't drift from it — no hand-listed
+// \`surfaces\` array to maintain, and a page you add to the nav is captured automatically.
+// The root (/) is always captured, plus every same-origin <a href> it links to.
+defineCrawlCapture({
+  from: '/',
+  settle, // trigger scroll-reveal per surface (StyleProof handles fonts/animation/network itself)
+  // No \`widths\` → StyleProof detects each surface's @media breakpoints and sweeps one
+  // viewport per band. Pass an array (e.g. [1440, 768, 390]) to pin them.
+  inventory: true, // also fail the diff when a nav item / route the UI used to offer disappears
+  ignore: [], // e.g. ['.live-feed', '.ad-slot'] for nondeterministic regions
   dir: process.env.STYLEMAP_DIR,
+  // A single-route SPA whose views are ?tab= / client-routed? Keep only those:
+  //   match: /\\?tab=/,
+  // Certify menus, dialogs, tabs, and form-error states on every surface as variants:
+  //   variants: [{ key: 'menu-open', go: async (page) => { await page.getByRole('button', { name: /menu/i }).click(); } }],
 });
 `;
 
@@ -472,7 +445,8 @@ if (spec.wrote) {
         (dynamic ? ` (${dynamic} dynamic route(s) excluded pending a concrete param)` : ''),
     );
   } else {
-    console.log('  no Next.js routes detected — wrote a starter surface + a commented coverage-guard block');
+    console.log('  no Next.js routes detected — wrote a crawl-by-default spec that captures every');
+    console.log('  surface your nav links to from / (nothing to hand-list; the inventory guard is on)');
   }
   wroteSomething = true;
 } else {
@@ -508,15 +482,14 @@ if (ci.wrote) {
   console.log(`${CI_PATH} already exists — left untouched`);
 }
 
-console.log('\nHow the gate works — local-first maps, CI report when cached:');
-console.log('  1. Commit your code, then run:');
+console.log('\nHow the gate works — it runs on your first PR with no extra steps:');
+console.log('  1. Commit and open a PR. CI captures the base and head surfaces in one pinned');
+console.log('     environment and posts the StyleProof report — no local step required.');
+console.log('  2. (Optional, faster) Pre-cache this commit so CI skips recapturing the base:');
 console.log('       npx styleproof-map');
-console.log('     It captures a production-build map into .styleproof/ and uploads the bundle');
-console.log('     to the styleproof-maps branch when the git remote is available.');
-console.log('  2. Open the PR. CI restores the base/head bundles and generates the report');
-console.log('     without a browser when both maps are present and compatible.');
-console.log('  3. If a bundle is missing or incompatible, CI recaptures both sides in the same');
-console.log('     environment before generating the report. Correctness beats a stale cache.');
+console.log('     It captures a production-build map into .styleproof/ and uploads the bundle to');
+console.log('     the styleproof-maps branch when the git remote is available; CI then restores');
+console.log('     it and generates the report without a browser.');
 
 if (!wroteSomething) console.log('\nnothing to write — project already scaffolded.');
 process.exit(0);
