@@ -15,15 +15,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   shrink. Opt in with `captureStyleMap(page, { inventory: true })` and each surface's
   navigable affordances — internal route links, `role=tab`, `role=menuitem`,
   button-only nav — are harvested (keyed stably) into `StyleMap.inventory`.
-  `auditRunInventory(baseMaps, headMaps, allowRemoved)` unions the reachable set
-  across the run and flags any affordance present on base but absent on head — a
-  feature that stopped being reachable — as a **gating removal**, unless it's
-  acknowledged in the `allowRemoved` ledger (`key → reason`; a stale acknowledgement
-  is flagged so the ledger can't rot). Closes the certification diff's blind spot for
-  the information-architecture / replacement class: a redesign staged as a new
-  surface, or a nav item / route that disappears, which a same-surface computed-style
-  diff catches only incidentally. **Off by default; the certification diff is
-  unchanged.** See `docs/inventory-guard.md`.
+  `styleproof-diff` then unions the reachable set across both sides and **exits 1 on
+  any affordance present on base but absent on head** — a feature that stopped being
+  reachable — unless it's acknowledged in `styleproof.inventory.json` (`{"<key>":
+"<why>"}`, path overridable via `STYLEPROOF_INVENTORY`; a stale acknowledgement is
+  flagged so the ledger can't rot). Closes the certification diff's blind spot for the
+  information-architecture / replacement class: a redesign staged as a new surface, or
+  a nav item / route that disappears, which a same-surface computed-style diff catches
+  only incidentally. **Off by default (no map carries inventory ⇒ the CLI is
+  byte-for-byte unchanged); the certification diff itself is untouched.** The
+  programmatic entry point `auditRunInventory(baseMaps, headMaps, allowRemoved)`
+  stays available for custom gates. See `docs/inventory-guard.md`.
 
 ## [3.6.0] - 2026-07-03
 

@@ -15,7 +15,7 @@
 // (like the `exclude` coverage ledger) unless explicitly acknowledged with a reason,
 // so "we dropped Model Config" is a decision on the record, never a silent green.
 //
-// The harvest (`detectNavigableInventory`) runs in-page, mirroring
+// The harvest (`collectNavAffordances`) runs in-page, mirroring
 // `detectOverlayCandidates`; the diff/union/guard are pure and unit-testable.
 
 /** One user-reachable navigation affordance, keyed stably across base/head. */
