@@ -27,8 +27,11 @@ The reachable set is kept complete by two guards that run _before_ the diff:
 
 - **Crawl** — captures every route linked from the nav root, so you don't hand-list them.
 - **Coverage guard (`expected`)** — fails your own test suite if a route in your app's
-  registry wasn't captured. This is what makes "we captured the whole surface" checkable
-  rather than hopeful.
+  registry wasn't captured, AND (3.9.0) travels with the bundle as a coverage ledger so
+  the **gate** states a green's completeness basis: `styleproof-diff` blocks when a
+  registered surface wasn't captured (even on an empty diff) and prints `✓ coverage
+complete`, `✗ coverage INCOMPLETE`, or `⚠ completeness NOT asserted` (no registry). A
+  green stops silently implying a completeness it can't back up.
 
 ## The boundary (stated plainly)
 

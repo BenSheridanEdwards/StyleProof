@@ -7,6 +7,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.9.0] - 2026-07-05
+
+### Added
+
+- **Coverage provenance — a green now states its completeness basis.** Source-of-truth
+  step 1: a green from `styleproof-diff` used to silently imply completeness it couldn't
+  back up (it certified only the surfaces it happened to capture). Now the capture writes
+  a coverage ledger (`styleproof-coverage.json`) into the bundle — the declared
+  `expected` registry, or `null` — and `styleproof-diff` reads it and:
+  - **blocks (exit 1) when a registered surface was never captured**, even if the style
+    diff is empty — the one failure the gate couldn't catch before (a green over a
+    surface it never looked at). This checks the surfaces actually captured, so a
+    declared surface whose capture _failed_ is caught here, where the suite guard (which
+    checks the declared list) cannot see it;
+  - prints the basis on every run: `✓ coverage complete — all N registered surface(s)
+captured`, `✗ coverage INCOMPLETE — …`, or `⚠ completeness NOT asserted` (no
+    registry — certifies only the captured surfaces, so declare `expected` to certify
+    completeness). A crawl records `expected: null` honestly (it captures what the nav
+    links to, not proven-every-route).
+- `isMapFile` / `RESERVED_BUNDLE_FILES` (map-store) — one place that knows which bundle
+  files are surface maps vs metadata sidecars, so a new sidecar can't read as a phantom
+  "new surface".
+
 ## [3.8.0] - 2026-07-05
 
 ### Added

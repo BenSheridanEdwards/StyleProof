@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import { loadStyleMap, type ElementEntry, type LiveRegionCandidate, type Rect, type StyleMap } from './capture.js';
+import { isMapFile } from './map-store.js';
 import {
   diffStyleMapDirs,
   diffContentDirs,
@@ -556,9 +557,7 @@ function liveCandidateLabel(candidate: LiveRegionCandidate): string {
 }
 
 function captureFiles(dir: string): string[] {
-  return fs.existsSync(dir)
-    ? fs.readdirSync(dir).filter((f) => f !== 'styleproof-manifest.json' && /\.json(\.gz)?$/.test(f))
-    : [];
+  return fs.existsSync(dir) ? fs.readdirSync(dir).filter(isMapFile) : [];
 }
 
 function collectLiveCandidateLabels(beforeDir: string, afterDir: string): string[] {

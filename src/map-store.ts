@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { inferBaseRef } from './gitref.js';
+import { COVERAGE_LEDGER } from './coverage.js';
 
 export const DEFAULT_MAP_DIR = '.styleproof/maps';
 export const DEFAULT_MAP_LABEL = 'current';
@@ -12,6 +13,16 @@ export const DEFAULT_MAP_STORE_BRANCH = 'styleproof-maps';
 export const DEFAULT_REMOTE = 'origin';
 export const MAP_MANIFEST = 'styleproof-manifest.json';
 const GENERATED_DIRTY_ALLOWLIST = new Set(['next-env.d.ts']);
+
+/** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
+ *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
+ *  these, or a sidecar reads as a phantom "new surface". */
+export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([MAP_MANIFEST, COVERAGE_LEDGER]);
+
+/** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */
+export function isMapFile(name: string): boolean {
+  return !RESERVED_BUNDLE_FILES.has(name) && /\.json(\.gz)?$/.test(name);
+}
 
 export class MapStoreError extends Error {}
 

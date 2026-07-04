@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadStyleMap, isUnder, type StyleMap } from './capture.js';
+import { isMapFile } from './map-store.js';
 
 /**
  * Structured diff between two style maps. Custom properties (--*) are
@@ -235,7 +236,7 @@ function indexDir(dir: string): Record<string, string> {
   return Object.fromEntries(
     fs
       .readdirSync(dir)
-      .filter((f) => f !== 'styleproof-manifest.json' && /\.json(\.gz)?$/.test(f))
+      .filter(isMapFile)
       .map((f) => [f.replace(/\.json(\.gz)?$/, ''), path.join(dir, f)]),
   );
 }
