@@ -41,7 +41,7 @@ import {
 } from '../dist/cli-errors.js';
 import { loadStyleMap } from '../dist/capture.js';
 import { auditRunInventory } from '../dist/inventory.js';
-import { auditCoverage, COVERAGE_LEDGER } from '../dist/coverage.js';
+import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { isMapFile } from '../dist/map-store.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
@@ -129,17 +129,14 @@ function capturedSurfaceKeys(dir) {
   ];
 }
 
-function readCoverageVerdict(dir) {
-  let ledger = null;
+function readLedger(dir) {
   const p = path.join(dir, COVERAGE_LEDGER);
-  if (fs.existsSync(p)) {
-    try {
-      ledger = JSON.parse(fs.readFileSync(p, 'utf8'));
-    } catch {
-      /* a corrupt ledger reads as no registry → "not asserted", never a false green */
-    }
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return null; // a corrupt ledger reads as no registry → "not asserted", never a false green
   }
-  return auditCoverage(capturedSurfaceKeys(dir), ledger);
 }
 
 // Print the completeness verdict; return true if it BLOCKS (a registered surface is missing).
@@ -161,6 +158,23 @@ function printCoverageVerdict(v) {
   for (const k of v.uncovered) console.log(`  ✗ missing: ${k}`);
   console.log(
     "  → capture each (or move it to `exclude` with a reason). A green can't certify what was never captured.",
+  );
+  return true;
+}
+
+// Print the determinism verdict; return true if it BLOCKS (a side's capture was unproven).
+function printDeterminismVerdict(v) {
+  if (v.status === 'proven') {
+    console.log(`\n✓ determinism proven — base ${v.base}, head ${v.head}`);
+    return false;
+  }
+  if (v.status === 'unknown') {
+    console.log('\n⚠ determinism basis unknown — a capture predates the determinism ledger; recapture to certify it.');
+    return false;
+  }
+  console.log(
+    `\n✗ determinism NOT proven — base ${v.base}, head ${v.head}. An unproven capture can drift, so a clean\n` +
+      '  diff might be two matching NONDETERMINISTIC reads. Enable selfCheck (default) or replay a recorded HAR.',
   );
   return true;
 }
@@ -257,14 +271,17 @@ if (args.length <= 1) {
 let result;
 let inventoryAudit = null;
 let coverageVerdict = null;
+let determinismVerdict = null;
 try {
   assertCompatibleMapDirs(dirA, dirB);
   result = diffStyleMapDirs(dirA, dirB);
-  // Read inventory + coverage here, while the (possibly cached/restored) dirs still
-  // exist — the finally below deletes them in cached-map mode. Coverage is the HEAD
-  // bundle's completeness basis.
+  // Read inventory + the certification ledgers here, while the (possibly cached/restored)
+  // dirs still exist — the finally below deletes them in cached-map mode. Coverage is the
+  // HEAD bundle's completeness basis; determinism needs both sides.
   inventoryAudit = readInventoryAudit(dirA, dirB);
-  coverageVerdict = readCoverageVerdict(dirB);
+  const headLedger = readLedger(dirB);
+  coverageVerdict = auditCoverage(capturedSurfaceKeys(dirB), headLedger);
+  determinismVerdict = auditDeterminism(readLedger(dirA), headLedger);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -302,9 +319,13 @@ for (const sd of surfaces) {
 
 const invRemovals = printInventoryAudit(inventoryAudit);
 const coverageFails = printCoverageVerdict(coverageVerdict);
+const determinismFails = printDeterminismVerdict(determinismVerdict);
 
 if (jsonOut)
-  fs.writeFileSync(jsonOut, JSON.stringify({ counts, surfaces, compared, coverage: coverageVerdict }, null, 2));
+  fs.writeFileSync(
+    jsonOut,
+    JSON.stringify({ counts, surfaces, compared, coverage: coverageVerdict, determinism: determinismVerdict }, null, 2),
+  );
 
 const total = counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing).length;
@@ -313,14 +334,16 @@ const surfaceCount = surfaces.length;
 const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
 const invNote = invRemovals ? ` + ${invRemovals} unacknowledged inventory removal(s)` : '';
 const covNote = coverageFails ? ` + ${coverageVerdict.uncovered.length} uncaptured registered surface(s)` : '';
-const clean = total === 0 && invRemovals === 0 && !coverageFails;
+const detNote = determinismFails ? ' + determinism unproven' : '';
+const clean = total === 0 && invRemovals === 0 && !coverageFails && !determinismFails;
 console.log(
   clean
     ? newSurfaces === 0
       ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
       : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}${covNote}`,
+    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}${covNote}${detNote}`,
 );
-// 0 = identical, 1 = reviewable differences (incl. unacknowledged inventory removals or
-// an incomplete coverage registry), 3 = only new surfaces (no baseline). 2 = usage/capture error.
-process.exit(total > 0 || invRemovals > 0 || coverageFails ? 1 : newSurfaces > 0 ? 3 : 0);
+// 0 = identical, 1 = reviewable differences (incl. unacknowledged inventory removals, an
+// incomplete coverage registry, or an unproven-determinism capture), 3 = only new surfaces
+// (no baseline). 2 = usage/capture error.
+process.exit(total > 0 || invRemovals > 0 || coverageFails || determinismFails ? 1 : newSurfaces > 0 ? 3 : 0);

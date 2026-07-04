@@ -261,6 +261,8 @@ test('zero-config: init on a multi-page app crawls and captures every page — n
     // (honestly "not asserted": it captured what the nav links to, not proven-every-route).
     const ledger = JSON.parse(fs.readFileSync(path.join(mapsDir, 'styleproof-coverage.json'), 'utf8'));
     expect(ledger.expected, 'crawl records completeness as not-asserted').toBe(null);
+    // Determinism proven: this is a recording run (no replay) → selfCheck on → self-checked.
+    expect(ledger.determinism, 'a recording run records determinism as self-checked').toBe('self-checked');
   } finally {
     fs.rmSync(app, { recursive: true, force: true });
   }
