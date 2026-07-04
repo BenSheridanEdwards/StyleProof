@@ -38,24 +38,23 @@ test('styleproof-init: Next.js app → routes-aware spec wires surfaces + the co
   }
 });
 
-test('styleproof-init: non-Next project → generic spec with a commented guard, no discovery import', () => {
+test('styleproof-init: non-Next project → crawl-by-default spec (nothing to hand-list)', () => {
   const root = mkTmp();
   try {
     touch(root, 'src/components/Button.tsx');
     const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     const spec = readSpec(root);
-    assert.doesNotMatch(spec, /import \{[^}]*discoverNextRoutes/); // not auto-wired
-    assert.doesNotMatch(spec, /discoverNextRoutes\(\)/); // not called
-    assert.match(spec, /Coverage guard \(recommended\)/);
-    assert.match(spec, /key: 'home'/);
-    assert.match(spec, /variants: \[/);
-    assert.match(spec, /key: 'dialog-open'/);
-    assert.match(spec, /getByRole\('dialog'\)\.waitFor\(\)/);
-    assert.match(spec, /key: 'popover-open'/);
-    assert.match(spec, /\[popover\], \[role="menu"\]/);
-    assert.doesNotMatch(spec, /Add one surface per distinct page state/);
+    assert.doesNotMatch(spec, /discoverNextRoutes/); // not auto-wired, not called
+    assert.match(spec, /import \{ defineCrawlCapture \} from 'styleproof'/);
+    assert.match(spec, /defineCrawlCapture\(\{/);
+    assert.match(spec, /from: '\/'/); // crawl the whole nav from the root
+    assert.match(spec, /settle,/); // scroll-reveal hook wired
+    assert.match(spec, /inventory: true/); // the removal guard is on by default
+    assert.match(spec, /dir: process\.env\.STYLEMAP_DIR/);
+    assert.doesNotMatch(spec, /key: 'home'/); // no hand-listed surface to maintain
     assert.match(res.stdout, /no Next\.js routes detected/);
+    assert.match(res.stdout, /crawl-by-default/);
   } finally {
     rmTmp(root);
   }

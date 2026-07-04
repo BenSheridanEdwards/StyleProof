@@ -40,6 +40,10 @@ export type SelectLinksOptions = {
   match?: LinkMatch;
   /** Derive the surface key from a link URL. Default: {@link defaultLinkKey}. */
   key?: (url: URL) => string;
+  /** Also capture the crawled page itself as the first surface, so `from` is always
+   *  covered — even if the nav doesn't link back to it, or it's a single-page app with
+   *  no links at all. Default false. Used for an unfiltered "capture everything" crawl. */
+  includeSelf?: boolean;
 };
 
 /**
@@ -104,6 +108,11 @@ export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opt
   const keyFor = opts.key ?? defaultLinkKey;
   const seen = new Set<string>();
   const out: CrawlLink[] = [];
+  if (opts.includeSelf) {
+    const selfUrl = base.pathname + base.search;
+    seen.add(selfUrl);
+    out.push({ key: keyFor(base), url: selfUrl });
+  }
   for (const href of hrefs) {
     const link = href ? toLink(href, base, keyFor, opts.match) : null;
     if (!link || seen.has(link.url)) continue;

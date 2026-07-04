@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { loadStyleMap } from '../dist/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -105,8 +106,10 @@ test('styleproof-init → styleproof-map → styleproof-diff works in a generate
 
     const baseMap = run(app, process.execPath, [MAP], { STYLEPROOF_UPLOAD: '1' });
     expect(baseMap.status, baseMap.stderr + baseMap.stdout).toBe(0);
+    // Crawl-by-default keys the root '/' as `index`; a link-less single-page app still
+    // captures it (the crawl always covers `from`).
     expect(
-      fs.readdirSync(path.join(app, '.styleproof/maps/current')).some((file) => /^home@\d+\.json\.gz$/.test(file)),
+      fs.readdirSync(path.join(app, '.styleproof/maps/current')).some((file) => /^index@\d+\.json\.gz$/.test(file)),
     ).toBe(true);
 
     git(app, ['checkout', '-qb', 'feature']);
@@ -168,5 +171,91 @@ test('styleproof-capture --crawl --require-full-coverage: exit 0 when covered, e
     expect(gap.status, 'coverage residue exits 4').toBe(4);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A real multi-page app served over HTTP with a nav linking / → /pricing → /about,
+// plus one @media band. Proves crawl-by-default captures the WHOLE surface out of the box.
+function writeMultiPageApp(dir: string, port: number) {
+  fs.mkdirSync(path.join(dir, 'node_modules/@playwright'), { recursive: true });
+  fs.symlinkSync(root, path.join(dir, 'node_modules/styleproof'), 'dir');
+  fs.symlinkSync(
+    path.join(root, 'node_modules/@playwright/test'),
+    path.join(dir, 'node_modules/@playwright/test'),
+    'dir',
+  );
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({ type: 'module', scripts: { build: 'node -e ""', start: `node server.mjs ${port}` } }, null, 2),
+  );
+  fs.writeFileSync(
+    path.join(dir, 'server.mjs'),
+    `import http from 'node:http';
+const port = Number(process.argv[2]);
+const nav = '<nav><a href="/">Home</a> <a href="/pricing">Pricing</a> <a href="/about">About</a></nav>';
+const pages = { '/': '<h1>Home</h1>', '/pricing': '<h1>Pricing</h1>', '/about': '<h1>About</h1>' };
+http.createServer((req, res) => {
+  const url = req.url.split('?')[0];
+  res.setHeader('content-type', 'text/html');
+  res.end(\`<!doctype html><html><head><meta charset="utf-8"><style>
+    body{margin:0;font-family:system-ui} nav{padding:16px;background:rgb(240,240,245)} nav a{margin-right:12px}
+    main{padding:32px} h1{color:rgb(20,20,30)}
+    @media (min-width: 700px){ main{padding:48px} }
+  </style></head><body>\${nav}<main>\${pages[url] ?? '<h1>404</h1>'}</main></body></html>\`);
+}).listen(port, '127.0.0.1');
+`,
+  );
+}
+
+test('zero-config: init on a multi-page app crawls and captures every page — no spec editing', async () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-zeroconfig-'));
+  const port = await freePort();
+  try {
+    writeMultiPageApp(app, port);
+    git(app, ['init', '-q']);
+    git(app, ['config', 'user.email', 'styleproof@example.test']);
+    git(app, ['config', 'user.name', 'StyleProof Test']);
+    git(app, ['checkout', '-qb', 'main']);
+
+    const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
+    expect(init.status, init.stderr).toBe(0);
+    // The generated spec CRAWLS — no hand-listed surface array to maintain.
+    const spec = fs.readFileSync(path.join(app, 'e2e/styleproof.spec.ts'), 'utf8');
+    expect(spec).toContain('defineCrawlCapture');
+    expect(spec).not.toMatch(/key: 'home'/);
+
+    git(app, ['add', '-A']);
+    git(app, ['commit', '-qm', 'styleproof setup']);
+
+    // Capture with ZERO edits to the generated spec.
+    const map = run(app, process.execPath, [MAP]);
+    expect(map.status, map.stderr + map.stdout).toBe(0);
+
+    const mapsDir = path.join(app, '.styleproof/maps/current');
+    const files = fs.readdirSync(mapsDir);
+    // The crawl discovered and captured EVERY page the nav links to — index (the root),
+    // pricing, and about — with nothing hand-listed.
+    for (const key of ['index', 'pricing', 'about']) {
+      expect(
+        files.some((f) => new RegExp(`^${key}@\\d+\\.json\\.gz$`).test(f)),
+        `${key} captured by the crawl`,
+      ).toBe(true);
+    }
+    // Multi-width too: the @media (min-width:700px) band is swept automatically (no widths listed).
+    const widths = new Set(
+      files.filter((f) => f.endsWith('.json.gz')).map((f) => f.replace(/^.*@(\d+)\.json\.gz$/, '$1')),
+    );
+    expect(widths.size, 'auto-detected more than one @media band').toBeGreaterThan(1);
+
+    // Inventory-by-default: each surface's nav affordances are harvested, so a removed
+    // nav item gates — out of the box, no opt-in.
+    const indexFile = files.find((f) => /^index@\d+\.json\.gz$/.test(f))!;
+    const indexMap = loadStyleMap(path.join(mapsDir, indexFile));
+    expect(
+      indexMap.inventory?.some((i) => /pricing/.test(i.key)),
+      'nav inventory harvested by default',
+    ).toBe(true);
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
   }
 });

@@ -1,12 +1,13 @@
 # Inventory guard — the UI can't silently shrink
 
-**Status (3.7.0):** wired end to end through the CLI. `captureStyleMap(page, {
-inventory: true })` harvests into `StyleMap.inventory`, and `styleproof-diff` unions
-both sides, diffs the navigable set, and **exits 1 on an unacknowledged removal**.
-Acknowledge intentional removals in `styleproof.inventory.json` (`{"<key>": "<why>"}`;
-override the path with `STYLEPROOF_INVENTORY`). Follow-ups: the spec-level
-`defineStyleMapCapture({ inventory: true })` option, and an **📐 Inventory** section
-in the HTML report.
+**Status (3.8.0):** wired end to end, and on by default from `styleproof-init`.
+`captureStyleMap(page, { inventory: true })` harvests into `StyleMap.inventory`, the
+spec-level `defineStyleMapCapture({ inventory: true })` / `defineCrawlCapture({ inventory:
+true })` option forwards it (so a spec turns the guard on with one line — 3.8.0), and
+`styleproof-diff` unions both sides, diffs the navigable set, and **exits 1 on an
+unacknowledged removal**. Acknowledge intentional removals in `styleproof.inventory.json`
+(`{"<key>": "<why>"}`; override the path with `STYLEPROOF_INVENTORY`). Remaining follow-up:
+an **📐 Inventory** section in the HTML report.
 
 ## The gap it closes
 
@@ -47,11 +48,13 @@ the ledger can't quietly rot.
 
 Two steps:
 
-1. **Harvest** the inventory into the maps — turn it on where you capture (both base
-   and head):
+1. **Harvest** the inventory into the maps — one line in your spec (a fresh
+   `styleproof-init` turns this on for you):
 
    ```ts
-   await captureStyleMap(page, { inventory: true });
+   defineStyleMapCapture({ surfaces, inventory: true, dir: process.env.STYLEMAP_DIR });
+   // a crawl spec:   defineCrawlCapture({ from: '/', inventory: true, dir: ... });
+   // or the raw call: await captureStyleMap(page, { inventory: true });
    ```
 
 2. **Gate** in CI — `styleproof-diff` reads both sides' `inventory` and exits 1 on an
@@ -68,10 +71,6 @@ Two steps:
   unchanged.
 - `inventory: true` — each map stores `map.inventory`; `styleproof-diff` prints the 📐
   Inventory section and blocks on unexplained removals.
-
-> The spec-level `defineStyleMapCapture({ inventory: true, allowRemoved: {…} })` form
-> — a spec flips it on without calling `captureStyleMap` directly — is the planned
-> sugar, not yet wired (see follow-up below).
 
 ## How it fits
 
@@ -119,6 +118,9 @@ Wired and tested in this change:
   unit-testable).
 - `src/capture.ts` — `captureStyleMap({ inventory: true })` harvests into
   `StyleMap.inventory` (opt-in; off by default, ignored by the certification diff).
+- `src/runner.ts` (3.8.0) — `defineStyleMapCapture` / `defineCrawlCapture` forward the
+  `inventory` option to the capture, so a spec turns the guard on with one line;
+  `styleproof-init` sets it on by default.
 - `bin/styleproof-diff.mjs` — reads both sides' `inventory`, runs `auditRunInventory`
   against the `styleproof.inventory.json` ledger, prints the 📐 Inventory section, and
   **folds unacknowledged removals into exit code 1**.
@@ -130,6 +132,5 @@ Wired and tested in this change:
 - `test/inventory.e2e.spec.ts` — Playwright harvest on rendered pages (nav-button
   removal; `role=tab` + internal route links, cross-origin dropped; capture path).
 
-Follow-up (not in this change): the spec-level `defineStyleMapCapture({ inventory:
-true })` option (so a spec enables it without calling `captureStyleMap` directly), and
-an 📐 Inventory section in the HTML report.
+Follow-up (the one remaining piece): an 📐 Inventory section in the HTML report, so
+removals are visible in the rendered report and not only in the `styleproof-diff` output.
