@@ -1,4 +1,5 @@
 export { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests } from './capture.js';
+export * from './inventory.js';
 export { captureUrlToDir, runCaptureUrl, parseCaptureUrlArgs, UsageError } from './capture-url.js';
 export type { CaptureUrlOptions, CaptureUrlResult } from './capture-url.js';
 export { crawlAndCapture, CRAWL_DEFAULTS } from './crawl-surfaces.js';
