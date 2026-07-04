@@ -9,7 +9,7 @@ import {
   type LiveRegionCandidate,
 } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
-import { coverageGaps } from './coverage.js';
+import { coverageGaps, COVERAGE_LEDGER, type CoverageLedger } from './coverage.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
@@ -765,6 +765,26 @@ function resolveSettings(c: CaptureConfig): Settings {
  * defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
  * ```
  */
+/**
+ * Emit a test that records the coverage ledger into the capture bundle, so the GATE
+ * (styleproof-diff) can state its completeness basis — not just the app's own suite.
+ * `expected: null` records that the spec declared no registry, so a green can only
+ * certify the captured surfaces. Runs on a capture run (dir set) only.
+ */
+function writeCoverageLedgerTest(
+  baseDir: string,
+  dir: string,
+  expected: string[] | null,
+  exclude: Record<string, string>,
+): void {
+  test('styleproof coverage ledger', () => {
+    const outDir = path.join(baseDir, dir);
+    fs.mkdirSync(outDir, { recursive: true });
+    const ledger: CoverageLedger = { version: 1, expected, exclude };
+    fs.writeFileSync(path.join(outDir, COVERAGE_LEDGER), JSON.stringify(ledger, null, 2));
+  });
+}
+
 export function defineStyleMapCapture(options: DefineOptions): void {
   const { surfaces, expected, exclude = {}, dir } = options;
   const settings = resolveSettings(options);
@@ -800,6 +820,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
 
   test.describe('styleproof capture', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
+    if (dir) writeCoverageLedgerTest(settings.baseDir, dir, expected ?? null, exclude);
     for (const surface of captureSurfaces) {
       if (surface.widths && surface.widths.length > 0) {
         // Explicit widths: one parallelizable test per surface × width.
@@ -897,6 +918,10 @@ export function defineCrawlCapture(options: CrawlOptions): void {
   // that styleproof-map uses to select capture tests picks up crawl specs too.
   test.describe('styleproof capture (crawl)', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
+    // A crawl DISCOVERS its surfaces from the nav — it has no registry to check against,
+    // so it records `expected: null` (completeness honestly "not asserted": the crawl
+    // captures what the nav links to, and can't prove that's every route in the app).
+    if (dir) writeCoverageLedgerTest(settings.baseDir, dir, null, {});
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
       // 1. Load the root and wait for its nav links to hydrate — an SPA renders them
       //    client-side, so they aren't in the initial HTML.

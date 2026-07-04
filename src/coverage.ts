@@ -47,3 +47,50 @@ export function coverageGaps(
   const staleExclusions = Object.keys(exclude).filter((k) => !expectedSet.has(k));
   return { uncovered, staleExclusions };
 }
+
+// ── coverage provenance (the gate-level completeness assertion) ──────────────────
+// The guard above runs in the app's SUITE. That fails a build when the spec forgets a
+// route, but the GATE (styleproof-diff, reading captured maps) never learns whether
+// coverage was asserted at all — so a green silently implies a completeness it can't
+// back up. The capture writes this ledger into the bundle; the gate reads it and
+// certifies "clean" only against a STATED basis, enforcing the registry against the
+// maps actually captured (a declared surface whose capture FAILED is caught here, where
+// the suite guard — which checks the declared list — cannot see it).
+
+/** Bundled next to the maps, so the completeness basis travels with the capture. */
+export const COVERAGE_LEDGER = 'styleproof-coverage.json';
+
+export type CoverageLedger = {
+  version: 1;
+  /** The declared surface registry, or null when the spec asserted none. */
+  expected: string[] | null;
+  /** Reviewed opt-outs (`key → reason`). */
+  exclude: Record<string, string>;
+};
+
+export type CoverageVerdict = {
+  /** `complete` — every registered surface captured; `incomplete` — a registered
+   *  surface is missing (gates); `unasserted` — no registry, so a green can only
+   *  certify the captured surfaces, not that they are all of them. */
+  basis: 'complete' | 'incomplete' | 'unasserted';
+  /** Size of the declared registry, or null when unasserted. */
+  registrySize: number | null;
+  /** Registered surfaces neither captured nor excluded — the coverage hole. */
+  uncovered: string[];
+  /** `exclude` entries no longer in `expected` — a rotted opt-out. */
+  staleExclusions: string[];
+};
+
+/** The gate's completeness call: audit what was actually captured against the ledger. */
+export function auditCoverage(capturedKeys: Iterable<string>, ledger: CoverageLedger | null): CoverageVerdict {
+  if (!ledger || ledger.expected == null) {
+    return { basis: 'unasserted', registrySize: null, uncovered: [], staleExclusions: [] };
+  }
+  const { uncovered, staleExclusions } = coverageGaps(capturedKeys, ledger.expected, ledger.exclude);
+  return {
+    basis: uncovered.length ? 'incomplete' : 'complete',
+    registrySize: ledger.expected.length,
+    uncovered,
+    staleExclusions,
+  };
+}

@@ -41,6 +41,8 @@ import {
 } from '../dist/cli-errors.js';
 import { loadStyleMap } from '../dist/capture.js';
 import { auditRunInventory } from '../dist/inventory.js';
+import { auditCoverage, COVERAGE_LEDGER } from '../dist/coverage.js';
+import { isMapFile } from '../dist/map-store.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 
@@ -55,7 +57,7 @@ const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.m
 function dirInventories(dir) {
   return fs
     .readdirSync(dir)
-    .filter((f) => f !== 'styleproof-manifest.json' && /\.json(\.gz)?$/.test(f))
+    .filter(isMapFile)
     .map((f) => loadStyleMap(path.join(dir, f)))
     .map((m) => (m.inventory ? { inventory: m.inventory } : {}));
 }
@@ -108,6 +110,59 @@ function printInventoryAudit(audit) {
       `  → ${unexplained.length} unacknowledged removal(s): restore the affordance, or record the decision in styleproof.inventory.json {"<key>":"<why>"}.`,
     );
   return unexplained.length;
+}
+
+// ── coverage provenance (the completeness basis of a green) ──────────────────────
+// The head bundle carries a coverage ledger (the declared registry). The gate audits
+// the ACTUALLY-captured surfaces against it, so "clean" states its basis — complete vs
+// the registry, or explicitly "not asserted" — instead of silently implying completeness.
+
+// Surface keys captured in a dir (file `<key>@<width>.json[.gz]` → `<key>`, deduped).
+function capturedSurfaceKeys(dir) {
+  return [
+    ...new Set(
+      fs
+        .readdirSync(dir)
+        .filter(isMapFile)
+        .map((f) => f.replace(/@\d+\.json(\.gz)?$/, '')),
+    ),
+  ];
+}
+
+function readCoverageVerdict(dir) {
+  let ledger = null;
+  const p = path.join(dir, COVERAGE_LEDGER);
+  if (fs.existsSync(p)) {
+    try {
+      ledger = JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch {
+      /* a corrupt ledger reads as no registry → "not asserted", never a false green */
+    }
+  }
+  return auditCoverage(capturedSurfaceKeys(dir), ledger);
+}
+
+// Print the completeness verdict; return true if it BLOCKS (a registered surface is missing).
+function printCoverageVerdict(v) {
+  if (v.basis === 'complete') {
+    console.log(`\n✓ coverage complete — all ${v.registrySize} registered surface(s) captured`);
+    return false;
+  }
+  if (v.basis === 'unasserted') {
+    console.log(
+      '\n⚠ completeness NOT asserted — the spec declared no `expected` registry, so this certifies only the\n' +
+        '  surfaces that were captured, not that they are all of them. Declare `expected` to certify completeness.',
+    );
+    return false;
+  }
+  console.log(
+    `\n✗ coverage INCOMPLETE — ${v.uncovered.length} registered surface(s) not captured (of ${v.registrySize}):`,
+  );
+  for (const k of v.uncovered) console.log(`  ✗ missing: ${k}`);
+  console.log(
+    "  → capture each (or move it to `exclude` with a reason). A green can't certify what was never captured.",
+  );
+  return true;
 }
 
 const HELP = `${COMMAND} — certify a CSS refactor by diffing two computed-style map captures
@@ -201,12 +256,15 @@ if (args.length <= 1) {
 
 let result;
 let inventoryAudit = null;
+let coverageVerdict = null;
 try {
   assertCompatibleMapDirs(dirA, dirB);
   result = diffStyleMapDirs(dirA, dirB);
-  // Read inventory here, while the (possibly cached/restored) dirs still exist —
-  // the finally below deletes them in cached-map mode.
+  // Read inventory + coverage here, while the (possibly cached/restored) dirs still
+  // exist — the finally below deletes them in cached-map mode. Coverage is the HEAD
+  // bundle's completeness basis.
   inventoryAudit = readInventoryAudit(dirA, dirB);
+  coverageVerdict = readCoverageVerdict(dirB);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -243,8 +301,10 @@ for (const sd of surfaces) {
 }
 
 const invRemovals = printInventoryAudit(inventoryAudit);
+const coverageFails = printCoverageVerdict(coverageVerdict);
 
-if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({ counts, surfaces, compared }, null, 2));
+if (jsonOut)
+  fs.writeFileSync(jsonOut, JSON.stringify({ counts, surfaces, compared, coverage: coverageVerdict }, null, 2));
 
 const total = counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing).length;
@@ -252,13 +312,15 @@ const newSurfaces = surfaces.filter((s) => s.missing).length;
 const surfaceCount = surfaces.length;
 const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
 const invNote = invRemovals ? ` + ${invRemovals} unacknowledged inventory removal(s)` : '';
+const covNote = coverageFails ? ` + ${coverageVerdict.uncovered.length} uncaptured registered surface(s)` : '';
+const clean = total === 0 && invRemovals === 0 && !coverageFails;
 console.log(
-  total === 0 && invRemovals === 0
+  clean
     ? newSurfaces === 0
       ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
       : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}`,
+    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}${covNote}`,
 );
-// 0 = identical, 1 = reviewable differences (incl. unacknowledged inventory
-// removals), 3 = only new surfaces (no baseline). 2 reserved for usage/capture errors.
-process.exit(total > 0 || invRemovals > 0 ? 1 : newSurfaces > 0 ? 3 : 0);
+// 0 = identical, 1 = reviewable differences (incl. unacknowledged inventory removals or
+// an incomplete coverage registry), 3 = only new surfaces (no baseline). 2 = usage/capture error.
+process.exit(total > 0 || invRemovals > 0 || coverageFails ? 1 : newSurfaces > 0 ? 3 : 0);

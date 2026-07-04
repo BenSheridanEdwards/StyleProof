@@ -255,6 +255,12 @@ test('zero-config: init on a multi-page app crawls and captures every page — n
       indexMap.inventory?.some((i) => /pricing/.test(i.key)),
       'nav inventory harvested by default',
     ).toBe(true);
+
+    // Coverage provenance: the capture writes the ledger into the bundle so the gate can
+    // state its completeness basis. A crawl declares no registry → `expected: null`
+    // (honestly "not asserted": it captured what the nav links to, not proven-every-route).
+    const ledger = JSON.parse(fs.readFileSync(path.join(mapsDir, 'styleproof-coverage.json'), 'utf8'));
+    expect(ledger.expected, 'crawl records completeness as not-asserted').toBe(null);
   } finally {
     fs.rmSync(app, { recursive: true, force: true });
   }
