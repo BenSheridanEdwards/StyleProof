@@ -7,6 +7,24 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-07-04
+
+### Added
+
+- **Inventory guard** — StyleProof can now assert the navigable UI doesn't silently
+  shrink. Opt in with `captureStyleMap(page, { inventory: true })` and each surface's
+  navigable affordances — internal route links, `role=tab`, `role=menuitem`,
+  button-only nav — are harvested (keyed stably) into `StyleMap.inventory`.
+  `auditRunInventory(baseMaps, headMaps, allowRemoved)` unions the reachable set
+  across the run and flags any affordance present on base but absent on head — a
+  feature that stopped being reachable — as a **gating removal**, unless it's
+  acknowledged in the `allowRemoved` ledger (`key → reason`; a stale acknowledgement
+  is flagged so the ledger can't rot). Closes the certification diff's blind spot for
+  the information-architecture / replacement class: a redesign staged as a new
+  surface, or a nav item / route that disappears, which a same-surface computed-style
+  diff catches only incidentally. **Off by default; the certification diff is
+  unchanged.** See `docs/inventory-guard.md`.
+
 ## [3.6.0] - 2026-07-03
 
 ### Changed

@@ -1,7 +1,10 @@
 # Inventory guard — the UI can't silently shrink
 
-**Status:** prototype landed (`src/inventory.ts` + tests); gate/report/CLI wiring
-spec'd below as a focused follow-up.
+**Status (3.7.0):** the capture path is wired — `captureStyleMap(page, { inventory:
+true })` harvests into `StyleMap.inventory`, and `auditRunInventory(baseMaps,
+headMaps, allowRemoved)` gates removals (a caller runs it today). Follow-ups: the
+spec-level `defineStyleMapCapture({ inventory: true })` option, and surfacing
+removals in the **report** and the `styleproof-diff` **exit code / CLI**.
 
 ## The gap it closes
 

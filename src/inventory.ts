@@ -158,3 +158,18 @@ export function auditRemovals(
     staleAllowances: Object.keys(allowed).filter((k) => !removedKeys.has(k)),
   };
 }
+
+/**
+ * Run-level entry point: union both sides' per-surface `map.inventory`, diff, and
+ * audit removals. This is what a gate calls — pass every base map and every head
+ * map (the reachable set is the union across all surfaces). `unexplained` non-empty
+ * ⇒ the gate should fail; `staleAllowances` non-empty ⇒ prune the ledger.
+ */
+export function auditRunInventory(
+  baseMaps: Array<{ inventory?: NavigableItem[] } | undefined>,
+  headMaps: Array<{ inventory?: NavigableItem[] } | undefined>,
+  allowed: AllowedRemovals = {},
+): { delta: InventoryDelta; unexplained: NavigableItem[]; staleAllowances: string[] } {
+  const delta = diffInventory(unionInventory(baseMaps), unionInventory(headMaps));
+  return { delta, ...auditRemovals(delta, allowed) };
+}
