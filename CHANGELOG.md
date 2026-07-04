@@ -7,6 +7,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.10.0] - 2026-07-06
+
+### Added
+
+- **Determinism provenance — a green needs a proven-deterministic capture.** Source-of-
+  truth step 2: a clean diff of two _nondeterministic_ captures is meaningless (they
+  might just happen to match). The capture now records its determinism basis in the
+  ledger — `self-checked` (captured twice, styles matched — a drift would have failed the
+  capture), `replayed` (rendered against a recorded HAR, deterministic by construction),
+  or `unproven` (neither) — and `styleproof-diff`:
+  - **blocks (exit 1) when either side is `unproven`**, even on an empty style diff;
+  - prints `✓ determinism proven — base X, head Y`, `✗ determinism NOT proven …`, or
+    `⚠ determinism basis unknown` (an older bundle with no field — degrades, never a
+    false red). The record-then-replay flow (base `self-checked`, head `replayed`) is
+    proven, as it should be.
+
 ## [3.9.0] - 2026-07-05
 
 ### Added

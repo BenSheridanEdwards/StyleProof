@@ -32,6 +32,11 @@ The reachable set is kept complete by two guards that run _before_ the diff:
   registered surface wasn't captured (even on an empty diff) and prints `✓ coverage
 complete`, `✗ coverage INCOMPLETE`, or `⚠ completeness NOT asserted` (no registry). A
   green stops silently implying a completeness it can't back up.
+- **Determinism (3.10.0)** — the ledger also records how the capture's determinism was
+  established (`self-checked` / `replayed` / `unproven`), and the gate blocks a green
+  from an `unproven` capture — because a clean diff of two nondeterministic reads could
+  just be luck. A green now certifies both _"I looked everywhere"_ and _"my look was
+  stable."_
 
 ## The boundary (stated plainly)
 

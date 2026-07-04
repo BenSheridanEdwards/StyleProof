@@ -60,13 +60,42 @@ export function coverageGaps(
 /** Bundled next to the maps, so the completeness basis travels with the capture. */
 export const COVERAGE_LEDGER = 'styleproof-coverage.json';
 
+/**
+ * How a capture's determinism was established — the second half of a trustworthy green.
+ * `self-checked`: captured twice and the computed styles matched (a drift would have
+ * failed the capture). `replayed`: rendered against a recorded HAR, so deterministic by
+ * construction. `unproven`: neither — the styles could have drifted and no one checked.
+ */
+export type DeterminismBasis = 'self-checked' | 'replayed' | 'unproven';
+
 export type CoverageLedger = {
   version: 1;
   /** The declared surface registry, or null when the spec asserted none. */
   expected: string[] | null;
   /** Reviewed opt-outs (`key → reason`). */
   exclude: Record<string, string>;
+  /** How this capture's determinism was established (3.10.0). Absent on older bundles. */
+  determinism?: DeterminismBasis;
 };
+
+export type DeterminismVerdict = {
+  /** `proven` — both sides self-checked or replayed; `unproven` — a side was neither, so
+   *  a clean diff might just be two matching NONDETERMINISTIC captures; `unknown` — an
+   *  older bundle with no determinism field (degrade, don't block). */
+  status: 'proven' | 'unproven' | 'unknown';
+  base: DeterminismBasis | 'unknown';
+  head: DeterminismBasis | 'unknown';
+};
+
+/** The gate's determinism call: a green needs BOTH sides proven (self-checked or replayed). */
+export function auditDeterminism(base: CoverageLedger | null, head: CoverageLedger | null): DeterminismVerdict {
+  const b = base?.determinism ?? 'unknown';
+  const h = head?.determinism ?? 'unknown';
+  const proven = (d: DeterminismBasis | 'unknown') => d === 'self-checked' || d === 'replayed';
+  if (b === 'unproven' || h === 'unproven') return { status: 'unproven', base: b, head: h };
+  if (proven(b) && proven(h)) return { status: 'proven', base: b, head: h };
+  return { status: 'unknown', base: b, head: h };
+}
 
 export type CoverageVerdict = {
   /** `complete` — every registered surface captured; `incomplete` — a registered
