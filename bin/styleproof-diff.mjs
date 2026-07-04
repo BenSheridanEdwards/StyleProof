@@ -39,8 +39,76 @@ import {
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
+import { loadStyleMap } from '../dist/capture.js';
+import { auditRunInventory } from '../dist/inventory.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
+
+// ── inventory guard (opt-in) ────────────────────────────────────────────────────
+// Surfaces the navigable-inventory audit through the CLI. When captures carry
+// `inventory` (from captureStyleMap({ inventory: true })), an affordance base
+// offered and head no longer does BLOCKS unless acknowledged. Inert when no map
+// carries inventory, so every existing capture behaves exactly as before.
+
+// Mirror of indexDir() in diff.ts — the capture-dir file filter, kept local so the
+// bin needn't reach into diff internals for one small read.
+function dirInventories(dir) {
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f !== 'styleproof-manifest.json' && /\.json(\.gz)?$/.test(f))
+    .map((f) => loadStyleMap(path.join(dir, f)))
+    .map((m) => (m.inventory ? { inventory: m.inventory } : {}));
+}
+
+// `key -> reason` acknowledged removals. Optional file; absent → none. Malformed
+// JSON fails loud (exit 2) rather than silently un-acknowledging a real removal.
+function loadAllowRemoved() {
+  const p = path.resolve(process.env.STYLEPROOF_INVENTORY ?? 'styleproof.inventory.json');
+  if (!fs.existsSync(p)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (e) {
+    console.error(`${COMMAND}: ${p} is not valid JSON — ${e.message}`);
+    process.exit(2);
+  }
+}
+
+// Read both sides' inventory and audit removals. MUST run before any cached-map
+// cleanup deletes the restored dirs. Returns null when no capture carries inventory.
+function readInventoryAudit(dirA, dirB) {
+  const baseInv = dirInventories(dirA);
+  const headInv = dirInventories(dirB);
+  if (![...baseInv, ...headInv].some((m) => m.inventory?.length)) return null;
+  const allowed = loadAllowRemoved();
+  return { allowed, ...auditRunInventory(baseInv, headInv, allowed) };
+}
+
+// Print the Inventory section from a prior audit; return the count of UNACKNOWLEDGED
+// removals (which block). No-op/0 when there was nothing with inventory to audit.
+function printInventoryAudit(audit) {
+  if (!audit) return 0;
+  const { delta, unexplained, staleAllowances, allowed } = audit;
+  if (!delta.added.length && !delta.removed.length && !staleAllowances.length) {
+    console.log('\n📐 Inventory: navigable set unchanged across captured surfaces');
+    return 0;
+  }
+  console.log('\n📐 Inventory (navigable affordances — route links, tabs, menu items, nav buttons):');
+  for (const it of delta.removed) {
+    const why = allowed[it.key];
+    console.log(
+      why
+        ? `  removed: ${it.key} ("${it.label}") — acknowledged: ${why}`
+        : `  ✗ REMOVED, unacknowledged: ${it.key} ("${it.label}")`,
+    );
+  }
+  for (const it of delta.added) console.log(`  + added: ${it.key} ("${it.label}")`);
+  for (const k of staleAllowances) console.log(`  ⚠ stale allowRemoved (key is not actually removed): ${k}`);
+  if (unexplained.length)
+    console.log(
+      `  → ${unexplained.length} unacknowledged removal(s): restore the affordance, or record the decision in styleproof.inventory.json {"<key>":"<why>"}.`,
+    );
+  return unexplained.length;
+}
 
 const HELP = `${COMMAND} — certify a CSS refactor by diffing two computed-style map captures
 
@@ -132,9 +200,13 @@ if (args.length <= 1) {
 }
 
 let result;
+let inventoryAudit = null;
 try {
   assertCompatibleMapDirs(dirA, dirB);
   result = diffStyleMapDirs(dirA, dirB);
+  // Read inventory here, while the (possibly cached/restored) dirs still exist —
+  // the finally below deletes them in cached-map mode.
+  inventoryAudit = readInventoryAudit(dirA, dirB);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -170,6 +242,8 @@ for (const sd of surfaces) {
   if (lines.length > MAX) console.log(`  ... and ${lines.length - MAX} more lines (re-run with --max ${lines.length})`);
 }
 
+const invRemovals = printInventoryAudit(inventoryAudit);
+
 if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({ counts, surfaces, compared }, null, 2));
 
 const total = counts.dom + counts.style + counts.state;
@@ -177,13 +251,14 @@ const newSurfaces = surfaces.filter((s) => s.missing).length;
 // One SurfaceDiff per distinct surface across both sides (incl. missing-on-one-side).
 const surfaceCount = surfaces.length;
 const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
+const invNote = invRemovals ? ` + ${invRemovals} unacknowledged inventory removal(s)` : '';
 console.log(
-  total === 0
+  total === 0 && invRemovals === 0
     ? newSurfaces === 0
       ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
       : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}`,
+    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}`,
 );
-// 0 = identical, 1 = reviewable differences, 3 = only new surfaces (no baseline,
-// nothing to review). 2 stays reserved for usage/capture errors.
-process.exit(total > 0 ? 1 : newSurfaces > 0 ? 3 : 0);
+// 0 = identical, 1 = reviewable differences (incl. unacknowledged inventory
+// removals), 3 = only new surfaces (no baseline). 2 reserved for usage/capture errors.
+process.exit(total > 0 || invRemovals > 0 ? 1 : newSurfaces > 0 ? 3 : 0);

@@ -2,6 +2,7 @@ import type { Page, Request } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
+import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
 
 /**
  * Computed-style capture: the browser's final resolved value for every CSS
@@ -126,6 +127,13 @@ export type StyleMap = {
    * surface from the document root; per-subtree overrides aren't tracked.
    */
   tokens?: Record<string, string>;
+  /**
+   * The surface's navigable inventory — user-reachable affordances (route links,
+   * tabs, menu items, button-only nav), keyed stably. Present only when captured
+   * with `inventory: true`. Diffed by the inventory guard (a removal gates), never
+   * by the certification diff. See docs/inventory-guard.md.
+   */
+  inventory?: NavigableItem[];
 };
 
 export type CaptureOptions = {
@@ -138,6 +146,12 @@ export type CaptureOptions = {
    * is volatile without paying the settle wait for it.
    */
   ignore?: string[];
+  /**
+   * Harvest the surface's navigable inventory (route links, tabs, menu items,
+   * button-only nav) into `StyleMap.inventory`, for the inventory guard. Off by
+   * default; advisory to the certification diff — a removal gates separately.
+   */
+  inventory?: boolean;
   /**
    * Settle the page before capturing, and auto-exclude live regions (default
    * on). StyleProof polls the (motion-frozen) page until its computed-style map
@@ -576,6 +590,7 @@ type SubtreeArgs = { selector: string; index: number };
 
 /** Full (unpruned) computed styles for an element and its descendants, pseudo-elements included. */
 // Serialized into the browser by page.evaluate; cannot call module helpers.
+// fallow-ignore-next-line complexity -- pre-existing (cog 16); in-page fn can't call module helpers, so it can't be split. Exposed here only because the inventory feature edits this file. Refactor separately.
 function snapSubtree({ selector, index }: SubtreeArgs) {
   const el = document.querySelectorAll(selector)[index];
   const pathOf = (n: Element): string => {
@@ -919,6 +934,14 @@ function mergeMotion(elements: Elements, motion: Elements): void {
  * page and excludes live regions (see `stabilize`), so a fetch/stream that
  * paints after `go()` resolves is captured loaded, not mid-load.
  */
+/**
+ * Harvest the surface's navigable inventory when enabled; `[]` otherwise. Kept out
+ * of captureStyleMap so that function stays within the complexity budget.
+ */
+async function harvestInventoryFor(page: Page, enabled: boolean | undefined): Promise<NavigableItem[]> {
+  return enabled ? classifyInventory(await page.evaluate(collectNavAffordances)) : [];
+}
+
 export async function captureStyleMap(page: Page, options: CaptureOptions = {}): Promise<StyleMap> {
   // Framework/non-visual noise is always skipped, so it can't read as a DOM
   // change; the caller's `ignore` adds to it (not replaces it).
@@ -989,6 +1012,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     statesSkipped = forced.skipped;
   }
   const tokens = await page.evaluate(capturePageTokens);
+  const inventory = await harvestInventoryFor(page, options.inventory);
   return {
     ...(options.metadata ? { metadata: options.metadata } : {}),
     defaults: base.defaults,
@@ -999,6 +1023,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     ...(liveCandidates.length ? { liveCandidates } : {}),
     ...(overlays.length ? { overlays } : {}),
     ...(Object.keys(tokens).length ? { tokens } : {}),
+    ...(inventory.length ? { inventory } : {}),
   };
 }
 

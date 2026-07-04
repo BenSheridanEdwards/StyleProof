@@ -15,7 +15,7 @@
 // (like the `exclude` coverage ledger) unless explicitly acknowledged with a reason,
 // so "we dropped Model Config" is a decision on the record, never a silent green.
 //
-// The harvest (`detectNavigableInventory`) runs in-page, mirroring
+// The harvest (`collectNavAffordances`) runs in-page, mirroring
 // `detectOverlayCandidates`; the diff/union/guard are pure and unit-testable.
 
 /** One user-reachable navigation affordance, keyed stably across base/head. */
@@ -77,8 +77,14 @@ export function collectNavAffordances(): RawAffordance[] {
       return null;
     }
   };
+  // Semantic nav first (a[href], role=tab/menuitem, <nav>/tablist buttons); then a
+  // conservative class heuristic for button-only navs that skip ARIA — a container
+  // whose class strongly implies navigation (nav / navtab / subnav / tabs / subtab).
+  // Erring broad is correct here: a stray non-nav button is harmless noise, but a
+  // MISSED nav item defeats the guard. Prefer semantic markup (role=tablist) for
+  // fully reliable harvesting; see docs/inventory-guard.md.
   const SEL =
-    'a[href], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], nav button, [role="navigation"] button, [role="tablist"] button';
+    'a[href], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], nav button, [role="navigation"] button, [role="tablist"] button, [class*="navtab" i] button, [class*="nav-tab" i] button, [class*="subnav" i] button, [class*="subtab" i] button, [class*="tabs" i] button';
   return Array.from(document.querySelectorAll(SEL))
     .filter(visible)
     .map((el) => ({
@@ -157,4 +163,19 @@ export function auditRemovals(
     unexplained: delta.removed.filter((i) => !(i.key in allowed)),
     staleAllowances: Object.keys(allowed).filter((k) => !removedKeys.has(k)),
   };
+}
+
+/**
+ * Run-level entry point: union both sides' per-surface `map.inventory`, diff, and
+ * audit removals. This is what a gate calls — pass every base map and every head
+ * map (the reachable set is the union across all surfaces). `unexplained` non-empty
+ * ⇒ the gate should fail; `staleAllowances` non-empty ⇒ prune the ledger.
+ */
+export function auditRunInventory(
+  baseMaps: Array<{ inventory?: NavigableItem[] } | undefined>,
+  headMaps: Array<{ inventory?: NavigableItem[] } | undefined>,
+  allowed: AllowedRemovals = {},
+): { delta: InventoryDelta; unexplained: NavigableItem[]; staleAllowances: string[] } {
+  const delta = diffInventory(unionInventory(baseMaps), unionInventory(headMaps));
+  return { delta, ...auditRemovals(delta, allowed) };
 }

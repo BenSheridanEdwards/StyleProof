@@ -1,24 +1,29 @@
 # Inventory guard — the UI can't silently shrink
 
-**Status:** prototype landed (`src/inventory.ts` + tests); gate/report/CLI wiring
-spec'd below as a focused follow-up.
+**Status (3.7.0):** wired end to end through the CLI. `captureStyleMap(page, {
+inventory: true })` harvests into `StyleMap.inventory`, and `styleproof-diff` unions
+both sides, diffs the navigable set, and **exits 1 on an unacknowledged removal**.
+Acknowledge intentional removals in `styleproof.inventory.json` (`{"<key>": "<why>"}`;
+override the path with `STYLEPROOF_INVENTORY`). Follow-ups: the spec-level
+`defineStyleMapCapture({ inventory: true })` option, and an **📐 Inventory** section
+in the HTML report.
 
 ## The gap it closes
 
 StyleProof's certification diff is a same-surface, same-key regression check —
-*"did surface X change between base and head?"* It is structurally blind to two
+_"did surface X change between base and head?"_ It is structurally blind to two
 high-stakes changes:
 
 1. **A redesign delivered as a new surface beside the old one.** The diff is
    old-vs-old (clean) until the cutover; the new experience sits uncaptured.
-2. **A nav item / route / feature that disappears.** The *reachable set* of the UI
+2. **A nav item / route / feature that disappears.** The _reachable set_ of the UI
    shrinks — an information-architecture change, not a restyle. The pixel diff
    catches it only incidentally (DOM churn on a surviving captured surface, if
    that surface is even captured), and not at all while staged in parallel.
 
 Concretely, from the Fleet HUD (real): a redesign added at `/agents-v5` drops the
-**MODEL CONFIG** and **FAULT MAP** nav items. The gate reported *"✓ clean, no
-visual approval required"* — a feature-removing change with a green check. That is
+**MODEL CONFIG** and **FAULT MAP** nav items. The gate reported _"✓ clean, no
+visual approval required"_ — a feature-removing change with a green check. That is
 the exact failure mode this guard closes.
 
 ## The model
@@ -33,45 +38,56 @@ run into one reachable set, and diff base→head:
 - **added** (head-not-base) — a newly-offered affordance. Informational.
 - **removed** (base-not-head) — a feature the UI stopped offering. **Gates.**
 
-A removal is a *decision*, not an accident: it fails the gate unless acknowledged
+A removal is a _decision_, not an accident: it fails the gate unless acknowledged
 in an `allowRemoved` ledger (`key → reason`), mirroring the `exclude` coverage
 ledger. A stale acknowledgement (for a key no longer removed) is flagged too, so
 the ledger can't quietly rot.
 
-## Config API (opt-in; advisory → gating)
+## Using it (opt-in) — wired today
 
-```ts
-defineStyleMapCapture({
-  surfaces: SURFACES,
-  dir: process.env.STYLEMAP_DIR,
-  inventory: true, // harvest the navigable inventory per surface
-  allowRemoved: {
-    // reasoned, reviewed removals — a decision on the record
-    'nav-button:model-config': 'moved into the per-agent dossier — intentional',
-  },
-});
-```
+Two steps:
 
-- `inventory: false` (default) — unchanged behaviour; nothing harvested, no new gate.
-- `inventory: true` — each map stores `map.inventory`; the diff/report gain an
-  **Inventory** section; unexplained removals gate.
+1. **Harvest** the inventory into the maps — turn it on where you capture (both base
+   and head):
 
-## How it fits (integration plan)
+   ```ts
+   await captureStyleMap(page, { inventory: true });
+   ```
 
-- **Capture** (`capture.ts`): when `inventory` is on, run `detectNavigableInventory`
-  in-page — exactly like `detectOverlayCandidates` — and store
-  `map.inventory: NavigableItem[]` (a new optional field on `StyleMap`, ignored by
-  the certification diff, like `overlays`).
-- **Diff** (run level): `unionInventory(baseMaps)` vs `unionInventory(headMaps)` →
-  `diffInventory` → `auditRemovals(delta, allowRemoved)`.
-- **Gate**: unexplained removals take the same path as a visual change — fail in
-  certify mode; require approval in review-gate mode (a removed feature is exactly
-  the thing a human should sign off).
-- **Report**: an **📐 Inventory** section — *removed* (flagged, with its
-  acknowledgement or a "needs a reason" prompt) and *added* (listed).
-- **CLI/env**: `styleproof-diff`/`-report` surface the section; `allowRemoved` reads
-  from the spec (and, for CI without editing the spec, an optional
-  `styleproof.inventory.json`).
+2. **Gate** in CI — `styleproof-diff` reads both sides' `inventory` and exits 1 on an
+   unacknowledged removal. Record intentional removals in `styleproof.inventory.json`
+   at the repo root (or point `$STYLEPROOF_INVENTORY` at another path):
+
+   ```json
+   {
+     "nav-button:model-config": "moved into the per-agent dossier — intentional"
+   }
+   ```
+
+- `inventory` off (default) — nothing harvested; `styleproof-diff` is byte-for-byte
+  unchanged.
+- `inventory: true` — each map stores `map.inventory`; `styleproof-diff` prints the 📐
+  Inventory section and blocks on unexplained removals.
+
+> The spec-level `defineStyleMapCapture({ inventory: true, allowRemoved: {…} })` form
+> — a spec flips it on without calling `captureStyleMap` directly — is the planned
+> sugar, not yet wired (see follow-up below).
+
+## How it fits
+
+- **Capture** (`capture.ts`): with `inventory: true`, `collectNavAffordances` runs
+  in-page — like `detectOverlayCandidates` — and stores `map.inventory:
+NavigableItem[]` (an optional `StyleMap` field, ignored by the certification diff,
+  like `overlays`).
+- **Diff** (run level, `styleproof-diff`): `unionInventory(baseMaps)` vs
+  `unionInventory(headMaps)` → `diffInventory` → `auditRemovals(delta, allowRemoved)`.
+- **Gate**: an unacknowledged removal exits **1** — the same blocking path as a visual
+  change (a removed feature is exactly the thing a human should sign off).
+- **CLI/env**: `styleproof-diff` prints the 📐 Inventory section and reads
+  `allowRemoved` from `styleproof.inventory.json` (or `$STYLEPROOF_INVENTORY`) — no
+  spec edit needed in CI.
+- **Report** (follow-up): an 📐 Inventory section in the HTML report — _removed_
+  (flagged, with its acknowledgement or a "needs a reason" prompt) and _added_ (listed).
 
 ## What it catches — and its honest boundary
 
@@ -84,27 +100,36 @@ defineStyleMapCapture({
 - A replacement **cutover done in-place** — the old→new inventory diff fires.
 
 **Boundary (stated honestly):** it can only see surfaces that are captured. A
-parallel route that is *never* captured is still invisible — so `expected` (the
+parallel route that is _never_ captured is still invisible — so `expected` (the
 route coverage guard) remains the first line, and the inventory guard is the
 second. Together they compose:
 
-> `expected` says *"you didn't capture a route you should have."*
-> the inventory guard says *"the routes you DID capture stopped offering something."*
+> `expected` says _"you didn't capture a route you should have."_
+> the inventory guard says _"the routes you DID capture stopped offering something."_
 
 That composition is what makes the gate a **source of truth** for the reachable
 UI, not just for the pixels of the surfaces you remembered to look at.
 
-## Prototype status
+## What's wired vs. follow-up
 
-Built and tested in this change:
+Wired and tested in this change:
 
-- `src/inventory.ts` — `detectNavigableInventory` (in-page harvest) +
-  `unionInventory` / `diffInventory` / `auditRemovals` (pure, unit-testable).
-- `test/inventory.test.mjs` — 6 unit tests, including the Fleet Model-Config
-  removal end to end (removed surfaces, the failing guard, the acknowledgement
-  ledger, stale-allowance detection, parallel-route staging, union dedup).
-- `test/inventory.e2e.spec.ts` — 2 Playwright tests proving the in-page harvest on
-  rendered pages (nav-button removal; `role=tab` + internal route links, cross-origin dropped).
+- `src/inventory.ts` — `collectNavAffordances` (in-page harvest) + `classifyInventory`
+  / `unionInventory` / `diffInventory` / `auditRemovals` / `auditRunInventory` (pure,
+  unit-testable).
+- `src/capture.ts` — `captureStyleMap({ inventory: true })` harvests into
+  `StyleMap.inventory` (opt-in; off by default, ignored by the certification diff).
+- `bin/styleproof-diff.mjs` — reads both sides' `inventory`, runs `auditRunInventory`
+  against the `styleproof.inventory.json` ledger, prints the 📐 Inventory section, and
+  **folds unacknowledged removals into exit code 1**.
+- `test/inventory.test.mjs` — 6 unit tests (Fleet Model-Config removal, the failing
+  guard, the acknowledgement ledger, stale-allowance detection, parallel-route
+  staging, union dedup).
+- `test/inventory-cli.test.mjs` — 3 tests proving the CLI actually gates: exit 1 on an
+  unacknowledged removal, exit 0 once acknowledged, exit 0 when unchanged.
+- `test/inventory.e2e.spec.ts` — Playwright harvest on rendered pages (nav-button
+  removal; `role=tab` + internal route links, cross-origin dropped; capture path).
 
-Not yet wired (the follow-up): the `inventory` capture option, `StyleMap.inventory`,
-the diff/report/gate surfacing, and the CLI/action flags — all specified above.
+Follow-up (not in this change): the spec-level `defineStyleMapCapture({ inventory:
+true })` option (so a spec enables it without calling `captureStyleMap` directly), and
+an 📐 Inventory section in the HTML report.
