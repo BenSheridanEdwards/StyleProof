@@ -7,6 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Tests / docs
+
+- **Dogfood: the "100% surfaced" contract** — `test/pr-surfacing.e2e.spec.ts` runs the
+  real capture → diff → report flow for every change class (resting style,
+  `:hover/:focus/:active` drop, `::before/::after`, DOM add/remove/retag, a removed nav
+  item via the inventory guard, a new surface, and a clean no-op) and asserts each is
+  surfaced — with the last two levels going through the actual `styleproof-diff` /
+  `styleproof-report` CLIs, so the confidence is in the PR report, not just library
+  calls. Closes the four classes that previously had no end-to-end proof (`:active`
+  drop, DOM removed, retag, pseudo-element change). No behaviour change; test/doc only.
+- **`docs/what-it-catches.md`** — states what StyleProof catches and its honest boundary
+  (surfaces it never captured), so a green check is earned, not assumed.
+
 ## [3.7.0] - 2026-07-04
 
 ### Added
