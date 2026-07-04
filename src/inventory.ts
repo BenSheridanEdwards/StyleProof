@@ -77,8 +77,14 @@ export function collectNavAffordances(): RawAffordance[] {
       return null;
     }
   };
+  // Semantic nav first (a[href], role=tab/menuitem, <nav>/tablist buttons); then a
+  // conservative class heuristic for button-only navs that skip ARIA — a container
+  // whose class strongly implies navigation (nav / navtab / subnav / tabs / subtab).
+  // Erring broad is correct here: a stray non-nav button is harmless noise, but a
+  // MISSED nav item defeats the guard. Prefer semantic markup (role=tablist) for
+  // fully reliable harvesting; see docs/inventory-guard.md.
   const SEL =
-    'a[href], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], nav button, [role="navigation"] button, [role="tablist"] button';
+    'a[href], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], nav button, [role="navigation"] button, [role="tablist"] button, [class*="navtab" i] button, [class*="nav-tab" i] button, [class*="subnav" i] button, [class*="subtab" i] button, [class*="tabs" i] button';
   return Array.from(document.querySelectorAll(SEL))
     .filter(visible)
     .map((el) => ({
