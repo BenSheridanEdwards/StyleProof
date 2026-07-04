@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { harvestInventory, diffInventory, auditRemovals } from '../dist/index.js';
+import { harvestInventory, diffInventory, auditRemovals, captureStyleMap, auditRunInventory } from '../dist/index.js';
 
 // Proves the in-page harvest end-to-end: run harvestInventory against two
 // real rendered pages (a nav that drops an item between them) and confirm the diff
@@ -44,4 +44,22 @@ test('harvest reads role=tab and internal route links, keyed stably (real origin
   expect(keys).toContain('tab:model-config'); // role=tab → slug
   expect(keys).toContain('route:/settings'); // internal link → path
   expect(keys).not.toContain('route:https://example.com/ext'); // cross-origin dropped
+});
+
+test('captureStyleMap({inventory:true}) stores map.inventory; auditRunInventory gates a removal', async ({ page }) => {
+  await page.goto(nav(['AGENTS', 'MODEL CONFIG', 'FAULTS', 'SKILLS']));
+  const base = await captureStyleMap(page, { inventory: true });
+  await page.goto(nav(['AGENTS', 'TEAMS', 'FAULTS', 'SKILLS'])); // MODEL CONFIG dropped (a cutover)
+  const head = await captureStyleMap(page, { inventory: true });
+
+  expect(base.inventory?.map((i) => i.key)).toContain('nav-button:model-config');
+  expect((await captureStyleMap(page)).inventory).toBeUndefined(); // opt-in — default off, nothing harvested
+
+  const audit = auditRunInventory([base], [head], {});
+  expect(audit.unexplained.map((i) => i.key)).toEqual(['nav-button:model-config']); // the gate would FAIL
+  expect(audit.delta.added.map((i) => i.key)).toEqual(['nav-button:teams']);
+  // acknowledging it clears the gate — a decision on the record
+  expect(auditRunInventory([base], [head], { 'nav-button:model-config': 'moved to dossier' }).unexplained).toHaveLength(
+    0,
+  );
 });
