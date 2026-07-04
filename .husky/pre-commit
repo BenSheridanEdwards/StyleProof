@@ -4,6 +4,10 @@ set -e
 echo "› build + typecheck + lint + format"
 npm run build && npm run typecheck && npm run lint && npm run format:check
 
-# fallow — block the commit on new findings in the changes you're staging
+# fallow — block the commit on new findings in the changes you're staging.
+# --health-baseline grandfathers the same known-complex functions CI does
+# (.github/workflows/fallow.yml), so editing a file that merely CONTAINS a
+# pre-existing god-function doesn't false-RED; genuinely new complexity (not in
+# the baseline) still blocks. Keeps local === CI.
 echo "› fallow"
-npx fallow audit --base HEAD
+npx fallow audit --base HEAD --health-baseline .fallow/health-baseline.json

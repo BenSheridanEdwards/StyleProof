@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
+import { isMapFile } from './map-store.js';
 
 /**
  * Computed-style capture: the browser's final resolved value for every CSS
@@ -589,8 +590,9 @@ function detectOverlayCandidates({ ignore }: OverlayCandidateArgs): CapturedOver
 type SubtreeArgs = { selector: string; index: number };
 
 /** Full (unpruned) computed styles for an element and its descendants, pseudo-elements included. */
-// Serialized into the browser by page.evaluate; cannot call module helpers.
-// fallow-ignore-next-line complexity -- pre-existing (cog 16); in-page fn can't call module helpers, so it can't be split. Exposed here only because the inventory feature edits this file. Refactor separately.
+// Serialized into the browser by page.evaluate; cannot call module helpers, so this
+// in-page fn (cog 16) can't be split into smaller ones. Pre-existing; refactor separately.
+// fallow-ignore-next-line complexity
 function snapSubtree({ selector, index }: SubtreeArgs) {
   const el = document.querySelectorAll(selector)[index];
   const pathOf = (n: Element): string => {
@@ -1052,4 +1054,17 @@ export function loadStyleMap(filePath: string): StyleMap {
       { cause: e },
     );
   }
+}
+
+/**
+ * Read every surface map's navigable inventory from a capture dir, in the shape the
+ * inventory audit consumes. One home for "read the inventories out of a dir", shared
+ * by the diff CLI and the report (was duplicated in both).
+ */
+export function readInventories(dir: string): Array<{ inventory?: NavigableItem[] }> {
+  return fs
+    .readdirSync(dir)
+    .filter(isMapFile)
+    .map((f) => loadStyleMap(path.join(dir, f)))
+    .map((m) => (m.inventory ? { inventory: m.inventory } : {}));
 }

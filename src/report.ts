@@ -1,8 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { loadStyleMap, type ElementEntry, type LiveRegionCandidate, type Rect, type StyleMap } from './capture.js';
+import {
+  loadStyleMap,
+  readInventories,
+  type ElementEntry,
+  type LiveRegionCandidate,
+  type Rect,
+  type StyleMap,
+} from './capture.js';
 import { isMapFile } from './map-store.js';
+import { fillRect, type RGB } from './png-util.js';
 import {
   diffStyleMapDirs,
   diffContentDirs,
@@ -12,6 +20,15 @@ import {
   type PropChange,
 } from './diff.js';
 import { describeChange, tokenIndex, toHex, trackCount, type ElementChange, type DescribeCtx } from './describe.js';
+import {
+  auditCoverage,
+  auditDeterminism,
+  COVERAGE_LEDGER,
+  type CoverageLedger,
+  type CoverageVerdict,
+  type DeterminismVerdict,
+} from './coverage.js';
+import { auditRunInventory, readAckFile } from './inventory.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
 // through the package's report module rather than a deep path.
 export { describeChange, colorName, tokenIndex, toHex } from './describe.js';
@@ -204,19 +221,6 @@ function cropPng(src: PNG, box: Box, w: number, h: number): Crop {
 const PNG_OPTS = { deflateLevel: 9, filterType: -1, colorType: 2, inputColorType: 6 } as const;
 function writePng(file: string, png: PNG): void {
   fs.writeFileSync(file, PNG.sync.write(png, PNG_OPTS));
-}
-
-type RGB = [number, number, number];
-function fillRect(png: PNG, x: number, y: number, w: number, h: number, [r, g, b]: RGB): void {
-  for (let yy = Math.max(0, y); yy < Math.min(png.height, y + h); yy++) {
-    for (let xx = Math.max(0, x); xx < Math.min(png.width, x + w); xx++) {
-      const i = (yy * png.width + xx) << 2;
-      png.data[i] = r;
-      png.data[i + 1] = g;
-      png.data[i + 2] = b;
-      png.data[i + 3] = 255;
-    }
-  }
 }
 
 // The annotation hue: a magenta no real UI palette tends to use, so an outline
@@ -1047,6 +1051,92 @@ function renderContentSection(ctx: ContentCtx): { md: string[]; count: number } 
 // Pre-existing, grandfathered in the health baseline; the content layer is
 // rendered by extracted helpers, this only gained a call + headline branch.
 // fallow-ignore-next-line complexity
+function readLedgerFile(dir: string): CoverageLedger | null {
+  const p = path.join(dir, COVERAGE_LEDGER);
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8')) as CoverageLedger;
+  } catch {
+    return null;
+  }
+}
+
+function surfaceKeysIn(dir: string): string[] {
+  return [
+    ...new Set(
+      fs
+        .readdirSync(dir)
+        .filter(isMapFile)
+        .map((f) => f.replace(/@\d+\.json(\.gz)?$/, '')),
+    ),
+  ];
+}
+
+// ── Certification renderers ──────────────────────────────────────────────────────
+// Each maps one source-of-truth verdict to its report line. Kept as separate one-
+// verdict functions so certificationLines stays a thin orchestrator (and each stays
+// well under the complexity gate).
+
+function coverageLine(cov: CoverageVerdict): string {
+  if (cov.basis === 'complete')
+    return `- **Coverage** — ✓ complete (all ${cov.registrySize} registered surface(s) captured)`;
+  if (cov.basis === 'incomplete')
+    return `- **Coverage** — ✗ INCOMPLETE (${cov.uncovered.length} registered surface(s) not captured: ${cov.uncovered.join(', ')})`;
+  return '- **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)';
+}
+
+function determinismLine(det: DeterminismVerdict): string {
+  if (det.status === 'proven') return `- **Determinism** — ✓ proven (base ${det.base}, head ${det.head})`;
+  if (det.status === 'unproven')
+    return `- **Determinism** — ✗ NOT proven (base ${det.base}, head ${det.head}) — a clean diff could be two nondeterministic reads`;
+  return '- **Determinism** — ⚠ unknown (a capture predates the determinism ledger)';
+}
+
+function inventoryLine(inv: ReturnType<typeof auditRunInventory>): string {
+  if (inv.unexplained.length > 0) {
+    const keys = inv.unexplained.map((i) => i.key);
+    return `- **Inventory** — ⚠ ${inv.unexplained.length} navigable affordance(s) removed, unacknowledged: ${keys.slice(0, 8).join(', ')}${keys.length > 8 ? ', …' : ''}`;
+  }
+  if (inv.delta.removed.length > 0)
+    return `- **Inventory** — ✓ ${inv.delta.removed.length} removal(s), all acknowledged`;
+  return '- **Inventory** — ✓ navigable set unchanged';
+}
+
+// Acknowledged removals for the report — lenient: a missing OR malformed ack file
+// just means no acknowledgements. (The diff CLI fails loud on malformed instead,
+// because in CI an unreadable ack file must not silently un-acknowledge a real loss;
+// the report is advisory, so it degrades quietly.)
+function readAcknowledgedRemovals(): Record<string, string> {
+  try {
+    return readAckFile();
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The certification block a reviewer reads FIRST — the source-of-truth gates (coverage
+ * complete? determinism proven? did the navigable set shrink?), not just the pixel diff.
+ * Empty when the bundle carries no certification metadata (an old capture).
+ */
+function certificationLines(beforeDir: string, afterDir: string): string[] {
+  const baseLedger = readLedgerFile(beforeDir);
+  const headLedger = readLedgerFile(afterDir);
+  const inv = auditRunInventory(readInventories(beforeDir), readInventories(afterDir), readAcknowledgedRemovals());
+
+  const hasLedger = baseLedger !== null || headLedger !== null;
+  const hasInvChange = inv.delta.removed.length > 0 || inv.delta.added.length > 0;
+  if (!hasLedger && !hasInvChange) return [];
+
+  return [
+    '**Certification**',
+    coverageLine(auditCoverage(surfaceKeysIn(afterDir), headLedger)),
+    determinismLine(auditDeterminism(baseLedger, headLedger)),
+    inventoryLine(inv),
+    '',
+  ];
+}
+
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,
@@ -1127,6 +1217,9 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     : { md: [], count: 0 };
 
   md.push('## 🗺️ StyleProof report', '');
+  // Lead with the source-of-truth gates (coverage / determinism / inventory) so a
+  // reviewer reads "is this green trustworthy?" before the pixel details.
+  md.push(...certificationLines(beforeDir, afterDir));
   if (changeGroups.length === 0 && missing.length === 0) {
     md.push(
       contentSection.count > 0

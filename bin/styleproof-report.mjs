@@ -12,7 +12,7 @@
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
 import { generateStyleMapReport } from '../dist/report.js';
-import { cliErrorMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { cachedMapsUnavailableMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
@@ -116,13 +116,7 @@ if (args.length <= 1) {
     beforeDir = cacheCapture.beforeDir;
     afterDir = cacheCapture.afterDir;
   } catch (e) {
-    console.error(
-      [
-        `${COMMAND}: cached maps are not available for this report`,
-        cliErrorMessage(e),
-        'Next: run styleproof-map on the base and head commits to upload maps, or let CI recapture both sides.',
-      ].join('\n'),
-    );
+    console.error(cachedMapsUnavailableMessage(COMMAND, 'report', e));
     process.exit(2);
   }
 } else {

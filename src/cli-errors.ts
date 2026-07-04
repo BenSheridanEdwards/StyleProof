@@ -11,6 +11,18 @@ export function cliErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * The "cached maps couldn't be restored" guidance, shared by styleproof-diff and
+ * styleproof-report (each names its own `purpose` — "comparison" / "report").
+ */
+export function cachedMapsUnavailableMessage(command: string, purpose: string, error: unknown): string {
+  return [
+    `${command}: cached maps are not available for this ${purpose}`,
+    cliErrorMessage(error),
+    'Next: run styleproof-map on the base and head commits to upload maps, or let CI recapture both sides.',
+  ].join('\n');
+}
+
 export function unknownFlagMessage(command: string, flag: string): string {
   return `${command}: unknown flag: ${flag}\nNext: run ${command} --help to see supported options.`;
 }
