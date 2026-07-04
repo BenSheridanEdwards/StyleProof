@@ -30,6 +30,7 @@ report. Intentional visual changes get approved; unexpected ones block or fail.
 - [Newly-added elements show their full style](#newly-added-elements-show-their-full-style)
 - [Reference](#reference)
   - [Blocking without branch protection](#blocking-without-branch-protection)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Why
@@ -758,6 +759,17 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 - `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
 
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
+
+## Contributing
+
+See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
+for the dev loop, and [AGENTS.md](https://github.com/BenSheridanEdwards/StyleProof/blob/main/AGENTS.md)
+(the same file as `CLAUDE.md`) for the operating rules and agent tooling. The repo
+is wired for Claude Code with **Ponytail** (default lazy-coding mode), **GitNexus**
+(code-intelligence graph — MCP server in [`.mcp.json`](.mcp.json), skills in
+`.claude/skills/gitnexus/`), and **Graphify** (`/graphify` knowledge graph). The
+GitNexus index (`.gitnexus/`) and Graphify output (`graphify-out/`) are gitignored;
+build the index with `npx gitnexus analyze`.
 
 ## License
 

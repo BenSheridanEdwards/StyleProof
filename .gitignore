@@ -10,5 +10,8 @@ graphify-out/
 *.tgz
 .DS_Store
 
+# Claude Code — machine-specific local settings (may hold absolute paths); keep out of the public repo
+.claude/settings.local.json
+
 # fallow local cache
 .fallow/*.bin
