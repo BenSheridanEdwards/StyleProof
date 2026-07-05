@@ -43,7 +43,9 @@ whole surface: --crawl
   --require-full-coverage
                     exit 4 unless every class the page's stylesheets define was
                     rendered in a captured surface — the machine check that
-                    NOTHING in the design was missed (coverage is always printed)
+                    NOTHING in the design was missed (coverage is always printed).
+                    An unreadable cross-origin sheet is residue too: its vocabulary
+                    can't be proven covered, so it also fails the check.
   --setup <file>    JSON steps (goto/fill/click/waitFor) run after EVERY fresh
                     navigation — how input-gated states (login, unlock) become
                     crawlable. \${ENV_VAR} in value/url is read from the
@@ -122,15 +124,25 @@ async function runCrawl() {
         `(${report.actionsTried} actions tried, ${report.skipped} skipped${report.failed.length ? `, ${report.failed.length} capture-failed` : ''})`,
     );
     const cov = report.coverage;
+    const unreadable = cov.unreadable ?? [];
+    if (unreadable.length > 0) {
+      console.log(
+        `⚠ coverage: ${unreadable.length} stylesheet(s) unreadable — class coverage not provable against them ` +
+          `(cross-origin, no CORS; make them same-origin / CORS-readable, or pin --widths):\n    ${unreadable.join(' ')}`,
+      );
+    }
     if (cov.missing.length === 0) {
-      console.log(`✓ coverage: all ${cov.defined} stylesheet classes rendered in at least one captured surface`);
+      if (unreadable.length === 0)
+        console.log(`✓ coverage: all ${cov.defined} stylesheet classes rendered in at least one captured surface`);
     } else {
       console.log(
         `⚠ coverage: ${cov.rendered}/${cov.defined} stylesheet classes rendered — ${cov.missing.length} never seen ` +
           `(dead CSS, or a state the crawl could not reach):\n    ${cov.missing.join(' ')}`,
       );
-      if (opts.requireFullCoverage) process.exit(4);
     }
+    // Residue under --require-full-coverage → exit 4: a never-seen class OR an
+    // unreadable sheet (whose vocabulary can't be proven covered at all).
+    if (opts.requireFullCoverage && (cov.missing.length > 0 || unreadable.length > 0)) process.exit(4);
   } finally {
     await browser.close();
   }

@@ -7,6 +7,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **`--crawl` now honours the fail-loud contract on unreadable CSS.** Three deviations on
+  the crawl path let a page with a cross-origin stylesheet be certified without ever being
+  fully looked at:
+  - Breakpoint auto-detection swallowed the "unreadable stylesheet" throw and silently swept
+    only 1280px — every other band certified unchanged without being rendered. The crawl now
+    propagates the throw like every other entry point (`styleproof-capture` one-shot,
+    `styleproof-map`); the message advises pinning `--widths` for a cross-origin-CSS page.
+  - The coverage verifier read class vocabulary only from _readable_ sheets, so a design
+    served cross-origin could pass `--require-full-coverage` with an artificially complete
+    verdict. Unreadable sheets are now counted and surfaced as **named residue**: a plain
+    crawl prints `N stylesheet(s) unreadable — class coverage not provable against them`, and
+    `--require-full-coverage` treats them as residue → exit 4. (`CrawlCoverage` gains an
+    `unreadable: string[]` field; purely additive.)
+  - `--max-depth` had two different defaults (16 in `CRAWL_DEFAULTS`, 1000 in the CLI). The
+    CLI default is now **16 everywhere** — the cap exists to bound append-generator UIs (a
+    composer that appends a fresh-identity node per click, which dedup can't terminate); 1000
+    made it decorative. Raise with `--max-depth` for a genuinely deeper nest.
+
 ## [3.17.0] - 2026-07-05
 
 ### Changed

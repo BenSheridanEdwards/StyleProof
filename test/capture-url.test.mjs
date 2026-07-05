@@ -17,7 +17,9 @@ test('defaults: just a url', () => {
     height: 800,
     screenshots: true,
     crawl: false,
-    maxDepth: 1000,
+    // Mirrors CRAWL_DEFAULTS.maxDepth: one default everywhere. 16 is exhaustive
+    // for real UI; the cap bounds append-generator recursion (see capture-url.ts).
+    maxDepth: 16,
     maxActionsPerState: 100000,
     maxStates: 100000,
     resetStorage: true,
