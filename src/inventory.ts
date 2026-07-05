@@ -70,6 +70,12 @@ export type RawAffordance = {
   name: string;
   /** pathname+search for a same-origin `<a href>`; null otherwise. Resolved in-page. */
   internalPath: string | null;
+  /** `data-testid` — developer-authored, trusted as a stable identity when present. */
+  testId: string | null;
+  /** `id` — used as a stable identity only when it doesn't look framework-generated. */
+  domId: string | null;
+  /** `aria-controls` (a tab's panel) — a stable identity when not framework-generated. */
+  controls: string | null;
 };
 
 // ── in-page harvest ───────────────────────────────────────────────────────────
@@ -111,6 +117,9 @@ export function collectNavAffordances(): RawAffordance[] {
       role: (el.getAttribute('role') || '').toLowerCase(),
       name: nameOf(el),
       internalPath: el.tagName === 'A' ? internalPath(el) : null,
+      testId: el.getAttribute('data-testid'),
+      domId: el.getAttribute('id'),
+      controls: el.getAttribute('aria-controls'),
     }));
 }
 
@@ -120,6 +129,43 @@ const slug = (s: string): string =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
+
+/**
+ * Whether an `id` / `aria-controls` value is a STABLE identity worth keying on, vs a
+ * framework-generated one (React useId `:r0:`, Headless UI `headlessui-tabs-tab-3`,
+ * Radix `radix-:r1:`, Emotion hashes) that wobbles across renders/builds. Keying by a
+ * generated id would ADD churn, so those fall back to the label slug. (`data-testid` is
+ * developer-authored by definition, so it's trusted without this check.)
+ */
+export function isStableId(id: string | null | undefined): id is string {
+  if (!id) return false;
+  const v = id.trim();
+  if (!v || v.length > 80) return false;
+  if (v.includes(':')) return false; // React useId / Radix scoped ids
+  if (/^(headlessui|radix|mui|chakra|reach|react-aria|floating-ui|downshift)-/i.test(v)) return false;
+  if (/^[0-9a-f]{8,}$/i.test(v)) return false; // hash-like
+  return true;
+}
+
+// A tab/menuitem/button's stable identity, if it exposes one: a data-testid (trusted),
+// else a non-generated id or aria-controls. Preferred over the label so a count badge
+// or re-label in the text doesn't move the key. (Links already key by href, the most
+// stable target of all.) When absent, we fall back to the label slug — the wobble is a
+// false removed+added, which the guard SURFACES; it never hides a real removal.
+function stableIdOf(c: RawAffordance): string | null {
+  if (c.testId && c.testId.trim()) return c.testId.trim();
+  if (isStableId(c.domId)) return c.domId.trim();
+  if (isStableId(c.controls)) return c.controls.trim();
+  return null;
+}
+
+// `<role>:#<stable-id>` when the affordance exposes a stable identity, else
+// `<role>:<slug(name)>`. The `#` marker keeps id-keys from colliding with slug-keys
+// (a slug never contains `#`).
+function affordanceKey(role: string, c: RawAffordance): string {
+  const id = stableIdOf(c);
+  return id ? `${role}:#${id}` : `${role}:${slug(c.name)}`;
+}
 
 /** Pure: turn raw affordances into keyed, deduped, sorted navigable items. */
 export function classifyInventory(raw: RawAffordance[]): NavigableItem[] {
@@ -131,11 +177,11 @@ export function classifyInventory(raw: RawAffordance[]): NavigableItem[] {
     if (c.tag === 'a' && c.internalPath) {
       add(`route:${c.internalPath}`, 'link', c.name || c.internalPath, c.internalPath);
     } else if (c.name && c.role === 'tab') {
-      add(`tab:${slug(c.name)}`, 'tab', c.name);
+      add(affordanceKey('tab', c), 'tab', c.name);
     } else if (c.name && c.role.startsWith('menuitem')) {
-      add(`menuitem:${slug(c.name)}`, 'menuitem', c.name);
+      add(affordanceKey('menuitem', c), 'menuitem', c.name);
     } else if (c.name && c.tag === 'button') {
-      add(`nav-button:${slug(c.name)}`, 'nav-button', c.name);
+      add(affordanceKey('nav-button', c), 'nav-button', c.name);
     }
   }
   return Array.from(items.values()).sort((a, b) => a.key.localeCompare(b.key));
