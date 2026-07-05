@@ -686,7 +686,7 @@ On a large app, capturing every surface on every PR is the slow part. `affectedS
 
 It is **opt-in and never part of the default gate** — the gate still captures every surface and lets the map be the oracle. This is a helper for wiring a faster pre-push/CI path yourself, and it is built to be wrong only in the safe direction: when it cannot _prove_ a surface is unaffected, it returns the sentinel `'all'` (re-capture everything). A global stylesheet or token, a vanilla (unscoped) stylesheet, a `createGlobalStyle`, a design-system config, an unbounded `import(x)`, or a file it can't place — all resolve to `'all'`.
 
-The module graph is an **input**, so StyleProof stays framework-agnostic and adds no dependency. Produce it with any tool whose output you can shape into `{ from, to }` edges — [dependency-cruiser](https://github.com/sverweij/dependency-cruiser)'s `modules[].dependencies[]` maps directly:
+The module graph is an **input**, so StyleProof stays framework-agnostic and adds no dependency. Produce it with any tool whose output you can shape into `{ from, to }` edges — [dependency-cruiser](https://www.npmjs.com/package/dependency-cruiser)'s `modules[].dependencies[]` maps directly:
 
 ```ts
 import { affectedSurfaces } from 'styleproof';
