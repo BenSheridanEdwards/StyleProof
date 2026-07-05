@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { selectCrawlLinks, defaultLinkKey } from '../dist/crawl.js';
+import { selectCrawlLinks, defaultLinkKey, crawlCoverageGaps, crawlCoverageError } from '../dist/crawl.js';
 
 const BASE = 'https://app.test/';
 const pick = (hrefs, opts = {}) => selectCrawlLinks(hrefs, { base: BASE, ...opts });
@@ -108,4 +108,64 @@ test('defaultLinkKey: path segments slugify; root is "index"', () => {
 
 test('defaultLinkKey: path + query values combine', () => {
   assert.equal(defaultLinkKey(new URL('https://app.test/shop?cat=shoes')), 'shop-shoes');
+});
+
+// ------------------------------------------------------- crawlCoverageGaps
+
+test('crawlCoverageGaps: rendered nav reconciles clean against a matching expected', () => {
+  assert.deepEqual(crawlCoverageGaps(['index', 'pricing'], ['index', 'pricing']), {
+    missing: [],
+    unexpected: [],
+    staleExclusions: [],
+  });
+});
+
+test('crawlCoverageGaps: an expected key with no rendered link is a nav regression', () => {
+  // `pricing` is in the registry but the nav stopped linking to it.
+  assert.deepEqual(crawlCoverageGaps(['index'], ['index', 'pricing']), {
+    missing: ['pricing'],
+    unexpected: [],
+    staleExclusions: [],
+  });
+});
+
+test('crawlCoverageGaps: a rendered link absent from expected is a route with no owner', () => {
+  // A new page shipped in the nav that nobody added to the registry.
+  assert.deepEqual(crawlCoverageGaps(['index', 'pricing'], ['index']), {
+    missing: [],
+    unexpected: ['pricing'],
+    staleExclusions: [],
+  });
+});
+
+test('crawlCoverageGaps: exclude silences a conditional link both directions', () => {
+  // A feature-flagged link that may or may not render. Excluding it keeps the guard
+  // green whether it appears (not "unexpected") or not (not "missing").
+  assert.deepEqual(
+    crawlCoverageGaps(['index', 'pricing'], ['index'], { pricing: 'feature-flagged, renders only when flag on' }),
+    { missing: [], unexpected: [], staleExclusions: [] },
+  );
+  assert.deepEqual(
+    crawlCoverageGaps(['index'], ['index', 'pricing'], { pricing: 'feature-flagged, renders only when flag on' }),
+    { missing: [], unexpected: [], staleExclusions: [] },
+  );
+});
+
+test('crawlCoverageGaps: an exclude key in neither expected nor the nav is stale', () => {
+  assert.deepEqual(crawlCoverageGaps(['index'], ['index'], { gone: 'removed route' }), {
+    missing: [],
+    unexpected: [],
+    staleExclusions: ['gone'],
+  });
+  // But an exclude key still present in the rendered nav is NOT stale (it's live).
+  assert.deepEqual(crawlCoverageGaps(['index', 'beta'], ['index'], { beta: 'flagged' }).staleExclusions, []);
+});
+
+test('crawlCoverageError: null when clean, a named message per failing direction', () => {
+  assert.equal(crawlCoverageError('/', ['index'], ['index']), null);
+  const unowned = crawlCoverageError('/', ['index', 'pricing'], ['index']);
+  assert.match(unowned, /styleproof crawl coverage gap:/);
+  assert.match(unowned, /new route\(s\) with no owner.*pricing/);
+  const regressed = crawlCoverageError('/', ['index'], ['index', 'pricing']);
+  assert.match(regressed, /nav regression.*pricing/);
 });

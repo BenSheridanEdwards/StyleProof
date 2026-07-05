@@ -267,3 +267,59 @@ test('zero-config: init on a multi-page app crawls and captures every page — n
     fs.rmSync(app, { recursive: true, force: true });
   }
 });
+
+// Overwrite the generated crawl spec with one carrying `expected`, keeping the config
+// styleproof-init wrote (its `@playwright/test` import resolves against the app's linked
+// node_modules). Drives it through styleproof-map (which runs Playwright), proving the
+// crawl coverage guard fails end-to-end on an unowned rendered link, then passes once
+// `expected` covers it.
+function writeCrawlSpecWithExpected(dir, expected) {
+  fs.writeFileSync(
+    path.join(dir, 'e2e/styleproof.spec.ts'),
+    `import { defineCrawlCapture } from 'styleproof';
+defineCrawlCapture({
+  from: '/',
+  widths: [1280],
+  screenshots: false,
+  expected: ${JSON.stringify(expected)},
+  dir: process.env.STYLEMAP_DIR,
+});
+`,
+  );
+}
+
+test('crawl coverage guard: a rendered link with no `expected` owner fails the capture, covering it passes', async () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-crawl-cov-'));
+  const port = await freePort();
+  try {
+    // The nav links / → /pricing → /about, so the rendered link set is {index, pricing, about}.
+    writeMultiPageApp(app, port);
+    git(app, ['init', '-q']);
+    git(app, ['config', 'user.email', 'styleproof@example.test']);
+    git(app, ['config', 'user.name', 'StyleProof Test']);
+    git(app, ['checkout', '-qb', 'main']);
+    const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
+    expect(init.status, init.stderr).toBe(0);
+
+    // Phase 1: `expected` omits `about`, which the nav DOES render → new route with no owner.
+    writeCrawlSpecWithExpected(app, ['index', 'pricing']);
+    const gap = run(app, process.execPath, [MAP], { STYLEMAP_DIR: 'current' });
+    expect(gap.status, 'an unowned rendered link fails the capture run').not.toBe(0);
+    const gapOut = gap.stdout + gap.stderr;
+    expect(gapOut).toContain('styleproof crawl coverage gap');
+    expect(gapOut).toContain('new route(s) with no owner');
+    expect(gapOut).toContain('about');
+
+    // Phase 2: `expected` now covers every rendered link → the guard passes and it captures.
+    writeCrawlSpecWithExpected(app, ['index', 'pricing', 'about']);
+    const ok = run(app, process.execPath, [MAP], { STYLEMAP_DIR: 'current' });
+    expect(ok.status, ok.stderr + ok.stdout).toBe(0);
+    // The declared universe travels in the ledger now (not null, unlike a bare crawl).
+    const ledger = JSON.parse(
+      fs.readFileSync(path.join(app, '.styleproof/maps/current/styleproof-coverage.json'), 'utf8'),
+    );
+    expect(ledger.expected).toEqual(['index', 'pricing', 'about']);
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});

@@ -11,7 +11,7 @@ import {
 import { diffStyleMaps, type Finding } from './diff.js';
 import { coverageGaps, COVERAGE_LEDGER, type CoverageLedger, type DeterminismBasis } from './coverage.js';
 import { detectViewportWidths } from './breakpoints.js';
-import { selectCrawlLinks, type LinkMatch } from './crawl.js';
+import { selectCrawlLinks, crawlCoverageError, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
 
 /**
@@ -883,6 +883,29 @@ export type CrawlOptions = CaptureConfig & {
   /** Max ms to wait for the crawl root's links to render before reading them
    *  (an SPA hydrates its nav client-side). Default 15000. */
   linkTimeout?: number;
+  /**
+   * The full set of surface keys the app knows its nav should link to — its route
+   * universe. When set, the crawl reconciles the DISCOVERED link set against it, both
+   * directions: an `expected` key with no rendered link fails (nav regression), and a
+   * rendered link with no `expected` entry fails (a new route with no owner). For a
+   * link-crawled SPA the rendered nav IS the route universe, so this is the same
+   * list-vs-ledger discipline as `defineStyleMapCapture`'s guard with the nav as the
+   * source of truth.
+   *
+   * Unlike the spec guard, this runs INSIDE the crawl capture test — the link set
+   * isn't known until a browser renders the page — so it only fires when the capture
+   * runs (STYLEMAP_DIR set), not in every `npm test`. Omit to keep the current
+   * behaviour: capture what the nav links to, assert no completeness.
+   */
+  expected?: string[];
+  /**
+   * Expected/rendered keys deliberately not reconciled, each mapped to its reason — a
+   * visible, reviewed opt-out ledger for links that render CONDITIONALLY (behind auth
+   * or a feature flag) and so can't be asserted present or absent on every run. An
+   * excluded key never triggers a missing- or unexpected-link failure; an `exclude`
+   * key in neither `expected` nor the rendered set fails, so the ledger can't rot.
+   */
+  exclude?: Record<string, string>;
 };
 
 /**
@@ -918,6 +941,8 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     linkTimeout = 15_000,
     dir,
     settle,
+    expected,
+    exclude = {},
   } = options;
   const settings = resolveSettings(options);
 
@@ -925,10 +950,12 @@ export function defineCrawlCapture(options: CrawlOptions): void {
   // that styleproof-map uses to select capture tests picks up crawl specs too.
   test.describe('styleproof capture (crawl)', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
-    // A crawl DISCOVERS its surfaces from the nav — it has no registry to check against,
-    // so it records `expected: null` (completeness honestly "not asserted": the crawl
-    // captures what the nav links to, and can't prove that's every route in the app).
-    if (dir) writeCoverageLedgerTest(settings, dir, null, {});
+    // Record the completeness basis. Without `expected` a crawl has no registry to
+    // check against, so it records `expected: null` (honestly "not asserted": it
+    // captures what the nav links to, and can't prove that's every route). With
+    // `expected` the crawl reconciles the DISCOVERED link set against it below and the
+    // ledger travels with the declared universe.
+    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude);
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
       // 1. Load the root and wait for its nav links to hydrate — an SPA renders them
       //    client-side, so they aren't in the initial HTML.
@@ -949,6 +976,20 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           `styleproof crawl: no links matched at ${from}. The nav must render same-origin ` +
             `<a href> links (a button-only nav exposes nothing to crawl), and \`match\` must keep them.`,
         );
+      }
+      // Coverage guard for a crawled nav. The rendered link set IS the route universe
+      // for a link-crawled SPA, so reconciling it against `expected` (both directions)
+      // is the spec guard's list-vs-ledger discipline with the nav as source of truth.
+      // Runs here — inside the capture test — because the link set isn't known until
+      // the page renders (unlike the static spec guard, which runs in the plain suite).
+      if (expected) {
+        const gap = crawlCoverageError(
+          from,
+          links.map((l) => l.key),
+          expected,
+          exclude,
+        );
+        if (gap) throw new Error(gap);
       }
       const captureSurfaces = links.flatMap((link) =>
         expandSurfaceVariants({

@@ -7,6 +7,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Crawl coverage guard (`defineCrawlCapture` gains `expected` + `exclude`).** A
+  link-crawled SPA can now reconcile its _rendered nav_ against a declared route
+  registry, both directions: a rendered link with no `expected` entry fails as a new
+  route with no owner, and an `expected` route the nav stopped linking fails as a nav
+  regression. For such an app the nav is the route universe, so this is the spec
+  guard's list-vs-ledger discipline with the nav as the source of truth. Because the
+  link set isn't known until the page renders, the check runs _inside the capture
+  test_ (fires when `STYLEMAP_DIR` is set), not in the plain suite like the Next
+  guard. `exclude` (`key → reason`) opts out conditionally-rendered links (auth /
+  feature-flag) so they can't flake the guard; an `exclude` key in neither `expected`
+  nor the rendered nav fails as stale. Opt-in and backward-compatible: omit `expected`
+  and the crawl behaves exactly as before (captures what the nav links to, asserts no
+  completeness). New pure `crawlCoverageGaps` export for asserting reconciliation
+  yourself. README's "protected out of the box" scoped to what's wired per framework.
+
 ## [3.17.0] - 2026-07-05
 
 ### Changed

@@ -41,8 +41,8 @@ export type {
   DiscoverComponentFilesOptions,
   ComponentCatalogSurfaceOptions,
 } from './components.js';
-export { selectCrawlLinks, defaultLinkKey } from './crawl.js';
-export type { CrawlLink, LinkMatch, SelectLinksOptions } from './crawl.js';
+export { selectCrawlLinks, defaultLinkKey, crawlCoverageGaps, crawlCoverageError } from './crawl.js';
+export type { CrawlLink, LinkMatch, SelectLinksOptions, CrawlCoverageGaps } from './crawl.js';
 export { harvestStyleVariants } from './variant-crawler.js';
 export type {
   HarvestAction,
