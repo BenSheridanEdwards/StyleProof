@@ -10,6 +10,7 @@ import {
 } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
 import { coverageGaps, COVERAGE_LEDGER, type CoverageLedger, type DeterminismBasis } from './coverage.js';
+import { writeBrowserBuildSidecar } from './map-store.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
@@ -792,6 +793,18 @@ function writeCoverageLedgerTest(
   });
 }
 
+/** Record the real browser build into the capture bundle. The npm `@playwright/test`
+ *  version (in the manifest) is only a proxy — the actual Chromium binary can change while
+ *  it holds constant (a re-download, a different browser store, a CI image bump). The
+ *  compatibility guard reads this back to refuse a cross-build compare instead of walling
+ *  a PR with false diffs. Best-effort: an unavailable version leaves the guard as-is. */
+function writeBrowserBuildTest(settings: Settings, dir: string): void {
+  test('styleproof browser build', ({ page }) => {
+    const version = page.context().browser()?.version();
+    writeBrowserBuildSidecar(path.join(settings.baseDir, dir), version);
+  });
+}
+
 export function defineStyleMapCapture(options: DefineOptions): void {
   const { surfaces, expected, exclude = {}, dir } = options;
   const settings = resolveSettings(options);
@@ -828,6 +841,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
   test.describe('styleproof capture', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
     if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude);
+    if (dir) writeBrowserBuildTest(settings, dir);
     for (const surface of captureSurfaces) {
       if (surface.widths && surface.widths.length > 0) {
         // Explicit widths: one parallelizable test per surface × width.
@@ -929,6 +943,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     // so it records `expected: null` (completeness honestly "not asserted": the crawl
     // captures what the nav links to, and can't prove that's every route in the app).
     if (dir) writeCoverageLedgerTest(settings, dir, null, {});
+    if (dir) writeBrowserBuildTest(settings, dir);
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
       // 1. Load the root and wait for its nav links to hydrate — an SPA renders them
       //    client-side, so they aren't in the initial HTML.

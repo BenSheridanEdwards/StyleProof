@@ -12,12 +12,20 @@ export const DEFAULT_MAP_LABEL = 'current';
 export const DEFAULT_MAP_STORE_BRANCH = 'styleproof-maps';
 export const DEFAULT_REMOTE = 'origin';
 export const MAP_MANIFEST = 'styleproof-manifest.json';
+/** Sidecar written during a capture run (where a browser handle is in scope) recording
+ *  the real browser build (`browser().version()`). `writeMapManifest` runs after Playwright
+ *  has exited — no browser — so it reads the build back from here. Not a surface map. */
+export const BROWSER_BUILD_SIDECAR = 'styleproof-browser.json';
 const GENERATED_DIRTY_ALLOWLIST = new Set(['next-env.d.ts']);
 
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
  *  these, or a sidecar reads as a phantom "new surface". */
-export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([MAP_MANIFEST, COVERAGE_LEDGER]);
+export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
+  MAP_MANIFEST,
+  COVERAGE_LEDGER,
+  BROWSER_BUILD_SIDECAR,
+]);
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */
 export function isMapFile(name: string): boolean {
@@ -36,6 +44,10 @@ export interface MapManifest {
   lockfile?: string;
   lockfileHash?: string;
   playwrightVersion?: string;
+  /** Real browser build (`browser().version()`), recorded at capture time. The npm
+   *  `@playwright/test` version can hold constant while this changes (re-download, a
+   *  different browser store, a CI image bump), so this is what actually gates a compare. */
+  browserVersion?: string;
   platform: string;
   arch: string;
   nodeMajor: string;
@@ -109,6 +121,25 @@ function detectLockfile(cwd: string): { file?: string; hash?: string } {
     if (h) return { file, hash: h };
   }
   return {};
+}
+
+/** Record the real browser build into the capture dir. Called from a capture run, where a
+ *  Playwright browser handle is in scope. Best-effort: a missing version is simply not written. */
+export function writeBrowserBuildSidecar(dir: string, browserVersion: string | undefined): void {
+  if (!browserVersion) return;
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, BROWSER_BUILD_SIDECAR), JSON.stringify({ browserVersion }, null, 2));
+}
+
+function readBrowserBuildSidecar(dir: string): string | undefined {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path.join(dir, BROWSER_BUILD_SIDECAR), 'utf8')) as {
+      browserVersion?: string;
+    };
+    return parsed.browserVersion;
+  } catch {
+    return undefined;
+  }
 }
 
 function hasHar(dir: string): boolean {
@@ -189,6 +220,7 @@ export function writeMapManifest(options: {
 }): MapManifest {
   const cwd = options.cwd ?? process.cwd();
   const input = compatibilityInput({ cwd, spec: options.spec, baseUrl: options.env?.BASE_URL ?? process.env.BASE_URL });
+  const browserVersion = readBrowserBuildSidecar(options.dir);
   const manifest: MapManifest = {
     version: 1,
     packageVersion: input.packageVersion,
@@ -199,6 +231,7 @@ export function writeMapManifest(options: {
     ...(input.lockfile ? { lockfile: input.lockfile } : {}),
     ...(input.lockfileHash ? { lockfileHash: input.lockfileHash } : {}),
     ...(input.playwrightVersion ? { playwrightVersion: input.playwrightVersion } : {}),
+    ...(browserVersion ? { browserVersion } : {}),
     platform: input.platform,
     arch: input.arch,
     nodeMajor: input.nodeMajor,
@@ -238,12 +271,20 @@ export function assertCompatibleMapDirs(beforeDir: string, afterDir: string): vo
     playwrightVersion: after.playwrightVersion ?? '',
     baseUrl: after.baseUrl ?? '',
   };
+  // Browser build is the actual renderer, but it's optional: only compare when BOTH sides
+  // carry it, so bundles cached before this field existed stay comparable to each other.
+  // A field on one side only can't be a proven mismatch.
+  if (before.browserVersion && after.browserVersion) {
+    (beforeRuntime as Record<string, string>).browserVersion = before.browserVersion;
+    (afterRuntime as Record<string, string>).browserVersion = after.browserVersion;
+  }
   if (JSON.stringify(beforeRuntime) === JSON.stringify(afterRuntime)) return;
+  const build = (m: MapManifest) => (m.browserVersion ? `, browser ${m.browserVersion}` : '');
   throw new MapStoreError(
     [
       'maps were captured in different runtime environments',
-      `before ${before.sha.slice(0, 12)}: ${before.compatibilityKey} (${before.platform}/${before.arch}, Playwright ${before.playwrightVersion ?? 'unknown'})`,
-      `after  ${after.sha.slice(0, 12)}: ${after.compatibilityKey} (${after.platform}/${after.arch}, Playwright ${after.playwrightVersion ?? 'unknown'})`,
+      `before ${before.sha.slice(0, 12)}: ${before.compatibilityKey} (${before.platform}/${before.arch}, Playwright ${before.playwrightVersion ?? 'unknown'}${build(before)})`,
+      `after  ${after.sha.slice(0, 12)}: ${after.compatibilityKey} (${after.platform}/${after.arch}, Playwright ${after.playwrightVersion ?? 'unknown'}${build(after)})`,
       'Next: rebuild one side with styleproof-map in the same environment, or let CI recapture both maps.',
     ].join('\n'),
   );
