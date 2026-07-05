@@ -7,6 +7,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-07-05
+
+### Changed
+
+- **Inventory guard: target-based keying.** Source-of-truth step 4 (keying honesty).
+  Tabs / menu items / nav buttons now key by the most stable identity the element
+  exposes — a developer-authored `data-testid`, else a non-generated `id` /
+  `aria-controls` — falling back to the label slug only when there's none. Previously
+  they always keyed by `slug(accessible-name)`, so a wobble in the **label** (a live
+  count badge like "COMMAND 5" → "COMMAND 3", a re-word) faked a `removed` + `added`
+  pair. Links were already immune (they key by href); this extends the same
+  target-based principle to the rest.
+
+  Framework-generated ids (React `useId` `:r0:`, Headless UI `headlessui-…`, Radix,
+  hashes) are rejected so keying on them can't _add_ churn. The design keeps the
+  guard's safe failure direction: the label-slug fallback turns a wobble into a
+  **surfaced** removed+added (a red you see and acknowledge), never a hidden real
+  removal. Give a nav item a `data-testid` to key it immune to its own text.
+
+  Note: an id-bearing affordance's key changes from `<role>:<slug>` to
+  `<role>:#<id>`, so existing `styleproof.inventory.json` acknowledgements for such
+  items need re-keying once (the guard names the new key).
+
 ## [3.11.0] - 2026-07-06
 
 ### Added

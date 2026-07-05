@@ -31,10 +31,22 @@ the exact failure mode this guard closes.
 
 Harvest the **navigable inventory** of each captured surface — the user-reachable
 affordances (internal route links, `role=tab`, `role=menuitem`, button-only SPA
-nav) — keyed stably: `route:<pathname><search>` for links, `<role>:<slug(name)>`
-for tabs/menu items/nav buttons (so a tab labelled "MODEL CONFIG" keys as
-`nav-button:model-config`, lining up with an app's own view id). Union across a
-run into one reachable set, and diff base→head:
+nav) — **keyed by the most stable identity each one exposes**, so an incidental
+wobble in the label (a live count badge, a re-word) never fakes a removed+added:
+
+- **links** → `route:<pathname><search>` — the href, never the text.
+- **tabs / menu items / nav buttons** → `<role>:#<stable-id>` when the element
+  carries a developer-authored identity (`data-testid`, else a non-generated `id`
+  or `aria-controls`); otherwise `<role>:<slug(name)>` from the label (so a tab
+  labelled "MODEL CONFIG" still keys as `nav-button:model-config`).
+
+Framework-generated ids (React `useId` `:r0:`, Headless UI `headlessui-…`, Radix,
+hashes) are rejected — keying on them would _add_ churn — so those fall back to the
+label slug. The fallback's failure mode is safe by construction: a label wobble
+becomes a **surfaced** removed+added (a red a reviewer sees and acknowledges),
+never a hidden real removal. Give a nav item a `data-testid` (or a stable `id`)
+to key it immune to its own text. Union across a run into one reachable set, and
+diff base→head:
 
 - **added** (head-not-base) — a newly-offered affordance. Informational.
 - **removed** (base-not-head) — a feature the UI stopped offering. **Gates.**
