@@ -1038,3 +1038,61 @@ test('end-to-end: annotation boxes the changed CHILD, not its changed container'
   assert.ok(hilite < 1500, `highlight footprint ${hilite} should be child-sized, not container-sized`);
   rmTmp(root);
 });
+
+// ---------------------------------------- bounded report (always GitHub-renderable)
+
+test('report.md stays under its byte budget (GitHub-renderable); report.json keeps every surface', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const N = 40;
+  const M = 15;
+  // Each surface carries a DISTINCT change (values keyed by surface index) so they
+  // don't collapse into one "identical across N surfaces" group — N real detail blocks.
+  const surfaceMap = (s, shift) =>
+    makeMap({
+      elements: Object.fromEntries(
+        Array.from({ length: M }, (_, k) => [
+          `body > div:nth-child(${k + 1})`,
+          {
+            tag: 'div',
+            cls: `s${s}-c${k}`,
+            rect: [10, 20 + k * 30, 200, 24],
+            style: {
+              color: `rgb(${(shift + s) % 256}, ${k}, 0)`,
+              'padding-top': `${10 + shift + s}px`,
+              'font-size': `${12 + k}px`,
+              'margin-top': `${4 + shift}px`,
+            },
+          },
+        ]),
+      ),
+    });
+  for (let s = 0; s < N; s++) {
+    const surface = `surface-${s}@1280`;
+    writeCapture(beforeDir, surface, surfaceMap(s, 0), solidPng(1280, 800));
+    writeCapture(afterDir, surface, surfaceMap(s, 5), solidPng(1280, 800));
+  }
+
+  const budget = 15_000;
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, maxReportBytes: budget });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+
+  assert.ok(md.length < budget * 2, `report.md must stay bounded near the budget (was ${md.length})`);
+  assert.match(md, /summarized to keep this report renderable/, 'the cap is announced, not silent');
+  assert.match(md, /· \d+ change\(s\)/, 'capped surfaces appear as one-line summaries');
+  assert.equal(json.surfaces.length, N, 'report.json keeps every surface — the cap relocates detail, never drops it');
+
+  // The cap must actually shrink a large report (uncapped is far bigger).
+  const full = generateStyleMapReport({
+    beforeDir,
+    afterDir,
+    outDir: path.join(root, 'out2'),
+    maxReportBytes: Infinity,
+  });
+  const mdFull = fs.readFileSync(full.reportMdPath, 'utf8');
+  assert.ok(
+    mdFull.length > md.length * 2,
+    `uncapped report should be far larger (capped ${md.length}, full ${mdFull.length})`,
+  );
+  rmTmp(root);
+});
