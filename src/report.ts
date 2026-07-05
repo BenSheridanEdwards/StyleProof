@@ -91,6 +91,15 @@ export type ReportOptions = {
    * cause) for the reviewer's eye.
    */
   includeContent?: boolean;
+  /**
+   * Byte ceiling for report.md so GitHub can always render it (its markdown viewer
+   * refuses to render files past ~512 KB). Once the accumulated report would exceed
+   * this, the remaining changed surfaces are listed as one-liners (name · change
+   * count · crop link) instead of full property tables — the exhaustive per-row
+   * detail is always kept in report.json and every crop in crops/, so nothing is
+   * lost, just relocated. Default 400_000 (~0.4 MB). Set to Infinity to never cap.
+   */
+  maxReportBytes?: number;
 };
 
 export type ReportResult = {
@@ -1495,6 +1504,33 @@ function renderNewSurface(
   return { md, json, cropSeq };
 }
 
+/** The one-time banner where report.md switches from full detail to one-line
+ *  summaries, so the reader knows nothing is missing — only relocated to report.json. */
+function cappedNoticeLines(budget: number): string[] {
+  return [
+    '',
+    '## … more changed surfaces (summarized to keep this report renderable)',
+    '',
+    `_This report reached its ~${Math.round(budget / 1000)} KB display budget (GitHub does not render ` +
+      `markdown past ~512 KB), so the surfaces below are listed as one-liners. Their full property ` +
+      `tables are in \`report.json\` and their crops in \`crops/\` — the certification above covers every ` +
+      `surface; only the inline detail is capped._`,
+    '',
+  ];
+}
+
+/** One-line summary for a changed surface whose full detail was budget-capped: its
+ *  name (and how many surfaces share the identical change) · change count · a crop
+ *  link so the reviewer can still see it without opening report.json. */
+function compactChangeSummary(cg: ChangeGroup, json: Record<string, unknown>, img: (rel: string) => string): string {
+  const surface = cg.rep.sd.surface;
+  const more = cg.surfaces.length > 1 ? ` (+${cg.surfaces.length - 1} more)` : '';
+  const regions = (json.regions as Array<{ images?: { composite?: string } }> | undefined) ?? [];
+  const composite = regions[0]?.images?.composite;
+  const link = composite ? ` — [crop](${img(composite)})` : '';
+  return `- \`${surface}\`${more} · ${cg.rep.findings.length} change(s)${link}`;
+}
+
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,
@@ -1512,6 +1548,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     // own focused frame rather than one wide merged one.
     maxCrops = 8,
     foldDetailsAt = 0,
+    maxReportBytes = 400_000,
   } = opts;
 
   const includeNoise = opts.includeLayoutNoise ?? false;
@@ -1579,18 +1616,38 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
 
   let totalFindings = 0;
   let cropSeq = 0;
+  // report.md must stay renderable — GitHub refuses to render markdown past ~512 KB.
+  // Emit full detail greedily until the byte budget is reached, then list any remaining
+  // surfaces as one-liners. The exhaustive per-row detail is always in report.json and
+  // every crop in crops/, so the cap changes what's shown inline, never what's certified.
+  let reportBytes = md.join('\n').length;
+  let capped = false;
+  const emitDetail = (detail: string[], summary: string): void => {
+    const cost = detail.join('\n').length + 1;
+    if (!capped && reportBytes + cost <= maxReportBytes) {
+      md.push(...detail);
+      reportBytes += cost;
+      return;
+    }
+    if (!capped) {
+      md.push(...cappedNoticeLines(maxReportBytes));
+      capped = true;
+    }
+    md.push(summary);
+    reportBytes += summary.length + 1;
+  };
   for (const cg of changeGroups) {
     const r = renderChangeGroup(cg, ctx, maxCrops, cropSeq);
-    md.push(...r.md);
     json.push(r.json);
     totalFindings += r.findingCount;
     cropSeq = r.cropSeq;
+    emitDetail(r.md, compactChangeSummary(cg, r.json, img));
   }
   for (const p of missing) {
     const r = renderNewSurface(p, ctx, cropSeq);
-    md.push(...r.md);
     json.push(r.json);
     cropSeq = r.cropSeq;
+    emitDetail(r.md, `- \`${p.sd.surface}\` · new surface`);
   }
 
   md.push(...contentSection.md);

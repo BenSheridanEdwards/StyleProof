@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.17.0] - 2026-07-05
+
+### Changed
+
+- **`report.md` is bounded so GitHub can always render it.** A large redesign used to
+  produce a `report.md` too big for GitHub's markdown viewer (it refuses to render past
+  ~512 KB) — the reviewer clicked through and got _"we can't show files this big"_, so the
+  report was useless exactly when the change was biggest. The generator now holds
+  `report.md` to a byte budget (`maxReportBytes`, default ~400 KB): it emits full property
+  tables greedily, then lists any remaining changed surfaces as one-liners (name · change
+  count · crop link) under an announced banner. The exhaustive per-row detail is always in
+  `report.json` and every crop in `crops/`, so nothing is dropped from the certification —
+  only the inline detail is capped. A report a reviewer can't open isn't a source of truth.
+
 ### Added
 
 - **`affectedSurfaces` — selective-remap core (opt-in, advisory).** Given the files a
