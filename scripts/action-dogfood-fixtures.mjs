@@ -21,6 +21,16 @@ function map(color = 'rgb(0, 0, 0)') {
   };
 }
 
+// A map that also carries a navigable inventory (route links), for the inventory-gate
+// dogfood: base offers /a + /b, head drops /b → an unacknowledged removal that must fail
+// the action even with fail-on-diff off (a removal isn't a restyle to wave through).
+function mapNav(routes, color = 'rgb(0, 0, 0)') {
+  return {
+    ...map(color),
+    inventory: routes.map((r) => ({ key: `route:${r}`, kind: 'link', label: r, href: r })),
+  };
+}
+
 function png([r, g, b]) {
   const image = new PNG({ width: 320, height: 180 });
   for (let i = 0; i < image.data.length; i += 4) {
@@ -49,3 +59,7 @@ writeCapture(path.join(root, 'changed-head'), 'home@320', map('rgb(255, 0, 0)'),
 writeCapture(path.join(root, 'new-base'), 'home@320', map(), png([240, 240, 240]));
 writeCapture(path.join(root, 'new-head'), 'home@320', map(), png([240, 240, 240]));
 writeCapture(path.join(root, 'new-head'), 'pricing@320', map('rgb(0, 0, 255)'), png([230, 230, 255]));
+
+// Inventory removal: base offers routes /a + /b; head drops /b → unacknowledged removal.
+writeCapture(path.join(root, 'removed-base'), 'home@320', mapNav(['/a', '/b']), png([240, 240, 240]));
+writeCapture(path.join(root, 'removed-head'), 'home@320', mapNav(['/a']), png([240, 240, 240]));
