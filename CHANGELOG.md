@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-07-05
+
+### Added
+
+- **The scaffolded PR workflow prunes its own report branch, out of the box.**
+  `styleproof-init`'s `.github/workflows/styleproof.yml` now also runs on
+  `pull_request: closed`: when a PR closes, a `prune` job removes that PR's `pr-<n>/`
+  folder from the report branch (`styleproof-reports`), so the branch no longer grows
+  without bound as PRs come and go — no adopter has to remember to garbage-collect it.
+  The report job is unchanged, only guarded to skip the close event. Covered by the
+  `styleproof-init` workflow test.
+
 ## [3.15.0] - 2026-07-05
 
 ### Changed
