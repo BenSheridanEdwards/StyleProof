@@ -69,3 +69,37 @@ test('an unchanged navigable set does not block (exit 0)', () => {
   assert.match(out, /Inventory: navigable set unchanged/, out);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+// The inventory verdict must be machine-readable in --json (parallel to coverage /
+// determinism), so a CI can hard-gate on `inventory.unacknowledged` instead of grepping
+// human prose. Before this, --json carried coverage + determinism but NOT inventory.
+test('styleproof-diff --json exposes the inventory verdict (the CI gating signal)', () => {
+  const { root, a, b } = fixture(['agents', 'model-config', 'faults'], ['agents', 'faults']);
+  const jsonPath = path.join(root, 'diff.json');
+  assert.throws(
+    () => execFileSync('node', [BIN, a, b, '--json', jsonPath], { cwd: root, encoding: 'utf8' }),
+    (e) => e.status === 1, // the removal still gates via exit code
+  );
+  const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.ok(j.inventory, 'the --json payload carries an inventory verdict');
+  assert.deepEqual(j.inventory.unacknowledged, ['nav-button:model-config'], 'names the gating removal');
+  assert.deepEqual(j.inventory.removed, ['nav-button:model-config']);
+  assert.deepEqual(j.inventory.added, []);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('styleproof-diff --json inventory is null when no capture carried inventory', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-inv-json-'));
+  const a = path.join(root, 'base');
+  const b = path.join(root, 'head');
+  fs.mkdirSync(a);
+  fs.mkdirSync(b);
+  const noInv = JSON.stringify({ defaults: {}, elements: {}, states: {} });
+  fs.writeFileSync(path.join(a, 'home.json'), noInv);
+  fs.writeFileSync(path.join(b, 'home.json'), noInv);
+  const jsonPath = path.join(root, 'diff.json');
+  execFileSync('node', [BIN, a, b, '--json', jsonPath], { cwd: root, encoding: 'utf8' });
+  const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(j.inventory, null, 'no inventory in the maps → null verdict, nothing to gate on');
+  fs.rmSync(root, { recursive: true, force: true });
+});

@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-07-05
+
+### Added
+
+- **`styleproof-diff --json` now carries the inventory verdict.** The structured output
+  gained an `inventory` field alongside `coverage` and `determinism` — so all three
+  source-of-truth axes are machine-readable, matching the report's certification block.
+  Shape: `{ removed, added, unacknowledged, staleAcknowledgements }` (arrays of keys),
+  or `null` when no capture carried inventory. Previously the inventory removals were
+  printed to stdout but absent from `--json`, forcing a CI that wanted to hard-gate on a
+  dropped nav item to grep human prose. Now it can read `inventory.unacknowledged.length`.
+
 ## [3.12.0] - 2026-07-05
 
 ### Changed

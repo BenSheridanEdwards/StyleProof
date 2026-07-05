@@ -306,7 +306,26 @@ const determinismFails = printDeterminismVerdict(determinismVerdict);
 if (jsonOut)
   fs.writeFileSync(
     jsonOut,
-    JSON.stringify({ counts, surfaces, compared, coverage: coverageVerdict, determinism: determinismVerdict }, null, 2),
+    JSON.stringify(
+      {
+        counts,
+        surfaces,
+        compared,
+        coverage: coverageVerdict,
+        determinism: determinismVerdict,
+        // The inventory verdict, machine-readable — parallel to coverage/determinism and
+        // to the report's certification block. `null` when no capture carried inventory.
+        // `unacknowledged` is the gating set: a CI can hard-fail on `unacknowledged.length`.
+        inventory: inventoryAudit && {
+          removed: inventoryAudit.delta.removed.map((i) => i.key),
+          added: inventoryAudit.delta.added.map((i) => i.key),
+          unacknowledged: inventoryAudit.unexplained.map((i) => i.key),
+          staleAcknowledgements: inventoryAudit.staleAllowances,
+        },
+      },
+      null,
+      2,
+    ),
   );
 
 const total = counts.dom + counts.style + counts.state;
