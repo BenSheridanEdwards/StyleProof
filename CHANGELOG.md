@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`affectedSurfaces` — selective-remap core (opt-in, advisory).** Given the files a
+  change touched, a declared surface→entry map, and a module graph (any tool's output
+  in `{ from, to }` shape — dependency-cruiser maps directly), returns exactly the
+  surfaces that could have rendered differently, or the sentinel `'all'`. Sound by
+  construction: it over-approximates and resolves every uncertainty to `'all'` — global
+  stylesheets/tokens, vanilla (unscoped) stylesheets, `createGlobalStyle`, design-system
+  configs, unbounded `import(x)`, and unplaceable files all force a full re-capture;
+  computed `import(`../dir/${x}`)` is recovered as a bundler context module (directory-
+  level, never a miss). Ships with `classifyStyleChange`. Purely additive, adds no
+  dependency, and never touches the default gate — the gate still captures every surface
+  and lets the map be the oracle. New export; existing specs unaffected.
+
 ## [3.12.0] - 2026-07-05
 
 ### Changed

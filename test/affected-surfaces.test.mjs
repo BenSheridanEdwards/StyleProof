@@ -1,0 +1,170 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { affectedSurfaces, classifyStyleChange } from '../dist/affected-surfaces.js';
+
+// ---------------------------------------------------------------------------
+// classifyStyleChange: sound global-vs-local verdict across styling systems.
+// 'scope' is only ever returned for provably-scoped changes; everything else,
+// and anything unrecognized, is 'all' (fail closed).
+// ---------------------------------------------------------------------------
+const read = (content) => () => content;
+
+test('classify: vanilla stylesheet with a reset is global', () => {
+  assert.equal(classifyStyleChange('reset.css', read(':root{--brand:#00f}\n*{box-sizing:border-box}')), 'all');
+});
+test('classify: vanilla stylesheet that only LOOKS local is still global (unscoped namespace)', () => {
+  // A `.btn` rule in a plain .css applies document-wide — the import graph can't bound it.
+  assert.equal(classifyStyleChange('legacy.css', read('.btn{padding:8px}\n.card{border:1px}')), 'all');
+});
+test('classify: CSS Module with only class selectors is scoped', () => {
+  assert.equal(classifyStyleChange('Button.module.css', read('.btn{padding:8px}')), 'scope');
+});
+test('classify: CSS Module with :global escapes its scope', () => {
+  assert.equal(classifyStyleChange('Themed.module.css', read(':global(.brand){color:red}\n.btn{padding:8px}')), 'all');
+});
+test('classify: CSS Module containing :root is global despite the .module extension', () => {
+  assert.equal(classifyStyleChange('Tokens.module.css', read(':root{--brand:#00f}\n.btn{padding:8px}')), 'all');
+});
+test('classify: CSS Module using `composes … from` pulls in outside scope', () => {
+  assert.equal(classifyStyleChange('Btn.module.css', read('.btn{composes: base from "./shared.css"}')), 'all');
+});
+test('classify: colocated CSS-in-JS component is scoped', () => {
+  assert.equal(
+    classifyStyleChange('Button.tsx', read("import styled from 'styled-components';\nexport const B=styled.button``;")),
+    'scope',
+  );
+});
+test('classify: createGlobalStyle in a .tsx is global (the blunt fallback misses this)', () => {
+  assert.equal(
+    classifyStyleChange(
+      'GlobalStyle.tsx',
+      read("import {createGlobalStyle} from 'styled-components';\nexport const G=createGlobalStyle`:root{}`;"),
+    ),
+    'all',
+  );
+});
+test('classify: vanilla-extract globalStyle() is global', () => {
+  assert.equal(
+    classifyStyleChange(
+      'theme.css.ts',
+      read("import {globalStyle} from '@vanilla-extract/css';\nglobalStyle('body',{margin:0});"),
+    ),
+    'all',
+  );
+});
+test('classify: a design-system config cascades everywhere', () => {
+  assert.equal(classifyStyleChange('tailwind.config.js', read('module.exports={}')), 'all');
+});
+test('classify: a Sass partial (non-module) is global', () => {
+  assert.equal(classifyStyleChange('_tokens.scss', read('$brand:#00f;')), 'all');
+});
+test('classify: a scoped Sass module is local', () => {
+  assert.equal(classifyStyleChange('Button.module.scss', read('.btn{padding:8px}')), 'scope');
+});
+test('classify: an unreadable file fails closed to global', () => {
+  assert.equal(
+    classifyStyleChange('missing.css', () => {
+      throw new Error('nope');
+    }),
+    'all',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// affectedSurfaces: reverse reachability + context-module recovery + fail-closed.
+// One in-memory fixture (a dependency-cruiser-shaped graph) mirrors the spike.
+// ---------------------------------------------------------------------------
+function fixture() {
+  const sources = {
+    // three surfaces; Dashboard uses a COMPUTED dynamic import over ../components/*
+    'src/pages/Home.tsx':
+      "import {Header} from '../components/Header';\nconst P=lazy(()=>import('../components/Promo'));",
+    'src/pages/Pricing.tsx':
+      "import {Header} from '../components/Header';\nimport {PriceTable} from '../components/PriceTable';\nimport {Isolated} from '../widgets/Isolated';",
+    'src/pages/Dashboard.tsx':
+      "import {Header} from '../components/Header';\nconst name='Widget';\nconst D=lazy(()=>import(`../components/${name}`));",
+    'src/pages/Settings.tsx': "import {G} from '../components/GlobalStyle';",
+    'src/components/Header.tsx': "import './Header.css';\nexport function Header(){return null}",
+    'src/components/PriceTable.tsx':
+      "import s from './PriceTable.module.css';\nexport function PriceTable(){return null}",
+    'src/components/Promo.tsx': "import './Promo.css';\nexport default function Promo(){return null}",
+    'src/components/Widget.tsx': "import './Widget.css';\nexport default function Widget(){return null}",
+    'src/components/GlobalStyle.tsx':
+      "import {createGlobalStyle} from 'styled-components';\nexport const G=createGlobalStyle`:root{--brand:#00f}`;",
+    'src/widgets/Isolated.tsx': 'export function Isolated(){return null}',
+    'src/components/Header.css': '.site-header{background:blue}',
+    'src/components/PriceTable.module.css': '.tbl{border:1px}',
+    'src/components/Promo.css': '.promo{color:red}',
+    'src/components/Widget.css': '.widget{color:red}',
+    'src/tokens.css': ':root{--brand:#00f}',
+  };
+  // Resolved import edges as a dependency-cruiser run would report them (the
+  // computed Dashboard→Widget edge is intentionally absent — it is recovered).
+  const graph = [
+    { from: 'src/pages/Home.tsx', to: 'src/components/Header.tsx' },
+    { from: 'src/pages/Home.tsx', to: 'src/components/Promo.tsx', dynamic: true },
+    { from: 'src/pages/Pricing.tsx', to: 'src/components/Header.tsx' },
+    { from: 'src/pages/Pricing.tsx', to: 'src/components/PriceTable.tsx' },
+    { from: 'src/pages/Pricing.tsx', to: 'src/widgets/Isolated.tsx' },
+    { from: 'src/pages/Dashboard.tsx', to: 'src/components/Header.tsx' },
+    { from: 'src/pages/Settings.tsx', to: 'src/components/GlobalStyle.tsx' },
+    { from: 'src/components/Header.tsx', to: 'src/components/Header.css' },
+    { from: 'src/components/PriceTable.tsx', to: 'src/components/PriceTable.module.css' },
+    { from: 'src/components/Promo.tsx', to: 'src/components/Promo.css' },
+    { from: 'src/components/Widget.tsx', to: 'src/components/Widget.css' },
+  ];
+  return {
+    surfaces: {
+      home: 'src/pages/Home.tsx',
+      pricing: 'src/pages/Pricing.tsx',
+      dashboard: 'src/pages/Dashboard.tsx',
+      settings: 'src/pages/Settings.tsx',
+    },
+    graph,
+    files: Object.keys(sources),
+    readFile: (p) => sources[p],
+  };
+}
+const run = (changedFiles) => affectedSurfaces({ ...fixture(), changedFiles });
+const sorted = (v) => (v === 'all' ? 'all' : [...v].sort());
+
+test('a statically-imported component outside any context-glob dir → just its surface (the win)', () => {
+  assert.deepEqual(sorted(run(['src/widgets/Isolated.tsx'])), ['pricing']);
+});
+test("a component sharing a dir with a context import → that dir's consumer too (sound coarsening)", () => {
+  // Dashboard's import(`../components/${x}`) could load PriceTable at runtime.
+  assert.deepEqual(sorted(run(['src/components/PriceTable.tsx'])), ['dashboard', 'pricing']);
+});
+test('a string-literal lazy component → its lazy importer (edge kept by the graph)', () => {
+  assert.deepEqual(sorted(run(['src/components/Promo.tsx'])), ['dashboard', 'home']);
+});
+test('a component reachable ONLY via a computed import → recovered as a context module', () => {
+  assert.deepEqual(sorted(run(['src/components/Widget.tsx'])), ['dashboard']);
+});
+test('a scoped CSS-module change follows its component, staying selective', () => {
+  assert.deepEqual(sorted(run(['src/components/PriceTable.module.css'])), ['dashboard', 'pricing']);
+});
+test('a vanilla component stylesheet forces a full re-capture', () => {
+  assert.equal(run(['src/components/Header.css']), 'all');
+});
+test('a global token stylesheet forces a full re-capture', () => {
+  assert.equal(run(['src/tokens.css']), 'all');
+});
+test('a createGlobalStyle change forces a full re-capture (not a local .tsx edit)', () => {
+  assert.equal(run(['src/components/GlobalStyle.tsx']), 'all');
+});
+test('a shared static component → every surface that imports it', () => {
+  assert.deepEqual(sorted(run(['src/components/Header.tsx'])), ['dashboard', 'home', 'pricing']);
+});
+test('a changed file the graph cannot place → full re-capture (fail closed)', () => {
+  assert.equal(run(['src/lib/orphan.ts']), 'all');
+});
+test('an unbounded dynamic import anywhere makes reachability untrustworthy → all', () => {
+  const f = fixture();
+  f.readFile = (p) =>
+    p === 'src/pages/Dashboard.tsx' ? 'const which=pick;\nconst D=lazy(()=>import(which));' : fixture().readFile(p);
+  assert.equal(affectedSurfaces({ ...f, changedFiles: ['src/widgets/Isolated.tsx'] }), 'all');
+});
+test('an empty changeset affects nothing', () => {
+  assert.deepEqual(sorted(run([])), []);
+});
