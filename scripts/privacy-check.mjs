@@ -114,7 +114,7 @@ function publicFiles(root) {
   return [...files].sort();
 }
 
-function denylist(root) {
+export function denylist(root) {
   const values = [];
   if (process.env.STYLEPROOF_PRIVACY_DENYLIST) values.push(...process.env.STYLEPROOF_PRIVACY_DENYLIST.split(/[,\n]/));
   const file = path.join(root, '.styleproof-privacy-denylist');
