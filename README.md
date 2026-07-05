@@ -27,6 +27,7 @@ report. Intentional visual changes get approved; unexpected ones block or fail.
 - [Forks and Dependabot](#forks-and-dependabot)
 - [Optional: content layer](#optional-content-layer-advisory)
 - [Optional: React component layer](#optional-react-component-layer-advisory)
+- [Optional: selective remap](#optional-selective-remap-advisory)
 - [Newly-added elements show their full style](#newly-added-elements-show-their-full-style)
 - [Reference](#reference)
   - [Blocking without branch protection](#blocking-without-branch-protection)
@@ -678,6 +679,37 @@ defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captu
 Capture reads the React fiber in-page (`__reactFiber$*`/`__reactProps$*` on React 17+, `__reactInternalInstance$*` on ≤16) and records the component display name plus a **sanitized** subset of its props (primitives only — `children`, handlers, and objects are dropped) on `ElementEntry.component`. The report then names the element — **`React component: Button (variant=primary, size=sm)`** — instead of showing a bare `<button>`.
 
 Like the content layer it is **advisory**: never fed to the certification diff or the gate, so captures stay deterministic. Component names are mangled in minified production builds, so it's most useful against a dev / non-minified target; on a non-React page the fiber keys are absent and the field is simply omitted.
+
+## Optional: selective remap (advisory)
+
+On a large app, capturing every surface on every PR is the slow part. `affectedSurfaces` answers the question that lets you skip most of it: **given the files a change touched, which declared surfaces could have rendered differently?** Everything it doesn't return can reuse its committed base map.
+
+It is **opt-in and never part of the default gate** — the gate still captures every surface and lets the map be the oracle. This is a helper for wiring a faster pre-push/CI path yourself, and it is built to be wrong only in the safe direction: when it cannot _prove_ a surface is unaffected, it returns the sentinel `'all'` (re-capture everything). A global stylesheet or token, a vanilla (unscoped) stylesheet, a `createGlobalStyle`, a design-system config, an unbounded `import(x)`, or a file it can't place — all resolve to `'all'`.
+
+The module graph is an **input**, so StyleProof stays framework-agnostic and adds no dependency. Produce it with any tool whose output you can shape into `{ from, to }` edges — [dependency-cruiser](https://www.npmjs.com/package/dependency-cruiser)'s `modules[].dependencies[]` maps directly:
+
+```ts
+import { affectedSurfaces } from 'styleproof';
+import { readFileSync } from 'node:fs';
+
+// A dependency-cruiser run: `depcruise src --no-config --output-type json`
+const cruise = JSON.parse(readFileSync('dc.json', 'utf8'));
+const graph = cruise.modules.flatMap((m) =>
+  (m.dependencies ?? []).map((d) => ({ from: m.source, to: d.resolved, dynamic: d.dynamic })),
+);
+
+const result = affectedSurfaces({
+  changedFiles: ['src/components/PriceTable.tsx'], // e.g. `git diff --name-only origin/main`
+  surfaces: { home: 'src/pages/Home.tsx', pricing: 'src/pages/Pricing.tsx' },
+  graph,
+  files: cruise.modules.map((m) => m.source),
+  readFile: (p) => readFileSync(p, 'utf8'),
+});
+// → Set { 'pricing' }  (capture only these; reuse the base map for the rest)
+// → 'all'              (some change couldn't be bounded — capture everything)
+```
+
+Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)` is treated as a bundler **context module** (every file under that dir is a possible target, so precision there is directory-level, never a miss); and the CSS-in-JS global list (`createGlobalStyle`, `injectGlobal`, `globalStyle`, …) must match the libraries you use — an unrecognized global API is the one way a scoped verdict could be unsound, so treat an unsupported styling system as a reason to skip selective remap. Because a PR-time miss would be silent, always let `main` (or a scheduled run) capture **all** surfaces as the trust-but-verify net.
 
 ## Newly-added elements show their full style
 
