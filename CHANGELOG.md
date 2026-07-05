@@ -19,6 +19,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The report job is unchanged, only guarded to skip the close event. Covered by the
   `styleproof-init` workflow test.
 
+## [3.15.0] - 2026-07-05
+
+### Changed
+
+- **Computed values are compared canonically, so a re-serialization isn't a change.** A
+  browser or build-tool version can serialize an _identical_ value differently — a Chromium
+  bump rewrites `rgba(8, 18, 32, 0.62)` as `#0812209e`, a Tailwind migration reformats a
+  font list's comma spacing — and StyleProof reported every one of those as a difference,
+  drowning a re-baseline in changes that aren't changes (and blowing up the report). The
+  diff now compares by a canonical form: colours are parsed to one `rgba()` (across
+  hex / `rgb()` / `rgba()` / `hsl()` / `hsla()`, short and long hex, comma and modern space
+  syntax) and comma/whitespace runs are normalised outside quotes. A green stops flickering
+  red across browser versions — captures are serialization-independent.
+
+  Safety: only _provably-equal_ values ever collapse. A value that can't be parsed with
+  confidence (or lives inside a quoted string) is left byte-for-byte, so a real change —
+  `#ff0000` → `#ff0001`, `0.5` → `0.6` alpha, a different font — always still surfaces. The
+  report shows the real captured strings; only the equality test is canonical.
+
 ## [3.14.0] - 2026-07-05
 
 ### Added
