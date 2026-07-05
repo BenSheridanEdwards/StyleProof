@@ -31,6 +31,24 @@ export class MissingBaseMapError extends Error {
   }
 }
 
+/**
+ * The mirror case: the AFTER (head) dir held ZERO captures while the before dir
+ * held some — a head capture or restore that produced nothing. Without this
+ * guard every base surface marks `missing: 'after'`, the CLI's new-surface count
+ * (which tallies BOTH directions) exits 3, and a head that rendered nothing
+ * becomes an approvable "all new surfaces" report — and, once approved, the
+ * next base. Same exit-2 path via the CLIs' existing catch.
+ */
+export class MissingHeadMapError extends Error {
+  constructor() {
+    super(
+      'head map missing: the head capture produced zero surfaces — recapture the head side; refusing to treat every surface as removed/new. ' +
+        'Next: re-run styleproof-map on the head commit, or let CI recapture both sides.',
+    );
+    this.name = 'MissingHeadMapError';
+  }
+}
+
 export type Finding =
   // `component` is advisory passthrough from the capture (the React component
   // that rendered the element), carried so the report can name it — it is never
@@ -274,10 +292,12 @@ export function diffStyleMapDirs(
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
   if (names.length === 0) throw new Error(`no .json(.gz) captures found in ${dirA} or ${dirB}`);
-  // Zero baseline captures but a populated head → every surface would mark
-  // `missing: 'before'` and read as "all new" (exit 3, approvable). That's a
-  // missing base, not a set of genuinely-new surfaces: refuse it loudly.
+  // A whole side with zero captures is a missing MAP, not a set of genuinely
+  // new/removed surfaces — either way every surface would carry a `missing`
+  // marker and the run would read as "all new" (exit 3, approvable). Refuse
+  // each direction loudly with its own named cause.
   if (Object.keys(indexA).length === 0) throw new MissingBaseMapError();
+  if (Object.keys(indexB).length === 0) throw new MissingHeadMapError();
 
   const surfaces: SurfaceDiff[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };

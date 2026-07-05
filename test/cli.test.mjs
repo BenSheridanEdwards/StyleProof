@@ -231,6 +231,24 @@ test('diff CLI exits 2 (never 3) when the before dir has zero captures but the a
   rmTmp(root);
 });
 
+test('diff CLI exits 2 (never 3) when the after dir has zero captures but the before dir has some', () => {
+  // The mirror case: a head capture/restore that produced nothing. Without the
+  // guard every base surface marks `missing: 'after'`, the new-surface count
+  // (which tallies both directions) exits 3, and a head that rendered nothing
+  // becomes an approvable "all new" report — and, once approved, the next base.
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  writeCapture(A, 'home@1280', makeMap({ elements: { body: { tag: 'body' } } }), null);
+  fs.mkdirSync(B, { recursive: true });
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stderr}`);
+  assert.notEqual(r.status, 3);
+  assert.match(r.stderr, /head map missing: the head capture produced zero surfaces/);
+  assert.match(r.stderr, /refusing to treat every surface as removed\/new/);
+  rmTmp(root);
+});
+
 test('diff CLI keeps exit 3 when a baseline exists and only specific surfaces are new', () => {
   // Before is NON-empty (home matches) and about is new → genuinely new surface,
   // exit 3 keeps its meaning. This is the case the exit-2 guard must NOT swallow.
