@@ -1,0 +1,5 @@
+# Tokens privacy:check must never find in a public/published file.
+# One per line; lines starting with # are ignored; case-sensitive; min 3 chars.
+# Downstream/private project names — dogfood examples must stay anonymised.
+Fleet
+F.L.E.E.T

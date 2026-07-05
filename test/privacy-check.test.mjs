@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findPrivacyFindings } from '../scripts/privacy-check.mjs';
+import { fileURLToPath } from 'node:url';
+import { findPrivacyFindings, denylist } from '../scripts/privacy-check.mjs';
 
 test('privacy check allows public StyleProof links and localhost examples', () => {
   const findings = findPrivacyFindings([
@@ -56,4 +57,14 @@ test('privacy check supports an external denylist without committing private nam
     findings.map((f) => f.rule),
     ['denylist token'],
   );
+});
+
+test('the shipped denylist file is loaded and blocks the private project names', () => {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const tokens = denylist(root);
+  for (const name of ['Fleet', 'F.L.E.E.T']) {
+    assert.ok(tokens.includes(name), `denylist must list ${name}`);
+    // and the loaded token actually flags a doc that mentions it
+    assert.equal(findPrivacyFindings([{ file: 'docs/x.md', text: `see ${name} HUD` }], tokens).length >= 1, true);
+  }
 });
