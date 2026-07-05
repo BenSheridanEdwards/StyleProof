@@ -214,6 +214,39 @@ test('diff CLI exits 2 when a capture dir does not exist', () => {
   assert.match(r.stderr, /Next: pass existing capture directories/);
 });
 
+test('diff CLI exits 2 (never 3) when the before dir has zero captures but the after dir has some', () => {
+  // A restore that "succeeded" into an empty dir / a wrong --base-dir: without the
+  // guard every after surface marks `missing: 'before'` → exit 3 ("only new
+  // surfaces") → an approvable all-new report that bakes in a full regression.
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  fs.mkdirSync(A, { recursive: true });
+  writeCapture(B, 'home@1280', makeMap({ elements: { body: { tag: 'body' } } }), null);
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stderr}`);
+  assert.notEqual(r.status, 3);
+  assert.match(r.stderr, /base map missing: restore it from the map store or recapture both sides/);
+  assert.match(r.stderr, /refusing to treat every surface as new/);
+  rmTmp(root);
+});
+
+test('diff CLI keeps exit 3 when a baseline exists and only specific surfaces are new', () => {
+  // Before is NON-empty (home matches) and about is new → genuinely new surface,
+  // exit 3 keeps its meaning. This is the case the exit-2 guard must NOT swallow.
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  writeCapture(B, 'about@1280', m, null);
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 3, `expected exit 3, got ${r.status}: ${r.stderr}`);
+  assert.match(r.stdout, /new surface\(s\) captured with no baseline/);
+  rmTmp(root);
+});
+
 test('diff CLI --json writes the structured diff to a file', () => {
   const { root, A, B } = differingPair();
   const jsonPath = path.join(root, 'out.json');

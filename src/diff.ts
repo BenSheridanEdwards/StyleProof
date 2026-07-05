@@ -12,6 +12,25 @@ import { styleValuesEqual } from './canonicalize.js';
 
 export type PropChange = { prop: string; before: string; after: string };
 
+/**
+ * The before dir held ZERO captures while the after dir held some — a restore
+ * that "succeeded" into an empty dir, a wrong --base-dir, a contributor without
+ * the pre-push hook. Without this guard every after surface diffs as `missing:
+ * 'before'` (exit 3, "only new surfaces") and a whole app of regressions becomes
+ * one approvable "🆕 all new" report. The CLIs map this to exit 2 — a hard error,
+ * never the rubber-stampable exit 3. (Both dirs empty stays the plain "no
+ * captures found" throw.)
+ */
+export class MissingBaseMapError extends Error {
+  constructor() {
+    super(
+      'base map missing: restore it from the map store or recapture both sides — refusing to treat every surface as new. ' +
+        'Next: run styleproof-map --restore --sha <base>, or let CI recapture both sides.',
+    );
+    this.name = 'MissingBaseMapError';
+  }
+}
+
 export type Finding =
   // `component` is advisory passthrough from the capture (the React component
   // that rendered the element), carried so the report can name it — it is never
@@ -255,6 +274,10 @@ export function diffStyleMapDirs(
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
   if (names.length === 0) throw new Error(`no .json(.gz) captures found in ${dirA} or ${dirB}`);
+  // Zero baseline captures but a populated head → every surface would mark
+  // `missing: 'before'` and read as "all new" (exit 3, approvable). That's a
+  // missing base, not a set of genuinely-new surfaces: refuse it loudly.
+  if (Object.keys(indexA).length === 0) throw new MissingBaseMapError();
 
   const surfaces: SurfaceDiff[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };

@@ -7,6 +7,32 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **A missing base map is now refused, not mislabelled as "all new surfaces".** When the
+  baseline dir held zero captures while the head held some (a restore that "succeeded"
+  into an empty dir, a wrong `--base-dir`, a contributor without the pre-push hook),
+  `styleproof-diff` used to mark every surface `missing: 'before'` and exit `3` ("only new
+  surfaces") — the Action then rendered the whole app as 🆕 new baselines a reviewer could
+  approve wholesale, baking a possibly fully-regressed head in as the baseline. That case
+  now exits `2` with a named cause (`base map missing: restore it from the map store or
+recapture both sides — refusing to treat every surface as new`), distinct enough that
+  the scaffolded workflow's capture-needed fallback is the obvious remedy in CI logs.
+  `styleproof-report` shares the load path and is refused identically, so it can't render
+  the misleading all-new page either. Exit `3` keeps its meaning: a baseline exists and
+  _these specific_ surfaces are new against it.
+
+### Security
+
+- **Surface keys are escaped before they reach the privileged PR comment.** Surface keys
+  originate from artifact filenames — attacker-controlled in the fork capture/report split
+  — and flow into the bot comment (sliced from `report.md`'s headline). Markdown/HTML
+  control characters (`` ` ``, `[`, `]`, `(`, `)`, `<`, `>`, `|`) are now stripped where a
+  key is interpolated into the report headline, certification, and summary lines, so a
+  crafted key can't inject a link, image, or table into the comment. (Crop filenames were
+  already restricted to `[a-z0-9-]`; this is the display-side equivalent.) No code
+  execution was possible; this closes a Markdown-injection surface.
+
 ## [3.17.0] - 2026-07-05
 
 ### Changed
