@@ -33,14 +33,14 @@ import {
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
 import {
-  cliErrorMessage,
+  cachedMapsUnavailableMessage,
   isHelpArg,
   missingManualCaptureMessage,
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
-import { loadStyleMap } from '../dist/capture.js';
-import { auditRunInventory } from '../dist/inventory.js';
+import { readInventories } from '../dist/capture.js';
+import { auditRunInventory, readAckFile } from '../dist/inventory.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { isMapFile } from '../dist/map-store.js';
 
@@ -52,25 +52,13 @@ const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.m
 // offered and head no longer does BLOCKS unless acknowledged. Inert when no map
 // carries inventory, so every existing capture behaves exactly as before.
 
-// Mirror of indexDir() in diff.ts — the capture-dir file filter, kept local so the
-// bin needn't reach into diff internals for one small read.
-function dirInventories(dir) {
-  return fs
-    .readdirSync(dir)
-    .filter(isMapFile)
-    .map((f) => loadStyleMap(path.join(dir, f)))
-    .map((m) => (m.inventory ? { inventory: m.inventory } : {}));
-}
-
 // `key -> reason` acknowledged removals. Optional file; absent → none. Malformed
 // JSON fails loud (exit 2) rather than silently un-acknowledging a real removal.
 function loadAllowRemoved() {
-  const p = path.resolve(process.env.STYLEPROOF_INVENTORY ?? 'styleproof.inventory.json');
-  if (!fs.existsSync(p)) return {};
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+    return readAckFile();
   } catch (e) {
-    console.error(`${COMMAND}: ${p} is not valid JSON — ${e.message}`);
+    console.error(`${COMMAND}: ${e.message}`);
     process.exit(2);
   }
 }
@@ -78,8 +66,8 @@ function loadAllowRemoved() {
 // Read both sides' inventory and audit removals. MUST run before any cached-map
 // cleanup deletes the restored dirs. Returns null when no capture carries inventory.
 function readInventoryAudit(dirA, dirB) {
-  const baseInv = dirInventories(dirA);
-  const headInv = dirInventories(dirB);
+  const baseInv = readInventories(dirA);
+  const headInv = readInventories(dirB);
   if (![...baseInv, ...headInv].some((m) => m.inventory?.length)) return null;
   const allowed = loadAllowRemoved();
   return { allowed, ...auditRunInventory(baseInv, headInv, allowed) };
@@ -245,13 +233,7 @@ if (args.length <= 1) {
     dirA = cacheCapture.beforeDir;
     dirB = cacheCapture.afterDir;
   } catch (e) {
-    console.error(
-      [
-        `${COMMAND}: cached maps are not available for this comparison`,
-        cliErrorMessage(e),
-        'Next: run styleproof-map on the base and head commits to upload maps, or let CI recapture both sides.',
-      ].join('\n'),
-    );
+    console.error(cachedMapsUnavailableMessage(COMMAND, 'comparison', e));
     process.exit(2);
   }
 } else {

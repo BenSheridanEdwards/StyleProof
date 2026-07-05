@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
 import { generateStyleMapReport } from '../dist/index.js';
+import { fillRect as fill } from '../dist/png-util.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_DIR = path.join(here, '..', 'docs', 'demo');
@@ -47,17 +48,6 @@ function newPng(w, h, [r, g, b]) {
     png.data[i + 3] = 255;
   }
   return png;
-}
-function fill(png, x, y, w, h, [r, g, b]) {
-  for (let yy = y; yy < y + h; yy++) {
-    for (let xx = x; xx < x + w; xx++) {
-      const i = (yy * png.width + xx) << 2;
-      png.data[i] = r;
-      png.data[i + 1] = g;
-      png.data[i + 2] = b;
-      png.data[i + 3] = 255;
-    }
-  }
 }
 
 // One landing "screenshot": dark header with a small caret icon, a CTA button,

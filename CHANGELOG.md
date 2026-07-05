@@ -7,6 +7,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.11.0] - 2026-07-06
+
+### Added
+
+- **Report leads with the certification gates.** Source-of-truth step 3: the reviewer-
+  facing `report.md` now opens with a **Certification** block — the three source-of-truth
+  verdicts, so "is this green trustworthy?" is answered before the pixel details:
+  - **Coverage** — ✓ complete / ✗ INCOMPLETE (names the uncaptured surfaces) / ⚠ not asserted;
+  - **Determinism** — ✓ proven / ✗ NOT proven / ⚠ unknown;
+  - **Inventory** — ✓ navigable set unchanged / ⚠ N affordance(s) removed (names them) /
+    ✓ N removal(s), all acknowledged.
+
+  These verdicts were previously visible only in the `styleproof-diff` CI logs; now
+  they're in the artifact a reviewer actually reads. The block is omitted for an old
+  bundle that carries no certification metadata, so nothing changes for legacy captures.
+
 ## [3.10.0] - 2026-07-06
 
 ### Added

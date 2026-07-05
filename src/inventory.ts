@@ -18,6 +18,9 @@
 // The harvest (`collectNavAffordances`) runs in-page, mirroring
 // `detectOverlayCandidates`; the diff/union/guard are pure and unit-testable.
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 /** One user-reachable navigation affordance, keyed stably across base/head. */
 export type NavigableItem = {
   /**
@@ -43,6 +46,22 @@ export type InventoryDelta = {
 
 /** `key -> reason` — removals that are intentional, reviewed, and on the record. */
 export type AllowedRemovals = Record<string, string>;
+
+/**
+ * Read the acknowledged-removals file (`$STYLEPROOF_INVENTORY` or
+ * `styleproof.inventory.json`). `{}` when absent; THROWS on malformed JSON — the
+ * caller picks the policy (the CI gate fails loud so a broken ack file can't silently
+ * un-acknowledge a real loss; the advisory report degrades to `{}`).
+ */
+export function readAckFile(): AllowedRemovals {
+  const p = path.resolve(process.env.STYLEPROOF_INVENTORY ?? 'styleproof.inventory.json');
+  if (!fs.existsSync(p)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8')) as AllowedRemovals;
+  } catch (e) {
+    throw new Error(`${p} is not valid JSON — ${(e as Error).message}`, { cause: e });
+  }
+}
 
 /** One raw navigable affordance as read from the DOM, before classification. */
 export type RawAffordance = {
