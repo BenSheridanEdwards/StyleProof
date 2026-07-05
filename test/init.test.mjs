@@ -132,6 +132,13 @@ for (const manager of [
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
+
+      // Report branch self-prunes on PR close (out of the box) — manager-independent.
+      assert.match(workflow, /types: \[opened, synchronize, reopened, closed\]/);
+      assert.match(workflow, /if: github\.event\.action != 'closed'/); // report skips close
+      assert.match(workflow, /^\s{2}prune:/m);
+      assert.match(workflow, /if: github\.event\.action == 'closed'/);
+      assert.match(workflow, /git rm -r --quiet "pr-\$PR"/);
     } finally {
       rmTmp(root);
     }

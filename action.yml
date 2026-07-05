@@ -16,7 +16,7 @@ inputs:
     description: 'Directory with restored or freshly captured PR-head maps to compare (.json.gz + .png).'
     required: true
   report-branch:
-    description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; never pruned.'
+    description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close.'
     default: 'styleproof-reports'
   github-token:
     description: 'Token used to push the report branch and post the PR comment.'
