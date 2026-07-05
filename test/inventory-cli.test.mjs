@@ -101,5 +101,8 @@ test('styleproof-diff --json inventory is null when no capture carried inventory
   execFileSync('node', [BIN, a, b, '--json', jsonPath], { cwd: root, encoding: 'utf8' });
   const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
   assert.equal(j.inventory, null, 'no inventory in the maps → null verdict, nothing to gate on');
+  // Armed-but-empty note: distinguish "null because no map carried inventory" from
+  // "audited, nothing removed", so a gate reading this JSON can say the gate has no data.
+  assert.match(j.inventoryNote, /inventory: true/, 'null verdict carries a note explaining how to arm the gate');
   fs.rmSync(root, { recursive: true, force: true });
 });
