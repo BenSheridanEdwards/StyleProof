@@ -45,14 +45,31 @@ test('composite action publishes every generated report crop', () => {
   assert.doesNotMatch(publishStep[0], /\*-composite\.png.*\*-annotated\.png.*\*-new\.png/);
 });
 
-test('dogfood workflow runs the local composite action against clean, changed, and new-surface maps', () => {
+test('dogfood workflow runs the local composite action against clean, changed, new-surface, and removal maps', () => {
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 3);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 4);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
+  assert.match(dogfoodYml, /action-dogfood\/removed-base/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
   assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'true'/);
+  // The inventory removal must FAIL the action even with fail-on-diff off.
+  assert.match(dogfoodYml, /steps\.removed\.outcome }}' = 'failure'/);
+});
+
+test('composite action hard-gates on unacknowledged navigable removals in both modes', () => {
+  // Reads the inventory verdict the diff writes, and fails when a removal is unacknowledged
+  // — independent of the style-approval box; on by default (config can opt out).
+  assert.match(actionYml, /--json styleproof-diff\.json/);
+  const gate = actionYml.match(
+    /- name: Block on unacknowledged navigable removals[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/,
+  );
+  assert.ok(gate, 'action.yml should include the inventory removal gate step');
+  assert.match(gate[0], /gate-inventory-removals != 'false'/);
+  assert.match(gate[0], /inventory\?\.unacknowledged/);
+  assert.match(gate[0], /exit 1/);
+  assert.doesNotMatch(gate[0], /require-approval/, 'the removal gate must fire in BOTH modes');
 });
 
 test('composite action requires approval for new-surface-only reports', () => {

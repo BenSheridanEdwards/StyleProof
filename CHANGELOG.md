@@ -26,6 +26,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `#ff0000` → `#ff0001`, `0.5` → `0.6` alpha, a different font — always still surfaces. The
   report shows the real captured strings; only the equality test is canonical.
 
+## [3.14.0] - 2026-07-05
+
+### Added
+
+- **The GitHub Action hard-gates on unacknowledged navigable removals, out of the box.**
+  A removed route / tab / menu-item — a feature going unreachable — is categorically not a
+  restyle, so it must not be waved through by the review-gate's "approve all changes" box.
+  The Action now reads the diff's machine-readable inventory verdict (3.13.0) and, as a
+  final step in **both** certify and review-gate modes, fails when
+  `inventory.unacknowledged > 0`, naming each removed affordance — unless the removal is
+  recorded (with a reason) in `styleproof.inventory.json`. Style diffs are unaffected
+  (they stay report-only / sign-off). On by default; set `"gateInventoryRemovals": false`
+  in `styleproof.config.json` to opt out. Covered by a new `action-dogfood` removal
+  scenario (base offers `/a` + `/b`, head drops `/b` → the Action fails).
+
 ## [3.13.0] - 2026-07-05
 
 ### Added
