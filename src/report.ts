@@ -18,6 +18,7 @@ import {
   type DiffCounts,
   type Finding,
   type PropChange,
+  type SurfaceDiff,
 } from './diff.js';
 import { describeChange, tokenIndex, toHex, trackCount, type ElementChange, type DescribeCtx } from './describe.js';
 import {
@@ -1137,6 +1138,363 @@ function certificationLines(beforeDir: string, afterDir: string): string[] {
   ];
 }
 
+// A prepared surface: its diff plus the findings kept after noise-cleaning.
+type PreparedSurface = { sd: SurfaceDiff; findings: Finding[] };
+// Surfaces that changed the SAME way, collapsed to one group with a representative.
+type ChangeGroup = { surfaces: string[]; rep: PreparedSurface; findings: Finding[] };
+// The dirs/dimensions threaded through the per-surface render helpers, so each takes
+// one ctx instead of a dozen positional args.
+type RenderCtx = {
+  beforeDir: string;
+  afterDir: string;
+  outDir: string;
+  img: (rel: string) => string;
+  padBy: number;
+  minWidth: number;
+  minHeight: number;
+  maxHeight: number;
+  zoomBelow: number;
+  foldDetailsAt: number;
+};
+
+// Group surfaces that changed in the SAME way (the rects differ per width; the change
+// itself does not) so an identical change shows once, not once per surface — keeping
+// the widest surface as the representative image.
+function groupBySignature(prepared: PreparedSurface[]): ChangeGroup[] {
+  const bySig = new Map<string, ChangeGroup>();
+  for (const p of prepared) {
+    if (p.sd.missing) continue;
+    const sig = signatureOf(p.findings);
+    const existing = bySig.get(sig);
+    if (existing) {
+      existing.surfaces.push(p.sd.surface);
+      if (surfaceWidth(p.sd.surface) > surfaceWidth(existing.rep.sd.surface)) existing.rep = p;
+    } else {
+      bySig.set(sig, { surfaces: [p.sd.surface], rep: p, findings: p.findings });
+    }
+  }
+  return [...bySig.values()];
+}
+
+// Counts reflect the GROUPED view: each distinct change counts once, not once per
+// surface it appears on (after shorthand/dedupe collapsing).
+function countShownChanges(changeGroups: ChangeGroup[]): DiffCounts {
+  const shown: DiffCounts = { dom: 0, style: 0, state: 0 };
+  for (const cg of changeGroups)
+    for (const f of cg.findings) {
+      if (f.kind === 'dom') shown.dom++;
+      else if (f.kind === 'style') shown.style += summarizeProps(f.props).length;
+      else shown.state += summarizeProps(f.props).length;
+    }
+  return shown;
+}
+
+// The identical / changed / new-surface summary line(s). Split out (with an early
+// return for the all-identical case) so reportHeadline stays flat.
+function summaryLines(args: {
+  changeGroups: ChangeGroup[];
+  missing: PreparedSurface[];
+  shown: DiffCounts;
+  changedSurfaceCount: number;
+  contentCount: number;
+}): string[] {
+  const { changeGroups, missing, shown, changedSurfaceCount, contentCount } = args;
+  if (changeGroups.length === 0 && missing.length === 0) {
+    return [
+      contentCount > 0
+        ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
+        : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
+    ];
+  }
+  const md: string[] = [];
+  if (changeGroups.length > 0) {
+    md.push(
+      `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${changedSurfaceCount} surface(s).`,
+    );
+  }
+  if (missing.length > 0) {
+    if (changeGroups.length > 0) md.push('');
+    md.push(
+      `🆕 **${missing.length} new surface(s)** captured with no baseline to compare — shown below for review. ` +
+        `Approve them before they become the baseline.`,
+    );
+  }
+  return md;
+}
+
+// The headline summary lines between the certification block and the per-surface
+// detail: identical-vs-changed, new-surface count, live-region note, advisory-content
+// note. Extracted so generateStyleMapReport stays orchestration, not prose.
+function reportHeadline(args: {
+  changeGroups: ChangeGroup[];
+  missing: PreparedSurface[];
+  shown: DiffCounts;
+  changedSurfaceCount: number;
+  volatileCount: number;
+  liveCandidateLabels: string[];
+  contentCount: number;
+}): string[] {
+  const { changeGroups, missing, shown, changedSurfaceCount, volatileCount, liveCandidateLabels, contentCount } = args;
+  const md: string[] = summaryLines({ changeGroups, missing, shown, changedSurfaceCount, contentCount });
+  if (volatileCount > 0) {
+    const candidates = liveCandidateLabels.length
+      ? ` Auto-detected live-state candidate(s): ${liveCandidateLabels.slice(0, 5).join('; ')}.`
+      : '';
+    md.push(
+      '',
+      `_${volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — they don't affect the check.${candidates}_`,
+    );
+  }
+  if (contentCount > 0 && (changeGroups.length > 0 || missing.length > 0)) {
+    md.push('', `📝 _${contentCount} advisory content change(s) below — they don't affect the check._`);
+  }
+  return md;
+}
+
+// Collapse many crops into one merged frame when a change scatters across more regions
+// than maxCrops would show — the union of all their boxes on each side.
+function collapseGroups(groups: Group[]): Group[] {
+  return [
+    groups.reduce((acc, g) => ({
+      paths: [...acc.paths, ...g.paths],
+      before: visible(acc.before) && visible(g.before) ? union(acc.before, g.before) : (acc.before ?? g.before),
+      after: visible(acc.after) && visible(g.after) ? union(acc.after, g.after) : (acc.after ?? g.after),
+    })),
+  ];
+}
+
+// Crop, composite, annotate and (for small changes) zoom the before/after pair for one
+// region, writing the PNGs and returning the image markdown + the images sidecar. The
+// dense pixel work, isolated from renderRegion's prose.
+function buildRegionImages(args: {
+  g: Group;
+  region: Box;
+  regionFindings: Finding[];
+  sd: SurfaceDiff;
+  mapA: StyleMap;
+  mapB: StyleMap;
+  pngA: PNG;
+  pngB: PNG;
+  ctx: RenderCtx;
+  cropSeq: number;
+}): { md: string[]; images: { composite?: string; annotated?: string; zoom?: string } } {
+  const { g, region, regionFindings, sd, mapA, mapB, pngA, pngB, ctx, cropSeq } = args;
+  const { img, outDir, minWidth, minHeight, maxHeight, zoomBelow } = ctx;
+  // Crop the SAME page rectangle from both sides — the union of where the change sits
+  // on each side — so the pair lines up exactly and the reviewer compares like-for-like
+  // instead of playing spot-the-difference. (Centring each side on its own moved box
+  // would shift the background between them.)
+  const cropBox = visible(g.before) && visible(g.after) ? union(g.before, g.after) : region;
+  const w = Math.max(minWidth, cropBox.w);
+  const h = Math.min(maxHeight, Math.max(minHeight, cropBox.h));
+  // Path-safe, report-unique stem: `hero@1280` → `hero-1280-3` so relative image links
+  // resolve cleanly and two crops never collide on one filename.
+  const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}`;
+  const before = cropPng(pngA, cropBox, w, h);
+  const after = cropPng(pngB, cropBox, w, h);
+  const composite = compositePair(before.png, after.png);
+  writePng(path.join(outDir, `${stem}-composite.png`), composite);
+  // Annotated twin: outline the LEAF changed elements (the added avatars, the restyled
+  // cards) on each side — not the merged container the crop anchors on, whose box would
+  // just trace the whole frame. An element present on only one side (added/removed) is
+  // boxed only there.
+  const markPaths = innermost([...new Set(regionFindings.map((f) => f.path))]);
+  const rectsA = markPaths.map((p) => mapA.elements[p]?.rect).filter((r): r is Rect => !!r);
+  const rectsB = markPaths.map((p) => mapB.elements[p]?.rect).filter((r): r is Rect => !!r);
+  const annotated = compositePair(annotateCrop(before, rectsA), annotateCrop(after, rectsB));
+  writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
+  const images: { composite?: string; annotated?: string; zoom?: string } = {
+    composite: `${stem}-composite.png`,
+    annotated: `${stem}-annotated.png`,
+  };
+
+  // Name the changed element(s) so the reviewer knows where to look without expanding
+  // anything (e.g. `changed: span.caret`).
+  const changedNames = [
+    ...new Set(
+      markPaths
+        .map((p) => mapA.elements[p] ?? mapB.elements[p])
+        .filter((e): e is ElementEntry => !!e)
+        .map((e) => (e.cls ? `${e.tag}.${e.cls.split(/\s+/)[0]}` : e.tag)),
+    ),
+  ].slice(0, 3);
+  const changedLabel = changedNames.length ? ` — changed: \`${changedNames.join('`, `')}\`` : '';
+  const ctxLabel = formatSurfaceWithContext(sd.surface, mapA, mapB);
+
+  // A sub-pixel change (e.g. a 2px font bump on a caret) is invisible at 1:1, so when
+  // the changed-element footprint is small, add a magnified crop that makes it obvious
+  // without the reviewer hunting. Anchored on the leaf rects.
+  const changed = unionRects([...rectsA, ...rectsB]);
+  const maxDim = changed ? Math.max(changed.w, changed.h) : 0;
+  let zoomFactor = 0;
+  if (zoomBelow > 0 && changed && maxDim > 0 && maxDim <= zoomBelow) {
+    const zBox = pad(changed, Math.max(maxDim, 16)); // ~3× the change for context
+    zoomFactor = Math.min(8, Math.max(2, Math.round(240 / Math.max(zBox.w, zBox.h))));
+    const zoom = compositePair(zoomCrop(pngA, zBox, rectsA, zoomFactor), zoomCrop(pngB, zBox, rectsB, zoomFactor));
+    writePng(path.join(outDir, `${stem}-zoom.png`), zoom);
+    images.zoom = `${stem}-zoom.png`;
+  }
+
+  // Both views shown by default: the clean before|after (the real UI) and the
+  // highlighted twin (magenta boxes on each change) so a reviewer sees WHAT changed and
+  // WHERE without expanding anything. Plain images (no link wrap) so a click opens the
+  // full-resolution file.
+  const md = [
+    '',
+    `![before ◀ │ ▶ after](${img(images.composite!)})`,
+    '',
+    `<sub>◀ before  ·  after ▶ — ${ctxLabel}</sub>`,
+    '',
+    `![highlighted before ◀ │ ▶ after](${img(images.annotated!)})`,
+    '',
+    `<sub>🔍 magenta boxes mark each change${changedLabel}</sub>`,
+  ];
+  if (images.zoom) {
+    md.push(
+      '',
+      `![zoomed before ◀ │ ▶ after](${img(images.zoom)})`,
+      '',
+      `<sub>🔬 magnified ${zoomFactor}× — change too small to see at 1:1${changedLabel}</sub>`,
+    );
+  }
+  return { md, images };
+}
+
+// Render one crop region: its heading, the surface list, the before/after imagery (or a
+// note when there's nothing to show), and the per-crop change tables.
+function renderRegion(args: {
+  g: Group;
+  cg: ChangeGroup;
+  mapA: StyleMap;
+  mapB: StyleMap;
+  pngA: PNG | null;
+  pngB: PNG | null;
+  describeCtx: DescribeCtx;
+  ctx: RenderCtx;
+  cropSeq: number;
+}): { md: string[]; regionJson: Record<string, unknown> } {
+  const { g, cg, mapA, mapB, pngA, pngB, describeCtx, ctx, cropSeq } = args;
+  const { sd } = cg.rep;
+  // Exactly the findings whose element lives inside THIS crop, so the tables sit
+  // directly under the screenshot that shows them — never a wall of changes spanning
+  // several crops with no way to tell which is which.
+  const regionFindings = cg.rep.findings.filter((f) =>
+    g.paths.some((root) => f.path === root || f.path.startsWith(root + ' > ')),
+  );
+
+  const surfaceList =
+    cg.surfaces.length > 1
+      ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(cg.surfaces, ctx.beforeDir)}_`
+      : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
+
+  const md: string[] = ['', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList];
+
+  const region = visible(g.after) ? g.after : g.before;
+  let images: { composite?: string; annotated?: string; zoom?: string } = {};
+  if (region && pngA && pngB) {
+    const built = buildRegionImages({ g, region, regionFindings, sd, mapA, mapB, pngA, pngB, ctx, cropSeq });
+    md.push(...built.md);
+    images = built.images;
+  } else if (!region) {
+    md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
+  } else {
+    md.push(
+      '',
+      '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
+    );
+  }
+
+  // What this crop changed: plain-English bullets, then the property tables — folded
+  // under a toggle once they'd be a wall (foldDetailsAt).
+  md.push(...renderCropChanges(regionFindings, ctx.foldDetailsAt, describeCtx));
+  return { md, regionJson: { paths: g.paths, before: g.before, after: g.after, images } };
+}
+
+// Render one change group: load its representative maps/screenshots, split it into
+// crop regions (collapsing past maxCrops), and render each region top-to-bottom.
+function renderChangeGroup(
+  cg: ChangeGroup,
+  ctx: RenderCtx,
+  maxCrops: number,
+  cropSeq: number,
+): { md: string[]; json: Record<string, unknown>; findingCount: number; cropSeq: number } {
+  const { sd, findings: surfaceFindings } = cg.rep;
+  const mapA = loadStyleMap(findCapture(ctx.beforeDir, sd.surface));
+  const mapB = loadStyleMap(findCapture(ctx.afterDir, sd.surface));
+  // Theme-token reverse-indexes so colour changes can name `red-200` per side.
+  const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
+  const pngA = readPng(path.join(ctx.beforeDir, `${sd.surface}.png`));
+  const pngB = readPng(path.join(ctx.afterDir, `${sd.surface}.png`));
+
+  const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
+  let groups = groupRegions(changedPaths, mapA, mapB, ctx.padBy);
+  if (groups.length > maxCrops) groups = collapseGroups(groups);
+  // Read top-to-bottom: one section per crop, in page order.
+  const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
+  groups.sort((a, b) => topY(a) - topY(b));
+
+  const md: string[] = [];
+  const regions: unknown[] = [];
+  for (const g of groups) {
+    cropSeq++;
+    const r = renderRegion({ g, cg, mapA, mapB, pngA, pngB, describeCtx, ctx, cropSeq });
+    md.push(...r.md);
+    regions.push(r.regionJson);
+  }
+  const json: Record<string, unknown> = {
+    surfaces: cg.surfaces,
+    representative: sd.surface,
+    regions,
+    findings: surfaceFindings,
+  };
+  return { md, json, findingCount: surfaceFindings.length, cropSeq };
+}
+
+// Render a new surface: present on only one side, so there's nothing to diff. Show the
+// captured side as a single screenshot and mark the heading for the PR comment.
+function renderNewSurface(
+  p: PreparedSurface,
+  ctx: RenderCtx,
+  cropSeq: number,
+): { md: string[]; json: Record<string, unknown>; cropSeq: number } {
+  const { img, outDir, maxHeight } = ctx;
+  const side = p.sd.missing === 'before' ? 'after' : 'before';
+  const srcDir = side === 'after' ? ctx.afterDir : ctx.beforeDir;
+  const map = loadStyleMap(findCapture(srcDir, p.sd.surface));
+  const png = readPng(path.join(srcDir, `${p.sd.surface}.png`));
+  const md: string[] = [
+    '',
+    `### \`${p.sd.surface}\` · new surface ${NEW_SURFACE_MARKER}`,
+    '',
+    `_${formatSurfaceWithContext(p.sd.surface, map)}_`,
+  ];
+  const json: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: true };
+  if (png) {
+    cropSeq++;
+    const h = Math.min(maxHeight, png.height);
+    const crop = cropPng(png, { x: 0, y: 0, w: png.width, h }, png.width, h).png;
+    const stem = `crops/${p.sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}-new`;
+    writePng(path.join(outDir, `${stem}.png`), crop);
+    md.push(
+      '',
+      `![new surface — ${side}](${img(`${stem}.png`)})`,
+      '',
+      `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top of page)' : ''}</sub>`,
+    );
+    json.image = `${stem}.png`;
+  } else {
+    md.push(
+      '',
+      `_Captured only in the **${side}** set; no screenshot saved (run captures with \`screenshots: true\`)._`,
+    );
+  }
+  md.push(
+    '',
+    `_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._`,
+  );
+  return { md, json, cropSeq };
+}
+
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,
@@ -1166,41 +1524,16 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // forced-state echoes of base changes, and remove non-value noise (see
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
-  const prepared = surfaces
+  const prepared: PreparedSurface[] = surfaces
     .map((sd) => ({
       sd,
       findings: sd.missing || includeNoise ? sd.findings : cleanFindings(sd.findings),
     }))
     .filter((p) => p.sd.missing || p.findings.length > 0);
 
-  // Group surfaces that changed in the SAME way (the rects differ per width; the
-  // change itself does not) so an identical change shows once, not once per
-  // surface — with one representative image (the widest surface in the group).
   const missing = prepared.filter((p) => p.sd.missing);
-  type ChangeGroup = { surfaces: string[]; rep: (typeof prepared)[number]; findings: Finding[] };
-  const bySig = new Map<string, ChangeGroup>();
-  for (const p of prepared) {
-    if (p.sd.missing) continue;
-    const sig = signatureOf(p.findings);
-    const existing = bySig.get(sig);
-    if (existing) {
-      existing.surfaces.push(p.sd.surface);
-      if (surfaceWidth(p.sd.surface) > surfaceWidth(existing.rep.sd.surface)) existing.rep = p;
-    } else {
-      bySig.set(sig, { surfaces: [p.sd.surface], rep: p, findings: p.findings });
-    }
-  }
-  const changeGroups = [...bySig.values()];
-
-  // Counts reflect the GROUPED view: each distinct change counts once, not once
-  // per surface it appears on (after shorthand/dedupe collapsing).
-  const shown: DiffCounts = { dom: 0, style: 0, state: 0 };
-  for (const cg of changeGroups)
-    for (const f of cg.findings) {
-      if (f.kind === 'dom') shown.dom++;
-      else if (f.kind === 'style') shown.style += summarizeProps(f.props).length;
-      else shown.state += summarizeProps(f.props).length;
-    }
+  const changeGroups = groupBySignature(prepared);
+  const shown = countShownChanges(changeGroups);
   // Surfaces carrying a reviewable change — NOT the new (one-sided) ones, which
   // have no baseline to compare and are summarised on their own line below so the
   // headline never reads "0 changes" while warnings sit beneath it.
@@ -1209,6 +1542,18 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
   const img = (rel: string) => (imageBaseUrl ? `${imageBaseUrl.replace(/\/$/, '')}/${rel}` : rel);
+  const ctx: RenderCtx = {
+    beforeDir,
+    afterDir,
+    outDir,
+    img,
+    padBy,
+    minWidth,
+    minHeight,
+    maxHeight,
+    zoomBelow,
+    foldDetailsAt,
+  };
 
   // Opt-in, advisory: computed here so its count can colour the headline, but its
   // markdown is appended at the very end and it NEVER feeds the gate below.
@@ -1220,226 +1565,32 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // Lead with the source-of-truth gates (coverage / determinism / inventory) so a
   // reviewer reads "is this green trustworthy?" before the pixel details.
   md.push(...certificationLines(beforeDir, afterDir));
-  if (changeGroups.length === 0 && missing.length === 0) {
-    md.push(
-      contentSection.count > 0
-        ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
-        : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
-    );
-  } else {
-    if (changeGroups.length > 0) {
-      md.push(
-        `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${changedSurfaceCount} surface(s).`,
-      );
-    }
-    if (missing.length > 0) {
-      if (changeGroups.length > 0) md.push('');
-      md.push(
-        `🆕 **${missing.length} new surface(s)** captured with no baseline to compare — shown below for review. ` +
-          `Approve them before they become the baseline.`,
-      );
-    }
-  }
-  if (volatileCount > 0) {
-    const candidates = liveCandidateLabels.length
-      ? ` Auto-detected live-state candidate(s): ${liveCandidateLabels.slice(0, 5).join('; ')}.`
-      : '';
-    md.push(
-      '',
-      `_${volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — they don't affect the check.${candidates}_`,
-    );
-  }
-  if (contentSection.count > 0 && (changeGroups.length > 0 || missing.length > 0)) {
-    md.push('', `📝 _${contentSection.count} advisory content change(s) below — they don't affect the check._`);
-  }
+  md.push(
+    ...reportHeadline({
+      changeGroups,
+      missing,
+      shown,
+      changedSurfaceCount,
+      volatileCount,
+      liveCandidateLabels,
+      contentCount: contentSection.count,
+    }),
+  );
 
   let totalFindings = 0;
   let cropSeq = 0;
   for (const cg of changeGroups) {
-    const { sd, findings: surfaceFindings } = cg.rep;
-    totalFindings += surfaceFindings.length;
-
-    const mapA = loadStyleMap(findCapture(beforeDir, sd.surface));
-    const mapB = loadStyleMap(findCapture(afterDir, sd.surface));
-    // Theme-token reverse-indexes so colour changes can name `red-200` per side.
-    const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
-    const pngA = readPng(path.join(beforeDir, `${sd.surface}.png`));
-    const pngB = readPng(path.join(afterDir, `${sd.surface}.png`));
-
-    const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
-    let groups = groupRegions(changedPaths, mapA, mapB, padBy);
-    if (groups.length > maxCrops) {
-      groups = [
-        groups.reduce((acc, g) => ({
-          paths: [...acc.paths, ...g.paths],
-          before: visible(acc.before) && visible(g.before) ? union(acc.before, g.before) : (acc.before ?? g.before),
-          after: visible(acc.after) && visible(g.after) ? union(acc.after, g.after) : (acc.after ?? g.after),
-        })),
-      ];
-    }
-    // Read top-to-bottom: one section per crop, in page order.
-    const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
-    groups.sort((a, b) => topY(a) - topY(b));
-
-    const surfaceJson: Record<string, unknown> = {
-      surfaces: cg.surfaces,
-      representative: sd.surface,
-      regions: [] as unknown[],
-    };
-
-    for (const g of groups) {
-      cropSeq++;
-      // Exactly the findings whose element lives inside THIS crop, so the tables
-      // sit directly under the screenshot that shows them — never a wall of
-      // changes spanning several crops with no way to tell which is which.
-      const regionFindings = surfaceFindings.filter((f) =>
-        g.paths.some((root) => f.path === root || f.path.startsWith(root + ' > ')),
-      );
-
-      const surfaceList =
-        cg.surfaces.length > 1
-          ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(cg.surfaces, beforeDir)}_`
-          : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
-
-      md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
-
-      const region = visible(g.after) ? g.after : g.before;
-      let images: { composite?: string; annotated?: string; zoom?: string } = {};
-      if (region && pngA && pngB) {
-        // Crop the SAME page rectangle from both sides — the union of where the
-        // change sits on each side — so the pair lines up exactly and the reviewer
-        // compares like-for-like instead of playing spot-the-difference. (Centring
-        // each side on its own moved box would shift the background between them.)
-        const cropBox = visible(g.before) && visible(g.after) ? union(g.before, g.after) : region;
-        const w = Math.max(minWidth, cropBox.w);
-        const h = Math.min(maxHeight, Math.max(minHeight, cropBox.h));
-        // Path-safe, report-unique stem: `hero@1280` → `hero-1280-3` so relative
-        // image links resolve cleanly and two crops never collide on one filename.
-        const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}`;
-        const before = cropPng(pngA, cropBox, w, h);
-        const after = cropPng(pngB, cropBox, w, h);
-        const composite = compositePair(before.png, after.png);
-        writePng(path.join(outDir, `${stem}-composite.png`), composite);
-        // Annotated twin: outline the LEAF changed elements (the added avatars, the
-        // restyled cards) on each side — not the merged container the crop anchors
-        // on, whose box would just trace the whole frame. An element present on only
-        // one side (added/removed) is boxed only there.
-        const markPaths = innermost([...new Set(regionFindings.map((f) => f.path))]);
-        const rectsA = markPaths.map((p) => mapA.elements[p]?.rect).filter((r): r is Rect => !!r);
-        const rectsB = markPaths.map((p) => mapB.elements[p]?.rect).filter((r): r is Rect => !!r);
-        const annotated = compositePair(annotateCrop(before, rectsA), annotateCrop(after, rectsB));
-        writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
-        images = { composite: `${stem}-composite.png`, annotated: `${stem}-annotated.png` };
-
-        // Name the changed element(s) so the reviewer knows where to look without
-        // expanding anything (e.g. `changed: span.caret`).
-        const changedNames = [
-          ...new Set(
-            markPaths
-              .map((p) => mapA.elements[p] ?? mapB.elements[p])
-              .filter((e): e is ElementEntry => !!e)
-              .map((e) => (e.cls ? `${e.tag}.${e.cls.split(/\s+/)[0]}` : e.tag)),
-          ),
-        ].slice(0, 3);
-        const changedLabel = changedNames.length ? ` — changed: \`${changedNames.join('`, `')}\`` : '';
-        const ctxLabel = formatSurfaceWithContext(sd.surface, mapA, mapB);
-
-        // A sub-pixel change (e.g. a 2px font bump on a caret) is invisible at 1:1,
-        // so when the changed-element footprint is small, add a magnified crop that
-        // makes it obvious without the reviewer hunting. Anchored on the leaf rects.
-        const changed = unionRects([...rectsA, ...rectsB]);
-        const maxDim = changed ? Math.max(changed.w, changed.h) : 0;
-        let zoomFactor = 0;
-        if (zoomBelow > 0 && changed && maxDim > 0 && maxDim <= zoomBelow) {
-          const zBox = pad(changed, Math.max(maxDim, 16)); // ~3× the change for context
-          zoomFactor = Math.min(8, Math.max(2, Math.round(240 / Math.max(zBox.w, zBox.h))));
-          const zoom = compositePair(
-            zoomCrop(pngA, zBox, rectsA, zoomFactor),
-            zoomCrop(pngB, zBox, rectsB, zoomFactor),
-          );
-          writePng(path.join(outDir, `${stem}-zoom.png`), zoom);
-          images.zoom = `${stem}-zoom.png`;
-        }
-
-        // Both views shown by default: the clean before|after (the real UI) and the
-        // highlighted twin (magenta boxes on each change) so a reviewer sees WHAT
-        // changed and WHERE without expanding anything. Plain images (no link wrap)
-        // so a click opens the full-resolution file.
-        md.push(
-          '',
-          `![before ◀ │ ▶ after](${img(images.composite!)})`,
-          '',
-          `<sub>◀ before  ·  after ▶ — ${ctxLabel}</sub>`,
-          '',
-          `![highlighted before ◀ │ ▶ after](${img(images.annotated!)})`,
-          '',
-          `<sub>🔍 magenta boxes mark each change${changedLabel}</sub>`,
-        );
-        if (images.zoom) {
-          md.push(
-            '',
-            `![zoomed before ◀ │ ▶ after](${img(images.zoom)})`,
-            '',
-            `<sub>🔬 magnified ${zoomFactor}× — change too small to see at 1:1${changedLabel}</sub>`,
-          );
-        }
-      } else if (!region) {
-        md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
-      } else {
-        md.push(
-          '',
-          '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
-        );
-      }
-
-      // What this crop changed: plain-English bullets, then the property tables —
-      // folded under a toggle once they'd be a wall (foldDetailsAt).
-      md.push(...renderCropChanges(regionFindings, foldDetailsAt, describeCtx));
-      (surfaceJson.regions as unknown[]).push({ paths: g.paths, before: g.before, after: g.after, images });
-    }
-
-    surfaceJson.findings = surfaceFindings;
-    json.push(surfaceJson);
+    const r = renderChangeGroup(cg, ctx, maxCrops, cropSeq);
+    md.push(...r.md);
+    json.push(r.json);
+    totalFindings += r.findingCount;
+    cropSeq = r.cropSeq;
   }
-
-  // New surfaces: present on only one side, so there's nothing to diff. Show the
-  // captured side as a single screenshot and mark the heading for the PR comment.
   for (const p of missing) {
-    const side = p.sd.missing === 'before' ? 'after' : 'before';
-    const srcDir = side === 'after' ? afterDir : beforeDir;
-    const map = loadStyleMap(findCapture(srcDir, p.sd.surface));
-    const png = readPng(path.join(srcDir, `${p.sd.surface}.png`));
-    md.push(
-      '',
-      `### \`${p.sd.surface}\` · new surface ${NEW_SURFACE_MARKER}`,
-      '',
-      `_${formatSurfaceWithContext(p.sd.surface, map)}_`,
-    );
-    const surfaceJson: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: true };
-    if (png) {
-      cropSeq++;
-      const h = Math.min(maxHeight, png.height);
-      const crop = cropPng(png, { x: 0, y: 0, w: png.width, h }, png.width, h).png;
-      const stem = `crops/${p.sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}-new`;
-      writePng(path.join(outDir, `${stem}.png`), crop);
-      md.push(
-        '',
-        `![new surface — ${side}](${img(`${stem}.png`)})`,
-        '',
-        `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top of page)' : ''}</sub>`,
-      );
-      surfaceJson.image = `${stem}.png`;
-    } else {
-      md.push(
-        '',
-        `_Captured only in the **${side}** set; no screenshot saved (run captures with \`screenshots: true\`)._`,
-      );
-    }
-    md.push(
-      '',
-      `_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._`,
-    );
-    json.push(surfaceJson);
+    const r = renderNewSurface(p, ctx, cropSeq);
+    md.push(...r.md);
+    json.push(r.json);
+    cropSeq = r.cropSeq;
   }
 
   md.push(...contentSection.md);
