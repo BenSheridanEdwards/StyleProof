@@ -345,7 +345,9 @@ const CI_WORKFLOW = `name: StyleProof
 #   report without a browser;
 # - on cache miss, CI recaptures both sides in one pinned environment so the
 #   comparison stays valid.
-on: pull_request
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 permissions:
   contents: write
@@ -355,6 +357,8 @@ permissions:
 
 jobs:
   styleproof:
+    # Report on open/update; the prune job below handles close.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -408,6 +412,41 @@ ${PM.setup}
           baseline-dir: __stylemaps__/base
           fresh-dir: __stylemaps__/head
           require-approval: true
+
+  prune:
+    # PR closed: drop its pr-<n>/ folder from the report branch so the branch
+    # never grows without bound. Keep BRANCH in sync with the report-branch
+    # input above (default: styleproof-reports).
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Prune this PR's report folder
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+          BRANCH: styleproof-reports
+          PR: \${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:\${GH_TOKEN}@github.com/\${{ github.repository }}.git"
+          if ! git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "No $BRANCH branch yet — nothing to prune."; exit 0
+          fi
+          TMP="$(mktemp -d)"
+          # Blobless clone keeps this fast; a very large report branch may prefer
+          # a --no-checkout plumbing rewrite instead.
+          git clone --filter=blob:none --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
+          cd "$TMP"
+          if [ ! -d "pr-$PR" ]; then
+            echo "No pr-$PR/ folder — nothing to prune."; exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r --quiet "pr-$PR"
+          git commit -m "chore(styleproof): prune report for closed PR #$PR"
+          git push origin "$BRANCH"
 `;
 
 function writeFileSafe(file, contents, { force: f } = {}) {

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadStyleMap, isUnder, type StyleMap } from './capture.js';
 import { isMapFile } from './map-store.js';
+import { styleValuesEqual } from './canonicalize.js';
 
 /**
  * Structured diff between two style maps. Custom properties (--*) are
@@ -53,7 +54,10 @@ function diffProps(
     if (prop.startsWith('--')) continue;
     const before = propsA[prop] ?? fallbackA[prop] ?? unsetA;
     const after = propsB[prop] ?? fallbackB[prop] ?? unsetB;
-    if (before !== after) changed.push({ prop, before, after });
+    // Compare by CANONICAL value, so an identical value serialized differently by a
+    // browser/build-tool version (`rgba(8, 18, 32, 0.62)` vs `#0812209e`, comma-spacing in
+    // a font list) is not reported as a change. The report still shows the real strings.
+    if (!styleValuesEqual(before, after)) changed.push({ prop, before, after });
   }
   return changed;
 }

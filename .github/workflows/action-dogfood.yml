@@ -67,6 +67,24 @@ jobs:
           test '${{ steps.new-surface.outputs.changed }}' = 'true'
           test -n '${{ steps.new-surface.outputs.report-url }}'
 
+      - id: removed
+        continue-on-error: true
+        uses: ./
+        with:
+          baseline-dir: action-dogfood/removed-base
+          fresh-dir: action-dogfood/removed-head
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert an unacknowledged navigable removal FAILS the action
+        run: |
+          # A dropped route/tab/menu-item must hard-fail even with fail-on-diff off — a
+          # feature going unreachable is not a restyle for the "approve all" box to wave
+          # through. On by default (styleproof.config.json: "gateInventoryRemovals": false
+          # opts out).
+          test '${{ steps.removed.outcome }}' = 'failure'
+          test '${{ steps.removed.outputs.changed }}' = 'true'
+
       - name: Assert PR report was published
         if: github.event_name == 'pull_request'
         env:

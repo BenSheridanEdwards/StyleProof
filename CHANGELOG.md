@@ -21,6 +21,64 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   dependency, and never touches the default gate — the gate still captures every surface
   and lets the map be the oracle. New export; existing specs unaffected.
 
+## [3.16.0] - 2026-07-05
+
+### Added
+
+- **The scaffolded PR workflow prunes its own report branch, out of the box.**
+  `styleproof-init`'s `.github/workflows/styleproof.yml` now also runs on
+  `pull_request: closed`: when a PR closes, a `prune` job removes that PR's `pr-<n>/`
+  folder from the report branch (`styleproof-reports`), so the branch no longer grows
+  without bound as PRs come and go — no adopter has to remember to garbage-collect it.
+  The report job is unchanged, only guarded to skip the close event. Covered by the
+  `styleproof-init` workflow test.
+
+## [3.15.0] - 2026-07-05
+
+### Changed
+
+- **Computed values are compared canonically, so a re-serialization isn't a change.** A
+  browser or build-tool version can serialize an _identical_ value differently — a Chromium
+  bump rewrites `rgba(8, 18, 32, 0.62)` as `#0812209e`, a Tailwind migration reformats a
+  font list's comma spacing — and StyleProof reported every one of those as a difference,
+  drowning a re-baseline in changes that aren't changes (and blowing up the report). The
+  diff now compares by a canonical form: colours are parsed to one `rgba()` (across
+  hex / `rgb()` / `rgba()` / `hsl()` / `hsla()`, short and long hex, comma and modern space
+  syntax) and comma/whitespace runs are normalised outside quotes. A green stops flickering
+  red across browser versions — captures are serialization-independent.
+
+  Safety: only _provably-equal_ values ever collapse. A value that can't be parsed with
+  confidence (or lives inside a quoted string) is left byte-for-byte, so a real change —
+  `#ff0000` → `#ff0001`, `0.5` → `0.6` alpha, a different font — always still surfaces. The
+  report shows the real captured strings; only the equality test is canonical.
+
+## [3.14.0] - 2026-07-05
+
+### Added
+
+- **The GitHub Action hard-gates on unacknowledged navigable removals, out of the box.**
+  A removed route / tab / menu-item — a feature going unreachable — is categorically not a
+  restyle, so it must not be waved through by the review-gate's "approve all changes" box.
+  The Action now reads the diff's machine-readable inventory verdict (3.13.0) and, as a
+  final step in **both** certify and review-gate modes, fails when
+  `inventory.unacknowledged > 0`, naming each removed affordance — unless the removal is
+  recorded (with a reason) in `styleproof.inventory.json`. Style diffs are unaffected
+  (they stay report-only / sign-off). On by default; set `"gateInventoryRemovals": false`
+  in `styleproof.config.json` to opt out. Covered by a new `action-dogfood` removal
+  scenario (base offers `/a` + `/b`, head drops `/b` → the Action fails).
+
+## [3.13.0] - 2026-07-05
+
+### Added
+
+- **`styleproof-diff --json` now carries the inventory verdict.** The structured output
+  gained an `inventory` field alongside `coverage` and `determinism` — so all three
+  source-of-truth axes are machine-readable, matching the report's certification block.
+  Shape: `{ removed, added, unacknowledged, staleAcknowledgements }` (arrays of keys),
+  or `null` when no capture carried inventory. Previously the inventory removals were
+  printed to stdout but absent from `--json`, forcing a CI that wanted to hard-gate on a
+  dropped nav item to grep human prose. Now it can read `inventory.unacknowledged.length`.
+
 ## [3.12.0] - 2026-07-05
 
 ### Changed

@@ -16,7 +16,7 @@ inputs:
     description: 'Directory with restored or freshly captured PR-head maps to compare (.json.gz + .png).'
     required: true
   report-branch:
-    description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; never pruned.'
+    description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close.'
     default: 'styleproof-reports'
   github-token:
     description: 'Token used to push the report branch and post the PR comment.'
@@ -110,12 +110,18 @@ runs:
             if (e.code !== 'ENOENT') core.warning(`StyleProof: ignoring unreadable styleproof.config.json — ${e.message}`);
           }
           core.setOutput('blocking', cfg.blocking === true ? 'true' : 'false');
+          // A removed navigable affordance (a route/tab/menu-item the UI stopped offering)
+          // is a feature going unreachable — high-stakes, and NOT something the style
+          // "approve all" box should wave through. It hard-fails unless the removal is
+          // recorded in styleproof.inventory.json. On by default; set
+          // "gateInventoryRemovals": false to opt out.
+          core.setOutput('gate-inventory-removals', cfg.gateInventoryRemovals === false ? 'false' : 'true');
 
     - id: diff
       shell: bash
       run: |
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 | tee styleproof-diff.txt
+        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json | tee styleproof-diff.txt
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
@@ -323,3 +329,25 @@ runs:
       run: |
         echo 'Style changes detected — review the PR comment. To accept, rebuild the map with styleproof-map and rerun the report.' >&2
         exit 1
+
+    # Inventory hard-gate (runs LAST, in BOTH modes, after the report + comment publish so
+    # a reviewer sees why): a removed navigable affordance — a route, tab, or menu item the
+    # UI used to offer and HEAD no longer does — is a feature going unreachable. It is
+    # categorically NOT a restyle to sign off on, so the style "approve all" box can't wave
+    # it through; certify and review-gate mode alike fail hard on it UNLESS the removal is
+    # acknowledged with a reason in styleproof.inventory.json. This is the source-of-truth
+    # guarantee — a green never hides a feature that quietly disappeared. On by default;
+    # opt out with "gateInventoryRemovals": false in styleproof.config.json.
+    - name: Block on unacknowledged navigable removals
+      if: steps.config.outputs.gate-inventory-removals != 'false'
+      shell: bash
+      run: |
+        set -euo pipefail
+        [ -f styleproof-diff.json ] || { echo "no styleproof-diff.json — nothing to gate"; exit 0; }
+        count="$(node -e "const j=require('./styleproof-diff.json'); process.stdout.write(String((j.inventory?.unacknowledged||[]).length))")"
+        if [ "${count:-0}" -gt 0 ]; then
+          echo "::error::StyleProof: ${count} navigable affordance(s) removed without acknowledgement — a feature is no longer reachable. Restore it, or record the decision in styleproof.inventory.json ({\"<key>\":\"<why>\"})."
+          node -e "const j=require('./styleproof-diff.json'); for (const k of (j.inventory?.unacknowledged||[])) console.log('  ✗ removed (unacknowledged): '+k)"
+          exit 1
+        fi
+        echo "✓ navigable inventory: no unacknowledged removals"

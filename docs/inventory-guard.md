@@ -22,7 +22,7 @@ high-stakes changes:
    catches it only incidentally (DOM churn on a surviving captured surface, if
    that surface is even captured), and not at all while staged in parallel.
 
-Concretely, from the Fleet HUD (real): a redesign added at `/agents-v5` drops the
+Concretely, from a real dashboard app: a redesign added at `/agents-v5` drops the
 **MODEL CONFIG** and **FAULT MAP** nav items. The gate reported _"✓ clean, no
 visual approval required"_ — a feature-removing change with a green check. That is
 the exact failure mode this guard closes.
@@ -136,7 +136,7 @@ Wired and tested in this change:
 - `bin/styleproof-diff.mjs` — reads both sides' `inventory`, runs `auditRunInventory`
   against the `styleproof.inventory.json` ledger, prints the 📐 Inventory section, and
   **folds unacknowledged removals into exit code 1**.
-- `test/inventory.test.mjs` — 6 unit tests (Fleet Model-Config removal, the failing
+- `test/inventory.test.mjs` — 6 unit tests (a Model-Config removal, the failing
   guard, the acknowledgement ledger, stale-allowance detection, parallel-route
   staging, union dedup).
 - `test/inventory-cli.test.mjs` — 3 tests proving the CLI actually gates: exit 1 on an
