@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { unionInventory, diffInventory, auditRemovals } from '../dist/inventory.js';
 
-// The exact scenario StyleProof is blind to today, modelled from the Fleet HUD:
-// the live FLEET sub-nav offers agents / model-config / faults / fault-map / skills
+// The exact scenario StyleProof is blind to today, modelled from a dashboard HUD:
+// the live nav offers agents / model-config / faults / fault-map / skills
 // / groups; the "agents v5" redesign offers agents / teams / faults / skills / groups
 // — silently dropping MODEL CONFIG and FAULT MAP (features stop being reachable),
 // while the certification diff reports the *existing* surfaces unchanged → clean.
