@@ -68,10 +68,15 @@ const GLOBAL_CSS = /(^|\})\s*(:root|html|body|\*)[\s,{]|@tailwind\b|@layer\s+bas
 const CSSJS_GLOBAL = /\b(createGlobalStyle|injectGlobal|globalStyle|globalCss|createGlobalTheme)\b/;
 // `:global(...)` escape hatch or cross-module composition pulls in outside scope.
 const MODULE_ESCAPES = /:global\b|\bcompose[sd]?\b[^;]*\bfrom\b/;
-// Sass `@use`/`@forward` pull another partial's members (and any global rules it
-// carries) into a CSS-module file. dependency-cruiser parses JS imports, not Sass
-// loads, so the import graph can't bound them — fail closed on any occurrence.
-const SASS_LOAD = /@(?:use|forward)\b/;
+// Sass `@use`/`@forward`/`@import` pull another sheet's members into a CSS-module
+// file. dependency-cruiser parses JS imports, not Sass loads, so the import graph
+// can't bound them — fail closed on any occurrence. `@import` covers both the Sass
+// partial load (`@import "vars"`, whose members — possibly global rules — merge in
+// exactly like `@use`) and the plain-CSS pass-through form (`@import url(x.css)`,
+// `@import "sheet.css"`): a CSS `@import` composes an external sheet whose selectors
+// are NOT hashed into the module's per-file scope, so it escapes the module too.
+// Either way the change is unbounded → 'all'. Only widen; never narrows a verdict.
+const SASS_LOAD = /@(?:use|forward|import)\b/;
 
 const isConfig = (f: string) =>
   /(?:^|\/)(?:tailwind|postcss|theme|tokens?|panda|uno)\.config\.[cm]?[jt]s$/.test(f) ||
@@ -101,8 +106,8 @@ export function classifyStyleChange(file: string, readFile: (p: string) => strin
   if (isStyleSheet(file)) {
     if (isCssModule(file)) {
       // Hashed per-file scope — but `:global`, cross-module `composes … from`,
-      // genuinely global selectors (`:root`, `html`, `@font-face`, …), and Sass
-      // `@use`/`@forward` loads all escape it.
+      // genuinely global selectors (`:root`, `html`, `@font-face`, …), and any
+      // `@use`/`@forward`/`@import` load (Sass partial or plain-CSS sheet) escape it.
       return MODULE_ESCAPES.test(src) || GLOBAL_CSS.test(src) || SASS_LOAD.test(src) ? 'all' : 'scope';
     }
     return 'all'; // vanilla stylesheet: global class namespace, import graph can't bound it
@@ -115,6 +120,24 @@ const DYNAMIC_IMPORT = /import\(\s*([^)]+?)\s*\)/g;
 
 const dirOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
 const isSource = (p: string) => !p.includes('node_modules');
+
+/**
+ * Canonicalize a repo-relative path so the same file spells the same regardless
+ * of source (a `surfaces` value, a `changedFiles` entry, or a graph edge). Two
+ * tools disagree on `./pages/Home.tsx` vs `pages/Home.tsx` vs `pages//Home.tsx`;
+ * without one spelling, a reverse-reachability hit can silently miss the surface
+ * whose entry key was spelled differently, dropping it from the affected set —
+ * an unsound skip. Byte-cheap and fs-free: strip a leading `./`, collapse `//`,
+ * and drop `.`/`..` segments as pure string math (no realpath, no resolution). */
+export function canonicalPath(p: string): string {
+  const out: string[] = [];
+  for (const seg of p.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') out.pop();
+    else out.push(seg);
+  }
+  return out.join('/');
+}
 
 function link(rev: Map<string, Set<string>>, to: string, from: string): void {
   let s = rev.get(to);
@@ -174,23 +197,21 @@ function normalizeDir(fromDir: string, prefix: string): string {
   return out.join('/');
 }
 
-/** True if any changed file is a style change that escapes its importers. */
-function anyGlobalStyleChange(changed: string[], readFile: (p: string) => string): boolean {
-  return changed.some(
-    (f) => (isStyleSheet(f) || isCode(f) || isConfig(f)) && classifyStyleChange(f, readFile) === 'all',
-  );
-}
-
 /**
  * Build the reverse-import adjacency (`imported → importers`) from the graph plus
  * recovered context-module edges. `'all'` when an unbounded dynamic import makes
- * the whole reachability untrustworthy.
+ * the whole reachability untrustworthy. Paths are already canonical; `read`
+ * resolves a canonical path back to the caller's spelling before reading.
  */
-function buildReverseGraph(input: AffectedSurfacesInput, files: string[]): Map<string, Set<string>> | 'all' {
+function buildReverseGraph(
+  graph: Iterable<ModuleEdge>,
+  files: string[],
+  read: (p: string) => string | undefined,
+): Map<string, Set<string>> | 'all' {
   const rev = new Map<string, Set<string>>();
-  for (const e of input.graph) if (isSource(e.from) && isSource(e.to)) link(rev, e.to, e.from);
+  for (const e of graph) if (isSource(e.from) && isSource(e.to)) link(rev, e.to, e.from);
   for (const f of files) {
-    const src = isCode(f) ? safeRead(input.readFile, f) : undefined;
+    const src = isCode(f) ? read(f) : undefined;
     if (src === undefined) continue;
     const extra = recoverContextEdges(f, src, files);
     if (extra === 'unbounded') return 'all';
@@ -205,19 +226,45 @@ function buildReverseGraph(input: AffectedSurfacesInput, files: string[]): Map<s
  * provably unaffected and may reuse their committed base map.
  */
 export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces {
-  const changed = [...input.changedFiles];
+  // Canonicalize every path (surfaces values, changedFiles, graph from/to, files)
+  // through one spelling up front, so a `./`-prefixed or `//`-collapsed path from
+  // one source can't silently miss a match against another source's spelling.
+  // `readFile` is keyed on the caller's ORIGINAL spellings, so wrap it to resolve
+  // a canonical path back to the original it came from before reading.
+  const changed = [...input.changedFiles].map((f) => canonicalPath(f));
   const files = [...input.files];
+  const canonFiles = files.map((f) => canonicalPath(f));
+  const originalByCanon = new Map<string, string>();
+  files.forEach((orig, i) => originalByCanon.set(canonFiles[i], orig));
+  [...input.changedFiles].forEach((orig) => {
+    const c = canonicalPath(orig);
+    if (!originalByCanon.has(c)) originalByCanon.set(c, orig);
+  });
+  const surfaces = Object.fromEntries(Object.entries(input.surfaces).map(([k, f]) => [k, canonicalPath(f)]));
+  const graph = [...input.graph].map((e) => ({ ...e, from: canonicalPath(e.from), to: canonicalPath(e.to) }));
+  const read = (canon: string): string | undefined => safeRead(input.readFile, originalByCanon.get(canon) ?? canon);
 
   // 1. A style change that escapes its importers forces a full re-capture.
-  if (anyGlobalStyleChange(changed, input.readFile)) return 'all';
+  if (changed.some((f) => isStyleOrCode(f) && classifyCanon(f, read) === 'all')) return 'all';
 
   // 2. Reverse reachability (+ recovered context edges; unbounded dynamic → all).
-  const rev = buildReverseGraph(input, files);
+  const rev = buildReverseGraph(graph, canonFiles, read);
   if (rev === 'all') return 'all';
 
-  // 3. Map each changed file to the surfaces that transitively import it. A file
-  //    the graph can't place (no importers, not a surface entry) → 'all'.
-  const entryToKey = new Map(Object.entries(input.surfaces).map(([k, f]) => [f, k]));
+  // 3. Map each changed file to the surfaces that transitively import it.
+  const entryToKey = new Map(Object.entries(surfaces).map(([k, f]) => [f, k]));
+
+  // A surface whose entry path appears in neither `files` nor any graph edge is
+  // unplaceable: reverse reachability can never route a change to it, so a genuine
+  // hit would be dropped silently. Same fail-closed rule as an unplaceable changed
+  // file → 'all'.
+  const placeable = new Set<string>(canonFiles);
+  for (const e of graph) {
+    placeable.add(e.from);
+    placeable.add(e.to);
+  }
+  for (const f of Object.values(surfaces)) if (!placeable.has(f)) return 'all';
+
   const hit = new Set<string>();
   for (const f of changed) {
     const reach = reverseReach(f, rev);
@@ -228,6 +275,19 @@ export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces
     }
   }
   return hit;
+}
+
+/** A changed file whose kind participates in style scope (stylesheet, code, or config). */
+const isStyleOrCode = (f: string) => isStyleSheet(f) || isCode(f) || isConfig(f);
+
+/** {@link classifyStyleChange} against a reader that returns `undefined` for a missing
+ *  file (rather than throwing), matching the reverse-graph reader shape. */
+function classifyCanon(file: string, read: (p: string) => string | undefined): 'scope' | 'all' {
+  return classifyStyleChange(file, (p) => {
+    const src = read(p);
+    if (src == null) throw new Error('unreadable');
+    return src;
+  });
 }
 
 function reverseReach(file: string, rev: Map<string, Set<string>>): Set<string> {

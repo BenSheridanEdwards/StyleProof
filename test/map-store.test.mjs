@@ -2,7 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assertCompatibleMapDirs, MAP_MANIFEST } from '../dist/map-store.js';
+import {
+  assertCompatibleMapDirs,
+  BROWSER_BUILD_SIDECAR,
+  MAP_MANIFEST,
+  readMapManifest,
+  writeBrowserBuildSidecar,
+  writeMapManifest,
+} from '../dist/map-store.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 /** Write a manifest into `dir`, overriding defaults with `overrides`. */
@@ -77,5 +84,36 @@ test('assertCompatibleMapDirs: same browser build compares clean', () => {
   } finally {
     rmTmp(before);
     rmTmp(after);
+  }
+});
+
+test('writeBrowserBuildSidecar(undefined) CLEARS a stale sidecar so a version-less run stamps no browserVersion', () => {
+  // Repro of the stale-fingerprint bug: a reused capture dir already holds a PRIOR
+  // run's sidecar. This run records no browser version (handle unavailable / capture
+  // test not reached). If the sidecar survived, writeMapManifest would fold the prior
+  // build into this run's manifest and assertCompatibleMapDirs would trust it.
+  const dir = mkTmp('styleproof-sidecar-');
+  try {
+    // A prior run left a sidecar behind.
+    writeBrowserBuildSidecar(dir, '124.0.6367.60');
+    assert.equal(
+      JSON.parse(fs.readFileSync(path.join(dir, BROWSER_BUILD_SIDECAR), 'utf8')).browserVersion,
+      '124.0.6367.60',
+    );
+    // This run has no browser version → write-or-clear removes the stale sidecar.
+    writeBrowserBuildSidecar(dir, undefined);
+    assert.equal(fs.existsSync(path.join(dir, BROWSER_BUILD_SIDECAR)), false);
+    // So the manifest this run writes carries NO browserVersion — no false fingerprint.
+    const manifest = writeMapManifest({
+      dir,
+      spec: 'e2e/styleproof.spec.ts',
+      sha: 'd'.repeat(40),
+      screenshots: true,
+      dirty: false,
+    });
+    assert.equal(manifest.browserVersion, undefined);
+    assert.equal(readMapManifest(dir).browserVersion, undefined);
+  } finally {
+    rmTmp(dir);
   }
 });

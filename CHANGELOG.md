@@ -55,6 +55,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   global rules the JS import graph can't see, so `classifyStyleChange` now treats any
   such file as global (`'all'`) — a sound over-approximation, no heuristics. A plain CSS
   Module with only class selectors stays `'scope'` as before.
+- **Legacy Sass/CSS `@import` in a CSS Module now fails closed too.** The fail-closed
+  load check missed the `@import` form, so a `.module.scss` loading a partial via
+  `@import "vars"` — whose members merge in exactly like `@use` — classified as `'scope'`
+  and could silently skip a re-capture. `classifyStyleChange` now treats any
+  `@use`/`@forward`/`@import` load as global (`'all'`), covering both the Sass partial
+  load and the plain-CSS pass-through (`@import url(x.css)`, whose selectors are not
+  hashed into the module's per-file scope, so it escapes the module). Only ever widens
+  toward `'all'`; a module with no load directive still stays `'scope'`.
+- **`affectedSurfaces` now canonicalizes paths across all inputs, closing a silent
+  unsound skip.** `surfaces` entries, `changedFiles`, graph edges, and `files` are now
+  normalized to one spelling (strip a leading `./`, collapse `//`, resolve `.`/`..` as
+  pure string math — no fs), so a `./pages/Home.tsx` surface entry no longer misses a
+  reachability hit spelled `pages/Home.tsx` and gets dropped from the affected set. And a
+  declared surface whose entry path appears in neither `files` nor any graph edge is now
+  unplaceable → `'all'`, the same fail-closed rule as an unplaceable changed file.
+- **Stale browser-build sidecar can no longer stamp a false fingerprint.**
+  `styleproof-map` now deletes any prior run's `styleproof-browser.json` before Playwright
+  runs, and `writeBrowserBuildSidecar(dir, undefined)` now removes an existing sidecar
+  rather than leaving it. Previously a reused capture dir plus a run that recorded no
+  browser version would fold the _previous_ run's build into this run's manifest, and
+  `assertCompatibleMapDirs` would trust that false `browserVersion` fingerprint.
 - **`captureStyleMap` no longer leaks its motion-freeze `<style>` onto a reused page.**
   The freeze injected for the base/forced-state reads was re-applied without a handle and
   never removed, so on a page recaptured **without a reload** (an SPA `go()` that doesn't

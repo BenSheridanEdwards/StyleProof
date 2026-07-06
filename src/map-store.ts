@@ -124,11 +124,19 @@ function detectLockfile(cwd: string): { file?: string; hash?: string } {
 }
 
 /** Record the real browser build into the capture dir. Called from a capture run, where a
- *  Playwright browser handle is in scope. Best-effort: a missing version is simply not written. */
+ *  Playwright browser handle is in scope. Write-or-CLEAR semantics: an undefined version
+ *  REMOVES any existing sidecar rather than leaving it, so a reused capture dir (e.g. the
+ *  default `.styleproof/maps/current`) can never carry a PRIOR run's build into this run's
+ *  manifest — that would stamp a false browser-build fingerprint the compatibility guard
+ *  then trusts. Best-effort: the delete is forced and ignores a missing file. */
 export function writeBrowserBuildSidecar(dir: string, browserVersion: string | undefined): void {
-  if (!browserVersion) return;
+  const sidecar = path.join(dir, BROWSER_BUILD_SIDECAR);
+  if (!browserVersion) {
+    fs.rmSync(sidecar, { force: true });
+    return;
+  }
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, BROWSER_BUILD_SIDECAR), JSON.stringify({ browserVersion }, null, 2));
+  fs.writeFileSync(sidecar, JSON.stringify({ browserVersion }, null, 2));
 }
 
 function readBrowserBuildSidecar(dir: string): string | undefined {

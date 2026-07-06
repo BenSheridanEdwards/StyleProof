@@ -90,6 +90,28 @@ test('classify: a Sass module with @use pulls in a partial → global (fail clos
 test('classify: a Sass module with @forward re-exports another partial → global', () => {
   assert.equal(classifyStyleChange('Button.module.sass', read("@forward 'tokens'\n.btn\n  padding: 8px")), 'all');
 });
+test('classify: a Sass module with @import "partial" pulls in a partial → global (fail closed)', () => {
+  // Legacy Sass `@import "vars"` merges the partial's members (possibly global
+  // rules) into this module exactly like `@use` — the JS import graph can't bound
+  // it. The old classifier omitted `@import` and wrongly returned 'scope'.
+  assert.equal(classifyStyleChange('Card.module.scss', read('@import "vars";\n.card{border:1px}')), 'all');
+});
+test('classify: a Sass module with a plain-CSS @import url(...) also escapes → global', () => {
+  // A CSS `@import url(x.css)` composes an external sheet whose selectors are NOT
+  // hashed into this module's per-file scope, so it escapes the module too → 'all'.
+  // Uniform rule: ANY @import in a CSS-module Sass file fails closed.
+  assert.equal(classifyStyleChange('Card.module.scss', read('@import url("theme.css");\n.card{border:1px}')), 'all');
+});
+test('classify: a plain .module.css with a CSS @import escapes its module scope → global', () => {
+  // Same reasoning applies to a non-Sass CSS module: an @import-ed sheet is not
+  // hashed, so it escapes. Only ever widens toward 'all'.
+  assert.equal(classifyStyleChange('Card.module.css', read('@import "reset.css";\n.card{border:1px}')), 'all');
+});
+test('classify: a plain .module.scss WITHOUT any load stays scoped', () => {
+  // Guard against over-widening: a module with only class selectors and no load
+  // directive is still provably scoped.
+  assert.equal(classifyStyleChange('Card.module.scss', read('.card{border:1px}\n.title{font-weight:600}')), 'scope');
+});
 test('classify: an unreadable file fails closed to global', () => {
   assert.equal(
     classifyStyleChange('missing.css', () => {
@@ -196,6 +218,47 @@ test('an unbounded dynamic import anywhere makes reachability untrustworthy → 
 });
 test('an empty changeset affects nothing', () => {
   assert.deepEqual(sorted(run([])), []);
+});
+
+// ---------------------------------------------------------------------------
+// Path-convention canonicalization: surfaces, changedFiles, graph edges, and
+// files must resolve to one spelling. A `./`-prefixed surface entry (or a
+// changed file) that reverse-reachability CAN place must still be attributed to
+// its surface, not silently dropped. And a surface whose entry path is
+// unplaceable after normalization fails closed to 'all'.
+// ---------------------------------------------------------------------------
+test('a ./-prefixed surface entry still gets attributed (no silent drop → correct subset)', () => {
+  // `surfaces` spells `./src/pages/Home.tsx`; the graph spells `src/pages/Home.tsx`.
+  // Before canonicalization, entryToKey missed the reached surface and returned the
+  // empty set instead of {home}. Now both normalize to the same key.
+  const f = fixture();
+  const affected = affectedSurfaces({
+    ...f,
+    surfaces: { ...f.surfaces, home: './src/pages/Home.tsx' },
+    changedFiles: ['src/components/Promo.tsx'],
+  });
+  assert.deepEqual(sorted(affected), ['dashboard', 'home']);
+});
+test('a ./-prefixed CHANGED file resolves to the same node as the graph spelling', () => {
+  const f = fixture();
+  const affected = affectedSurfaces({ ...f, changedFiles: ['./src/widgets/Isolated.tsx'] });
+  assert.deepEqual(sorted(affected), ['pricing']);
+});
+test('a doubled-separator changed path canonicalizes and still resolves', () => {
+  const f = fixture();
+  const affected = affectedSurfaces({ ...f, changedFiles: ['src//widgets/Isolated.tsx'] });
+  assert.deepEqual(sorted(affected), ['pricing']);
+});
+test('an unplaceable surface entry (in neither files nor any edge) → all (fail closed)', () => {
+  // A declared surface whose entry path the graph cannot place can never receive a
+  // reachability hit, so a genuine change to it would be dropped. Fail closed.
+  const f = fixture();
+  const affected = affectedSurfaces({
+    ...f,
+    surfaces: { ...f.surfaces, ghost: 'src/pages/Ghost.tsx' },
+    changedFiles: ['src/widgets/Isolated.tsx'],
+  });
+  assert.equal(affected, 'all');
 });
 
 // ---------------------------------------------------------------------------
