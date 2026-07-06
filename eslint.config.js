@@ -11,6 +11,7 @@ export default tseslint.config(
       'graphify-out/**',
       '.claude/**', // agent worktrees nest a second checkout (own tsconfig) here — parsing it breaks lint
 
+      'test/fixtures/**', // fixture source trees (e.g. selective-remap .tsx/.css) are inputs, not lint targets
       '**/__stylemaps__/**',
       '.styleproof/**',
       'test-results/**',
