@@ -68,6 +68,10 @@ const GLOBAL_CSS = /(^|\})\s*(:root|html|body|\*)[\s,{]|@tailwind\b|@layer\s+bas
 const CSSJS_GLOBAL = /\b(createGlobalStyle|injectGlobal|globalStyle|globalCss|createGlobalTheme)\b/;
 // `:global(...)` escape hatch or cross-module composition pulls in outside scope.
 const MODULE_ESCAPES = /:global\b|\bcompose[sd]?\b[^;]*\bfrom\b/;
+// Sass `@use`/`@forward` pull another partial's members (and any global rules it
+// carries) into a CSS-module file. dependency-cruiser parses JS imports, not Sass
+// loads, so the import graph can't bound them — fail closed on any occurrence.
+const SASS_LOAD = /@(?:use|forward)\b/;
 
 const isConfig = (f: string) =>
   /(?:^|\/)(?:tailwind|postcss|theme|tokens?|panda|uno)\.config\.[cm]?[jt]s$/.test(f) ||
@@ -96,9 +100,10 @@ export function classifyStyleChange(file: string, readFile: (p: string) => strin
   if (isCode(file)) return CSSJS_GLOBAL.test(src) ? 'all' : 'scope'; // .tsx: global CSS-in-JS or colocated scope
   if (isStyleSheet(file)) {
     if (isCssModule(file)) {
-      // Hashed per-file scope — but `:global`, cross-module `composes … from`, and
-      // genuinely global selectors (`:root`, `html`, `@font-face`, …) all escape it.
-      return MODULE_ESCAPES.test(src) || GLOBAL_CSS.test(src) ? 'all' : 'scope';
+      // Hashed per-file scope — but `:global`, cross-module `composes … from`,
+      // genuinely global selectors (`:root`, `html`, `@font-face`, …), and Sass
+      // `@use`/`@forward` loads all escape it.
+      return MODULE_ESCAPES.test(src) || GLOBAL_CSS.test(src) || SASS_LOAD.test(src) ? 'all' : 'scope';
     }
     return 'all'; // vanilla stylesheet: global class namespace, import graph can't bound it
   }
@@ -238,4 +243,41 @@ function reverseReach(file: string, rev: Map<string, Set<string>>): Set<string> 
     }
   }
   return seen;
+}
+
+/**
+ * Render an {@link affectedSurfaces} verdict as human-readable lines a pre-push
+ * hook (or CI log) can print, so a reviewer can sanity-check the skip list before
+ * trusting it. Pure formatter — no I/O, no graph work.
+ *
+ * @param result       the value {@link affectedSurfaces} returned.
+ * @param allSurfaces  every declared surface key (e.g. `Object.keys(surfaces)`),
+ *                     so the helper can name what is *reused from base* — the ones
+ *                     the verdict skips — not just what re-captures.
+ * @param reason       optional one-line explanation for an `'all'` verdict (e.g.
+ *                     the classifying file, from {@link classifyStyleChange}). The
+ *                     library doesn't attach a reason to the sentinel, so pass it
+ *                     if the caller knows why; omitted, the `'all'` line stands alone.
+ */
+export function explainAffectedSurfaces(
+  result: AffectedSurfaces,
+  allSurfaces: Iterable<string>,
+  reason?: string,
+): string {
+  const all = [...allSurfaces].sort();
+  if (result === 'all') {
+    const why = reason ? ` — ${reason}` : '';
+    return [
+      `selective remap: OFF → re-capture all ${all.length} surface(s)${why}`,
+      ...all.map((k) => `  ↻ ${k} (re-capture)`),
+    ].join('\n');
+  }
+  const recapture = [...result].sort();
+  const hit = new Set(recapture);
+  const reused = all.filter((k) => !hit.has(k));
+  return [
+    `selective remap: ON → re-capture ${recapture.length}, reuse ${reused.length} from base`,
+    ...recapture.map((k) => `  ↻ ${k} (re-capture — a changed file reaches it)`),
+    ...reused.map((k) => `  ✓ ${k} (reuse base map — no changed file reaches it)`),
+  ].join('\n');
 }

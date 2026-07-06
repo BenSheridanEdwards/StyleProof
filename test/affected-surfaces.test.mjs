@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { affectedSurfaces, classifyStyleChange } from '../dist/affected-surfaces.js';
+import { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from '../dist/affected-surfaces.js';
 
 // ---------------------------------------------------------------------------
 // classifyStyleChange: sound global-vs-local verdict across styling systems.
@@ -43,6 +43,27 @@ test('classify: createGlobalStyle in a .tsx is global (the blunt fallback misses
     'all',
   );
 });
+test('classify: an UNLISTED CSS-in-JS global API in a .tsx reads as scope — documented residual', () => {
+  // BOUNDARY PIN (the one known-unsound path, accepted permanently). CSSJS_GLOBAL
+  // (src/affected-surfaces.ts) is an allowlist of global CSS-in-JS APIs. An
+  // allowlist is structurally incapable of failing closed on unknown members: a
+  // made-up `createGlobalStyles` from a fictional library isn't in the list, so a
+  // genuinely-global change in a .tsx is (mis)read as 'scope' and follows the
+  // import graph. The only sound alternative is treating EVERY code file as 'all',
+  // which deletes the feature. So this is caller-gated: an unsupported styling
+  // system is a reason to SKIP selective remap (README "Optional: selective remap
+  // (advisory)" states this). This test exists to make the boundary explicit, not
+  // accidental — if you add a library, extend CSSJS_GLOBAL and move it above.
+  assert.equal(
+    classifyStyleChange(
+      'Theme.tsx',
+      read(
+        "import {createGlobalStyles} from 'fictional-css-lib';\nexport const T=createGlobalStyles({body:{margin:0}});",
+      ),
+    ),
+    'scope',
+  );
+});
 test('classify: vanilla-extract globalStyle() is global', () => {
   assert.equal(
     classifyStyleChange(
@@ -60,6 +81,14 @@ test('classify: a Sass partial (non-module) is global', () => {
 });
 test('classify: a scoped Sass module is local', () => {
   assert.equal(classifyStyleChange('Button.module.scss', read('.btn{padding:8px}')), 'scope');
+});
+test('classify: a Sass module with @use pulls in a partial → global (fail closed)', () => {
+  // @use/@forward loads another partial (and any global rules it carries) that
+  // dependency-cruiser's JS import graph can't bound. Sound over-approximation → all.
+  assert.equal(classifyStyleChange('Button.module.scss', read("@use './globals';\n.btn{padding:8px}")), 'all');
+});
+test('classify: a Sass module with @forward re-exports another partial → global', () => {
+  assert.equal(classifyStyleChange('Button.module.sass', read("@forward 'tokens'\n.btn\n  padding: 8px")), 'all');
 });
 test('classify: an unreadable file fails closed to global', () => {
   assert.equal(
@@ -167,4 +196,40 @@ test('an unbounded dynamic import anywhere makes reachability untrustworthy → 
 });
 test('an empty changeset affects nothing', () => {
   assert.deepEqual(sorted(run([])), []);
+});
+
+// ---------------------------------------------------------------------------
+// explainAffectedSurfaces: pure formatter a pre-push hook can print. It names
+// which surfaces reuse the base map and which re-capture, so a reviewer can
+// sanity-check the skip list before trusting it.
+// ---------------------------------------------------------------------------
+const ALL_KEYS = ['home', 'pricing', 'dashboard', 'settings'];
+
+test('explain: a subset verdict lists re-captured and reused-from-base surfaces', () => {
+  const out = explainAffectedSurfaces(new Set(['pricing']), ALL_KEYS);
+  assert.match(out, /re-capture 1, reuse 3 from base/);
+  assert.match(out, /↻ pricing \(re-capture — a changed file reaches it\)/);
+  // The three the verdict skips are named as base-map reuse, not silently dropped.
+  assert.match(out, /✓ dashboard \(reuse base map/);
+  assert.match(out, /✓ home \(reuse base map/);
+  assert.match(out, /✓ settings \(reuse base map/);
+});
+
+test('explain: an all verdict re-captures every surface and carries the reason', () => {
+  const out = explainAffectedSurfaces('all', ALL_KEYS, 'src/tokens.css is a global stylesheet');
+  assert.match(out, /re-capture all 4 surface\(s\) — src\/tokens\.css is a global stylesheet/);
+  for (const k of ALL_KEYS) assert.match(out, new RegExp(`↻ ${k} \\(re-capture\\)`));
+  // No surface is ever named as reusable under 'all'.
+  assert.doesNotMatch(out, /reuse base map/);
+});
+
+test('explain: an all verdict without a reason still renders cleanly', () => {
+  const out = explainAffectedSurfaces('all', ['home']);
+  assert.match(out, /re-capture all 1 surface\(s\)$/m);
+});
+
+test('explain: an empty subset means every surface reuses its base map', () => {
+  const out = explainAffectedSurfaces(new Set(), ALL_KEYS);
+  assert.match(out, /re-capture 0, reuse 4 from base/);
+  assert.doesNotMatch(out, /↻/);
 });

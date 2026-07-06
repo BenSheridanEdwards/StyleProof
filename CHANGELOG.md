@@ -7,6 +7,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Selective-remap wiring: `explainAffectedSurfaces` + the pre-push recipe.** The
+  sound core (`affectedSurfaces`) shipped in 3.17.0 returns a bare `Set | 'all'` that
+  names nothing; the new pure `explainAffectedSurfaces(result, allSurfaceKeys, reason?)`
+  formatter renders the verdict as reviewer-checkable lines — which surfaces re-capture
+  and which reuse their committed base map — so a pre-push hook or CI log can print the
+  skip list before anyone trusts it. `affectedSurfaces`'s return shape is unchanged
+  (backward-compatible; the helper takes the surface keys as a second argument rather
+  than extending the sentinel). README's selective-remap section gains the helper, its
+  output, and the full `git diff → dependency-cruiser → affectedSurfaces → capture subset`
+  pre-push recipe. Opt-in and advisory throughout — the default full-coverage gate is
+  untouched.
+
+### Fixed
+
+- **Sass `@use`/`@forward` in a CSS Module now fails closed to `'all'`.** A
+  `.module.scss`/`.module.sass` that loads a partial via `@use`/`@forward` can pull in
+  global rules the JS import graph can't see, so `classifyStyleChange` now treats any
+  such file as global (`'all'`) — a sound over-approximation, no heuristics. A plain CSS
+  Module with only class selectors stays `'scope'` as before.
+
 ## [3.18.0] - 2026-07-06
 
 ### Added

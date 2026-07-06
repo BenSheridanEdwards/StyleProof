@@ -733,7 +733,48 @@ const result = affectedSurfaces({
 // → 'all'              (some change couldn't be bounded — capture everything)
 ```
 
-Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)` is treated as a bundler **context module** (every file under that dir is a possible target, so precision there is directory-level, never a miss); and the CSS-in-JS global list (`createGlobalStyle`, `injectGlobal`, `globalStyle`, …) must match the libraries you use — an unrecognized global API is the one way a scoped verdict could be unsound, so treat an unsupported styling system as a reason to skip selective remap. Because a PR-time miss would be silent, always let `main` (or a scheduled run) capture **all** surfaces as the trust-but-verify net.
+Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)` is treated as a bundler **context module** (every file under that dir is a possible target, so precision there is directory-level, never a miss); and a CSS-Module (`.module.scss`/`.module.sass`) that carries a Sass `@use`/`@forward` load resolves to `'all'`, because those pull in a partial the JS import graph can't bound. One honest **residual** stays `'scope'` by design: the CSS-in-JS global list (`createGlobalStyle`, `injectGlobal`, `globalStyle`, …) must match the libraries you use — an allowlist can't fail closed on an _unknown_ member, so an unrecognized global API in a `.tsx` is the one way a scoped verdict could be unsound. Treat an unsupported styling system as a reason to skip selective remap. Because a PR-time miss would be silent, always let `main` (or a scheduled run) capture **all** surfaces as the trust-but-verify net.
+
+### Show the skip list, then wire the pre-push hook
+
+Before you trust a skip, print it. `explainAffectedSurfaces(result, allSurfaceKeys)` renders the verdict as reviewer-checkable lines — which surfaces re-capture and which reuse their committed base map — and takes an optional reason string for the `'all'` case:
+
+```ts
+import { affectedSurfaces, explainAffectedSurfaces } from 'styleproof';
+
+const result = affectedSurfaces(/* … */);
+console.log(explainAffectedSurfaces(result, Object.keys(surfaces)));
+```
+
+A scoped change (only `dashboard`'s subtree touched) prints:
+
+```
+selective remap: ON → re-capture 1, reuse 2 from base
+  ↻ dashboard (re-capture — a changed file reaches it)
+  ✓ home (reuse base map — no changed file reaches it)
+  ✓ pricing (reuse base map — no changed file reaches it)
+```
+
+A global/token change fails closed to a full re-capture:
+
+```
+selective remap: OFF → re-capture all 3 surface(s) — src/tokens.css is a global (unscoped) stylesheet
+  ↻ dashboard (re-capture)
+  ↻ home (re-capture)
+  ↻ pricing (re-capture)
+```
+
+Wired into a pre-push hook, the whole recipe is: diff the changed files, produce the graph, ask `affectedSurfaces`, print the skip list, then capture only the subset and reuse the committed base maps for the rest.
+
+```sh
+#!/usr/bin/env sh
+# .husky/pre-push (opt-in; the default CI gate still captures every surface)
+CHANGED=$(git diff --name-only origin/main...HEAD)
+npx dependency-cruiser src --no-config --output-type json > dc.json
+node scripts/selective-remap.mjs "$CHANGED" dc.json   # affectedSurfaces + explain + capture subset
+```
+
+`scripts/selective-remap.mjs` is yours to own — it maps `dc.json` into `{ from, to }` edges (as above), calls `affectedSurfaces`, prints `explainAffectedSurfaces`, then captures only the returned keys and copies each reused surface's committed base map forward. `main` re-captures everything, so a PR-time miss is still caught at merge.
 
 ## Newly-added elements show their full style
 

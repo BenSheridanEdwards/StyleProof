@@ -58,5 +58,5 @@ export { diffStyleMaps, diffStyleMapDirs, diffContentMaps, diffContentDirs, find
 export type { Finding, PropChange, SurfaceDiff, DiffCounts, ContentChange } from './diff.js';
 export { generateStyleMapReport, summarizeProps, prettyLabel } from './report.js';
 export type { ReportOptions, ReportResult } from './report.js';
-export { affectedSurfaces, classifyStyleChange } from './affected-surfaces.js';
+export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';
