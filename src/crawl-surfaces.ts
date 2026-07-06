@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
+import { DANGER_SOURCE } from './danger.js';
 
 /**
  * Surface crawler: deterministically map a single URL's WHOLE interactive
@@ -186,12 +187,14 @@ function deriveKey(steps: CrawlStep[], used: Set<string>): string {
   return key;
 }
 
-/** Runs in the browser: every visible, enabled, non-navigating control worth trying. */
+/** Runs in the browser: every visible, enabled, non-navigating control worth trying.
+ *  `dangerSource` is the shared destructive-label pattern (see {@link DANGER_SOURCE}),
+ *  passed in because this function is serialized into the browser and can't close over
+ *  a Node `RegExp`. */
 /* c8 ignore start */ // fallow-ignore-next-line complexity
-function collectClickable(): RawCandidate[] {
+function collectClickable(dangerSource: string): RawCandidate[] {
   const SEMANTIC = 'button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form';
-  const DANGER =
-    /\b(delete|remove|destroy|logout|log ?out|sign ?out|publish|deploy|pay|purchase|buy|checkout|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew)\b/i;
+  const DANGER = new RegExp(dangerSource, 'i');
   const esc = (v: string): string => CSS.escape(v);
   const quote = (v: string): string => JSON.stringify(v);
   const visible = (el: Element): boolean => {
@@ -225,7 +228,11 @@ function collectClickable(): RawCandidate[] {
     return pathSelector(el);
   };
   const labelFor = (el: Element): string =>
-    (el.getAttribute('aria-label') || el.getAttribute('name') || el.textContent || '')
+    // `title` is included so an icon-only control (no text, no aria-label) that
+    // announces itself via a native tooltip — `<button title="Delete">🗑</button>` —
+    // still yields a meaningful label. Without it such a button labels as "button"
+    // and slips past the destructive guard below, which mapping must never click.
+    (el.getAttribute('aria-label') || el.getAttribute('name') || el.textContent || el.getAttribute('title') || '')
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 80) || el.tagName.toLowerCase();
@@ -894,7 +901,7 @@ async function sweepCandidatesHere(
   freshOnly = false,
   excludeIds: Set<string> = new Set(),
 ): Promise<{ tried: number; skipped: number }> {
-  const all = await page.evaluate(collectClickable).catch(() => [] as RawCandidate[]);
+  const all = await page.evaluate(collectClickable, DANGER_SOURCE).catch(() => [] as RawCandidate[]);
   const work = sweepWorkList(entry, all, opts, st, freshOnly, excludeIds);
   // Controls present HERE — passed to each child's in-place descent as its
   // exclude set, so the descent skips this surface's mode-switchers/chrome and
