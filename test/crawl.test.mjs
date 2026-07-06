@@ -82,6 +82,35 @@ test('selectCrawlLinks: match narrows by RegExp, substring, and predicate', () =
   );
 });
 
+test('selectCrawlLinks: trailing slash is not a distinct surface — /about and /about/ collapse to one', () => {
+  // Before the fix these dedupe by raw url (distinct) yet key identically (`about`),
+  // so the second capture silently overwrote the first. First-seen href wins.
+  assert.deepEqual(pick(['/about', '/about/']), [{ key: 'about', url: '/about' }]);
+  assert.deepEqual(pick(['/about/', '/about']), [{ key: 'about', url: '/about/' }]);
+});
+
+test('selectCrawlLinks: root "/" keeps its slash; the query is never trailing-slash-stripped', () => {
+  assert.deepEqual(pick(['/', '/?a=1']), [
+    { key: 'index', url: '/' },
+    { key: '1', url: '/?a=1' },
+  ]);
+});
+
+test('selectCrawlLinks: genuinely different surfaces with a colliding key both survive via -2 suffix', () => {
+  // /a/b, /a-b, /a_b are three distinct routes that all slugify to `a-b` under
+  // defaultLinkKey; without disambiguation the later ones overwrite the first's map
+  // file. First wins bare, next gets `-2`, then `-3`.
+  const links = pick(['/a/b', '/a-b', '/a_b']);
+  assert.deepEqual(
+    links.map((l) => l.key),
+    ['a-b', 'a-b-2', 'a-b-3'],
+  );
+  assert.deepEqual(
+    links.map((l) => l.url),
+    ['/a/b', '/a-b', '/a_b'],
+  );
+});
+
 test('selectCrawlLinks: custom key overrides the default scheme', () => {
   const links = pick(['/?tab=overview'], { key: (u) => `view-${u.searchParams.get('tab')}` });
   assert.deepEqual(links, [{ key: 'view-overview', url: '/?tab=overview' }]);
@@ -108,6 +137,17 @@ test('defaultLinkKey: path segments slugify; root is "index"', () => {
 
 test('defaultLinkKey: path + query values combine', () => {
   assert.equal(defaultLinkKey(new URL('https://app.test/shop?cat=shoes')), 'shop-shoes');
+});
+
+test('defaultLinkKey: param order does not flap the key — values join in sorted-by-name order', () => {
+  // ?tab=a&x=b and ?x=b&tab=a are the same logical route; before the fix they keyed
+  // a-b vs b-a, flapping the coverage guard into phantom regressions.
+  assert.equal(defaultLinkKey(new URL('https://app.test/?tab=a&x=b')), 'a-b');
+  assert.equal(defaultLinkKey(new URL('https://app.test/?x=b&tab=a')), 'a-b');
+  assert.equal(
+    defaultLinkKey(new URL('https://app.test/?tab=a&x=b')),
+    defaultLinkKey(new URL('https://app.test/?x=b&tab=a')),
+  );
 });
 
 // ------------------------------------------------------- crawlCoverageGaps

@@ -9,7 +9,14 @@ import {
   type LiveRegionCandidate,
 } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
-import { coverageGaps, COVERAGE_LEDGER, type CoverageLedger, type DeterminismBasis } from './coverage.js';
+import {
+  coverageGaps,
+  coverageKeys,
+  translateExpected,
+  COVERAGE_LEDGER,
+  type CoverageLedger,
+  type DeterminismBasis,
+} from './coverage.js';
 import { writeBrowserBuildSidecar } from './map-store.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
@@ -444,6 +451,43 @@ export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
   return [...expandedVariants, ...liveStates.map((state) => expandOne(surface, state, 'live-state'))];
 }
 
+/** The identity fields of an expanded surface a collision check needs. */
+type ExpandedKeyed = { key: string; metadata?: CaptureMetadata };
+
+/** Human-readable origin of an expanded surface for a collision message. */
+function expandedOrigin(s: ExpandedKeyed): string {
+  const surfaceKey = s.metadata?.surfaceKey ?? s.key;
+  const variantKey = s.metadata?.variantKey;
+  return variantKey ? `surface '${surfaceKey}' variant '${variantKey}'` : `surface '${surfaceKey}'`;
+}
+
+/**
+ * Fail LOUDLY on two expanded surfaces sharing a capture key.
+ *
+ * The expanded key is `surface.key-variant.key`, and that key is the map filename
+ * (`<key>@<width>.json.gz`) and the report identity — so it's public and can't
+ * change without breaking backward compatibility. But the `-` join is ambiguous:
+ * surface `a` + variant `b-c` and surface `a-b` + variant `c` both expand to
+ * `a-b-c`, and the second capture would silently overwrite the first, dropping a
+ * surface with no error. Rather than mangle the public key format, we assert
+ * uniqueness up front and name BOTH origins so the author can rename one.
+ */
+export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
+  const byKey = new Map<string, ExpandedKeyed>();
+  for (const s of surfaces) {
+    const prior = byKey.get(s.key);
+    if (prior) {
+      throw new Error(
+        `styleproof: capture key '${s.key}' is produced by two surfaces — ` +
+          `${expandedOrigin(prior)} collides with ${expandedOrigin(s)}. ` +
+          `Keys must expand uniquely (they name the map files and report entries); ` +
+          `rename one surface or variant.`,
+      );
+    }
+    byKey.set(s.key, s);
+  }
+}
+
 /**
  * Let SSE (EventSource) requests bypass HAR record/replay and reach the live
  * server. A long-lived stream can't round-trip through a HAR entry: recording
@@ -777,6 +821,7 @@ function writeCoverageLedgerTest(
   dir: string,
   expected: string[] | null,
   exclude: Record<string, string>,
+  captureSurfaces: ReadonlyArray<{ key: string; metadata?: CaptureMetadata }>,
 ): void {
   test('styleproof coverage ledger', () => {
     const outDir = path.join(settings.baseDir, dir);
@@ -788,7 +833,11 @@ function writeCoverageLedgerTest(
       : settings.replayFrom
         ? 'replayed'
         : 'unproven';
-    const ledger: CoverageLedger = { version: 1, expected, exclude, determinism };
+    // Pre-translate the declared universe into the keys actually captured to disk, so
+    // the GATE (which reads expanded map filenames and can't see `surfaceKey` metadata)
+    // compares literally — a liveStates surface's `-loading`/`-loaded` splits satisfy it.
+    const ledgerExpected = expected == null ? null : translateExpected(expected, captureSurfaces);
+    const ledger: CoverageLedger = { version: 1, expected: ledgerExpected, exclude, determinism };
     fs.writeFileSync(path.join(outDir, COVERAGE_LEDGER), JSON.stringify(ledger, null, 2));
   });
 }
@@ -809,6 +858,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
   const { surfaces, expected, exclude = {}, dir } = options;
   const settings = resolveSettings(options);
   const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
+  assertUniqueExpandedKeys(captureSurfaces);
 
   // Coverage guard. Runs in the NORMAL test suite (NOT gated on a capture dir), so
   // a route added without a surface fails the app's own tests — long before, and
@@ -819,7 +869,9 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     test.describe('styleproof coverage', () => {
       test('every expected surface is captured or explicitly excluded', () => {
         const { uncovered, staleExclusions } = coverageGaps(
-          captureSurfaces.map((s) => s.key),
+          // A liveStates surface is captured only as its `-loading`/`-loaded` splits;
+          // map each back to the declared base key so the split satisfies `expected`.
+          coverageKeys(captureSurfaces),
           expected,
           exclude,
         );
@@ -840,7 +892,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
 
   test.describe('styleproof capture', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
-    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude);
+    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
     if (dir) writeBrowserBuildTest(settings, dir);
     for (const surface of captureSurfaces) {
       if (surface.widths && surface.widths.length > 0) {
@@ -1029,7 +1081,14 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     // captures what the nav links to, and can't prove that's every route). With
     // `expected` the crawl reconciles the DISCOVERED link set against it below and the
     // ledger travels with the declared universe.
-    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude);
+    // The crawl applies the SAME variants/liveStates to every discovered link, so the
+    // expansion of a declared key is knowable up front (before discovery): expand each
+    // `expected` key with this crawl's variants/liveStates to get the keys captured to
+    // disk, so a liveStates crawl's ledger is pre-translated like the spec-driven one.
+    const ledgerSurfaces = (expected ?? []).flatMap((key) =>
+      expandSurfaceVariants({ key, go: async () => {}, variants, liveStates }),
+    );
+    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, ledgerSurfaces);
     if (dir) writeBrowserBuildTest(settings, dir);
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
       // 1. Load the root and read its hydrated nav links into the surface set.
@@ -1063,6 +1122,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           popups,
         }),
       );
+      assertUniqueExpandedKeys(captureSurfaces);
       // Budget the whole sweep up front: one test captures every surface, and
       // captureSurface no longer sets its own timeout, so size it to the work found.
       // With auto-width the band count isn't known until each surface renders, so
