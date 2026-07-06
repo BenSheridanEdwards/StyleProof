@@ -625,6 +625,31 @@ test('end-to-end: a surface missing on one side is reported as a new surface, no
   rmTmp(root);
 });
 
+test('a hostile surface key renders inertly — no Markdown injection into the report/comment', () => {
+  // Surface keys come from artifact filenames — attacker-controlled in the fork
+  // capture/report split — and flow into the privileged PR-comment summary. A key
+  // crafted to break out of its inline-code span and inject a link must render as
+  // plain text, never as an active `[label](url)` / `<img>` / table cell.
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  // Filename-safe (no path separators) yet Markdown/HTML-dangerous: a link
+  // break-out, an inline image tag, and a table pipe.
+  const hostile = 'x](evil)<img src=x>|@1280';
+  writeCapture(beforeDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  writeCapture(afterDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  // Present only on the after side → rendered as a new surface, whose heading and
+  // summary interpolate the key.
+  writeCapture(afterDir, hostile, sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  // The Markdown/HTML control characters are stripped from every interpolation of
+  // the key: no link parens, no closing bracket, no tag angle brackets, no table pipe.
+  assert.doesNotMatch(md, /x\]\(evil\)/);
+  assert.doesNotMatch(md, /<img src=x>/);
+  // The sanitized, inert form is what appears instead.
+  assert.match(md, /x--evil--img src=x-/);
+  rmTmp(root);
+});
+
 test('end-to-end: a new surface is shown with its captured-side screenshot', () => {
   const { root, beforeDir, afterDir, outDir } = tmpDirs();
   // Present only on the after side, with a screenshot → rendered as an image.
