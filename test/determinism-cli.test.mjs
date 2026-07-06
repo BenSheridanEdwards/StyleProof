@@ -46,7 +46,7 @@ test('both self-checked → determinism proven, clean greens (exit 0)', () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test("Fleet's flow — base self-checked, head replayed — is proven (exit 0)", () => {
+test('the record-then-replay flow — base self-checked, head replayed — is proven (exit 0)', () => {
   const { root, base, head } = fixture('self-checked', 'replayed');
   const { code, out } = run(base, head);
   assert.equal(code, 0, `record-then-replay is deterministic by construction\n${out}`);
