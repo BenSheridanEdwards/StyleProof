@@ -20,7 +20,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   against the surface's pristine overlay set; a candidate that can't be opened
   safely is skipped loudly (a `styleproof:` warning naming the popup and the
   leaked overlay or missing trigger) instead of being captured contaminated,
-  mis-keyed, or — with self-check on — saved unproven. Navigating surfaces are
+  mis-keyed, or — with self-check on — saved unproven. That identity is the
+  trigger's DOM path **and** its accessible label, not the path alone: for an
+  id-less trigger the path ends in `:nth-of-type`, which is still position within
+  a parent, so a same-tag same-parent sibling injected earlier in DOM order
+  between enumeration and reopen would slide the recorded path onto a different
+  trigger and key its popup under the wrong one — silently. Requiring the label
+  (the same aria-label/name/text/title accessible name the crawler reads) to match
+  too turns that mismatch into the same loud skip. Navigating surfaces are
   unaffected.
 
 ## [3.19.0] - 2026-07-06

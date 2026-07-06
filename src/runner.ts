@@ -303,9 +303,13 @@ const DEFAULT_POPUP_OVERLAYS = [
 
 type ResolvedPopupCaptureOptions = Required<PopupCaptureOptions>;
 /** A trigger enumerated once per surface: `index` names the capture (`popup-XX`),
- *  `path` is the stable DOM identity every reopen re-binds to (never the index —
- *  the trigger set can shift between opens and re-bind a different element). */
-type PopupCandidate = { index: number; path: string };
+ *  `path` + `label` are the stable identity every reopen re-binds to (never the
+ *  index — the trigger set can shift between opens and re-bind a different element).
+ *  `path` alone is positional (`:nth-of-type`) for an id-less trigger, so a same-tag
+ *  same-parent sibling injected earlier in DOM order would slide `path` onto the
+ *  wrong element; `label` (the trigger's accessible name) pins identity so that
+ *  mismatch resolves to a loud skip, not a silent mis-key. */
+type PopupCandidate = { index: number; path: string; label: string };
 type PopupDomSnapshot = { keys: string[]; candidates: PopupCandidate[]; found: boolean };
 
 export function resolvePopupCaptureOptions(
@@ -338,12 +342,15 @@ async function popupDomSnapshot(
     attr?: string;
     max?: number;
     /** Re-bind mode: instead of enumerating, mark ONLY the trigger whose DOM path
-     *  equals this (attr value `target`). `found: false` means it no longer exists —
-     *  the caller must skip loudly, never fall back to positional matching. */
+     *  equals this (attr value `target`) AND whose label equals `relocateLabel`.
+     *  `found: false` means no element matches both — it no longer exists, or a
+     *  same-tag sibling slid the (positional) path onto a different trigger — the
+     *  caller must skip loudly, never fall back to positional matching. */
     relocatePath?: string;
+    relocateLabel?: string;
   },
 ): Promise<PopupDomSnapshot> {
-  return page.evaluate(({ popupSelector, triggerSelector, attr, max = 0, relocatePath }) => {
+  return page.evaluate(({ popupSelector, triggerSelector, attr, max = 0, relocatePath, relocateLabel }) => {
     const qsa = (sel: string): Element[] => {
       try {
         return [...document.querySelectorAll(sel)];
@@ -371,6 +378,14 @@ async function popupDomSnapshot(
       }
       return parts.join(' > ');
     };
+    // The trigger's accessible name — mirrors crawl-surfaces' labelFor (aria-label
+    // || name || textContent || title). `path` is positional for an id-less trigger;
+    // this pins identity so a shifted same-tag sibling can't silently steal the bind.
+    const labelOf = (el: Element): string =>
+      (el.getAttribute('aria-label') || el.getAttribute('name') || el.textContent || el.getAttribute('title') || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80) || el.tagName.toLowerCase();
     const popupKey = (el: Element): string => {
       const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
       return [
@@ -392,7 +407,7 @@ async function popupDomSnapshot(
     for (const el of qsa(`[${attr}]`)) el.removeAttribute(attr);
 
     if (relocatePath) {
-      const target = qsa(triggerSelector).find((el) => pathOf(el) === relocatePath);
+      const target = qsa(triggerSelector).find((el) => pathOf(el) === relocatePath && labelOf(el) === relocateLabel);
       if (target) target.setAttribute(attr, 'target');
       return { keys, candidates: [], found: Boolean(target) };
     }
@@ -409,7 +424,11 @@ async function popupDomSnapshot(
       .filter((el) => visible(el) && !popups.some((popup) => popup !== el && popup.contains(el)) && safeTrigger(el))
       .slice(0, max);
     candidates.forEach((el, index) => el.setAttribute(attr, String(index)));
-    return { keys, candidates: candidates.map((el, index) => ({ index, path: pathOf(el) })), found: false };
+    return {
+      keys,
+      candidates: candidates.map((el, index) => ({ index, path: pathOf(el), label: labelOf(el) })),
+      found: false,
+    };
   }, options);
 }
 
@@ -587,7 +606,9 @@ type PopupOpenResult =
   /** Trigger clicked but no new overlay appeared — the normal case for most
    *  enumerated buttons, silently ignored. */
   | { status: 'none' }
-  /** The originally-enumerated trigger is gone from the DOM after the reset. */
+  /** The originally-enumerated trigger is no longer identifiable after the reset —
+   *  gone from the DOM, or its recorded (path, label) identity no longer matches
+   *  any trigger (a shifted same-tag sibling slid the positional path elsewhere). */
   | { status: 'missing' }
   /** The reset didn't reset: overlay(s) absent from the surface's pristine state
    *  are still visible (Escape closes dialogs, not toasts/status regions), so any
@@ -600,9 +621,10 @@ type PopupOpenResult =
  * Two guarantees the naive open loop lacked:
  * - the reset is VERIFIED against the pristine overlay keys, not assumed —
  *   Escape is not a universal close, and a non-navigating `go()` clears nothing;
- * - the trigger is re-bound by the DOM path recorded at first enumeration, never
- *   by its position in a fresh enumeration (the trigger set can shift between
- *   opens and silently key the popup under a different trigger).
+ * - the trigger is re-bound by the (path, label) identity recorded at first
+ *   enumeration, never by its position in a fresh enumeration (the trigger set can
+ *   shift between opens and silently key the popup under a different trigger; the
+ *   label pins identity where the path alone is still positional for id-less triggers).
  * Either check failing is reported for the caller to skip loudly.
  */
 async function openPopupCandidate(
@@ -622,6 +644,7 @@ async function openPopupCandidate(
     triggerSelector: options.triggers,
     attr: POPUP_TRIGGER_ATTR,
     relocatePath: candidate.path,
+    relocateLabel: candidate.label,
   });
   const leaked = snapshot.keys.filter((key) => !pristine.has(key));
   if (leaked.length) return { status: 'leaked', leaked };
@@ -700,7 +723,7 @@ async function assertPopupDeterministic(
   if (reopened.status !== 'opened') {
     throw new Error(
       `styleproof self-check failed: ${surface.key}-${popupId} popup did not reopen` +
-        (reopened.status === 'missing' ? ' (its trigger disappeared from the DOM)' : ''),
+        (reopened.status === 'missing' ? ' (its trigger disappeared from the DOM or changed identity)' : ''),
     );
   }
   const again = await captureOpenedPopupMap(page, surface, s, pending, popupId);
@@ -741,7 +764,8 @@ async function capturePopupCandidate(
         surface,
         popupId,
         width,
-        `its originally-enumerated trigger is no longer in the DOM after the reset (Escape + go()); ` +
+        `its originally-enumerated trigger is no longer identifiable after the reset (Escape + go()) — ` +
+          `gone from the DOM, or a shifted same-tag sibling no longer matches its recorded label; ` +
           `skipping rather than re-binding to a different trigger.`,
       );
       return;

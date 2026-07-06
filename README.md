@@ -293,13 +293,15 @@ assert a capture reached `role="dialog"`, `aria-modal`, `role="menu"`,
 `role="listbox"`, or hot-toast text.
 
 Triggers are enumerated once per surface and every reopen re-binds to that same
-element by identity, never by position. Between popups the surface is reset
-(Escape + `go()`) and the reset is verified: if an overlay a previous popup left
-behind is still visible (Escape closes dialogs, not toasts or status regions), or
-an enumerated trigger disappeared, that candidate is **skipped loudly** — a
-`styleproof:` warning names the popup and why — instead of capturing contaminated
-state or keying a popup under the wrong trigger. Dismiss the leaking overlay in
-the surface's `go()`, or capture it as an explicit variant.
+element by identity — its DOM path **and** its accessible label — never by
+position. Between popups the surface is reset (Escape + `go()`) and the reset is
+verified: if an overlay a previous popup left behind is still visible (Escape
+closes dialogs, not toasts or status regions), or an enumerated trigger
+disappeared or changed identity (e.g. a same-tag sibling shifted in earlier),
+that candidate is **skipped loudly** — a `styleproof:` warning names the popup and
+why — instead of capturing contaminated state or keying a popup under the wrong
+trigger. Dismiss the leaking overlay in the surface's `go()`, or capture it as an
+explicit variant.
 
 **Harvest one-step variants.** Routes are not the whole UI: drawers, tabs,
 dialogs, empty form errors, selects, and other one-step states need their own

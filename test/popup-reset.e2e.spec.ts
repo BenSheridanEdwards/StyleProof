@@ -95,6 +95,41 @@ const SHIFT_HTML = `
   </script>
 `;
 
+// (b2) The SAME-PARENT shift the DOM path alone can't survive: all triggers are
+// id-less <button>s in ONE container, so each trigger's recorded path ends in a
+// positional :nth-of-type among its same-tag siblings. Opening the first popup
+// injects a same-tag id-less decoy button EARLIER in DOM order (insertBefore the
+// first trigger), sliding every later sibling's :nth-of-type down by one — so the
+// second trigger's recorded path now resolves to the FIRST trigger. Path-only
+// binding would re-key the first popup under popup-02, silently. The label check
+// must catch the identity mismatch and skip loudly instead.
+const SIBLING_SHIFT_HTML = `
+  ${STYLE}
+  <main>
+    <div class="actions">
+      <button type="button">Open one</button>
+      <button type="button">Open two</button>
+    </div>
+    <dialog id="one">One dialog</dialog>
+    <dialog id="two">Two dialog</dialog>
+  </main>
+  <script>
+    const actions = document.querySelector('.actions');
+    const [first, second] = actions.querySelectorAll('button');
+    first.addEventListener('click', () => {
+      if (!actions.querySelector('[data-decoy]')) {
+        const decoy = document.createElement('button');
+        decoy.type = 'button';
+        decoy.setAttribute('data-decoy', '');
+        decoy.textContent = 'Decoy';
+        actions.insertBefore(decoy, first);
+      }
+      document.getElementById('one').showModal();
+    });
+    second.addEventListener('click', () => document.getElementById('two').showModal());
+  </script>
+`;
+
 // A popup that itself defeats the reset (a toast): with self-check on, its reopen
 // can't be verified, so the capture must be discarded loudly — not saved unproven
 // and not failed with a misleading "did not reopen" error.
@@ -125,6 +160,16 @@ test.describe('popup trigger-shift capture', () => {
   defineStyleMapCapture({
     surfaces: [{ key: 'shift-demo', widths: [WIDTH], popups: true, go: spaGo(SHIFT_HTML) }],
     dir: 'shift',
+    baseDir: ROOT,
+    screenshots: false,
+    selfCheck: false,
+  });
+});
+
+test.describe('popup same-parent sibling-shift capture', () => {
+  defineStyleMapCapture({
+    surfaces: [{ key: 'sibling-shift', widths: [WIDTH], popups: true, go: spaGo(SIBLING_SHIFT_HTML) }],
+    dir: 'sibling-shift',
     baseDir: ROOT,
     screenshots: false,
     selfCheck: false,
@@ -173,6 +218,27 @@ test('a shifted trigger set cannot re-key a popup under a different trigger', ()
     warnings.filter((w) => w.includes('shift-demo')),
     'identity binding needs no skips on this surface',
   ).toEqual([]);
+});
+
+test("a same-parent sibling shift cannot key one trigger's popup under another", () => {
+  // popup-01 is the first trigger's dialog; opening it injects a same-tag id-less
+  // decoy earlier in DOM order, so the second trigger's recorded :nth-of-type path
+  // now resolves to the FIRST trigger. Path-only binding would capture "One dialog"
+  // under popup-02. The label check must either keep popup-02 bound to its own
+  // trigger ("Two dialog") or skip it loudly — but NEVER key "One dialog" here.
+  expect(overlayTexts('sibling-shift', 'sibling-shift-popup-01').join(' ')).toContain('One dialog');
+
+  const popup02Path = path.join(ROOT, 'sibling-shift', `sibling-shift-popup-02@${WIDTH}.json.gz`);
+  if (fs.existsSync(popup02Path)) {
+    // Correctly bound: popup-02 is its own trigger's dialog, never the first's.
+    const two = overlayTexts('sibling-shift', 'sibling-shift-popup-02').join(' ');
+    expect(two, "popup-02 must not be the first trigger's popup mis-keyed").not.toContain('One dialog');
+    expect(two).toContain('Two dialog');
+  } else {
+    // Loudly skipped: no silent mis-key — the skip must name the popup.
+    const skip = warnings.find((w) => w.includes(`sibling-shift-popup-02@${WIDTH}`));
+    expect(skip, 'a skipped popup-02 must be named in a styleproof: warning').toBeTruthy();
+  }
 });
 
 test('a popup that defeats the reset is discarded loudly under self-check, not saved unproven', () => {
