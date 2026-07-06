@@ -23,6 +23,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Crawl no longer silently drops surfaces to key collisions, and mapping no longer
+  clicks title-only destructive controls.** Five soundness fixes across the crawl path:
+  - `selectCrawlLinks` deduped by raw URL, so `/about` and `/about/` — one route — were
+    two links that keyed identically and the second capture overwrote the first. Trailing
+    slashes are now normalized in the dedup identity (root `/` and the query string are
+    left intact), so a route is captured once.
+  - Genuinely distinct surfaces whose derived keys collide (e.g. `/a/b` and `/a-b` both
+    slugify to `a-b`) previously overwrote each other's map file. `selectCrawlLinks` now
+    disambiguates with a `-2`, `-3`, … suffix (mirroring the surface crawler), so every
+    surface survives.
+  - `defaultLinkKey` joined query-param values in iteration order, so `?tab=a&x=b` and
+    `?x=b&tab=a` — the same route — keyed as `a-b` vs `b-a` and flapped the coverage
+    guard into phantom regressions. Params are now sorted by name before joining.
+  - The surface crawler's clickable-candidate label omitted the `title` attribute, so an
+    icon-only `<button title="Delete">` labeled as `button` and slipped past the
+    destructive-action guard — mapping would click it. `title` is now part of the label
+    input in both crawlers.
+  - The variant crawler carried a weaker, divergent copy of the destructive-action word
+    list (missing `revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew`). Both
+    crawlers now share one `DANGER_SOURCE` constant, so mapping refuses the same set of
+    destructive controls everywhere.
+  - `defineStyleMapCapture` and `defineCrawlCapture` now assert every expanded capture
+    key is unique before running: the `surface.key-variant.key` join is ambiguous
+    (`a` + `b-c` and `a-b` + `c` both expand to `a-b-c`), which used to overwrite a map
+    file with no error. The key format is unchanged (it's public — filenames and report
+    identities); a collision now throws up front and names both origins so the author can
+    rename one.
 - **Sass `@use`/`@forward` in a CSS Module now fails closed to `'all'`.** A
   `.module.scss`/`.module.sass` that loads a partial via `@use`/`@forward` can pull in
   global rules the JS import graph can't see, so `classifyStyleChange` now treats any

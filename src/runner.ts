@@ -444,6 +444,43 @@ export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
   return [...expandedVariants, ...liveStates.map((state) => expandOne(surface, state, 'live-state'))];
 }
 
+/** The identity fields of an expanded surface a collision check needs. */
+type ExpandedKeyed = { key: string; metadata?: CaptureMetadata };
+
+/** Human-readable origin of an expanded surface for a collision message. */
+function expandedOrigin(s: ExpandedKeyed): string {
+  const surfaceKey = s.metadata?.surfaceKey ?? s.key;
+  const variantKey = s.metadata?.variantKey;
+  return variantKey ? `surface '${surfaceKey}' variant '${variantKey}'` : `surface '${surfaceKey}'`;
+}
+
+/**
+ * Fail LOUDLY on two expanded surfaces sharing a capture key.
+ *
+ * The expanded key is `surface.key-variant.key`, and that key is the map filename
+ * (`<key>@<width>.json.gz`) and the report identity — so it's public and can't
+ * change without breaking backward compatibility. But the `-` join is ambiguous:
+ * surface `a` + variant `b-c` and surface `a-b` + variant `c` both expand to
+ * `a-b-c`, and the second capture would silently overwrite the first, dropping a
+ * surface with no error. Rather than mangle the public key format, we assert
+ * uniqueness up front and name BOTH origins so the author can rename one.
+ */
+export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
+  const byKey = new Map<string, ExpandedKeyed>();
+  for (const s of surfaces) {
+    const prior = byKey.get(s.key);
+    if (prior) {
+      throw new Error(
+        `styleproof: capture key '${s.key}' is produced by two surfaces — ` +
+          `${expandedOrigin(prior)} collides with ${expandedOrigin(s)}. ` +
+          `Keys must expand uniquely (they name the map files and report entries); ` +
+          `rename one surface or variant.`,
+      );
+    }
+    byKey.set(s.key, s);
+  }
+}
+
 /**
  * Let SSE (EventSource) requests bypass HAR record/replay and reach the live
  * server. A long-lived stream can't round-trip through a HAR entry: recording
@@ -809,6 +846,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
   const { surfaces, expected, exclude = {}, dir } = options;
   const settings = resolveSettings(options);
   const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
+  assertUniqueExpandedKeys(captureSurfaces);
 
   // Coverage guard. Runs in the NORMAL test suite (NOT gated on a capture dir), so
   // a route added without a surface fails the app's own tests — long before, and
@@ -1063,6 +1101,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           popups,
         }),
       );
+      assertUniqueExpandedKeys(captureSurfaces);
       // Budget the whole sweep up front: one test captures every surface, and
       // captureSurface no longer sets its own timeout, so size it to the work found.
       // With auto-width the band count isn't known until each surface renders, so

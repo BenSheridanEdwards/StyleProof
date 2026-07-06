@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, type CaptureOptions, type LiveRegionCandidate } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
+import { DANGER_SOURCE } from './danger.js';
 
 export type HarvestRoute = {
   /** Stable route/surface key in the generated manifest. */
@@ -113,8 +114,11 @@ function liveSelector(candidate: LiveRegionCandidate): string {
   return candidate.path;
 }
 
+// `dangerSource` is the shared destructive-label pattern (see {@link DANGER_SOURCE}),
+// passed in because this function is serialized into the browser and can't close over
+// a Node `RegExp`.
 // fallow-ignore-next-line complexity
-function collectCandidates(): Candidate[] {
+function collectCandidates(dangerSource: string): Candidate[] {
   const controls = [
     '[aria-expanded]',
     '[aria-haspopup]',
@@ -127,8 +131,7 @@ function collectCandidates(): Candidate[] {
     'select',
     'form',
   ].join(',');
-  const dangerous =
-    /\b(delete|remove|destroy|logout|log out|sign out|publish|deploy|pay|purchase|buy|checkout|archive|disconnect)\b/i;
+  const dangerous = new RegExp(dangerSource, 'i');
   const esc = (value: string): string => CSS.escape(value);
   const quote = (value: string): string => JSON.stringify(value);
   const visible = (el: Element): boolean => {
@@ -164,7 +167,17 @@ function collectCandidates(): Candidate[] {
     return pathSelector(el);
   };
   const labelFor = (el: Element): string => {
-    const own = (el.getAttribute('aria-label') || el.getAttribute('name') || el.textContent || '').trim();
+    // Include `title` so an icon-only control (no text, no aria-label) announcing
+    // itself via a native tooltip — `<button title="Delete">🗑</button>` — still
+    // yields a real label. Without it the label is "button", slipping past the
+    // destructive guard below that this harvester's clicks must respect.
+    const own = (
+      el.getAttribute('aria-label') ||
+      el.getAttribute('name') ||
+      el.textContent ||
+      el.getAttribute('title') ||
+      ''
+    ).trim();
     return own.replace(/\s+/g, ' ').slice(0, 80) || el.tagName.toLowerCase();
   };
   const reasonFor = (el: Element): string => {
@@ -204,7 +217,7 @@ function collectCandidates(): Candidate[] {
 }
 
 async function discoverCandidates(page: Page): Promise<Candidate[]> {
-  return page.evaluate(collectCandidates);
+  return page.evaluate(collectCandidates, DANGER_SOURCE);
 }
 
 async function perform(page: Page, candidate: Candidate): Promise<void> {

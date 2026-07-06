@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  assertUniqueExpandedKeys,
   defaultSelfCheck,
   expandSurfaceVariants,
   resolveBaseDir,
@@ -112,6 +113,42 @@ test('expandSurfaceVariants: keeps the base capture and adds declared variants',
 
   await surfaces[1].go({});
   assert.deepEqual(calls, ['setup-dialog', 'surface', 'go-dialog']);
+});
+
+test('assertUniqueExpandedKeys: passes when every expanded key is distinct', () => {
+  const surfaces = [
+    { key: 'a', metadata: { surfaceKey: 'a' } },
+    { key: 'a-b', metadata: { surfaceKey: 'a', variantKey: 'b' } },
+    { key: 'a-c', metadata: { surfaceKey: 'a', variantKey: 'c' } },
+  ];
+  assert.doesNotThrow(() => assertUniqueExpandedKeys(surfaces));
+});
+
+test('assertUniqueExpandedKeys: throws naming BOTH origins on an ambiguous "-" join collision', () => {
+  // surface `a` + variant `b-c`  and  surface `a-b` + variant `c`  both expand to `a-b-c`;
+  // the second would silently overwrite the first's map file. Fail loud instead.
+  const surfaces = [
+    { key: 'a-b-c', metadata: { surfaceKey: 'a', variantKey: 'b-c' } },
+    { key: 'a-b-c', metadata: { surfaceKey: 'a-b', variantKey: 'c' } },
+  ];
+  assert.throws(
+    () => assertUniqueExpandedKeys(surfaces),
+    (err) => {
+      assert.match(err.message, /capture key 'a-b-c'/);
+      assert.match(err.message, /surface 'a' variant 'b-c'/);
+      assert.match(err.message, /surface 'a-b' variant 'c'/);
+      return true;
+    },
+  );
+});
+
+test('assertUniqueExpandedKeys: real expansion of a collision-prone spec throws', () => {
+  // Dogfood through expandSurfaceVariants: two surfaces whose base+variant keys alias.
+  const expanded = [
+    ...expandSurfaceVariants({ key: 'a', go: async () => {}, variants: [{ key: 'b-c', go: async () => {} }] }),
+    ...expandSurfaceVariants({ key: 'a-b', go: async () => {}, variants: [{ key: 'c', go: async () => {} }] }),
+  ];
+  assert.throws(() => assertUniqueExpandedKeys(expanded), /capture key 'a-b-c'/);
 });
 
 test('expandSurfaceVariants: liveStates carry live-state metadata', () => {
