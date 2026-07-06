@@ -299,6 +299,26 @@ test('ignores layout-equivalent horizontal margin drift when the element rect is
   assert.deepEqual(diffStyleMaps(a, b), []);
 });
 
+test('keeps a one-sided margin change even when the rect is unchanged (external compensation is not layout-equivalent)', () => {
+  // margin-left 0 -> 40px with margin-right unchanged would shift the box by
+  // 40px on its own; an identical rect means something else compensated. That
+  // is a real restyle, not layout-equivalent drift — it must not be dropped.
+  const a = makeMap({
+    elements: {
+      'body > div:nth-child(1)': { tag: 'div', rect: [40, 0, 1200, 800], style: { 'margin-left': '0px' } },
+    },
+  });
+  const b = makeMap({
+    elements: {
+      'body > div:nth-child(1)': { tag: 'div', rect: [40, 0, 1200, 800], style: { 'margin-left': '40px' } },
+    },
+  });
+
+  const f = diffStyleMaps(a, b);
+  assert.equal(f.length, 1);
+  assert.deepEqual(f[0].props, [{ prop: 'margin-left', before: '0px', after: '40px' }]);
+});
+
 test('keeps horizontal margin changes when the element rect moves', () => {
   const a = makeMap({
     elements: {

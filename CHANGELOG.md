@@ -9,6 +9,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Layout-equivalent margin suppression no longer drops a real one-sided margin
+  change.** `dropLayoutEquivalentMarginProps` suppressed any horizontal
+  `margin-left/right/inline-start/inline-end` change whenever the element's rect
+  was unchanged — reasoning that a margin that doesn't move the box is cosmetic
+  drift. But a one-sided change (e.g. `margin-left: 0 → 40px` with `margin-right`
+  untouched) that leaves the rect identical only stayed put because _something
+  else compensated_; that is a genuine restyle, and it was silently dropped. The
+  suppression now fires only when there is no **demonstrable px imbalance**
+  between a side and its opposite — balanced drift (both sides move together) and
+  forced-state deltas are still suppressed exactly as before, but a one-sided
+  real change surfaces. A residual, consciously-deferred corner remains (a
+  perfectly _balanced_ change held in place by external compensation), documented
+  inline; closing it needs cross-element layout reasoning.
 - **`styleproof-init` no longer imports the whole library barrel (fixes a CI
   flake).** The scaffolder only needs `discoverNextRoutes`, but it imported it
   from `dist/index.js` — dragging capture, the crawler, the report renderer, and
