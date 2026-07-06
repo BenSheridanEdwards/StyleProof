@@ -9,7 +9,14 @@ import {
   type LiveRegionCandidate,
 } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
-import { coverageGaps, COVERAGE_LEDGER, type CoverageLedger, type DeterminismBasis } from './coverage.js';
+import {
+  coverageGaps,
+  coverageKeys,
+  translateExpected,
+  COVERAGE_LEDGER,
+  type CoverageLedger,
+  type DeterminismBasis,
+} from './coverage.js';
 import { writeBrowserBuildSidecar } from './map-store.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
@@ -777,6 +784,7 @@ function writeCoverageLedgerTest(
   dir: string,
   expected: string[] | null,
   exclude: Record<string, string>,
+  captureSurfaces: ReadonlyArray<{ key: string; metadata?: CaptureMetadata }>,
 ): void {
   test('styleproof coverage ledger', () => {
     const outDir = path.join(settings.baseDir, dir);
@@ -788,7 +796,11 @@ function writeCoverageLedgerTest(
       : settings.replayFrom
         ? 'replayed'
         : 'unproven';
-    const ledger: CoverageLedger = { version: 1, expected, exclude, determinism };
+    // Pre-translate the declared universe into the keys actually captured to disk, so
+    // the GATE (which reads expanded map filenames and can't see `surfaceKey` metadata)
+    // compares literally — a liveStates surface's `-loading`/`-loaded` splits satisfy it.
+    const ledgerExpected = expected == null ? null : translateExpected(expected, captureSurfaces);
+    const ledger: CoverageLedger = { version: 1, expected: ledgerExpected, exclude, determinism };
     fs.writeFileSync(path.join(outDir, COVERAGE_LEDGER), JSON.stringify(ledger, null, 2));
   });
 }
@@ -819,7 +831,9 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     test.describe('styleproof coverage', () => {
       test('every expected surface is captured or explicitly excluded', () => {
         const { uncovered, staleExclusions } = coverageGaps(
-          captureSurfaces.map((s) => s.key),
+          // A liveStates surface is captured only as its `-loading`/`-loaded` splits;
+          // map each back to the declared base key so the split satisfies `expected`.
+          coverageKeys(captureSurfaces),
           expected,
           exclude,
         );
@@ -840,7 +854,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
 
   test.describe('styleproof capture', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
-    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude);
+    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
     if (dir) writeBrowserBuildTest(settings, dir);
     for (const surface of captureSurfaces) {
       if (surface.widths && surface.widths.length > 0) {
@@ -1029,7 +1043,14 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     // captures what the nav links to, and can't prove that's every route). With
     // `expected` the crawl reconciles the DISCOVERED link set against it below and the
     // ledger travels with the declared universe.
-    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude);
+    // The crawl applies the SAME variants/liveStates to every discovered link, so the
+    // expansion of a declared key is knowable up front (before discovery): expand each
+    // `expected` key with this crawl's variants/liveStates to get the keys captured to
+    // disk, so a liveStates crawl's ledger is pre-translated like the spec-driven one.
+    const ledgerSurfaces = (expected ?? []).flatMap((key) =>
+      expandSurfaceVariants({ key, go: async () => {}, variants, liveStates }),
+    );
+    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, ledgerSurfaces);
     if (dir) writeBrowserBuildTest(settings, dir);
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
       // 1. Load the root and read its hydrated nav links into the surface set.
