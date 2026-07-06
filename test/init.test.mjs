@@ -18,6 +18,15 @@ function touch(root, rel) {
 const readSpec = (root) => fs.readFileSync(path.join(root, 'e2e/styleproof.spec.ts'), 'utf8');
 const readFile = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
+test('styleproof-init: imports the routes leaf, not the barrel (keeps the heavy capture graph out of the scaffolder)', () => {
+  // styleproof-init only writes files; it must not drag capture/crawler/report
+  // and their Playwright-importing modules into its load path. That oversized,
+  // concurrently-loaded module graph is what flaked init's tests in CI.
+  const src = fs.readFileSync(INIT, 'utf8');
+  assert.match(src, /from '\.\.\/dist\/routes\.js'/);
+  assert.doesNotMatch(src, /from '\.\.\/dist\/index\.js'/);
+});
+
 test('styleproof-init: Next.js app → routes-aware spec wires surfaces + the coverage guard', () => {
   const root = mkTmp();
   try {
