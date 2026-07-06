@@ -23,6 +23,31 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Report tables escape hostile CSS values (no Markdown breakout).** A property
+  value carrying a `|` used to split a report table row, and a backtick used to close
+  the code span and leak live Markdown (`content:"…"`, `url(…)`, `font` strings). The
+  render boundary now escapes values instead of stripping them — `|` → `\|`, and the
+  code fence widens past the value's longest backtick run — so hostile values render
+  as one intact, readable cell. `report.md` only; the privileged review comment was
+  never affected.
+- **The navigable-removal guard now sees SVG `<a>` nav links.** The in-page harvest
+  keyed anchors off `tagName === 'A'`, which is HTML-only (SVG reports lowercase `a`),
+  so an SVG nav link never entered the inventory and its removal never gated. The tag
+  check is now case-insensitive, the selector matches any-namespace `href`
+  (`a[*|href]`), and the target falls back to `xlink:href` — an `<svg><a>` link now
+  resolves like an HTML one.
+- **Single-value `transform-origin`/`perspective-origin` jitter is suppressed.** The
+  sub-pixel-origin equality check required at least two length components, so a
+  one-value origin (`50px`) leaked rounding jitter as a false diff. One to three
+  components are now all suppressed within `ORIGIN_EPSILON_PX`; a real, larger change
+  still reports.
+- **`styleproof-diff --json` exits 2 (not 1) when the file cannot be written.** A bad
+  `--json` path is a usage/setup error, but the write sat outside the guarded blocks
+  and let the failure fall through to exit 1 — which CI reads as a real diff. It now
+  reports to stderr and exits 2.
+- **Crawl flag docs corrected.** `--max-depth`'s default is documented as 16 (not
+  "unbounded" in `--help`, not "3" in the JSDoc); `--until-covered` is now listed in
+  `styleproof-capture --help`.
 - **Crawl no longer silently drops surfaces to key collisions, and mapping no longer
   clicks title-only destructive controls.** Five soundness fixes across the crawl path:
   - `selectCrawlLinks` deduped by raw URL, so `/about` and `/about/` — one route — were

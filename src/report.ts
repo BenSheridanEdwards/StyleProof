@@ -651,9 +651,27 @@ function regionHeading(regionPaths: string[], findings: Finding[]): string {
   return `${label} · ${groupTitle(findings)}`;
 }
 
+// CSS values are author/attacker-influenced (content:"…", url("…"), font-family
+// strings), so at the render boundary they get their OWN escaper — distinct from
+// safeKey, which strips control chars from surface keys. Values must stay READABLE
+// (a mangled url(…) is useless), so we ESCAPE rather than strip:
+//   • `|` → `\|`   — an unescaped pipe splits the table row (GitHub honours the
+//                     backslash even inside a code span).
+//   • backticks   — a bare backtick would close the code span and leak live
+//                     Markdown; widen the fence to one more backtick than the
+//                     value's longest run, padding a space when it touches an edge
+//                     (GitHub's rule for a code span that starts/ends with a tick).
+function codeValue(v: string): string {
+  const escaped = v.replace(/\|/g, '\\|');
+  const longestRun = Math.max(0, ...(escaped.match(/`+/g) ?? []).map((r) => r.length));
+  const fence = '`'.repeat(longestRun + 1);
+  const pad = /^`|`$/.test(escaped) ? ' ' : '';
+  return `${fence}${pad}${escaped}${pad}${fence}`;
+}
+
 // A "no value here" marker renders as an em dash; colours render as `#hex` so the
 // table cell shows GitHub's live swatch.
-const cell = (v: string): string => (isNonValue(v) ? '—' : `\`${toHex(v)}\``);
+const cell = (v: string): string => (isNonValue(v) ? '—' : codeValue(toHex(v)));
 
 // Long values (gradients, data URIs) would swamp the table, but truncating each
 // side independently can show two IDENTICAL cells for a real diff: both
@@ -683,7 +701,7 @@ export function excerptPair(before: string, after: string): [string, string] {
 function cellPair(before: string, after: string): [string, string] {
   if (isNonValue(before) || isNonValue(after)) return [cell(before), cell(after)];
   const [b, a] = excerptPair(before, after);
-  return [`\`${toHex(b)}\``, `\`${toHex(a)}\``];
+  return [codeValue(toHex(b)), codeValue(toHex(a))];
 }
 
 function beforeAfterTable(rows: PropChange[]): string[] {
@@ -692,7 +710,7 @@ function beforeAfterTable(rows: PropChange[]): string[] {
     '| --- | --- | --- |',
     ...rows.map((r) => {
       const [b, a] = cellPair(r.before, r.after);
-      return `| \`${r.prop}\` | ${b} | ${a} |`;
+      return `| ${codeValue(r.prop)} | ${b} | ${a} |`;
     }),
   ];
 }
@@ -700,7 +718,7 @@ function beforeAfterTable(rows: PropChange[]): string[] {
 // A brand-new element has no meaningful "before", so its resting style renders
 // value-only (the After column), mirroring the added-element interaction-states table.
 function valueTable(rows: PropChange[]): string[] {
-  return ['| Property | Value |', '| --- | --- |', ...rows.map((r) => `| \`${r.prop}\` | ${cell(r.after)} |`)];
+  return ['| Property | Value |', '| --- | --- |', ...rows.map((r) => `| ${codeValue(r.prop)} | ${cell(r.after)} |`)];
 }
 
 /** `Button (variant=primary, size=sm)` — the React component + sanitized props
@@ -736,8 +754,8 @@ function statesSection(states: Extract<Finding, { kind: 'state' }>[], added: boo
       const [b, a] = cellPair(c.before, c.after);
       rows.push(
         added
-          ? `| \`:${st.state}\` | \`${c.prop}\` | ${cell(c.after)} |`
-          : `| \`:${st.state}\` | \`${c.prop}\` | ${b} → ${a} |`,
+          ? `| ${codeValue(`:${st.state}`)} | ${codeValue(c.prop)} | ${cell(c.after)} |`
+          : `| ${codeValue(`:${st.state}`)} | ${codeValue(c.prop)} | ${b} → ${a} |`,
       );
     }
   if (!rows.length) return [];

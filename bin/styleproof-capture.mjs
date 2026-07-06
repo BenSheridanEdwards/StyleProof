@@ -55,7 +55,10 @@ whole surface: --crawl
                     fulfilled with 500 → error render)
   --workers <n>     concurrent sweep workers (default 4); same surface set as a
                     serial crawl — pass 1 for byte-stable key attribution
-  --max-depth <n>   throttle recursion depth (default: unbounded)
+  --until-covered   stop the crawl early the moment every stylesheet class has
+                    been rendered — a coverage-oriented sweep for design mockups
+  --max-depth <n>   throttle recursion depth (default: 16 — backstop for
+                    append-generator UIs)
   --max-actions <n> throttle controls tried per state (default: unbounded)
   --max-states <n>  throttle total surfaces (default: unbounded)
   --no-reset-storage  don't clear localStorage between steps (default: clear)

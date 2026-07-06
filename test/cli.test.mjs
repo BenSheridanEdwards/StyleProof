@@ -331,6 +331,19 @@ test('diff CLI --json=PATH equals form is accepted', () => {
   rmTmp(root);
 });
 
+test('diff CLI exits 2 (not 1) when --json cannot be written', () => {
+  // A bad --json path is a usage/setup error, not "reviewable differences". The
+  // write throws (ENOENT: no such directory) and must surface as exit 2 — never the
+  // exit 1 that CI reads as a real diff.
+  const { root, A, B } = differingPair();
+  const jsonPath = path.join(root, 'no', 'such', 'dir', 'out.json');
+  const r = run(DIFF, [A, B, '--json', jsonPath]);
+  assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stderr}`);
+  assert.notEqual(r.status, 1);
+  assert.match(r.stderr, /could not write --json/);
+  rmTmp(root);
+});
+
 test('diff CLI --max truncates the per-surface listing and prints a hint', () => {
   const root = mkTmp();
   const A = path.join(root, 'a');
