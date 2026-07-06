@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadStyleMap, isUnder, type StyleMap } from './capture.js';
-import { isMapFile } from './map-store.js';
+import { isMapFile, MAP_MANIFEST } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
 
 /**
@@ -11,6 +11,46 @@ import { styleValuesEqual } from './canonicalize.js';
  */
 
 export type PropChange = { prop: string; before: string; after: string };
+
+/**
+ * The before dir carries a bundle MANIFEST but ZERO captures while the after dir
+ * held some — a restore or capture that claims success yet delivered no maps (a
+ * corrupt bundle, a wrong --base-dir pointed at a manifest-only dir). Without
+ * this guard every after surface diffs as `missing: 'before'` (exit 3, "only new
+ * surfaces") and a whole app of regressions becomes one approvable "🆕 all new"
+ * report. The CLIs map this to exit 2 — a hard error, never the rubber-stampable
+ * exit 3. A truly BARE base dir (no manifest, no maps) is different: it means
+ * "never captured — no baseline exists yet", the first-adoption flow where the
+ * base commit predates the capture spec, and it keeps the exit-3 review path.
+ * (Both dirs empty stays the plain "no captures found" throw.)
+ */
+export class MissingBaseMapError extends Error {
+  constructor() {
+    super(
+      'base map missing: restore it from the map store or recapture both sides — refusing to treat every surface as new. ' +
+        'Next: run styleproof-map --restore --sha <base>, or let CI recapture both sides.',
+    );
+    this.name = 'MissingBaseMapError';
+  }
+}
+
+/**
+ * The mirror case: the AFTER (head) dir held ZERO captures while the before dir
+ * held some — a head capture or restore that produced nothing. Without this
+ * guard every base surface marks `missing: 'after'`, the CLI's new-surface count
+ * (which tallies BOTH directions) exits 3, and a head that rendered nothing
+ * becomes an approvable "all new surfaces" report — and, once approved, the
+ * next base. Same exit-2 path via the CLIs' existing catch.
+ */
+export class MissingHeadMapError extends Error {
+  constructor() {
+    super(
+      'head map missing: the head capture produced zero surfaces — recapture the head side; refusing to treat every surface as removed/new. ' +
+        'Next: re-run styleproof-map on the head commit, or let CI recapture both sides.',
+    );
+    this.name = 'MissingHeadMapError';
+  }
+}
 
 export type Finding =
   // `component` is advisory passthrough from the capture (the React component
@@ -255,6 +295,23 @@ export function diffStyleMapDirs(
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
   if (names.length === 0) throw new Error(`no .json(.gz) captures found in ${dirA} or ${dirB}`);
+  // A whole side with zero captures is a missing MAP, not a set of genuinely
+  // new/removed surfaces — either way every surface would carry a `missing`
+  // marker and the run would read as "all new" (exit 3, approvable). Refuse
+  // each direction loudly with its own named cause — with one exception:
+  //
+  // Base side: only when the dir carries a bundle manifest. Manifest + zero maps
+  // means a restore/capture that claims success yet delivered nothing (a corrupt
+  // bundle) — breakage. A BARE dir (no manifest either) means no baseline was
+  // ever captured — the first-adoption flow, where the recapture fallback checks
+  // out a base commit that predates the capture spec. That legitimately yields
+  // zero surfaces and must keep the exit-3 "new surfaces, review before
+  // baselining" onboarding path, so it falls through.
+  if (Object.keys(indexA).length === 0 && fs.existsSync(path.join(dirA, MAP_MANIFEST))) throw new MissingBaseMapError();
+  // Head side: UNCONDITIONAL (bare or manifest-present). The onboarding
+  // asymmetry only exists on the base side — the head is the commit under test,
+  // so a head that produced zero captures is always breakage, never a review flow.
+  if (Object.keys(indexB).length === 0) throw new MissingHeadMapError();
 
   const surfaces: SurfaceDiff[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
