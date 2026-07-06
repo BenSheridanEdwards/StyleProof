@@ -292,6 +292,15 @@ semantic roots that were actually present in the computed-style map, so tests ca
 assert a capture reached `role="dialog"`, `aria-modal`, `role="menu"`,
 `role="listbox"`, or hot-toast text.
 
+Triggers are enumerated once per surface and every reopen re-binds to that same
+element by identity, never by position. Between popups the surface is reset
+(Escape + `go()`) and the reset is verified: if an overlay a previous popup left
+behind is still visible (Escape closes dialogs, not toasts or status regions), or
+an enumerated trigger disappeared, that candidate is **skipped loudly** — a
+`styleproof:` warning names the popup and why — instead of capturing contaminated
+state or keying a popup under the wrong trigger. Dismiss the leaking overlay in
+the surface's `go()`, or capture it as an explicit variant.
+
 **Harvest one-step variants.** Routes are not the whole UI: drawers, tabs,
 dialogs, empty form errors, selects, and other one-step states need their own
 captures. `styleproof-variants` opens a running app, tries semantic controls

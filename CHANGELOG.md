@@ -7,6 +7,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Popup capture: verified reset + identity-bound triggers (no leaked-overlay
+  contamination, no wrong-trigger keying).** On a surface whose `go()` doesn't
+  navigate (SPA variants), the between-popups reset was Escape-only and assumed:
+  a toast or `[role="status"]` overlay Escape can't dismiss leaked into the next
+  popup's capture, and each reopen re-enumerated triggers positionally, so a
+  shifted trigger set (e.g. a click that adds a button) could key a popup under a
+  different trigger than the one originally enumerated. Triggers are now re-bound
+  by the DOM identity recorded at first enumeration, and the reset is verified
+  against the surface's pristine overlay set; a candidate that can't be opened
+  safely is skipped loudly (a `styleproof:` warning naming the popup and the
+  leaked overlay or missing trigger) instead of being captured contaminated,
+  mis-keyed, or — with self-check on — saved unproven. Navigating surfaces are
+  unaffected.
+
 ## [3.19.0] - 2026-07-06
 
 ### Added
