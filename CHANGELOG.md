@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- **The compatibility guard now keys on the real browser build, not just the Playwright
+  npm version.** Each capture records `browser().version()` (the actual Chromium build) in
+  its manifest, and `styleproof-diff` / `styleproof-report` refuse to compare two maps whose
+  builds differ (exit 2, both builds named). The npm `@playwright/test` version was only a
+  proxy: the actual binary can change while it holds constant — a `playwright install`
+  re-download after a cache wipe, a different `PLAYWRIGHT_BROWSERS_PATH`, or a CI image
+  bump — and two maps captured under different Chromium builds used to pass the guard and
+  then diff for real, walling the PR with false diffs the canonicalizer can't absorb.
+  Backward compatible: the build is compared only when **both** manifests carry it, so
+  bundles cached before this field keep comparing against each other; a build change now
+  fires the scaffolded recapture fallback instead of a cross-build compare. Fonts are
+  documented as an environment responsibility (too noisy across machines to fingerprint
+  cheaply); see the same-environment note.
+
 ### Fixed
 
 - **A missing map is now refused, not mislabelled as "all new surfaces".** When one dir
