@@ -7,6 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **`styleproof-init` no longer imports the whole library barrel (fixes a CI
+  flake).** The scaffolder only needs `discoverNextRoutes`, but it imported it
+  from `dist/index.js` — dragging capture, the crawler, the report renderer, and
+  six Playwright-importing modules into a tool that writes files and captures
+  nothing. Loading that oversized module graph concurrently (init's own suite
+  spawns the CLI many times, alongside the rest of `node --test`) is what made
+  init's tests flake in CI, red-flagging releases with no code cause. It now
+  imports from the `dist/routes.js` leaf (`fs` + `path` only): init's transitive
+  module graph drops from 21 dist modules to 1, with zero Playwright modules on
+  its load path. Behaviour is unchanged; a regression test pins the leaf import.
+
 ## [3.19.0] - 2026-07-06
 
 ### Added
