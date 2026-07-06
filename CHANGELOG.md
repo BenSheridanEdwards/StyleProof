@@ -28,6 +28,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   global rules the JS import graph can't see, so `classifyStyleChange` now treats any
   such file as global (`'all'`) — a sound over-approximation, no heuristics. A plain CSS
   Module with only class selectors stays `'scope'` as before.
+- **`captureStyleMap` no longer leaks its motion-freeze `<style>` onto a reused page.**
+  The freeze injected for the base/forced-state reads was re-applied without a handle and
+  never removed, so on a page recaptured **without a reload** (an SPA `go()` that doesn't
+  navigate, multi-surface reuse, the self-check's re-run) the next capture's motion pass
+  read the still-frozen transition/animation longhands (`none`/`0s`) as its baseline —
+  phantom drift that surfaced as a **false "non-deterministic capture"** self-check
+  failure. The re-applied tag is now tracked and removed in a `finally`, so throw paths
+  clean up too. (No API change.)
+- **`liveStates` + `expected` no longer reports a false coverage gap.** A surface with
+  `liveStates` is captured only as its split expansions (`home-loading`, `home-loaded`) —
+  the bare base key is dropped by design — but the coverage ledger recorded `expected`
+  in base keys and the gate compared captured keys literally, so a fully-captured app
+  failed the gate with `uncovered: ['home']` (live in 3.18.0). The ledger writer now
+  records `expected` already translated through the same liveState expansion, and the
+  suite-side guard maps each capture back to its originating `surfaceKey` — a precise
+  mapping via real metadata, so an unrelated `home-banner` never satisfies an uncaptured
+  `home`. Both the spec-driven and crawl capture paths are fixed consistently.
 
 ## [3.18.0] - 2026-07-06
 
