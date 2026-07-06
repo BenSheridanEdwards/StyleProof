@@ -121,3 +121,76 @@ export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opt
   }
   return out;
 }
+
+/**
+ * The reconciliation of a rendered nav (the crawl's discovered link keys) against a
+ * declared `expected` universe, both directions. Where the spec guard treats the
+ * hand-listed `surfaces` as what's captured, here the crawl's DISCOVERED links are —
+ * the nav is the route universe for a link-crawled SPA, so it is the source of truth.
+ *
+ * - `missing`: an `expected` key with no rendered link and no `exclude` entry — a
+ *   nav-regression (a route the app promised is no longer linked).
+ * - `unexpected`: a rendered link with no `expected` entry and no `exclude` entry — a
+ *   new route/view with no owner in the registry.
+ * - `staleExclusions`: an `exclude` key absent from BOTH `expected` and the rendered
+ *   set — a rotted opt-out.
+ *
+ * Unlike {@link CoverageGaps} (which permits captured-not-expected so a spec can
+ * tighten its registry over time), the crawl asserts BOTH directions strictly: the
+ * rendered link set is complete by construction, so an unowned link is a real gap.
+ * Pure and browser-free so it's unit-testable; {@link import('./runner.js')} wraps it
+ * in the crawl capture test, where the link set is finally known.
+ */
+export type CrawlCoverageGaps = {
+  /** Expected keys with no rendered link and no `exclude` — a nav regression. */
+  missing: string[];
+  /** Rendered link keys absent from `expected` and `exclude` — a route with no owner. */
+  unexpected: string[];
+  /** `exclude` keys in neither `expected` nor the rendered set — a rotted opt-out. */
+  staleExclusions: string[];
+};
+
+export function crawlCoverageGaps(
+  discoveredKeys: Iterable<string>,
+  expected: Iterable<string>,
+  exclude: Record<string, string> = {},
+): CrawlCoverageGaps {
+  const discovered = new Set(discoveredKeys);
+  const expectedSet = new Set(expected);
+  const missing = [...expectedSet].filter((k) => !discovered.has(k) && !(k in exclude));
+  const unexpected = [...discovered].filter((k) => !expectedSet.has(k) && !(k in exclude));
+  const staleExclusions = Object.keys(exclude).filter((k) => !expectedSet.has(k) && !discovered.has(k));
+  return { missing, unexpected, staleExclusions };
+}
+
+/**
+ * Reconcile the crawled link set against `expected` (via {@link crawlCoverageGaps}) and
+ * render the failure message, or `null` when the nav reconciles. `from` names the crawl
+ * root in the message. Kept pure and out of the capture test so the wording is
+ * unit-testable and {@link defineCrawlCapture} just throws what this returns.
+ */
+export function crawlCoverageError(
+  from: string,
+  discoveredKeys: Iterable<string>,
+  expected: Iterable<string>,
+  exclude: Record<string, string> = {},
+): string | null {
+  const { missing, unexpected, staleExclusions } = crawlCoverageGaps(discoveredKeys, expected, exclude);
+  const problems: string[] = [];
+  if (missing.length)
+    problems.push(
+      `nav regression — expected route(s) no longer linked from ${from}: ${missing.join(', ')}. ` +
+        `Restore the link, or move the key to \`exclude\` with a reason.`,
+    );
+  if (unexpected.length)
+    problems.push(
+      `new route(s) with no owner — link(s) rendered at ${from} but absent from \`expected\`: ` +
+        `${unexpected.join(', ')}. Add each to \`expected\`, or to \`exclude\` with a reason.`,
+    );
+  if (staleExclusions.length)
+    problems.push(
+      `stale \`exclude\` — key(s) in neither \`expected\` nor the rendered nav ` +
+        `(renamed or removed?): ${staleExclusions.join(', ')}.`,
+    );
+  return problems.length ? `styleproof crawl coverage gap:\n${problems.join('\n')}` : null;
+}

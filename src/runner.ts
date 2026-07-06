@@ -12,7 +12,7 @@ import { diffStyleMaps, type Finding } from './diff.js';
 import { coverageGaps, COVERAGE_LEDGER, type CoverageLedger, type DeterminismBasis } from './coverage.js';
 import { writeBrowserBuildSidecar } from './map-store.js';
 import { detectViewportWidths } from './breakpoints.js';
-import { selectCrawlLinks, type LinkMatch } from './crawl.js';
+import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
 
 /**
@@ -897,6 +897,29 @@ export type CrawlOptions = CaptureConfig & {
   /** Max ms to wait for the crawl root's links to render before reading them
    *  (an SPA hydrates its nav client-side). Default 15000. */
   linkTimeout?: number;
+  /**
+   * The full set of surface keys the app knows its nav should link to — its route
+   * universe. When set, the crawl reconciles the DISCOVERED link set against it, both
+   * directions: an `expected` key with no rendered link fails (nav regression), and a
+   * rendered link with no `expected` entry fails (a new route with no owner). For a
+   * link-crawled SPA the rendered nav IS the route universe, so this is the same
+   * list-vs-ledger discipline as `defineStyleMapCapture`'s guard with the nav as the
+   * source of truth.
+   *
+   * Unlike the spec guard, this runs INSIDE the crawl capture test — the link set
+   * isn't known until a browser renders the page — so it only fires when the capture
+   * runs (STYLEMAP_DIR set), not in every `npm test`. Omit to keep the current
+   * behaviour: capture what the nav links to, assert no completeness.
+   */
+  expected?: string[];
+  /**
+   * Expected/rendered keys deliberately not reconciled, each mapped to its reason — a
+   * visible, reviewed opt-out ledger for links that render CONDITIONALLY (behind auth
+   * or a feature flag) and so can't be asserted present or absent on every run. An
+   * excluded key never triggers a missing- or unexpected-link failure; an `exclude`
+   * key in neither `expected` nor the rendered set fails, so the ledger can't rot.
+   */
+  exclude?: Record<string, string>;
 };
 
 /**
@@ -918,6 +941,66 @@ export type CrawlOptions = CaptureConfig & {
  * defineCrawlCapture({ from: '/', match: /\?tab=/, widths: [1440, 1024, 768], dir: process.env.STYLEMAP_DIR });
  * ```
  */
+/**
+ * Load the crawl root, wait for its nav links to hydrate, and read them into a
+ * deduped, keyed surface list. A link-less page is fine for an unfiltered crawl —
+ * it still captures `from` itself (includeSelf); a `match`-filtered crawl genuinely
+ * needs links, so its hydration timeout surfaces. Throws when nothing matched.
+ */
+async function discoverCrawlLinks(
+  page: Page,
+  { from, match, key, linkTimeout }: Pick<CrawlOptions, 'from' | 'match' | 'key'> & { linkTimeout: number },
+): Promise<CrawlLink[]> {
+  await page.goto(from, { waitUntil: 'load' });
+  await page.waitForSelector('a[href]', { timeout: linkTimeout }).catch((e) => {
+    if (match !== undefined) throw e;
+  });
+  const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href')));
+  // Unfiltered crawl → also capture `from` itself, so the root is always covered and
+  // a single-page (or no-nav-self-link) app still yields a surface. A `match`-filtered
+  // crawl captures only the links the caller asked for.
+  const links = selectCrawlLinks(hrefs, { base: page.url(), match, key, includeSelf: match === undefined });
+  if (links.length === 0) {
+    throw new Error(
+      `styleproof crawl: no links matched at ${from}. The nav must render same-origin ` +
+        `<a href> links (a button-only nav exposes nothing to crawl), and \`match\` must keep them.`,
+    );
+  }
+  return links;
+}
+
+/**
+ * Capture every discovered surface, aggregating per-surface failures so one bad
+ * surface reports without skipping the rest — they're an independent set, not a
+ * chain. Auto-width parity with explicit surfaces: no widths given → navigate once,
+ * detect the surface's @media bands, then sweep one viewport per band.
+ */
+async function sweepCrawlSurfaces(page: Page, captureSurfaces: ExpandedSurface[], settings: Settings): Promise<void> {
+  const failures: string[] = [];
+  for (const surface of captureSurfaces) {
+    let sweep = surface.widths;
+    if (!sweep || sweep.length === 0) {
+      try {
+        await surface.go(page);
+        sweep = await detectViewportWidths(page);
+      } catch (e) {
+        failures.push(`${surface.key} @ auto: ${(e as Error).message}`);
+        continue;
+      }
+    }
+    for (const width of sweep) {
+      try {
+        await captureSurface(page, surface, width, settings);
+      } catch (e) {
+        failures.push(`${surface.key} @ ${width}: ${(e as Error).message}`);
+      }
+    }
+  }
+  if (failures.length) {
+    throw new Error(`styleproof crawl-capture: ${failures.length} surface(s) failed:\n${failures.join('\n')}`);
+  }
+}
+
 export function defineCrawlCapture(options: CrawlOptions): void {
   const {
     from,
@@ -932,6 +1015,8 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     linkTimeout = 15_000,
     dir,
     settle,
+    expected,
+    exclude = {},
   } = options;
   const settings = resolveSettings(options);
 
@@ -939,32 +1024,30 @@ export function defineCrawlCapture(options: CrawlOptions): void {
   // that styleproof-map uses to select capture tests picks up crawl specs too.
   test.describe('styleproof capture (crawl)', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
-    // A crawl DISCOVERS its surfaces from the nav — it has no registry to check against,
-    // so it records `expected: null` (completeness honestly "not asserted": the crawl
-    // captures what the nav links to, and can't prove that's every route in the app).
-    if (dir) writeCoverageLedgerTest(settings, dir, null, {});
+    // Record the completeness basis. Without `expected` a crawl has no registry to
+    // check against, so it records `expected: null` (honestly "not asserted": it
+    // captures what the nav links to, and can't prove that's every route). With
+    // `expected` the crawl reconciles the DISCOVERED link set against it below and the
+    // ledger travels with the declared universe.
+    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude);
     if (dir) writeBrowserBuildTest(settings, dir);
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
-      // 1. Load the root and wait for its nav links to hydrate — an SPA renders them
-      //    client-side, so they aren't in the initial HTML.
-      await page.goto(from, { waitUntil: 'load' });
-      // Wait for the nav's links to hydrate (an SPA renders them client-side). A link-less
-      // page is fine for an unfiltered crawl — it still captures `from` itself (includeSelf);
-      // a `match`-filtered crawl genuinely needs links, so let its timeout surface.
-      await page.waitForSelector('a[href]', { timeout: linkTimeout }).catch((e) => {
-        if (match !== undefined) throw e;
-      });
-      const hrefs = await page.$$eval('a[href]', (els) => els.map((e) => e.getAttribute('href')));
-      // Unfiltered crawl → also capture `from` itself, so the root is always covered and
-      // a single-page (or no-nav-self-link) app still yields a surface. A `match`-filtered
-      // crawl captures only the links the caller asked for.
-      const links = selectCrawlLinks(hrefs, { base: page.url(), match, key, includeSelf: match === undefined });
-      if (links.length === 0) {
-        throw new Error(
-          `styleproof crawl: no links matched at ${from}. The nav must render same-origin ` +
-            `<a href> links (a button-only nav exposes nothing to crawl), and \`match\` must keep them.`,
-        );
-      }
+      // 1. Load the root and read its hydrated nav links into the surface set.
+      const links = await discoverCrawlLinks(page, { from, match, key, linkTimeout });
+      // Coverage guard for a crawled nav. The rendered link set IS the route universe
+      // for a link-crawled SPA, so reconciling it against `expected` (both directions)
+      // is the spec guard's list-vs-ledger discipline with the nav as source of truth.
+      // Runs here — inside the capture test — because the link set isn't known until
+      // the page renders (unlike the static spec guard, which runs in the plain suite).
+      const gap = expected
+        ? crawlCoverageError(
+            from,
+            links.map((l) => l.key),
+            expected,
+            exclude,
+          )
+        : null;
+      if (gap) throw new Error(gap);
       const captureSurfaces = links.flatMap((link) =>
         expandSurfaceVariants({
           key: link.key,
@@ -987,34 +1070,8 @@ export function defineCrawlCapture(options: CrawlOptions): void {
       test.setTimeout(
         Math.max(180_000, captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0) * 60_000),
       );
-
-      // 2. Capture each discovered surface. Aggregate failures so one bad surface
-      //    reports without skipping the rest — they're an independent set, not a chain.
-      const failures: string[] = [];
-      for (const surface of captureSurfaces) {
-        // Auto-width parity with explicit surfaces: no widths given → navigate once and
-        // detect this surface's @media bands, then sweep one viewport per band.
-        let sweep = surface.widths;
-        if (!sweep || sweep.length === 0) {
-          try {
-            await surface.go(page);
-            sweep = await detectViewportWidths(page);
-          } catch (e) {
-            failures.push(`${surface.key} @ auto: ${(e as Error).message}`);
-            continue;
-          }
-        }
-        for (const width of sweep) {
-          try {
-            await captureSurface(page, surface, width, settings);
-          } catch (e) {
-            failures.push(`${surface.key} @ ${width}: ${(e as Error).message}`);
-          }
-        }
-      }
-      if (failures.length) {
-        throw new Error(`styleproof crawl-capture: ${failures.length} surface(s) failed:\n${failures.join('\n')}`);
-      }
+      // 2. Capture each discovered surface, aggregating per-surface failures.
+      await sweepCrawlSurfaces(page, captureSurfaces, settings);
     });
   });
 }

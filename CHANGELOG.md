@@ -7,6 +7,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Crawl coverage guard (`defineCrawlCapture` gains `expected` + `exclude`).** A
+  link-crawled SPA can now reconcile its _rendered nav_ against a declared route
+  registry, both directions: a rendered link with no `expected` entry fails as a new
+  route with no owner, and an `expected` route the nav stopped linking fails as a nav
+  regression. For such an app the nav is the route universe, so this is the spec
+  guard's list-vs-ledger discipline with the nav as the source of truth. Because the
+  link set isn't known until the page renders, the check runs _inside the capture
+  test_ (fires when `STYLEMAP_DIR` is set), not in the plain suite like the Next
+  guard. `exclude` (`key → reason`) opts out conditionally-rendered links (auth /
+  feature-flag) so they can't flake the guard; an `exclude` key in neither `expected`
+  nor the rendered nav fails as stale. Opt-in and backward-compatible: omit `expected`
+  and the crawl behaves exactly as before (captures what the nav links to, asserts no
+  completeness). New pure `crawlCoverageGaps` export for asserting reconciliation
+  yourself. README's "protected out of the box" scoped to what's wired per framework.
+
 ### Fixed
 
 - **`--crawl` now honours the fail-loud contract on unreadable CSS.** Three deviations on
@@ -26,7 +43,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     CLI default is now **16 everywhere** — the cap exists to bound append-generator UIs (a
     composer that appends a fresh-identity node per click, which dedup can't terminate); 1000
     made it decorative. Raise with `--max-depth` for a genuinely deeper nest.
-    
 - **The navigable-removal hard-gate now has data out of the box for new scaffolds — and
   says so when it doesn't.** The Action defaults the inventory gate _on_ (3.14.0), but
   inventory _capture_ defaults off, so on a spec that doesn't opt in, no map carries an
@@ -53,8 +69,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   fires the scaffolded recapture fallback instead of a cross-build compare. Fonts are
   documented as an environment responsibility (too noisy across machines to fingerprint
   cheaply); see the same-environment note.
-
-### Fixed
 
 - **A missing map is now refused, not mislabelled as "all new surfaces".** When one dir
   held zero captures while the other held some, `styleproof-diff` used to mark every

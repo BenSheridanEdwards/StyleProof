@@ -53,9 +53,22 @@ It is useful for:
 
 The important boundary: StyleProof only certifies states it can reach. If a state
 matters, list it as a surface, variant, popup, live state, or component-catalog
-surface. `expected` turns that inventory into a guard, so an uncaptured new page,
-component, modal, dropdown, or toast fails as missing coverage instead of
-silently passing. A surface that exists only on the PR head is still reviewable:
+surface. `expected` turns that inventory into a guard: a key it lists that is
+neither captured nor excluded fails as missing coverage instead of silently
+passing. What's guarded depends on how `expected` is fed —
+
+- **Next.js:** auto-guarded. `styleproof-init` wires `expected` to the routes it
+  discovers, so a new page fails the guard with nothing to keep in sync.
+- **Link-crawled SPAs:** pass `expected` to `defineCrawlCapture` and the crawl
+  reconciles it against the _rendered nav_ (the route universe for such an app),
+  both directions — a new linked route with no `expected` entry fails, and an
+  `expected` route the nav stopped linking fails. This runs inside the capture, so
+  it fires when you capture (unlike the Next guard, which runs in your plain suite).
+- **Other frameworks:** point `expected` at your own route registry.
+- **Modals, dropdowns, toasts:** guarded only for the state keys you enumerate in
+  `expected` (e.g. `dashboard-dialog-open`) — nothing discovers UI states for you.
+
+A surface that exists only on the PR head is still reviewable:
 in review-gate mode it holds the status red until approved, then becomes part of
 the baseline once merged.
 
@@ -194,6 +207,17 @@ defineCrawlCapture({
 ```
 
 Each discovered link becomes a surface keyed by its URL (`/?tab=overview` → `overview`; pass `key` for a different scheme). The app only has to render its nav as real `<a href>` links — a button-only nav (`<button onClick>`) exposes nothing to crawl. Replay, self-check and clock-freeze behave exactly as for explicit surfaces; one Playwright test runs the whole sweep (the link set isn't known until the page renders).
+
+Pass `expected` (a route registry) to turn the crawl into a coverage guard: the crawl reconciles the rendered link set against it, both directions — a rendered link with no `expected` entry fails as a new route with no owner, and an `expected` route the nav stopped linking fails as a nav regression. For a link-crawled SPA the rendered nav _is_ the route universe, so this is the same list-vs-ledger discipline as the spec guard with the nav as the source of truth. Because the link set isn't known until the page renders, this reconciliation runs _inside the capture test_ — so it fires when you capture (`STYLEMAP_DIR` set), not in every `npm test`, unlike the static Next guard. A link that renders conditionally (behind auth or a feature flag) would otherwise make the guard flaky either direction; list it in `exclude` (`key → reason`) to opt it out visibly — an `exclude` key in neither `expected` nor the rendered nav fails as stale, so the ledger can't rot. Omit `expected` and the crawl keeps its default: capture what the nav links to, assert no completeness.
+
+```ts
+defineCrawlCapture({
+  from: '/',
+  expected: ['index', 'pricing'], // the routes the nav must link to
+  exclude: { admin: 'feature-flagged, renders only for staff' },
+  dir: process.env.STYLEMAP_DIR,
+});
+```
 
 **Component inventory: fail when the catalog misses a component.** StyleProof
 cannot render arbitrary component files by itself across frameworks; props,

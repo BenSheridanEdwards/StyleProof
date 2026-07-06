@@ -182,6 +182,13 @@ defineCrawlCapture({
   dir: process.env.STYLEMAP_DIR,
   // A single-route SPA whose views are ?tab= / client-routed? Keep only those:
   //   match: /\\?tab=/,
+  // Turn the crawl into a coverage guard: reconcile the rendered nav against a route
+  // registry, both directions — a new linked route with no \`expected\` entry fails, and
+  // an \`expected\` route the nav stopped linking fails. (Runs inside the capture, so it
+  // fires when you capture, not in every test run.) List conditionally-rendered links
+  // (auth / feature-flag) in \`exclude\` so they can't flake the guard either direction:
+  //   expected: ['index', 'pricing'],
+  //   exclude: { admin: 'feature-flagged, renders only for staff' },
   // Certify menus, dialogs, tabs, and form-error states on every surface as variants:
   //   variants: [{ key: 'menu-open', go: async (page) => { await page.getByRole('button', { name: /menu/i }).click(); } }],
 });
