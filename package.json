@@ -90,6 +90,6 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.18.0",
     "husky": "^9.1.7",
-    "fallow": "^2.96.0"
+    "fallow": "^3.2.0"
   }
 }
