@@ -22,6 +22,36 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   real change surfaces. A residual, consciously-deferred corner remains (a
   perfectly _balanced_ change held in place by external compensation), documented
   inline; closing it needs cross-element layout reasoning.
+- **`styleproof-init` no longer imports the whole library barrel (fixes a CI
+  flake).** The scaffolder only needs `discoverNextRoutes`, but it imported it
+  from `dist/index.js` — dragging capture, the crawler, the report renderer, and
+  six Playwright-importing modules into a tool that writes files and captures
+  nothing. Loading that oversized module graph concurrently (init's own suite
+  spawns the CLI many times, alongside the rest of `node --test`) is what made
+  init's tests flake in CI, red-flagging releases with no code cause. It now
+  imports from the `dist/routes.js` leaf (`fs` + `path` only): init's transitive
+  module graph drops from 21 dist modules to 1, with zero Playwright modules on
+  its load path. Behaviour is unchanged; a regression test pins the leaf import.
+- **Popup capture: verified reset + identity-bound triggers (no leaked-overlay
+  contamination, no wrong-trigger keying).** On a surface whose `go()` doesn't
+  navigate (SPA variants), the between-popups reset was Escape-only and assumed:
+  a toast or `[role="status"]` overlay Escape can't dismiss leaked into the next
+  popup's capture, and each reopen re-enumerated triggers positionally, so a
+  shifted trigger set (e.g. a click that adds a button) could key a popup under a
+  different trigger than the one originally enumerated. Triggers are now re-bound
+  by the DOM identity recorded at first enumeration, and the reset is verified
+  against the surface's pristine overlay set; a candidate that can't be opened
+  safely is skipped loudly (a `styleproof:` warning naming the popup and the
+  leaked overlay or missing trigger) instead of being captured contaminated,
+  mis-keyed, or — with self-check on — saved unproven. That identity is the
+  trigger's DOM path **and** its accessible label, not the path alone: for an
+  id-less trigger the path ends in `:nth-of-type`, which is still position within
+  a parent, so a same-tag same-parent sibling injected earlier in DOM order
+  between enumeration and reopen would slide the recorded path onto a different
+  trigger and key its popup under the wrong one — silently. Requiring the label
+  (the same aria-label/name/text/title accessible name the crawler reads) to match
+  too turns that mismatch into the same loud skip. Navigating surfaces are
+  unaffected.
 
 ## [3.19.0] - 2026-07-06
 

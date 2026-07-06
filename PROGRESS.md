@@ -1,5 +1,49 @@
 # Progress
 
+## Active Task: popup reset verification + identity-bound triggers (#183)
+
+## Completed
+
+- `openPopupCandidate` now verifies the between-popups reset (Escape + `go()`)
+  against the surface's pristine overlay keys instead of assuming Escape closed
+  everything; a leaked overlay skips the candidate loudly (named `styleproof:`
+  warning) rather than capturing contaminated state.
+- Popup triggers are re-bound by the DOM path recorded at first enumeration
+  (same pattern as the forced-state `data-styleproof-state-id` marks), never by
+  index into a fresh enumeration; a vanished trigger skips loudly.
+- With self-check on, a popup that itself defeats the reset (e.g. a toast) is
+  discarded loudly instead of saved unproven or failed with a misleading
+  "did not reopen" error.
+- Added `test/popup-reset.e2e.spec.ts` (leak skip, trigger-shift binding,
+  self-check discard); README + CHANGELOG updated; proof screenshots in
+  `docs/proof/popup-reset/`.
+
+## Findings
+
+- Base/navigating surfaces were already safe (navigation resets everything) and
+  keep their exact behaviour — the dogfood popup suite passes unchanged, and the
+  relocate-by-path step also works across full DOM replacement.
+- Under the old code the defects reproduce exactly as issue #183 describes:
+  `popup-03` captured with the leaked toast in its overlays, and a shifted
+  trigger set keyed Alpha's dialog under `popup-02` (Beta's was never captured).
+
+## Next Action
+
+- Open the PR for issue #183.
+
+## Blockers
+
+- None.
+
+## Verification Status
+
+- `npm run build && npm run typecheck && npm run lint && npm run format:check`
+  and `npm run privacy:check` pass.
+- `npm test` passes (339 tests); full e2e (101 tests) passes including the new
+  spec, which fails on the pre-fix code (4 failures).
+
+---
+
 ## Active Task: new surfaces require approval
 
 ## Completed

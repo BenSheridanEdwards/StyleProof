@@ -23,7 +23,12 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { discoverNextRoutes } from '../dist/index.js';
+// Import from the leaf module, not the barrel: styleproof-init only scaffolds
+// files and never captures. Pulling `../dist/index.js` here dragged the whole
+// library — capture, crawler, report, and six Playwright-importing modules —
+// into a tiny scaffolder's load path, and that oversized concurrent module
+// graph is what made init's tests flake in CI. routes.js needs only fs + path.
+import { discoverNextRoutes } from '../dist/routes.js';
 import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
 
 const HELP = `styleproof-init — scaffold a styleproof capture spec
