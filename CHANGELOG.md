@@ -48,11 +48,55 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Crawl flag docs corrected.** `--max-depth`'s default is documented as 16 (not
   "unbounded" in `--help`, not "3" in the JSDoc); `--until-covered` is now listed in
   `styleproof-capture --help`.
+- **Crawl no longer silently drops surfaces to key collisions, and mapping no longer
+  clicks title-only destructive controls.** Five soundness fixes across the crawl path:
+  - `selectCrawlLinks` deduped by raw URL, so `/about` and `/about/` — one route — were
+    two links that keyed identically and the second capture overwrote the first. Trailing
+    slashes are now normalized in the dedup identity (root `/` and the query string are
+    left intact), so a route is captured once.
+  - Genuinely distinct surfaces whose derived keys collide (e.g. `/a/b` and `/a-b` both
+    slugify to `a-b`) previously overwrote each other's map file. `selectCrawlLinks` now
+    disambiguates with a `-2`, `-3`, … suffix (mirroring the surface crawler), so every
+    surface survives.
+  - `defaultLinkKey` joined query-param values in iteration order, so `?tab=a&x=b` and
+    `?x=b&tab=a` — the same route — keyed as `a-b` vs `b-a` and flapped the coverage
+    guard into phantom regressions. Params are now sorted by name before joining.
+  - The surface crawler's clickable-candidate label omitted the `title` attribute, so an
+    icon-only `<button title="Delete">` labeled as `button` and slipped past the
+    destructive-action guard — mapping would click it. `title` is now part of the label
+    input in both crawlers.
+  - The variant crawler carried a weaker, divergent copy of the destructive-action word
+    list (missing `revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew`). Both
+    crawlers now share one `DANGER_SOURCE` constant, so mapping refuses the same set of
+    destructive controls everywhere.
+  - `defineStyleMapCapture` and `defineCrawlCapture` now assert every expanded capture
+    key is unique before running: the `surface.key-variant.key` join is ambiguous
+    (`a` + `b-c` and `a-b` + `c` both expand to `a-b-c`), which used to overwrite a map
+    file with no error. The key format is unchanged (it's public — filenames and report
+    identities); a collision now throws up front and names both origins so the author can
+    rename one.
 - **Sass `@use`/`@forward` in a CSS Module now fails closed to `'all'`.** A
   `.module.scss`/`.module.sass` that loads a partial via `@use`/`@forward` can pull in
   global rules the JS import graph can't see, so `classifyStyleChange` now treats any
   such file as global (`'all'`) — a sound over-approximation, no heuristics. A plain CSS
   Module with only class selectors stays `'scope'` as before.
+- **`captureStyleMap` no longer leaks its motion-freeze `<style>` onto a reused page.**
+  The freeze injected for the base/forced-state reads was re-applied without a handle and
+  never removed, so on a page recaptured **without a reload** (an SPA `go()` that doesn't
+  navigate, multi-surface reuse, the self-check's re-run) the next capture's motion pass
+  read the still-frozen transition/animation longhands (`none`/`0s`) as its baseline —
+  phantom drift that surfaced as a **false "non-deterministic capture"** self-check
+  failure. The re-applied tag is now tracked and removed in a `finally`, so throw paths
+  clean up too. (No API change.)
+- **`liveStates` + `expected` no longer reports a false coverage gap.** A surface with
+  `liveStates` is captured only as its split expansions (`home-loading`, `home-loaded`) —
+  the bare base key is dropped by design — but the coverage ledger recorded `expected`
+  in base keys and the gate compared captured keys literally, so a fully-captured app
+  failed the gate with `uncovered: ['home']` (live in 3.18.0). The ledger writer now
+  records `expected` already translated through the same liveState expansion, and the
+  suite-side guard maps each capture back to its originating `surfaceKey` — a precise
+  mapping via real metadata, so an unrelated `home-banner` never satisfies an uncaptured
+  `home`. Both the spec-driven and crawl capture paths are fixed consistently.
 
 ## [3.18.0] - 2026-07-06
 
