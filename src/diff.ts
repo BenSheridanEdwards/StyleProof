@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadStyleMap, isUnder, type StyleMap } from './capture.js';
-import { isMapFile } from './map-store.js';
+import { isMapFile, MAP_MANIFEST } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
 
 /**
@@ -13,13 +13,16 @@ import { styleValuesEqual } from './canonicalize.js';
 export type PropChange = { prop: string; before: string; after: string };
 
 /**
- * The before dir held ZERO captures while the after dir held some — a restore
- * that "succeeded" into an empty dir, a wrong --base-dir, a contributor without
- * the pre-push hook. Without this guard every after surface diffs as `missing:
- * 'before'` (exit 3, "only new surfaces") and a whole app of regressions becomes
- * one approvable "🆕 all new" report. The CLIs map this to exit 2 — a hard error,
- * never the rubber-stampable exit 3. (Both dirs empty stays the plain "no
- * captures found" throw.)
+ * The before dir carries a bundle MANIFEST but ZERO captures while the after dir
+ * held some — a restore or capture that claims success yet delivered no maps (a
+ * corrupt bundle, a wrong --base-dir pointed at a manifest-only dir). Without
+ * this guard every after surface diffs as `missing: 'before'` (exit 3, "only new
+ * surfaces") and a whole app of regressions becomes one approvable "🆕 all new"
+ * report. The CLIs map this to exit 2 — a hard error, never the rubber-stampable
+ * exit 3. A truly BARE base dir (no manifest, no maps) is different: it means
+ * "never captured — no baseline exists yet", the first-adoption flow where the
+ * base commit predates the capture spec, and it keeps the exit-3 review path.
+ * (Both dirs empty stays the plain "no captures found" throw.)
  */
 export class MissingBaseMapError extends Error {
   constructor() {
@@ -295,8 +298,19 @@ export function diffStyleMapDirs(
   // A whole side with zero captures is a missing MAP, not a set of genuinely
   // new/removed surfaces — either way every surface would carry a `missing`
   // marker and the run would read as "all new" (exit 3, approvable). Refuse
-  // each direction loudly with its own named cause.
-  if (Object.keys(indexA).length === 0) throw new MissingBaseMapError();
+  // each direction loudly with its own named cause — with one exception:
+  //
+  // Base side: only when the dir carries a bundle manifest. Manifest + zero maps
+  // means a restore/capture that claims success yet delivered nothing (a corrupt
+  // bundle) — breakage. A BARE dir (no manifest either) means no baseline was
+  // ever captured — the first-adoption flow, where the recapture fallback checks
+  // out a base commit that predates the capture spec. That legitimately yields
+  // zero surfaces and must keep the exit-3 "new surfaces, review before
+  // baselining" onboarding path, so it falls through.
+  if (Object.keys(indexA).length === 0 && fs.existsSync(path.join(dirA, MAP_MANIFEST))) throw new MissingBaseMapError();
+  // Head side: UNCONDITIONAL (bare or manifest-present). The onboarding
+  // asymmetry only exists on the base side — the head is the commit under test,
+  // so a head that produced zero captures is always breakage, never a review flow.
   if (Object.keys(indexB).length === 0) throw new MissingHeadMapError();
 
   const surfaces: SurfaceDiff[] = [];

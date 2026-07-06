@@ -9,21 +9,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- **A missing map on either side is now refused, not mislabelled as "all new surfaces".**
-  When one dir held zero captures while the other held some, `styleproof-diff` used to
-  mark every surface `missing` and exit `3` ("only new surfaces") — the Action then
-  rendered the whole app as 🆕 new baselines a reviewer could approve wholesale. An empty
-  **base** (a restore that "succeeded" into an empty dir, a wrong `--base-dir`, a
-  contributor without the pre-push hook) meant approving a possibly fully-regressed head
-  as the baseline; an empty **head** (a head capture that produced nothing) meant
-  approving a head that rendered zero surfaces. Each case now exits `2` with its own
-  named cause (`base map missing: restore it from the map store or recapture both sides —
-refusing to treat every surface as new` / `head map missing: the head capture produced
-zero surfaces — recapture the head side; refusing to treat every surface as
-removed/new`), distinct enough that the scaffolded workflow's capture-needed fallback is
-  the obvious remedy in CI logs. `styleproof-report` shares the load path and is refused
-  identically, so it can't render the misleading all-new page either. Exit `3` keeps its
-  meaning: a baseline exists and _these specific_ surfaces are new against it.
+- **A missing map is now refused, not mislabelled as "all new surfaces".** When one dir
+  held zero captures while the other held some, `styleproof-diff` used to mark every
+  surface `missing` and exit `3` ("only new surfaces") — the Action then rendered the
+  whole app as 🆕 new baselines a reviewer could approve wholesale. An empty **base** (a
+  restore that "succeeded" into an empty dir, a wrong `--base-dir`, a contributor without
+  the pre-push hook) meant approving a possibly fully-regressed head as the baseline; an
+  empty **head** (a head capture that produced nothing) meant approving a head that
+  rendered zero surfaces. Now: a bundle that claims to exist yet holds zero captures — a
+  `styleproof-manifest.json` present alongside no maps, on either side — and any empty
+  head exit `2` with their own named causes (`base map missing: restore it from the map
+store or recapture both sides — refusing to treat every surface as new` / `head map
+missing: the head capture produced zero surfaces — recapture the head side; refusing to
+treat every surface as removed/new`), distinct enough that the scaffolded workflow's
+  capture-needed fallback is the obvious remedy in CI logs. A truly **bare** base dir (no
+  manifest, no maps) still means "no baseline exists yet" — the first-adoption flow where
+  the base commit predates the capture spec — and keeps the exit-`3` new-surfaces review
+  path. To keep that discrimination sound, `styleproof-map` no longer writes a manifest
+  (or uploads) when a capture run produced zero surfaces. `styleproof-report` shares the
+  load path and is refused identically, so it can't render the misleading all-new page
+  either. Exit `3` keeps its meaning: no baseline for _these_ surfaces — new against an
+  existing baseline, or the very first one.
 
 ### Security
 

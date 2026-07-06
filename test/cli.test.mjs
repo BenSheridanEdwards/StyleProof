@@ -64,7 +64,7 @@ test('styleproof-map runs Playwright with local cache defaults', () => {
     const fakePlaywright = path.join(binDir, 'playwright');
     fs.writeFileSync(
       fakePlaywright,
-      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.har"; printf "%s|%s|%s|%s\\n" "$STYLEMAP_DIR" "$STYLEPROOF_BASEDIR" "$STYLEPROOF_SCREENSHOTS" "$*"\n',
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json" "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.har"; printf "%s|%s|%s|%s\\n" "$STYLEMAP_DIR" "$STYLEPROOF_BASEDIR" "$STYLEPROOF_SCREENSHOTS" "$*"\n',
     );
     fs.chmodSync(fakePlaywright, 0o755);
     const r = spawnSync(process.execPath, [MAP], {
@@ -92,7 +92,7 @@ test('styleproof-map keeps HAR files only when explicitly requested', () => {
     const fakePlaywright = path.join(binDir, 'playwright');
     fs.writeFileSync(
       fakePlaywright,
-      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.har"\n',
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json" "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.har"\n',
     );
     fs.chmodSync(fakePlaywright, 0o755);
     const r = spawnSync(process.execPath, [MAP, '--keep-har'], {
@@ -103,6 +103,34 @@ test('styleproof-map keeps HAR files only when explicitly requested', () => {
     assert.equal(r.status, 0, r.stderr);
     assert.equal(fs.existsSync(path.join(root, '.styleproof/maps/current/home@1280.har')), true);
     assert.ok(fs.existsSync(path.join(root, '.styleproof/maps/current', MAP_MANIFEST)));
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map writes no manifest when the capture produced zero surfaces', () => {
+  // A manifest over an empty bundle would read as "a bundle that claims to exist
+  // yet holds nothing", which the diff refuses as a missing base map (exit 2). A
+  // bare dir instead means "no baseline yet" — on a first adoption the base
+  // commit predates the spec, and the diff takes the exit-3 review path.
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(fakePlaywright, '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"\n');
+    fs.chmodSync(fakePlaywright, 0o755);
+    const r = spawnSync(process.execPath, [MAP], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stderr, /0 surfaces captured — no manifest written/);
+    assert.equal(fs.existsSync(path.join(root, '.styleproof/maps/current', MAP_MANIFEST)), false);
   } finally {
     rmTmp(root);
   }
@@ -214,20 +242,38 @@ test('diff CLI exits 2 when a capture dir does not exist', () => {
   assert.match(r.stderr, /Next: pass existing capture directories/);
 });
 
-test('diff CLI exits 2 (never 3) when the before dir has zero captures but the after dir has some', () => {
-  // A restore that "succeeded" into an empty dir / a wrong --base-dir: without the
-  // guard every after surface marks `missing: 'before'` → exit 3 ("only new
-  // surfaces") → an approvable all-new report that bakes in a full regression.
+test('diff CLI exits 2 (never 3) when the before dir has a manifest but zero captures', () => {
+  // A restore/capture that CLAIMS success (the bundle manifest is there) yet
+  // delivered no maps — a corrupt bundle. Without the guard every after surface
+  // marks `missing: 'before'` → exit 3 ("only new surfaces") → an approvable
+  // all-new report that bakes in a full regression.
   const root = mkTmp();
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
   fs.mkdirSync(A, { recursive: true });
+  fs.writeFileSync(path.join(A, MAP_MANIFEST), '{}');
   writeCapture(B, 'home@1280', makeMap({ elements: { body: { tag: 'body' } } }), null);
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stderr}`);
   assert.notEqual(r.status, 3);
   assert.match(r.stderr, /base map missing: restore it from the map store or recapture both sides/);
   assert.match(r.stderr, /refusing to treat every surface as new/);
+  rmTmp(root);
+});
+
+test('diff CLI keeps exit 3 for a truly bare before dir — no baseline was ever captured', () => {
+  // The first-adoption flow: the recapture fallback checks out a base commit that
+  // predates the capture spec, so the base side legitimately yields zero surfaces
+  // AND no manifest. That is "no baseline exists yet", not breakage — the head's
+  // surfaces show as new for review before baselining.
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  fs.mkdirSync(A, { recursive: true });
+  writeCapture(B, 'home@1280', makeMap({ elements: { body: { tag: 'body' } } }), null);
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 3, `expected exit 3, got ${r.status}: ${r.stderr}`);
+  assert.match(r.stdout, /new surface\(s\) captured with no baseline/);
   rmTmp(root);
 });
 
