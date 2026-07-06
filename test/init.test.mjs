@@ -31,6 +31,7 @@ test('styleproof-init: Next.js app → routes-aware spec wires surfaces + the co
     assert.match(spec, /const ROUTES = discoverNextRoutes\(\);/);
     assert.match(spec, /expected: ROUTES\.map\(\(r\) => r\.key\)/);
     assert.match(spec, /exclude: Object\.fromEntries/);
+    assert.match(spec, /inventory: true/); // arms the navigable-removal gate out of the box
     assert.match(res.stdout, /detected 3 Next\.js route\(s\)/);
     assert.match(res.stdout, /1 dynamic route\(s\) excluded/);
   } finally {

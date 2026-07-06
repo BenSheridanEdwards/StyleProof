@@ -516,6 +516,15 @@ export function prettyLabel(p: string, cls: string): string {
   return /^[a-z][a-z0-9-]*$/.test(first) ? `${tag}.${first}` : tag;
 }
 
+// Surface keys originate from artifact filenames — attacker-controlled in the
+// fork capture/report split, and they flow into the PRIVILEGED PR-comment summary
+// (the Action slices report.md above the first `### `). Strip the Markdown/HTML
+// control characters (`` ` ``, [ ] ( ), < >, |) that could inject a link, image,
+// or table into that bot comment. Escaping at the render boundary — the keys stay
+// legible; only the injection surface is removed. (Crop FILENAMES are separately
+// restricted to [a-z0-9-]; this is the display-side equivalent.)
+const safeKey = (s: string): string => s.replace(/[`[\]()<>|]/g, '-');
+
 const surfaceBase = (s: string): string => s.replace(/@\d+$/, '');
 const surfaceWidth = (s: string): number => Number(s.match(/@(\d+)$/)?.[1] ?? 0);
 
@@ -529,7 +538,7 @@ function renderSurfaceGroups(byBase: Map<string, number[]>): string {
   return [...byBase]
     .map(([base, ws]) => {
       const widths = ws.filter((w) => w > 0).sort((a, b) => b - a);
-      return widths.length ? `${base} @ ${widths.join(', ')}` : base;
+      return widths.length ? `${safeKey(base)} @ ${widths.join(', ')}` : safeKey(base);
     })
     .join(' · ');
 }
@@ -1013,7 +1022,7 @@ function renderContentSurface(
   const mapB = loadStyleMap(findCapture(ctx.afterDir, surface));
   const pngA = readPng(path.join(ctx.beforeDir, `${surface}.png`));
   const pngB = readPng(path.join(ctx.afterDir, `${surface}.png`));
-  const md: string[] = ['', `### \`${surface}\` · ${changes.length} content change(s)`];
+  const md: string[] = ['', `### \`${safeKey(surface)}\` · ${changes.length} content change(s)`];
   for (const c of changes) {
     seq++;
     md.push(
@@ -1091,7 +1100,7 @@ function coverageLine(cov: CoverageVerdict): string {
   if (cov.basis === 'complete')
     return `- **Coverage** — ✓ complete (all ${cov.registrySize} registered surface(s) captured)`;
   if (cov.basis === 'incomplete')
-    return `- **Coverage** — ✗ INCOMPLETE (${cov.uncovered.length} registered surface(s) not captured: ${cov.uncovered.join(', ')})`;
+    return `- **Coverage** — ✗ INCOMPLETE (${cov.uncovered.length} registered surface(s) not captured: ${cov.uncovered.map(safeKey).join(', ')})`;
   return '- **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)';
 }
 
@@ -1104,7 +1113,7 @@ function determinismLine(det: DeterminismVerdict): string {
 
 function inventoryLine(inv: ReturnType<typeof auditRunInventory>): string {
   if (inv.unexplained.length > 0) {
-    const keys = inv.unexplained.map((i) => i.key);
+    const keys = inv.unexplained.map((i) => safeKey(i.key));
     return `- **Inventory** — ⚠ ${inv.unexplained.length} navigable affordance(s) removed, unacknowledged: ${keys.slice(0, 8).join(', ')}${keys.length > 8 ? ', …' : ''}`;
   }
   if (inv.delta.removed.length > 0)
@@ -1473,7 +1482,7 @@ function renderNewSurface(
   const png = readPng(path.join(srcDir, `${p.sd.surface}.png`));
   const md: string[] = [
     '',
-    `### \`${p.sd.surface}\` · new surface ${NEW_SURFACE_MARKER}`,
+    `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`,
     '',
     `_${formatSurfaceWithContext(p.sd.surface, map)}_`,
   ];
@@ -1523,7 +1532,7 @@ function cappedNoticeLines(budget: number): string[] {
  *  name (and how many surfaces share the identical change) · change count · a crop
  *  link so the reviewer can still see it without opening report.json. */
 function compactChangeSummary(cg: ChangeGroup, json: Record<string, unknown>, img: (rel: string) => string): string {
-  const surface = cg.rep.sd.surface;
+  const surface = safeKey(cg.rep.sd.surface);
   const more = cg.surfaces.length > 1 ? ` (+${cg.surfaces.length - 1} more)` : '';
   const regions = (json.regions as Array<{ images?: { composite?: string } }> | undefined) ?? [];
   const composite = regions[0]?.images?.composite;
@@ -1647,7 +1656,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     const r = renderNewSurface(p, ctx, cropSeq);
     json.push(r.json);
     cropSeq = r.cropSeq;
-    emitDetail(r.md, `- \`${p.sd.surface}\` · new surface`);
+    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · new surface`);
   }
 
   md.push(...contentSection.md);

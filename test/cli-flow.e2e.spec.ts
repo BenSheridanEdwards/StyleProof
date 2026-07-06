@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
+import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadStyleMap } from '../dist/index.js';
 
@@ -39,6 +40,24 @@ function run(cwd: string, command: string, args: string[], env: NodeJS.ProcessEn
     cwd,
     encoding: 'utf8',
     env: commandEnv(env),
+  });
+}
+
+// Non-blocking variant: use when an HTTP server hosted IN THIS PROCESS must keep
+// serving while the CLI runs (spawnSync blocks the event loop, starving it).
+function runAsync(
+  cwd: string,
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv = {},
+): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { cwd, env: commandEnv(env) });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => (stdout += d));
+    child.stderr.on('data', (d) => (stderr += d));
+    child.on('close', (status) => resolve({ status, stdout, stderr }));
   });
 }
 
@@ -170,6 +189,146 @@ test('styleproof-capture --crawl --require-full-coverage: exit 0 when covered, e
     expect(gap.stdout).toContain('ghost');
     expect(gap.status, 'coverage residue exits 4').toBe(4);
   } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A page whose ONLY stylesheet is served cross-origin with no CORS header: the
+// browser applies it but the CSSOM can't read it (`sheet.cssRules` throws). This
+// is the exact condition the fail-loud contract is about — the crawl must not
+// silently sweep a single 1280px width, and --require-full-coverage must not
+// certify completeness while blind to the sheet's whole vocabulary.
+function listen(server: http.Server, port: number): Promise<void> {
+  return new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
+}
+
+async function serveCrossOriginStyleApp(pagePort: number, cssPort: number) {
+  const cssServer = http.createServer((_req, res) => {
+    // No Access-Control-Allow-Origin → cross-origin CSSOM read throws.
+    res.setHeader('content-type', 'text/css');
+    res.end('.card{padding:20px} @media (min-width: 700px){ .card{padding:40px} }');
+  });
+  const pageServer = http.createServer((_req, res) => {
+    res.setHeader('content-type', 'text/html');
+    res.end(
+      `<!doctype html><html><head><meta charset="utf-8">` +
+        `<link rel="stylesheet" href="http://127.0.0.1:${cssPort}/styles.css">` +
+        `</head><body><main class="card">hello</main></body></html>`,
+    );
+  });
+  await Promise.all([listen(cssServer, cssPort), listen(pageServer, pagePort)]);
+  return () => {
+    cssServer.close();
+    pageServer.close();
+  };
+}
+
+test('styleproof-capture --crawl: fails loud on an unreadable cross-origin stylesheet (no silent 1280-only sweep)', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-xorigin-'));
+  const pagePort = await freePort();
+  const cssPort = await freePort();
+  const stop = await serveCrossOriginStyleApp(pagePort, cssPort);
+  try {
+    // No --widths → breakpoint detection runs, hits the unreadable sheet, and MUST throw.
+    const res = await runAsync(dir, 'node', [
+      CAPTURE,
+      `http://127.0.0.1:${pagePort}/`,
+      '--crawl',
+      '--no-screenshots',
+      '--out',
+      path.join(dir, 'a'),
+    ]);
+    expect(res.status, 'crawl exits non-zero when breakpoints are undetectable').not.toBe(0);
+    expect(res.stderr + res.stdout).toMatch(/unreadable|cross-origin/i);
+    // The message advises pinning --widths, matching the one-shot path.
+    expect(res.stderr + res.stdout).toMatch(/widths/);
+  } finally {
+    stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('styleproof-capture --crawl --require-full-coverage: exit 4 with named residue for an unreadable cross-origin sheet', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-xorigin-cov-'));
+  const pagePort = await freePort();
+  const cssPort = await freePort();
+  const stop = await serveCrossOriginStyleApp(pagePort, cssPort);
+  try {
+    // Pin --widths so breakpoint detection is skipped and the crawl reaches the
+    // coverage check: the cross-origin sheet is unreadable, so its class
+    // vocabulary can't be proven covered → residue → exit 4.
+    const res = await runAsync(dir, 'node', [
+      CAPTURE,
+      `http://127.0.0.1:${pagePort}/`,
+      '--crawl',
+      '--no-screenshots',
+      '--widths',
+      '1280',
+      '--out',
+      path.join(dir, 'a'),
+      '--require-full-coverage',
+    ]);
+    expect(res.stdout, 'unreadable sheet named as residue').toMatch(/stylesheet\(s\) unreadable/);
+    expect(res.stdout).toMatch(new RegExp(`127\\.0\\.0\\.1:${cssPort}`));
+    expect(res.status, 'unreadable-sheet residue exits 4').toBe(4);
+  } finally {
+    stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// An append-generator: each click appends a node with a BRAND-NEW class, so the
+// structural fingerprint never repeats — dedup can NOT terminate the crawl. Only
+// the --max-depth cap can. This proves the cap binds (the audit found no test
+// that did). Without the cap this crawl recurses until maxStates; with a small
+// cap it stops at a bounded, predictable surface count.
+async function serveAppendGeneratorApp(port: number) {
+  const server = http.createServer((_req, res) => {
+    res.setHeader('content-type', 'text/html');
+    res.end(
+      `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}</style></head><body>` +
+        `<button id="add">Add</button><div id="list"></div>` +
+        `<script>let n=0;document.getElementById('add').onclick=()=>{` +
+        `const d=document.createElement('div');n++;d.className='row-'+n;d.textContent='row '+n;` +
+        `document.getElementById('list').appendChild(d);};</script>` +
+        `</body></html>`,
+    );
+  });
+  await listen(server, port);
+  return () => server.close();
+}
+
+test('styleproof-capture --crawl: the depth cap binds on an append-generator (dedup alone would not terminate)', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-append-'));
+  const port = await freePort();
+  const stop = await serveAppendGeneratorApp(port);
+  try {
+    // Depth 3: every appended row is a fresh identity, so each click opens a new
+    // surface — the crawl would run to maxStates if nothing bound it. The cap
+    // stops it at a small, finite count. maxStates default is 100000, so a
+    // completed crawl with a handful of surfaces proves the DEPTH cap terminated
+    // it, not the state ceiling.
+    const res = await runAsync(dir, 'node', [
+      CAPTURE,
+      `http://127.0.0.1:${port}/`,
+      '--crawl',
+      '--no-screenshots',
+      '--max-depth',
+      '3',
+      '--out',
+      path.join(dir, 'a'),
+    ]);
+    expect(res.status, res.stderr + res.stdout).toBe(0); // terminated, did not hang
+    const surfaces = fs.readdirSync(path.join(dir, 'a')).filter((f) => f.endsWith('.json.gz')).length;
+    // base + one surface per depth level (1..3) = 4. Bounded and small — proof the
+    // cap terminated an otherwise-unbounded append chain.
+    expect(surfaces, 'depth cap bounds the append chain to a small finite count').toBeLessThanOrEqual(5);
+    expect(surfaces, 'the crawl did drive into the append chain').toBeGreaterThan(1);
+  } finally {
+    stop();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
