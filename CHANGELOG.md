@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.18.0] - 2026-07-06
+
 ### Added
 
 - **Crawl coverage guard (`defineCrawlCapture` gains `expected` + `exclude`).** A
