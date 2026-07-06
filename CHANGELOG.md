@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.19.0] - 2026-07-06
+
 ### Added
 
 - **Selective-remap wiring: `explainAffectedSurfaces` + the pre-push recipe.** The
