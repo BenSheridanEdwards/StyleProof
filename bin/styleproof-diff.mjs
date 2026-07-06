@@ -322,6 +322,15 @@ if (jsonOut)
           unacknowledged: inventoryAudit.unexplained.map((i) => i.key),
           staleAcknowledgements: inventoryAudit.staleAllowances,
         },
+        // Explain the `inventory: null` so a gate reading this JSON can tell "armed but no
+        // data" apart from "audited, nothing removed". Neither map carried inventory → set
+        // `inventory: true` in the capture spec (styleproof-init scaffolds it).
+        ...(inventoryAudit
+          ? {}
+          : {
+              inventoryNote:
+                'no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate',
+            }),
       },
       null,
       2,

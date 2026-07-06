@@ -7,6 +7,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **The navigable-removal hard-gate now has data out of the box for new scaffolds — and
+  says so when it doesn't.** The Action defaults the inventory gate _on_ (3.14.0), but
+  inventory _capture_ defaults off, so on a spec that doesn't opt in, no map carries an
+  inventory, the diff's `inventory` verdict is `null`, and the gate counted zero removals
+  forever — armed, but with no ammunition. `styleproof-init` already scaffolds
+  `inventory: true` in the generated capture spec (since 3.15.0's zero-config default), so
+  **freshly scaffolded projects get the protection**; existing specs are untouched and stay
+  opt-in. To make the mismatch impossible to miss on pre-existing specs, the Action's gate
+  step now prints a `::notice::` — _"inventory gate is on but the captured maps carry no
+  inventory — set `inventory: true`"_ — instead of silently passing green, and
+  `styleproof-diff --json` emits an `inventoryNote` explaining the `null` verdict. Both are
+  notices, never failures: a spec that deliberately omits inventory capture keeps working.
+
 - **The compatibility guard now keys on the real browser build, not just the Playwright
   npm version.** Each capture records `browser().version()` (the actual Chromium build) in
   its manifest, and `styleproof-diff` / `styleproof-report` refuse to compare two maps whose
