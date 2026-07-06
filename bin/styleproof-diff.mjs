@@ -303,39 +303,48 @@ const invRemovals = printInventoryAudit(inventoryAudit);
 const coverageFails = printCoverageVerdict(coverageVerdict);
 const determinismFails = printDeterminismVerdict(determinismVerdict);
 
-if (jsonOut)
-  fs.writeFileSync(
-    jsonOut,
-    JSON.stringify(
-      {
-        counts,
-        surfaces,
-        compared,
-        coverage: coverageVerdict,
-        determinism: determinismVerdict,
-        // The inventory verdict, machine-readable — parallel to coverage/determinism and
-        // to the report's certification block. `null` when no capture carried inventory.
-        // `unacknowledged` is the gating set: a CI can hard-fail on `unacknowledged.length`.
-        inventory: inventoryAudit && {
-          removed: inventoryAudit.delta.removed.map((i) => i.key),
-          added: inventoryAudit.delta.added.map((i) => i.key),
-          unacknowledged: inventoryAudit.unexplained.map((i) => i.key),
-          staleAcknowledgements: inventoryAudit.staleAllowances,
+if (jsonOut) {
+  // A write failure (bad --json path, unwritable dir) is a usage/setup error, not a
+  // "reviewable differences" result — exit 2, never leak the exit-1 that CI reads as
+  // a real diff.
+  try {
+    fs.writeFileSync(
+      jsonOut,
+      JSON.stringify(
+        {
+          counts,
+          surfaces,
+          compared,
+          coverage: coverageVerdict,
+          determinism: determinismVerdict,
+          // The inventory verdict, machine-readable — parallel to coverage/determinism and
+          // to the report's certification block. `null` when no capture carried inventory.
+          // `unacknowledged` is the gating set: a CI can hard-fail on `unacknowledged.length`.
+          inventory: inventoryAudit && {
+            removed: inventoryAudit.delta.removed.map((i) => i.key),
+            added: inventoryAudit.delta.added.map((i) => i.key),
+            unacknowledged: inventoryAudit.unexplained.map((i) => i.key),
+            staleAcknowledgements: inventoryAudit.staleAllowances,
+          },
+          // Explain the `inventory: null` so a gate reading this JSON can tell "armed but no
+          // data" apart from "audited, nothing removed". Neither map carried inventory → set
+          // `inventory: true` in the capture spec (styleproof-init scaffolds it).
+          ...(inventoryAudit
+            ? {}
+            : {
+                inventoryNote:
+                  'no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate',
+              }),
         },
-        // Explain the `inventory: null` so a gate reading this JSON can tell "armed but no
-        // data" apart from "audited, nothing removed". Neither map carried inventory → set
-        // `inventory: true` in the capture spec (styleproof-init scaffolds it).
-        ...(inventoryAudit
-          ? {}
-          : {
-              inventoryNote:
-                'no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate',
-            }),
-      },
-      null,
-      2,
-    ),
-  );
+        null,
+        2,
+      ),
+    );
+  } catch (e) {
+    console.error(`${COMMAND}: could not write --json ${jsonOut}: ${e.message}`);
+    process.exit(2);
+  }
+}
 
 const total = counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing).length;

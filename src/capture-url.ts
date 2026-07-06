@@ -51,7 +51,7 @@ export type CaptureUrlOptions = {
    * discovered surface under a derived key. See {@link crawlAndCapture}.
    */
   crawl: boolean;
-  /** crawl: recursion depth into opened surfaces (default 3). */
+  /** crawl: recursion depth into opened surfaces (default 16). */
   maxDepth: number;
   /** crawl: fresh controls driven per state (default: unbounded — try them all). */
   maxActionsPerState: number;

@@ -126,7 +126,9 @@ function dropLayoutEquivalentMarginProps(
 
 function pxParts(value: string): number[] | null {
   const parts = value.trim().split(/\s+/);
-  if (parts.length < 2 || parts.length > 3) return null;
+  // 1–3 components: a single-value origin (`50px`) jitters the same way as the
+  // 2/3-component form and must be suppressed identically.
+  if (parts.length < 1 || parts.length > 3) return null;
   const values = parts.map((part) => {
     const match = /^(-?\d+(?:\.\d+)?)px$/.exec(part);
     return match ? Number(match[1]) : Number.NaN;

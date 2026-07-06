@@ -1121,3 +1121,53 @@ test('report.md stays under its byte budget (GitHub-renderable); report.json kee
   );
   rmTmp(root);
 });
+
+// ----------------------------------------------- hostile CSS values are escaped
+
+// A CSS property value is author/attacker-influenced. A `|` would split a report
+// table row; a backtick would close the code span and leak live Markdown. The
+// render boundary must escape both so the value renders as ONE intact code cell.
+test('end-to-end: a hostile CSS value renders as one intact row with no live markdown', () => {
+  // A value carrying a pipe (row-splitter) AND a backtick (span-closer), plus a
+  // second backtick to exercise the fence-widening path.
+  const HOSTILE_BEFORE = 'counter(a) "|`x`|"';
+  const HOSTILE_AFTER = 'counter(b) "|`y`|"';
+  const boxWith = (content) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'box',
+          rect: [40, 40, 200, 60],
+          style: { content },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: boxWith(HOSTILE_BEFORE),
+    after: boxWith(HOSTILE_AFTER),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  assert.equal(res.changedSurfaces, 1);
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Find the table row carrying the hostile value.
+  const contentRow = md.split('\n').find((l) => l.includes('content') && l.includes('counter'));
+  assert.ok(contentRow, 'the content change is rendered as a table row');
+
+  // A GitHub table row is a single line with exactly the cell pipes it declares:
+  // `| content | <before> | <after> |` → the only UNESCAPED pipes are the four
+  // structural ones. Every pipe from the value must be backslash-escaped.
+  const structuralPipes = (contentRow.match(/(^|[^\\])\|/g) ?? []).length;
+  assert.equal(structuralPipes, 4, `row must keep exactly its 4 cell separators, got: ${contentRow}`);
+  assert.ok(contentRow.includes('\\|'), 'the value pipes are backslash-escaped, not raw');
+
+  // The value's literal text survives, readable (escape, not strip).
+  assert.ok(md.includes('counter(a)') && md.includes('counter(b)'), 'both hostile values are shown verbatim');
+  rmTmp(root);
+});
