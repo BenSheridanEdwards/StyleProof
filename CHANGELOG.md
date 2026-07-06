@@ -26,6 +26,68 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     CLI default is now **16 everywhere** — the cap exists to bound append-generator UIs (a
     composer that appends a fresh-identity node per click, which dedup can't terminate); 1000
     made it decorative. Raise with `--max-depth` for a genuinely deeper nest.
+    
+- **The navigable-removal hard-gate now has data out of the box for new scaffolds — and
+  says so when it doesn't.** The Action defaults the inventory gate _on_ (3.14.0), but
+  inventory _capture_ defaults off, so on a spec that doesn't opt in, no map carries an
+  inventory, the diff's `inventory` verdict is `null`, and the gate counted zero removals
+  forever — armed, but with no ammunition. `styleproof-init` already scaffolds
+  `inventory: true` in the generated capture spec (since 3.15.0's zero-config default), so
+  **freshly scaffolded projects get the protection**; existing specs are untouched and stay
+  opt-in. To make the mismatch impossible to miss on pre-existing specs, the Action's gate
+  step now prints a `::notice::` — _"inventory gate is on but the captured maps carry no
+  inventory — set `inventory: true`"_ — instead of silently passing green, and
+  `styleproof-diff --json` emits an `inventoryNote` explaining the `null` verdict. Both are
+  notices, never failures: a spec that deliberately omits inventory capture keeps working.
+
+- **The compatibility guard now keys on the real browser build, not just the Playwright
+  npm version.** Each capture records `browser().version()` (the actual Chromium build) in
+  its manifest, and `styleproof-diff` / `styleproof-report` refuse to compare two maps whose
+  builds differ (exit 2, both builds named). The npm `@playwright/test` version was only a
+  proxy: the actual binary can change while it holds constant — a `playwright install`
+  re-download after a cache wipe, a different `PLAYWRIGHT_BROWSERS_PATH`, or a CI image
+  bump — and two maps captured under different Chromium builds used to pass the guard and
+  then diff for real, walling the PR with false diffs the canonicalizer can't absorb.
+  Backward compatible: the build is compared only when **both** manifests carry it, so
+  bundles cached before this field keep comparing against each other; a build change now
+  fires the scaffolded recapture fallback instead of a cross-build compare. Fonts are
+  documented as an environment responsibility (too noisy across machines to fingerprint
+  cheaply); see the same-environment note.
+
+### Fixed
+
+- **A missing map is now refused, not mislabelled as "all new surfaces".** When one dir
+  held zero captures while the other held some, `styleproof-diff` used to mark every
+  surface `missing` and exit `3` ("only new surfaces") — the Action then rendered the
+  whole app as 🆕 new baselines a reviewer could approve wholesale. An empty **base** (a
+  restore that "succeeded" into an empty dir, a wrong `--base-dir`, a contributor without
+  the pre-push hook) meant approving a possibly fully-regressed head as the baseline; an
+  empty **head** (a head capture that produced nothing) meant approving a head that
+  rendered zero surfaces. Now: a bundle that claims to exist yet holds zero captures — a
+  `styleproof-manifest.json` present alongside no maps, on either side — and any empty
+  head exit `2` with their own named causes (`base map missing: restore it from the map
+store or recapture both sides — refusing to treat every surface as new` / `head map
+missing: the head capture produced zero surfaces — recapture the head side; refusing to
+treat every surface as removed/new`), distinct enough that the scaffolded workflow's
+  capture-needed fallback is the obvious remedy in CI logs. A truly **bare** base dir (no
+  manifest, no maps) still means "no baseline exists yet" — the first-adoption flow where
+  the base commit predates the capture spec — and keeps the exit-`3` new-surfaces review
+  path. To keep that discrimination sound, `styleproof-map` no longer writes a manifest
+  (or uploads) when a capture run produced zero surfaces. `styleproof-report` shares the
+  load path and is refused identically, so it can't render the misleading all-new page
+  either. Exit `3` keeps its meaning: no baseline for _these_ surfaces — new against an
+  existing baseline, or the very first one.
+
+### Security
+
+- **Surface keys are escaped before they reach the privileged PR comment.** Surface keys
+  originate from artifact filenames — attacker-controlled in the fork capture/report split
+  — and flow into the bot comment (sliced from `report.md`'s headline). Markdown/HTML
+  control characters (`` ` ``, `[`, `]`, `(`, `)`, `<`, `>`, `|`) are now stripped where a
+  key is interpolated into the report headline, certification, and summary lines, so a
+  crafted key can't inject a link, image, or table into the comment. (Crop filenames were
+  already restricted to `[a-z0-9-]`; this is the display-side equivalent.) No code
+  execution was possible; this closes a Markdown-injection surface.
 
 ## [3.17.0] - 2026-07-05
 

@@ -105,7 +105,7 @@ function npmPackFiles(root) {
 function publicFiles(root) {
   const files = new Set(npmPackFiles(root).filter(textFile));
   for (const rel of ['action.yml', 'CHANGELOG.md', 'README.md']) files.add(rel);
-  for (const dir of ['.github/workflows', 'docs', 'example']) {
+  for (const dir of ['.github/workflows', 'docs', 'example', 'test', 'bench', 'scripts']) {
     for (const file of walk(path.join(root, dir))) {
       const rel = path.relative(root, file);
       if (textFile(rel)) files.add(rel);

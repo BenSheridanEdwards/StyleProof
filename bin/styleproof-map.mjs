@@ -29,6 +29,7 @@ import {
   MapStoreError,
   currentGitSha,
   expectedCompatibilityKey,
+  isMapFile,
   publishMapBundle,
   restoreMapBundle,
   workingTreeDirty,
@@ -307,6 +308,19 @@ if (result.error) {
 const status = result.status ?? 1;
 if (status === 0) {
   if (!keepHar) removeHarFiles(targetDir);
+  // A run that produced ZERO surface maps must not stamp a manifest (or upload):
+  // a manifest over an empty bundle would read as "a bundle that claims to exist
+  // yet holds nothing" and the diff would refuse it as a missing base map. A bare
+  // dir instead means "no baseline yet" — on a first adoption, capturing the base
+  // commit that predates the spec legitimately yields zero surfaces, and the diff
+  // then takes the exit-3 new-surfaces review path.
+  const captured = fs.existsSync(targetDir) ? fs.readdirSync(targetDir).filter(isMapFile).length : 0;
+  if (captured === 0) {
+    console.error(
+      'styleproof-map: 0 surfaces captured — no manifest written; if this is the base side of a first adoption, the diff will treat it as no-baseline',
+    );
+    process.exit(status);
+  }
   try {
     let manifestSha = sha || undefined;
     if (!manifestSha) {

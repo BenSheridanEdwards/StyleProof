@@ -344,6 +344,14 @@ runs:
       run: |
         set -euo pipefail
         [ -f styleproof-diff.json ] || { echo "no styleproof-diff.json — nothing to gate"; exit 0; }
+        # Armed but empty: the gate is on, yet neither map carried an inventory (j.inventory
+        # is null), so there is nothing to gate on. Say so loudly instead of silently passing
+        # green — a default capture spec must set `inventory: true` for this gate to have data.
+        # A notice, never a failure: existing specs that opt out of capture must not break.
+        if node -e "process.exit(require('./styleproof-diff.json').inventory == null ? 0 : 1)"; then
+          echo "::notice::StyleProof: inventory gate is on but the captured maps carry no inventory — nothing to gate. Set \`inventory: true\` in your capture spec (styleproof-init scaffolds this) or opt out with \"gateInventoryRemovals\": false."
+          exit 0
+        fi
         count="$(node -e "const j=require('./styleproof-diff.json'); process.stdout.write(String((j.inventory?.unacknowledged||[]).length))")"
         if [ "${count:-0}" -gt 0 ]; then
           echo "::error::StyleProof: ${count} navigable affordance(s) removed without acknowledgement — a feature is no longer reachable. Restore it, or record the decision in styleproof.inventory.json ({\"<key>\":\"<why>\"})."
