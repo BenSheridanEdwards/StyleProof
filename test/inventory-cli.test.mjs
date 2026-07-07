@@ -13,6 +13,30 @@ import { fileURLToPath } from 'node:url';
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'styleproof-diff.mjs');
 
+// v4: a two-directory diff refuses a map-bearing side without a manifest. These fixtures
+// exercise the OTHER gates (coverage/determinism/inventory/residue), so stamp a matching
+// manifest on both sides to get past the environment guard (same runtime → compatible).
+function stampManifest(dir, sha) {
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha,
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: 'test',
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: 'testcompatkey0000',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+}
+
 // Minimal valid StyleMap — loadStyleMap only JSON-parses; the diff needs
 // defaults/elements/states. Identical on both sides so the ONLY signal is inventory.
 const mapJson = (keys) =>
@@ -31,6 +55,8 @@ function fixture(baseKeys, headKeys) {
   fs.mkdirSync(b);
   fs.writeFileSync(path.join(a, 'home.json'), mapJson(baseKeys));
   fs.writeFileSync(path.join(b, 'home.json'), mapJson(headKeys));
+  stampManifest(a, 'base-sha');
+  stampManifest(b, 'head-sha');
   return { root, a, b };
 }
 
@@ -97,6 +123,8 @@ test('styleproof-diff --json inventory is null when no capture carried inventory
   const noInv = JSON.stringify({ defaults: {}, elements: {}, states: {} });
   fs.writeFileSync(path.join(a, 'home.json'), noInv);
   fs.writeFileSync(path.join(b, 'home.json'), noInv);
+  stampManifest(a, 'base-sha');
+  stampManifest(b, 'head-sha');
   const jsonPath = path.join(root, 'diff.json');
   execFileSync('node', [BIN, a, b, '--json', jsonPath], { cwd: root, encoding: 'utf8' });
   const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));

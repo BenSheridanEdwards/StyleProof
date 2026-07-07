@@ -14,6 +14,30 @@ import { COVERAGE_LEDGER } from '../dist/coverage.js';
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'styleproof-diff.mjs');
 const map = () => JSON.stringify({ defaults: {}, elements: {}, states: {} });
 
+// v4: a two-directory diff refuses a map-bearing side without a manifest. These fixtures
+// exercise the OTHER gates (coverage/determinism/inventory/residue), so stamp a matching
+// manifest on both sides to get past the environment guard (same runtime → compatible).
+function stampManifest(dir, sha) {
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha,
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: 'test',
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: 'testcompatkey0000',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+}
+
 // base+head both capture `captured` (so the STYLE diff is empty — isolating coverage).
 // head carries the coverage ledger { expected, exclude }.
 function fixture(captured, expected, exclude = {}) {
@@ -27,6 +51,8 @@ function fixture(captured, expected, exclude = {}) {
     fs.writeFileSync(path.join(head, `${k}@1440.json`), map());
   }
   fs.writeFileSync(path.join(head, COVERAGE_LEDGER), JSON.stringify({ version: 1, expected, exclude }));
+  stampManifest(base, 'base-sha');
+  stampManifest(head, 'head-sha');
   return { root, base, head };
 }
 function run(base, head) {

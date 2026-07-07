@@ -7,6 +7,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Removed
+
+- **BREAKING: a manifest-less map bundle is no longer compared — it fails with exit
+  `2`.** Before, a two-directory `styleproof-diff`/`styleproof-report` where a side
+  shipped captured maps but no `styleproof-manifest.json` (the legacy committed-map
+  workflow) printed a one-line stderr notice and **compared anyway** (the tolerance
+  added in #200). The same-environment guard can't be enforced without a manifest, so
+  captures from different browser builds or platforms could diff as false changes. For
+  **v4** that tolerance is removed: a side that ships maps with no manifest now fails
+  loudly with exit `2` (usage/capture error), naming the bare side(s) and the remedy —
+  re-capture with current StyleProof; maps without a manifest are unsupported. A dir
+  with _no maps at all_ is unchanged: it is "no baseline yet", still the first-adoption
+  review path (exit `3`), not a bare bundle. **Migration:** re-capture both sides —
+  `styleproof-map` for spec-driven surfaces, or `styleproof-capture` for a one-shot
+  design diff; both now write a `styleproof-manifest.json` into their output dir
+  (`styleproof-capture` previously wrote none, which would have made the design-match
+  flow fail under this change — it now stamps one, degrading the git SHA/dirty fields
+  gracefully when run outside a git repo).
+
 ### Changed
 
 - **BREAKING: `blocking` now defaults to `true`.** In review-gate mode
