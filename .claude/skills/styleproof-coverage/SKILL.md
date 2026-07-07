@@ -34,11 +34,16 @@ Two independent guards; use both:
 
 - **Crawl coverage:** after a crawl, StyleProof compares every class the page's
   own CSSOM defines against the classes actually rendered, and prints the
-  residue. `--require-full-coverage` turns any residue into **exit 4**. What's
-  left is either dead CSS (delete it) or an unreached state (drive it).
+  residue. `--require-full-coverage` turns any residue into **exit 4**; an
+  unreadable cross-origin sheet also fails rather than pass unverified.
+  `--until-covered` stops the crawl early once every class has rendered — the
+  fast coverage check, vs the exhaustive default sweep. What's left is either
+  dead CSS (delete it) or an unreached state (drive it).
 - **Spec coverage:** `expected` in `defineStyleMapCapture` (the
   `styleproof-surfaces` skill) fails a static guard when a declared route/view/
-  component has no surface.
+  component has no surface. The registry also travels with the map bundle as a
+  ledger (`styleproof-coverage.json`), so the gate states a green's
+  completeness basis — the `styleproof-diff` skill owns that verdict contract.
 
 ## 3. Reach gated states
 
@@ -69,4 +74,5 @@ the file or the maps). A failed non-`optional` step aborts loudly.
 
 ## Next
 
-Feeds `styleproof-diff` (the gate) and the `design-to-production` workflow.
+Feeds `styleproof-diff` (the gate); `styleproof-surfaces` owns the `expected`
+registry this proves against.

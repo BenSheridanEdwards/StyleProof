@@ -50,9 +50,20 @@ exists before CI starts — then CI is report-only (no build, no browser).
 
 Computed styles depend on the **browser build and installed fonts**, so maps are
 only comparable when captured in the same runtime. StyleProof records a
-compatibility key and **refuses to compare maps from different browser/platform
-settings** — CI then recaptures both sides rather than produce a bogus report.
-Capture both sides in the same browser + fonts.
+compatibility key — including the **real browser build** (`browser().version()`),
+not just the Playwright npm version, which can hold constant across a Chromium
+re-download — and **refuses to compare maps from different browser/platform
+settings** (exit 2, both builds named). CI then recaptures both sides rather
+than produce a bogus report. Fonts aren't fingerprinted (too noisy across
+machines): capture both sides on the same fonts yourself.
+
+The bundle also carries the coverage/determinism **ledger**
+(`styleproof-coverage.json`, a sidecar beside the manifest) that the gate reads
+to qualify a green — the `styleproof-diff` skill owns that verdict contract.
+Since v4 the manifest is **required** (a map-bearing dir without one is refused
+at compare time), and every capture flow stamps it — the CLIs and the runner
+alike, so even a raw `STYLEMAP_DIR=x npx playwright test` run publishes a
+comparable bundle.
 
 ## Next
 

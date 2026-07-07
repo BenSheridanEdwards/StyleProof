@@ -17,7 +17,11 @@ styleproof-report main                    # pin the base ref
 styleproof-report <before> <after> --out report   # explicit two-dir form
 ```
 
-Same base-ref inference and cached-map defaults as `styleproof-diff`.
+Same base-ref inference and cached-map defaults as `styleproof-diff`. Exits `0`
+when nothing changed, `1` when a report was generated (changes or new surfaces),
+`2` on usage/capture error — so don't treat a non-zero as failure in scripts.
+Output is `report.md` + `crops/`, capped ~400 KB so GitHub renders it;
+`--image-base-url` rewrites image links for a published report.
 
 ## What a change looks like
 
@@ -29,8 +33,10 @@ too small to see at 1:1 also gets a magnified zoom crop, so a sub-pixel tweak
 can't slip past. A clean run still prints a receipt: `No visual changes detected.`
 New surfaces show as `🆕 new surface`.
 
-The PR comment itself stays lean (summary + approval box) and links to the
-committed full report.
+The report **leads with the certification gates** — the coverage, determinism,
+and 📐 inventory verdicts — so a reviewer sees what the green actually asserts
+before the pretty crops. The PR comment itself stays lean (summary + approval
+box) and links to the committed full report.
 
 ## Opt-in advisory layers (never gate)
 

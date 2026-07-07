@@ -33,12 +33,19 @@ pinned environment first (correctness beats a stale cache).
   **Approve all changes** checkbox; the status is green on no change, red until
   approved. Use when intentional visual changes are normal.
 - **Certify** (`fail-on-diff: true`, the default): **any** diff fails the job.
-  Use when the whole promise is "output unchanged" (see `styleproof-refactor`
-  guidance in the `styleproof` skill).
+  Use when the whole promise is "output unchanged" (the *Certify a refactor*
+  mode in the `styleproof` skill).
 
 Key inputs: `require-approval`, `fail-on-diff`, `status-context` (must match the
-approve workflow + branch protection), `baseline-dir`, `fresh-dir`. Outputs:
-`changed`, `report-url`.
+approve workflow + branch protection), `baseline-dir`, `fresh-dir`,
+`report-branch` (default `styleproof-reports`; the scaffolded workflow prunes a
+PR's report folder when it closes). Outputs: `changed`, `report-url`.
+
+In **both** modes the Action also hard-gates an **unacknowledged inventory
+removal** (a nav item/route that went unreachable) when the maps carry
+inventory — the `styleproof-diff` skill owns the acknowledgement mechanics.
+The Action-level opt-out is `"gateInventoryRemovals": false` in
+`styleproof.config.json`.
 
 ## The approve workflow
 
