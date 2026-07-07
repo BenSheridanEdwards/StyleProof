@@ -21,6 +21,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (moved from `.agents/DEFINITION_OF_DONE.md`). Adds `.agents/decisions/` ADRs, a
   root `TODO.md`, and a `.claude/` PreToolUse hook that blocks `--no-verify`.
 
+### Fixed
+
+- **A two-directory `styleproof-diff`/`styleproof-report` no longer skips the
+  same-environment guard in silence.** The guard (`assertCompatibleMapDirs`) compares
+  platform/arch/node/Playwright/browser-build across both maps, but no-ops when either
+  side carries no `styleproof-manifest.json` — so a committed-map workflow that ships
+  maps but no manifest (exactly the flow most likely to compare captures across
+  machines) got zero protection with nothing said. Both CLIs now print a one-line
+  notice to stderr naming the bare side(s) — `before`, `after`, or `both` — pointing
+  at `styleproof-map` to record a manifest, then compare anyway. It is a notice, not a
+  failure: **exit codes are byte-identical** (plenty of legitimate manifest-less flows
+  exist, e.g. `styleproof-capture` one-shots), and a pair where both sides carry a
+  manifest behaves exactly as before, silently. `--json` is unchanged.
+
 ## [3.21.0] - 2026-07-07
 
 ### Added

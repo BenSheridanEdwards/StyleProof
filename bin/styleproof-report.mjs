@@ -18,6 +18,8 @@ import {
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
   cleanupCachedCaptureDirs,
+  manifestlessNotice,
+  manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
 
@@ -146,6 +148,8 @@ if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
 
 let result;
 try {
+  const manifestless = manifestlessSide(beforeDir, afterDir);
+  if (manifestless) console.error(manifestlessNotice(manifestless));
   assertCompatibleMapDirs(beforeDir, afterDir);
   result = generateStyleMapReport({
     beforeDir,

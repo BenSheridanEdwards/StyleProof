@@ -375,6 +375,46 @@ test('diff CLI allows different cache keys when the runtime environment matches'
   rmTmp(root);
 });
 
+// The two-directory diff no-ops the same-environment guard when a side has no
+// manifest (issue #198). These pin the fail-loud notice: it names the bare side(s),
+// prints to stderr, and never changes the exit code — a both-present pair is silent.
+test('diff CLI warns to stderr when the before dir has no manifest, exit unchanged', () => {
+  const { root, A, B } = differingPair();
+  writeManifest(B, 'head-sha', 'head-spec-key');
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 1, r.stderr); // same as the manifest-less baseline: real diff
+  assert.match(r.stderr, /environment compatibility not verifiable — before carries no styleproof-manifest\.json/);
+  assert.match(r.stderr, /Capture via styleproof-map/);
+  rmTmp(root);
+});
+
+test('diff CLI warns naming the after dir when only it lacks a manifest', () => {
+  const { root, A, B } = differingPair();
+  writeManifest(A, 'base-sha', 'base-spec-key');
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stderr, /after carries no styleproof-manifest\.json/);
+  rmTmp(root);
+});
+
+test('diff CLI warns naming both sides when neither dir has a manifest', () => {
+  const { root, A, B } = identicalPair();
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 0, r.stderr); // identical → exit 0, unchanged by the notice
+  assert.match(r.stderr, /before and after carry no styleproof-manifest\.json/);
+  rmTmp(root);
+});
+
+test("diff CLI stays silent when both dirs carry a manifest (today's behaviour)", () => {
+  const { root, A, B } = differingPair();
+  writeManifest(A, 'base-sha', 'base-spec-key');
+  writeManifest(B, 'head-sha', 'head-spec-key');
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 1, r.stderr);
+  assert.doesNotMatch(r.stderr, /environment compatibility not verifiable/);
+  rmTmp(root);
+});
+
 test('diff CLI reads a plain .json capture against a .json.gz capture', () => {
   const root = mkTmp();
   const A = path.join(root, 'a');
@@ -645,6 +685,27 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
   assert.equal(r.status, 1);
   assert.match(r.stdout, /changed surface\(s\)/);
   assert.ok(fs.existsSync(path.join(out, 'report.json')));
+  rmTmp(root);
+});
+
+test('report CLI warns to stderr on a manifest-less pair, exit unchanged (issue #198)', () => {
+  const { root, A, B } = differingPair();
+  const out = path.join(root, 'out');
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, r.stderr); // real diff → exit 1, unchanged by the notice
+  assert.match(r.stderr, /before and after carry no styleproof-manifest\.json/);
+  assert.match(r.stderr, /Capture via styleproof-map/);
+  rmTmp(root);
+});
+
+test('report CLI stays silent when both dirs carry a manifest', () => {
+  const { root, A, B } = differingPair();
+  writeManifest(A, 'base-sha', 'base-spec-key');
+  writeManifest(B, 'head-sha', 'head-spec-key');
+  const out = path.join(root, 'out');
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, r.stderr);
+  assert.doesNotMatch(r.stderr, /environment compatibility not verifiable/);
   rmTmp(root);
 });
 
