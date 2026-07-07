@@ -23,7 +23,7 @@ This skill is the map. Each step has its own skill; follow them in order.
    guard. This is the only part you own; auto-discovery handles the inventory.
 3. **`styleproof-baseline`** — `styleproof-map` captures the commit and publishes
    maps to the `styleproof-maps` store the gate diffs against.
-4. **`styleproof-ci-gate`** — wire `BenSheridanEdwards/StyleProof@v3` as the PR
+4. **`styleproof-ci-gate`** — wire `BenSheridanEdwards/StyleProof@v4` as the PR
    gate; pick review-gate or certify mode; add the approve workflow + fork split.
 5. **`styleproof-prepush`** *(optional)* — capture locally at pre-push so CI is
    report-only.
