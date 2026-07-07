@@ -1,62 +1,67 @@
 ---
 name: styleproof-prepush
-description: Use when setting up a local pre-push hook that captures the StyleProof map before pushing (so CI restores it and runs report-only) — the capture→diff→auto-commit-map pattern, the re-entry guard, and a docs-only skip.
+description: Use when setting up a local pre-push hook that captures the StyleProof map before pushing (so CI restores it and runs report-only) — the capture→publish-to-store pattern, the docs-only skip, and why maps never get committed to the PR branch.
 ---
 
 # StyleProof — capture the map at pre-push
 
 One job: build the head map **locally, before the push**, so CI's hot path is
-report-only (no build, no browser). The README's guidance — "build the map
-outside CI when possible by running `styleproof-map` after committing" — as a
-git hook. Optional but a big CI-latency win for same-repo teams.
+report-only (no build, no browser). This is the **default**: `styleproof-init`
+installs the hook out of the box (`.husky/pre-push` if husky is present, else
+`.githooks/pre-push` + `git config core.hooksPath .githooks`). This skill is
+for understanding and customizing it.
 
 ## The pattern
 
-A `pre-push` hook that:
+The scaffolded `pre-push` hook:
 
-1. **Bails early** for changes that can't affect render — if the push touches no
-   `hud/`, styleproof config, or the hook itself, `exit 0`.
-2. **Captures** the working tree's map (`npm run styleproof:capture` / `styleproof-map`).
-3. **Diffs** the fresh map against the base ref (`styleproof-diff HEAD`), so you
+1. **Skips** pushes that can't affect render — `STYLEPROOF_SKIP_CAPTURE=1 git
+   push`; add a changed-files grep (e.g. only `src/` or the spec) to automate
+   the skip for your layout.
+2. **Captures and publishes** the map (`npx styleproof-map`). Outside CI it
+   auto-uploads the bundle to the dedicated `styleproof-maps` branch, keyed by
+   commit SHA — CI restores it from there by the PR head SHA.
+3. **Diffs** the fresh map against the inferred base (`styleproof-diff`), so you
    see drift before it reaches CI.
-4. **Commits the updated map** alongside the branch and pushes it, so the store
-   and the PR head agree.
+
+The map is **never committed to the PR branch**. Maps on the PR branch show up
+as changed files in review and — because every PR writes the same paths — force
+a rebase of every open PR each time one merges. The store branch is keyed per
+SHA, so PRs never collide.
+
+The scaffolded hook (add a changed-files bail-early for your layout if you
+want docs-only pushes skipped automatically):
 
 ```sh
 #!/bin/sh
 set -e
-# Re-entry guard: the map commit is pushed by this hook, which fires the hook a
-# SECOND time — skip the expensive capture on that inner push.
+# Skip a push that can't affect render: STYLEPROOF_SKIP_CAPTURE=1 git push
 [ "${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
 
-changed="$(git diff --name-only "$(git merge-base origin/main HEAD)"...HEAD)"
-printf '%s\n' "$changed" | grep -Eq '^(src/|styleproof\.config\.json$)' || exit 0
-
-npm run styleproof:capture                       # → stylemaps/current
-if git cat-file -e HEAD:stylemaps/current 2>/dev/null; then
-  STYLEPROOF_BASE_REF=HEAD npm run -s styleproof:diff || true   # advisory: show drift
-fi
-git add stylemaps
-git diff --cached --quiet -- stylemaps && exit 0
-git commit -m "chore(styleproof): update computed-style map"
-STYLEPROOF_SKIP_CAPTURE=1 git push "$1" HEAD      # inner push, guard short-circuits it
+npx styleproof-map            # capture → .styleproof/maps/current, publish to styleproof-maps
+npx styleproof-diff || true   # advisory: show drift before CI does
 ```
 
-Activate: `git config core.hooksPath .githooks` (or drop it in `.husky/`).
+If init wrote `.githooks/pre-push` (no husky), activate once per clone:
+`git config core.hooksPath .githooks`.
 
 ## Gotchas learned in production
 
-- **The hook captures the WORKING TREE, not HEAD.** Never background-push while
-  editing — you'll capture a half-saved state. For a docs-only push, skip it:
-  `STYLEPROOF_SKIP_CAPTURE=1 git push`.
+- **The hook captures the WORKING TREE, not HEAD.** A dirty tree (or HEAD moving
+  mid-capture) marks the manifest dirty and the publish is refused — CI then
+  recaptures both sides itself. Safe, but slow: commit everything before
+  pushing so the capture is clean and publishable.
 - **`core.hooksPath` is repo-global across worktrees** — a worktree whose main
   checkout sits on a stale branch runs *that* branch's hook. Override per-push
   with `git -c core.hooksPath=<this-worktree>/.githooks push` when they diverge.
-- **Environmental map churn:** computed-style *serialization* can differ by
-  Chromium build (`0% 0%` ↔ `0px 0px`), so a local capture can diff against a
-  CI-built baseline with no real visual change. Don't commit that churn — it
-  breaks CI's browserless diff. `STYLEPROOF_SKIP_CAPTURE=1` and let CI's own
-  captured-in-one-environment diff be authoritative.
+- **Environment must match CI.** Maps carry a compatibility key (platform +
+  browser build); a locally-published head map captured under a different
+  Chromium than CI's base is refused at compare time and CI recaptures both
+  sides — correct, but you lose the latency win. Pin the local browser to CI's
+  (same Playwright version and browser build) to keep the hot path hot.
+- **Never `git add` the map dir.** `.styleproof/` and `stylemaps/` are
+  gitignored on purpose; committing maps to the branch reintroduces the
+  cross-PR rebase churn this pattern exists to avoid.
 
 ## Next
 

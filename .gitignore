@@ -5,6 +5,7 @@ playwright-report/
 coverage/
 **/__stylemaps__/
 .styleproof/
+stylemaps/
 .gitnexus/
 graphify-out/
 *.tgz

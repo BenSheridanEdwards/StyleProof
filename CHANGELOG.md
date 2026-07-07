@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **Pre-push guidance no longer commits maps to the PR branch** (docs and repo
+  hygiene only; no change to the published package, CLI, or Action). The
+  pre-push recipe previously ended with `git add stylemaps` + a map commit on
+  the branch — so maps appeared as changed files in every PR, and because all
+  PRs wrote the same `stylemaps/` paths, each merge forced every other open PR
+  to rebase. The recipe now captures and publishes to the SHA-keyed
+  `styleproof-maps` store branch (what `styleproof-map` already does outside
+  CI) and never touches the PR branch; `stylemaps/` is gitignored as a
+  guardrail, and the README states the maps-never-in-PR rule explicitly.
+
 ### Added
 
 - **Data-residue guard — a capture that embeds an unprovoked data-fault state now
@@ -26,6 +38,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   fixtured is **never** flagged (recording mode legitimately records live responses).
   `--json` gains an additive optional `dataResidue` field. A capture with no failing
   data request is byte-identical, so existing setups are unaffected. Fixes #205.
+- **`styleproof-init` now installs the pre-push publish hook by default.** The
+  capture-locally/publish-to-store flow is the out-of-the-box path, not an
+  opt-in recipe: init scaffolds a `pre-push` hook (into `.husky/` when present,
+  else `.githooks/` with a one-line activation hint) that runs `styleproof-map`
+  — capture this commit, publish the bundle to the SHA-keyed `styleproof-maps`
+  branch — plus an advisory `styleproof-diff`, so CI restores by SHA and stays
+  report-only. `STYLEPROOF_SKIP_CAPTURE=1 git push` skips a push that can't
+  affect render. Never overwrites an existing hook; maps never get committed
+  to the PR branch.
 - **`styleproof-init` now installs the approval workflow.** The generated report
   workflow runs with `require-approval: true`, but the `issue_comment` handler
   that flips the `StyleProof` status when a reviewer ticks **Approve all changes**
