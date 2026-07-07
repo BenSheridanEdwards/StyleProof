@@ -1,0 +1,16 @@
+
+🧱 Global chrome change(s) — across all 3 surface(s): 1 change(s) rode the shared frame every view draws (a persistent nav, header, or footer).
+
+reports@1280 (+1 more surface: reports @ 1280 · settings @ 1280): 1 element added
+  DOM added: html > body > nav > a:nth-child(2)  (.link)
+  html > body > nav > a:nth-child(2)  (.link)
+    color: (unset) → rgb(0, 0, 0)
+
+home@1280: 1 element added, 1 element restyled
+  html > body > main > h1  (.title)
+    color: rgb(0, 0, 0) → rgb(255, 0, 0)
+  DOM added: html > body > nav > a:nth-child(2)  (.link)
+  html > body > nav > a:nth-child(2)  (.link)
+    color: (unset) → rgb(0, 0, 0)
+
+⚠ completeness NOT asserted — the spec declared no `expected` registry, so this certifies only the

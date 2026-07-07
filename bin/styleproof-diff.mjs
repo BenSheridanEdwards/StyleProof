@@ -25,6 +25,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
+// The shared grouping brain (leaf — no Playwright-adjacent imports) that already
+// dedupes the report: group identical change-sets across surfaces and fold derived
+// longhands. Used for the HUMAN output only; --json stays the raw machine contract.
+import {
+  cleanFindings,
+  groupBySignature,
+  groupByPath,
+  groupTitle,
+  summarizeProps,
+  derivedLonghandCount,
+  formatSurfaceList,
+  classifyChrome,
+  surfaceBase,
+} from '../dist/change-groups.js';
 import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
@@ -39,7 +53,7 @@ import {
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
-import { readInventories } from '../dist/capture.js';
+import { readInventories, surfaceElementPaths } from '../dist/capture.js';
 import { auditRunInventory, readAckFile } from '../dist/inventory.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { isMapFile } from '../dist/map-store.js';
@@ -254,6 +268,7 @@ let result;
 let inventoryAudit = null;
 let coverageVerdict = null;
 let determinismVerdict = null;
+let surfacePaths = new Map();
 try {
   assertCompatibleMapDirs(dirA, dirB);
   result = diffStyleMapDirs(dirA, dirB);
@@ -264,6 +279,9 @@ try {
   const headLedger = readLedger(dirB);
   coverageVerdict = auditCoverage(capturedSurfaceKeys(dirB), headLedger);
   determinismVerdict = auditDeterminism(readLedger(dirA), headLedger);
+  // Element-path sets per surface, for the shared-chrome tier — same "read while
+  // the dirs exist" rule as the ledgers above.
+  surfacePaths = surfaceElementPaths(dirA, dirB);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -272,32 +290,89 @@ try {
 }
 const { surfaces, counts, compared } = result;
 
-for (const sd of surfaces) {
-  if (sd.missing) {
-    const side = sd.missing === 'before' ? 'after' : 'before';
-    console.log(`\n${sd.surface}: new surface — captured only in the ${side} set, no baseline to compare`);
-    continue;
-  }
+// ── grouped human output ─────────────────────────────────────────────────────
+// Reuse the report's dedup so one real change doesn't print once per surface with
+// its derived-longhand echo: group surfaces that changed identically, fold the
+// size/position-derived longhands behind a count, and keep the per-surface tally
+// in each group's header line. --json below is untouched (the raw machine feed).
+
+// One finding's lines: a heading, then its summarised property deltas (the same
+// dedupe the report shows). Returns [] for a DOM finding (handled separately) or a
+// finding whose props all summarised away.
+function findingLines(f) {
+  if (f.kind === 'dom') return [];
+  const rows = summarizeProps(f.props);
+  if (!rows.length) return [];
+  const head =
+    f.kind === 'state'
+      ? `  [:${f.state}] ${findingLabel(f.path, f.cls)}${f.sub !== f.path ? ` ⇒ ${f.sub}` : ''}`
+      : `  ${findingLabel(f.path, f.cls)}${f.pseudo || ''}`;
+  return [head, ...rows.map((p) => `    ${p.prop}: ${p.before} → ${p.after}`)];
+}
+
+// A DOM finding's one-line heading (added/removed/retagged).
+function domLine(dom) {
+  return dom.change === 'retagged'
+    ? `  DOM retagged: ${dom.path} ${dom.detail ?? ''}`
+    : `  DOM ${dom.change}: ${findingLabel(dom.path, dom.cls)}`;
+}
+
+// The element lines for one change group, from its representative's cleaned
+// findings: one heading per element, then its summarised property deltas.
+function elementLines(findings) {
   const lines = [];
-  for (const f of sd.findings) {
-    if (f.kind === 'dom') {
-      lines.push(
-        f.change === 'retagged'
-          ? `  DOM retagged: ${f.path} ${f.detail}`
-          : `  DOM ${f.change}: ${findingLabel(f.path, f.cls)}`,
-      );
-    } else if (f.kind === 'style') {
-      lines.push(`  ${findingLabel(f.path, f.cls)}${f.pseudo || ''}`);
-      for (const p of f.props) lines.push(`    ${p.prop}: ${p.before} → ${p.after}`);
-    } else {
-      lines.push(`  [:${f.state}] ${findingLabel(f.path, f.cls)}${f.sub !== f.path ? ` ⇒ ${f.sub}` : ''}`);
-      for (const p of f.props) lines.push(`    ${p.prop}: ${p.before} → ${p.after}`);
-    }
+  for (const group of groupByPath(findings)) {
+    const dom = group.find((f) => f.kind === 'dom');
+    if (dom) lines.push(domLine(dom));
+    for (const f of group) lines.push(...findingLines(f));
   }
-  console.log(`\n${sd.surface}: ${lines.filter((l) => !l.startsWith('    ')).length} element(s) differ`);
+  return lines;
+}
+
+// New (one-sided) surfaces keep their own line, unchanged.
+for (const sd of surfaces) {
+  if (!sd.missing) continue;
+  const side = sd.missing === 'before' ? 'after' : 'before';
+  console.log(`\n${sd.surface}: new surface — captured only in the ${side} set, no baseline to compare`);
+}
+
+// Group the changed surfaces the way the report does, so an identical change
+// across N surfaces prints once (with the count), not N times.
+const preparedForGrouping = surfaces
+  .filter((sd) => !sd.missing)
+  // Carry the RAW findings too, so we can report how many derived longhands the
+  // grouped view folded (the cleaned findings have them already removed).
+  .map((sd) => ({ surface: sd.surface, findings: cleanFindings(sd.findings), raw: sd.findings }))
+  .filter((p) => p.findings.length > 0);
+
+function printGroup(cg) {
+  const lines = elementLines(cg.findings);
+  const derived = derivedLonghandCount(cg.rep.raw);
+  const foldNote = derived > 0 ? ` (+${derived} derived longhand${derived === 1 ? '' : 's'})` : '';
+  const others = cg.surfaces.length - 1;
+  const scope =
+    others > 0
+      ? `${cg.rep.surface} (+${others} more surface${others === 1 ? '' : 's'}: ${formatSurfaceList(cg.surfaces)})`
+      : cg.rep.surface;
+  console.log(`\n${scope}: ${groupTitle(cg.findings)}${foldNote}`);
   for (const line of lines.slice(0, MAX)) console.log(line);
   if (lines.length > MAX) console.log(`  ... and ${lines.length - MAX} more lines (re-run with --max ${lines.length})`);
 }
+
+// Shared-chrome tier: a change that rode the frame every view draws (nav/header)
+// gets one banner up top, then its detail — so the reviewer reads "the nav changed
+// everywhere" once, not once per surface entry. Presentational only.
+const grouped = groupBySignature(preparedForGrouping);
+const { chrome, rest } = classifyChrome(grouped, surfacePaths);
+if (chrome.length) {
+  // Base count from the pre-cleanup surface set (dirB may be deleted by now).
+  const bases = new Set([...surfacePaths.keys()].map(surfaceBase)).size;
+  console.log(
+    `\n🧱 Global chrome change(s) — across all ${bases} surface(s): ${chrome.length} change(s) rode the shared frame every view draws (a persistent nav, header, or footer).`,
+  );
+  for (const cg of chrome) printGroup(cg);
+}
+for (const cg of rest) printGroup(cg);
 
 const invRemovals = printInventoryAudit(inventoryAudit);
 const coverageFails = printCoverageVerdict(coverageVerdict);

@@ -814,3 +814,179 @@ test('init in a git repo does not mutate core.hooksPath', () => {
     rmTmp(dir);
   }
 });
+
+// ─── grouped human output + shared-chrome tier (#188, #193) ───────────────────
+
+// A .cta restyle (background + padding) across N home widths; the padding change
+// drags derived transform/perspective-origin, width/height, and cascaded ancestor
+// heights — the noise the report already folds and the CLI now folds too.
+function ctaRestyleMap(after, width) {
+  const cta = {
+    tag: 'button',
+    cls: 'cta',
+    rect: [100, 200, 120, 44],
+    style: {
+      'background-color': after ? 'rgb(37, 99, 235)' : 'rgb(59, 130, 246)',
+      'padding-top': after ? '14px' : '10px',
+      'padding-right': after ? '20px' : '16px',
+      'padding-bottom': after ? '14px' : '10px',
+      'padding-left': after ? '20px' : '16px',
+      // derived longhands that follow the padding change:
+      width: after ? '160px' : '152px',
+      height: after ? '52px' : '44px',
+      'transform-origin': after ? '80px 26px' : '76px 22px',
+      'perspective-origin': after ? '80px 26px' : '76px 22px',
+    },
+  };
+  const box = (h) => ({ tag: 'div', cls: '', rect: [0, 0, width, 900], style: { height: h } });
+  return makeMap({
+    elements: {
+      html: box(after ? '1240px' : '1232px'),
+      'html > body': box(after ? '1240px' : '1232px'),
+      'html > body > main': box(after ? '1180px' : '1172px'),
+      'html > body > main > button:nth-child(1)': cta,
+    },
+  });
+}
+
+test('diff CLI groups a one-view restyle to one finding with a derived-longhand fold (#188)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  try {
+    // The .cta restyle lives on `home` at four widths; `pricing` is unchanged.
+    for (const w of [1280, 1080, 768, 390]) {
+      writeCapture(A, `home@${w}`, ctaRestyleMap(false, w), null);
+      writeCapture(B, `home@${w}`, ctaRestyleMap(true, w), null);
+      const pricing = makeMap({ elements: { html: { tag: 'html', style: { height: '900px' } } } });
+      writeCapture(A, `pricing@${w}`, pricing, null);
+      writeCapture(B, `pricing@${w}`, pricing, null);
+    }
+    const r = run(DIFF, [A, B]);
+    assert.equal(r.status, 1, r.stderr);
+    // One grouped finding, not one per surface. The header carries the per-surface
+    // count and the derived-longhand fold; only the meaningful props are shown.
+    const groupHeaders = r.stdout.match(/1 element restyled/g) ?? [];
+    assert.equal(groupHeaders.length, 1, `expected one grouped finding, got:\n${r.stdout}`);
+    assert.match(r.stdout, /\(\+7 derived longhands\)/, 'folds the derived longhands behind a count');
+    assert.match(r.stdout, /\+3 more surfaces: home @ 1280, 1080, 768, 390/, 'keeps per-surface counts');
+    assert.match(r.stdout, /padding: 10px 16px → 14px 20px/, 'shows the padding shorthand');
+    assert.match(r.stdout, /background-color: rgb\(59, 130, 246\) → rgb\(37, 99, 235\)/);
+    // The derived noise is suppressed from the visible detail.
+    assert.doesNotMatch(r.stdout, /transform-origin|perspective-origin/);
+    assert.doesNotMatch(r.stdout, /^\s+height:/m);
+    // pricing was identical → not in the grouped output at all.
+    assert.doesNotMatch(r.stdout, /pricing/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('diff CLI --json stays the raw, complete machine contract regardless of human grouping (#188)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const jsonPath = path.join(root, 'out.json');
+  try {
+    for (const w of [1280, 390]) {
+      writeCapture(A, `home@${w}`, ctaRestyleMap(false, w), null);
+      writeCapture(B, `home@${w}`, ctaRestyleMap(true, w), null);
+    }
+    const r = run(DIFF, [A, B, '--json', jsonPath]);
+    assert.equal(r.status, 1, r.stderr);
+    const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    // The JSON keeps EVERY surface and EVERY raw longhand (transform-origin, the
+    // cascaded heights) — the grouping/fold is presentation-only, never here.
+    assert.equal(j.surfaces.length, 2, 'both surfaces present in JSON');
+    for (const sd of j.surfaces) {
+      const props = sd.findings.flatMap((f) => f.props ?? []).map((p) => p.prop);
+      assert.ok(props.includes('transform-origin'), 'raw derived longhands stay in JSON');
+      assert.ok(props.includes('padding-top'), 'raw longhands, not the shorthand, in JSON');
+    }
+    // counts are the raw per-property totals, unchanged by grouping.
+    assert.ok(j.counts.style > 0);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-view change alone (#193)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  try {
+    // A persistent nav item is added on EVERY view (the shared frame). One view
+    // (`home`) also has a real content restyle nothing else shares.
+    const nav = (extra) => ({
+      'html > body > nav': { tag: 'nav', cls: 'rail', style: { display: 'flex' } },
+      'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } },
+      ...extra,
+    });
+    const views = ['home', 'settings', 'reports'];
+    for (const v of views) {
+      // base: nav has one link; head: nav gains a second link → an added element on every view.
+      const before = makeMap({ elements: nav({}) });
+      const afterExtra = {
+        'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } },
+      };
+      const after = makeMap({ elements: nav(afterExtra) });
+      writeCapture(A, `${v}@1280`, before, null);
+      writeCapture(B, `${v}@1280`, after, null);
+    }
+    // home ALSO restyles its own content element (present only on home).
+    const homeBefore = makeMap({
+      elements: {
+        ...nav({}),
+        'html > body > main > h1': { tag: 'h1', cls: 'title', style: { color: 'rgb(0, 0, 0)' } },
+      },
+    });
+    const homeAfter = makeMap({
+      elements: {
+        ...nav({ 'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } } }),
+        'html > body > main > h1': { tag: 'h1', cls: 'title', style: { color: 'rgb(255, 0, 0)' } },
+      },
+    });
+    writeCapture(A, 'home@1280', homeBefore, null);
+    writeCapture(B, 'home@1280', homeAfter, null);
+
+    const r = run(DIFF, [A, B]);
+    assert.equal(r.status, 1, r.stderr);
+    // The nav addition is chrome (every base that hosts the nav changed it), and
+    // the pure-nav surfaces group under the callout.
+    assert.match(r.stdout, /🧱 Global chrome change\(s\) — across all 3 surface\(s\)/, r.stdout);
+    assert.match(r.stdout, /1 change\(s\) rode the shared frame/, r.stdout);
+    // home entangled the nav change with its OWN h1 restyle, so it renders in place
+    // (never hidden under the chrome banner) — the view-specific change stays visible.
+    assert.match(r.stdout, /home@1280: 1 element added, 1 element restyled/, 'the view-specific change stays visible');
+    assert.match(r.stdout, /color: rgb\(0, 0, 0\) → rgb\(255, 0, 0\)/, 'home h1 restyle shown');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('diff CLI does NOT promote a change that hit only SOME surfaces (#193)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  try {
+    // A nav present on all three views, but the change lands on only two of them —
+    // so it is a partial change, never "chrome".
+    const nav = (color) => ({
+      'html > body > nav': { tag: 'nav', cls: 'rail', style: { display: 'flex' } },
+      'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color } },
+    });
+    writeCapture(A, 'home@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), null);
+    writeCapture(B, 'home@1280', makeMap({ elements: nav('rgb(255, 0, 0)') }), null);
+    writeCapture(A, 'settings@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), null);
+    writeCapture(B, 'settings@1280', makeMap({ elements: nav('rgb(255, 0, 0)') }), null);
+    // reports has the nav too, unchanged.
+    writeCapture(A, 'reports@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), null);
+    writeCapture(B, 'reports@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), null);
+
+    const r = run(DIFF, [A, B]);
+    assert.equal(r.status, 1, r.stderr);
+    assert.doesNotMatch(r.stdout, /Global chrome/, 'a change on only some hosting surfaces is not chrome');
+  } finally {
+    rmTmp(root);
+  }
+});

@@ -1,0 +1,15 @@
+# --json byte-stability (#188 hard constraint)
+
+The --json machine contract must be byte-identical to main. Built origin/main
+and this branch, ran styleproof-diff --json on the same fixture pair, compared:
+
+    $ cmp origin-main.json feature-branch.json
+    (no output — files are identical)
+
+main --json bytes : 9813
+new  --json bytes : 9813
+cmp result        : IDENTICAL (byte-for-byte)
+
+Structural confirmation — the --json-feeding modules are unchanged vs main:
+
+    (empty above = zero changes to any module the --json payload is built from)
