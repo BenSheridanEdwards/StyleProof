@@ -72,6 +72,33 @@ test('composite action hard-gates on unacknowledged navigable removals in both m
   assert.doesNotMatch(gate[0], /require-approval/, 'the removal gate must fire in BOTH modes');
 });
 
+test('composite action blocks unapproved changes by default (opt out with "blocking": false)', () => {
+  // The policy default flipped in v4: absent/blank config → blocking ON, so the config
+  // step emits 'true' unless the file explicitly sets "blocking": false.
+  const configStep = actionYml.match(/- id: config[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:)/);
+
+  assert.ok(configStep, 'action.yml should include a config step');
+  assert.match(
+    configStep[0],
+    /core\.setOutput\('blocking', cfg\.blocking === false \? 'false' : 'true'\);/,
+    'blocking must default to true — only an explicit false opts out',
+  );
+
+  // The block step fails the job on UNAPPROVED review-gate changes, so a repo without a
+  // branch-protection rule still gets a red check out of the box.
+  const blockStep = actionYml.match(/- name: Block on unapproved changes[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/);
+  assert.ok(blockStep, 'action.yml should include the unapproved-changes block step');
+  assert.match(blockStep[0], /inputs\.require-approval == 'true'/);
+  assert.match(blockStep[0], /steps\.config\.outputs\.blocking == 'true'/);
+  assert.match(blockStep[0], /steps\.diff\.outputs\.changed == 'true'/);
+  assert.match(blockStep[0], /steps\.gate\.outputs\.approved != 'true'/);
+  assert.match(blockStep[0], /exit 1/);
+
+  // An APPROVED change must NOT hit the block step (approved != 'true' guards it), and
+  // certify mode is untouched — the block step is review-gate only.
+  assert.doesNotMatch(blockStep[0], /fail-on-diff/);
+});
+
 test('composite action requires approval for new-surface-only reports', () => {
   const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/);
 

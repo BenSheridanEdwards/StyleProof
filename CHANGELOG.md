@@ -9,6 +9,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- **BREAKING: `blocking` now defaults to `true`.** In review-gate mode
+  (`require-approval: true`), an **unapproved** visual change now **fails the
+  report job** (red ✗) out of the box, so the check blocks a merge even on a repo
+  without a branch-protection rule requiring the `StyleProof` status (which needs
+  GitHub Pro or a public repo). Previously the default was `false` — advisory-only,
+  where only the commit status went red. The approve→re-run flow is unchanged: tick
+  **Approve all changes**, re-run the job, and the re-run sees the sign-off and
+  passes. Certify mode (`fail-on-diff: true`) is unaffected. **Migration:** to keep
+  the old advisory-only behaviour, set `"blocking": false` in
+  `styleproof.config.json` at your repo root.
 - **Pre-push guidance no longer commits maps to the PR branch** (docs and repo
   hygiene only; no change to the published package, CLI, or Action). The
   pre-push recipe previously ended with `git add stylemaps` + a map commit on
