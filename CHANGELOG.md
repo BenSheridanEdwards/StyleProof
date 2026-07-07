@@ -34,6 +34,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   grouped finding. `--json` stays the complete, byte-stable machine contract (every
   surface, every raw longhand); exit codes are unchanged.
 
+### Fixed
+
+- **The report's certification block no longer contradicts the diff on inventory
+  additions.** For the same capture pair, `styleproof-diff` correctly prints a
+  navigable addition (additive, non-gating), but `styleproof-report`'s certification
+  block still read `Inventory — ✓ navigable set unchanged` — telling a reviewer the
+  navigable set didn't change when it did. The inventory line now echoes additions as
+  an informational, still-✓-class clause (`✓ N navigable affordance(s) added: <keys>
+(additions don't gate)`), with the same truncation and key-escaping discipline as
+  the removals line. Removals still drive the ⚠/✗ gate semantics; additions are
+  appended. The diff and the report can no longer disagree about the navigable delta.
+
 ## [3.20.0] - 2026-07-07
 
 ### Fixed
