@@ -305,6 +305,39 @@ What's guarded depends on how `expected` is fed —
 - **Modals, dropdowns, toasts:** guarded only for the state keys you enumerate in
   `expected` (e.g. `dashboard-dialog-open`) — nothing discovers UI states for you.
 
+### The un-exercised-state gap: an honest green gate can still miss a real restyle
+
+The sharpest form of the boundary, observed end-to-end on a real consumer: a PR
+restyled a view's **conditional render branch** (a fault overlay repainting
+indicators green→amber when a probe reports a fault) and shipped through a
+fully-wired gate with every layer passing _honestly_. The capture spec served no
+fixture that put the view into the fault state, so the changed branch never
+rendered on either side — an honest recapture produced **byte-identical maps**,
+the diff was trivially clean, and the green gate certified a restyle it never
+saw. No component lied. The gap is structural: **maps prove only the states the
+spec exercises.** A restyle confined to an un-exercised conditional state
+(fault / error / empty / permission branches behind data) is invisible to any
+amount of honest recapturing, and the coverage guard cannot substitute — it
+checks that declared keys have captures, not that your branches have keys.
+
+So the rule is: **every conditional render branch whose styling matters needs a
+surface that exercises it.** The recommended wiring is two-part:
+
+1. a **dedicated capture surface** (a `liveState` or variant) driving the
+   branch via a **per-surface fixture override** — `page.route` in that
+   surface's `setup`, per-surface rather than global, so other surfaces reading
+   the same endpoint keep their own state (exactly the shape of the
+   [`liveStates` example](#live-ui-states-capture-each-state-not-an-average));
+2. a **browserless guard test** tied to the branch's source, failing loudly if
+   the surface, fixture, or state assertion is removed while the conditional
+   branch still exists — so the coverage can't silently rot.
+
+This pairs with the [data-residue guard](#data-residue-a-failed-data-request-is-named-not-swallowed),
+which names the _failing_ half of the same blind spot: a data request that
+errors during capture is flagged as residue. An endpoint that **succeeds** with
+healthy data — so the fault branch simply never renders — is this gap, and only
+a fixture-driven surface closes it.
+
 ## Declaring surfaces
 
 Discovery captures every route your app links to. It deliberately **won't
@@ -523,7 +556,11 @@ defineStyleMapCapture({
 
 Destructive labels are skipped, duplicate computed-style outcomes are deduped,
 and `--strict` exits non-zero when live-state fixtures or skipped candidates
-remain unresolved.
+remain unresolved. The harvester only finds states **reachable by interacting**
+— it clicks, selects, and expands. A data-driven conditional branch (a fault
+overlay, an empty render) has no control to click, so it never appears in the
+manifest; those need `liveStates` fixtures, per the
+[un-exercised-state gap](#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle).
 
 ### Live UI states: capture each state, not an average
 
@@ -535,6 +572,14 @@ states with `liveStates`. StyleProof writes separate captures such as
 `dashboard-loading@1440` and `dashboard-loaded@1440`, so the base branch's
 loading state compares to the feature branch's loading state, and loaded
 compares to loaded.
+
+This is also how you close the
+[un-exercised-state gap](#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle):
+a conditional branch that only renders under specific data (a fault overlay, an
+empty list, a permission wall) needs its own pinned state here, with the
+fixture in **that surface's** `setup` — per-surface, not a global route
+override, which would leak the faulty payload into every other surface reading
+the same endpoint. Note both fixtures in the example below are scoped this way.
 
 ```ts
 defineStyleMapCapture({
