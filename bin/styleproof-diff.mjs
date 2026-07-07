@@ -117,12 +117,13 @@ function printInventoryAudit(audit) {
   return unexplained.length;
 }
 
-// ── data-residue guard (opt-in gate) ─────────────────────────────────────────────
+// ── data-residue guard (gate by default) ─────────────────────────────────────────
 // A data-boundary request (matching `replayUrl`) that FAILED during capture means the
 // captured state embedded that endpoint's fallback branch — its response-driven states
 // are unproven (issue #205). Residue is recorded + warned at capture time; here the diff
-// SURFACES it, and — when the head bundle armed `dataResidue: 'gate'` — an unacknowledged
-// failing endpoint BLOCKS (exit 1). Acknowledge intentional ones in styleproof.data-residue.json.
+// SURFACES it, and — unless the head bundle opted down to `dataResidue: 'warn'` — an
+// unacknowledged failing endpoint BLOCKS (exit 1). Acknowledge intentional ones in
+// styleproof.data-residue.json. (Bundles captured before this field existed read as warn.)
 
 // `key -> reason` acknowledged failing endpoints. Malformed JSON fails loud (exit 2),
 // like the inventory ack file, so a broken file can't silently un-acknowledge a failure.
@@ -154,12 +155,12 @@ function residueLine(r, ackReason, armed) {
   return `  ${armed ? '✗ ' : '⚠ '}${r.surface} · ${r.endpoint} (${r.reason})${armed ? ', unacknowledged' : ''}`;
 }
 
-/** The action footer: warn mode points at the gate; an armed gate names the remedy. */
+/** The action footer: the gate (default) names the remedy; warn mode is the opt-out. */
 function residueFooter(armed, unacknowledgedCount) {
   if (!unacknowledgedCount) return null;
   return armed
-    ? `  → ${unacknowledgedCount} unacknowledged failing endpoint(s): fixture each (page.route / liveStates), or record the decision in styleproof.data-residue.json {"<key>":"<why>"}.`
-    : '  → recorded and warned (dataResidue: "warn"). Set `dataResidue: "gate"` in the capture spec to BLOCK on these.';
+    ? `  → ${unacknowledgedCount} unacknowledged failing endpoint(s): fixture each (page.route / liveStates), acknowledge intentional ones in styleproof.data-residue.json {"<key>":"<why>"}, or opt down with \`dataResidue: "warn"\` in the capture spec.`
+    : '  → recorded and warned (dataResidue: "warn" — the opt-out). Remove it to restore the default gate that BLOCKS on these.';
 }
 
 function printResidueAudit(audit) {

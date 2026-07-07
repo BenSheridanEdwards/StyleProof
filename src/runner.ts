@@ -210,12 +210,12 @@ export type DefineOptions = {
    * means the captured state renders that endpoint's FALLBACK branch, so states driven
    * by its real responses are uncaptured and unproven (issue #205). Such a failure is
    * ALWAYS named on stderr and recorded on the capture (`StyleMap.dataResidue`) so the
-   * diff/report can surface it — the warning is zero-config. Set `'gate'` to also make
-   * an UNACKNOWLEDGED failing endpoint block `styleproof-diff` (exit 1); acknowledge
-   * intentional ones in `styleproof.data-residue.json` (`key -> reason`). `'warn'` (the
-   * default) records + warns without gating. A capture with no failing data request is
-   * byte-identical either way, so existing setups are unaffected. A 2xx that merely
-   * wasn't fixtured is NEVER flagged (recording legitimately records live 2xx).
+   * diff/report can surface it. `'gate'` (the default) makes an UNACKNOWLEDGED failing
+   * endpoint block `styleproof-diff` (exit 1); acknowledge intentional ones in
+   * `styleproof.data-residue.json` (`key -> reason`). `'warn'` is the explicit opt-out —
+   * failures are still named + recorded but never block. A capture with no failing data
+   * request is byte-identical either way. A 2xx that merely wasn't fixtured is NEVER
+   * flagged (recording legitimately records live 2xx).
    */
   dataResidue?: 'warn' | 'gate';
 };
@@ -941,6 +941,15 @@ export function resolveScreenshots(
   return screenshots ?? env !== '0';
 }
 
+/**
+ * The data-residue guard mode: `'gate'` (the v4 default) blocks the diff on an
+ * unacknowledged failing data endpoint; `'warn'` is the explicit opt-out that records +
+ * warns without gating. Single source of truth for the default, so the flip lives here.
+ */
+export function resolveDataResidue(mode: 'warn' | 'gate' | undefined): 'warn' | 'gate' {
+  return mode ?? 'gate';
+}
+
 /** The capture settings every capturer shares (everything bar the surface set). */
 type CaptureConfig = Omit<DefineOptions, 'surfaces' | 'expected' | 'exclude'>;
 
@@ -958,7 +967,7 @@ function resolveSettings(c: CaptureConfig): Settings {
     screenshots: resolveScreenshots(c.screenshots),
     replayFrom,
     replayUrl: c.replayUrl ?? process.env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
-    dataResidue: c.dataResidue ?? 'warn',
+    dataResidue: resolveDataResidue(c.dataResidue),
     freezeClock: c.freezeClock ?? true,
     clockTime: c.clockTime ?? '2025-01-01T00:00:00Z',
     selfCheck: c.selfCheck ?? defaultSelfCheck(replayFrom),
@@ -1009,15 +1018,17 @@ function writeCoverageLedgerTest(
     // the GATE (which reads expanded map filenames and can't see `surfaceKey` metadata)
     // compares literally — a liveStates surface's `-loading`/`-loaded` splits satisfy it.
     const ledgerExpected = expected == null ? null : translateExpected(expected, captureSurfaces);
-    // Carry the residue-gate arming in the bundle so styleproof-diff knows whether an
-    // unacknowledged failing endpoint should BLOCK ('gate') or only inform ('warn').
-    // Omit it when 'warn' so an existing bundle's ledger bytes are unchanged.
+    // Carry the residue-gate mode in the bundle so styleproof-diff knows whether an
+    // unacknowledged failing endpoint should BLOCK ('gate', the v4 default) or only
+    // inform ('warn', the explicit opt-out). Recorded verbatim so the bundle is
+    // self-documenting; an absent field (older bundles) is still read as warn, so
+    // maps captured before this default flip never start gating retroactively.
     const ledger: CoverageLedger = {
       version: 1,
       expected: ledgerExpected,
       exclude,
       determinism,
-      ...(settings.dataResidue === 'gate' ? { dataResidue: 'gate' as const } : {}),
+      dataResidue: settings.dataResidue,
     };
     fs.writeFileSync(path.join(outDir, COVERAGE_LEDGER), JSON.stringify(ledger, null, 2));
   });

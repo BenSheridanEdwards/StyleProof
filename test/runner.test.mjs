@@ -5,6 +5,7 @@ import {
   defaultSelfCheck,
   expandSurfaceVariants,
   resolveBaseDir,
+  resolveDataResidue,
   resolvePopupCaptureOptions,
   resolveScreenshots,
   selfCheckErrorMessage,
@@ -49,6 +50,18 @@ test('resolveScreenshots: STYLEPROOF_SCREENSHOTS=0 disables; on by default', () 
 test('resolveScreenshots: an explicit value wins over the env', () => {
   assert.equal(resolveScreenshots(false, undefined), false);
   assert.equal(resolveScreenshots(true, '0'), true);
+});
+
+// v4 breaking change: an unset `dataResidue` now GATES — a silently-failing data endpoint
+// captured the fallback branch as the certified state, so gating is the correct default.
+// `'warn'` is the explicit opt-out; an explicit `'gate'` is a no-op passthrough.
+test('resolveDataResidue: unset spec defaults to gate (v4)', () => {
+  assert.equal(resolveDataResidue(undefined), 'gate');
+});
+
+test('resolveDataResidue: explicit warn is the opt-out; explicit gate passes through', () => {
+  assert.equal(resolveDataResidue('warn'), 'warn');
+  assert.equal(resolveDataResidue('gate'), 'gate');
 });
 
 test('resolvePopupCaptureOptions: off by default and opt-in when enabled', () => {

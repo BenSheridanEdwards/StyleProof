@@ -163,7 +163,7 @@ function residueBundle({ residue, gate }) {
     expected: null,
     exclude: {},
     determinism: 'self-checked',
-    ...(gate ? { dataResidue: 'gate' } : {}),
+    dataResidue: gate ? 'gate' : 'warn',
   };
   fs.writeFileSync(path.join(head, COVERAGE_LEDGER), JSON.stringify(ledger));
   fs.writeFileSync(
@@ -186,7 +186,7 @@ test('an armed gate with an unacknowledged failing endpoint renders a ✗ data-r
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('warn-mode residue renders ⚠ (recorded, not gating)', () => {
+test('warn opt-out residue renders ⚠ (recorded, not gating)', () => {
   const { root, base, head, out } = residueBundle({ residue: [residueEntry], gate: false });
   generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   assert.match(readMd(out), /Data residue.*⚠ 1 failing data endpoint\(s\).*recorded, not gating/);

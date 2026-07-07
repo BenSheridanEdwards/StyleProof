@@ -11,8 +11,8 @@
 // This module records, per surface, any request matching the data boundary (the
 // `replayUrl` glob) that failed or errored. The residue travels on the StyleMap (like
 // `inventory`), so the diff/report can surface it; a stderr warning names it at capture
-// time; and an opt-in gate (armed via `dataResidue: 'gate'`) blocks an unacknowledged
-// failing endpoint — mirroring the `exclude`/inventory-acknowledgement discipline.
+// time; and the gate (on by default, opted down via `dataResidue: 'warn'`) blocks an
+// unacknowledged failing endpoint — mirroring the `exclude`/inventory-ack discipline.
 //
 // Observing that a data request failed needs NO app knowledge — it's the same move as
 // the unreadable-stylesheet residue: convert silent blindness into a name. Declaring
@@ -132,8 +132,9 @@ export function auditResidue(
 /**
  * Run-level entry point for a gate/report: audit the HEAD bundle's residue against the
  * acknowledgement ledger, carrying whether the guard was ARMED to gate. `armed` comes
- * from the head coverage ledger's `dataResidue: 'gate'`. When not armed, the caller
- * still surfaces residue (warn-mode is the zero-config default) but must not block.
+ * from the head coverage ledger's `dataResidue: 'gate'` (the default; only an explicit
+ * `'warn'` — or an older bundle with no field — is unarmed). When not armed, the caller
+ * still surfaces residue (warn is the explicit opt-out) but must not block.
  */
 export function auditRunResidue(
   headMaps: Array<{ dataResidue?: DataResidueEntry[] } | undefined>,
