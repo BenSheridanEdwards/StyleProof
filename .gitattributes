@@ -1,0 +1,7 @@
+# Append-mostly files where two PRs adding entries should merge, not conflict.
+# `union` is git's built-in driver: it keeps both sides' added lines instead of
+# raising a conflict. GitHub honors it for the merge button and the PR conflict
+# check. May interleave two entries or leave a doubled blank line — harmless,
+# tidy at release time. ponytail: native git feature; reach for towncrier-style
+# changelog.d/ fragments only if union ordering ever actually bites.
+CHANGELOG.md merge=union
