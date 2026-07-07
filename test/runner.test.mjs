@@ -1,5 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   assertUniqueExpandedKeys,
   defaultSelfCheck,
@@ -11,6 +15,34 @@ import {
   selfCheckErrorMessage,
 } from '../dist/runner.js';
 import { coverageGaps } from '../dist/coverage.js';
+import { mkTmp, rmTmp } from './helpers.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const PLAYWRIGHT_CLI = path.join(ROOT, 'node_modules/@playwright/test/cli.js');
+const DIST_INDEX_URL = pathToFileURL(path.join(ROOT, 'dist/index.js')).href;
+
+function listPlaywrightTests(specSource) {
+  const root = mkTmp('styleproof-runner-list-');
+  try {
+    const spec = path.join(root, 'styleproof.spec.mjs');
+    const config = path.join(root, 'playwright.config.mjs');
+    fs.writeFileSync(spec, specSource, 'utf8');
+    fs.writeFileSync(config, `export default { testDir: ${JSON.stringify(root)} };\n`, 'utf8');
+    const result = spawnSync(
+      process.execPath,
+      [PLAYWRIGHT_CLI, 'test', '--list', '--pass-with-no-tests', '--config', config],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, STYLEMAP_DIR: '' },
+      },
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    return result.stdout;
+  } finally {
+    rmTmp(root);
+  }
+}
 
 // selfCheck defaults ON when recording (no replayFrom) — where live nondeterminism
 // surfaces — and OFF when replaying (deterministic by construction). The env var
@@ -194,6 +226,39 @@ test('expanded variant keys can satisfy the coverage guard', () => {
   assert.deepEqual(coverageGaps(surfaces, ['dashboard-dialog-open', 'dashboard-tooltip-open']).uncovered, [
     'dashboard-tooltip-open',
   ]);
+});
+
+test('defineStyleMapCapture: unset dir registers no inert capture tests', () => {
+  const out = listPlaywrightTests(`
+    import { defineStyleMapCapture } from ${JSON.stringify(DIST_INDEX_URL)};
+    defineStyleMapCapture({
+      surfaces: [
+        { key: 'home', widths: [375, 1024], go: async () => {} },
+        { key: 'pricing', go: async () => {} },
+      ],
+      dir: undefined,
+    });
+  `);
+
+  assert.match(out, /Total: 0 tests/);
+  assert.doesNotMatch(out, /styleproof capture/);
+  assert.doesNotMatch(out, /set STYLEMAP_DIR/);
+});
+
+test('defineStyleMapCapture: unset dir still keeps the static coverage guard', () => {
+  const out = listPlaywrightTests(`
+    import { defineStyleMapCapture } from ${JSON.stringify(DIST_INDEX_URL)};
+    defineStyleMapCapture({
+      surfaces: [{ key: 'home', widths: [1024], go: async () => {} }],
+      expected: ['home'],
+      dir: undefined,
+    });
+  `);
+
+  assert.match(out, /styleproof coverage/);
+  assert.match(out, /every expected surface is captured or explicitly excluded/);
+  assert.match(out, /Total: 1 test/);
+  assert.doesNotMatch(out, /styleproof capture/);
 });
 
 test('selfCheckErrorMessage: explains volatile root layout drift as a variant problem', () => {

@@ -125,6 +125,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Unset capture specs no longer inflate Playwright's skipped-test count.** When
+  `defineStyleMapCapture({ dir: process.env.STYLEMAP_DIR, ... })` or
+  `defineCrawlCapture({ dir: process.env.STYLEMAP_DIR, ... })` runs with no `dir`,
+  StyleProof now returns before registering generated capture tests instead of
+  registering one skipped test per surface. Static `expected` coverage guards still
+  run in the normal suite.
 - **A two-directory `styleproof-diff`/`styleproof-report` no longer skips the
   same-environment guard in silence.** The guard (`assertCompatibleMapDirs`) compares
   platform/arch/node/Playwright/browser-build across both maps, but no-ops when either
