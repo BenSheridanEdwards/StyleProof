@@ -1,8 +1,9 @@
-import type { Page, Request } from '@playwright/test';
+import type { Page, Request, Response } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
+import { endpointOf, residueKey, type DataResidueEntry } from './data-residue.js';
 import { isMapFile } from './map-store.js';
 
 /**
@@ -135,6 +136,15 @@ export type StyleMap = {
    * by the certification diff. See docs/inventory-guard.md.
    */
   inventory?: NavigableItem[];
+  /**
+   * Data-boundary requests (matching `replayUrl`) that FAILED during this capture —
+   * a network error or a 4xx/5xx. Their presence means the captured state renders the
+   * endpoint's FALLBACK branch, so states driven by its real responses are uncaptured
+   * and unproven. Present only when the residue guard was armed (`dataResidue` set) and
+   * a failure actually occurred; absent (byte-identical to before) on a clean capture.
+   * Surfaced by the data-residue guard, never by the certification diff. See issue #205.
+   */
+  dataResidue?: DataResidueEntry[];
 };
 
 export type CaptureOptions = {
@@ -851,6 +861,86 @@ export function trackInflightRequests(page: Page): { pending: () => number; disp
   };
 }
 
+/**
+ * Watch the data boundary (`url`, the same `replayUrl` glob record/replay uses) for
+ * requests that FAIL during capture — a network-level failure or a 4xx/5xx response.
+ * A failing data request means the captured state renders that endpoint's FALLBACK
+ * branch; the response-driven state is uncaptured and unproven (issue #205).
+ *
+ * Matches purely by listening to `requestfailed`/`response` and testing the URL against
+ * the boundary glob — NOT via a `page.route`. A passive route can't be used to tag: the
+ * tracker is armed before `go()`, and a route the surface itself adds in `go()` (an abort
+ * fixture, the HAR replay route) runs first and never falls through to a tag route added
+ * earlier, so tagged requests would be missed. Listeners see every request regardless of
+ * routing, which is exactly what a residue observer needs. Arm BEFORE navigation, like
+ * {@link trackInflightRequests}, so the page's own load fetches are seen; deduped per
+ * `<surface>·<endpoint>` so the same failure across widths / a self-check re-run is one entry.
+ *
+ * ONLY failures are recorded — never a 2xx that merely wasn't fixtured: in recording mode
+ * every live 2xx is legitimately recorded, so a blanket "uncontrolled" flag would fire on
+ * every healthy record run (issue #205, "deliberately out of scope").
+ */
+export function trackDataResidue(
+  page: Page,
+  url: string,
+  surface: string,
+): { residue: () => DataResidueEntry[]; dispose: () => void } {
+  const byKey = new Map<string, DataResidueEntry>();
+  const inBoundary = urlMatcher(url);
+  const record = (request: Request, reason: string): void => {
+    if (!inBoundary(request.url())) return;
+    const endpoint = endpointOf(request.url());
+    const key = residueKey(surface, endpoint);
+    if (!byKey.has(key)) byKey.set(key, { key, surface, endpoint, reason });
+  };
+  const onFailed = (r: Request): void => record(r, r.failure()?.errorText ?? 'request failed');
+  // A completed response's status is synchronous here, so a 4xx/5xx is recorded before
+  // capture reads the residue. A >=400 is a fallback-branch trigger just like a net failure.
+  const onResponse = (resp: Response): void => {
+    if (resp.status() >= 400) record(resp.request(), `HTTP ${resp.status()}`);
+  };
+  page.on('requestfailed', onFailed);
+  page.on('response', onResponse);
+  return {
+    residue: (): DataResidueEntry[] => Array.from(byKey.values()).sort((a, b) => a.key.localeCompare(b.key)),
+    dispose: (): void => {
+      page.off('requestfailed', onFailed);
+      page.off('response', onResponse);
+    },
+  };
+}
+
+/**
+ * A predicate matching a URL against a Playwright-style URL glob — the same micro-syntax
+ * `page.route`/`routeFromHAR` accept for `replayUrl`, replicated because Playwright exposes
+ * no public matcher and reaching into its bundled internals is fragile across versions.
+ * `**` spans path separators, `*` matches within a segment (not `/`), `?` is a literal
+ * (URL globs, unlike shell globs, treat `?` as the query delimiter), and `{a,b}` alternates.
+ * A plain (glob-char-free) string is treated as a substring match, matching Playwright's
+ * own "contains" fallback for non-glob route URLs.
+ */
+export function urlMatcher(glob: string): (url: string) => boolean {
+  if (!/[*?{}[\]]/.test(glob)) return (url) => url.includes(glob);
+  const specials = new Set(['.', '+', '^', '$', '|', '(', ')']);
+  let re = '';
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        re += '.*';
+        i++;
+      } else re += '[^/]*';
+    } else if (c === '?') re += '\\?';
+    else if (c === '{') re += '(';
+    else if (c === '}') re += ')';
+    else if (c === ',') re += '|';
+    else if (specials.has(c)) re += `\\${c}`;
+    else re += c;
+  }
+  const compiled = new RegExp(`^${re}$`);
+  return (url) => compiled.test(url);
+}
+
 /** Settle the page and return the paths of live regions to exclude. */
 async function detectVolatile(
   page: Page,
@@ -1068,17 +1158,31 @@ export function loadStyleMap(filePath: string): StyleMap {
   }
 }
 
+/** Every surface map in a capture dir, loaded — the shared reader behind the
+ *  per-field extractors below. */
+function loadDirMaps(dir: string): StyleMap[] {
+  return fs
+    .readdirSync(dir)
+    .filter(isMapFile)
+    .map((f) => loadStyleMap(path.join(dir, f)));
+}
+
 /**
  * Read every surface map's navigable inventory from a capture dir, in the shape the
  * inventory audit consumes. One home for "read the inventories out of a dir", shared
  * by the diff CLI and the report (was duplicated in both).
  */
 export function readInventories(dir: string): Array<{ inventory?: NavigableItem[] }> {
-  return fs
-    .readdirSync(dir)
-    .filter(isMapFile)
-    .map((f) => loadStyleMap(path.join(dir, f)))
-    .map((m) => (m.inventory ? { inventory: m.inventory } : {}));
+  return loadDirMaps(dir).map((m) => (m.inventory ? { inventory: m.inventory } : {}));
+}
+
+/**
+ * Read every surface map's `dataResidue` from a capture dir, in the shape the
+ * data-residue audit consumes. Lives here (not in data-residue.ts) so that module
+ * stays a pure leaf — it must not import `loadStyleMap` back from this file.
+ */
+export function readResidue(dir: string): Array<{ dataResidue?: DataResidueEntry[] }> {
+  return loadDirMaps(dir).map((m) => (m.dataResidue ? { dataResidue: m.dataResidue } : {}));
 }
 
 /**

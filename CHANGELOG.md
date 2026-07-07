@@ -21,6 +21,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Data-residue guard — a capture that embeds an unprovoked data-fault state now
+  says so.** During a spec-driven capture, any request matching the data boundary
+  (`replayUrl`, default `**/api/**`) that FAILS — a network error, or a 4xx/5xx —
+  means the captured state rendered that endpoint's _fallback_ branch, so the states
+  its real responses would drive are uncaptured and unproven (the failure mode
+  documented in #202). StyleProof now names each such failure on stderr at capture
+  time (what failed, what it means, what to do: fixture it via `page.route`/
+  `liveStates`, or acknowledge it), records it on the capture (`StyleMap.dataResidue`),
+  and surfaces it in `styleproof-diff` and the report's certification block. **Warn by
+  default; gate opt-in:** set `dataResidue: 'gate'` in the capture spec and an
+  _unacknowledged_ failing endpoint blocks the diff (exit 1); acknowledge intentional
+  ones in `styleproof.data-residue.json` (`key → reason`), and a stale acknowledgement
+  (the endpoint no longer fails) also fails so the ledger can't rot — the same
+  discipline as `exclude` and the inventory guard. A 2xx endpoint that merely wasn't
+  fixtured is **never** flagged (recording mode legitimately records live responses).
+  `--json` gains an additive optional `dataResidue` field. A capture with no failing
+  data request is byte-identical, so existing setups are unaffected. Fixes #205.
 - **`styleproof-init` now installs the pre-push publish hook by default.** The
   capture-locally/publish-to-store flow is the out-of-the-box path, not an
   opt-in recipe: init scaffolds a `pre-push` hook (into `.husky/` when present,

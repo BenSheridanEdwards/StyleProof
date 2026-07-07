@@ -5,9 +5,12 @@ import {
   captureStyleMap,
   saveStyleMap,
   trackInflightRequests,
+  trackDataResidue,
   type CaptureMetadata,
   type LiveRegionCandidate,
+  type StyleMap,
 } from './capture.js';
+import type { DataResidueEntry } from './data-residue.js';
 import { diffStyleMaps, type Finding } from './diff.js';
 import {
   coverageGaps,
@@ -201,6 +204,20 @@ export type DefineOptions = {
    * See `docs/inventory-guard.md`.
    */
   inventory?: boolean;
+  /**
+   * Data-residue guard. During capture, any request matching the data boundary
+   * (`replayUrl`, default `**\/api/**`) that FAILS — a network error or a 4xx/5xx —
+   * means the captured state renders that endpoint's FALLBACK branch, so states driven
+   * by its real responses are uncaptured and unproven (issue #205). Such a failure is
+   * ALWAYS named on stderr and recorded on the capture (`StyleMap.dataResidue`) so the
+   * diff/report can surface it — the warning is zero-config. Set `'gate'` to also make
+   * an UNACKNOWLEDGED failing endpoint block `styleproof-diff` (exit 1); acknowledge
+   * intentional ones in `styleproof.data-residue.json` (`key -> reason`). `'warn'` (the
+   * default) records + warns without gating. A capture with no failing data request is
+   * byte-identical either way, so existing setups are unaffected. A 2xx that merely
+   * wasn't fixtured is NEVER flagged (recording legitimately records live 2xx).
+   */
+  dataResidue?: 'warn' | 'gate';
 };
 
 /** Resolved per-capture settings, shared with the helpers below. */
@@ -837,6 +854,10 @@ async function captureSurface(page: Page, surface: ExpandedSurface, width: numbe
   // count toward the network-aware settle — a request that starts during navigation
   // fired its event before captureStyleMap could attach a listener of its own.
   const requests = trackInflightRequests(page);
+  // Same timing for the residue watcher: a data request that fails during navigation
+  // must be seen. Keyed on the BASE surface key so a liveStates split (`-loading`/
+  // `-loaded`) and every width dedupe to one `<surface>·<endpoint>` residue entry.
+  const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key);
   try {
     await surface.go(page);
     const map = await captureStyleMap(page, {
@@ -848,6 +869,9 @@ async function captureSurface(page: Page, surface: ExpandedSurface, width: numbe
       metadata: surface.metadata,
     });
     if (s.selfCheck) await assertDeterministic(page, surface, map, s.captureText, requests.pending);
+    // Attach data-residue AFTER the self-check re-run so both runs' failures are folded
+    // (deduped in the watcher). Warn always; the recorded residue is what the gate reads.
+    attachDataResidue(map, residue.residue());
 
     const stem = path.join(s.baseDir, s.dir, `${surface.key}@${width}`);
     saveStyleMap(`${stem}.json.gz`, map);
@@ -859,6 +883,23 @@ async function captureSurface(page: Page, surface: ExpandedSurface, width: numbe
     await capturePopupSurfaces(page, surface, width, height, s);
   } finally {
     requests.dispose();
+    residue.dispose();
+  }
+}
+
+/** Attach any observed data-residue to the map and NAME each failure on stderr — what
+ *  failed, what it means (fallback branch captured), what to do. One warning per
+ *  (surface, endpoint); the watcher already deduped across widths / the self-check. */
+function attachDataResidue(map: StyleMap, residue: DataResidueEntry[]): void {
+  if (!residue.length) return;
+  map.dataResidue = residue;
+  for (const r of residue) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `styleproof: surface '${r.surface}' — data request ${r.endpoint} FAILED during capture (${r.reason}). ` +
+        `The captured state renders this endpoint's fallback branch; states driven by its real responses are ` +
+        `uncaptured and unproven. Fixture it (page.route / liveStates) or acknowledge it in styleproof.data-residue.json.`,
+    );
   }
 }
 
@@ -917,6 +958,7 @@ function resolveSettings(c: CaptureConfig): Settings {
     screenshots: resolveScreenshots(c.screenshots),
     replayFrom,
     replayUrl: c.replayUrl ?? process.env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
+    dataResidue: c.dataResidue ?? 'warn',
     freezeClock: c.freezeClock ?? true,
     clockTime: c.clockTime ?? '2025-01-01T00:00:00Z',
     selfCheck: c.selfCheck ?? defaultSelfCheck(replayFrom),
@@ -967,7 +1009,16 @@ function writeCoverageLedgerTest(
     // the GATE (which reads expanded map filenames and can't see `surfaceKey` metadata)
     // compares literally — a liveStates surface's `-loading`/`-loaded` splits satisfy it.
     const ledgerExpected = expected == null ? null : translateExpected(expected, captureSurfaces);
-    const ledger: CoverageLedger = { version: 1, expected: ledgerExpected, exclude, determinism };
+    // Carry the residue-gate arming in the bundle so styleproof-diff knows whether an
+    // unacknowledged failing endpoint should BLOCK ('gate') or only inform ('warn').
+    // Omit it when 'warn' so an existing bundle's ledger bytes are unchanged.
+    const ledger: CoverageLedger = {
+      version: 1,
+      expected: ledgerExpected,
+      exclude,
+      determinism,
+      ...(settings.dataResidue === 'gate' ? { dataResidue: 'gate' as const } : {}),
+    };
     fs.writeFileSync(path.join(outDir, COVERAGE_LEDGER), JSON.stringify(ledger, null, 2));
   });
 }
