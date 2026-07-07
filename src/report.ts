@@ -4,6 +4,7 @@ import { PNG } from 'pngjs';
 import {
   loadStyleMap,
   readInventories,
+  readResidue,
   surfaceElementPaths,
   type ElementEntry,
   type LiveRegionCandidate,
@@ -31,6 +32,7 @@ import {
   type DeterminismVerdict,
 } from './coverage.js';
 import { auditRunInventory, readAckFile } from './inventory.js';
+import { auditRunResidue, readResidueAckFile } from './data-residue.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 import {
@@ -827,6 +829,29 @@ function readAcknowledgedRemovals(): Record<string, string> {
   }
 }
 
+// Lenient acknowledged-residue read — same advisory degradation as the inventory one.
+function readAcknowledgedResidue(): Record<string, string> {
+  try {
+    return readResidueAckFile();
+  } catch {
+    return {};
+  }
+}
+
+// One data-residue clause. A failing data endpoint captured the fallback branch, so its
+// response-driven states are unproven; an ARMED gate escalates an unacknowledged one to ✗.
+function dataResidueLine(res: ReturnType<typeof auditRunResidue>): string {
+  const { residue, unacknowledged, staleAcknowledgements, armed } = res;
+  if (armed && (unacknowledged.length > 0 || staleAcknowledgements.length > 0)) {
+    const stale = staleAcknowledgements.length ? `; ${staleAcknowledgements.length} stale acknowledgement(s)` : '';
+    return `- **Data residue** — ✗ ${unacknowledged.length} failing data endpoint(s), unacknowledged: ${keyList(unacknowledged)}${stale}`;
+  }
+  if (unacknowledged.length > 0)
+    return `- **Data residue** — ⚠ ${unacknowledged.length} failing data endpoint(s) (fallback branch captured): ${keyList(unacknowledged)} — recorded, not gating (set \`dataResidue: 'gate'\`)`;
+  if (residue.length > 0) return `- **Data residue** — ✓ ${residue.length} failing endpoint(s), all acknowledged`;
+  return '- **Data residue** — ✓ no failing data-boundary request during capture';
+}
+
 /**
  * The certification block a reviewer reads FIRST — the source-of-truth gates (coverage
  * complete? determinism proven? did the navigable set shrink?), not just the pixel diff.
@@ -836,16 +861,21 @@ function certificationLines(beforeDir: string, afterDir: string): string[] {
   const baseLedger = readLedgerFile(beforeDir);
   const headLedger = readLedgerFile(afterDir);
   const inv = auditRunInventory(readInventories(beforeDir), readInventories(afterDir), readAcknowledgedRemovals());
+  const res = auditRunResidue(readResidue(afterDir), readAcknowledgedResidue(), headLedger?.dataResidue === 'gate');
 
   const hasLedger = baseLedger !== null || headLedger !== null;
   const hasInvChange = inv.delta.removed.length > 0 || inv.delta.added.length > 0;
-  if (!hasLedger && !hasInvChange) return [];
+  const hasResidue = res.residue.length > 0 || res.armed;
+  if (!hasLedger && !hasInvChange && !hasResidue) return [];
 
   return [
     '**Certification**',
     coverageLine(auditCoverage(surfaceKeysIn(afterDir), headLedger)),
     determinismLine(auditDeterminism(baseLedger, headLedger)),
     inventoryLine(inv),
+    // Only add the residue line when there's residue or the gate was armed — an ordinary
+    // bundle (no failing endpoint, not armed) keeps its exact prior 3-line block.
+    ...(hasResidue ? [dataResidueLine(res)] : []),
     '',
   ];
 }

@@ -55,8 +55,9 @@ import {
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
-import { readInventories, surfaceElementPaths } from '../dist/capture.js';
+import { readInventories, readResidue, surfaceElementPaths } from '../dist/capture.js';
 import { auditRunInventory, readAckFile } from '../dist/inventory.js';
+import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { isMapFile } from '../dist/map-store.js';
 
@@ -114,6 +115,69 @@ function printInventoryAudit(audit) {
       `  → ${unexplained.length} unacknowledged removal(s): restore the affordance, or record the decision in styleproof.inventory.json {"<key>":"<why>"}.`,
     );
   return unexplained.length;
+}
+
+// ── data-residue guard (opt-in gate) ─────────────────────────────────────────────
+// A data-boundary request (matching `replayUrl`) that FAILED during capture means the
+// captured state embedded that endpoint's fallback branch — its response-driven states
+// are unproven (issue #205). Residue is recorded + warned at capture time; here the diff
+// SURFACES it, and — when the head bundle armed `dataResidue: 'gate'` — an unacknowledged
+// failing endpoint BLOCKS (exit 1). Acknowledge intentional ones in styleproof.data-residue.json.
+
+// `key -> reason` acknowledged failing endpoints. Malformed JSON fails loud (exit 2),
+// like the inventory ack file, so a broken file can't silently un-acknowledge a failure.
+function loadAcknowledgedResidue() {
+  try {
+    return readResidueAckFile();
+  } catch (e) {
+    console.error(`${COMMAND}: ${e.message}`);
+    process.exit(2);
+  }
+}
+
+// Audit the HEAD bundle's residue against the ack ledger, carrying whether the head
+// ledger armed the gate. Returns null when no captured map carried residue AND the
+// gate wasn't armed — so a clean healthy run prints/gates nothing (byte-identical).
+function readResidueAudit(dirB, armed) {
+  const headResidue = readResidue(dirB);
+  if (!armed && !headResidue.some((m) => m.dataResidue?.length)) return null;
+  const acknowledged = loadAcknowledgedResidue();
+  return { acknowledged, ...auditRunResidue(headResidue, acknowledged, armed) };
+}
+
+// Print the Data-residue section; return the count of UNACKNOWLEDGED failing endpoints
+// that BLOCK (only when the gate is armed). No-op/0 when there was nothing to audit.
+/** One line per residue entry: acknowledged entries show their reason; the rest are
+ *  marked ✗ (armed — will block) or ⚠ (warn mode). */
+function residueLine(r, ackReason, armed) {
+  if (ackReason !== undefined) return `  ${r.surface} · ${r.endpoint} (${r.reason}) — acknowledged: ${ackReason}`;
+  return `  ${armed ? '✗ ' : '⚠ '}${r.surface} · ${r.endpoint} (${r.reason})${armed ? ', unacknowledged' : ''}`;
+}
+
+/** The action footer: warn mode points at the gate; an armed gate names the remedy. */
+function residueFooter(armed, unacknowledgedCount) {
+  if (!unacknowledgedCount) return null;
+  return armed
+    ? `  → ${unacknowledgedCount} unacknowledged failing endpoint(s): fixture each (page.route / liveStates), or record the decision in styleproof.data-residue.json {"<key>":"<why>"}.`
+    : '  → recorded and warned (dataResidue: "warn"). Set `dataResidue: "gate"` in the capture spec to BLOCK on these.';
+}
+
+function printResidueAudit(audit) {
+  if (!audit) return 0;
+  const { residue, unacknowledged, staleAcknowledgements, armed } = audit;
+  if (!residue.length && !staleAcknowledgements.length) {
+    console.log('\n🩹 Data residue: no failing data-boundary request during capture');
+    return 0;
+  }
+  console.log('\n🩹 Data residue (data-boundary requests that FAILED during capture — fallback branch captured):');
+  for (const r of residue) console.log(residueLine(r, audit.acknowledged[r.key], armed));
+  for (const k of staleAcknowledgements)
+    console.log(`  ⚠ stale acknowledgement (endpoint no longer failing/present): ${k}`);
+  const footer = residueFooter(armed, unacknowledged.length);
+  if (footer) console.log(footer);
+  // Only an ARMED gate blocks; warn-mode surfaces without gating. A stale acknowledgement
+  // always blocks when armed, so the ledger can't rot (mirrors the `exclude` guard).
+  return armed ? unacknowledged.length + staleAcknowledgements.length : 0;
 }
 
 // ── coverage provenance (the completeness basis of a green) ──────────────────────
@@ -270,6 +334,7 @@ let result;
 let inventoryAudit = null;
 let coverageVerdict = null;
 let determinismVerdict = null;
+let residueAudit = null;
 let surfacePaths = new Map();
 try {
   const manifestless = manifestlessSide(dirA, dirB);
@@ -283,6 +348,9 @@ try {
   const headLedger = readLedger(dirB);
   coverageVerdict = auditCoverage(capturedSurfaceKeys(dirB), headLedger);
   determinismVerdict = auditDeterminism(readLedger(dirA), headLedger);
+  // Data-residue: the head bundle's failing data endpoints, gated only if its ledger
+  // armed `dataResidue: 'gate'`. Same "read while the dirs exist" rule as the ledgers.
+  residueAudit = readResidueAudit(dirB, headLedger?.dataResidue === 'gate');
   // Element-path sets per surface, for the shared-chrome tier — same "read while
   // the dirs exist" rule as the ledgers above.
   surfacePaths = surfaceElementPaths(dirA, dirB);
@@ -379,6 +447,7 @@ if (chrome.length) {
 for (const cg of rest) printGroup(cg);
 
 const invRemovals = printInventoryAudit(inventoryAudit);
+const residueFails = printResidueAudit(residueAudit);
 const coverageFails = printCoverageVerdict(coverageVerdict);
 const determinismFails = printDeterminismVerdict(determinismVerdict);
 
@@ -414,6 +483,16 @@ if (jsonOut) {
                 inventoryNote:
                   'no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate',
               }),
+          // Additive data-residue field — the head bundle's failing data endpoints, parallel
+          // to inventory. `null` when nothing failed and the gate wasn't armed. `armed` says
+          // whether `unacknowledged` blocks; `blocking` is the CI-gating count.
+          dataResidue: residueAudit && {
+            armed: residueAudit.armed,
+            failing: residueAudit.residue.map((r) => r.key),
+            unacknowledged: residueAudit.unacknowledged.map((r) => r.key),
+            staleAcknowledgements: residueAudit.staleAcknowledgements,
+            blocking: residueFails,
+          },
         },
         null,
         2,
@@ -431,17 +510,21 @@ const newSurfaces = surfaces.filter((s) => s.missing).length;
 const surfaceCount = surfaces.length;
 const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
 const invNote = invRemovals ? ` + ${invRemovals} unacknowledged inventory removal(s)` : '';
+// residueFails counts unacknowledged failing endpoints AND stale acknowledgements (both gate).
+const resNote = residueFails ? ` + ${residueFails} data-residue gate failure(s) (unacknowledged or stale)` : '';
 const covNote = coverageFails ? ` + ${coverageVerdict.uncovered.length} uncaptured registered surface(s)` : '';
 const detNote = determinismFails ? ' + determinism unproven' : '';
-const clean = total === 0 && invRemovals === 0 && !coverageFails && !determinismFails;
+const clean = total === 0 && invRemovals === 0 && residueFails === 0 && !coverageFails && !determinismFails;
 console.log(
   clean
     ? newSurfaces === 0
       ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
       : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}${covNote}${detNote}`,
+    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}${resNote}${covNote}${detNote}`,
 );
 // 0 = identical, 1 = reviewable differences (incl. unacknowledged inventory removals, an
-// incomplete coverage registry, or an unproven-determinism capture), 3 = only new surfaces
-// (no baseline). 2 = usage/capture error.
-process.exit(total > 0 || invRemovals > 0 || coverageFails || determinismFails ? 1 : newSurfaces > 0 ? 3 : 0);
+// unacknowledged failing data endpoint under an armed residue gate, an incomplete coverage
+// registry, or an unproven-determinism capture), 3 = only new surfaces (no baseline). 2 = usage.
+process.exit(
+  total > 0 || invRemovals > 0 || residueFails > 0 || coverageFails || determinismFails ? 1 : newSurfaces > 0 ? 3 : 0,
+);
