@@ -22,6 +22,7 @@ import {
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
 import {
+  BROWSER_BUILD_SIDECAR,
   DEFAULT_MAP_DIR,
   DEFAULT_MAP_LABEL,
   DEFAULT_MAP_STORE_BRANCH,
@@ -284,6 +285,13 @@ if (restore) {
     process.exit(2);
   }
 }
+
+// Clear any prior run's browser-build sidecar before Playwright runs, so ONLY this
+// run can have written it. The default dir (.styleproof/maps/current) is reused across
+// runs; if this run records no browser version (the capture test not reached, or the
+// handle unavailable), a stale sidecar would otherwise be read into the manifest and
+// stamp a WRONG browser build that the compatibility guard then trusts as a fingerprint.
+fs.rmSync(path.join(targetDir, BROWSER_BUILD_SIDECAR), { force: true });
 
 const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const configArgs =

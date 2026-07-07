@@ -93,7 +93,9 @@ export function collectNavAffordances(): RawAffordance[] {
   const nameOf = (el: Element): string =>
     (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
   const internalPath = (el: Element): string | null => {
-    const raw = (el.getAttribute('href') || '').trim();
+    // SVG anchors carry the target in `xlink:href` (legacy) or `href`; fall back so
+    // an <svg><a> nav link resolves like an HTML one.
+    const raw = (el.getAttribute('href') || el.getAttribute('xlink:href') || '').trim();
     if (!raw || raw.startsWith('#')) return null;
     try {
       const u = new URL(raw, location.href);
@@ -108,15 +110,19 @@ export function collectNavAffordances(): RawAffordance[] {
   // Erring broad is correct here: a stray non-nav button is harmless noise, but a
   // MISSED nav item defeats the guard. Prefer semantic markup (role=tablist) for
   // fully reliable harvesting; see docs/inventory-guard.md.
+  // `a[*|href]` (any-namespace href) not `a[href]`: an SVG anchor may carry only the
+  // XLink-namespaced `xlink:href`, which `a[href]` never selects — so the xlink:href
+  // fallback in internalPath would be dead without it.
   const SEL =
-    'a[href], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], nav button, [role="navigation"] button, [role="tablist"] button, [class*="navtab" i] button, [class*="nav-tab" i] button, [class*="subnav" i] button, [class*="subtab" i] button, [class*="tabs" i] button';
+    'a[*|href], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], nav button, [role="navigation"] button, [role="tablist"] button, [class*="navtab" i] button, [class*="nav-tab" i] button, [class*="subnav" i] button, [class*="subtab" i] button, [class*="tabs" i] button';
   return Array.from(document.querySelectorAll(SEL))
     .filter(visible)
     .map((el) => ({
       tag: el.tagName.toLowerCase(),
       role: (el.getAttribute('role') || '').toLowerCase(),
       name: nameOf(el),
-      internalPath: el.tagName === 'A' ? internalPath(el) : null,
+      // SVG anchors report tagName `a` (lowercase), HTML reports `A` — match either.
+      internalPath: el.tagName.toLowerCase() === 'a' ? internalPath(el) : null,
       testId: el.getAttribute('data-testid'),
       domId: el.getAttribute('id'),
       controls: el.getAttribute('aria-controls'),

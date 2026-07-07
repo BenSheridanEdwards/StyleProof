@@ -115,18 +115,55 @@ function sameRect(a?: [number, number, number, number], b?: [number, number, num
   return !!a && !!b && a.every((v, i) => v === b[i]);
 }
 
+const HORIZONTAL_MARGIN_PAIRS: [string, string][] = [
+  ['margin-left', 'margin-right'],
+  ['margin-inline-start', 'margin-inline-end'],
+];
+
+function marginPxDelta(p: PropChange): number | null {
+  const before = pxParts(p.before);
+  const after = pxParts(p.after);
+  return before?.length === 1 && after?.length === 1 ? after[0]! - before[0]! : null;
+}
+
+// True when one horizontal side moved by a different px amount than its
+// opposite. Such a change would shift the box on its own, so an *identical*
+// rect means something else compensated — a real restyle, not layout-equivalent
+// drift. Non-px or state-sentinel values (`(state no longer changes it)`) aren't
+// demonstrable, so they fall through to the balanced (drop) path unchanged.
+function marginChangeHasPxImbalance(props: PropChange[]): boolean {
+  const delta = new Map<string, number | null>();
+  for (const p of props) {
+    if (LAYOUT_EQUIVALENT_MARGIN_PROPS.has(p.prop)) delta.set(p.prop, marginPxDelta(p));
+  }
+  for (const [start, end] of HORIZONTAL_MARGIN_PAIRS) {
+    const ds = delta.has(start) ? delta.get(start)! : 0;
+    const de = delta.has(end) ? delta.get(end)! : 0;
+    if (ds !== null && de !== null && ds !== de) return true;
+  }
+  return false;
+}
+
 function dropLayoutEquivalentMarginProps(
   props: PropChange[],
   a?: StyleMap['elements'][string],
   b?: StyleMap['elements'][string],
 ): PropChange[] {
   if (!sameRect(a?.rect, b?.rect)) return props;
+  // ponytail: a balanced margin change with an unchanged rect is treated as
+  // layout-equivalent from computed style alone. That still drops the rare case
+  // where a *balanced* change was held in place by external compensation — a
+  // consciously-deferred, low-reach soundness corner; closing it needs
+  // cross-element layout reasoning. The common one-sided case is caught here.
+  if (marginChangeHasPxImbalance(props)) return props;
   return props.filter((p) => !LAYOUT_EQUIVALENT_MARGIN_PROPS.has(p.prop));
 }
 
 function pxParts(value: string): number[] | null {
   const parts = value.trim().split(/\s+/);
-  if (parts.length < 2 || parts.length > 3) return null;
+  // 1–3 components: a single-value origin (`50px`) jitters the same way as the
+  // 2/3-component form and must be suppressed identically.
+  if (parts.length < 1 || parts.length > 3) return null;
   const values = parts.map((part) => {
     const match = /^(-?\d+(?:\.\d+)?)px$/.exec(part);
     return match ? Number(match[1]) : Number.NaN;

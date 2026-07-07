@@ -7,6 +7,195 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Crawl no longer double-captures `/` and `/index.html` as two surfaces.** On a
+  static multi-page site whose nav links the `.html` files, `/` and `/index.html`
+  (and `/dir/` vs `/dir/index.html`) are the same route but were captured twice as
+  byte-near-identical maps — doubling the capture work and duplicating every finding
+  in the diff. The crawl's dedup identity now normalizes a trailing `index.html` to
+  its directory path, so they collapse to one surface (first-seen href keeps its
+  original navigable form). Only the literal `index.html` filename normalizes — a
+  genuine `about.html` stays a distinct surface from `about`.
+- **`styleproof-init` now states exactly which files it wrote — and that it did NOT
+  touch `package.json` or your lockfile.** Adopters attributed the `styleproof`
+  dependency entry (added by their package manager's `install`) to init; init only
+  ever reads `package.json` and writes the spec, the dedicated Playwright config,
+  `.gitignore` lines, and the CI workflow. The summary now enumerates those files and
+  says plainly that the manifest and lockfile were left untouched.
+- **The no-comparison outcome of `styleproof-diff` / `styleproof-report` names both
+  ways forward.** When the no-args (inferred-base) path can restore no base map — no
+  map-store remote, no cached bundle — nothing is compared. That already exits `2`
+  (never a soft `0` a newcomer could read as "certified clean"); the message now says
+  "nothing was compared" and names the two working alternatives: run in CI (or a repo
+  with the `origin` remote) where the base is restorable, or the two-directory form
+  `styleproof-diff <beforeDir> <afterDir>`. A regression test pins the exit-2 contract
+  in a remote-less repo for both commands.
+- **README: the Next.js coverage guard is described accurately.** The docs conflated
+  two behaviors. With the auto-wired spec, `surfaces` and `expected` both derive from
+  the same `discoverNextRoutes()` call, so a new static route is captured and expected
+  together — **auto-covered, never a guard failure**. The guard **fails** only on
+  genuine divergence (a dynamic route, a hand-maintained registry, or a route dropped
+  from `surfaces` while still `expected`). Rewrote the overclaiming passages and the
+  generated-spec comments to state both behaviors.
+- **Layout-equivalent margin suppression no longer drops a real one-sided margin
+  change.** `dropLayoutEquivalentMarginProps` suppressed any horizontal
+  `margin-left/right/inline-start/inline-end` change whenever the element's rect
+  was unchanged — reasoning that a margin that doesn't move the box is cosmetic
+  drift. But a one-sided change (e.g. `margin-left: 0 → 40px` with `margin-right`
+  untouched) that leaves the rect identical only stayed put because _something
+  else compensated_; that is a genuine restyle, and it was silently dropped. The
+  suppression now fires only when there is no **demonstrable px imbalance**
+  between a side and its opposite — balanced drift (both sides move together) and
+  forced-state deltas are still suppressed exactly as before, but a one-sided
+  real change surfaces. A residual, consciously-deferred corner remains (a
+  perfectly _balanced_ change held in place by external compensation), documented
+  inline; closing it needs cross-element layout reasoning.
+- **`styleproof-init` no longer imports the whole library barrel (fixes a CI
+  flake).** The scaffolder only needs `discoverNextRoutes`, but it imported it
+  from `dist/index.js` — dragging capture, the crawler, the report renderer, and
+  six Playwright-importing modules into a tool that writes files and captures
+  nothing. Loading that oversized module graph concurrently (init's own suite
+  spawns the CLI many times, alongside the rest of `node --test`) is what made
+  init's tests flake in CI, red-flagging releases with no code cause. It now
+  imports from the `dist/routes.js` leaf (`fs` + `path` only): init's transitive
+  module graph drops from 21 dist modules to 1, with zero Playwright modules on
+  its load path. Behaviour is unchanged; a regression test pins the leaf import.
+- **Popup capture: verified reset + identity-bound triggers (no leaked-overlay
+  contamination, no wrong-trigger keying).** On a surface whose `go()` doesn't
+  navigate (SPA variants), the between-popups reset was Escape-only and assumed:
+  a toast or `[role="status"]` overlay Escape can't dismiss leaked into the next
+  popup's capture, and each reopen re-enumerated triggers positionally, so a
+  shifted trigger set (e.g. a click that adds a button) could key a popup under a
+  different trigger than the one originally enumerated. Triggers are now re-bound
+  by the DOM identity recorded at first enumeration, and the reset is verified
+  against the surface's pristine overlay set; a candidate that can't be opened
+  safely is skipped loudly (a `styleproof:` warning naming the popup and the
+  leaked overlay or missing trigger) instead of being captured contaminated,
+  mis-keyed, or — with self-check on — saved unproven. That identity is the
+  trigger's DOM path **and** its accessible label, not the path alone: for an
+  id-less trigger the path ends in `:nth-of-type`, which is still position within
+  a parent, so a same-tag same-parent sibling injected earlier in DOM order
+  between enumeration and reopen would slide the recorded path onto a different
+  trigger and key its popup under the wrong one — silently. Requiring the label
+  (the same aria-label/name/text/title accessible name the crawler reads) to match
+  too turns that mismatch into the same loud skip. Navigating surfaces are
+  unaffected.
+
+## [3.19.0] - 2026-07-06
+
+### Added
+
+- **Selective-remap wiring: `explainAffectedSurfaces` + the pre-push recipe.** The
+  sound core (`affectedSurfaces`) shipped in 3.17.0 returns a bare `Set | 'all'` that
+  names nothing; the new pure `explainAffectedSurfaces(result, allSurfaceKeys, reason?)`
+  formatter renders the verdict as reviewer-checkable lines — which surfaces re-capture
+  and which reuse their committed base map — so a pre-push hook or CI log can print the
+  skip list before anyone trusts it. `affectedSurfaces`'s return shape is unchanged
+  (backward-compatible; the helper takes the surface keys as a second argument rather
+  than extending the sentinel). README's selective-remap section gains the helper, its
+  output, and the full `git diff → dependency-cruiser → affectedSurfaces → capture subset`
+  pre-push recipe. Opt-in and advisory throughout — the default full-coverage gate is
+  untouched.
+
+### Fixed
+
+- **Report tables escape hostile CSS values (no Markdown breakout).** A property
+  value carrying a `|` used to split a report table row, and a backtick used to close
+  the code span and leak live Markdown (`content:"…"`, `url(…)`, `font` strings). The
+  render boundary now escapes values instead of stripping them — `|` → `\|`, and the
+  code fence widens past the value's longest backtick run — so hostile values render
+  as one intact, readable cell. `report.md` only; the privileged review comment was
+  never affected.
+- **The navigable-removal guard now sees SVG `<a>` nav links.** The in-page harvest
+  keyed anchors off `tagName === 'A'`, which is HTML-only (SVG reports lowercase `a`),
+  so an SVG nav link never entered the inventory and its removal never gated. The tag
+  check is now case-insensitive, the selector matches any-namespace `href`
+  (`a[*|href]`), and the target falls back to `xlink:href` — an `<svg><a>` link now
+  resolves like an HTML one.
+- **Single-value `transform-origin`/`perspective-origin` jitter is suppressed.** The
+  sub-pixel-origin equality check required at least two length components, so a
+  one-value origin (`50px`) leaked rounding jitter as a false diff. One to three
+  components are now all suppressed within `ORIGIN_EPSILON_PX`; a real, larger change
+  still reports.
+- **`styleproof-diff --json` exits 2 (not 1) when the file cannot be written.** A bad
+  `--json` path is a usage/setup error, but the write sat outside the guarded blocks
+  and let the failure fall through to exit 1 — which CI reads as a real diff. It now
+  reports to stderr and exits 2.
+- **Crawl flag docs corrected.** `--max-depth`'s default is documented as 16 (not
+  "unbounded" in `--help`, not "3" in the JSDoc); `--until-covered` is now listed in
+  `styleproof-capture --help`.
+- **Crawl no longer silently drops surfaces to key collisions, and mapping no longer
+  clicks title-only destructive controls.** Five soundness fixes across the crawl path:
+  - `selectCrawlLinks` deduped by raw URL, so `/about` and `/about/` — one route — were
+    two links that keyed identically and the second capture overwrote the first. Trailing
+    slashes are now normalized in the dedup identity (root `/` and the query string are
+    left intact), so a route is captured once.
+  - Genuinely distinct surfaces whose derived keys collide (e.g. `/a/b` and `/a-b` both
+    slugify to `a-b`) previously overwrote each other's map file. `selectCrawlLinks` now
+    disambiguates with a `-2`, `-3`, … suffix (mirroring the surface crawler), so every
+    surface survives.
+  - `defaultLinkKey` joined query-param values in iteration order, so `?tab=a&x=b` and
+    `?x=b&tab=a` — the same route — keyed as `a-b` vs `b-a` and flapped the coverage
+    guard into phantom regressions. Params are now sorted by name before joining.
+  - The surface crawler's clickable-candidate label omitted the `title` attribute, so an
+    icon-only `<button title="Delete">` labeled as `button` and slipped past the
+    destructive-action guard — mapping would click it. `title` is now part of the label
+    input in both crawlers.
+  - The variant crawler carried a weaker, divergent copy of the destructive-action word
+    list (missing `revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew`). Both
+    crawlers now share one `DANGER_SOURCE` constant, so mapping refuses the same set of
+    destructive controls everywhere.
+  - `defineStyleMapCapture` and `defineCrawlCapture` now assert every expanded capture
+    key is unique before running: the `surface.key-variant.key` join is ambiguous
+    (`a` + `b-c` and `a-b` + `c` both expand to `a-b-c`), which used to overwrite a map
+    file with no error. The key format is unchanged (it's public — filenames and report
+    identities); a collision now throws up front and names both origins so the author can
+    rename one.
+- **Sass `@use`/`@forward` in a CSS Module now fails closed to `'all'`.** A
+  `.module.scss`/`.module.sass` that loads a partial via `@use`/`@forward` can pull in
+  global rules the JS import graph can't see, so `classifyStyleChange` now treats any
+  such file as global (`'all'`) — a sound over-approximation, no heuristics. A plain CSS
+  Module with only class selectors stays `'scope'` as before.
+- **Legacy Sass/CSS `@import` in a CSS Module now fails closed too.** The fail-closed
+  load check missed the `@import` form, so a `.module.scss` loading a partial via
+  `@import "vars"` — whose members merge in exactly like `@use` — classified as `'scope'`
+  and could silently skip a re-capture. `classifyStyleChange` now treats any
+  `@use`/`@forward`/`@import` load as global (`'all'`), covering both the Sass partial
+  load and the plain-CSS pass-through (`@import url(x.css)`, whose selectors are not
+  hashed into the module's per-file scope, so it escapes the module). Only ever widens
+  toward `'all'`; a module with no load directive still stays `'scope'`.
+- **`affectedSurfaces` now canonicalizes paths across all inputs, closing a silent
+  unsound skip.** `surfaces` entries, `changedFiles`, graph edges, and `files` are now
+  normalized to one spelling (strip a leading `./`, collapse `//`, resolve `.`/`..` as
+  pure string math — no fs), so a `./pages/Home.tsx` surface entry no longer misses a
+  reachability hit spelled `pages/Home.tsx` and gets dropped from the affected set. And a
+  declared surface whose entry path appears in neither `files` nor any graph edge is now
+  unplaceable → `'all'`, the same fail-closed rule as an unplaceable changed file.
+- **Stale browser-build sidecar can no longer stamp a false fingerprint.**
+  `styleproof-map` now deletes any prior run's `styleproof-browser.json` before Playwright
+  runs, and `writeBrowserBuildSidecar(dir, undefined)` now removes an existing sidecar
+  rather than leaving it. Previously a reused capture dir plus a run that recorded no
+  browser version would fold the _previous_ run's build into this run's manifest, and
+  `assertCompatibleMapDirs` would trust that false `browserVersion` fingerprint.
+- **`captureStyleMap` no longer leaks its motion-freeze `<style>` onto a reused page.**
+  The freeze injected for the base/forced-state reads was re-applied without a handle and
+  never removed, so on a page recaptured **without a reload** (an SPA `go()` that doesn't
+  navigate, multi-surface reuse, the self-check's re-run) the next capture's motion pass
+  read the still-frozen transition/animation longhands (`none`/`0s`) as its baseline —
+  phantom drift that surfaced as a **false "non-deterministic capture"** self-check
+  failure. The re-applied tag is now tracked and removed in a `finally`, so throw paths
+  clean up too. (No API change.)
+- **`liveStates` + `expected` no longer reports a false coverage gap.** A surface with
+  `liveStates` is captured only as its split expansions (`home-loading`, `home-loaded`) —
+  the bare base key is dropped by design — but the coverage ledger recorded `expected`
+  in base keys and the gate compared captured keys literally, so a fully-captured app
+  failed the gate with `uncovered: ['home']` (live in 3.18.0). The ledger writer now
+  records `expected` already translated through the same liveState expansion, and the
+  suite-side guard maps each capture back to its originating `surfaceKey` — a precise
+  mapping via real metadata, so an unrelated `home-banner` never satisfies an uncaptured
+  `home`. Both the spec-driven and crawl capture paths are fixed consistently.
+
 ## [3.18.0] - 2026-07-06
 
 ### Added

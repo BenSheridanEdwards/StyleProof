@@ -259,6 +259,59 @@ test('declared animation on content that MOUNTS DURING the settle is captured, n
   expect(glyph!.style['animation-duration'], 'declared motion folded for a late mount').toBe('1.6s');
 });
 
+test('re-capturing the SAME page without navigation leaves no freeze tag and reads motion identically', async ({
+  page,
+}) => {
+  // BUG: captureStyleMap re-applies FREEZE_CSS for its base/forced-state reads but
+  // used to leave that <style> in the DOM. On a page reused WITHOUT a reload (an SPA
+  // go() that doesn't navigate, multi-surface reuse, the self-check's re-run), the
+  // second capture's motion pass then read this run's still-frozen transition/animation
+  // longhands (none/0s) as the baseline → phantom drift → a FALSE "non-deterministic"
+  // self-check failure. Every other e2e masks this by navigating between captures
+  // (withPage reloads); this one deliberately does NOT navigate.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    @keyframes pulse { from { opacity: .4 } to { opacity: 1 } }
+    .glyph { animation: pulse 1.6s ease-in-out infinite; }
+    .btn { transition: color 240ms ease; color: rgb(0,0,0); }
+  </style></head><body>
+    <main><span class="glyph">●</span><button class="btn">go</button></main>
+  </body></html>`;
+
+  const countFreezeTags = () =>
+    page.evaluate(
+      (css) => Array.from(document.querySelectorAll('style')).filter((s) => s.textContent === css).length,
+      '*,*::before,*::after{animation:none!important;transition:none!important}',
+    );
+
+  await withPage(page, html, async () => {
+    // First capture. No freeze tag must survive it.
+    const first = await captureStyleMap(page);
+    expect(await countFreezeTags(), 'no freeze <style> tag leaks after the first capture').toBe(0);
+
+    // Second capture on the SAME page — no navigation, no reload in between.
+    const second = await captureStyleMap(page);
+    expect(await countFreezeTags(), 'freeze tags do not accumulate across captures').toBe(0);
+
+    // The motion longhands must read identically across the two captures — before the
+    // fix the leaked freeze nulled them to 0s/none on the second read, producing drift.
+    const motionOf = (map: Awaited<ReturnType<typeof captureStyleMap>>, cls: string) => {
+      const el = Object.values(map.elements).find((e) => e.cls === cls);
+      return {
+        animationDuration: el?.style['animation-duration'],
+        transitionDuration: el?.style['transition-duration'],
+      };
+    };
+    expect(motionOf(first, 'glyph')).toEqual(motionOf(second, 'glyph'));
+    expect(motionOf(first, 'btn')).toEqual(motionOf(second, 'btn'));
+    // And the declared motion actually survived (not silently frozen on BOTH runs).
+    expect(motionOf(second, 'glyph').animationDuration, 'declared animation preserved on the reused page').toBe('1.6s');
+
+    // The whole point: a self-check style re-diff of the reused page is clean.
+    expect(diffStyleMaps(first, second), 'no phantom drift on a page recaptured in place').toEqual([]);
+  });
+});
+
 test('network-aware settle waits for an in-flight fetch, not just a DOM lull', async ({ browser }) => {
   // The placeholder renders at load, then the DOM sits QUIET while a slow (2s, well
   // past the 600ms quietFor) /api/data fetch is in flight, then swaps in the loaded

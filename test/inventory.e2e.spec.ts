@@ -46,6 +46,27 @@ test('harvest reads role=tab and internal route links, keyed stably (real origin
   expect(keys).not.toContain('route:https://example.com/ext'); // cross-origin dropped
 });
 
+test('harvest reads an SVG <a> nav link (case-insensitive tag + xlink:href fallback)', async ({ page }) => {
+  // SVG anchors report tagName `a` (lowercase) — the HTML-only `tagName === 'A'`
+  // check missed them, so an SVG nav link never entered the inventory and its
+  // removal never gated. An SVG 2 `href` and a legacy `xlink:href` must both resolve.
+  await page.route('http://sp.test/**', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: `<!doctype html><html><body>
+        <svg width="200" height="40" viewBox="0 0 200 40">
+          <a href="/reports"><text x="10" y="20">Reports</text></a>
+          <a xlink:href="/billing"><text x="110" y="20">Billing</text></a>
+        </svg>
+      </body></html>`,
+    }),
+  );
+  await page.goto('http://sp.test/');
+  const keys = (await harvestInventory(page)).map((i) => i.key);
+  expect(keys).toContain('route:/reports'); // SVG 2 href
+  expect(keys).toContain('route:/billing'); // legacy xlink:href fallback
+});
+
 test('captureStyleMap({inventory:true}) stores map.inventory; auditRunInventory gates a removal', async ({ page }) => {
   await page.goto(nav(['AGENTS', 'MODEL CONFIG', 'FAULTS', 'SKILLS']));
   const base = await captureStyleMap(page, { inventory: true });

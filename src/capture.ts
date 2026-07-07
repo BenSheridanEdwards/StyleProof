@@ -997,36 +997,48 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // nulls motion to 0s), then re-apply it before reading everything else.
   await freezeTag.evaluate((el) => (el as HTMLStyleElement).remove());
   const motion = await page.evaluate(capturePage, { ignore, motionOnly: true, captureText: false });
-  await page.addStyleTag({ content: FREEZE_CSS });
-
-  const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText, captureComponent });
-  dropVolatile(base.elements, volatile);
-  const overlays = (await page.evaluate(detectOverlayCandidates, { ignore })).filter(
-    (overlay) => base.elements[overlay.path],
-  );
-  warnUntraversed(base.shadowHosts, base.sameOriginFrames);
-  mergeMotion(base.elements, motion.elements);
-  let states: StyleMap['states'] = {};
-  let statesSkipped = false;
-  if (captureStates) {
-    const forced = await captureForcedStates(page, ignore, maxInteractive, volatile);
-    states = forced.states;
-    statesSkipped = forced.skipped;
+  // Re-apply the freeze for the base + forced-state reads (both must see motion
+  // nulled). This tag is KEEP-a-handle: unlike the pre-motion tag above (which was
+  // explicitly removed), an un-tracked tag would accumulate on any page reused without
+  // a reload — a second capture on the same page (SPA go() that doesn't navigate,
+  // multi-surface reuse, the self-check's re-run) would then read this run's frozen
+  // motion (`none`/`0s`) as its baseline and report phantom drift. Remove it in a
+  // `finally` so throw paths (a settle timeout, a forced-state error) also leave the
+  // page clean, not just the happy path.
+  const refreezeTag = await page.addStyleTag({ content: FREEZE_CSS });
+  try {
+    const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText, captureComponent });
+    dropVolatile(base.elements, volatile);
+    const overlays = (await page.evaluate(detectOverlayCandidates, { ignore })).filter(
+      (overlay) => base.elements[overlay.path],
+    );
+    warnUntraversed(base.shadowHosts, base.sameOriginFrames);
+    mergeMotion(base.elements, motion.elements);
+    let states: StyleMap['states'] = {};
+    let statesSkipped = false;
+    if (captureStates) {
+      const forced = await captureForcedStates(page, ignore, maxInteractive, volatile);
+      states = forced.states;
+      statesSkipped = forced.skipped;
+    }
+    const tokens = await page.evaluate(capturePageTokens);
+    const inventory = await harvestInventoryFor(page, options.inventory);
+    return {
+      ...(options.metadata ? { metadata: options.metadata } : {}),
+      defaults: base.defaults,
+      elements: base.elements,
+      states,
+      ...(statesSkipped ? { statesSkipped: true } : {}),
+      ...(volatile.length ? { volatile } : {}),
+      ...(liveCandidates.length ? { liveCandidates } : {}),
+      ...(overlays.length ? { overlays } : {}),
+      ...(Object.keys(tokens).length ? { tokens } : {}),
+      ...(inventory.length ? { inventory } : {}),
+    };
+  } finally {
+    // Best-effort: the page may already be closing on a throw path.
+    await refreezeTag.evaluate((el) => (el as HTMLStyleElement).remove()).catch(() => {});
   }
-  const tokens = await page.evaluate(capturePageTokens);
-  const inventory = await harvestInventoryFor(page, options.inventory);
-  return {
-    ...(options.metadata ? { metadata: options.metadata } : {}),
-    defaults: base.defaults,
-    elements: base.elements,
-    states,
-    ...(statesSkipped ? { statesSkipped: true } : {}),
-    ...(volatile.length ? { volatile } : {}),
-    ...(liveCandidates.length ? { liveCandidates } : {}),
-    ...(overlays.length ? { overlays } : {}),
-    ...(Object.keys(tokens).length ? { tokens } : {}),
-    ...(inventory.length ? { inventory } : {}),
-  };
 }
 
 /** Write a style map to disk; gzipped when the path ends in `.gz`. */

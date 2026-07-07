@@ -17,9 +17,14 @@ export function cliErrorMessage(error: unknown): string {
  */
 export function cachedMapsUnavailableMessage(command: string, purpose: string, error: unknown): string {
   return [
-    `${command}: cached maps are not available for this ${purpose}`,
+    `${command}: cached maps are not available for this ${purpose} — nothing was compared`,
     cliErrorMessage(error),
-    'Next: run styleproof-map on the base and head commits to upload maps, or let CI recapture both sides.',
+    // Name the two ways forward explicitly so a newcomer never reads "nothing compared"
+    // as "certified clean": the cached-map path only works where the base is restorable
+    // (CI, or a repo with the map-store remote), and the two-directory form always works
+    // off already-captured maps with no git remote at all.
+    `Next: run this in CI (or a repo with the 'origin' remote) where the base map is restorable, ` +
+      `or capture both sides and compare them directly: ${command} <beforeDir> <afterDir>.`,
   ].join('\n');
 }
 

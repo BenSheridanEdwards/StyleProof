@@ -57,8 +57,12 @@ surface. `expected` turns that inventory into a guard: a key it lists that is
 neither captured nor excluded fails as missing coverage instead of silently
 passing. What's guarded depends on how `expected` is fed —
 
-- **Next.js:** auto-guarded. `styleproof-init` wires `expected` to the routes it
-  discovers, so a new page fails the guard with nothing to keep in sync.
+- **Next.js:** auto-covered. `styleproof-init` derives both `surfaces` and
+  `expected` from the same `discoverNextRoutes()` call, so a new static route lands
+  in both at once — captured and expected together, with nothing to keep in sync.
+  The guard then fails only on genuine divergence between the two: a dynamic route
+  (pre-excluded, so its reason surfaces), a hand-maintained registry, or a route
+  dropped from `surfaces` while still in `expected`.
 - **Link-crawled SPAs:** pass `expected` to `defineCrawlCapture` and the crawl
   reconciles it against the _rendered nav_ (the route universe for such an app),
   both directions — a new linked route with no `expected` entry fails, and an
@@ -152,7 +156,7 @@ _and_ no head capture, so it never appears in any diff, and the status goes
 green having never looked at it. This is the one thing the captures can't catch
 on their own: a capture that was never taken.
 
-Declare your app's route/view universe in `expected` and StyleProof emits a coverage-guard test in your **normal** suite (it runs even without `STYLEMAP_DIR` — it's a static check, no browser). It fails the moment a route exists with no surface, so a new page can't ship uncaptured:
+Declare your app's route/view universe in `expected` and StyleProof emits a coverage-guard test in your **normal** suite (it runs even without `STYLEMAP_DIR` — it's a static check, no browser). It fails when `expected` and your captured surfaces diverge — a route you listed in `expected` with no surface and no `exclude` entry fails as missing coverage, so a registry entry can't quietly ship uncaptured:
 
 ```ts
 import { defineStyleMapCapture } from 'styleproof';
@@ -168,7 +172,7 @@ defineStyleMapCapture({
 
 A route that's neither a captured surface nor an `exclude` entry fails the guard; an `exclude` key that isn't in `expected` (a renamed/removed route) fails too, so the opt-out ledger can't quietly rot. Captured surfaces beyond `expected` are fine — one route can have several states (`landing`, `landing-nav-open`). Omit `expected` and behaviour is unchanged.
 
-**Next.js: wired for you.** Run `styleproof-init` in a Next.js project and the generated spec discovers your routes (App Router `app/` + Pages Router `pages/`) at run time and wires both the surfaces and `expected` to them — so it's protected out of the box, and a page you add later is covered automatically with nothing to keep in sync:
+**Next.js: wired for you.** Run `styleproof-init` in a Next.js project and the generated spec discovers your routes (App Router `app/` + Pages Router `pages/`) at run time and derives **both** the surfaces and `expected` from that same `discoverNextRoutes()` call. Because they share one source, a static route you add later is captured and expected in the same step — auto-covered, never a guard failure, with nothing to keep in sync. The guard exists for the cases where the two genuinely diverge: a dynamic `[param]` route (it can't be navigated without a value, so it's placed in `exclude` with a reason rather than captured), a registry you hand-maintain instead of the live call, or a route you drop from `surfaces` while it's still `expected`:
 
 ```ts
 import { defineStyleMapCapture, discoverNextRoutes } from 'styleproof';
@@ -291,6 +295,17 @@ toast/status roots. Each saved map includes `overlays` proof metadata for
 semantic roots that were actually present in the computed-style map, so tests can
 assert a capture reached `role="dialog"`, `aria-modal`, `role="menu"`,
 `role="listbox"`, or hot-toast text.
+
+Triggers are enumerated once per surface and every reopen re-binds to that same
+element by identity — its DOM path **and** its accessible label — never by
+position. Between popups the surface is reset (Escape + `go()`) and the reset is
+verified: if an overlay a previous popup left behind is still visible (Escape
+closes dialogs, not toasts or status regions), or an enumerated trigger
+disappeared or changed identity (e.g. a same-tag sibling shifted in earlier),
+that candidate is **skipped loudly** — a `styleproof:` warning names the popup and
+why — instead of capturing contaminated state or keying a popup under the wrong
+trigger. Dismiss the leaking overlay in the surface's `go()`, or capture it as an
+explicit variant.
 
 **Harvest one-step variants.** Routes are not the whole UI: drawers, tabs,
 dialogs, empty form errors, selects, and other one-step states need their own
@@ -733,7 +748,48 @@ const result = affectedSurfaces({
 // → 'all'              (some change couldn't be bounded — capture everything)
 ```
 
-Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)` is treated as a bundler **context module** (every file under that dir is a possible target, so precision there is directory-level, never a miss); and the CSS-in-JS global list (`createGlobalStyle`, `injectGlobal`, `globalStyle`, …) must match the libraries you use — an unrecognized global API is the one way a scoped verdict could be unsound, so treat an unsupported styling system as a reason to skip selective remap. Because a PR-time miss would be silent, always let `main` (or a scheduled run) capture **all** surfaces as the trust-but-verify net.
+Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)` is treated as a bundler **context module** (every file under that dir is a possible target, so precision there is directory-level, never a miss); and a CSS-Module (`.module.scss`/`.module.sass`) that carries a Sass `@use`/`@forward` load resolves to `'all'`, because those pull in a partial the JS import graph can't bound. One honest **residual** stays `'scope'` by design: the CSS-in-JS global list (`createGlobalStyle`, `injectGlobal`, `globalStyle`, …) must match the libraries you use — an allowlist can't fail closed on an _unknown_ member, so an unrecognized global API in a `.tsx` is the one way a scoped verdict could be unsound. Treat an unsupported styling system as a reason to skip selective remap. Because a PR-time miss would be silent, always let `main` (or a scheduled run) capture **all** surfaces as the trust-but-verify net.
+
+### Show the skip list, then wire the pre-push hook
+
+Before you trust a skip, print it. `explainAffectedSurfaces(result, allSurfaceKeys)` renders the verdict as reviewer-checkable lines — which surfaces re-capture and which reuse their committed base map — and takes an optional reason string for the `'all'` case:
+
+```ts
+import { affectedSurfaces, explainAffectedSurfaces } from 'styleproof';
+
+const result = affectedSurfaces(/* … */);
+console.log(explainAffectedSurfaces(result, Object.keys(surfaces)));
+```
+
+A scoped change (only `dashboard`'s subtree touched) prints:
+
+```
+selective remap: ON → re-capture 1, reuse 2 from base
+  ↻ dashboard (re-capture — a changed file reaches it)
+  ✓ home (reuse base map — no changed file reaches it)
+  ✓ pricing (reuse base map — no changed file reaches it)
+```
+
+A global/token change fails closed to a full re-capture:
+
+```
+selective remap: OFF → re-capture all 3 surface(s) — src/tokens.css is a global (unscoped) stylesheet
+  ↻ dashboard (re-capture)
+  ↻ home (re-capture)
+  ↻ pricing (re-capture)
+```
+
+Wired into a pre-push hook, the whole recipe is: diff the changed files, produce the graph, ask `affectedSurfaces`, print the skip list, then capture only the subset and reuse the committed base maps for the rest.
+
+```sh
+#!/usr/bin/env sh
+# .husky/pre-push (opt-in; the default CI gate still captures every surface)
+CHANGED=$(git diff --name-only origin/main...HEAD)
+npx dependency-cruiser src --no-config --output-type json > dc.json
+node scripts/selective-remap.mjs "$CHANGED" dc.json   # affectedSurfaces + explain + capture subset
+```
+
+`scripts/selective-remap.mjs` is yours to own — it maps `dc.json` into `{ from, to }` edges (as above), calls `affectedSurfaces`, prints `explainAffectedSurfaces`, then captures only the returned keys and copies each reused surface's committed base map forward. `main` re-captures everything, so a PR-time miss is still caught at merge.
 
 ## Newly-added elements show their full style
 
@@ -810,7 +866,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 - `styleproof-init` — scaffold the gate: the capture spec, a dedicated `playwright.styleproof.config.ts` (production-build `webServer`, parallel capture), `.gitignore` cache entries, and the cache-first report workflow. One command. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default), respect pnpm/Corepack version pins, and detect Vite/Next production preview commands instead of assuming every repo has `start`.
 - `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote exists. Pass `--crawl-base-url` plus repeated `--crawl-route` to run `styleproof-variants` before capture, `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, or `--no-screenshots` for custom flows.
-- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical); `1` on a reviewable diff — computed-style/DOM/state differences, and equally an unacknowledged inventory removal, an incomplete coverage registry, or an unproven-determinism capture; `2` on a usage/capture error (including a **missing map** — a bundle that claims to exist yet holds zero captures, i.e. a `styleproof-manifest.json` present with no maps, on either side, or a head capture that produced nothing; refused loudly rather than mislabelled as all-new); `3` when only new surfaces are present (no baseline for _those_ surfaces to diff against — new surfaces against an existing baseline, or a base dir with no manifest at all, meaning no baseline was ever captured: the first-adoption review path; approval policy decides whether to gate). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
+- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical); `1` on a reviewable diff — computed-style/DOM/state differences, and equally an unacknowledged inventory removal, an incomplete coverage registry, or an unproven-determinism capture; `2` on a usage/capture error (including a **missing map** — a bundle that claims to exist yet holds zero captures, i.e. a `styleproof-manifest.json` present with no maps, on either side, or a head capture that produced nothing; refused loudly rather than mislabelled as all-new — **and** the no-args case where the cached base map can't be restored at all: no map-store remote, no cached bundle, nothing to compare. A "nothing was compared" outcome always exits `2`, never a soft `0` that would read as certified; the error names the two ways forward — run in CI where the base is restorable, or use the two-directory form); `3` when only new surfaces are present (no baseline for _those_ surfaces to diff against — new surfaces against an existing baseline, or a base dir with no manifest at all, meaning no baseline was ever captured: the first-adoption review path; approval policy decides whether to gate). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
 - `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content section (see above).
 - `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
 

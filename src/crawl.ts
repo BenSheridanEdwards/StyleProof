@@ -53,10 +53,19 @@ export type SelectLinksOptions = {
  * multi-segment route (`/blog/post`) still keys as `blog-post`. Param names are
  * dropped (values carry the meaning); pass `key` to {@link selectCrawlLinks} when a
  * project needs a different scheme.
+ *
+ * Params are sorted by name before their values are joined, so the SAME logical
+ * route keys identically regardless of the order the nav happened to render its
+ * query string (`/?tab=a&x=b` and `/?x=b&tab=a` both → `a-b`). Without this the
+ * key flaps with render order and the coverage guard reports phantom
+ * nav-regressions / unowned routes for a route that never changed.
  */
 export function defaultLinkKey(url: URL): string {
   const segs = url.pathname.split('/').filter(Boolean);
-  const values = [...url.searchParams].map(([, v]) => v).filter(Boolean);
+  const values = [...url.searchParams]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([, v]) => v)
+    .filter(Boolean);
   const slug = [...segs, ...values]
     .join('-')
     .replace(/[^a-zA-Z0-9]+/g, '-')
@@ -96,28 +105,78 @@ function toLink(href: string, base: URL, keyFor: (url: URL) => string, match?: L
 }
 
 /**
+ * Dedup identity for a navigable path+query. Two forms of the same route must share
+ * one identity, or a static multi-page site (whose nav links the `.html` files) gets
+ * captured twice as byte-near-identical maps, doubling the work and duplicating every
+ * finding in the diff:
+ *
+ * - A trailing slash isn't a distinct surface (`/about` and `/about/` render the same
+ *   route), so it's stripped — but never from the root `/` itself, nor from the query.
+ * - A trailing `index.html` is the directory's index (`/index.html` IS `/`, and
+ *   `/docs/index.html` IS `/docs/`), so it collapses to the directory path. Only the
+ *   literal `index.html` filename normalizes — a real `about.html` is left untouched
+ *   and stays a distinct surface from `about`.
+ *
+ * The navigable url the caller returns keeps its original form; only the SET
+ * membership test is normalized, so the first-seen href still wins.
+ */
+function dedupIdentity(pathAndSearch: string): string {
+  const q = pathAndSearch.indexOf('?');
+  const path = q === -1 ? pathAndSearch : pathAndSearch.slice(0, q);
+  const search = q === -1 ? '' : pathAndSearch.slice(q);
+  // `/index.html` → `/`, `/docs/index.html` → `/docs/` (the preceding slash stays so
+  // the trailing-slash step below folds it into the same identity as `/docs` / `/docs/`).
+  const withoutIndex = path.replace(/(^|\/)index\.html$/, '$1');
+  const normPath = withoutIndex.length > 1 ? withoutIndex.replace(/\/+$/, '') || '/' : withoutIndex;
+  return normPath + search;
+}
+
+/**
  * Turn a page's raw `<a href>` values into a deduped, keyed surface list.
  *
  * Each href is classified by {@link toLink} (resolve against `base`, keep http(s)
  * same-origin, drop a bare in-page fragment of the crawl root, apply `match`); the
- * survivors are deduped by path+query. Order follows first appearance in `hrefs`, so
+ * survivors are deduped by path+query (trailing slash normalized — `/about` and
+ * `/about/` are one surface, not two). Order follows first appearance in `hrefs`, so
  * the capture order is the nav's order — stable across runs.
+ *
+ * Keys are then disambiguated: two GENUINELY different surfaces whose derived keys
+ * collide (e.g. `/a?tab=x` and `/b?tab=x` both → `x` under {@link defaultLinkKey})
+ * would otherwise both write `<key>@<width>.json.gz` and the second would silently
+ * overwrite the first — a captured surface vanishing without a trace. Instead the
+ * second gets a `-2` suffix (mirroring the surface crawler's `deriveKey`), so both
+ * survive as distinct maps. Trailing-slash duplicates never reach here — they're
+ * already deduped to one surface above — so this only fires on real collisions.
  */
 export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opts: SelectLinksOptions): CrawlLink[] {
   const base = new URL(opts.base);
   const keyFor = opts.key ?? defaultLinkKey;
   const seen = new Set<string>();
+  const usedKeys = new Set<string>();
   const out: CrawlLink[] = [];
+  // Disambiguate a key against those already emitted, mirroring deriveKey: first
+  // wins bare, the next collider gets `-2`, `-3`, … — deterministic in nav order.
+  const uniqueKey = (key: string): string => {
+    let k = key;
+    for (let i = 2; usedKeys.has(k); i++) k = `${key}-${i}`;
+    usedKeys.add(k);
+    return k;
+  };
+  const push = (link: CrawlLink): void => {
+    out.push({ key: uniqueKey(link.key), url: link.url });
+  };
   if (opts.includeSelf) {
     const selfUrl = base.pathname + base.search;
-    seen.add(selfUrl);
-    out.push({ key: keyFor(base), url: selfUrl });
+    seen.add(dedupIdentity(selfUrl));
+    push({ key: keyFor(base), url: selfUrl });
   }
   for (const href of hrefs) {
     const link = href ? toLink(href, base, keyFor, opts.match) : null;
-    if (!link || seen.has(link.url)) continue;
-    seen.add(link.url);
-    out.push(link);
+    if (!link) continue;
+    const id = dedupIdentity(link.url);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    push(link);
   }
   return out;
 }

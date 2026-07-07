@@ -9,7 +9,14 @@ import {
   type LiveRegionCandidate,
 } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
-import { coverageGaps, COVERAGE_LEDGER, type CoverageLedger, type DeterminismBasis } from './coverage.js';
+import {
+  coverageGaps,
+  coverageKeys,
+  translateExpected,
+  COVERAGE_LEDGER,
+  type CoverageLedger,
+  type DeterminismBasis,
+} from './coverage.js';
 import { writeBrowserBuildSidecar } from './map-store.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
@@ -295,8 +302,15 @@ const DEFAULT_POPUP_OVERLAYS = [
 ].join(', ');
 
 type ResolvedPopupCaptureOptions = Required<PopupCaptureOptions>;
-type PopupCandidate = { index: number };
-type PopupDomSnapshot = { keys: string[]; indexes: number[] };
+/** A trigger enumerated once per surface: `index` names the capture (`popup-XX`),
+ *  `path` + `label` are the stable identity every reopen re-binds to (never the
+ *  index — the trigger set can shift between opens and re-bind a different element).
+ *  `path` alone is positional (`:nth-of-type`) for an id-less trigger, so a same-tag
+ *  same-parent sibling injected earlier in DOM order would slide `path` onto the
+ *  wrong element; `label` (the trigger's accessible name) pins identity so that
+ *  mismatch resolves to a loud skip, not a silent mis-key. */
+type PopupCandidate = { index: number; path: string; label: string };
+type PopupDomSnapshot = { keys: string[]; candidates: PopupCandidate[]; found: boolean };
 
 export function resolvePopupCaptureOptions(
   input: boolean | PopupCaptureOptions | undefined,
@@ -327,9 +341,16 @@ async function popupDomSnapshot(
     triggerSelector?: string;
     attr?: string;
     max?: number;
+    /** Re-bind mode: instead of enumerating, mark ONLY the trigger whose DOM path
+     *  equals this (attr value `target`) AND whose label equals `relocateLabel`.
+     *  `found: false` means no element matches both — it no longer exists, or a
+     *  same-tag sibling slid the (positional) path onto a different trigger — the
+     *  caller must skip loudly, never fall back to positional matching. */
+    relocatePath?: string;
+    relocateLabel?: string;
   },
 ): Promise<PopupDomSnapshot> {
-  return page.evaluate(({ popupSelector, triggerSelector, attr, max = 0 }) => {
+  return page.evaluate(({ popupSelector, triggerSelector, attr, max = 0, relocatePath, relocateLabel }) => {
     const qsa = (sel: string): Element[] => {
       try {
         return [...document.querySelectorAll(sel)];
@@ -357,6 +378,14 @@ async function popupDomSnapshot(
       }
       return parts.join(' > ');
     };
+    // The trigger's accessible name — mirrors crawl-surfaces' labelFor (aria-label
+    // || name || textContent || title). `path` is positional for an id-less trigger;
+    // this pins identity so a shifted same-tag sibling can't silently steal the bind.
+    const labelOf = (el: Element): string =>
+      (el.getAttribute('aria-label') || el.getAttribute('name') || el.textContent || el.getAttribute('title') || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80) || el.tagName.toLowerCase();
     const popupKey = (el: Element): string => {
       const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
       return [
@@ -373,7 +402,15 @@ async function popupDomSnapshot(
     };
     const popups = qsa(popupSelector).filter(visible);
     const keys = popups.map(popupKey);
-    if (!triggerSelector || !attr) return { keys, indexes: [] };
+    if (!triggerSelector || !attr) return { keys, candidates: [], found: false };
+
+    for (const el of qsa(`[${attr}]`)) el.removeAttribute(attr);
+
+    if (relocatePath) {
+      const target = qsa(triggerSelector).find((el) => pathOf(el) === relocatePath && labelOf(el) === relocateLabel);
+      if (target) target.setAttribute(attr, 'target');
+      return { keys, candidates: [], found: Boolean(target) };
+    }
 
     const safeTrigger = (el: Element): boolean => {
       const tag = el.tagName.toLowerCase();
@@ -383,12 +420,15 @@ async function popupDomSnapshot(
       return true;
     };
 
-    for (const el of qsa(`[${attr}]`)) el.removeAttribute(attr);
-    const candidates = qsa(triggerSelector).filter(
-      (el) => visible(el) && !popups.some((popup) => popup !== el && popup.contains(el)) && safeTrigger(el),
-    );
-    candidates.slice(0, max).forEach((el, index) => el.setAttribute(attr, String(index)));
-    return { keys, indexes: candidates.slice(0, max).map((_, index) => index) };
+    const candidates = qsa(triggerSelector)
+      .filter((el) => visible(el) && !popups.some((popup) => popup !== el && popup.contains(el)) && safeTrigger(el))
+      .slice(0, max);
+    candidates.forEach((el, index) => el.setAttribute(attr, String(index)));
+    return {
+      keys,
+      candidates: candidates.map((el, index) => ({ index, path: pathOf(el), label: labelOf(el) })),
+      found: false,
+    };
   }, options);
 }
 
@@ -396,14 +436,16 @@ async function visiblePopupKeys(page: Page, selector: string): Promise<string[]>
   return (await popupDomSnapshot(page, { popupSelector: selector })).keys;
 }
 
-async function markPopupCandidates(page: Page, options: ResolvedPopupCaptureOptions): Promise<PopupCandidate[]> {
-  const snapshot = await popupDomSnapshot(page, {
+/** Enumerate + mark the surface's popup triggers ONCE, and record the pristine
+ *  overlay keys in the same DOM snapshot — the reset baseline every reopen is
+ *  verified against. */
+async function markPopupCandidates(page: Page, options: ResolvedPopupCaptureOptions): Promise<PopupDomSnapshot> {
+  return popupDomSnapshot(page, {
     triggerSelector: options.triggers,
     popupSelector: options.overlays,
     attr: POPUP_TRIGGER_ATTR,
     max: options.max,
   });
-  return snapshot.indexes.map((index) => ({ index }));
 }
 
 type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates'> & { metadata?: CaptureMetadata };
@@ -442,6 +484,43 @@ export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
   if (!liveStates.length) return [baseSurface, ...expandedVariants];
 
   return [...expandedVariants, ...liveStates.map((state) => expandOne(surface, state, 'live-state'))];
+}
+
+/** The identity fields of an expanded surface a collision check needs. */
+type ExpandedKeyed = { key: string; metadata?: CaptureMetadata };
+
+/** Human-readable origin of an expanded surface for a collision message. */
+function expandedOrigin(s: ExpandedKeyed): string {
+  const surfaceKey = s.metadata?.surfaceKey ?? s.key;
+  const variantKey = s.metadata?.variantKey;
+  return variantKey ? `surface '${surfaceKey}' variant '${variantKey}'` : `surface '${surfaceKey}'`;
+}
+
+/**
+ * Fail LOUDLY on two expanded surfaces sharing a capture key.
+ *
+ * The expanded key is `surface.key-variant.key`, and that key is the map filename
+ * (`<key>@<width>.json.gz`) and the report identity — so it's public and can't
+ * change without breaking backward compatibility. But the `-` join is ambiguous:
+ * surface `a` + variant `b-c` and surface `a-b` + variant `c` both expand to
+ * `a-b-c`, and the second capture would silently overwrite the first, dropping a
+ * surface with no error. Rather than mangle the public key format, we assert
+ * uniqueness up front and name BOTH origins so the author can rename one.
+ */
+export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
+  const byKey = new Map<string, ExpandedKeyed>();
+  for (const s of surfaces) {
+    const prior = byKey.get(s.key);
+    if (prior) {
+      throw new Error(
+        `styleproof: capture key '${s.key}' is produced by two surfaces — ` +
+          `${expandedOrigin(prior)} collides with ${expandedOrigin(s)}. ` +
+          `Keys must expand uniquely (they name the map files and report entries); ` +
+          `rename one surface or variant.`,
+      );
+    }
+    byKey.set(s.key, s);
+  }
 }
 
 /**
@@ -522,6 +601,32 @@ async function assertDeterministic(
   }
 }
 
+type PopupOpenResult =
+  | { status: 'opened'; key: string }
+  /** Trigger clicked but no new overlay appeared — the normal case for most
+   *  enumerated buttons, silently ignored. */
+  | { status: 'none' }
+  /** The originally-enumerated trigger is no longer identifiable after the reset —
+   *  gone from the DOM, or its recorded (path, label) identity no longer matches
+   *  any trigger (a shifted same-tag sibling slid the positional path elsewhere). */
+  | { status: 'missing' }
+  /** The reset didn't reset: overlay(s) absent from the surface's pristine state
+   *  are still visible (Escape closes dialogs, not toasts/status regions), so any
+   *  capture from here would include the previous popup's residue. */
+  | { status: 'leaked'; leaked: string[] };
+
+/**
+ * Reset the surface (Escape + `go()`), then open ONE candidate's popup.
+ *
+ * Two guarantees the naive open loop lacked:
+ * - the reset is VERIFIED against the pristine overlay keys, not assumed —
+ *   Escape is not a universal close, and a non-navigating `go()` clears nothing;
+ * - the trigger is re-bound by the (path, label) identity recorded at first
+ *   enumeration, never by its position in a fresh enumeration (the trigger set can
+ *   shift between opens and silently key the popup under a different trigger; the
+ *   label pins identity where the path alone is still positional for id-less triggers).
+ * Either check failing is reported for the caller to skip loudly.
+ */
 async function openPopupCandidate(
   page: Page,
   surface: ExpandedSurface,
@@ -529,16 +634,25 @@ async function openPopupCandidate(
   height: number,
   options: ResolvedPopupCaptureOptions,
   candidate: PopupCandidate,
-): Promise<string | undefined> {
+  pristine: ReadonlySet<string>,
+): Promise<PopupOpenResult> {
   await page.setViewportSize({ width, height });
   await page.keyboard.press('Escape').catch(() => {});
   await surface.go(page);
-  const before = new Set(await visiblePopupKeys(page, options.overlays));
-  const candidates = await markPopupCandidates(page, options);
-  if (!candidates.some((c) => c.index === candidate.index)) return undefined;
+  const snapshot = await popupDomSnapshot(page, {
+    popupSelector: options.overlays,
+    triggerSelector: options.triggers,
+    attr: POPUP_TRIGGER_ATTR,
+    relocatePath: candidate.path,
+    relocateLabel: candidate.label,
+  });
+  const leaked = snapshot.keys.filter((key) => !pristine.has(key));
+  if (leaked.length) return { status: 'leaked', leaked };
+  if (!snapshot.found) return { status: 'missing' };
 
+  const before = new Set(snapshot.keys);
   await page
-    .locator(`[${POPUP_TRIGGER_ATTR}="${candidate.index}"]`)
+    .locator(`[${POPUP_TRIGGER_ATTR}="target"]`)
     .first()
     .click({ timeout: Math.max(500, options.timeoutMs), noWaitAfter: true })
     .catch(() => undefined);
@@ -546,10 +660,21 @@ async function openPopupCandidate(
   const deadline = Date.now() + options.timeoutMs;
   do {
     const opened = (await visiblePopupKeys(page, options.overlays)).find((key) => !before.has(key));
-    if (opened) return opened;
+    if (opened) return { status: 'opened', key: opened };
     await page.waitForTimeout(50);
   } while (Date.now() < deadline);
-  return undefined;
+  return { status: 'none' };
+}
+
+/** A popup candidate skipped instead of captured wrong must be NAMED — a silent
+ *  skip reads as "nothing to capture" when the truth is "couldn't capture safely". */
+function warnPopupSkipped(surface: ExpandedSurface, popupId: string, width: number, reason: string): void {
+  // eslint-disable-next-line no-console
+  console.warn(`styleproof: skipped ${surface.key}-${popupId}@${width} — ${reason}`);
+}
+
+function leakedOverlaysDesc(leaked: string[]): string {
+  return `overlay(s) the reset (Escape + go()) could not clear: ${leaked.join('; ')}`;
 }
 
 function popupMetadata(surface: ExpandedSurface, popupId: string): CaptureMetadata {
@@ -576,6 +701,10 @@ async function captureOpenedPopupMap(
   });
 }
 
+/** Reopen the popup and throw on drift/no-reopen. Returns the leaked overlay keys
+ *  instead when the popup itself defeats the reset (e.g. it IS a toast Escape can't
+ *  dismiss) — the reopen can't run, so the caller discards the capture loudly
+ *  rather than saving a map whose determinism was never proven. */
 async function assertPopupDeterministic(
   page: Page,
   surface: ExpandedSurface,
@@ -587,14 +716,22 @@ async function assertPopupDeterministic(
   first: Awaited<ReturnType<typeof captureStyleMap>>,
   s: Settings,
   pending: () => number,
-): Promise<void> {
-  const againKey = await openPopupCandidate(page, surface, width, height, options, candidate);
-  if (!againKey) throw new Error(`styleproof self-check failed: ${surface.key}-${popupId} popup did not reopen`);
+  pristine: ReadonlySet<string>,
+): Promise<string[] | undefined> {
+  const reopened = await openPopupCandidate(page, surface, width, height, options, candidate, pristine);
+  if (reopened.status === 'leaked') return reopened.leaked;
+  if (reopened.status !== 'opened') {
+    throw new Error(
+      `styleproof self-check failed: ${surface.key}-${popupId} popup did not reopen` +
+        (reopened.status === 'missing' ? ' (its trigger disappeared from the DOM or changed identity)' : ''),
+    );
+  }
   const again = await captureOpenedPopupMap(page, surface, s, pending, popupId);
   const drift = diffStyleMaps(first, again);
   if (drift.length) {
     throw new Error(selfCheckErrorMessage(`${surface.key}-${popupId}`, drift, first.volatile, first.liveCandidates));
   }
+  return undefined;
 }
 
 async function capturePopupCandidate(
@@ -605,16 +742,38 @@ async function capturePopupCandidate(
   s: Settings,
   options: ResolvedPopupCaptureOptions,
   candidate: PopupCandidate,
+  pristine: ReadonlySet<string>,
 ): Promise<void> {
   const requests = trackInflightRequests(page);
+  const popupId = `popup-${String(candidate.index + 1).padStart(2, '0')}`;
   try {
-    const popupKey = await openPopupCandidate(page, surface, width, height, options, candidate);
-    if (!popupKey) return;
+    const opened = await openPopupCandidate(page, surface, width, height, options, candidate, pristine);
+    if (opened.status === 'none') return;
+    if (opened.status === 'leaked') {
+      warnPopupSkipped(
+        surface,
+        popupId,
+        width,
+        `${leakedOverlaysDesc(opened.leaked)} — capturing now would include the previous ` +
+          `popup's residue. Dismiss it in the surface's go(), or capture it as an explicit variant.`,
+      );
+      return;
+    }
+    if (opened.status === 'missing') {
+      warnPopupSkipped(
+        surface,
+        popupId,
+        width,
+        `its originally-enumerated trigger is no longer identifiable after the reset (Escape + go()) — ` +
+          `gone from the DOM, or a shifted same-tag sibling no longer matches its recorded label; ` +
+          `skipping rather than re-binding to a different trigger.`,
+      );
+      return;
+    }
 
-    const popupId = `popup-${String(candidate.index + 1).padStart(2, '0')}`;
     const map = await captureOpenedPopupMap(page, surface, s, requests.pending, popupId);
-    if (s.selfCheck)
-      await assertPopupDeterministic(
+    if (s.selfCheck) {
+      const leaked = await assertPopupDeterministic(
         page,
         surface,
         width,
@@ -625,7 +784,19 @@ async function capturePopupCandidate(
         map,
         s,
         requests.pending,
+        pristine,
       );
+      if (leaked) {
+        warnPopupSkipped(
+          surface,
+          popupId,
+          width,
+          `reopening for the self-check found ${leakedOverlaysDesc(leaked)} — the popup itself ` +
+            `defeats the reset, so its determinism can't be verified and the capture is discarded.`,
+        );
+        return;
+      }
+    }
 
     const stem = path.join(s.baseDir, s.dir, `${surface.key}-${popupId}@${width}`);
     saveStyleMap(`${stem}.json.gz`, map);
@@ -646,9 +817,12 @@ async function capturePopupSurfaces(
   if (!options.enabled || options.max === 0) return;
 
   await surface.go(page);
-  const candidates = await markPopupCandidates(page, options);
+  const { keys, candidates } = await markPopupCandidates(page, options);
+  // Overlays legitimately visible in the surface's settled state (e.g. a permanent
+  // status region) — every reopen is verified back to this baseline before capture.
+  const pristine: ReadonlySet<string> = new Set(keys);
   for (const candidate of candidates) {
-    await capturePopupCandidate(page, surface, width, height, s, options, candidate);
+    await capturePopupCandidate(page, surface, width, height, s, options, candidate, pristine);
   }
 }
 
@@ -777,6 +951,7 @@ function writeCoverageLedgerTest(
   dir: string,
   expected: string[] | null,
   exclude: Record<string, string>,
+  captureSurfaces: ReadonlyArray<{ key: string; metadata?: CaptureMetadata }>,
 ): void {
   test('styleproof coverage ledger', () => {
     const outDir = path.join(settings.baseDir, dir);
@@ -788,7 +963,11 @@ function writeCoverageLedgerTest(
       : settings.replayFrom
         ? 'replayed'
         : 'unproven';
-    const ledger: CoverageLedger = { version: 1, expected, exclude, determinism };
+    // Pre-translate the declared universe into the keys actually captured to disk, so
+    // the GATE (which reads expanded map filenames and can't see `surfaceKey` metadata)
+    // compares literally — a liveStates surface's `-loading`/`-loaded` splits satisfy it.
+    const ledgerExpected = expected == null ? null : translateExpected(expected, captureSurfaces);
+    const ledger: CoverageLedger = { version: 1, expected: ledgerExpected, exclude, determinism };
     fs.writeFileSync(path.join(outDir, COVERAGE_LEDGER), JSON.stringify(ledger, null, 2));
   });
 }
@@ -809,6 +988,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
   const { surfaces, expected, exclude = {}, dir } = options;
   const settings = resolveSettings(options);
   const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
+  assertUniqueExpandedKeys(captureSurfaces);
 
   // Coverage guard. Runs in the NORMAL test suite (NOT gated on a capture dir), so
   // a route added without a surface fails the app's own tests — long before, and
@@ -819,7 +999,9 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     test.describe('styleproof coverage', () => {
       test('every expected surface is captured or explicitly excluded', () => {
         const { uncovered, staleExclusions } = coverageGaps(
-          captureSurfaces.map((s) => s.key),
+          // A liveStates surface is captured only as its `-loading`/`-loaded` splits;
+          // map each back to the declared base key so the split satisfies `expected`.
+          coverageKeys(captureSurfaces),
           expected,
           exclude,
         );
@@ -840,7 +1022,7 @@ export function defineStyleMapCapture(options: DefineOptions): void {
 
   test.describe('styleproof capture', () => {
     test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
-    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude);
+    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
     if (dir) writeBrowserBuildTest(settings, dir);
     for (const surface of captureSurfaces) {
       if (surface.widths && surface.widths.length > 0) {
@@ -1029,7 +1211,14 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     // captures what the nav links to, and can't prove that's every route). With
     // `expected` the crawl reconciles the DISCOVERED link set against it below and the
     // ledger travels with the declared universe.
-    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude);
+    // The crawl applies the SAME variants/liveStates to every discovered link, so the
+    // expansion of a declared key is knowable up front (before discovery): expand each
+    // `expected` key with this crawl's variants/liveStates to get the keys captured to
+    // disk, so a liveStates crawl's ledger is pre-translated like the spec-driven one.
+    const ledgerSurfaces = (expected ?? []).flatMap((key) =>
+      expandSurfaceVariants({ key, go: async () => {}, variants, liveStates }),
+    );
+    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, ledgerSurfaces);
     if (dir) writeBrowserBuildTest(settings, dir);
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
       // 1. Load the root and read its hydrated nav links into the surface set.
@@ -1063,6 +1252,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           popups,
         }),
       );
+      assertUniqueExpandedKeys(captureSurfaces);
       // Budget the whole sweep up front: one test captures every surface, and
       // captureSurface no longer sets its own timeout, so size it to the work found.
       // With auto-width the band count isn't known until each surface renders, so
