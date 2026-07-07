@@ -58,6 +58,7 @@ const MANIFEST = {
   screenshots: true,
   har: false,
   compatibilityKey: 'dogfood-fixture',
+  createdAt: '2026-01-01T00:00:00.000Z',
 };
 
 function writeCapture(dir, surface, styleMap, image) {

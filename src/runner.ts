@@ -20,7 +20,7 @@ import {
   type CoverageLedger,
   type DeterminismBasis,
 } from './coverage.js';
-import { writeBrowserBuildSidecar } from './map-store.js';
+import { writeBrowserBuildSidecar, writeCaptureManifest } from './map-store.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
@@ -1023,15 +1023,27 @@ function writeCoverageLedgerTest(
   });
 }
 
-/** Record the real browser build into the capture bundle. The npm `@playwright/test`
- *  version (in the manifest) is only a proxy — the actual Chromium binary can change while
- *  it holds constant (a re-download, a different browser store, a CI image bump). The
- *  compatibility guard reads this back to refuse a cross-build compare instead of walling
- *  a PR with false diffs. Best-effort: an unavailable version leaves the guard as-is. */
+/** Record the real browser build into the capture bundle, then stamp the manifest. The
+ *  npm `@playwright/test` version (in the manifest) is only a proxy — the actual Chromium
+ *  binary can change while it holds constant (a re-download, a different browser store, a
+ *  CI image bump). The compatibility guard reads this back to refuse a cross-build compare
+ *  instead of walling a PR with false diffs. Best-effort: an unavailable version leaves
+ *  the guard as-is.
+ *
+ *  The manifest is stamped HERE, at the runner level, so every capture flow produces a
+ *  manifest-bearing dir — including a raw `STYLEMAP_DIR=x npx playwright test` run (the
+ *  fork capture workflow's shape), which never goes through the styleproof-map CLI. Since
+ *  v4 the diff refuses a map-bearing dir without one. It's written in the same test as
+ *  the sidecar (not a sibling test) because the manifest reads the sidecar back for
+ *  `browserVersion`, and fullyParallel gives sibling tests no ordering. styleproof-map
+ *  re-stamps a richer manifest (real spec hash, git identity) after the run; the runtime
+ *  fields the compare guard reads are the same either way. */
 function writeBrowserBuildTest(settings: Settings, dir: string): void {
   test('styleproof browser build', ({ page }) => {
     const version = page.context().browser()?.version();
-    writeBrowserBuildSidecar(path.join(settings.baseDir, dir), version);
+    const outDir = path.join(settings.baseDir, dir);
+    writeBrowserBuildSidecar(outDir, version);
+    writeCaptureManifest({ dir: outDir, screenshots: settings.screenshots });
   });
 }
 

@@ -205,6 +205,7 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     screenshots: false,
     har: false,
     compatibilityKey: 'e2e-fixture',
+    createdAt: '2026-01-01T00:00:00.000Z',
   });
   function dirs(): { root: string; base: string; head: string } {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-flow-'));
