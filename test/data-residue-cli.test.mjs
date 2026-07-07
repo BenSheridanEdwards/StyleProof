@@ -103,6 +103,21 @@ test('warn opt-out (gate not armed): a failing endpoint is SURFACED but does NOT
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('a pre-v4 bundle (ledger with NO dataResidue field) reads as warn — never gated retroactively', () => {
+  // The gate-by-default flip must not reach back into bundles captured before the
+  // field existed: absence is the legacy shape, and it must arm nothing.
+  const { root, a, b } = fixture({ residue: [failing('dashboard', '/api/probe')], gate: false });
+  fs.writeFileSync(
+    path.join(b, COVERAGE_LEDGER),
+    JSON.stringify({ version: 1, expected: null, exclude: {}, determinism: 'self-checked' }),
+  );
+  const { code, out } = runDiff(a, b, root);
+  assert.equal(code, 0, `a legacy field-less bundle must not gate retroactively, got ${code}\n${out}`);
+  assert.match(out, /dashboard · \/api\/probe/, out);
+  assert.doesNotMatch(out, /unacknowledged/, out);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('a clean healthy run (no residue, not armed) prints nothing about residue and exits 0', () => {
   const { root, a, b } = fixture({ residue: null, gate: false });
   const { code, out } = runDiff(a, b, root);
