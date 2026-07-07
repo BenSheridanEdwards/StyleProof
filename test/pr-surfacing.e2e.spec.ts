@@ -190,12 +190,30 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     const r = spawnSync('node', [bin, ...args], { cwd, encoding: 'utf8' });
     return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
   }
+  // Since v4 the CLIs refuse a map-bearing dir without styleproof-manifest.json,
+  // so these synthetic fixtures stamp an identical minimal manifest on both sides.
+  const MANIFEST = JSON.stringify({
+    version: 1,
+    packageVersion: '0.0.0-e2e',
+    sha: 'e2e-fixture',
+    dirty: false,
+    spec: 'test/pr-surfacing.e2e.spec.ts',
+    specHash: 'e2e',
+    platform: 'e2e',
+    arch: 'e2e',
+    nodeMajor: 'e2e',
+    screenshots: false,
+    har: false,
+    compatibilityKey: 'e2e-fixture',
+  });
   function dirs(): { root: string; base: string; head: string } {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-flow-'));
     const base = path.join(root, 'base');
     const head = path.join(root, 'head');
     fs.mkdirSync(base);
     fs.mkdirSync(head);
+    fs.writeFileSync(path.join(base, 'styleproof-manifest.json'), MANIFEST);
+    fs.writeFileSync(path.join(head, 'styleproof-manifest.json'), MANIFEST);
     return { root, base, head };
   }
   const writeMap = (dir: string, map: StyleMap) => fs.writeFileSync(path.join(dir, 'home.json'), JSON.stringify(map));
