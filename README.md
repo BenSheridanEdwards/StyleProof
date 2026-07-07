@@ -523,42 +523,33 @@ Requires **Node ≥ 18** (ESM), **`@playwright/test` ≥ 1.40** (peer dep). Forc
 
 ## Quickstart
 
-After installing (above), one command sets up the whole gate:
+Two commands and you have a working gate — **no surface list to write, no config to fill in.** After installing (above):
+
+### 1. Scaffold the gate
 
 ```bash
 npx styleproof-init
 ```
 
-It scaffolds:
+`styleproof-init` detects your app and wires **surface discovery** for you — there is nothing to hand-list:
 
-- a **capture spec** (`e2e/styleproof.spec.ts`) describing your surfaces (a Next.js app gets its routes _and_ the coverage guard wired automatically — see below);
+- **Next.js** — it discovers your routes (`app/` + `pages/`) at run time and derives _both_ the captured surfaces and the coverage guard from them, so a route you add later is captured automatically, never a guard failure.
+- **Any other app** — it scaffolds a **nav crawl**: StyleProof loads `/`, reads the rendered `<a href>` links, and captures every same-origin surface they point to. The surface set _is_ the nav, so it can't drift from it.
+
+Either way the generated spec runs as-is. It also wires everything around it so the gate behaves the same locally and in CI:
+
 - a dedicated **`playwright.styleproof.config.ts`** that builds and serves a **production build** (never a flaky dev server), scopes discovery to the StyleProof spec, and captures surfaces **in parallel** (`fullyParallel`) without disturbing your app's existing Playwright config;
+- widths you never set — **omit `widths`** and StyleProof sweeps your app's real `@media` breakpoints automatically;
+- determinism you never set up — network settle, frozen clock, animation freeze, and framework-noise filtering are all on by default (see [At a glance](#forks-and-dependabot));
 - `.gitignore` entries for `.styleproof/`, `test-results/`, and `playwright-report/`;
-- a **cache-first CI workflow** that restores reusable maps from the `styleproof-maps` branch and generates the report without a browser when both maps are already built.
+- a **cache-first CI workflow** that restores reusable maps from the `styleproof-maps` branch and generates the report without a browser when both maps are already built;
+- the **approval workflow** (`styleproof-approve.yml`) that turns the `StyleProof` status green when a reviewer ticks **Approve all changes** — so the review gate is complete, not half-wired (it activates once the init PR merges, since GitHub runs `issue_comment` workflows only from your default branch).
 
-Describe your surfaces — **omit `widths`** and StyleProof sweeps your real `@media` breakpoints automatically:
-
-```ts
-import { defineStyleMapCapture } from 'styleproof';
-
-defineStyleMapCapture({
-  surfaces: [
-    {
-      key: 'landing',
-      go: (page) => page.goto('/'), // StyleProof settles the page (in-flight data, fonts, animations) before it reads
-      // no `widths` → auto-detected from your @media bands; set `widths: [1280, 768, 390]` to pin them
-    },
-  ],
-  dir: process.env.STYLEMAP_DIR,
-});
-```
-
-The manual loop is deliberately three commands:
+### 2. Capture, then diff
 
 ```bash
-npx styleproof-init
-npx styleproof-map
-npx styleproof-diff
+npx styleproof-map    # capture this commit's computed styles
+npx styleproof-diff   # compare against the base branch
 ```
 
 `styleproof-map` captures the current commit into `.styleproof/maps/current`,
@@ -590,9 +581,24 @@ the same cached-map defaults as `styleproof-diff`. Pin the base with
 `styleproof-report main` or keep the manual form with `styleproof-report before
 after --out report`.
 
+### When you do add a surface by hand
+
+Discovery captures every route your app links to. It deliberately **won't guess**
+app-specific states — a modal's open state, an auth-gated view, a destructive
+flow, a loading/error render — because guessing one wrong is worse than flagging
+it missing. Those are the only things you list by hand, and you add them to the
+spec `styleproof-init` already generated: as a `variant`
+([dialogs](#auto-discovery)), a `liveState`
+([loading/error](#auto-discovery)), or a plain `surface`. `expected` then makes
+any state you _declared but didn't capture_ fail the gate loudly instead of
+passing green — see [What you own](#what-you-own).
+
 **Want the side-by-side report + one-click approval**? `styleproof-init` scaffolds
-this for you. If you wire it by hand, restore or capture two dirs first, then use
-the Action on those dirs:
+**both** for you — the report workflow _and_ the `styleproof-approve.yml` handler
+that flips the `StyleProof` status when a reviewer ticks the box. GitHub only runs
+`issue_comment` workflows from the default branch, so the checkbox goes live the
+moment you merge the init PR — no manual copy. If you wire it by hand instead,
+restore or capture two dirs first, then use the Action on those dirs:
 
 ```yaml
 # .github/workflows/styleproof.yml
@@ -606,7 +612,7 @@ the Action on those dirs:
     require-approval: true # review-gate mode (omit / use fail-on-diff: true to certify)
 ```
 
-Then copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged).
+Only for this hand-wired path: copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged). `styleproof-init` writes this file for you, so you can skip this step if you used it.
 
 **Prefer to always capture in CI?** For a repo with many outside contributors on different machines, StyleProof can capture **both** base and head in CI and diff them there. See **[Forks and Dependabot](#forks-and-dependabot)** for that flow (it's also the fork-safe split). The default cache-first flow is faster for same-repo teams because local `styleproof-map` can build the head map before CI starts.
 

@@ -19,13 +19,19 @@
  *     never disturbed or accidentally reused.
  *   - .github/workflows/styleproof.yml: restores reusable maps from the
  *     styleproof-maps branch and only captures in CI when the maps are missing.
+ *   - .github/workflows/styleproof-approve.yml: the issue_comment handler that
+ *     flips the StyleProof status when a reviewer ticks "Approve all changes".
+ *     The report workflow runs with `require-approval: true`, so without this the
+ *     approval checkbox is inert. GitHub only runs issue_comment workflows from the
+ *     default branch, so it takes effect once the init PR merges.
  *
  * Idempotent: re-running never overwrites an existing spec (use --force) and
- * never touches an existing app playwright.config.ts. Exit 0 = done (or nothing
- * to do), 2 = usage error.
+ * never touches an existing app playwright.config.ts or an existing workflow.
+ * Exit 0 = done (or nothing to do), 2 = usage error.
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 // Import from the leaf module, not the barrel: styleproof-init only scaffolds
 // files and never captures. Pulling `../dist/index.js` here dragged the whole
 // library — capture, crawler, report, and six Playwright-importing modules —
@@ -53,6 +59,8 @@ What it writes:
     the two diverge. Otherwise it writes one sample surface + a commented guard block.
   - playwright.styleproof.config.ts, a dedicated production-build Playwright config
   - .github/workflows/styleproof.yml, a cache-first PR report workflow
+  - .github/workflows/styleproof-approve.yml, the "Approve all changes" gate
+    (active once merged to your default branch)
 
 After running, build and upload this commit's map outside CI when possible:
   npx styleproof-map
@@ -549,6 +557,38 @@ if (ci.wrote) {
   console.log(`${CI_PATH} already exists — left untouched`);
 }
 
+// Approval gate — the issue_comment handler that flips the StyleProof status when a
+// reviewer ticks "Approve all changes". The report workflow above runs with
+// `require-approval: true`, so this is what makes the checkbox live; without it the
+// gate can never go green. It's a static workflow (no package-manager wiring), so we
+// copy the packaged example verbatim rather than regenerate it. GitHub only runs
+// issue_comment workflows from the DEFAULT branch, so it activates when the init PR
+// merges — writing it to the feature branch now is correct and harmless.
+const APPROVE_PATH = '.github/workflows/styleproof-approve.yml';
+const approveSource = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'example',
+  'styleproof-approve.yml',
+);
+let approveWorkflow;
+try {
+  approveWorkflow = fs.readFileSync(approveSource, 'utf8');
+} catch {
+  // Packaged example missing (unexpected) — don't abort the rest of init.
+  console.warn(`could not read the approval workflow template at ${approveSource} — skipped`);
+}
+if (approveWorkflow !== undefined) {
+  const approve = writeFileSafe(APPROVE_PATH, approveWorkflow);
+  if (approve.wrote) {
+    touched.push(APPROVE_PATH);
+    console.log(`created ${APPROVE_PATH} (approval gate — active once merged to your default branch)`);
+    wroteSomething = true;
+  } else {
+    console.log(`${APPROVE_PATH} already exists — left untouched`);
+  }
+}
+
 if (touched.length) {
   // State exactly what init wrote, and — because adopters have blamed init for the
   // `styleproof` entry their package manager's `install` added — say plainly that it
@@ -565,6 +605,8 @@ console.log('       npx styleproof-map');
 console.log('     It captures a production-build map into .styleproof/ and uploads the bundle to');
 console.log('     the styleproof-maps branch when the git remote is available; CI then restores');
 console.log('     it and generates the report without a browser.');
+console.log('  3. Merge this PR. The approval workflow only runs from your default branch, so');
+console.log('     the "Approve all changes" checkbox goes live once styleproof-approve.yml is there.');
 
 if (!wroteSomething) console.log('\nnothing to write — project already scaffolded.');
 process.exit(0);

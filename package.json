@@ -46,6 +46,7 @@
   "files": [
     "dist",
     "bin",
+    "example/styleproof-approve.yml",
     "docs/demo-composite.png",
     "README.md",
     "CHANGELOG.md",

@@ -9,6 +9,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`styleproof-init` now installs the approval workflow.** The generated report
+  workflow runs with `require-approval: true`, but the `issue_comment` handler
+  that flips the `StyleProof` status when a reviewer ticks **Approve all changes**
+  previously had to be copied from `example/` by hand — leaving the review gate
+  inert until someone did. `styleproof-init` now scaffolds
+  `.github/workflows/styleproof-approve.yml` alongside the report workflow
+  (copied verbatim from the packaged example, never overwriting an existing file),
+  so the gate is complete out of the box. It activates once the init PR merges,
+  since GitHub runs `issue_comment` workflows only from the default branch.
 - **Enforced quality gates and an agent context layer** (repository tooling only;
   no change to the published package, CLI, or Action). A `commit-msg` commitlint
   hook and PR-title/body validation enforce Conventional Commits; gitleaks
