@@ -18,7 +18,7 @@ import {
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
   cleanupCachedCaptureDirs,
-  manifestlessNotice,
+  manifestlessError,
   manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';

@@ -261,6 +261,53 @@ export function writeMapManifest(options: {
   return manifest;
 }
 
+/**
+ * Write a `styleproof-manifest.json` for a one-shot `styleproof-capture` output dir,
+ * so a two-directory `styleproof-diff design <build>` has the same-environment guard
+ * on both sides (v4 refuses to compare a manifest-less side). Unlike
+ * {@link writeMapManifest}, this may run OUTSIDE a git repo (a design mockup, a static
+ * export), so the git-derived fields degrade gracefully: `sha` falls back to
+ * `'uncommitted'` and `dirty` to `true` rather than throwing. The parts the guard
+ * actually consumes — `compatibilityKey`, `platform`/`arch`/`nodeMajor`,
+ * `playwrightVersion`, `browserVersion`, `baseUrl` — are recorded the same way as a
+ * spec capture. Overwrites any existing manifest in `dir`.
+ */
+export function writeCaptureManifest(options: {
+  dir: string;
+  screenshots: boolean;
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+}): MapManifest {
+  const cwd = options.cwd ?? process.cwd();
+  // A one-shot capture has no spec file; key comparability off the capture inputs only.
+  const input = compatibilityInput({ cwd, spec: MAP_MANIFEST, baseUrl: options.env?.BASE_URL ?? process.env.BASE_URL });
+  const browserVersion = readBrowserBuildSidecar(options.dir);
+  const sha = gitOutput(cwd, ['rev-parse', 'HEAD']) || 'uncommitted';
+  const manifest: MapManifest = {
+    version: 1,
+    packageVersion: input.packageVersion,
+    sha,
+    dirty: sha === 'uncommitted' ? true : workingTreeDirty(cwd),
+    spec: input.spec,
+    specHash: input.specHash,
+    ...(input.lockfile ? { lockfile: input.lockfile } : {}),
+    ...(input.lockfileHash ? { lockfileHash: input.lockfileHash } : {}),
+    ...(input.playwrightVersion ? { playwrightVersion: input.playwrightVersion } : {}),
+    ...(browserVersion ? { browserVersion } : {}),
+    platform: input.platform,
+    arch: input.arch,
+    nodeMajor: input.nodeMajor,
+    ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
+    screenshots: options.screenshots,
+    har: hasHar(options.dir),
+    compatibilityKey: hash(JSON.stringify(input)).slice(0, 16),
+    createdAt: new Date().toISOString(),
+  };
+  fs.mkdirSync(options.dir, { recursive: true });
+  fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
+  return manifest;
+}
+
 export function readMapManifest(dir: string): MapManifest | null {
   try {
     return JSON.parse(fs.readFileSync(path.join(dir, MAP_MANIFEST), 'utf8')) as MapManifest;
@@ -281,16 +328,18 @@ export function manifestlessSide(beforeDir: string, afterDir: string): 'before' 
   return before ? 'after' : 'before';
 }
 
-/** One-time stderr notice text for a manifest-less compare. The guard
- *  (`assertCompatibleMapDirs`) no-ops when a manifest is absent, so this warns that
- *  cross-machine captures could diff as false changes. A notice, not a failure —
- *  the caller keeps its exit code. */
-export function manifestlessNotice(side: 'before' | 'after' | 'both'): string {
+/** Fail-loud message for a manifest-less compare. Since v4 a side without a
+ *  `styleproof-manifest.json` is unsupported: the same-environment guard can't be
+ *  enforced, so captures from different browser builds or platforms would diff as
+ *  false changes. The CLI raises this and exits 2 (usage/capture error) — the
+ *  legacy "compare anyway" tolerance is gone. */
+export function manifestlessError(side: 'before' | 'after' | 'both'): string {
   const carry = side === 'both' ? 'before and after carry' : `${side} carries`;
   return (
-    `styleproof: environment compatibility not verifiable — ${carry} no ${MAP_MANIFEST}; ` +
+    `styleproof: ${carry} no ${MAP_MANIFEST} — environment compatibility can't be verified, so ` +
     'captures from different browser builds or platforms would diff as false changes. ' +
-    'Capture via styleproof-map to record one.'
+    'Re-capture with current StyleProof (styleproof-map, or styleproof-capture for a one-shot ' +
+    'diff); maps without a manifest are unsupported since v4.'
   );
 }
 
