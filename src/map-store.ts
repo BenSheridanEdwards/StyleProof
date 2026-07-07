@@ -261,6 +261,31 @@ export function readMapManifest(dir: string): MapManifest | null {
   }
 }
 
+/** Which side(s) of a two-directory compare carry no `styleproof-manifest.json`.
+ *  `null` means both sides have one — the same-environment guard is enforceable.
+ *  Pure: reads presence only, no I/O beyond `readMapManifest`, so the CLI layer owns
+ *  the notice (stderr, exit code) and the library stays side-effect-free. */
+export function manifestlessSide(beforeDir: string, afterDir: string): 'before' | 'after' | 'both' | null {
+  const before = readMapManifest(beforeDir) != null;
+  const after = readMapManifest(afterDir) != null;
+  if (before && after) return null;
+  if (!before && !after) return 'both';
+  return before ? 'after' : 'before';
+}
+
+/** One-time stderr notice text for a manifest-less compare. The guard
+ *  (`assertCompatibleMapDirs`) no-ops when a manifest is absent, so this warns that
+ *  cross-machine captures could diff as false changes. A notice, not a failure —
+ *  the caller keeps its exit code. */
+export function manifestlessNotice(side: 'before' | 'after' | 'both'): string {
+  const carry = side === 'both' ? 'before and after carry' : `${side} carries`;
+  return (
+    `styleproof: environment compatibility not verifiable — ${carry} no ${MAP_MANIFEST}; ` +
+    'captures from different browser builds or platforms would diff as false changes. ' +
+    'Capture via styleproof-map to record one.'
+  );
+}
+
 export function assertCompatibleMapDirs(beforeDir: string, afterDir: string): void {
   const before = readMapManifest(beforeDir);
   const after = readMapManifest(afterDir);

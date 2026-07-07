@@ -5,6 +5,8 @@ import path from 'node:path';
 import {
   assertCompatibleMapDirs,
   BROWSER_BUILD_SIDECAR,
+  manifestlessNotice,
+  manifestlessSide,
   MAP_MANIFEST,
   readMapManifest,
   writeBrowserBuildSidecar,
@@ -85,6 +87,39 @@ test('assertCompatibleMapDirs: same browser build compares clean', () => {
     rmTmp(before);
     rmTmp(after);
   }
+});
+
+test('manifestlessSide: both manifests present → null (guard is enforceable)', () => {
+  const before = manifestDir();
+  const after = manifestDir();
+  try {
+    assert.equal(manifestlessSide(before, after), null);
+  } finally {
+    rmTmp(before);
+    rmTmp(after);
+  }
+});
+
+test('manifestlessSide: names before / after / both when a manifest is missing', () => {
+  const withManifest = manifestDir();
+  const bare = mkTmp('styleproof-bare-');
+  const bare2 = mkTmp('styleproof-bare-');
+  try {
+    assert.equal(manifestlessSide(bare, withManifest), 'before');
+    assert.equal(manifestlessSide(withManifest, bare), 'after');
+    assert.equal(manifestlessSide(bare, bare2), 'both');
+  } finally {
+    rmTmp(withManifest);
+    rmTmp(bare);
+    rmTmp(bare2);
+  }
+});
+
+test('manifestlessNotice: names the side and points at styleproof-map', () => {
+  assert.match(manifestlessNotice('before'), /before carries no styleproof-manifest\.json/);
+  assert.match(manifestlessNotice('after'), /after carries no styleproof-manifest\.json/);
+  assert.match(manifestlessNotice('both'), /before and after carry no styleproof-manifest\.json/);
+  assert.match(manifestlessNotice('both'), /Capture via styleproof-map/);
 });
 
 test('writeBrowserBuildSidecar(undefined) CLEARS a stale sidecar so a version-less run stamps no browserVersion', () => {

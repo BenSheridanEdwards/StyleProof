@@ -44,6 +44,8 @@ import {
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
   cleanupCachedCaptureDirs,
+  manifestlessNotice,
+  manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
 import {
@@ -270,6 +272,8 @@ let coverageVerdict = null;
 let determinismVerdict = null;
 let surfacePaths = new Map();
 try {
+  const manifestless = manifestlessSide(dirA, dirB);
+  if (manifestless) console.error(manifestlessNotice(manifestless));
   assertCompatibleMapDirs(dirA, dirB);
   result = diffStyleMapDirs(dirA, dirB);
   // Read inventory + the certification ledgers here, while the (possibly cached/restored)
