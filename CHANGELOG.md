@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-07-07
+
 ### Fixed
 
 - **Unset capture specs no longer inflate Playwright's skipped-test count.** When
