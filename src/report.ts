@@ -1129,13 +1129,29 @@ function determinismLine(det: DeterminismVerdict): string {
   return '- **Determinism** — ⚠ unknown (a capture predates the determinism ledger)';
 }
 
+// Truncated, escaped, comma-joined key list — the same discipline for removals and
+// additions, so neither can inject Markdown into the privileged PR-comment summary.
+function keyList(items: { key: string }[]): string {
+  const keys = items.map((i) => safeKey(i.key));
+  return `${keys.slice(0, 8).join(', ')}${keys.length > 8 ? ', …' : ''}`;
+}
+
+// Additions never gate, but the report must not contradict the diff (which prints
+// them) — so echo them as an informational, still-✓-class clause. Returns a leading
+// `; …` fragment to append after whatever the removal side decided, or '' when none.
+function additionsClause(added: { key: string }[]): string {
+  if (added.length === 0) return '';
+  return `; ${added.length} navigable affordance(s) added: ${keyList(added)} (additions don't gate)`;
+}
+
 function inventoryLine(inv: ReturnType<typeof auditRunInventory>): string {
-  if (inv.unexplained.length > 0) {
-    const keys = inv.unexplained.map((i) => safeKey(i.key));
-    return `- **Inventory** — ⚠ ${inv.unexplained.length} navigable affordance(s) removed, unacknowledged: ${keys.slice(0, 8).join(', ')}${keys.length > 8 ? ', …' : ''}`;
-  }
+  const added = additionsClause(inv.delta.added);
+  if (inv.unexplained.length > 0)
+    return `- **Inventory** — ⚠ ${inv.unexplained.length} navigable affordance(s) removed, unacknowledged: ${keyList(inv.unexplained)}${added}`;
   if (inv.delta.removed.length > 0)
-    return `- **Inventory** — ✓ ${inv.delta.removed.length} removal(s), all acknowledged`;
+    return `- **Inventory** — ✓ ${inv.delta.removed.length} removal(s), all acknowledged${added}`;
+  // Addition-only: drop the leading `; ` so the clause reads as the whole ✓ line.
+  if (added) return `- **Inventory** — ✓${added.slice(1)}`;
   return '- **Inventory** — ✓ navigable set unchanged';
 }
 

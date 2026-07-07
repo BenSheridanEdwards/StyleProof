@@ -76,6 +76,62 @@ test('the certification block surfaces every failing gate (coverage, determinism
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('an addition-only run names the added affordance and still reads as ✓ (additions do not gate)', () => {
+  // Regression for #192: styleproof-diff prints an inventory addition, so the report's
+  // certification block must not claim the navigable set is unchanged.
+  const { root, base, head, out } = bundle({
+    captured: ['home'],
+    baseNav: ['home'],
+    headNav: ['home', 'new-view'], // one nav item added
+    expected: null,
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(md, /Inventory.*✓ 1 navigable affordance\(s\) added: nav-button:new-view \(additions don't gate\)/);
+  assert.doesNotMatch(md, /navigable set unchanged/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('an unacknowledged removal plus an addition renders both — removal drives ⚠, addition appended', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['home'],
+    baseNav: ['home', 'billing'],
+    headNav: ['home', 'new-view'], // billing removed (gates), new-view added (does not)
+    expected: null,
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(
+    md,
+    /Inventory.*⚠ 1 navigable affordance\(s\) removed, unacknowledged: nav-button:billing; 1 navigable affordance\(s\) added: nav-button:new-view \(additions don't gate\)/,
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a hostile added key renders inertly — no Markdown injection into the certification line', () => {
+  // Added keys, like removed ones, flow into the privileged PR-comment summary; a key
+  // crafted to break out of its code/table context must render with control chars stripped.
+  const hostile = 'x](evil)<img src=x>|';
+  const { root, base, head, out } = bundle({
+    captured: ['home'],
+    baseNav: ['home'],
+    headNav: ['home', hostile],
+    expected: null,
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.doesNotMatch(md, /x\]\(evil\)/);
+  assert.doesNotMatch(md, /<img src=x>/);
+  assert.match(md, /nav-button:x--evil--img src=x-/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('an old bundle with no ledger and no inventory change adds no certification block', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-cert-old-'));
   const base = path.join(root, 'base');
