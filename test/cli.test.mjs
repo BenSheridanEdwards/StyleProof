@@ -832,13 +832,15 @@ test('init scaffolds auto breakpoints — no hardcoded widths, by design', () =>
   }
 });
 
-test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow, no git hook', () => {
+test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow + pre-push publish hook', () => {
   const dir = mkTmp();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
 
-    assert.equal(fs.existsSync(path.join(dir, '.githooks', 'pre-push')), false, 'init does not create a pre-push hook');
+    const hook = fs.readFileSync(path.join(dir, '.githooks', 'pre-push'), 'utf8');
+    assert.match(hook, /styleproof-map/, 'hook captures and publishes the pushed commit');
+    assert.doesNotMatch(hook, /git add/, 'maps never get committed to the PR branch');
     assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
@@ -852,7 +854,7 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.doesNotMatch(ci, /core\.hooksPath/);
 
     assert.match(r.stdout, /it runs on your first PR with no extra steps/, 'guidance leads with zero-config');
-    assert.match(r.stdout, /Optional, faster/, 'the local map pre-cache is framed as an optional speedup');
+    assert.match(r.stdout, /pre-push hook captures each pushed commit/, 'the publish hook is framed as the default');
   } finally {
     rmTmp(dir);
   }

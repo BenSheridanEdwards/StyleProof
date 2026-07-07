@@ -543,6 +543,7 @@ Either way the generated spec runs as-is. It also wires everything around it so 
 - determinism you never set up — network settle, frozen clock, animation freeze, and framework-noise filtering are all on by default (see [At a glance](#forks-and-dependabot));
 - `.gitignore` entries for `.styleproof/`, `test-results/`, and `playwright-report/`;
 - a **cache-first CI workflow** that restores reusable maps from the `styleproof-maps` branch and generates the report without a browser when both maps are already built;
+- a **pre-push hook** (`.husky/` if present, else `.githooks/`) that captures each pushed commit and publishes the bundle to the `styleproof-maps` branch — CI's hot path stays report-only, and maps never get committed to the PR branch;
 - the **approval workflow** (`styleproof-approve.yml`) that turns the `StyleProof` status green when a reviewer ticks **Approve all changes** — so the review gate is complete, not half-wired (it activates once the init PR merges, since GitHub runs `issue_comment` workflows only from your default branch).
 
 ### 2. Capture, then diff
@@ -566,13 +567,13 @@ automatically: in GitHub Actions it uses the PR base/head SHAs; locally it check
 (handy for stacked PRs), then `origin/main`, `origin/master`, `main`, and
 `master`. Pin the base with `styleproof-diff main` or `styleproof-diff master`.
 
-**That's the whole loop.** Build the map outside CI when possible by running
-`styleproof-map` after committing — a pre-push hook is the natural place to
-automate it. On the PR, CI first restores the base/head bundles and only
-generates the report — no build, no browser. If either bundle is missing or
-incompatible, CI recaptures both sides in the same pinned environment before
-reporting. Correctness wins over a stale cache, but the hot path is
-report-only.
+**That's the whole loop.** The map is built outside CI by default: the
+pre-push hook `styleproof-init` installs runs `styleproof-map` on every push
+that can affect render (skip one with `STYLEPROOF_SKIP_CAPTURE=1 git push`).
+On the PR, CI first restores the base/head bundles and only generates the
+report — no build, no browser. If either bundle is missing or incompatible,
+CI recaptures both sides in the same pinned environment before reporting.
+Correctness wins over a stale cache, but the hot path is report-only.
 
 Maps travel via the SHA-keyed `styleproof-maps` branch (or a CI artifact for
 forks) — **never as files committed to the PR branch**. Committed maps show up
