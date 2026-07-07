@@ -28,6 +28,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- **BREAKING: `dataResidue` now defaults to `'gate'` instead of `'warn'`.** A
+  data-boundary request (`replayUrl`, default `**/api/**`) that fails during a
+  spec-driven capture means the endpoint's _fallback_ branch shipped as the certified
+  state — its response-driven states were never captured. Warn-only was the
+  backwards-compatible launch choice, not the correct one; the default is now to BLOCK.
+  `'warn'` remains fully supported as the explicit opt-out (record + warn without
+  gating); the acknowledgement ledger and stale-acknowledgement rot protection are
+  unchanged. **Migration:** if a capture now fails on a data endpoint you expect to be
+  down, either acknowledge the intentional failures in `styleproof.data-residue.json`
+  (`{"<surface·endpoint>": "why"}`), or set `dataResidue: 'warn'` in the capture spec to
+  restore the previous non-gating behaviour. A capture with no failing data request is
+  unaffected. (#205)
+  
 - **BREAKING: `blocking` now defaults to `true`.** In review-gate mode
   (`require-approval: true`), an **unapproved** visual change now **fails the
   report job** (red ✗) out of the box, so the check blocks a merge even on a repo
@@ -58,15 +71,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   documented in #202). StyleProof now names each such failure on stderr at capture
   time (what failed, what it means, what to do: fixture it via `page.route`/
   `liveStates`, or acknowledge it), records it on the capture (`StyleMap.dataResidue`),
-  and surfaces it in `styleproof-diff` and the report's certification block. **Warn by
-  default; gate opt-in:** set `dataResidue: 'gate'` in the capture spec and an
-  _unacknowledged_ failing endpoint blocks the diff (exit 1); acknowledge intentional
-  ones in `styleproof.data-residue.json` (`key → reason`), and a stale acknowledgement
-  (the endpoint no longer fails) also fails so the ledger can't rot — the same
-  discipline as `exclude` and the inventory guard. A 2xx endpoint that merely wasn't
-  fixtured is **never** flagged (recording mode legitimately records live responses).
-  `--json` gains an additive optional `dataResidue` field. A capture with no failing
-  data request is byte-identical, so existing setups are unaffected. Fixes #205.
+  and surfaces it in `styleproof-diff` and the report's certification block. **Gate by
+  default:** an _unacknowledged_ failing endpoint blocks the diff (exit 1); acknowledge
+  intentional ones in `styleproof.data-residue.json` (`key → reason`), and a stale
+  acknowledgement (the endpoint no longer fails) also fails so the ledger can't rot — the
+  same discipline as `exclude` and the inventory guard. Set `dataResidue: 'warn'` to opt
+  down to record-and-warn without gating. A 2xx endpoint that merely wasn't fixtured is
+  **never** flagged (recording mode legitimately records live responses). `--json` gains
+  an additive optional `dataResidue` field. A capture with no failing data request is
+  byte-identical whichever mode you run. Fixes #205.
 - **`styleproof-init` now installs the pre-push publish hook by default.** The
   capture-locally/publish-to-store flow is the out-of-the-box path, not an
   opt-in recipe: init scaffolds a `pre-push` hook (into `.husky/` when present,

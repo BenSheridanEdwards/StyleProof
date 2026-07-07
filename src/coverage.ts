@@ -132,9 +132,10 @@ export type CoverageLedger = {
   /** How this capture's determinism was established (3.10.0). Absent on older bundles. */
   determinism?: DeterminismBasis;
   /**
-   * Whether the data-residue guard was armed to GATE on this capture (issue #205).
-   * `'gate'` — an unacknowledged failing data endpoint blocks the diff; `'warn'` (or
-   * absent, on older bundles) — residue is recorded and warned but never blocks.
+   * The data-residue guard mode this capture ran under (issue #205). `'gate'` (the v4
+   * default) — an unacknowledged failing data endpoint blocks the diff; `'warn'` — the
+   * explicit opt-out, residue is recorded and warned but never blocks. Absent on bundles
+   * captured before the field existed, and read as warn so they never gate retroactively.
    */
   dataResidue?: 'warn' | 'gate';
 };

@@ -847,7 +847,7 @@ function dataResidueLine(res: ReturnType<typeof auditRunResidue>): string {
     return `- **Data residue** — ✗ ${unacknowledged.length} failing data endpoint(s), unacknowledged: ${keyList(unacknowledged)}${stale}`;
   }
   if (unacknowledged.length > 0)
-    return `- **Data residue** — ⚠ ${unacknowledged.length} failing data endpoint(s) (fallback branch captured): ${keyList(unacknowledged)} — recorded, not gating (set \`dataResidue: 'gate'\`)`;
+    return `- **Data residue** — ⚠ ${unacknowledged.length} failing data endpoint(s) (fallback branch captured): ${keyList(unacknowledged)} — recorded, not gating (\`dataResidue: 'warn'\` opt-out)`;
   if (residue.length > 0) return `- **Data residue** — ✓ ${residue.length} failing endpoint(s), all acknowledged`;
   return '- **Data residue** — ✓ no failing data-boundary request during capture';
 }
