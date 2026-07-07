@@ -20,6 +20,7 @@ import { chromium } from '@playwright/test';
 import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
 import { UsageError, parseCaptureUrlArgs, runCaptureUrl, loadSetupSteps } from '../dist/capture-url.js';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
+import { writeCaptureManifest } from '../dist/map-store.js';
 
 const COMMAND = 'styleproof-capture';
 
@@ -122,6 +123,9 @@ async function runCrawl() {
         console.log(`  ${'·'.repeat(s.depth)}${s.key} (${s.elements} elements)${ok ? '' : ' — CAPTURE FAILED'}`),
     };
     const report = await crawlAndCapture(page, crawlOpts);
+    // Stamp a manifest so a two-directory diff against this crawl output has the
+    // same-environment guard on both sides (v4 refuses a manifest-less side).
+    writeCaptureManifest({ dir: opts.out, screenshots: opts.screenshots });
     console.log(
       `✓ ${report.captured}/${report.surfaces.length} surface(s) × ${crawlOpts.widths.length} width(s) → ${opts.out}  ` +
         `(${report.actionsTried} actions tried, ${report.skipped} skipped${report.failed.length ? `, ${report.failed.length} capture-failed` : ''})`,
