@@ -1080,3 +1080,24 @@ export function readInventories(dir: string): Array<{ inventory?: NavigableItem[
     .map((f) => loadStyleMap(path.join(dir, f)))
     .map((m) => (m.inventory ? { inventory: m.inventory } : {}));
 }
+
+/**
+ * Each captured surface key → the set of element paths it renders, unioned across
+ * the given dirs (so an element present on only one side still "belongs" to the
+ * surface). Feeds the shared-chrome tier, which needs to know, per surface, which
+ * paths exist to tell a frame-wide change from one view's content. Shared by the
+ * report and the diff CLI (both already read maps this way).
+ */
+export function surfaceElementPaths(...dirs: string[]): Map<string, Set<string>> {
+  const bySurface = new Map<string, Set<string>>();
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue;
+    for (const file of fs.readdirSync(dir).filter(isMapFile)) {
+      const surface = file.replace(/\.json(\.gz)?$/, '');
+      const set = bySurface.get(surface) ?? new Set<string>();
+      for (const p of Object.keys(loadStyleMap(path.join(dir, file)).elements)) set.add(p);
+      bySurface.set(surface, set);
+    }
+  }
+  return bySurface;
+}
