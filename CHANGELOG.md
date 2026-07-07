@@ -45,6 +45,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 (additions don't gate)`), with the same truncation and key-escaping discipline as
   the removals line. Removals still drive the ⚠/✗ gate semantics; additions are
   appended. The diff and the report can no longer disagree about the navigable delta.
+- **The unit suite no longer flakes on spawned-CLI tests (test-infra only, no
+  consumer-visible change).** The package-smoke test packed the live checkout with
+  `npm pack`, which runs the `prepare` lifecycle (`tsc`) even under `--ignore-scripts`.
+  `tsc` truncates each `dist/*.js` to zero bytes before rewriting it, so a CLI spawned
+  by a _different_ test running concurrently under `node --test` could read a
+  half-written `dist` module and die with a static ESM link error
+  (`does not provide an export named …`) — surfacing as an "impossible" exit code (a
+  flag-rejection test that pins exit `2` seeing exit `1`, or a spawned bin printing a
+  missing-export `SyntaxError`). The smoke test now packs a staged copy of the package
+  whose manifest carries no lifecycle scripts, so pack can never rebuild — the shared
+  `dist` is never mutated mid-suite. Same coverage (the packed tarball is still
+  installed and its API + every bin's `--help` exercised); the packed artifact is
+  identical.
 
 ## [3.20.0] - 2026-07-07
 
