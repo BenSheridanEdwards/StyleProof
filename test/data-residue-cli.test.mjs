@@ -27,7 +27,9 @@ const failing = (surface, endpoint, reason = 'net::ERR_CONNECTION_REFUSED') => (
   reason,
 });
 
-// Build base/head dirs; head carries `residue` and a ledger armed per `gate`.
+// Build base/head dirs; head carries `residue` and a ledger armed per `gate`. When `gate`
+// is false the head opts down to the explicit `dataResidue: 'warn'` (the v4 opt-out) — the
+// same non-arming the diff also infers for an older bundle with no field at all.
 function fixture({ residue, gate }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-residue-cli-'));
   const a = path.join(root, 'base');
@@ -41,7 +43,7 @@ function fixture({ residue, gate }) {
     expected: null,
     exclude: {},
     determinism: 'self-checked',
-    ...(gate ? { dataResidue: 'gate' } : {}),
+    dataResidue: gate ? 'gate' : 'warn',
   };
   fs.writeFileSync(path.join(b, COVERAGE_LEDGER), JSON.stringify(ledger));
   fs.writeFileSync(
@@ -92,12 +94,12 @@ test('a stale acknowledgement (endpoint no longer failing) BLOCKS under an armed
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('warn-mode (gate not armed): a failing endpoint is SURFACED but does NOT block (exit 0)', () => {
+test('warn opt-out (gate not armed): a failing endpoint is SURFACED but does NOT block (exit 0)', () => {
   const { root, a, b } = fixture({ residue: [failing('dashboard', '/api/probe')], gate: false });
   const { code, out } = runDiff(a, b, root);
-  assert.equal(code, 0, `warn-mode must not gate, got ${code}\n${out}`);
+  assert.equal(code, 0, `warn opt-out must not gate, got ${code}\n${out}`);
   assert.match(out, /dashboard · \/api\/probe/, out);
-  assert.match(out, /dataResidue: "gate"/, out);
+  assert.match(out, /dataResidue: "warn"/, out);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
