@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-07-07
+
+The first major since v3. Three breaking defaults make StyleProof strict out of
+the box — an unapproved change **blocks**, a silently-failing data endpoint
+**gates**, and a manifest-less map bundle is **refused** rather than compared on
+faith. Pin `BenSheridanEdwards/StyleProof@v4` to adopt; `@v3` stays on 3.x. Each
+breaking entry below carries its one-line migration.
+
 ### Removed
 
 - **BREAKING: a manifest-less map bundle is no longer compared — it fails with exit

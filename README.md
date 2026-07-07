@@ -159,7 +159,7 @@ then use the Action on those dirs:
 - uses: actions/checkout@v4
 - run: npx styleproof-map --restore --sha "${{ github.event.pull_request.base.sha }}" --dir base --base-dir __stylemaps__
 - run: npx styleproof-map --restore --sha "${{ github.event.pull_request.head.sha }}" --dir head --base-dir __stylemaps__
-- uses: BenSheridanEdwards/StyleProof@v3
+- uses: BenSheridanEdwards/StyleProof@v4
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
@@ -907,7 +907,7 @@ node scripts/selective-remap.mjs "$CHANGED" dc.json   # affectedSurfaces + expla
 
 ## Reference
 
-**Action `BenSheridanEdwards/StyleProof@v3`** — key inputs:
+**Action `BenSheridanEdwards/StyleProof@v4`** — key inputs:
 
 | Input              | Default      | Purpose                                                                             |
 | ------------------ | ------------ | ----------------------------------------------------------------------------------- |

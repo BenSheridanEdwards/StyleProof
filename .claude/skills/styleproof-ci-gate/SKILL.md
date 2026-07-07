@@ -1,6 +1,6 @@
 ---
 name: styleproof-ci-gate
-description: Use when wiring StyleProof as a PR gate in CI — the BenSheridanEdwards/StyleProof@v3 Action, review-gate vs certify (fail-on-diff) mode, the approve-checkbox workflow, blocking without branch protection, and the fork/Dependabot capture/report split.
+description: Use when wiring StyleProof as a PR gate in CI — the BenSheridanEdwards/StyleProof@v4 Action, review-gate vs certify (fail-on-diff) mode, the approve-checkbox workflow, blocking without branch protection, and the fork/Dependabot capture/report split.
 ---
 
 # StyleProof — wire the CI PR gate
@@ -16,7 +16,7 @@ skill is the model for tuning it or wiring it by hand.
 - uses: actions/checkout@v4
 - run: npx styleproof-map --restore --sha "${{ github.event.pull_request.base.sha }}" --dir base --base-dir __stylemaps__
 - run: npx styleproof-map --restore --sha "${{ github.event.pull_request.head.sha }}" --dir head --base-dir __stylemaps__
-- uses: BenSheridanEdwards/StyleProof@v3
+- uses: BenSheridanEdwards/StyleProof@v4
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
