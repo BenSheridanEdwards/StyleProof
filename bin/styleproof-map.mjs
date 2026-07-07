@@ -254,11 +254,19 @@ function runVariantCrawl(env) {
 }
 
 const targetDir = path.join(baseDir, dir);
+// Sample the tree state the capture is ABOUT to render, so the manifest can bind the
+// map to it. A capture runs for minutes; if the source is edited or HEAD moves in that
+// window, the map renders one state but would otherwise be stamped clean@post-HEAD and
+// published as the authoritative map for a SHA it never rendered — a stale map every
+// future diff against that SHA silently trusts as a false green.
 let dirtyBeforeCapture;
+let headBeforeCapture;
 try {
   dirtyBeforeCapture = workingTreeDirty(process.cwd());
+  headBeforeCapture = currentGitSha(process.cwd());
 } catch {
   dirtyBeforeCapture = false;
+  headBeforeCapture = undefined;
 }
 
 if (restore) {
@@ -329,21 +337,27 @@ if (status === 0) {
     );
     process.exit(status);
   }
+  // Bind the map to the commit it actually started rendering (headBeforeCapture), not a
+  // HEAD that may have moved mid-capture. `--sha` still wins for callers that know better.
+  const manifestSha = sha || headBeforeCapture || 'local';
+  // Re-check the tree AFTER capture (ignoring the maps this run just wrote): if the source
+  // was edited, or HEAD moved, during the capture window, the map↔SHA binding is a lie —
+  // mark it dirty so publishMapBundle refuses to push a stale map into the SHA-keyed store.
+  let dirty = dirtyBeforeCapture;
   try {
-    let manifestSha = sha || undefined;
-    if (!manifestSha) {
-      try {
-        manifestSha = currentGitSha(process.cwd(), env);
-      } catch {
-        manifestSha = 'local';
-      }
-    }
+    const rel = path.relative(process.cwd(), targetDir) || targetDir;
+    const headAfter = currentGitSha(process.cwd(), env);
+    if (workingTreeDirty(process.cwd(), rel) || (headBeforeCapture && headAfter !== headBeforeCapture)) dirty = true;
+  } catch {
+    // git unreadable now — keep the pre-capture verdict rather than guess
+  }
+  try {
     const manifest = writeMapManifest({
       dir: targetDir,
       spec,
       sha: manifestSha,
       screenshots: screenshots !== '0',
-      dirty: dirtyBeforeCapture,
+      dirty,
       env,
     });
     console.error(`styleproof-map: wrote ${targetDir} for ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey})`);
