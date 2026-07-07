@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import {
   assertCompatibleMapDirs,
   BROWSER_BUILD_SIDECAR,
@@ -9,6 +10,7 @@ import {
   manifestlessSide,
   MAP_MANIFEST,
   readMapManifest,
+  workingTreeDirty,
   writeBrowserBuildSidecar,
   writeMapManifest,
 } from '../dist/map-store.js';
@@ -36,6 +38,33 @@ function manifestDir(overrides = {}) {
   fs.writeFileSync(path.join(dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
   return dir;
 }
+
+test('workingTreeDirty: ignorePrefix skips the map output dir but still catches a source edit', () => {
+  const repo = mkTmp('styleproof-dirty-');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v1');
+    fs.mkdirSync(path.join(repo, '.styleproof/maps/current'), { recursive: true });
+    fs.writeFileSync(path.join(repo, '.styleproof/maps/current/home@1280.json'), '{}');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+    assert.equal(workingTreeDirty(repo), false, 'clean tree');
+
+    // A capture rewrites the map output — ignored by prefix, so still "clean".
+    fs.writeFileSync(path.join(repo, '.styleproof/maps/current/home@1280.json'), '{"changed":1}');
+    assert.equal(workingTreeDirty(repo), true, 'map write dirties the raw tree');
+    assert.equal(workingTreeDirty(repo, '.styleproof/maps/current'), false, 'but is skipped by ignorePrefix');
+
+    // A real source edit during the capture window is NOT skipped.
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v2');
+    assert.equal(workingTreeDirty(repo, '.styleproof/maps/current'), true, 'source edit still caught');
+  } finally {
+    rmTmp(repo);
+  }
+});
 
 test('assertCompatibleMapDirs: differing browser build refuses to compare, naming both', () => {
   const before = manifestDir({ browserVersion: '124.0.6367.60', sha: 'b'.repeat(40) });
