@@ -840,14 +840,16 @@ Outputs: `changed` (`"true"` when any existing surface changed, or a new surface
 
 | Key        | Default | Purpose                                                                                                                                                                            |
 | ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `blocking` | `false` | Review-gate mode only: on **unapproved** visual changes, also **fail the job** (red ✗), so the check blocks even without a branch-protection rule requiring the status. See below. |
+| `blocking` | `true` | Review-gate mode only: on **unapproved** visual changes, also **fail the job** (red ✗), so the check blocks even without a branch-protection rule requiring the status. On by default; set `false` for advisory-only (status red, job green). See below. |
 
 ### Blocking without branch protection
 
-A commit status only _blocks a merge_ where a branch-protection rule requires it — which needs GitHub Pro or a public repo. On a free private repo the `StyleProof` status is advisory. Set `"blocking": true` in `styleproof.config.json` to also fail the report job on unapproved changes, so the PR shows a red check regardless:
+A commit status only _blocks a merge_ where a branch-protection rule requires it — which needs GitHub Pro or a public repo. On a free private repo the `StyleProof` status is advisory. So review-gate mode is **blocking by default**: on unapproved changes it also fails the report job, and the PR shows a red check regardless of branch protection.
+
+For advisory-only (the status goes red but the job stays green — useful when a branch-protection rule already requires the `StyleProof` status), opt out in `styleproof.config.json`:
 
 ```json
-{ "blocking": true }
+{ "blocking": false }
 ```
 
 It's **asynchronous by design**: approval is a checkbox tick handled by a separate workflow, so to clear the red you tick **Approve all changes**, then **re-run the StyleProof job** — the re-run sees the sign-off on the commit status and passes. (A new push that changes styles re-opens it.)
