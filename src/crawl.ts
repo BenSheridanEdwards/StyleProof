@@ -105,9 +105,18 @@ function toLink(href: string, base: URL, keyFor: (url: URL) => string, match?: L
 }
 
 /**
- * Dedup identity for a navigable path+query: a trailing slash on the path is not a
- * distinct surface (`/about` and `/about/` render the same route), so it's stripped
- * from the identity — but never from the root `/` itself, and never from the query.
+ * Dedup identity for a navigable path+query. Two forms of the same route must share
+ * one identity, or a static multi-page site (whose nav links the `.html` files) gets
+ * captured twice as byte-near-identical maps, doubling the work and duplicating every
+ * finding in the diff:
+ *
+ * - A trailing slash isn't a distinct surface (`/about` and `/about/` render the same
+ *   route), so it's stripped — but never from the root `/` itself, nor from the query.
+ * - A trailing `index.html` is the directory's index (`/index.html` IS `/`, and
+ *   `/docs/index.html` IS `/docs/`), so it collapses to the directory path. Only the
+ *   literal `index.html` filename normalizes — a real `about.html` is left untouched
+ *   and stays a distinct surface from `about`.
+ *
  * The navigable url the caller returns keeps its original form; only the SET
  * membership test is normalized, so the first-seen href still wins.
  */
@@ -115,7 +124,10 @@ function dedupIdentity(pathAndSearch: string): string {
   const q = pathAndSearch.indexOf('?');
   const path = q === -1 ? pathAndSearch : pathAndSearch.slice(0, q);
   const search = q === -1 ? '' : pathAndSearch.slice(q);
-  const normPath = path.length > 1 ? path.replace(/\/+$/, '') || '/' : path;
+  // `/index.html` → `/`, `/docs/index.html` → `/docs/` (the preceding slash stays so
+  // the trailing-slash step below folds it into the same identity as `/docs` / `/docs/`).
+  const withoutIndex = path.replace(/(^|\/)index\.html$/, '$1');
+  const normPath = withoutIndex.length > 1 ? withoutIndex.replace(/\/+$/, '') || '/' : withoutIndex;
   return normPath + search;
 }
 

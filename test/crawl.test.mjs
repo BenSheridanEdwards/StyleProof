@@ -96,6 +96,29 @@ test('selectCrawlLinks: root "/" keeps its slash; the query is never trailing-sl
   ]);
 });
 
+test('selectCrawlLinks: /index.html collapses into / — one surface, first-seen url wins', () => {
+  // A static multi-page site whose nav links the .html files: `/` and `/index.html`
+  // are the same route, so they must dedupe to ONE surface (else the diff captures and
+  // reports every finding twice). First-seen href keeps its original form.
+  assert.deepEqual(pick(['/', '/index.html']), [{ key: 'index', url: '/' }]);
+  assert.deepEqual(pick(['/index.html', '/']), [{ key: 'index-html', url: '/index.html' }]);
+});
+
+test('selectCrawlLinks: nested /dir/index.html collapses into the directory (/dir, /dir/, /dir/index.html are one)', () => {
+  assert.deepEqual(pick(['/docs', '/docs/index.html']), [{ key: 'docs', url: '/docs' }]);
+  assert.deepEqual(pick(['/docs/', '/docs/index.html']), [{ key: 'docs', url: '/docs/' }]);
+  assert.deepEqual(pick(['/docs/index.html', '/docs/']), [{ key: 'docs-index-html', url: '/docs/index.html' }]);
+});
+
+test('selectCrawlLinks: a genuine about.html is NOT collapsed into about — only index.html normalizes', () => {
+  const links = pick(['/about', '/about.html']);
+  assert.equal(links.length, 2);
+  assert.deepEqual(
+    links.map((l) => l.url),
+    ['/about', '/about.html'],
+  );
+});
+
 test('selectCrawlLinks: genuinely different surfaces with a colliding key both survive via -2 suffix', () => {
   // /a/b, /a-b, /a_b are three distinct routes that all slugify to `a-b` under
   // defaultLinkKey; without disambiguation the later ones overwrite the first's map

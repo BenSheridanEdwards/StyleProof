@@ -7,10 +7,13 @@
  * Writes:
  *   - <dir> (default e2e/styleproof.spec.ts): a starter capture spec with a
  *     minimal settle() helper (triggers scroll-reveal content; StyleProof itself
- *     handles fonts, animation freeze, and the settle). For a detected Next.js app it derives surfaces AND
- *     the `expected` coverage guard from the app's routes at run time, so a page
- *     added later can't ship without a surface; otherwise it writes one sample
- *     surface plus a commented guard block to wire to your own route registry.
+ *     handles fonts, animation freeze, and the settle). For a detected Next.js app it derives BOTH the
+ *     surfaces AND the `expected` coverage guard from the same `discoverNextRoutes()`
+ *     call, so a static route added later is captured and expected together —
+ *     auto-covered, never a guard failure; the guard fails only on genuine
+ *     divergence (a dynamic route, a hand-maintained registry, or a route dropped
+ *     from surfaces but still expected). Otherwise it writes one sample surface
+ *     plus a commented guard block to wire to your own route registry.
  *   - playwright.styleproof.config.ts: a dedicated production-build Playwright
  *     config for StyleProof captures, so an existing app Playwright config is
  *     never disturbed or accidentally reused.
@@ -44,9 +47,10 @@ options:
 
 What it writes:
   - the spec at --dir, with a minimal settle() helper (scroll-reveal only).
-    In a Next.js app it discovers your routes at run time and wires both the
-    surfaces and the \`expected\` coverage guard to them, so a new page can't ship
-    uncaptured. Otherwise it writes one sample surface + a commented guard block.
+    In a Next.js app it discovers your routes at run time and derives both the
+    surfaces and the \`expected\` coverage guard from that one call, so a new static
+    route is auto-covered (captured + expected together); the guard fails only when
+    the two diverge. Otherwise it writes one sample surface + a commented guard block.
   - playwright.styleproof.config.ts, a dedicated production-build Playwright config
   - .github/workflows/styleproof.yml, a cache-first PR report workflow
 
@@ -119,9 +123,12 @@ const HEADER = `/**
  *   npx styleproof-diff  # compare cached base/head maps by commit SHA
  */`;
 
-// Next.js detected: derive both surfaces and the coverage guard from the app's
-// routes AT RUN TIME, so a page added later is in `expected` automatically and
-// fails the guard until it has a surface — no static list to drift.
+// Next.js detected: derive BOTH surfaces and the coverage guard from the app's
+// routes AT RUN TIME, from one `discoverNextRoutes()` call — so a static page added
+// later is a captured surface AND `expected` in the same step (auto-covered, never a
+// guard failure), with no static list to drift. The guard fires only when the two
+// diverge (a dynamic route, a hand-maintained registry, or a route dropped from
+// surfaces but still expected).
 const NEXT_SPEC = `import type { Page } from '@playwright/test';
 import { defineStyleMapCapture, discoverNextRoutes, type Surface } from 'styleproof';
 
@@ -129,12 +136,12 @@ ${HEADER}
 
 ${SETTLE}
 
-// Routes discovered from your Next.js app (app/ + pages/) at RUN TIME — so a page
-// you add later is covered automatically, with no surface list to keep in sync
-// (that drift is exactly what lets a new page ship unverified). Edit freely; this
-// is your spec. Static routes each get a capture; dynamic [param] routes can't be
-// navigated without a value, so they're listed in \`exclude\` until you add a
-// surface with a concrete param.
+// Routes discovered from your Next.js app (app/ + pages/) at RUN TIME. Both SURFACES
+// and \`expected\` below come from this one list, so a static route you add later is
+// captured and expected together — covered automatically, with no surface list to
+// keep in sync. Edit freely; this is your spec. Static routes each get a capture;
+// dynamic [param] routes can't be navigated without a value, so they're listed in
+// \`exclude\` until you add a surface with a concrete param.
 const ROUTES = discoverNextRoutes();
 
 const SURFACES: Surface[] = ROUTES.filter((r) => !r.dynamic).map((r) => ({
@@ -151,9 +158,10 @@ const SURFACES: Surface[] = ROUTES.filter((r) => !r.dynamic).map((r) => ({
 
 defineStyleMapCapture({
   surfaces: SURFACES,
-  // Coverage guard: every known route must be a captured surface or excluded, or
-  // the suite fails (it runs without STYLEMAP_DIR — a static check, no browser).
-  // A new page with no surface can't slip through the gate unseen.
+  // Coverage guard: every \`expected\` route must be a captured surface or excluded, or
+  // the suite fails (it runs without STYLEMAP_DIR — a static check, no browser). Since
+  // both sides come from ROUTES, static routes never trip it; it fires when they
+  // diverge — a dynamic route (excluded below), or a route you drop from SURFACES.
   expected: ROUTES.map((r) => r.key),
   exclude: Object.fromEntries(
     ROUTES.filter((r) => r.dynamic).map((r) => [r.key, \`dynamic route (\${r.path}) — add a surface with a concrete param\`]),
@@ -485,9 +493,14 @@ const isNext = routes.length > 0;
 const SPEC = isNext ? NEXT_SPEC : GENERIC_SPEC;
 
 let wroteSomething = false;
+// Every path init created or modified this run, so the summary can name exactly what
+// it touched — and, by omission, what it did NOT (init never writes package.json or a
+// lockfile; that's the package manager's `install`, not this scaffolder).
+const touched = [];
 
 const spec = writeFileSafe(specPath, SPEC, { force });
 if (spec.wrote) {
+  touched.push(specPath);
   console.log(`${spec.exists ? 'overwrote' : 'created'} ${specPath}`);
   if (isNext) {
     const dynamic = routes.filter((r) => r.dynamic).length;
@@ -507,6 +520,7 @@ if (spec.wrote) {
 const configPath = 'playwright.styleproof.config.ts';
 const config = writeFileSafe(configPath, CONFIG, { force });
 if (config.wrote) {
+  touched.push(configPath);
   console.log(`${config.exists ? 'overwrote' : 'created'} ${configPath} (dedicated StyleProof capture config)`);
   wroteSomething = true;
 } else {
@@ -520,6 +534,7 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 
 const ignored = ['.styleproof/', 'test-results/', 'playwright-report/'].filter((line) => ensureGitignoreLine(line));
 if (ignored.length) {
+  touched.push('.gitignore');
   console.log(`updated .gitignore (${ignored.join(', ')})`);
   wroteSomething = true;
 }
@@ -527,10 +542,19 @@ if (ignored.length) {
 // Cache-first CI report — never overwrite an existing workflow.
 const ci = writeFileSafe(CI_PATH, CI_WORKFLOW);
 if (ci.wrote) {
+  touched.push(CI_PATH);
   console.log(`created ${CI_PATH} (cache-first StyleProof report)`);
   wroteSomething = true;
 } else {
   console.log(`${CI_PATH} already exists — left untouched`);
+}
+
+if (touched.length) {
+  // State exactly what init wrote, and — because adopters have blamed init for the
+  // `styleproof` entry their package manager's `install` added — say plainly that it
+  // did NOT touch package.json or the lockfile. Truth over assumption.
+  console.log(`\nstyleproof-init wrote only: ${touched.join(', ')}`);
+  console.log('It did NOT modify package.json or your lockfile (that was your package manager’s install).');
 }
 
 console.log('\nHow the gate works — it runs on your first PR with no extra steps:');
