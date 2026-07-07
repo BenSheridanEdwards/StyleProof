@@ -42,10 +42,37 @@ function peerVersion(name) {
   return version;
 }
 
+// Stage the package (its `files` allowlist + a lifecycle-stripped manifest) into `dest`
+// and pack THAT, never the live checkout. `npm pack` runs the `prepare` script (tsc) even
+// under --ignore-scripts, and tsc truncates each dist/*.js to zero bytes before rewriting
+// it. When the smoke test packed the live repo, a concurrently-spawned CLI in another
+// test could read a half-written dist module and die with a static ESM link error
+// (`does not provide an export named …`) — the systemic unit-suite flake (#190). Packing a
+// copy whose manifest has no `prepare` means pack cannot rebuild, so the shared dist is
+// never mutated mid-suite. The suite already built dist (`npm test` = build && node --test),
+// so the staged copy is the real artifact.
+function stagePackageDir(dest) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const files = ['dist', 'bin', 'docs/demo-composite.png', 'README.md', 'CHANGELOG.md', 'LICENSE'];
+  for (const rel of files) {
+    const src = path.join(root, rel);
+    if (!fs.existsSync(src)) continue; // `dist` is guaranteed present (the suite built it); assets are optional
+    fs.cpSync(src, path.join(dest, rel), { recursive: true });
+  }
+  // Strip ALL lifecycle scripts so `npm pack` cannot run tsc/husky against the staged copy.
+  delete manifest.scripts;
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify(manifest, null, 2));
+  return dest;
+}
+
 test('packed package installs with its peer and exposes API plus CLI help', { timeout: 90_000 }, () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-pack-smoke-'));
   try {
-    const pack = runNpm(['pack', '--json', '--ignore-scripts', '--pack-destination', tmp], { cwd: root });
+    // Pack a staged copy, not the live checkout — see stagePackageDir: packing the repo
+    // runs `prepare` (tsc), which truncates the shared dist/*.js mid-suite and flakes
+    // concurrently-spawned CLIs (#190).
+    const stage = stagePackageDir(path.join(tmp, 'pkg'));
+    const pack = runNpm(['pack', '--json', '--ignore-scripts', '--pack-destination', tmp, stage], { cwd: root });
     assert.equal(pack.status, 0, commandFailure(pack));
     const [{ filename }] = JSON.parse(pack.stdout);
     const tarball = path.join(tmp, filename);
