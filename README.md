@@ -57,8 +57,12 @@ surface. `expected` turns that inventory into a guard: a key it lists that is
 neither captured nor excluded fails as missing coverage instead of silently
 passing. What's guarded depends on how `expected` is fed —
 
-- **Next.js:** auto-guarded. `styleproof-init` wires `expected` to the routes it
-  discovers, so a new page fails the guard with nothing to keep in sync.
+- **Next.js:** auto-covered. `styleproof-init` derives both `surfaces` and
+  `expected` from the same `discoverNextRoutes()` call, so a new static route lands
+  in both at once — captured and expected together, with nothing to keep in sync.
+  The guard then fails only on genuine divergence between the two: a dynamic route
+  (pre-excluded, so its reason surfaces), a hand-maintained registry, or a route
+  dropped from `surfaces` while still in `expected`.
 - **Link-crawled SPAs:** pass `expected` to `defineCrawlCapture` and the crawl
   reconciles it against the _rendered nav_ (the route universe for such an app),
   both directions — a new linked route with no `expected` entry fails, and an
@@ -152,7 +156,7 @@ _and_ no head capture, so it never appears in any diff, and the status goes
 green having never looked at it. This is the one thing the captures can't catch
 on their own: a capture that was never taken.
 
-Declare your app's route/view universe in `expected` and StyleProof emits a coverage-guard test in your **normal** suite (it runs even without `STYLEMAP_DIR` — it's a static check, no browser). It fails the moment a route exists with no surface, so a new page can't ship uncaptured:
+Declare your app's route/view universe in `expected` and StyleProof emits a coverage-guard test in your **normal** suite (it runs even without `STYLEMAP_DIR` — it's a static check, no browser). It fails when `expected` and your captured surfaces diverge — a route you listed in `expected` with no surface and no `exclude` entry fails as missing coverage, so a registry entry can't quietly ship uncaptured:
 
 ```ts
 import { defineStyleMapCapture } from 'styleproof';
@@ -168,7 +172,7 @@ defineStyleMapCapture({
 
 A route that's neither a captured surface nor an `exclude` entry fails the guard; an `exclude` key that isn't in `expected` (a renamed/removed route) fails too, so the opt-out ledger can't quietly rot. Captured surfaces beyond `expected` are fine — one route can have several states (`landing`, `landing-nav-open`). Omit `expected` and behaviour is unchanged.
 
-**Next.js: wired for you.** Run `styleproof-init` in a Next.js project and the generated spec discovers your routes (App Router `app/` + Pages Router `pages/`) at run time and wires both the surfaces and `expected` to them — so it's protected out of the box, and a page you add later is covered automatically with nothing to keep in sync:
+**Next.js: wired for you.** Run `styleproof-init` in a Next.js project and the generated spec discovers your routes (App Router `app/` + Pages Router `pages/`) at run time and derives **both** the surfaces and `expected` from that same `discoverNextRoutes()` call. Because they share one source, a static route you add later is captured and expected in the same step — auto-covered, never a guard failure, with nothing to keep in sync. The guard exists for the cases where the two genuinely diverge: a dynamic `[param]` route (it can't be navigated without a value, so it's placed in `exclude` with a reason rather than captured), a registry you hand-maintain instead of the live call, or a route you drop from `surfaces` while it's still `expected`:
 
 ```ts
 import { defineStyleMapCapture, discoverNextRoutes } from 'styleproof';
@@ -862,7 +866,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 - `styleproof-init` — scaffold the gate: the capture spec, a dedicated `playwright.styleproof.config.ts` (production-build `webServer`, parallel capture), `.gitignore` cache entries, and the cache-first report workflow. One command. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default), respect pnpm/Corepack version pins, and detect Vite/Next production preview commands instead of assuming every repo has `start`.
 - `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote exists. Pass `--crawl-base-url` plus repeated `--crawl-route` to run `styleproof-variants` before capture, `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, or `--no-screenshots` for custom flows.
-- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical); `1` on a reviewable diff — computed-style/DOM/state differences, and equally an unacknowledged inventory removal, an incomplete coverage registry, or an unproven-determinism capture; `2` on a usage/capture error (including a **missing map** — a bundle that claims to exist yet holds zero captures, i.e. a `styleproof-manifest.json` present with no maps, on either side, or a head capture that produced nothing; refused loudly rather than mislabelled as all-new); `3` when only new surfaces are present (no baseline for _those_ surfaces to diff against — new surfaces against an existing baseline, or a base dir with no manifest at all, meaning no baseline was ever captured: the first-adoption review path; approval policy decides whether to gate). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
+- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical); `1` on a reviewable diff — computed-style/DOM/state differences, and equally an unacknowledged inventory removal, an incomplete coverage registry, or an unproven-determinism capture; `2` on a usage/capture error (including a **missing map** — a bundle that claims to exist yet holds zero captures, i.e. a `styleproof-manifest.json` present with no maps, on either side, or a head capture that produced nothing; refused loudly rather than mislabelled as all-new — **and** the no-args case where the cached base map can't be restored at all: no map-store remote, no cached bundle, nothing to compare. A "nothing was compared" outcome always exits `2`, never a soft `0` that would read as certified; the error names the two ways forward — run in CI where the base is restorable, or use the two-directory form); `3` when only new surfaces are present (no baseline for _those_ surfaces to diff against — new surfaces against an existing baseline, or a base dir with no manifest at all, meaning no baseline was ever captured: the first-adoption review path; approval policy decides whether to gate). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`.
 - `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content section (see above).
 - `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
 

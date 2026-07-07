@@ -181,6 +181,31 @@ test('styleproof-init: Vite projects get a production preview command without ne
   }
 });
 
+test('styleproof-init: summary names exactly the files it wrote and leaves package.json byte-identical', () => {
+  // Adopters have blamed init for the `styleproof` entry their package manager's
+  // install added. init reads package.json but never writes it (or a lockfile); the
+  // summary must say so, and the manifest on disk must be untouched.
+  const root = mkTmp();
+  try {
+    const pkg = JSON.stringify({ name: 'app', dependencies: { styleproof: '^3.0.0' } }, null, 2) + '\n';
+    fs.writeFileSync(path.join(root, 'package.json'), pkg);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    // The summary enumerates only the files init actually wrote…
+    assert.match(
+      res.stdout,
+      /styleproof-init wrote only: e2e\/styleproof\.spec\.ts, playwright\.styleproof\.config\.ts/,
+    );
+    assert.match(res.stdout, /\.github\/workflows\/styleproof\.yml/);
+    // …and states plainly that it did NOT touch package.json / the lockfile.
+    assert.match(res.stdout, /did NOT modify package\.json or your lockfile/);
+    // The manifest on disk is byte-for-byte what it was before init ran.
+    assert.equal(readFile(root, 'package.json'), pkg);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-init: an existing app Playwright config is left alone while StyleProof gets its own config', () => {
   const root = mkTmp();
   try {

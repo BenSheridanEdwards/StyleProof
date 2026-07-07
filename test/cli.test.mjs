@@ -573,9 +573,39 @@ test('diff default flow explains how to recover when cached maps are missing', (
   const r = runIn(repo, DIFF, ['main']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /cached maps are not available/);
-  assert.match(r.stderr, /run styleproof-map on the base and head commits/);
+  assert.match(r.stderr, /nothing was compared/);
+  assert.match(r.stderr, /styleproof-diff <beforeDir> <afterDir>/);
   rmTmp(repo);
 });
+
+// Fail-loud contract for the no-args inferred path in a repo with NO git remote at
+// all (a fresh local clone, no `origin`): the cached-map restore can't run, so
+// nothing is compared — and that MUST surface as exit 2, never a soft exit 0 that a
+// newcomer reads as "certified clean". The message names both working alternatives:
+// run in CI where the base is restorable, or the two-directory form.
+for (const [label, script, cmd] of [
+  ['diff', DIFF, 'styleproof-diff'],
+  ['report', REPORT, 'styleproof-report'],
+]) {
+  test(`${label} no-args exits 2 (never 0) in a repo with no git remote — nothing compared`, () => {
+    const repo = mkTmp();
+    gitInit(repo);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+    writeSpec(repo);
+    fs.writeFileSync(path.join(repo, 'readme'), 'base');
+    spawnSync('git', ['add', '-A'], { cwd: repo });
+    spawnSync('git', ['commit', '-qm', 'base'], { cwd: repo });
+    fs.writeFileSync(path.join(repo, 'feature'), 'head');
+    spawnSync('git', ['add', '-A'], { cwd: repo });
+    spawnSync('git', ['commit', '-qm', 'head'], { cwd: repo });
+    const r = runIn(repo, script, []);
+    assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, /cached maps are not available/);
+    assert.match(r.stderr, /nothing was compared/);
+    assert.match(r.stderr, new RegExp(`${cmd} <beforeDir> <afterDir>`));
+    rmTmp(repo);
+  });
+}
 
 test('report defaults to cached maps against the inferred main branch', () => {
   const { repo } = setupCachedComparison({ headColor: 'rgb(255, 0, 0)' });

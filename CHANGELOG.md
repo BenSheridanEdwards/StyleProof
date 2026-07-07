@@ -9,6 +9,35 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Crawl no longer double-captures `/` and `/index.html` as two surfaces.** On a
+  static multi-page site whose nav links the `.html` files, `/` and `/index.html`
+  (and `/dir/` vs `/dir/index.html`) are the same route but were captured twice as
+  byte-near-identical maps — doubling the capture work and duplicating every finding
+  in the diff. The crawl's dedup identity now normalizes a trailing `index.html` to
+  its directory path, so they collapse to one surface (first-seen href keeps its
+  original navigable form). Only the literal `index.html` filename normalizes — a
+  genuine `about.html` stays a distinct surface from `about`.
+- **`styleproof-init` now states exactly which files it wrote — and that it did NOT
+  touch `package.json` or your lockfile.** Adopters attributed the `styleproof`
+  dependency entry (added by their package manager's `install`) to init; init only
+  ever reads `package.json` and writes the spec, the dedicated Playwright config,
+  `.gitignore` lines, and the CI workflow. The summary now enumerates those files and
+  says plainly that the manifest and lockfile were left untouched.
+- **The no-comparison outcome of `styleproof-diff` / `styleproof-report` names both
+  ways forward.** When the no-args (inferred-base) path can restore no base map — no
+  map-store remote, no cached bundle — nothing is compared. That already exits `2`
+  (never a soft `0` a newcomer could read as "certified clean"); the message now says
+  "nothing was compared" and names the two working alternatives: run in CI (or a repo
+  with the `origin` remote) where the base is restorable, or the two-directory form
+  `styleproof-diff <beforeDir> <afterDir>`. A regression test pins the exit-2 contract
+  in a remote-less repo for both commands.
+- **README: the Next.js coverage guard is described accurately.** The docs conflated
+  two behaviors. With the auto-wired spec, `surfaces` and `expected` both derive from
+  the same `discoverNextRoutes()` call, so a new static route is captured and expected
+  together — **auto-covered, never a guard failure**. The guard **fails** only on
+  genuine divergence (a dynamic route, a hand-maintained registry, or a route dropped
+  from `surfaces` while still `expected`). Rewrote the overclaiming passages and the
+  generated-spec comments to state both behaviors.
 - **Layout-equivalent margin suppression no longer drops a real one-sided margin
   change.** `dropLayoutEquivalentMarginProps` suppressed any horizontal
   `margin-left/right/inline-start/inline-end` change whenever the element's rect
