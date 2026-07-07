@@ -21,9 +21,12 @@ Requires **Node ≥ 18** (ESM) and **@playwright/test ≥ 1.40** (peer dep).
 `styleproof-init` scaffolds, non-destructively (it sits beside your existing
 Playwright config, never edits it):
 
-- **`e2e/styleproof.spec.ts`** — the capture spec. A **Next.js** repo gets its
-  App-Router + Pages-Router routes *and* the `expected` coverage guard wired via
-  `discoverNextRoutes()`, so it's protected out of the box.
+- **`e2e/styleproof.spec.ts`** — the capture spec, with the inventory guard
+  (`inventory: true`) on. A **Next.js** repo gets its App-Router + Pages-Router
+  routes *and* the `expected` coverage guard wired via `discoverNextRoutes()`;
+  any other repo gets a **crawl-by-default** spec (`defineCrawlCapture` from
+  `/`) that discovers surfaces from the rendered nav — either way it's
+  protected out of the box.
 - **`playwright.styleproof.config.ts`** — a dedicated config that **builds and
   serves a production build** (never a flaky dev server — dev's per-route JIT
   compile under CI load is what makes captures race late content), scopes

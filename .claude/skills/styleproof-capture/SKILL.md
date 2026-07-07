@@ -22,7 +22,7 @@ styleproof-diff design .styleproof/maps/current   # design vs your build
 ```
 
 Flags:
-- `--key <name>` — surface key (defaults from the URL).
+- `--key <name>` — surface key / capture file prefix (default `page`).
 - `--widths 1440,1024,768` — **omit** to auto-detect the page's own `@media`
   bands; pin them for a page with a cross-origin sheet (detection reads every
   sheet and fails loudly rather than guess).
@@ -47,4 +47,5 @@ the crawler and setup steps — the `styleproof-coverage` skill (`--crawl`,
 ## Next
 
 `styleproof-diff` to compare; `styleproof-report` for the visual before/after;
-the design→production flow is the `design-to-production` skill.
+the README's *Match a design pixel-for-pixel* section is the full design→build
+flow.

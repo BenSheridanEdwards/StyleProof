@@ -58,11 +58,27 @@ defineStyleMapCapture({
 
 A key in neither `surfaces` nor `exclude` fails the guard; an `exclude` key not
 in `expected` (a renamed/removed route) fails too — the opt-out ledger can't rot.
+The registry also travels with the captured bundle, so `styleproof-diff` can
+state a green's completeness basis at gate time (`styleproof-coverage` skill).
+
+`defineCrawlCapture` takes the same `expected`/`exclude` pair: the crawl
+reconciles the **rendered nav** against it, both directions — a new linked route
+with no `expected` entry fails, and an `expected` route the nav stopped linking
+fails. This runs *inside the capture test* (the link set isn't known until the
+page renders), unlike the static spec guard.
+
+## The inventory guard — `inventory: true`
+
+Orthogonal to coverage: harvest each surface's **navigable affordances** (links,
+tabs, menu items) into the map, so a nav item or route that goes *unreachable*
+on the head gates loudly instead of vanishing between captures. On by default in
+`styleproof-init` scaffolds; acknowledge intentional removals in
+`styleproof.inventory.json` (`{"<key>": "<why>"}`).
 
 ## Let auto-discovery keep the inventory honest
 
 - **Next.js:** `discoverNextRoutes()` wires `surfaces` + `expected` from `app/`+`pages/`.
-- **Single-route SPA** (every view is `/?tab=…`): `defineCrawlCapture({ from: '/', match: /\?tab=/ })` — the surface set *is* the rendered nav's `<a href>`s.
+- **Single-route SPA** (every view is `/?tab=…`): `defineCrawlCapture({ from: '/', match: /\?tab=/ })` — the surface set *is* the rendered nav's `<a href>`s (SVG links count too).
 - **Component catalog:** `discoverComponentFiles({ roots: ['src/components'] })` +
   `componentCatalogSurfaces(...)` — fails CI when a component file has no surface.
 - **Harvest one-step variants:** `styleproof-variants --base-url … --route /` writes a manifest of controls that actually change computed styles.

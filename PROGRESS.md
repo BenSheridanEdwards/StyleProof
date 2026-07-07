@@ -1,5 +1,54 @@
 # Progress
 
+## Active Task: fact-check the Claude Code skills + README against current reality
+
+## Completed
+
+- Extracted ground truth (bin/\*.mjs flags/exit codes, `src/index.ts` exports,
+  `action.yml` inputs/outputs, CHANGELOG 3.9→3.19) and diffed it against the ten
+  `.claude/skills/styleproof*` skills and the README.
+- Skills: removed dead cross-references (`design-to-production`,
+  `styleproof-refactor`); replaced a non-generic `hud/` path with a generic one;
+  fixed the `--key` default (`page`); documented the ledger-era gate contract in
+  `styleproof-diff` (exit 1 also blocks on inventory removal / incomplete
+  coverage / unproven determinism; exit 2 on a missing-empty map;
+  `--json <file>`); added the crawl `expected`/`exclude` guard and the inventory
+  guard to `styleproof-surfaces`; the browser-build compatibility key to
+  `styleproof-baseline`; `--until-covered` + gate verdicts to
+  `styleproof-coverage`; report exit codes + gates-first lead to
+  `styleproof-report`; the crawl-by-default scaffold to `styleproof-install`;
+  `report-branch` pruning + the inventory gate to `styleproof-ci-gate`; a
+  selective-remap pointer to `styleproof-prepush`.
+- README: new "What a green certifies" section (coverage / determinism /
+  inventory verdicts, linking `docs/what-it-catches.md` and
+  `docs/inventory-guard.md`); `styleproof-capture` added to the CLI reference;
+  `gateInventoryRemovals` in the policy table; `--until-covered` in the crawl
+  section; layout-equivalent-margin wording updated for the #187 fix.
+  CHANGELOG `[Unreleased]` Docs entry added.
+
+## Findings
+
+- The skills were last touched at #144/#152 and predated the coverage (3.9),
+  determinism (3.10), inventory (3.12–3.14), crawl-guard (3.18), and
+  selective-remap (3.19) work; the README was PR-current except for the
+  inventory/verdict story, the missing `styleproof-capture` CLI entry, and #187.
+
+## Next Action
+
+- None — docs-only change awaiting review.
+
+## Blockers
+
+- None.
+
+## Verification Status
+
+- `npm run format:check` passes (README prettier-reformatted).
+- Stale-reference grep (`design-to-production|styleproof-refactor|hud/`) over
+  skills + README: clean. Privacy grep of the diff: clean.
+
+---
+
 ## Active Task: popup reset verification + identity-bound triggers (#183)
 
 ## Completed

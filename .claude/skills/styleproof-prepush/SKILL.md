@@ -63,6 +63,16 @@ If init wrote `.githooks/pre-push` (no husky), activate once per clone:
   gitignored on purpose; committing maps to the branch reintroduces the
   cross-PR rebase churn this pattern exists to avoid.
 
+## Faster still: capture only affected surfaces
+
+On a big app, the slow part is capturing every surface. The opt-in
+`affectedSurfaces` / `explainAffectedSurfaces` helpers (README: *Optional:
+selective remap*) take the changed files + a module graph and return the
+surfaces that could have rendered differently — everything else reuses its
+restored base map. Fail-closed: anything unbounded (a global stylesheet, a token
+file) returns `'all'`. Print the skip list in the hook before trusting it, and
+let `main` still capture everything as the trust-but-verify net.
+
 ## Next
 
 `styleproof-ci-gate` is what consumes the pre-pushed map; `styleproof-baseline`

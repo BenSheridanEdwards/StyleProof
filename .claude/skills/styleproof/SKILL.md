@@ -31,8 +31,9 @@ This skill is the map. Each step has its own skill; follow them in order.
 ## Use it (every PR / every check)
 
 - **`styleproof-capture`** — one-shot capture of any URL you point at.
-- **`styleproof-diff`** — the gate: 0 = certified identical, 1 = changed, 3 = new
-  surface. Validate the differ before trusting a 0.
+- **`styleproof-diff`** — the gate: 0 = certified identical, 1 = changed (or a
+  blocked gate: unacknowledged inventory removal, incomplete coverage, unproven
+  determinism), 3 = new surface. Validate the differ before trusting a 0.
 - **`styleproof-report`** — the before/after visual review artifact.
 - **`styleproof-coverage`** — `--crawl` + `--require-full-coverage` + `--setup`;
   prove no surface/state was missed (the captures can't catch an un-taken
@@ -45,9 +46,8 @@ This skill is the map. Each step has its own skill; follow them in order.
   design-system swap, a dependency/build bump). Zero diff is the contract; one
   drifting longhand is a regression to investigate.
 - **Match a design pixel-for-pixel** (`styleproof-capture` design vs build) —
-  point at the design and the build, diff, watch the number shrink to zero. For
-  the full port-a-design-to-production flow (fidelity **and** correctness, plus
-  the code-quality-gate unblocks), use the **`design-to-production`** skill.
+  point at the design and the build, diff, watch the number shrink to zero
+  (README: *Match a design pixel-for-pixel*).
 
 ## What's automatic vs what you set
 

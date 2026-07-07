@@ -40,7 +40,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (`{"<surface·endpoint>": "why"}`), or set `dataResidue: 'warn'` in the capture spec to
   restore the previous non-gating behaviour. A capture with no failing data request is
   unaffected. (#205)
-  
+
 - **BREAKING: `blocking` now defaults to `true`.** In review-gate mode
   (`require-approval: true`), an **unapproved** visual change now **fails the
   report job** (red ✗) out of the box, so the check blocks a merge even on a repo
@@ -109,6 +109,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   tech stack, glossary, the gate matrix, PR quality, and the Definition of Done
   (moved from `.agents/DEFINITION_OF_DONE.md`). Adds `.agents/decisions/` ADRs, a
   root `TODO.md`, and a `.claude/` PreToolUse hook that blocks `--no-verify`.
+
+### Docs
+
+- **README catches up with the shipped gates.** A new _What a green certifies_
+  section surfaces the coverage, determinism, and inventory verdicts (3.9–3.14)
+  that previously lived only in the CLI reference bullet, linking
+  `docs/what-it-catches.md` and `docs/inventory-guard.md`; `styleproof-capture`
+  joins the CLI reference (with `--until-covered`); the policy table gains
+  `gateInventoryRemovals`; and the layout-equivalent-margin wording reflects the
+  one-sided-imbalance fix below. The repo's Claude Code skills
+  (`.claude/skills/styleproof*`) are fact-checked against the current CLI/API
+  surface: dead cross-references removed; the gate-contract exit codes, crawl
+  `expected` guard, browser-build compatibility key, and ledger verdicts added.
 
 ### Fixed
 
