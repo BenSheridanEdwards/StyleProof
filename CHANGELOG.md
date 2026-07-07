@@ -21,6 +21,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`styleproof-init` now installs the pre-push publish hook by default.** The
+  capture-locally/publish-to-store flow is the out-of-the-box path, not an
+  opt-in recipe: init scaffolds a `pre-push` hook (into `.husky/` when present,
+  else `.githooks/` with a one-line activation hint) that runs `styleproof-map`
+  — capture this commit, publish the bundle to the SHA-keyed `styleproof-maps`
+  branch — plus an advisory `styleproof-diff`, so CI restores by SHA and stays
+  report-only. `STYLEPROOF_SKIP_CAPTURE=1 git push` skips a push that can't
+  affect render. Never overwrites an existing hook; maps never get committed
+  to the PR branch.
 - **`styleproof-init` now installs the approval workflow.** The generated report
   workflow runs with `require-approval: true`, but the `issue_comment` handler
   that flips the `StyleProof` status when a reviewer ticks **Approve all changes**

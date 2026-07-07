@@ -6,16 +6,18 @@ description: Use when setting up a local pre-push hook that captures the StylePr
 # StyleProof — capture the map at pre-push
 
 One job: build the head map **locally, before the push**, so CI's hot path is
-report-only (no build, no browser). The README's guidance — "build the map
-outside CI when possible by running `styleproof-map` after committing" — as a
-git hook. Optional but a big CI-latency win for same-repo teams.
+report-only (no build, no browser). This is the **default**: `styleproof-init`
+installs the hook out of the box (`.husky/pre-push` if husky is present, else
+`.githooks/pre-push` + `git config core.hooksPath .githooks`). This skill is
+for understanding and customizing it.
 
 ## The pattern
 
-A `pre-push` hook that:
+The scaffolded `pre-push` hook:
 
-1. **Bails early** for changes that can't affect render — if the push touches no
-   `src/`, styleproof config, or the hook itself, `exit 0`.
+1. **Skips** pushes that can't affect render — `STYLEPROOF_SKIP_CAPTURE=1 git
+   push`; add a changed-files grep (e.g. only `src/` or the spec) to automate
+   the skip for your layout.
 2. **Captures and publishes** the map (`npx styleproof-map`). Outside CI it
    auto-uploads the bundle to the dedicated `styleproof-maps` branch, keyed by
    commit SHA — CI restores it from there by the PR head SHA.
@@ -27,20 +29,21 @@ as changed files in review and — because every PR writes the same paths — fo
 a rebase of every open PR each time one merges. The store branch is keyed per
 SHA, so PRs never collide.
 
+The scaffolded hook (add a changed-files bail-early for your layout if you
+want docs-only pushes skipped automatically):
+
 ```sh
 #!/bin/sh
 set -e
-# Docs-only escape hatch: STYLEPROOF_SKIP_CAPTURE=1 git push
+# Skip a push that can't affect render: STYLEPROOF_SKIP_CAPTURE=1 git push
 [ "${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-
-changed="$(git diff --name-only "$(git merge-base origin/main HEAD)"...HEAD)"
-printf '%s\n' "$changed" | grep -Eq '^(src/|styleproof\.config\.json$)' || exit 0
 
 npx styleproof-map            # capture → .styleproof/maps/current, publish to styleproof-maps
 npx styleproof-diff || true   # advisory: show drift before CI does
 ```
 
-Activate: `git config core.hooksPath .githooks` (or drop it in `.husky/`).
+If init wrote `.githooks/pre-push` (no husky), activate once per clone:
+`git config core.hooksPath .githooks`.
 
 ## Gotchas learned in production
 
