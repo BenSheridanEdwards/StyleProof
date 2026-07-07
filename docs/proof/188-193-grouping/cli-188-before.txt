@@ -1,0 +1,72 @@
+
+home@1080: 4 element(s) differ
+  html
+    height: 1232px → 1240px
+  html > body
+    height: 1232px → 1240px
+  html > body > main
+    height: 1172px → 1180px
+  html > body > main > button:nth-child(1)  (.cta)
+    background-color: rgb(59, 130, 246) → rgb(37, 99, 235)
+    padding-top: 10px → 14px
+    padding-right: 16px → 20px
+    padding-bottom: 10px → 14px
+    padding-left: 16px → 20px
+    width: 152px → 160px
+    height: 44px → 52px
+    transform-origin: 76px 22px → 80px 26px
+    perspective-origin: 76px 22px → 80px 26px
+
+home@1280: 4 element(s) differ
+  html
+    height: 1232px → 1240px
+  html > body
+    height: 1232px → 1240px
+  html > body > main
+    height: 1172px → 1180px
+  html > body > main > button:nth-child(1)  (.cta)
+    background-color: rgb(59, 130, 246) → rgb(37, 99, 235)
+    padding-top: 10px → 14px
+    padding-right: 16px → 20px
+    padding-bottom: 10px → 14px
+    padding-left: 16px → 20px
+    width: 152px → 160px
+    height: 44px → 52px
+    transform-origin: 76px 22px → 80px 26px
+    perspective-origin: 76px 22px → 80px 26px
+
+home@390: 4 element(s) differ
+  html
+    height: 1232px → 1240px
+  html > body
+    height: 1232px → 1240px
+  html > body > main
+    height: 1172px → 1180px
+  html > body > main > button:nth-child(1)  (.cta)
+    background-color: rgb(59, 130, 246) → rgb(37, 99, 235)
+    padding-top: 10px → 14px
+    padding-right: 16px → 20px
+    padding-bottom: 10px → 14px
+    padding-left: 16px → 20px
+    width: 152px → 160px
+    height: 44px → 52px
+    transform-origin: 76px 22px → 80px 26px
+    perspective-origin: 76px 22px → 80px 26px
+
+home@768: 4 element(s) differ
+  html
+    height: 1232px → 1240px
+  html > body
+    height: 1232px → 1240px
+  html > body > main
+    height: 1172px → 1180px
+  html > body > main > button:nth-child(1)  (.cta)
+    background-color: rgb(59, 130, 246) → rgb(37, 99, 235)
+    padding-top: 10px → 14px
+    padding-right: 16px → 20px
+    padding-bottom: 10px → 14px
+    padding-left: 16px → 20px
+    width: 152px → 160px
+    height: 44px → 52px
+    transform-origin: 76px 22px → 80px 26px
+    perspective-origin: 76px 22px → 80px 26px

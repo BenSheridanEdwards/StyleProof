@@ -1171,3 +1171,74 @@ test('end-to-end: a hostile CSS value renders as one intact row with no live mar
   assert.ok(md.includes('counter(a)') && md.includes('counter(b)'), 'both hostile values are shown verbatim');
   rmTmp(root);
 });
+
+// -------------------------------------------------- shared-chrome tier (#193)
+
+test('report promotes a frame-wide change to a chrome callout, leaves a one-view change in place', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  // A persistent nav is on every view; head adds a second nav link on every view
+  // (the shared frame). `home` additionally restyles its own h1 (view content).
+  const nav = (extra) => ({
+    'html > body > nav': { tag: 'nav', cls: 'rail', style: { display: 'flex' } },
+    'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } },
+    ...extra,
+  });
+  const a2 = { 'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } } };
+  for (const v of ['settings', 'reports']) {
+    writeCapture(beforeDir, `${v}@1280`, makeMap({ elements: nav({}) }), solidPng(1280, 400));
+    writeCapture(afterDir, `${v}@1280`, makeMap({ elements: nav(a2) }), solidPng(1280, 400));
+  }
+  writeCapture(
+    beforeDir,
+    'home@1280',
+    makeMap({
+      elements: {
+        ...nav({}),
+        'html > body > main > h1': { tag: 'h1', cls: 'title', style: { color: 'rgb(0, 0, 0)' } },
+      },
+    }),
+    solidPng(1280, 400),
+  );
+  writeCapture(
+    afterDir,
+    'home@1280',
+    makeMap({
+      elements: {
+        ...nav(a2),
+        'html > body > main > h1': { tag: 'h1', cls: 'title', style: { color: 'rgb(255, 0, 0)' } },
+      },
+    }),
+    solidPng(1280, 400),
+  );
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  // One global-chrome callout at the top for the nav addition.
+  assert.match(md, /## 🧱 Global chrome change/, md.slice(0, 1200));
+  assert.match(md, /rode the shared frame every view draws/);
+  // The home h1 restyle is still shown — never hidden under the banner.
+  assert.match(md, /title/);
+  // Counts and exit-relevant results are unchanged by the presentational tier.
+  assert.equal(res.newSurfaces, 0);
+  rmTmp(root);
+});
+
+test('report does NOT promote a change that hit only some hosting surfaces (#193)', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const nav = (color) => ({
+    'html > body > nav': { tag: 'nav', cls: 'rail', style: { display: 'flex' } },
+    'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color } },
+  });
+  // nav on 3 views; the link recolours on only 2 → partial, never chrome.
+  writeCapture(beforeDir, 'home@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), solidPng(1280, 300));
+  writeCapture(afterDir, 'home@1280', makeMap({ elements: nav('rgb(255, 0, 0)') }), solidPng(1280, 300));
+  writeCapture(beforeDir, 'settings@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), solidPng(1280, 300));
+  writeCapture(afterDir, 'settings@1280', makeMap({ elements: nav('rgb(255, 0, 0)') }), solidPng(1280, 300));
+  writeCapture(beforeDir, 'reports@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), solidPng(1280, 300));
+  writeCapture(afterDir, 'reports@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), solidPng(1280, 300));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.doesNotMatch(md, /Global chrome/, 'a change on only some hosting surfaces is not chrome');
+  rmTmp(root);
+});

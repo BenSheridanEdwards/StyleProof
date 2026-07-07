@@ -1,0 +1,8 @@
+
+home@1280 (+3 more surfaces: home @ 1280, 1080, 768, 390): 1 element restyled (+7 derived longhands)
+  html > body > main > button:nth-child(1)  (.cta)
+    padding: 10px 16px → 14px 20px
+    background-color: rgb(59, 130, 246) → rgb(37, 99, 235)
+
+⚠ completeness NOT asserted — the spec declared no `expected` registry, so this certifies only the
+  surfaces that were captured, not that they are all of them. Declare `expected` to certify completeness.

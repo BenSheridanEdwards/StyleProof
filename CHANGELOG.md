@@ -7,6 +7,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Shared-chrome tier in the report and the `styleproof-diff` CLI.** When one
+  change rides the frame every view draws — a persistent nav rail, header, or
+  footer that moved on every surface that renders it — it is promoted to a single
+  "🧱 Global chrome change" callout at the top, with the detail folded beneath,
+  instead of repeating across a long surface list on several entries. The reviewer
+  reads "the nav changed everywhere" once. The threshold is **structural, not a
+  tunable knob**: an element path is chrome only when it is hosted on more than one
+  surface base and changed on _every_ base that hosts it (full coverage of its
+  hosting surfaces). A change on merely some surfaces, or a view's own content
+  change entangled with the frame change, is never promoted — the view-specific
+  detail always stays visible. Purely presentational: grouping keys, findings,
+  counts, exit codes, and `--json` are unchanged.
+
+### Changed
+
+- **`styleproof-diff` human output now reuses the report's grouping.** One real
+  change no longer prints once per surface with its derived-longhand echo: the CLI
+  groups surfaces that changed identically into one finding (with the per-surface
+  count on the header line), summarises longhands into shorthands, and folds the
+  size/position-derived longhands (`transform-origin`, `width`/`height`, cascaded
+  ancestor heights…) behind a `(+N derived longhands)` count. A one-view button
+  restyle at one width that used to fill dozens of raw lines now reads as a single
+  grouped finding. `--json` stays the complete, byte-stable machine contract (every
+  surface, every raw longhand); exit codes are unchanged.
+
 ## [3.20.0] - 2026-07-07
 
 ### Fixed
