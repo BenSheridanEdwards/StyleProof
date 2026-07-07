@@ -542,7 +542,8 @@ Either way the generated spec runs as-is. It also wires everything around it so 
 - widths you never set — **omit `widths`** and StyleProof sweeps your app's real `@media` breakpoints automatically;
 - determinism you never set up — network settle, frozen clock, animation freeze, and framework-noise filtering are all on by default (see [At a glance](#forks-and-dependabot));
 - `.gitignore` entries for `.styleproof/`, `test-results/`, and `playwright-report/`;
-- a **cache-first CI workflow** that restores reusable maps from the `styleproof-maps` branch and generates the report without a browser when both maps are already built.
+- a **cache-first CI workflow** that restores reusable maps from the `styleproof-maps` branch and generates the report without a browser when both maps are already built;
+- the **approval workflow** (`styleproof-approve.yml`) that turns the `StyleProof` status green when a reviewer ticks **Approve all changes** — so the review gate is complete, not half-wired (it activates once the init PR merges, since GitHub runs `issue_comment` workflows only from your default branch).
 
 ### 2. Capture, then diff
 
@@ -593,8 +594,11 @@ any state you _declared but didn't capture_ fail the gate loudly instead of
 passing green — see [What you own](#what-you-own).
 
 **Want the side-by-side report + one-click approval**? `styleproof-init` scaffolds
-this for you. If you wire it by hand, restore or capture two dirs first, then use
-the Action on those dirs:
+**both** for you — the report workflow _and_ the `styleproof-approve.yml` handler
+that flips the `StyleProof` status when a reviewer ticks the box. GitHub only runs
+`issue_comment` workflows from the default branch, so the checkbox goes live the
+moment you merge the init PR — no manual copy. If you wire it by hand instead,
+restore or capture two dirs first, then use the Action on those dirs:
 
 ```yaml
 # .github/workflows/styleproof.yml
@@ -608,7 +612,7 @@ the Action on those dirs:
     require-approval: true # review-gate mode (omit / use fail-on-diff: true to certify)
 ```
 
-Then copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged).
+Only for this hand-wired path: copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged). `styleproof-init` writes this file for you, so you can skip this step if you used it.
 
 **Prefer to always capture in CI?** For a repo with many outside contributors on different machines, StyleProof can capture **both** base and head in CI and diff them there. See **[Forks and Dependabot](#forks-and-dependabot)** for that flow (it's also the fork-safe split). The default cache-first flow is faster for same-repo teams because local `styleproof-map` can build the head map before CI starts.
 

@@ -155,6 +155,31 @@ for (const manager of [
   });
 }
 
+test('styleproof-init: installs the approval workflow so require-approval is not left inert', () => {
+  // The report workflow runs with `require-approval: true`; without the approval
+  // handler the "Approve all changes" checkbox can never flip the status green.
+  // init must scaffold it (copied verbatim from the packaged example), idempotently.
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+
+    const approve = readFile(root, '.github/workflows/styleproof-approve.yml');
+    const source = readFile(path.join(here, '..'), 'example/styleproof-approve.yml');
+    assert.equal(approve, source); // verbatim copy, no drift
+    assert.match(approve, /name: StyleProof approve/);
+    assert.match(approve, /issue_comment/);
+    assert.match(res.stdout, /styleproof-approve\.yml \(approval gate/);
+
+    // Idempotent: a second run leaves an existing workflow untouched.
+    const rerun = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(rerun.status, 0, rerun.stderr);
+    assert.match(rerun.stdout, /styleproof-approve\.yml already exists — left untouched/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-init: Vite projects get a production preview command without needing a start script', () => {
   const root = mkTmp();
   try {
