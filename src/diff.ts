@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadStyleMap, isUnder, type StyleMap } from './capture.js';
+import { isMapFile, MAP_MANIFEST } from './map-store.js';
+import { styleValuesEqual } from './canonicalize.js';
 
 /**
  * Structured diff between two style maps. Custom properties (--*) are
@@ -9,6 +11,46 @@ import { loadStyleMap, isUnder, type StyleMap } from './capture.js';
  */
 
 export type PropChange = { prop: string; before: string; after: string };
+
+/**
+ * The before dir carries a bundle MANIFEST but ZERO captures while the after dir
+ * held some — a restore or capture that claims success yet delivered no maps (a
+ * corrupt bundle, a wrong --base-dir pointed at a manifest-only dir). Without
+ * this guard every after surface diffs as `missing: 'before'` (exit 3, "only new
+ * surfaces") and a whole app of regressions becomes one approvable "🆕 all new"
+ * report. The CLIs map this to exit 2 — a hard error, never the rubber-stampable
+ * exit 3. A truly BARE base dir (no manifest, no maps) is different: it means
+ * "never captured — no baseline exists yet", the first-adoption flow where the
+ * base commit predates the capture spec, and it keeps the exit-3 review path.
+ * (Both dirs empty stays the plain "no captures found" throw.)
+ */
+export class MissingBaseMapError extends Error {
+  constructor() {
+    super(
+      'base map missing: restore it from the map store or recapture both sides — refusing to treat every surface as new. ' +
+        'Next: run styleproof-map --restore --sha <base>, or let CI recapture both sides.',
+    );
+    this.name = 'MissingBaseMapError';
+  }
+}
+
+/**
+ * The mirror case: the AFTER (head) dir held ZERO captures while the before dir
+ * held some — a head capture or restore that produced nothing. Without this
+ * guard every base surface marks `missing: 'after'`, the CLI's new-surface count
+ * (which tallies BOTH directions) exits 3, and a head that rendered nothing
+ * becomes an approvable "all new surfaces" report — and, once approved, the
+ * next base. Same exit-2 path via the CLIs' existing catch.
+ */
+export class MissingHeadMapError extends Error {
+  constructor() {
+    super(
+      'head map missing: the head capture produced zero surfaces — recapture the head side; refusing to treat every surface as removed/new. ' +
+        'Next: re-run styleproof-map on the head commit, or let CI recapture both sides.',
+    );
+    this.name = 'MissingHeadMapError';
+  }
+}
 
 export type Finding =
   // `component` is advisory passthrough from the capture (the React component
@@ -52,7 +94,10 @@ function diffProps(
     if (prop.startsWith('--')) continue;
     const before = propsA[prop] ?? fallbackA[prop] ?? unsetA;
     const after = propsB[prop] ?? fallbackB[prop] ?? unsetB;
-    if (before !== after) changed.push({ prop, before, after });
+    // Compare by CANONICAL value, so an identical value serialized differently by a
+    // browser/build-tool version (`rgba(8, 18, 32, 0.62)` vs `#0812209e`, comma-spacing in
+    // a font list) is not reported as a change. The report still shows the real strings.
+    if (!styleValuesEqual(before, after)) changed.push({ prop, before, after });
   }
   return changed;
 }
@@ -70,18 +115,55 @@ function sameRect(a?: [number, number, number, number], b?: [number, number, num
   return !!a && !!b && a.every((v, i) => v === b[i]);
 }
 
+const HORIZONTAL_MARGIN_PAIRS: [string, string][] = [
+  ['margin-left', 'margin-right'],
+  ['margin-inline-start', 'margin-inline-end'],
+];
+
+function marginPxDelta(p: PropChange): number | null {
+  const before = pxParts(p.before);
+  const after = pxParts(p.after);
+  return before?.length === 1 && after?.length === 1 ? after[0]! - before[0]! : null;
+}
+
+// True when one horizontal side moved by a different px amount than its
+// opposite. Such a change would shift the box on its own, so an *identical*
+// rect means something else compensated — a real restyle, not layout-equivalent
+// drift. Non-px or state-sentinel values (`(state no longer changes it)`) aren't
+// demonstrable, so they fall through to the balanced (drop) path unchanged.
+function marginChangeHasPxImbalance(props: PropChange[]): boolean {
+  const delta = new Map<string, number | null>();
+  for (const p of props) {
+    if (LAYOUT_EQUIVALENT_MARGIN_PROPS.has(p.prop)) delta.set(p.prop, marginPxDelta(p));
+  }
+  for (const [start, end] of HORIZONTAL_MARGIN_PAIRS) {
+    const ds = delta.has(start) ? delta.get(start)! : 0;
+    const de = delta.has(end) ? delta.get(end)! : 0;
+    if (ds !== null && de !== null && ds !== de) return true;
+  }
+  return false;
+}
+
 function dropLayoutEquivalentMarginProps(
   props: PropChange[],
   a?: StyleMap['elements'][string],
   b?: StyleMap['elements'][string],
 ): PropChange[] {
   if (!sameRect(a?.rect, b?.rect)) return props;
+  // ponytail: a balanced margin change with an unchanged rect is treated as
+  // layout-equivalent from computed style alone. That still drops the rare case
+  // where a *balanced* change was held in place by external compensation — a
+  // consciously-deferred, low-reach soundness corner; closing it needs
+  // cross-element layout reasoning. The common one-sided case is caught here.
+  if (marginChangeHasPxImbalance(props)) return props;
   return props.filter((p) => !LAYOUT_EQUIVALENT_MARGIN_PROPS.has(p.prop));
 }
 
 function pxParts(value: string): number[] | null {
   const parts = value.trim().split(/\s+/);
-  if (parts.length < 2 || parts.length > 3) return null;
+  // 1–3 components: a single-value origin (`50px`) jitters the same way as the
+  // 2/3-component form and must be suppressed identically.
+  if (parts.length < 1 || parts.length > 3) return null;
   const values = parts.map((part) => {
     const match = /^(-?\d+(?:\.\d+)?)px$/.exec(part);
     return match ? Number(match[1]) : Number.NaN;
@@ -235,7 +317,7 @@ function indexDir(dir: string): Record<string, string> {
   return Object.fromEntries(
     fs
       .readdirSync(dir)
-      .filter((f) => f !== 'styleproof-manifest.json' && /\.json(\.gz)?$/.test(f))
+      .filter(isMapFile)
       .map((f) => [f.replace(/\.json(\.gz)?$/, ''), path.join(dir, f)]),
   );
 }
@@ -250,6 +332,23 @@ export function diffStyleMapDirs(
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
   if (names.length === 0) throw new Error(`no .json(.gz) captures found in ${dirA} or ${dirB}`);
+  // A whole side with zero captures is a missing MAP, not a set of genuinely
+  // new/removed surfaces — either way every surface would carry a `missing`
+  // marker and the run would read as "all new" (exit 3, approvable). Refuse
+  // each direction loudly with its own named cause — with one exception:
+  //
+  // Base side: only when the dir carries a bundle manifest. Manifest + zero maps
+  // means a restore/capture that claims success yet delivered nothing (a corrupt
+  // bundle) — breakage. A BARE dir (no manifest either) means no baseline was
+  // ever captured — the first-adoption flow, where the recapture fallback checks
+  // out a base commit that predates the capture spec. That legitimately yields
+  // zero surfaces and must keep the exit-3 "new surfaces, review before
+  // baselining" onboarding path, so it falls through.
+  if (Object.keys(indexA).length === 0 && fs.existsSync(path.join(dirA, MAP_MANIFEST))) throw new MissingBaseMapError();
+  // Head side: UNCONDITIONAL (bare or manifest-present). The onboarding
+  // asymmetry only exists on the base side — the head is the commit under test,
+  // so a head that produced zero captures is always breakage, never a review flow.
+  if (Object.keys(indexB).length === 0) throw new MissingHeadMapError();
 
   const surfaces: SurfaceDiff[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };

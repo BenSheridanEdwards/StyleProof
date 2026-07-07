@@ -29,6 +29,12 @@ jobs:
           command: audit
           comment: true
           review-comments: true
+          # Grandfather the same known-complex functions the complexity gate below
+          # does, so editing a file that merely CONTAINS a pre-existing god-function
+          # doesn't fail the audit; genuinely new complexity (not in the baseline)
+          # still gates. Mirrors the pre-commit hook. New dead-code/duplication in
+          # changed files still gates regardless.
+          health-baseline: .fallow/health-baseline.json
       # Coverage-independent complexity gate (production mode → src/bin, skips tests).
       # Fails only on NEW functions over the cyclomatic/cognitive thresholds in
       # .fallowrc.jsonc, beyond the committed baseline.

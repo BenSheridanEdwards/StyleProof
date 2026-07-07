@@ -33,14 +33,16 @@ import {
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
 import {
-  cliErrorMessage,
+  cachedMapsUnavailableMessage,
   isHelpArg,
   missingManualCaptureMessage,
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
-import { loadStyleMap } from '../dist/capture.js';
-import { auditRunInventory } from '../dist/inventory.js';
+import { readInventories } from '../dist/capture.js';
+import { auditRunInventory, readAckFile } from '../dist/inventory.js';
+import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
+import { isMapFile } from '../dist/map-store.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 
@@ -50,25 +52,13 @@ const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.m
 // offered and head no longer does BLOCKS unless acknowledged. Inert when no map
 // carries inventory, so every existing capture behaves exactly as before.
 
-// Mirror of indexDir() in diff.ts — the capture-dir file filter, kept local so the
-// bin needn't reach into diff internals for one small read.
-function dirInventories(dir) {
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f !== 'styleproof-manifest.json' && /\.json(\.gz)?$/.test(f))
-    .map((f) => loadStyleMap(path.join(dir, f)))
-    .map((m) => (m.inventory ? { inventory: m.inventory } : {}));
-}
-
 // `key -> reason` acknowledged removals. Optional file; absent → none. Malformed
 // JSON fails loud (exit 2) rather than silently un-acknowledging a real removal.
 function loadAllowRemoved() {
-  const p = path.resolve(process.env.STYLEPROOF_INVENTORY ?? 'styleproof.inventory.json');
-  if (!fs.existsSync(p)) return {};
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+    return readAckFile();
   } catch (e) {
-    console.error(`${COMMAND}: ${p} is not valid JSON — ${e.message}`);
+    console.error(`${COMMAND}: ${e.message}`);
     process.exit(2);
   }
 }
@@ -76,8 +66,8 @@ function loadAllowRemoved() {
 // Read both sides' inventory and audit removals. MUST run before any cached-map
 // cleanup deletes the restored dirs. Returns null when no capture carries inventory.
 function readInventoryAudit(dirA, dirB) {
-  const baseInv = dirInventories(dirA);
-  const headInv = dirInventories(dirB);
+  const baseInv = readInventories(dirA);
+  const headInv = readInventories(dirB);
   if (![...baseInv, ...headInv].some((m) => m.inventory?.length)) return null;
   const allowed = loadAllowRemoved();
   return { allowed, ...auditRunInventory(baseInv, headInv, allowed) };
@@ -108,6 +98,73 @@ function printInventoryAudit(audit) {
       `  → ${unexplained.length} unacknowledged removal(s): restore the affordance, or record the decision in styleproof.inventory.json {"<key>":"<why>"}.`,
     );
   return unexplained.length;
+}
+
+// ── coverage provenance (the completeness basis of a green) ──────────────────────
+// The head bundle carries a coverage ledger (the declared registry). The gate audits
+// the ACTUALLY-captured surfaces against it, so "clean" states its basis — complete vs
+// the registry, or explicitly "not asserted" — instead of silently implying completeness.
+
+// Surface keys captured in a dir (file `<key>@<width>.json[.gz]` → `<key>`, deduped).
+function capturedSurfaceKeys(dir) {
+  return [
+    ...new Set(
+      fs
+        .readdirSync(dir)
+        .filter(isMapFile)
+        .map((f) => f.replace(/@\d+\.json(\.gz)?$/, '')),
+    ),
+  ];
+}
+
+function readLedger(dir) {
+  const p = path.join(dir, COVERAGE_LEDGER);
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return null; // a corrupt ledger reads as no registry → "not asserted", never a false green
+  }
+}
+
+// Print the completeness verdict; return true if it BLOCKS (a registered surface is missing).
+function printCoverageVerdict(v) {
+  if (v.basis === 'complete') {
+    console.log(`\n✓ coverage complete — all ${v.registrySize} registered surface(s) captured`);
+    return false;
+  }
+  if (v.basis === 'unasserted') {
+    console.log(
+      '\n⚠ completeness NOT asserted — the spec declared no `expected` registry, so this certifies only the\n' +
+        '  surfaces that were captured, not that they are all of them. Declare `expected` to certify completeness.',
+    );
+    return false;
+  }
+  console.log(
+    `\n✗ coverage INCOMPLETE — ${v.uncovered.length} registered surface(s) not captured (of ${v.registrySize}):`,
+  );
+  for (const k of v.uncovered) console.log(`  ✗ missing: ${k}`);
+  console.log(
+    "  → capture each (or move it to `exclude` with a reason). A green can't certify what was never captured.",
+  );
+  return true;
+}
+
+// Print the determinism verdict; return true if it BLOCKS (a side's capture was unproven).
+function printDeterminismVerdict(v) {
+  if (v.status === 'proven') {
+    console.log(`\n✓ determinism proven — base ${v.base}, head ${v.head}`);
+    return false;
+  }
+  if (v.status === 'unknown') {
+    console.log('\n⚠ determinism basis unknown — a capture predates the determinism ledger; recapture to certify it.');
+    return false;
+  }
+  console.log(
+    `\n✗ determinism NOT proven — base ${v.base}, head ${v.head}. An unproven capture can drift, so a clean\n` +
+      '  diff might be two matching NONDETERMINISTIC reads. Enable selfCheck (default) or replay a recorded HAR.',
+  );
+  return true;
 }
 
 const HELP = `${COMMAND} — certify a CSS refactor by diffing two computed-style map captures
@@ -176,13 +233,7 @@ if (args.length <= 1) {
     dirA = cacheCapture.beforeDir;
     dirB = cacheCapture.afterDir;
   } catch (e) {
-    console.error(
-      [
-        `${COMMAND}: cached maps are not available for this comparison`,
-        cliErrorMessage(e),
-        'Next: run styleproof-map on the base and head commits to upload maps, or let CI recapture both sides.',
-      ].join('\n'),
-    );
+    console.error(cachedMapsUnavailableMessage(COMMAND, 'comparison', e));
     process.exit(2);
   }
 } else {
@@ -201,12 +252,18 @@ if (args.length <= 1) {
 
 let result;
 let inventoryAudit = null;
+let coverageVerdict = null;
+let determinismVerdict = null;
 try {
   assertCompatibleMapDirs(dirA, dirB);
   result = diffStyleMapDirs(dirA, dirB);
-  // Read inventory here, while the (possibly cached/restored) dirs still exist —
-  // the finally below deletes them in cached-map mode.
+  // Read inventory + the certification ledgers here, while the (possibly cached/restored)
+  // dirs still exist — the finally below deletes them in cached-map mode. Coverage is the
+  // HEAD bundle's completeness basis; determinism needs both sides.
   inventoryAudit = readInventoryAudit(dirA, dirB);
+  const headLedger = readLedger(dirB);
+  coverageVerdict = auditCoverage(capturedSurfaceKeys(dirB), headLedger);
+  determinismVerdict = auditDeterminism(readLedger(dirA), headLedger);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -243,8 +300,51 @@ for (const sd of surfaces) {
 }
 
 const invRemovals = printInventoryAudit(inventoryAudit);
+const coverageFails = printCoverageVerdict(coverageVerdict);
+const determinismFails = printDeterminismVerdict(determinismVerdict);
 
-if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({ counts, surfaces, compared }, null, 2));
+if (jsonOut) {
+  // A write failure (bad --json path, unwritable dir) is a usage/setup error, not a
+  // "reviewable differences" result — exit 2, never leak the exit-1 that CI reads as
+  // a real diff.
+  try {
+    fs.writeFileSync(
+      jsonOut,
+      JSON.stringify(
+        {
+          counts,
+          surfaces,
+          compared,
+          coverage: coverageVerdict,
+          determinism: determinismVerdict,
+          // The inventory verdict, machine-readable — parallel to coverage/determinism and
+          // to the report's certification block. `null` when no capture carried inventory.
+          // `unacknowledged` is the gating set: a CI can hard-fail on `unacknowledged.length`.
+          inventory: inventoryAudit && {
+            removed: inventoryAudit.delta.removed.map((i) => i.key),
+            added: inventoryAudit.delta.added.map((i) => i.key),
+            unacknowledged: inventoryAudit.unexplained.map((i) => i.key),
+            staleAcknowledgements: inventoryAudit.staleAllowances,
+          },
+          // Explain the `inventory: null` so a gate reading this JSON can tell "armed but no
+          // data" apart from "audited, nothing removed". Neither map carried inventory → set
+          // `inventory: true` in the capture spec (styleproof-init scaffolds it).
+          ...(inventoryAudit
+            ? {}
+            : {
+                inventoryNote:
+                  'no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate',
+              }),
+        },
+        null,
+        2,
+      ),
+    );
+  } catch (e) {
+    console.error(`${COMMAND}: could not write --json ${jsonOut}: ${e.message}`);
+    process.exit(2);
+  }
+}
 
 const total = counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing).length;
@@ -252,13 +352,17 @@ const newSurfaces = surfaces.filter((s) => s.missing).length;
 const surfaceCount = surfaces.length;
 const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
 const invNote = invRemovals ? ` + ${invRemovals} unacknowledged inventory removal(s)` : '';
+const covNote = coverageFails ? ` + ${coverageVerdict.uncovered.length} uncaptured registered surface(s)` : '';
+const detNote = determinismFails ? ' + determinism unproven' : '';
+const clean = total === 0 && invRemovals === 0 && !coverageFails && !determinismFails;
 console.log(
-  total === 0 && invRemovals === 0
+  clean
     ? newSurfaces === 0
       ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
       : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}`,
+    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}${covNote}${detNote}`,
 );
-// 0 = identical, 1 = reviewable differences (incl. unacknowledged inventory
-// removals), 3 = only new surfaces (no baseline). 2 reserved for usage/capture errors.
-process.exit(total > 0 || invRemovals > 0 ? 1 : newSurfaces > 0 ? 3 : 0);
+// 0 = identical, 1 = reviewable differences (incl. unacknowledged inventory removals, an
+// incomplete coverage registry, or an unproven-determinism capture), 3 = only new surfaces
+// (no baseline). 2 = usage/capture error.
+process.exit(total > 0 || invRemovals > 0 || coverageFails || determinismFails ? 1 : newSurfaces > 0 ? 3 : 0);

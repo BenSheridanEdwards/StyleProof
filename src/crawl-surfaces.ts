@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
+import { DANGER_SOURCE } from './danger.js';
 
 /**
  * Surface crawler: deterministically map a single URL's WHOLE interactive
@@ -48,8 +49,11 @@ export type CrawledSurface = { key: string; depth: number; path: CrawlStep[]; el
 
 /** Did the crawl SEE everything the design styles? `missing` lists classes the
  *  page's own stylesheets select on that never appeared in any captured surface —
- *  dead CSS, or a state the crawl could not reach. Empty missing = full coverage. */
-export type CrawlCoverage = { defined: number; rendered: number; missing: string[] };
+ *  dead CSS, or a state the crawl could not reach. `unreadable` names stylesheets
+ *  the browser could not parse (cross-origin, no CORS): their class vocabulary is
+ *  invisible, so coverage cannot be PROVEN against them. Full coverage = empty
+ *  `missing` AND empty `unreadable`. */
+export type CrawlCoverage = { defined: number; rendered: number; missing: string[]; unreadable: string[] };
 
 export type CrawlReport = {
   surfaces: CrawledSurface[];
@@ -183,12 +187,14 @@ function deriveKey(steps: CrawlStep[], used: Set<string>): string {
   return key;
 }
 
-/** Runs in the browser: every visible, enabled, non-navigating control worth trying. */
+/** Runs in the browser: every visible, enabled, non-navigating control worth trying.
+ *  `dangerSource` is the shared destructive-label pattern (see {@link DANGER_SOURCE}),
+ *  passed in because this function is serialized into the browser and can't close over
+ *  a Node `RegExp`. */
 /* c8 ignore start */ // fallow-ignore-next-line complexity
-function collectClickable(): RawCandidate[] {
+function collectClickable(dangerSource: string): RawCandidate[] {
   const SEMANTIC = 'button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form';
-  const DANGER =
-    /\b(delete|remove|destroy|logout|log ?out|sign ?out|publish|deploy|pay|purchase|buy|checkout|archive|disconnect|revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew)\b/i;
+  const DANGER = new RegExp(dangerSource, 'i');
   const esc = (v: string): string => CSS.escape(v);
   const quote = (v: string): string => JSON.stringify(v);
   const visible = (el: Element): boolean => {
@@ -222,7 +228,11 @@ function collectClickable(): RawCandidate[] {
     return pathSelector(el);
   };
   const labelFor = (el: Element): string =>
-    (el.getAttribute('aria-label') || el.getAttribute('name') || el.textContent || '')
+    // `title` is included so an icon-only control (no text, no aria-label) that
+    // announces itself via a native tooltip — `<button title="Delete">🗑</button>` —
+    // still yields a meaningful label. Without it such a button labels as "button"
+    // and slips past the destructive guard below, which mapping must never click.
+    (el.getAttribute('aria-label') || el.getAttribute('name') || el.textContent || el.getAttribute('title') || '')
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 80) || el.tagName.toLowerCase();
@@ -379,12 +389,15 @@ function domShape(): { shape: string; elements: number; classes: string[] } {
 
 /** Runs in the browser: every class name the page's OWN stylesheets select on —
  *  the design's defined vocabulary, read from the parsed CSSOM (inline and
- *  same-origin sheets; unreadable cross-origin sheets are skipped). Coverage is
- *  checked against this, so "fully covered" means every class the design styles
- *  was seen rendered in at least one captured surface. */
+ *  same-origin sheets). Coverage is checked against this, so "fully covered" means
+ *  every class the design styles was seen rendered in at least one captured
+ *  surface. A cross-origin sheet the browser can't parse is NOT silently skipped:
+ *  its href is returned in `unreadable` so coverage names it as residue rather than
+ *  certifying completeness while blind to it. */
 /* c8 ignore start */
-function collectDefinedClasses(): string[] {
+function collectDefinedClasses(): { classes: string[]; unreadable: string[] } {
   const out = new Set<string>();
+  const unreadable: string[] = [];
   const scan = (rules?: CSSRuleList): void => {
     if (!rules) return;
     for (const rule of rules) {
@@ -398,12 +411,12 @@ function collectDefinedClasses(): string[] {
   };
   for (const sheet of document.styleSheets) {
     try {
-      scan(sheet.cssRules);
+      scan(sheet.cssRules); // throws for a cross-origin sheet with no CORS
     } catch {
-      /* cross-origin sheet — not the design's own vocabulary */
+      unreadable.push(sheet.href ?? '<inline>');
     }
   }
-  return [...out];
+  return { classes: [...out], unreadable };
 }
 /* c8 ignore stop */
 
@@ -888,7 +901,7 @@ async function sweepCandidatesHere(
   freshOnly = false,
   excludeIds: Set<string> = new Set(),
 ): Promise<{ tried: number; skipped: number }> {
-  const all = await page.evaluate(collectClickable).catch(() => [] as RawCandidate[]);
+  const all = await page.evaluate(collectClickable, DANGER_SOURCE).catch(() => [] as RawCandidate[]);
   const work = sweepWorkList(entry, all, opts, st, freshOnly, excludeIds);
   // Controls present HERE — passed to each child's in-place descent as its
   // exclude set, so the descent skips this surface's mode-switchers/chrome and
@@ -1060,15 +1073,16 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   await gotoFresh(page, opts);
   // No widths given? Detect the page's real @media breakpoints (like the
   // one-shot path does) and sweep one width per band — automatically. Detection
-  // reads every stylesheet; if one is cross-origin/unreadable it falls back to
-  // the single default width rather than dying.
+  // reads every stylesheet and THROWS if one is cross-origin/unreadable: it never
+  // silently sweeps a single width, which would certify every other band
+  // unchanged without looking at it. Pin `--widths` for a cross-origin-CSS page.
   if (opts.widths.length === 0) {
-    const widths = await detectViewportWidths(page).catch(() => [1280]);
+    const widths = await detectViewportWidths(page);
     opts = { ...opts, widths };
     if ((widths[0] ?? 1280) !== 1280) await gotoFresh(page, opts); // re-pin discovery width BEFORE the base fingerprint
   }
   page.off('request', onRequest);
-  const defined = await page.evaluate(collectDefinedClasses).catch(() => [] as string[]);
+  const { classes: defined, unreadable } = await page.evaluate(collectDefinedClasses);
   const fp = await fingerprint(page);
   const st: CrawlState = {
     seen: new Set([fp.sig]),
@@ -1100,7 +1114,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     skipped: counters.skipped,
     captured: st.captured,
     failed: st.failed,
-    coverage: { defined: defined.length, rendered: defined.length - missing.length, missing },
+    coverage: { defined: defined.length, rendered: defined.length - missing.length, missing, unreadable },
   };
 }
 

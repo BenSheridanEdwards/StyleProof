@@ -7,10 +7,13 @@
  * Writes:
  *   - <dir> (default e2e/styleproof.spec.ts): a starter capture spec with a
  *     minimal settle() helper (triggers scroll-reveal content; StyleProof itself
- *     handles fonts, animation freeze, and the settle). For a detected Next.js app it derives surfaces AND
- *     the `expected` coverage guard from the app's routes at run time, so a page
- *     added later can't ship without a surface; otherwise it writes one sample
- *     surface plus a commented guard block to wire to your own route registry.
+ *     handles fonts, animation freeze, and the settle). For a detected Next.js app it derives BOTH the
+ *     surfaces AND the `expected` coverage guard from the same `discoverNextRoutes()`
+ *     call, so a static route added later is captured and expected together —
+ *     auto-covered, never a guard failure; the guard fails only on genuine
+ *     divergence (a dynamic route, a hand-maintained registry, or a route dropped
+ *     from surfaces but still expected). Otherwise it writes one sample surface
+ *     plus a commented guard block to wire to your own route registry.
  *   - playwright.styleproof.config.ts: a dedicated production-build Playwright
  *     config for StyleProof captures, so an existing app Playwright config is
  *     never disturbed or accidentally reused.
@@ -23,7 +26,12 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { discoverNextRoutes } from '../dist/index.js';
+// Import from the leaf module, not the barrel: styleproof-init only scaffolds
+// files and never captures. Pulling `../dist/index.js` here dragged the whole
+// library — capture, crawler, report, and six Playwright-importing modules —
+// into a tiny scaffolder's load path, and that oversized concurrent module
+// graph is what made init's tests flake in CI. routes.js needs only fs + path.
+import { discoverNextRoutes } from '../dist/routes.js';
 import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
 
 const HELP = `styleproof-init — scaffold a styleproof capture spec
@@ -39,9 +47,10 @@ options:
 
 What it writes:
   - the spec at --dir, with a minimal settle() helper (scroll-reveal only).
-    In a Next.js app it discovers your routes at run time and wires both the
-    surfaces and the \`expected\` coverage guard to them, so a new page can't ship
-    uncaptured. Otherwise it writes one sample surface + a commented guard block.
+    In a Next.js app it discovers your routes at run time and derives both the
+    surfaces and the \`expected\` coverage guard from that one call, so a new static
+    route is auto-covered (captured + expected together); the guard fails only when
+    the two diverge. Otherwise it writes one sample surface + a commented guard block.
   - playwright.styleproof.config.ts, a dedicated production-build Playwright config
   - .github/workflows/styleproof.yml, a cache-first PR report workflow
 
@@ -114,9 +123,12 @@ const HEADER = `/**
  *   npx styleproof-diff  # compare cached base/head maps by commit SHA
  */`;
 
-// Next.js detected: derive both surfaces and the coverage guard from the app's
-// routes AT RUN TIME, so a page added later is in `expected` automatically and
-// fails the guard until it has a surface — no static list to drift.
+// Next.js detected: derive BOTH surfaces and the coverage guard from the app's
+// routes AT RUN TIME, from one `discoverNextRoutes()` call — so a static page added
+// later is a captured surface AND `expected` in the same step (auto-covered, never a
+// guard failure), with no static list to drift. The guard fires only when the two
+// diverge (a dynamic route, a hand-maintained registry, or a route dropped from
+// surfaces but still expected).
 const NEXT_SPEC = `import type { Page } from '@playwright/test';
 import { defineStyleMapCapture, discoverNextRoutes, type Surface } from 'styleproof';
 
@@ -124,12 +136,12 @@ ${HEADER}
 
 ${SETTLE}
 
-// Routes discovered from your Next.js app (app/ + pages/) at RUN TIME — so a page
-// you add later is covered automatically, with no surface list to keep in sync
-// (that drift is exactly what lets a new page ship unverified). Edit freely; this
-// is your spec. Static routes each get a capture; dynamic [param] routes can't be
-// navigated without a value, so they're listed in \`exclude\` until you add a
-// surface with a concrete param.
+// Routes discovered from your Next.js app (app/ + pages/) at RUN TIME. Both SURFACES
+// and \`expected\` below come from this one list, so a static route you add later is
+// captured and expected together — covered automatically, with no surface list to
+// keep in sync. Edit freely; this is your spec. Static routes each get a capture;
+// dynamic [param] routes can't be navigated without a value, so they're listed in
+// \`exclude\` until you add a surface with a concrete param.
 const ROUTES = discoverNextRoutes();
 
 const SURFACES: Surface[] = ROUTES.filter((r) => !r.dynamic).map((r) => ({
@@ -146,71 +158,52 @@ const SURFACES: Surface[] = ROUTES.filter((r) => !r.dynamic).map((r) => ({
 
 defineStyleMapCapture({
   surfaces: SURFACES,
-  // Coverage guard: every known route must be a captured surface or excluded, or
-  // the suite fails (it runs without STYLEMAP_DIR — a static check, no browser).
-  // A new page with no surface can't slip through the gate unseen.
+  // Coverage guard: every \`expected\` route must be a captured surface or excluded, or
+  // the suite fails (it runs without STYLEMAP_DIR — a static check, no browser). Since
+  // both sides come from ROUTES, static routes never trip it; it fires when they
+  // diverge — a dynamic route (excluded below), or a route you drop from SURFACES.
   expected: ROUTES.map((r) => r.key),
   exclude: Object.fromEntries(
     ROUTES.filter((r) => r.dynamic).map((r) => [r.key, \`dynamic route (\${r.path}) — add a surface with a concrete param\`]),
   ),
+  inventory: true, // also fail the diff when a nav item / route the UI used to offer disappears
   dir: process.env.STYLEMAP_DIR,
 });
 `;
 
-// Non-Next project: one sample surface + a commented guard block to wire to
-// whatever the project uses as a route/view registry.
+// Non-Next project: crawl every surface the nav links to, so ANY app captures its
+// whole reachable surface out of the box with nothing to hand-list. The crawl reads
+// the rendered nav; the surface set can't drift from it.
 const GENERIC_SPEC = `import type { Page } from '@playwright/test';
-import { defineStyleMapCapture, type Surface } from 'styleproof';
+import { defineCrawlCapture } from 'styleproof';
 
 ${HEADER}
 
 ${SETTLE}
 
-const SURFACES: Surface[] = [
-  {
-    key: 'home',
-    go: async (page) => {
-      await page.goto('/');
-      await settle(page);
-    },
-    ignore: [], // e.g. ['.live-feed', '.ad-slot'] for nondeterministic regions
-    // No widths → StyleProof detects your @media breakpoints from the loaded CSS and
-    // sweeps one viewport per band. Pass an explicit array (e.g. 1280, 768, 390) to pin them (or to
-    // cover a JS-only matchMedia breakpoint that has no CSS @media rule).
-    // Non-live UI states belong here as variants, so the base branch's
-    // dialog-open state compares to the head branch's dialog-open state.
-    // variants: [
-    //   {
-    //     key: 'dialog-open',
-    //     go: async (page) => {
-    //       await page.getByRole('button', { name: /open settings/i }).click();
-    //       await page.getByRole('dialog').waitFor();
-    //     },
-    //   },
-    //   {
-    //     key: 'popover-open',
-    //     go: async (page) => {
-    //       await page.getByRole('button', { name: /more/i }).click();
-    //       await page.locator('[popover], [role="menu"]').first().waitFor();
-    //     },
-    //   },
-    // ],
-  },
-  // Add more surfaces for distinct routes/views; add menus, dialogs, popovers,
-  // selected tabs, and form errors as variants of the route/view that owns them.
-];
-
-defineStyleMapCapture({
-  surfaces: SURFACES,
-  // Coverage guard (recommended): declare every route your app knows about so a
-  // newly added page can't ship without a surface. Wire \`expected\` to your route
-  // registry — a routes/views list, your router config, or a glob of your pages —
-  // and StyleProof fails the suite (no STYLEMAP_DIR needed) when a route has no
-  // surface and isn't excluded. (A Next.js app gets this auto-wired; see
-  // \`discoverNextRoutes\` in the README.)
-  //   expected: ROUTES.map((r) => r.id),
-  //   exclude: { checkout: 'auth-gated — fixture pending' },
+// Zero-config capture: crawl every surface your nav links to from '/'. The surface set
+// is DISCOVERED from the rendered nav, so it can't drift from it — no hand-listed
+// \`surfaces\` array to maintain, and a page you add to the nav is captured automatically.
+// The root (/) is always captured, plus every same-origin <a href> it links to.
+defineCrawlCapture({
+  from: '/',
+  settle, // trigger scroll-reveal per surface (StyleProof handles fonts/animation/network itself)
+  // No \`widths\` → StyleProof detects each surface's @media breakpoints and sweeps one
+  // viewport per band. Pass an array (e.g. [1440, 768, 390]) to pin them.
+  inventory: true, // also fail the diff when a nav item / route the UI used to offer disappears
+  ignore: [], // e.g. ['.live-feed', '.ad-slot'] for nondeterministic regions
   dir: process.env.STYLEMAP_DIR,
+  // A single-route SPA whose views are ?tab= / client-routed? Keep only those:
+  //   match: /\\?tab=/,
+  // Turn the crawl into a coverage guard: reconcile the rendered nav against a route
+  // registry, both directions — a new linked route with no \`expected\` entry fails, and
+  // an \`expected\` route the nav stopped linking fails. (Runs inside the capture, so it
+  // fires when you capture, not in every test run.) List conditionally-rendered links
+  // (auth / feature-flag) in \`exclude\` so they can't flake the guard either direction:
+  //   expected: ['index', 'pricing'],
+  //   exclude: { admin: 'feature-flagged, renders only for staff' },
+  // Certify menus, dialogs, tabs, and form-error states on every surface as variants:
+  //   variants: [{ key: 'menu-open', go: async (page) => { await page.getByRole('button', { name: /menu/i }).click(); } }],
 });
 `;
 
@@ -372,7 +365,9 @@ const CI_WORKFLOW = `name: StyleProof
 #   report without a browser;
 # - on cache miss, CI recaptures both sides in one pinned environment so the
 #   comparison stays valid.
-on: pull_request
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 permissions:
   contents: write
@@ -382,6 +377,8 @@ permissions:
 
 jobs:
   styleproof:
+    # Report on open/update; the prune job below handles close.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -435,6 +432,41 @@ ${PM.setup}
           baseline-dir: __stylemaps__/base
           fresh-dir: __stylemaps__/head
           require-approval: true
+
+  prune:
+    # PR closed: drop its pr-<n>/ folder from the report branch so the branch
+    # never grows without bound. Keep BRANCH in sync with the report-branch
+    # input above (default: styleproof-reports).
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Prune this PR's report folder
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+          BRANCH: styleproof-reports
+          PR: \${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:\${GH_TOKEN}@github.com/\${{ github.repository }}.git"
+          if ! git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "No $BRANCH branch yet — nothing to prune."; exit 0
+          fi
+          TMP="$(mktemp -d)"
+          # Blobless clone keeps this fast; a very large report branch may prefer
+          # a --no-checkout plumbing rewrite instead.
+          git clone --filter=blob:none --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
+          cd "$TMP"
+          if [ ! -d "pr-$PR" ]; then
+            echo "No pr-$PR/ folder — nothing to prune."; exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r --quiet "pr-$PR"
+          git commit -m "chore(styleproof): prune report for closed PR #$PR"
+          git push origin "$BRANCH"
 `;
 
 function writeFileSafe(file, contents, { force: f } = {}) {
@@ -461,9 +493,14 @@ const isNext = routes.length > 0;
 const SPEC = isNext ? NEXT_SPEC : GENERIC_SPEC;
 
 let wroteSomething = false;
+// Every path init created or modified this run, so the summary can name exactly what
+// it touched — and, by omission, what it did NOT (init never writes package.json or a
+// lockfile; that's the package manager's `install`, not this scaffolder).
+const touched = [];
 
 const spec = writeFileSafe(specPath, SPEC, { force });
 if (spec.wrote) {
+  touched.push(specPath);
   console.log(`${spec.exists ? 'overwrote' : 'created'} ${specPath}`);
   if (isNext) {
     const dynamic = routes.filter((r) => r.dynamic).length;
@@ -472,7 +509,8 @@ if (spec.wrote) {
         (dynamic ? ` (${dynamic} dynamic route(s) excluded pending a concrete param)` : ''),
     );
   } else {
-    console.log('  no Next.js routes detected — wrote a starter surface + a commented coverage-guard block');
+    console.log('  no Next.js routes detected — wrote a crawl-by-default spec that captures every');
+    console.log('  surface your nav links to from / (nothing to hand-list; the inventory guard is on)');
   }
   wroteSomething = true;
 } else {
@@ -482,6 +520,7 @@ if (spec.wrote) {
 const configPath = 'playwright.styleproof.config.ts';
 const config = writeFileSafe(configPath, CONFIG, { force });
 if (config.wrote) {
+  touched.push(configPath);
   console.log(`${config.exists ? 'overwrote' : 'created'} ${configPath} (dedicated StyleProof capture config)`);
   wroteSomething = true;
 } else {
@@ -495,6 +534,7 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
 
 const ignored = ['.styleproof/', 'test-results/', 'playwright-report/'].filter((line) => ensureGitignoreLine(line));
 if (ignored.length) {
+  touched.push('.gitignore');
   console.log(`updated .gitignore (${ignored.join(', ')})`);
   wroteSomething = true;
 }
@@ -502,21 +542,29 @@ if (ignored.length) {
 // Cache-first CI report — never overwrite an existing workflow.
 const ci = writeFileSafe(CI_PATH, CI_WORKFLOW);
 if (ci.wrote) {
+  touched.push(CI_PATH);
   console.log(`created ${CI_PATH} (cache-first StyleProof report)`);
   wroteSomething = true;
 } else {
   console.log(`${CI_PATH} already exists — left untouched`);
 }
 
-console.log('\nHow the gate works — local-first maps, CI report when cached:');
-console.log('  1. Commit your code, then run:');
+if (touched.length) {
+  // State exactly what init wrote, and — because adopters have blamed init for the
+  // `styleproof` entry their package manager's `install` added — say plainly that it
+  // did NOT touch package.json or the lockfile. Truth over assumption.
+  console.log(`\nstyleproof-init wrote only: ${touched.join(', ')}`);
+  console.log('It did NOT modify package.json or your lockfile (that was your package manager’s install).');
+}
+
+console.log('\nHow the gate works — it runs on your first PR with no extra steps:');
+console.log('  1. Commit and open a PR. CI captures the base and head surfaces in one pinned');
+console.log('     environment and posts the StyleProof report — no local step required.');
+console.log('  2. (Optional, faster) Pre-cache this commit so CI skips recapturing the base:');
 console.log('       npx styleproof-map');
-console.log('     It captures a production-build map into .styleproof/ and uploads the bundle');
-console.log('     to the styleproof-maps branch when the git remote is available.');
-console.log('  2. Open the PR. CI restores the base/head bundles and generates the report');
-console.log('     without a browser when both maps are present and compatible.');
-console.log('  3. If a bundle is missing or incompatible, CI recaptures both sides in the same');
-console.log('     environment before generating the report. Correctness beats a stale cache.');
+console.log('     It captures a production-build map into .styleproof/ and uploads the bundle to');
+console.log('     the styleproof-maps branch when the git remote is available; CI then restores');
+console.log('     it and generates the report without a browser.');
 
 if (!wroteSomething) console.log('\nnothing to write — project already scaffolded.');
 process.exit(0);

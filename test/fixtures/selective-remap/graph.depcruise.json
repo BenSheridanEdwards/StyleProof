@@ -1,0 +1,103 @@
+{
+  "modules": [
+    {
+      "source": "src/components/Chart.module.css",
+      "dependencies": []
+    },
+    {
+      "source": "src/components/Chart.tsx",
+      "dependencies": [
+        {
+          "resolved": "src/components/Chart.module.css",
+          "dynamic": false
+        }
+      ]
+    },
+    {
+      "source": "src/components/Header.css",
+      "dependencies": []
+    },
+    {
+      "source": "src/components/Header.tsx",
+      "dependencies": [
+        {
+          "resolved": "src/tokens.css",
+          "dynamic": false
+        },
+        {
+          "resolved": "src/components/Header.css",
+          "dynamic": false
+        }
+      ]
+    },
+    {
+      "source": "src/components/Hero.module.css",
+      "dependencies": []
+    },
+    {
+      "source": "src/components/Hero.tsx",
+      "dependencies": [
+        {
+          "resolved": "src/components/Hero.module.css",
+          "dynamic": false
+        }
+      ]
+    },
+    {
+      "source": "src/components/PriceTable.module.css",
+      "dependencies": []
+    },
+    {
+      "source": "src/components/PriceTable.tsx",
+      "dependencies": [
+        {
+          "resolved": "src/components/PriceTable.module.css",
+          "dynamic": false
+        }
+      ]
+    },
+    {
+      "source": "src/pages/Dashboard.tsx",
+      "dependencies": [
+        {
+          "resolved": "src/components/Chart.tsx",
+          "dynamic": false
+        },
+        {
+          "resolved": "src/components/Header.tsx",
+          "dynamic": false
+        }
+      ]
+    },
+    {
+      "source": "src/pages/Home.tsx",
+      "dependencies": [
+        {
+          "resolved": "src/components/Header.tsx",
+          "dynamic": false
+        },
+        {
+          "resolved": "src/components/Hero.tsx",
+          "dynamic": false
+        }
+      ]
+    },
+    {
+      "source": "src/pages/Pricing.tsx",
+      "dependencies": [
+        {
+          "resolved": "src/components/Header.tsx",
+          "dynamic": false
+        },
+        {
+          "resolved": "src/components/PriceTable.tsx",
+          "dynamic": false
+        }
+      ]
+    },
+    {
+      "source": "src/tokens.css",
+      "dependencies": []
+    }
+  ]
+}

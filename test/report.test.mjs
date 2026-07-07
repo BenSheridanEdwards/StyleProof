@@ -625,6 +625,31 @@ test('end-to-end: a surface missing on one side is reported as a new surface, no
   rmTmp(root);
 });
 
+test('a hostile surface key renders inertly — no Markdown injection into the report/comment', () => {
+  // Surface keys come from artifact filenames — attacker-controlled in the fork
+  // capture/report split — and flow into the privileged PR-comment summary. A key
+  // crafted to break out of its inline-code span and inject a link must render as
+  // plain text, never as an active `[label](url)` / `<img>` / table cell.
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  // Filename-safe (no path separators) yet Markdown/HTML-dangerous: a link
+  // break-out, an inline image tag, and a table pipe.
+  const hostile = 'x](evil)<img src=x>|@1280';
+  writeCapture(beforeDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  writeCapture(afterDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  // Present only on the after side → rendered as a new surface, whose heading and
+  // summary interpolate the key.
+  writeCapture(afterDir, hostile, sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  // The Markdown/HTML control characters are stripped from every interpolation of
+  // the key: no link parens, no closing bracket, no tag angle brackets, no table pipe.
+  assert.doesNotMatch(md, /x\]\(evil\)/);
+  assert.doesNotMatch(md, /<img src=x>/);
+  // The sanitized, inert form is what appears instead.
+  assert.match(md, /x--evil--img src=x-/);
+  rmTmp(root);
+});
+
 test('end-to-end: a new surface is shown with its captured-side screenshot', () => {
   const { root, beforeDir, afterDir, outDir } = tmpDirs();
   // Present only on the after side, with a screenshot → rendered as an image.
@@ -1036,5 +1061,113 @@ test('end-to-end: annotation boxes the changed CHILD, not its changed container'
   // would be thousands. Generous bound that still distinguishes the two.
   assert.ok(hilite > 0, 'child is highlighted');
   assert.ok(hilite < 1500, `highlight footprint ${hilite} should be child-sized, not container-sized`);
+  rmTmp(root);
+});
+
+// ---------------------------------------- bounded report (always GitHub-renderable)
+
+test('report.md stays under its byte budget (GitHub-renderable); report.json keeps every surface', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const N = 40;
+  const M = 15;
+  // Each surface carries a DISTINCT change (values keyed by surface index) so they
+  // don't collapse into one "identical across N surfaces" group — N real detail blocks.
+  const surfaceMap = (s, shift) =>
+    makeMap({
+      elements: Object.fromEntries(
+        Array.from({ length: M }, (_, k) => [
+          `body > div:nth-child(${k + 1})`,
+          {
+            tag: 'div',
+            cls: `s${s}-c${k}`,
+            rect: [10, 20 + k * 30, 200, 24],
+            style: {
+              color: `rgb(${(shift + s) % 256}, ${k}, 0)`,
+              'padding-top': `${10 + shift + s}px`,
+              'font-size': `${12 + k}px`,
+              'margin-top': `${4 + shift}px`,
+            },
+          },
+        ]),
+      ),
+    });
+  for (let s = 0; s < N; s++) {
+    const surface = `surface-${s}@1280`;
+    writeCapture(beforeDir, surface, surfaceMap(s, 0), solidPng(1280, 800));
+    writeCapture(afterDir, surface, surfaceMap(s, 5), solidPng(1280, 800));
+  }
+
+  const budget = 15_000;
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, maxReportBytes: budget });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+
+  assert.ok(md.length < budget * 2, `report.md must stay bounded near the budget (was ${md.length})`);
+  assert.match(md, /summarized to keep this report renderable/, 'the cap is announced, not silent');
+  assert.match(md, /· \d+ change\(s\)/, 'capped surfaces appear as one-line summaries');
+  assert.equal(json.surfaces.length, N, 'report.json keeps every surface — the cap relocates detail, never drops it');
+
+  // The cap must actually shrink a large report (uncapped is far bigger).
+  const full = generateStyleMapReport({
+    beforeDir,
+    afterDir,
+    outDir: path.join(root, 'out2'),
+    maxReportBytes: Infinity,
+  });
+  const mdFull = fs.readFileSync(full.reportMdPath, 'utf8');
+  assert.ok(
+    mdFull.length > md.length * 2,
+    `uncapped report should be far larger (capped ${md.length}, full ${mdFull.length})`,
+  );
+  rmTmp(root);
+});
+
+// ----------------------------------------------- hostile CSS values are escaped
+
+// A CSS property value is author/attacker-influenced. A `|` would split a report
+// table row; a backtick would close the code span and leak live Markdown. The
+// render boundary must escape both so the value renders as ONE intact code cell.
+test('end-to-end: a hostile CSS value renders as one intact row with no live markdown', () => {
+  // A value carrying a pipe (row-splitter) AND a backtick (span-closer), plus a
+  // second backtick to exercise the fence-widening path.
+  const HOSTILE_BEFORE = 'counter(a) "|`x`|"';
+  const HOSTILE_AFTER = 'counter(b) "|`y`|"';
+  const boxWith = (content) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'box',
+          rect: [40, 40, 200, 60],
+          style: { content },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: boxWith(HOSTILE_BEFORE),
+    after: boxWith(HOSTILE_AFTER),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  assert.equal(res.changedSurfaces, 1);
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Find the table row carrying the hostile value.
+  const contentRow = md.split('\n').find((l) => l.includes('content') && l.includes('counter'));
+  assert.ok(contentRow, 'the content change is rendered as a table row');
+
+  // A GitHub table row is a single line with exactly the cell pipes it declares:
+  // `| content | <before> | <after> |` → the only UNESCAPED pipes are the four
+  // structural ones. Every pipe from the value must be backslash-escaped.
+  const structuralPipes = (contentRow.match(/(^|[^\\])\|/g) ?? []).length;
+  assert.equal(structuralPipes, 4, `row must keep exactly its 4 cell separators, got: ${contentRow}`);
+  assert.ok(contentRow.includes('\\|'), 'the value pipes are backslash-escaped, not raw');
+
+  // The value's literal text survives, readable (escape, not strip).
+  assert.ok(md.includes('counter(a)') && md.includes('counter(b)'), 'both hostile values are shown verbatim');
   rmTmp(root);
 });

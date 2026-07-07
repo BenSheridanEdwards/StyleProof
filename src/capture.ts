@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
+import { isMapFile } from './map-store.js';
 
 /**
  * Computed-style capture: the browser's final resolved value for every CSS
@@ -589,8 +590,9 @@ function detectOverlayCandidates({ ignore }: OverlayCandidateArgs): CapturedOver
 type SubtreeArgs = { selector: string; index: number };
 
 /** Full (unpruned) computed styles for an element and its descendants, pseudo-elements included. */
-// Serialized into the browser by page.evaluate; cannot call module helpers.
-// fallow-ignore-next-line complexity -- pre-existing (cog 16); in-page fn can't call module helpers, so it can't be split. Exposed here only because the inventory feature edits this file. Refactor separately.
+// Serialized into the browser by page.evaluate; cannot call module helpers, so this
+// in-page fn (cog 16) can't be split into smaller ones. Pre-existing; refactor separately.
+// fallow-ignore-next-line complexity
 function snapSubtree({ selector, index }: SubtreeArgs) {
   const el = document.querySelectorAll(selector)[index];
   const pathOf = (n: Element): string => {
@@ -995,36 +997,48 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // nulls motion to 0s), then re-apply it before reading everything else.
   await freezeTag.evaluate((el) => (el as HTMLStyleElement).remove());
   const motion = await page.evaluate(capturePage, { ignore, motionOnly: true, captureText: false });
-  await page.addStyleTag({ content: FREEZE_CSS });
-
-  const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText, captureComponent });
-  dropVolatile(base.elements, volatile);
-  const overlays = (await page.evaluate(detectOverlayCandidates, { ignore })).filter(
-    (overlay) => base.elements[overlay.path],
-  );
-  warnUntraversed(base.shadowHosts, base.sameOriginFrames);
-  mergeMotion(base.elements, motion.elements);
-  let states: StyleMap['states'] = {};
-  let statesSkipped = false;
-  if (captureStates) {
-    const forced = await captureForcedStates(page, ignore, maxInteractive, volatile);
-    states = forced.states;
-    statesSkipped = forced.skipped;
+  // Re-apply the freeze for the base + forced-state reads (both must see motion
+  // nulled). This tag is KEEP-a-handle: unlike the pre-motion tag above (which was
+  // explicitly removed), an un-tracked tag would accumulate on any page reused without
+  // a reload — a second capture on the same page (SPA go() that doesn't navigate,
+  // multi-surface reuse, the self-check's re-run) would then read this run's frozen
+  // motion (`none`/`0s`) as its baseline and report phantom drift. Remove it in a
+  // `finally` so throw paths (a settle timeout, a forced-state error) also leave the
+  // page clean, not just the happy path.
+  const refreezeTag = await page.addStyleTag({ content: FREEZE_CSS });
+  try {
+    const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText, captureComponent });
+    dropVolatile(base.elements, volatile);
+    const overlays = (await page.evaluate(detectOverlayCandidates, { ignore })).filter(
+      (overlay) => base.elements[overlay.path],
+    );
+    warnUntraversed(base.shadowHosts, base.sameOriginFrames);
+    mergeMotion(base.elements, motion.elements);
+    let states: StyleMap['states'] = {};
+    let statesSkipped = false;
+    if (captureStates) {
+      const forced = await captureForcedStates(page, ignore, maxInteractive, volatile);
+      states = forced.states;
+      statesSkipped = forced.skipped;
+    }
+    const tokens = await page.evaluate(capturePageTokens);
+    const inventory = await harvestInventoryFor(page, options.inventory);
+    return {
+      ...(options.metadata ? { metadata: options.metadata } : {}),
+      defaults: base.defaults,
+      elements: base.elements,
+      states,
+      ...(statesSkipped ? { statesSkipped: true } : {}),
+      ...(volatile.length ? { volatile } : {}),
+      ...(liveCandidates.length ? { liveCandidates } : {}),
+      ...(overlays.length ? { overlays } : {}),
+      ...(Object.keys(tokens).length ? { tokens } : {}),
+      ...(inventory.length ? { inventory } : {}),
+    };
+  } finally {
+    // Best-effort: the page may already be closing on a throw path.
+    await refreezeTag.evaluate((el) => (el as HTMLStyleElement).remove()).catch(() => {});
   }
-  const tokens = await page.evaluate(capturePageTokens);
-  const inventory = await harvestInventoryFor(page, options.inventory);
-  return {
-    ...(options.metadata ? { metadata: options.metadata } : {}),
-    defaults: base.defaults,
-    elements: base.elements,
-    states,
-    ...(statesSkipped ? { statesSkipped: true } : {}),
-    ...(volatile.length ? { volatile } : {}),
-    ...(liveCandidates.length ? { liveCandidates } : {}),
-    ...(overlays.length ? { overlays } : {}),
-    ...(Object.keys(tokens).length ? { tokens } : {}),
-    ...(inventory.length ? { inventory } : {}),
-  };
 }
 
 /** Write a style map to disk; gzipped when the path ends in `.gz`. */
@@ -1052,4 +1066,17 @@ export function loadStyleMap(filePath: string): StyleMap {
       { cause: e },
     );
   }
+}
+
+/**
+ * Read every surface map's navigable inventory from a capture dir, in the shape the
+ * inventory audit consumes. One home for "read the inventories out of a dir", shared
+ * by the diff CLI and the report (was duplicated in both).
+ */
+export function readInventories(dir: string): Array<{ inventory?: NavigableItem[] }> {
+  return fs
+    .readdirSync(dir)
+    .filter(isMapFile)
+    .map((f) => loadStyleMap(path.join(dir, f)))
+    .map((m) => (m.inventory ? { inventory: m.inventory } : {}));
 }

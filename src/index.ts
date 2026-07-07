@@ -41,8 +41,8 @@ export type {
   DiscoverComponentFilesOptions,
   ComponentCatalogSurfaceOptions,
 } from './components.js';
-export { selectCrawlLinks, defaultLinkKey } from './crawl.js';
-export type { CrawlLink, LinkMatch, SelectLinksOptions } from './crawl.js';
+export { selectCrawlLinks, defaultLinkKey, crawlCoverageGaps, crawlCoverageError } from './crawl.js';
+export type { CrawlLink, LinkMatch, SelectLinksOptions, CrawlCoverageGaps } from './crawl.js';
 export { harvestStyleVariants } from './variant-crawler.js';
 export type {
   HarvestAction,
@@ -58,3 +58,5 @@ export { diffStyleMaps, diffStyleMapDirs, diffContentMaps, diffContentDirs, find
 export type { Finding, PropChange, SurfaceDiff, DiffCounts, ContentChange } from './diff.js';
 export { generateStyleMapReport, summarizeProps, prettyLabel } from './report.js';
 export type { ReportOptions, ReportResult } from './report.js';
+export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
+export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';

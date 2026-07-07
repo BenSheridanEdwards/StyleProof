@@ -1,12 +1,13 @@
 # Inventory guard — the UI can't silently shrink
 
-**Status (3.7.0):** wired end to end through the CLI. `captureStyleMap(page, {
-inventory: true })` harvests into `StyleMap.inventory`, and `styleproof-diff` unions
-both sides, diffs the navigable set, and **exits 1 on an unacknowledged removal**.
-Acknowledge intentional removals in `styleproof.inventory.json` (`{"<key>": "<why>"}`;
-override the path with `STYLEPROOF_INVENTORY`). Follow-ups: the spec-level
-`defineStyleMapCapture({ inventory: true })` option, and an **📐 Inventory** section
-in the HTML report.
+**Status (3.8.0):** wired end to end, and on by default from `styleproof-init`.
+`captureStyleMap(page, { inventory: true })` harvests into `StyleMap.inventory`, the
+spec-level `defineStyleMapCapture({ inventory: true })` / `defineCrawlCapture({ inventory:
+true })` option forwards it (so a spec turns the guard on with one line — 3.8.0), and
+`styleproof-diff` unions both sides, diffs the navigable set, and **exits 1 on an
+unacknowledged removal**. Acknowledge intentional removals in `styleproof.inventory.json`
+(`{"<key>": "<why>"}`; override the path with `STYLEPROOF_INVENTORY`). Remaining follow-up:
+an **📐 Inventory** section in the HTML report.
 
 ## The gap it closes
 
@@ -21,7 +22,7 @@ high-stakes changes:
    catches it only incidentally (DOM churn on a surviving captured surface, if
    that surface is even captured), and not at all while staged in parallel.
 
-Concretely, from the Fleet HUD (real): a redesign added at `/agents-v5` drops the
+Concretely, from a real dashboard app: a redesign added at `/agents-v5` drops the
 **MODEL CONFIG** and **FAULT MAP** nav items. The gate reported _"✓ clean, no
 visual approval required"_ — a feature-removing change with a green check. That is
 the exact failure mode this guard closes.
@@ -30,10 +31,22 @@ the exact failure mode this guard closes.
 
 Harvest the **navigable inventory** of each captured surface — the user-reachable
 affordances (internal route links, `role=tab`, `role=menuitem`, button-only SPA
-nav) — keyed stably: `route:<pathname><search>` for links, `<role>:<slug(name)>`
-for tabs/menu items/nav buttons (so a tab labelled "MODEL CONFIG" keys as
-`nav-button:model-config`, lining up with an app's own view id). Union across a
-run into one reachable set, and diff base→head:
+nav) — **keyed by the most stable identity each one exposes**, so an incidental
+wobble in the label (a live count badge, a re-word) never fakes a removed+added:
+
+- **links** → `route:<pathname><search>` — the href, never the text.
+- **tabs / menu items / nav buttons** → `<role>:#<stable-id>` when the element
+  carries a developer-authored identity (`data-testid`, else a non-generated `id`
+  or `aria-controls`); otherwise `<role>:<slug(name)>` from the label (so a tab
+  labelled "MODEL CONFIG" still keys as `nav-button:model-config`).
+
+Framework-generated ids (React `useId` `:r0:`, Headless UI `headlessui-…`, Radix,
+hashes) are rejected — keying on them would _add_ churn — so those fall back to the
+label slug. The fallback's failure mode is safe by construction: a label wobble
+becomes a **surfaced** removed+added (a red a reviewer sees and acknowledges),
+never a hidden real removal. Give a nav item a `data-testid` (or a stable `id`)
+to key it immune to its own text. Union across a run into one reachable set, and
+diff base→head:
 
 - **added** (head-not-base) — a newly-offered affordance. Informational.
 - **removed** (base-not-head) — a feature the UI stopped offering. **Gates.**
@@ -47,11 +60,13 @@ the ledger can't quietly rot.
 
 Two steps:
 
-1. **Harvest** the inventory into the maps — turn it on where you capture (both base
-   and head):
+1. **Harvest** the inventory into the maps — one line in your spec (a fresh
+   `styleproof-init` turns this on for you):
 
    ```ts
-   await captureStyleMap(page, { inventory: true });
+   defineStyleMapCapture({ surfaces, inventory: true, dir: process.env.STYLEMAP_DIR });
+   // a crawl spec:   defineCrawlCapture({ from: '/', inventory: true, dir: ... });
+   // or the raw call: await captureStyleMap(page, { inventory: true });
    ```
 
 2. **Gate** in CI — `styleproof-diff` reads both sides' `inventory` and exits 1 on an
@@ -68,10 +83,6 @@ Two steps:
   unchanged.
 - `inventory: true` — each map stores `map.inventory`; `styleproof-diff` prints the 📐
   Inventory section and blocks on unexplained removals.
-
-> The spec-level `defineStyleMapCapture({ inventory: true, allowRemoved: {…} })` form
-> — a spec flips it on without calling `captureStyleMap` directly — is the planned
-> sugar, not yet wired (see follow-up below).
 
 ## How it fits
 
@@ -119,10 +130,13 @@ Wired and tested in this change:
   unit-testable).
 - `src/capture.ts` — `captureStyleMap({ inventory: true })` harvests into
   `StyleMap.inventory` (opt-in; off by default, ignored by the certification diff).
+- `src/runner.ts` (3.8.0) — `defineStyleMapCapture` / `defineCrawlCapture` forward the
+  `inventory` option to the capture, so a spec turns the guard on with one line;
+  `styleproof-init` sets it on by default.
 - `bin/styleproof-diff.mjs` — reads both sides' `inventory`, runs `auditRunInventory`
   against the `styleproof.inventory.json` ledger, prints the 📐 Inventory section, and
   **folds unacknowledged removals into exit code 1**.
-- `test/inventory.test.mjs` — 6 unit tests (Fleet Model-Config removal, the failing
+- `test/inventory.test.mjs` — 6 unit tests (a Model-Config removal, the failing
   guard, the acknowledgement ledger, stale-allowance detection, parallel-route
   staging, union dedup).
 - `test/inventory-cli.test.mjs` — 3 tests proving the CLI actually gates: exit 1 on an
@@ -130,6 +144,5 @@ Wired and tested in this change:
 - `test/inventory.e2e.spec.ts` — Playwright harvest on rendered pages (nav-button
   removal; `role=tab` + internal route links, cross-origin dropped; capture path).
 
-Follow-up (not in this change): the spec-level `defineStyleMapCapture({ inventory:
-true })` option (so a spec enables it without calling `captureStyleMap` directly), and
-an 📐 Inventory section in the HTML report.
+Follow-up (the one remaining piece): an 📐 Inventory section in the HTML report, so
+removals are visible in the rendered report and not only in the `styleproof-diff` output.

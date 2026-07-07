@@ -25,6 +25,7 @@ function fixture(): string {
       <button class="noop">No-op</button>
       <button aria-label="Open reports">Reports</button>
       <button>Delete account</button>
+      <button title="Revoke access"><svg width="16" height="16" aria-hidden="true"><rect width="16" height="16"></rect></svg></button>
     </nav>
     <aside class="drawer">Navigation drawer</aside>
     <section class="panel">Details panel</section>
@@ -145,6 +146,14 @@ test('harvestStyleVariants discovers one-step computed-style variants', async ({
         expect.objectContaining({
           reason: 'unsafe-label',
           label: 'Delete account',
+        }),
+        // Icon-only control whose ONLY label is its title="Revoke access":
+        // proves the label reads `title` (else it'd read "button" and be clicked)
+        // AND that `revoke` lives in the shared DANGER list (the old variant-crawler
+        // fork lacked it, so it would have been clicked as a benign toggle).
+        expect.objectContaining({
+          reason: 'unsafe-label',
+          label: 'Revoke access',
         }),
         expect.objectContaining({
           reason: 'navigated',

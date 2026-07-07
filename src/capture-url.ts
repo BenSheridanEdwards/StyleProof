@@ -51,7 +51,7 @@ export type CaptureUrlOptions = {
    * discovered surface under a derived key. See {@link crawlAndCapture}.
    */
   crawl: boolean;
-  /** crawl: recursion depth into opened surfaces (default 3). */
+  /** crawl: recursion depth into opened surfaces (default 16). */
   maxDepth: number;
   /** crawl: fresh controls driven per state (default: unbounded — try them all). */
   maxActionsPerState: number;
@@ -86,7 +86,12 @@ const DEFAULTS = {
   screenshots: true,
   crawl: false,
   // Exhaustive by default — these are safety backstops, not budgets.
-  maxDepth: 1000,
+  // maxDepth mirrors CRAWL_DEFAULTS.maxDepth (crawl-surfaces.ts): 16 is
+  // exhaustive for real UI — no human-navigable surface is 16 clicks from load.
+  // The cap exists to bound append-generator UIs (a composer that appends a
+  // fresh-identity node per click, which dedup can't terminate); a higher value
+  // would make it decorative. Raise with --max-depth for a genuinely deeper nest.
+  maxDepth: 16,
   maxActionsPerState: 100000,
   maxStates: 100000,
   resetStorage: true,

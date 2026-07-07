@@ -11,6 +11,23 @@ export function cliErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * The "cached maps couldn't be restored" guidance, shared by styleproof-diff and
+ * styleproof-report (each names its own `purpose` — "comparison" / "report").
+ */
+export function cachedMapsUnavailableMessage(command: string, purpose: string, error: unknown): string {
+  return [
+    `${command}: cached maps are not available for this ${purpose} — nothing was compared`,
+    cliErrorMessage(error),
+    // Name the two ways forward explicitly so a newcomer never reads "nothing compared"
+    // as "certified clean": the cached-map path only works where the base is restorable
+    // (CI, or a repo with the map-store remote), and the two-directory form always works
+    // off already-captured maps with no git remote at all.
+    `Next: run this in CI (or a repo with the 'origin' remote) where the base map is restorable, ` +
+      `or capture both sides and compare them directly: ${command} <beforeDir> <afterDir>.`,
+  ].join('\n');
+}
+
 export function unknownFlagMessage(command: string, flag: string): string {
   return `${command}: unknown flag: ${flag}\nNext: run ${command} --help to see supported options.`;
 }

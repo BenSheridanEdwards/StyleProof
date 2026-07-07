@@ -7,6 +7,500 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Crawl no longer double-captures `/` and `/index.html` as two surfaces.** On a
+  static multi-page site whose nav links the `.html` files, `/` and `/index.html`
+  (and `/dir/` vs `/dir/index.html`) are the same route but were captured twice as
+  byte-near-identical maps — doubling the capture work and duplicating every finding
+  in the diff. The crawl's dedup identity now normalizes a trailing `index.html` to
+  its directory path, so they collapse to one surface (first-seen href keeps its
+  original navigable form). Only the literal `index.html` filename normalizes — a
+  genuine `about.html` stays a distinct surface from `about`.
+- **`styleproof-init` now states exactly which files it wrote — and that it did NOT
+  touch `package.json` or your lockfile.** Adopters attributed the `styleproof`
+  dependency entry (added by their package manager's `install`) to init; init only
+  ever reads `package.json` and writes the spec, the dedicated Playwright config,
+  `.gitignore` lines, and the CI workflow. The summary now enumerates those files and
+  says plainly that the manifest and lockfile were left untouched.
+- **The no-comparison outcome of `styleproof-diff` / `styleproof-report` names both
+  ways forward.** When the no-args (inferred-base) path can restore no base map — no
+  map-store remote, no cached bundle — nothing is compared. That already exits `2`
+  (never a soft `0` a newcomer could read as "certified clean"); the message now says
+  "nothing was compared" and names the two working alternatives: run in CI (or a repo
+  with the `origin` remote) where the base is restorable, or the two-directory form
+  `styleproof-diff <beforeDir> <afterDir>`. A regression test pins the exit-2 contract
+  in a remote-less repo for both commands.
+- **README: the Next.js coverage guard is described accurately.** The docs conflated
+  two behaviors. With the auto-wired spec, `surfaces` and `expected` both derive from
+  the same `discoverNextRoutes()` call, so a new static route is captured and expected
+  together — **auto-covered, never a guard failure**. The guard **fails** only on
+  genuine divergence (a dynamic route, a hand-maintained registry, or a route dropped
+  from `surfaces` while still `expected`). Rewrote the overclaiming passages and the
+  generated-spec comments to state both behaviors.
+- **Layout-equivalent margin suppression no longer drops a real one-sided margin
+  change.** `dropLayoutEquivalentMarginProps` suppressed any horizontal
+  `margin-left/right/inline-start/inline-end` change whenever the element's rect
+  was unchanged — reasoning that a margin that doesn't move the box is cosmetic
+  drift. But a one-sided change (e.g. `margin-left: 0 → 40px` with `margin-right`
+  untouched) that leaves the rect identical only stayed put because _something
+  else compensated_; that is a genuine restyle, and it was silently dropped. The
+  suppression now fires only when there is no **demonstrable px imbalance**
+  between a side and its opposite — balanced drift (both sides move together) and
+  forced-state deltas are still suppressed exactly as before, but a one-sided
+  real change surfaces. A residual, consciously-deferred corner remains (a
+  perfectly _balanced_ change held in place by external compensation), documented
+  inline; closing it needs cross-element layout reasoning.
+- **`styleproof-init` no longer imports the whole library barrel (fixes a CI
+  flake).** The scaffolder only needs `discoverNextRoutes`, but it imported it
+  from `dist/index.js` — dragging capture, the crawler, the report renderer, and
+  six Playwright-importing modules into a tool that writes files and captures
+  nothing. Loading that oversized module graph concurrently (init's own suite
+  spawns the CLI many times, alongside the rest of `node --test`) is what made
+  init's tests flake in CI, red-flagging releases with no code cause. It now
+  imports from the `dist/routes.js` leaf (`fs` + `path` only): init's transitive
+  module graph drops from 21 dist modules to 1, with zero Playwright modules on
+  its load path. Behaviour is unchanged; a regression test pins the leaf import.
+- **Popup capture: verified reset + identity-bound triggers (no leaked-overlay
+  contamination, no wrong-trigger keying).** On a surface whose `go()` doesn't
+  navigate (SPA variants), the between-popups reset was Escape-only and assumed:
+  a toast or `[role="status"]` overlay Escape can't dismiss leaked into the next
+  popup's capture, and each reopen re-enumerated triggers positionally, so a
+  shifted trigger set (e.g. a click that adds a button) could key a popup under a
+  different trigger than the one originally enumerated. Triggers are now re-bound
+  by the DOM identity recorded at first enumeration, and the reset is verified
+  against the surface's pristine overlay set; a candidate that can't be opened
+  safely is skipped loudly (a `styleproof:` warning naming the popup and the
+  leaked overlay or missing trigger) instead of being captured contaminated,
+  mis-keyed, or — with self-check on — saved unproven. That identity is the
+  trigger's DOM path **and** its accessible label, not the path alone: for an
+  id-less trigger the path ends in `:nth-of-type`, which is still position within
+  a parent, so a same-tag same-parent sibling injected earlier in DOM order
+  between enumeration and reopen would slide the recorded path onto a different
+  trigger and key its popup under the wrong one — silently. Requiring the label
+  (the same aria-label/name/text/title accessible name the crawler reads) to match
+  too turns that mismatch into the same loud skip. Navigating surfaces are
+  unaffected.
+
+## [3.19.0] - 2026-07-06
+
+### Added
+
+- **Selective-remap wiring: `explainAffectedSurfaces` + the pre-push recipe.** The
+  sound core (`affectedSurfaces`) shipped in 3.17.0 returns a bare `Set | 'all'` that
+  names nothing; the new pure `explainAffectedSurfaces(result, allSurfaceKeys, reason?)`
+  formatter renders the verdict as reviewer-checkable lines — which surfaces re-capture
+  and which reuse their committed base map — so a pre-push hook or CI log can print the
+  skip list before anyone trusts it. `affectedSurfaces`'s return shape is unchanged
+  (backward-compatible; the helper takes the surface keys as a second argument rather
+  than extending the sentinel). README's selective-remap section gains the helper, its
+  output, and the full `git diff → dependency-cruiser → affectedSurfaces → capture subset`
+  pre-push recipe. Opt-in and advisory throughout — the default full-coverage gate is
+  untouched.
+
+### Fixed
+
+- **Report tables escape hostile CSS values (no Markdown breakout).** A property
+  value carrying a `|` used to split a report table row, and a backtick used to close
+  the code span and leak live Markdown (`content:"…"`, `url(…)`, `font` strings). The
+  render boundary now escapes values instead of stripping them — `|` → `\|`, and the
+  code fence widens past the value's longest backtick run — so hostile values render
+  as one intact, readable cell. `report.md` only; the privileged review comment was
+  never affected.
+- **The navigable-removal guard now sees SVG `<a>` nav links.** The in-page harvest
+  keyed anchors off `tagName === 'A'`, which is HTML-only (SVG reports lowercase `a`),
+  so an SVG nav link never entered the inventory and its removal never gated. The tag
+  check is now case-insensitive, the selector matches any-namespace `href`
+  (`a[*|href]`), and the target falls back to `xlink:href` — an `<svg><a>` link now
+  resolves like an HTML one.
+- **Single-value `transform-origin`/`perspective-origin` jitter is suppressed.** The
+  sub-pixel-origin equality check required at least two length components, so a
+  one-value origin (`50px`) leaked rounding jitter as a false diff. One to three
+  components are now all suppressed within `ORIGIN_EPSILON_PX`; a real, larger change
+  still reports.
+- **`styleproof-diff --json` exits 2 (not 1) when the file cannot be written.** A bad
+  `--json` path is a usage/setup error, but the write sat outside the guarded blocks
+  and let the failure fall through to exit 1 — which CI reads as a real diff. It now
+  reports to stderr and exits 2.
+- **Crawl flag docs corrected.** `--max-depth`'s default is documented as 16 (not
+  "unbounded" in `--help`, not "3" in the JSDoc); `--until-covered` is now listed in
+  `styleproof-capture --help`.
+- **Crawl no longer silently drops surfaces to key collisions, and mapping no longer
+  clicks title-only destructive controls.** Five soundness fixes across the crawl path:
+  - `selectCrawlLinks` deduped by raw URL, so `/about` and `/about/` — one route — were
+    two links that keyed identically and the second capture overwrote the first. Trailing
+    slashes are now normalized in the dedup identity (root `/` and the query string are
+    left intact), so a route is captured once.
+  - Genuinely distinct surfaces whose derived keys collide (e.g. `/a/b` and `/a-b` both
+    slugify to `a-b`) previously overwrote each other's map file. `selectCrawlLinks` now
+    disambiguates with a `-2`, `-3`, … suffix (mirroring the surface crawler), so every
+    surface survives.
+  - `defaultLinkKey` joined query-param values in iteration order, so `?tab=a&x=b` and
+    `?x=b&tab=a` — the same route — keyed as `a-b` vs `b-a` and flapped the coverage
+    guard into phantom regressions. Params are now sorted by name before joining.
+  - The surface crawler's clickable-candidate label omitted the `title` attribute, so an
+    icon-only `<button title="Delete">` labeled as `button` and slipped past the
+    destructive-action guard — mapping would click it. `title` is now part of the label
+    input in both crawlers.
+  - The variant crawler carried a weaker, divergent copy of the destructive-action word
+    list (missing `revoke|reset|wipe|drop|rotate|provision|seal|regenerate|renew`). Both
+    crawlers now share one `DANGER_SOURCE` constant, so mapping refuses the same set of
+    destructive controls everywhere.
+  - `defineStyleMapCapture` and `defineCrawlCapture` now assert every expanded capture
+    key is unique before running: the `surface.key-variant.key` join is ambiguous
+    (`a` + `b-c` and `a-b` + `c` both expand to `a-b-c`), which used to overwrite a map
+    file with no error. The key format is unchanged (it's public — filenames and report
+    identities); a collision now throws up front and names both origins so the author can
+    rename one.
+- **Sass `@use`/`@forward` in a CSS Module now fails closed to `'all'`.** A
+  `.module.scss`/`.module.sass` that loads a partial via `@use`/`@forward` can pull in
+  global rules the JS import graph can't see, so `classifyStyleChange` now treats any
+  such file as global (`'all'`) — a sound over-approximation, no heuristics. A plain CSS
+  Module with only class selectors stays `'scope'` as before.
+- **Legacy Sass/CSS `@import` in a CSS Module now fails closed too.** The fail-closed
+  load check missed the `@import` form, so a `.module.scss` loading a partial via
+  `@import "vars"` — whose members merge in exactly like `@use` — classified as `'scope'`
+  and could silently skip a re-capture. `classifyStyleChange` now treats any
+  `@use`/`@forward`/`@import` load as global (`'all'`), covering both the Sass partial
+  load and the plain-CSS pass-through (`@import url(x.css)`, whose selectors are not
+  hashed into the module's per-file scope, so it escapes the module). Only ever widens
+  toward `'all'`; a module with no load directive still stays `'scope'`.
+- **`affectedSurfaces` now canonicalizes paths across all inputs, closing a silent
+  unsound skip.** `surfaces` entries, `changedFiles`, graph edges, and `files` are now
+  normalized to one spelling (strip a leading `./`, collapse `//`, resolve `.`/`..` as
+  pure string math — no fs), so a `./pages/Home.tsx` surface entry no longer misses a
+  reachability hit spelled `pages/Home.tsx` and gets dropped from the affected set. And a
+  declared surface whose entry path appears in neither `files` nor any graph edge is now
+  unplaceable → `'all'`, the same fail-closed rule as an unplaceable changed file.
+- **Stale browser-build sidecar can no longer stamp a false fingerprint.**
+  `styleproof-map` now deletes any prior run's `styleproof-browser.json` before Playwright
+  runs, and `writeBrowserBuildSidecar(dir, undefined)` now removes an existing sidecar
+  rather than leaving it. Previously a reused capture dir plus a run that recorded no
+  browser version would fold the _previous_ run's build into this run's manifest, and
+  `assertCompatibleMapDirs` would trust that false `browserVersion` fingerprint.
+- **`captureStyleMap` no longer leaks its motion-freeze `<style>` onto a reused page.**
+  The freeze injected for the base/forced-state reads was re-applied without a handle and
+  never removed, so on a page recaptured **without a reload** (an SPA `go()` that doesn't
+  navigate, multi-surface reuse, the self-check's re-run) the next capture's motion pass
+  read the still-frozen transition/animation longhands (`none`/`0s`) as its baseline —
+  phantom drift that surfaced as a **false "non-deterministic capture"** self-check
+  failure. The re-applied tag is now tracked and removed in a `finally`, so throw paths
+  clean up too. (No API change.)
+- **`liveStates` + `expected` no longer reports a false coverage gap.** A surface with
+  `liveStates` is captured only as its split expansions (`home-loading`, `home-loaded`) —
+  the bare base key is dropped by design — but the coverage ledger recorded `expected`
+  in base keys and the gate compared captured keys literally, so a fully-captured app
+  failed the gate with `uncovered: ['home']` (live in 3.18.0). The ledger writer now
+  records `expected` already translated through the same liveState expansion, and the
+  suite-side guard maps each capture back to its originating `surfaceKey` — a precise
+  mapping via real metadata, so an unrelated `home-banner` never satisfies an uncaptured
+  `home`. Both the spec-driven and crawl capture paths are fixed consistently.
+
+## [3.18.0] - 2026-07-06
+
+### Added
+
+- **Crawl coverage guard (`defineCrawlCapture` gains `expected` + `exclude`).** A
+  link-crawled SPA can now reconcile its _rendered nav_ against a declared route
+  registry, both directions: a rendered link with no `expected` entry fails as a new
+  route with no owner, and an `expected` route the nav stopped linking fails as a nav
+  regression. For such an app the nav is the route universe, so this is the spec
+  guard's list-vs-ledger discipline with the nav as the source of truth. Because the
+  link set isn't known until the page renders, the check runs _inside the capture
+  test_ (fires when `STYLEMAP_DIR` is set), not in the plain suite like the Next
+  guard. `exclude` (`key → reason`) opts out conditionally-rendered links (auth /
+  feature-flag) so they can't flake the guard; an `exclude` key in neither `expected`
+  nor the rendered nav fails as stale. Opt-in and backward-compatible: omit `expected`
+  and the crawl behaves exactly as before (captures what the nav links to, asserts no
+  completeness). New pure `crawlCoverageGaps` export for asserting reconciliation
+  yourself. README's "protected out of the box" scoped to what's wired per framework.
+
+### Fixed
+
+- **`--crawl` now honours the fail-loud contract on unreadable CSS.** Three deviations on
+  the crawl path let a page with a cross-origin stylesheet be certified without ever being
+  fully looked at:
+  - Breakpoint auto-detection swallowed the "unreadable stylesheet" throw and silently swept
+    only 1280px — every other band certified unchanged without being rendered. The crawl now
+    propagates the throw like every other entry point (`styleproof-capture` one-shot,
+    `styleproof-map`); the message advises pinning `--widths` for a cross-origin-CSS page.
+  - The coverage verifier read class vocabulary only from _readable_ sheets, so a design
+    served cross-origin could pass `--require-full-coverage` with an artificially complete
+    verdict. Unreadable sheets are now counted and surfaced as **named residue**: a plain
+    crawl prints `N stylesheet(s) unreadable — class coverage not provable against them`, and
+    `--require-full-coverage` treats them as residue → exit 4. (`CrawlCoverage` gains an
+    `unreadable: string[]` field; purely additive.)
+  - `--max-depth` had two different defaults (16 in `CRAWL_DEFAULTS`, 1000 in the CLI). The
+    CLI default is now **16 everywhere** — the cap exists to bound append-generator UIs (a
+    composer that appends a fresh-identity node per click, which dedup can't terminate); 1000
+    made it decorative. Raise with `--max-depth` for a genuinely deeper nest.
+- **The navigable-removal hard-gate now has data out of the box for new scaffolds — and
+  says so when it doesn't.** The Action defaults the inventory gate _on_ (3.14.0), but
+  inventory _capture_ defaults off, so on a spec that doesn't opt in, no map carries an
+  inventory, the diff's `inventory` verdict is `null`, and the gate counted zero removals
+  forever — armed, but with no ammunition. `styleproof-init` already scaffolds
+  `inventory: true` in the generated capture spec (since 3.15.0's zero-config default), so
+  **freshly scaffolded projects get the protection**; existing specs are untouched and stay
+  opt-in. To make the mismatch impossible to miss on pre-existing specs, the Action's gate
+  step now prints a `::notice::` — _"inventory gate is on but the captured maps carry no
+  inventory — set `inventory: true`"_ — instead of silently passing green, and
+  `styleproof-diff --json` emits an `inventoryNote` explaining the `null` verdict. Both are
+  notices, never failures: a spec that deliberately omits inventory capture keeps working.
+
+- **The compatibility guard now keys on the real browser build, not just the Playwright
+  npm version.** Each capture records `browser().version()` (the actual Chromium build) in
+  its manifest, and `styleproof-diff` / `styleproof-report` refuse to compare two maps whose
+  builds differ (exit 2, both builds named). The npm `@playwright/test` version was only a
+  proxy: the actual binary can change while it holds constant — a `playwright install`
+  re-download after a cache wipe, a different `PLAYWRIGHT_BROWSERS_PATH`, or a CI image
+  bump — and two maps captured under different Chromium builds used to pass the guard and
+  then diff for real, walling the PR with false diffs the canonicalizer can't absorb.
+  Backward compatible: the build is compared only when **both** manifests carry it, so
+  bundles cached before this field keep comparing against each other; a build change now
+  fires the scaffolded recapture fallback instead of a cross-build compare. Fonts are
+  documented as an environment responsibility (too noisy across machines to fingerprint
+  cheaply); see the same-environment note.
+
+- **A missing map is now refused, not mislabelled as "all new surfaces".** When one dir
+  held zero captures while the other held some, `styleproof-diff` used to mark every
+  surface `missing` and exit `3` ("only new surfaces") — the Action then rendered the
+  whole app as 🆕 new baselines a reviewer could approve wholesale. An empty **base** (a
+  restore that "succeeded" into an empty dir, a wrong `--base-dir`, a contributor without
+  the pre-push hook) meant approving a possibly fully-regressed head as the baseline; an
+  empty **head** (a head capture that produced nothing) meant approving a head that
+  rendered zero surfaces. Now: a bundle that claims to exist yet holds zero captures — a
+  `styleproof-manifest.json` present alongside no maps, on either side — and any empty
+  head exit `2` with their own named causes (`base map missing: restore it from the map
+store or recapture both sides — refusing to treat every surface as new` / `head map
+missing: the head capture produced zero surfaces — recapture the head side; refusing to
+treat every surface as removed/new`), distinct enough that the scaffolded workflow's
+  capture-needed fallback is the obvious remedy in CI logs. A truly **bare** base dir (no
+  manifest, no maps) still means "no baseline exists yet" — the first-adoption flow where
+  the base commit predates the capture spec — and keeps the exit-`3` new-surfaces review
+  path. To keep that discrimination sound, `styleproof-map` no longer writes a manifest
+  (or uploads) when a capture run produced zero surfaces. `styleproof-report` shares the
+  load path and is refused identically, so it can't render the misleading all-new page
+  either. Exit `3` keeps its meaning: no baseline for _these_ surfaces — new against an
+  existing baseline, or the very first one.
+
+### Security
+
+- **Surface keys are escaped before they reach the privileged PR comment.** Surface keys
+  originate from artifact filenames — attacker-controlled in the fork capture/report split
+  — and flow into the bot comment (sliced from `report.md`'s headline). Markdown/HTML
+  control characters (`` ` ``, `[`, `]`, `(`, `)`, `<`, `>`, `|`) are now stripped where a
+  key is interpolated into the report headline, certification, and summary lines, so a
+  crafted key can't inject a link, image, or table into the comment. (Crop filenames were
+  already restricted to `[a-z0-9-]`; this is the display-side equivalent.) No code
+  execution was possible; this closes a Markdown-injection surface.
+
+## [3.17.0] - 2026-07-05
+
+### Changed
+
+- **`report.md` is bounded so GitHub can always render it.** A large redesign used to
+  produce a `report.md` too big for GitHub's markdown viewer (it refuses to render past
+  ~512 KB) — the reviewer clicked through and got _"we can't show files this big"_, so the
+  report was useless exactly when the change was biggest. The generator now holds
+  `report.md` to a byte budget (`maxReportBytes`, default ~400 KB): it emits full property
+  tables greedily, then lists any remaining changed surfaces as one-liners (name · change
+  count · crop link) under an announced banner. The exhaustive per-row detail is always in
+  `report.json` and every crop in `crops/`, so nothing is dropped from the certification —
+  only the inline detail is capped. A report a reviewer can't open isn't a source of truth.
+
+### Added
+
+- **`affectedSurfaces` — selective-remap core (opt-in, advisory).** Given the files a
+  change touched, a declared surface→entry map, and a module graph (any tool's output
+  in `{ from, to }` shape — dependency-cruiser maps directly), returns exactly the
+  surfaces that could have rendered differently, or the sentinel `'all'`. Sound by
+  construction: it over-approximates and resolves every uncertainty to `'all'` — global
+  stylesheets/tokens, vanilla (unscoped) stylesheets, `createGlobalStyle`, design-system
+  configs, unbounded `import(x)`, and unplaceable files all force a full re-capture;
+  computed `import(`../dir/${x}`)` is recovered as a bundler context module (directory-
+  level, never a miss). Ships with `classifyStyleChange`. Purely additive, adds no
+  dependency, and never touches the default gate — the gate still captures every surface
+  and lets the map be the oracle. New export; existing specs unaffected.
+
+## [3.16.0] - 2026-07-05
+
+### Added
+
+- **The scaffolded PR workflow prunes its own report branch, out of the box.**
+  `styleproof-init`'s `.github/workflows/styleproof.yml` now also runs on
+  `pull_request: closed`: when a PR closes, a `prune` job removes that PR's `pr-<n>/`
+  folder from the report branch (`styleproof-reports`), so the branch no longer grows
+  without bound as PRs come and go — no adopter has to remember to garbage-collect it.
+  The report job is unchanged, only guarded to skip the close event. Covered by the
+  `styleproof-init` workflow test.
+
+## [3.15.0] - 2026-07-05
+
+### Changed
+
+- **Computed values are compared canonically, so a re-serialization isn't a change.** A
+  browser or build-tool version can serialize an _identical_ value differently — a Chromium
+  bump rewrites `rgba(8, 18, 32, 0.62)` as `#0812209e`, a Tailwind migration reformats a
+  font list's comma spacing — and StyleProof reported every one of those as a difference,
+  drowning a re-baseline in changes that aren't changes (and blowing up the report). The
+  diff now compares by a canonical form: colours are parsed to one `rgba()` (across
+  hex / `rgb()` / `rgba()` / `hsl()` / `hsla()`, short and long hex, comma and modern space
+  syntax) and comma/whitespace runs are normalised outside quotes. A green stops flickering
+  red across browser versions — captures are serialization-independent.
+
+  Safety: only _provably-equal_ values ever collapse. A value that can't be parsed with
+  confidence (or lives inside a quoted string) is left byte-for-byte, so a real change —
+  `#ff0000` → `#ff0001`, `0.5` → `0.6` alpha, a different font — always still surfaces. The
+  report shows the real captured strings; only the equality test is canonical.
+
+## [3.14.0] - 2026-07-05
+
+### Added
+
+- **The GitHub Action hard-gates on unacknowledged navigable removals, out of the box.**
+  A removed route / tab / menu-item — a feature going unreachable — is categorically not a
+  restyle, so it must not be waved through by the review-gate's "approve all changes" box.
+  The Action now reads the diff's machine-readable inventory verdict (3.13.0) and, as a
+  final step in **both** certify and review-gate modes, fails when
+  `inventory.unacknowledged > 0`, naming each removed affordance — unless the removal is
+  recorded (with a reason) in `styleproof.inventory.json`. Style diffs are unaffected
+  (they stay report-only / sign-off). On by default; set `"gateInventoryRemovals": false`
+  in `styleproof.config.json` to opt out. Covered by a new `action-dogfood` removal
+  scenario (base offers `/a` + `/b`, head drops `/b` → the Action fails).
+
+## [3.13.0] - 2026-07-05
+
+### Added
+
+- **`styleproof-diff --json` now carries the inventory verdict.** The structured output
+  gained an `inventory` field alongside `coverage` and `determinism` — so all three
+  source-of-truth axes are machine-readable, matching the report's certification block.
+  Shape: `{ removed, added, unacknowledged, staleAcknowledgements }` (arrays of keys),
+  or `null` when no capture carried inventory. Previously the inventory removals were
+  printed to stdout but absent from `--json`, forcing a CI that wanted to hard-gate on a
+  dropped nav item to grep human prose. Now it can read `inventory.unacknowledged.length`.
+
+## [3.12.0] - 2026-07-05
+
+### Changed
+
+- **Inventory guard: target-based keying.** Source-of-truth step 4 (keying honesty).
+  Tabs / menu items / nav buttons now key by the most stable identity the element
+  exposes — a developer-authored `data-testid`, else a non-generated `id` /
+  `aria-controls` — falling back to the label slug only when there's none. Previously
+  they always keyed by `slug(accessible-name)`, so a wobble in the **label** (a live
+  count badge like "COMMAND 5" → "COMMAND 3", a re-word) faked a `removed` + `added`
+  pair. Links were already immune (they key by href); this extends the same
+  target-based principle to the rest.
+
+  Framework-generated ids (React `useId` `:r0:`, Headless UI `headlessui-…`, Radix,
+  hashes) are rejected so keying on them can't _add_ churn. The design keeps the
+  guard's safe failure direction: the label-slug fallback turns a wobble into a
+  **surfaced** removed+added (a red you see and acknowledge), never a hidden real
+  removal. Give a nav item a `data-testid` to key it immune to its own text.
+
+  Note: an id-bearing affordance's key changes from `<role>:<slug>` to
+  `<role>:#<id>`, so existing `styleproof.inventory.json` acknowledgements for such
+  items need re-keying once (the guard names the new key).
+
+## [3.11.0] - 2026-07-06
+
+### Added
+
+- **Report leads with the certification gates.** Source-of-truth step 3: the reviewer-
+  facing `report.md` now opens with a **Certification** block — the three source-of-truth
+  verdicts, so "is this green trustworthy?" is answered before the pixel details:
+  - **Coverage** — ✓ complete / ✗ INCOMPLETE (names the uncaptured surfaces) / ⚠ not asserted;
+  - **Determinism** — ✓ proven / ✗ NOT proven / ⚠ unknown;
+  - **Inventory** — ✓ navigable set unchanged / ⚠ N affordance(s) removed (names them) /
+    ✓ N removal(s), all acknowledged.
+
+  These verdicts were previously visible only in the `styleproof-diff` CI logs; now
+  they're in the artifact a reviewer actually reads. The block is omitted for an old
+  bundle that carries no certification metadata, so nothing changes for legacy captures.
+
+## [3.10.0] - 2026-07-06
+
+### Added
+
+- **Determinism provenance — a green needs a proven-deterministic capture.** Source-of-
+  truth step 2: a clean diff of two _nondeterministic_ captures is meaningless (they
+  might just happen to match). The capture now records its determinism basis in the
+  ledger — `self-checked` (captured twice, styles matched — a drift would have failed the
+  capture), `replayed` (rendered against a recorded HAR, deterministic by construction),
+  or `unproven` (neither) — and `styleproof-diff`:
+  - **blocks (exit 1) when either side is `unproven`**, even on an empty style diff;
+  - prints `✓ determinism proven — base X, head Y`, `✗ determinism NOT proven …`, or
+    `⚠ determinism basis unknown` (an older bundle with no field — degrades, never a
+    false red). The record-then-replay flow (base `self-checked`, head `replayed`) is
+    proven, as it should be.
+
+## [3.9.0] - 2026-07-05
+
+### Added
+
+- **Coverage provenance — a green now states its completeness basis.** Source-of-truth
+  step 1: a green from `styleproof-diff` used to silently imply completeness it couldn't
+  back up (it certified only the surfaces it happened to capture). Now the capture writes
+  a coverage ledger (`styleproof-coverage.json`) into the bundle — the declared
+  `expected` registry, or `null` — and `styleproof-diff` reads it and:
+  - **blocks (exit 1) when a registered surface was never captured**, even if the style
+    diff is empty — the one failure the gate couldn't catch before (a green over a
+    surface it never looked at). This checks the surfaces actually captured, so a
+    declared surface whose capture _failed_ is caught here, where the suite guard (which
+    checks the declared list) cannot see it;
+  - prints the basis on every run: `✓ coverage complete — all N registered surface(s)
+captured`, `✗ coverage INCOMPLETE — …`, or `⚠ completeness NOT asserted` (no
+    registry — certifies only the captured surfaces, so declare `expected` to certify
+    completeness). A crawl records `expected: null` honestly (it captures what the nav
+    links to, not proven-every-route).
+- `isMapFile` / `RESERVED_BUNDLE_FILES` (map-store) — one place that knows which bundle
+  files are surface maps vs metadata sidecars, so a new sidecar can't read as a phantom
+  "new surface".
+
+## [3.8.0] - 2026-07-05
+
+### Added
+
+- **Zero-config out of the box** — `styleproof-init` now scaffolds a crawl-by-default
+  spec for any non-Next.js app: `defineCrawlCapture({ from: '/', settle, inventory: true })`
+  captures every surface the nav links to (the root plus each same-origin `<a href>`)
+  with **nothing to hand-list** — the surface set is discovered from the rendered nav and
+  can't drift from it. Next.js keeps filesystem route discovery; both variants now enable
+  the inventory guard by default.
+- **`defineCrawlCapture` auto-width** — omit `widths` and StyleProof detects each
+  discovered surface's `@media` breakpoints and sweeps one viewport per band, the same
+  zero-config behaviour explicit surfaces already had.
+- **`defineCrawlCapture` `settle` hook** — run an app-specific step (e.g. trigger
+  scroll-reveal) after navigating to each crawled surface, for parity with a hand-listed
+  surface's `go`.
+- **`inventory` spec option** — `defineStyleMapCapture` / `defineCrawlCapture` now forward
+  `inventory: true` to the capture, so turning the inventory guard on (a removed nav item
+  fails `styleproof-diff`) is a one-line opt-in from a spec, no manual `captureStyleMap`.
+- The crawl now always covers its `from` root on an unfiltered crawl, so a home page not
+  linked in its own nav — or a single-page app with no links — is still captured.
+
+### Changed
+
+- `styleproof-init` guidance now leads with "it runs on your first PR with no extra
+  steps" (CI captures both sides on a cache miss); the local `npx styleproof-map`
+  pre-cache is framed as an optional speedup, not a required first step.
+
+### Tests / docs
+
+- **Dogfood: the "100% surfaced" contract** — `test/pr-surfacing.e2e.spec.ts` runs the
+  real capture → diff → report flow for every change class (resting style,
+  `:hover/:focus/:active` drop, `::before/::after`, DOM add/remove/retag, a removed nav
+  item via the inventory guard, a new surface, and a clean no-op) and asserts each is
+  surfaced — the last two levels through the actual `styleproof-diff` / `styleproof-report`
+  CLIs. Closes the four classes that previously had no end-to-end proof (`:active` drop,
+  DOM removed, retag, pseudo-element change).
+- **Dogfood: zero-config flow** — `test/cli-flow.e2e.spec.ts` runs `styleproof-init` on a
+  real multi-page app and proves the generated crawl spec captures every page (root +
+  pricing + about), multi-width, with the inventory harvested — no spec editing.
+- **`docs/what-it-catches.md`** — states what StyleProof catches and its honest boundary
+  (surfaces it never captured), so a green check is earned, not assumed.
+
 ## [3.7.0] - 2026-07-04
 
 ### Added

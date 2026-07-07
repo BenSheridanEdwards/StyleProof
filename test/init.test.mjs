@@ -18,6 +18,15 @@ function touch(root, rel) {
 const readSpec = (root) => fs.readFileSync(path.join(root, 'e2e/styleproof.spec.ts'), 'utf8');
 const readFile = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
+test('styleproof-init: imports the routes leaf, not the barrel (keeps the heavy capture graph out of the scaffolder)', () => {
+  // styleproof-init only writes files; it must not drag capture/crawler/report
+  // and their Playwright-importing modules into its load path. That oversized,
+  // concurrently-loaded module graph is what flaked init's tests in CI.
+  const src = fs.readFileSync(INIT, 'utf8');
+  assert.match(src, /from '\.\.\/dist\/routes\.js'/);
+  assert.doesNotMatch(src, /from '\.\.\/dist\/index\.js'/);
+});
+
 test('styleproof-init: Next.js app → routes-aware spec wires surfaces + the coverage guard', () => {
   const root = mkTmp();
   try {
@@ -31,6 +40,7 @@ test('styleproof-init: Next.js app → routes-aware spec wires surfaces + the co
     assert.match(spec, /const ROUTES = discoverNextRoutes\(\);/);
     assert.match(spec, /expected: ROUTES\.map\(\(r\) => r\.key\)/);
     assert.match(spec, /exclude: Object\.fromEntries/);
+    assert.match(spec, /inventory: true/); // arms the navigable-removal gate out of the box
     assert.match(res.stdout, /detected 3 Next\.js route\(s\)/);
     assert.match(res.stdout, /1 dynamic route\(s\) excluded/);
   } finally {
@@ -38,24 +48,23 @@ test('styleproof-init: Next.js app → routes-aware spec wires surfaces + the co
   }
 });
 
-test('styleproof-init: non-Next project → generic spec with a commented guard, no discovery import', () => {
+test('styleproof-init: non-Next project → crawl-by-default spec (nothing to hand-list)', () => {
   const root = mkTmp();
   try {
     touch(root, 'src/components/Button.tsx');
     const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     const spec = readSpec(root);
-    assert.doesNotMatch(spec, /import \{[^}]*discoverNextRoutes/); // not auto-wired
-    assert.doesNotMatch(spec, /discoverNextRoutes\(\)/); // not called
-    assert.match(spec, /Coverage guard \(recommended\)/);
-    assert.match(spec, /key: 'home'/);
-    assert.match(spec, /variants: \[/);
-    assert.match(spec, /key: 'dialog-open'/);
-    assert.match(spec, /getByRole\('dialog'\)\.waitFor\(\)/);
-    assert.match(spec, /key: 'popover-open'/);
-    assert.match(spec, /\[popover\], \[role="menu"\]/);
-    assert.doesNotMatch(spec, /Add one surface per distinct page state/);
+    assert.doesNotMatch(spec, /discoverNextRoutes/); // not auto-wired, not called
+    assert.match(spec, /import \{ defineCrawlCapture \} from 'styleproof'/);
+    assert.match(spec, /defineCrawlCapture\(\{/);
+    assert.match(spec, /from: '\/'/); // crawl the whole nav from the root
+    assert.match(spec, /settle,/); // scroll-reveal hook wired
+    assert.match(spec, /inventory: true/); // the removal guard is on by default
+    assert.match(spec, /dir: process\.env\.STYLEMAP_DIR/);
+    assert.doesNotMatch(spec, /key: 'home'/); // no hand-listed surface to maintain
     assert.match(res.stdout, /no Next\.js routes detected/);
+    assert.match(res.stdout, /crawl-by-default/);
   } finally {
     rmTmp(root);
   }
@@ -133,6 +142,13 @@ for (const manager of [
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
+
+      // Report branch self-prunes on PR close (out of the box) — manager-independent.
+      assert.match(workflow, /types: \[opened, synchronize, reopened, closed\]/);
+      assert.match(workflow, /if: github\.event\.action != 'closed'/); // report skips close
+      assert.match(workflow, /^\s{2}prune:/m);
+      assert.match(workflow, /if: github\.event\.action == 'closed'/);
+      assert.match(workflow, /git rm -r --quiet "pr-\$PR"/);
     } finally {
       rmTmp(root);
     }
@@ -160,6 +176,31 @@ test('styleproof-init: Vite projects get a production preview command without ne
     assert.match(config, /npm run build && npx vite preview --host 127\.0\.0\.1 --port 4173/);
     assert.match(config, /env: \{ PORT: '4173' \}/);
     assert.doesNotMatch(config, /npm run start/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: summary names exactly the files it wrote and leaves package.json byte-identical', () => {
+  // Adopters have blamed init for the `styleproof` entry their package manager's
+  // install added. init reads package.json but never writes it (or a lockfile); the
+  // summary must say so, and the manifest on disk must be untouched.
+  const root = mkTmp();
+  try {
+    const pkg = JSON.stringify({ name: 'app', dependencies: { styleproof: '^3.0.0' } }, null, 2) + '\n';
+    fs.writeFileSync(path.join(root, 'package.json'), pkg);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    // The summary enumerates only the files init actually wrote…
+    assert.match(
+      res.stdout,
+      /styleproof-init wrote only: e2e\/styleproof\.spec\.ts, playwright\.styleproof\.config\.ts/,
+    );
+    assert.match(res.stdout, /\.github\/workflows\/styleproof\.yml/);
+    // …and states plainly that it did NOT touch package.json / the lockfile.
+    assert.match(res.stdout, /did NOT modify package\.json or your lockfile/);
+    // The manifest on disk is byte-for-byte what it was before init ran.
+    assert.equal(readFile(root, 'package.json'), pkg);
   } finally {
     rmTmp(root);
   }

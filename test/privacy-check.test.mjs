@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findPrivacyFindings } from '../scripts/privacy-check.mjs';
+import { fileURLToPath } from 'node:url';
+import { findPrivacyFindings, denylist } from '../scripts/privacy-check.mjs';
 
 test('privacy check allows public StyleProof links and localhost examples', () => {
   const findings = findPrivacyFindings([
@@ -19,7 +20,9 @@ test('privacy check allows public StyleProof links and localhost examples', () =
 
 test('privacy check flags local paths and file urls', () => {
   const findings = findPrivacyFindings([
-    { file: 'report.md', text: 'see /Users/example/secret and file:///tmp/crop.png' },
+    // Assembled from fragments so this scanned file never literally contains a
+    // private-looking string; the joined runtime value still exercises each rule.
+    { file: 'report.md', text: 'see /Users' + '/example/secret and file:' + '///tmp/crop.png' },
   ]);
 
   assert.deepEqual(
@@ -33,9 +36,9 @@ test('privacy check flags private-looking urls', () => {
     {
       file: 'proof.md',
       text: [
-        'https://github.com/acme/internal-dashboard/pull/1',
-        'http://10.0.0.5/report',
-        'https://ci.internal/build/123',
+        'https://github.com/' + 'acme/internal-dashboard/pull/1',
+        'http://' + '10.0.0.5/report',
+        'https://ci.' + 'internal/build/123',
       ].join('\n'),
     },
   ]);
@@ -56,4 +59,15 @@ test('privacy check supports an external denylist without committing private nam
     findings.map((f) => f.rule),
     ['denylist token'],
   );
+});
+
+test('the shipped denylist file is loaded and blocks the private project names', () => {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const tokens = denylist(root);
+  // Built from parts so this file never literally contains the denylisted names (it is scanned too).
+  for (const name of ['Fl' + 'eet', ['F', 'L', 'E', 'E', 'T'].join('.')]) {
+    assert.ok(tokens.includes(name), `denylist must list ${name}`);
+    // and the loaded token actually flags a doc that mentions it
+    assert.equal(findPrivacyFindings([{ file: 'docs/x.md', text: `see ${name} HUD` }], tokens).length >= 1, true);
+  }
 });

@@ -18,6 +18,9 @@
 // The harvest (`collectNavAffordances`) runs in-page, mirroring
 // `detectOverlayCandidates`; the diff/union/guard are pure and unit-testable.
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 /** One user-reachable navigation affordance, keyed stably across base/head. */
 export type NavigableItem = {
   /**
@@ -44,6 +47,22 @@ export type InventoryDelta = {
 /** `key -> reason` — removals that are intentional, reviewed, and on the record. */
 export type AllowedRemovals = Record<string, string>;
 
+/**
+ * Read the acknowledged-removals file (`$STYLEPROOF_INVENTORY` or
+ * `styleproof.inventory.json`). `{}` when absent; THROWS on malformed JSON — the
+ * caller picks the policy (the CI gate fails loud so a broken ack file can't silently
+ * un-acknowledge a real loss; the advisory report degrades to `{}`).
+ */
+export function readAckFile(): AllowedRemovals {
+  const p = path.resolve(process.env.STYLEPROOF_INVENTORY ?? 'styleproof.inventory.json');
+  if (!fs.existsSync(p)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8')) as AllowedRemovals;
+  } catch (e) {
+    throw new Error(`${p} is not valid JSON — ${(e as Error).message}`, { cause: e });
+  }
+}
+
 /** One raw navigable affordance as read from the DOM, before classification. */
 export type RawAffordance = {
   tag: string;
@@ -51,6 +70,12 @@ export type RawAffordance = {
   name: string;
   /** pathname+search for a same-origin `<a href>`; null otherwise. Resolved in-page. */
   internalPath: string | null;
+  /** `data-testid` — developer-authored, trusted as a stable identity when present. */
+  testId: string | null;
+  /** `id` — used as a stable identity only when it doesn't look framework-generated. */
+  domId: string | null;
+  /** `aria-controls` (a tab's panel) — a stable identity when not framework-generated. */
+  controls: string | null;
 };
 
 // ── in-page harvest ───────────────────────────────────────────────────────────
@@ -68,7 +93,9 @@ export function collectNavAffordances(): RawAffordance[] {
   const nameOf = (el: Element): string =>
     (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
   const internalPath = (el: Element): string | null => {
-    const raw = (el.getAttribute('href') || '').trim();
+    // SVG anchors carry the target in `xlink:href` (legacy) or `href`; fall back so
+    // an <svg><a> nav link resolves like an HTML one.
+    const raw = (el.getAttribute('href') || el.getAttribute('xlink:href') || '').trim();
     if (!raw || raw.startsWith('#')) return null;
     try {
       const u = new URL(raw, location.href);
@@ -83,15 +110,22 @@ export function collectNavAffordances(): RawAffordance[] {
   // Erring broad is correct here: a stray non-nav button is harmless noise, but a
   // MISSED nav item defeats the guard. Prefer semantic markup (role=tablist) for
   // fully reliable harvesting; see docs/inventory-guard.md.
+  // `a[*|href]` (any-namespace href) not `a[href]`: an SVG anchor may carry only the
+  // XLink-namespaced `xlink:href`, which `a[href]` never selects — so the xlink:href
+  // fallback in internalPath would be dead without it.
   const SEL =
-    'a[href], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], nav button, [role="navigation"] button, [role="tablist"] button, [class*="navtab" i] button, [class*="nav-tab" i] button, [class*="subnav" i] button, [class*="subtab" i] button, [class*="tabs" i] button';
+    'a[*|href], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], nav button, [role="navigation"] button, [role="tablist"] button, [class*="navtab" i] button, [class*="nav-tab" i] button, [class*="subnav" i] button, [class*="subtab" i] button, [class*="tabs" i] button';
   return Array.from(document.querySelectorAll(SEL))
     .filter(visible)
     .map((el) => ({
       tag: el.tagName.toLowerCase(),
       role: (el.getAttribute('role') || '').toLowerCase(),
       name: nameOf(el),
-      internalPath: el.tagName === 'A' ? internalPath(el) : null,
+      // SVG anchors report tagName `a` (lowercase), HTML reports `A` — match either.
+      internalPath: el.tagName.toLowerCase() === 'a' ? internalPath(el) : null,
+      testId: el.getAttribute('data-testid'),
+      domId: el.getAttribute('id'),
+      controls: el.getAttribute('aria-controls'),
     }));
 }
 
@@ -101,6 +135,43 @@ const slug = (s: string): string =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
+
+/**
+ * Whether an `id` / `aria-controls` value is a STABLE identity worth keying on, vs a
+ * framework-generated one (React useId `:r0:`, Headless UI `headlessui-tabs-tab-3`,
+ * Radix `radix-:r1:`, Emotion hashes) that wobbles across renders/builds. Keying by a
+ * generated id would ADD churn, so those fall back to the label slug. (`data-testid` is
+ * developer-authored by definition, so it's trusted without this check.)
+ */
+export function isStableId(id: string | null | undefined): id is string {
+  if (!id) return false;
+  const v = id.trim();
+  if (!v || v.length > 80) return false;
+  if (v.includes(':')) return false; // React useId / Radix scoped ids
+  if (/^(headlessui|radix|mui|chakra|reach|react-aria|floating-ui|downshift)-/i.test(v)) return false;
+  if (/^[0-9a-f]{8,}$/i.test(v)) return false; // hash-like
+  return true;
+}
+
+// A tab/menuitem/button's stable identity, if it exposes one: a data-testid (trusted),
+// else a non-generated id or aria-controls. Preferred over the label so a count badge
+// or re-label in the text doesn't move the key. (Links already key by href, the most
+// stable target of all.) When absent, we fall back to the label slug — the wobble is a
+// false removed+added, which the guard SURFACES; it never hides a real removal.
+function stableIdOf(c: RawAffordance): string | null {
+  if (c.testId && c.testId.trim()) return c.testId.trim();
+  if (isStableId(c.domId)) return c.domId.trim();
+  if (isStableId(c.controls)) return c.controls.trim();
+  return null;
+}
+
+// `<role>:#<stable-id>` when the affordance exposes a stable identity, else
+// `<role>:<slug(name)>`. The `#` marker keeps id-keys from colliding with slug-keys
+// (a slug never contains `#`).
+function affordanceKey(role: string, c: RawAffordance): string {
+  const id = stableIdOf(c);
+  return id ? `${role}:#${id}` : `${role}:${slug(c.name)}`;
+}
 
 /** Pure: turn raw affordances into keyed, deduped, sorted navigable items. */
 export function classifyInventory(raw: RawAffordance[]): NavigableItem[] {
@@ -112,11 +183,11 @@ export function classifyInventory(raw: RawAffordance[]): NavigableItem[] {
     if (c.tag === 'a' && c.internalPath) {
       add(`route:${c.internalPath}`, 'link', c.name || c.internalPath, c.internalPath);
     } else if (c.name && c.role === 'tab') {
-      add(`tab:${slug(c.name)}`, 'tab', c.name);
+      add(affordanceKey('tab', c), 'tab', c.name);
     } else if (c.name && c.role.startsWith('menuitem')) {
-      add(`menuitem:${slug(c.name)}`, 'menuitem', c.name);
+      add(affordanceKey('menuitem', c), 'menuitem', c.name);
     } else if (c.name && c.tag === 'button') {
-      add(`nav-button:${slug(c.name)}`, 'nav-button', c.name);
+      add(affordanceKey('nav-button', c), 'nav-button', c.name);
     }
   }
   return Array.from(items.values()).sort((a, b) => a.key.localeCompare(b.key));
