@@ -14,6 +14,30 @@ import { COVERAGE_LEDGER } from '../dist/coverage.js';
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'styleproof-diff.mjs');
 const map = () => JSON.stringify({ defaults: {}, elements: {}, states: {} });
 
+// v4: a two-directory diff refuses a map-bearing side without a manifest. These fixtures
+// exercise the OTHER gates (coverage/determinism/inventory/residue), so stamp a matching
+// manifest on both sides to get past the environment guard (same runtime → compatible).
+function stampManifest(dir, sha) {
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha,
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: 'test',
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: 'testcompatkey0000',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+}
+
 // base+head both capture one identical surface (clean style diff), each with a ledger
 // carrying its determinism basis. `expected: null` keeps coverage "unasserted" so only
 // determinism is under test. `undefined` = no field (an older bundle).
@@ -28,6 +52,8 @@ function fixture(baseDet, headDet) {
   const ledger = (d) => ({ version: 1, expected: null, exclude: {}, ...(d ? { determinism: d } : {}) });
   fs.writeFileSync(path.join(base, COVERAGE_LEDGER), JSON.stringify(ledger(baseDet)));
   fs.writeFileSync(path.join(head, COVERAGE_LEDGER), JSON.stringify(ledger(headDet)));
+  stampManifest(base, 'base-sha');
+  stampManifest(head, 'head-sha');
   return { root, base, head };
 }
 function run(base, head) {

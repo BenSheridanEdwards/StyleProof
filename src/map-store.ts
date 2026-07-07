@@ -225,23 +225,23 @@ export function remoteExists(remote = DEFAULT_REMOTE, cwd = process.cwd()): bool
   return runGit(cwd, ['remote', 'get-url', remote], 1 << 20).status === 0;
 }
 
-export function writeMapManifest(options: {
+/** Assemble a {@link MapManifest} from the compatibility inputs and the caller-resolved
+ *  git fields. Shared by {@link writeMapManifest} (spec capture) and
+ *  {@link writeCaptureManifest} (one-shot capture) so the object shape lives in one place. */
+function buildManifest(options: {
   dir: string;
-  spec: string;
-  sha?: string;
+  input: ReturnType<typeof compatibilityInput>;
+  sha: string;
+  dirty: boolean;
   screenshots: boolean;
-  dirty?: boolean;
-  cwd?: string;
-  env?: NodeJS.ProcessEnv;
 }): MapManifest {
-  const cwd = options.cwd ?? process.cwd();
-  const input = compatibilityInput({ cwd, spec: options.spec, baseUrl: options.env?.BASE_URL ?? process.env.BASE_URL });
-  const browserVersion = readBrowserBuildSidecar(options.dir);
-  const manifest: MapManifest = {
+  const { dir, input } = options;
+  const browserVersion = readBrowserBuildSidecar(dir);
+  return {
     version: 1,
     packageVersion: input.packageVersion,
-    sha: options.sha ?? currentGitSha(cwd, options.env),
-    dirty: options.dirty ?? workingTreeDirty(cwd),
+    sha: options.sha,
+    dirty: options.dirty,
     spec: input.spec,
     specHash: input.specHash,
     ...(input.lockfile ? { lockfile: input.lockfile } : {}),
@@ -253,10 +253,64 @@ export function writeMapManifest(options: {
     nodeMajor: input.nodeMajor,
     ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
     screenshots: options.screenshots,
-    har: hasHar(options.dir),
+    har: hasHar(dir),
     compatibilityKey: hash(JSON.stringify(input)).slice(0, 16),
     createdAt: new Date().toISOString(),
   };
+}
+
+export function writeMapManifest(options: {
+  dir: string;
+  spec: string;
+  sha?: string;
+  screenshots: boolean;
+  dirty?: boolean;
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+}): MapManifest {
+  const cwd = options.cwd ?? process.cwd();
+  const input = compatibilityInput({ cwd, spec: options.spec, baseUrl: options.env?.BASE_URL ?? process.env.BASE_URL });
+  const manifest = buildManifest({
+    dir: options.dir,
+    input,
+    sha: options.sha ?? currentGitSha(cwd, options.env),
+    dirty: options.dirty ?? workingTreeDirty(cwd),
+    screenshots: options.screenshots,
+  });
+  fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
+  return manifest;
+}
+
+/**
+ * Write a `styleproof-manifest.json` for a one-shot `styleproof-capture` output dir,
+ * so a two-directory `styleproof-diff design <build>` has the same-environment guard
+ * on both sides (v4 refuses to compare a manifest-less side). Unlike
+ * {@link writeMapManifest}, this may run OUTSIDE a git repo (a design mockup, a static
+ * export), so the git-derived fields degrade gracefully: `sha` falls back to
+ * `'uncommitted'` and `dirty` to `true` rather than throwing. The parts the guard
+ * actually consumes — `compatibilityKey`, `platform`/`arch`/`nodeMajor`,
+ * `playwrightVersion`, `browserVersion`, `baseUrl` — are recorded the same way as a
+ * spec capture. Overwrites any existing manifest in `dir`.
+ */
+export function writeCaptureManifest(options: {
+  dir: string;
+  screenshots: boolean;
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+}): MapManifest {
+  const cwd = options.cwd ?? process.cwd();
+  // A one-shot capture has no spec file; key comparability off the capture inputs only.
+  const input = compatibilityInput({ cwd, spec: MAP_MANIFEST, baseUrl: options.env?.BASE_URL ?? process.env.BASE_URL });
+  // Degrade the git fields gracefully outside a repo (a design mockup): no HEAD → uncommitted/dirty.
+  const sha = gitOutput(cwd, ['rev-parse', 'HEAD']) || 'uncommitted';
+  const manifest = buildManifest({
+    dir: options.dir,
+    input,
+    sha,
+    dirty: sha === 'uncommitted' ? true : workingTreeDirty(cwd),
+    screenshots: options.screenshots,
+  });
+  fs.mkdirSync(options.dir, { recursive: true });
   fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
   return manifest;
 }
@@ -269,28 +323,46 @@ export function readMapManifest(dir: string): MapManifest | null {
   }
 }
 
-/** Which side(s) of a two-directory compare carry no `styleproof-manifest.json`.
- *  `null` means both sides have one — the same-environment guard is enforceable.
- *  Pure: reads presence only, no I/O beyond `readMapManifest`, so the CLI layer owns
- *  the notice (stderr, exit code) and the library stays side-effect-free. */
-export function manifestlessSide(beforeDir: string, afterDir: string): 'before' | 'after' | 'both' | null {
-  const before = readMapManifest(beforeDir) != null;
-  const after = readMapManifest(afterDir) != null;
-  if (before && after) return null;
-  if (!before && !after) return 'both';
-  return before ? 'after' : 'before';
+/** True if `dir` holds at least one captured surface map (`<key>@<width>.json[.gz]`),
+ *  ignoring metadata sidecars. Distinguishes a real capture that merely lacks a manifest
+ *  (a legacy committed-map bundle — v4 refuses it) from an empty/bare dir (no baseline
+ *  yet — the missing-map guards own that). */
+function dirHasMaps(dir: string): boolean {
+  try {
+    return fs.readdirSync(dir).some(isMapFile);
+  } catch {
+    return false;
+  }
 }
 
-/** One-time stderr notice text for a manifest-less compare. The guard
- *  (`assertCompatibleMapDirs`) no-ops when a manifest is absent, so this warns that
- *  cross-machine captures could diff as false changes. A notice, not a failure —
- *  the caller keeps its exit code. */
-export function manifestlessNotice(side: 'before' | 'after' | 'both'): string {
+/** Which side(s) of a two-directory compare hold captured maps but NO
+ *  `styleproof-manifest.json` — a legacy committed-map bundle. Since v4 that is
+ *  unsupported: without a manifest the same-environment guard can't be enforced, so the
+ *  CLI refuses (exit 2). `null` means every side WITH maps also has a manifest (nothing to
+ *  refuse). A side with zero maps is NOT flagged — an empty/bare dir is "no baseline yet",
+ *  handled by the base/head-missing guards, not this one. Pure: presence reads only, so the
+ *  CLI layer owns the exit code and the library stays side-effect-free. */
+export function manifestlessSide(beforeDir: string, afterDir: string): 'before' | 'after' | 'both' | null {
+  const before = dirHasMaps(beforeDir) && readMapManifest(beforeDir) == null;
+  const after = dirHasMaps(afterDir) && readMapManifest(afterDir) == null;
+  if (before && after) return 'both';
+  if (before) return 'before';
+  if (after) return 'after';
+  return null;
+}
+
+/** Fail-loud message for a manifest-less compare. Since v4 a side without a
+ *  `styleproof-manifest.json` is unsupported: the same-environment guard can't be
+ *  enforced, so captures from different browser builds or platforms would diff as
+ *  false changes. The CLI raises this and exits 2 (usage/capture error) — the
+ *  legacy "compare anyway" tolerance is gone. */
+export function manifestlessError(side: 'before' | 'after' | 'both'): string {
   const carry = side === 'both' ? 'before and after carry' : `${side} carries`;
   return (
-    `styleproof: environment compatibility not verifiable — ${carry} no ${MAP_MANIFEST}; ` +
+    `styleproof: ${carry} no ${MAP_MANIFEST} — environment compatibility can't be verified, so ` +
     'captures from different browser builds or platforms would diff as false changes. ' +
-    'Capture via styleproof-map to record one.'
+    'Re-capture with current StyleProof (styleproof-map, or styleproof-capture for a one-shot ' +
+    'diff); maps without a manifest are unsupported since v4.'
   );
 }
 

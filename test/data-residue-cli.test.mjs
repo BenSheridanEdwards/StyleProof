@@ -15,6 +15,30 @@ import { residueKey } from '../dist/data-residue.js';
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'styleproof-diff.mjs');
 
+// v4: a two-directory diff refuses a map-bearing side without a manifest. These fixtures
+// exercise the OTHER gates (coverage/determinism/inventory/residue), so stamp a matching
+// manifest on both sides to get past the environment guard (same runtime → compatible).
+function stampManifest(dir, sha) {
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha,
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: 'test',
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: 'testcompatkey0000',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+}
+
 // Minimal valid StyleMap — loadStyleMap only JSON-parses; the diff needs
 // defaults/elements/states. Identical on both sides so the ONLY signal is residue.
 const mapJson = (residue) =>
@@ -48,6 +72,8 @@ function fixture({ residue, gate }) {
     path.join(a, COVERAGE_LEDGER),
     JSON.stringify({ version: 1, expected: null, exclude: {}, determinism: 'self-checked' }),
   );
+  stampManifest(a, 'base-sha');
+  stampManifest(b, 'head-sha');
   return { root, a, b };
 }
 

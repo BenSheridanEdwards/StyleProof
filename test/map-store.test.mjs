@@ -6,15 +6,16 @@ import { execFileSync } from 'node:child_process';
 import {
   assertCompatibleMapDirs,
   BROWSER_BUILD_SIDECAR,
-  manifestlessNotice,
+  manifestlessError,
   manifestlessSide,
   MAP_MANIFEST,
   readMapManifest,
   workingTreeDirty,
   writeBrowserBuildSidecar,
+  writeCaptureManifest,
   writeMapManifest,
 } from '../dist/map-store.js';
-import { mkTmp, rmTmp } from './helpers.mjs';
+import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 /** Write a manifest into `dir`, overriding defaults with `overrides`. */
 function manifestDir(overrides = {}) {
@@ -118,6 +119,13 @@ test('assertCompatibleMapDirs: same browser build compares clean', () => {
   }
 });
 
+// A dir with a captured map but no manifest = a legacy committed-map bundle (v4 refuses).
+function legacyMapDir() {
+  const dir = mkTmp('styleproof-legacy-');
+  writeCapture(dir, 'home@1280', makeMap({ elements: { body: { tag: 'body' } } }), null);
+  return dir;
+}
+
 test('manifestlessSide: both manifests present → null (guard is enforceable)', () => {
   const before = manifestDir();
   const after = manifestDir();
@@ -129,26 +137,74 @@ test('manifestlessSide: both manifests present → null (guard is enforceable)',
   }
 });
 
-test('manifestlessSide: names before / after / both when a manifest is missing', () => {
+test('manifestlessSide: names before / after / both for a legacy bundle (maps, no manifest)', () => {
   const withManifest = manifestDir();
-  const bare = mkTmp('styleproof-bare-');
-  const bare2 = mkTmp('styleproof-bare-');
+  const legacy = legacyMapDir();
+  const legacy2 = legacyMapDir();
   try {
-    assert.equal(manifestlessSide(bare, withManifest), 'before');
-    assert.equal(manifestlessSide(withManifest, bare), 'after');
-    assert.equal(manifestlessSide(bare, bare2), 'both');
+    assert.equal(manifestlessSide(legacy, withManifest), 'before');
+    assert.equal(manifestlessSide(withManifest, legacy), 'after');
+    assert.equal(manifestlessSide(legacy, legacy2), 'both');
   } finally {
     rmTmp(withManifest);
-    rmTmp(bare);
-    rmTmp(bare2);
+    rmTmp(legacy);
+    rmTmp(legacy2);
   }
 });
 
-test('manifestlessNotice: names the side and points at styleproof-map', () => {
-  assert.match(manifestlessNotice('before'), /before carries no styleproof-manifest\.json/);
-  assert.match(manifestlessNotice('after'), /after carries no styleproof-manifest\.json/);
-  assert.match(manifestlessNotice('both'), /before and after carry no styleproof-manifest\.json/);
-  assert.match(manifestlessNotice('both'), /Capture via styleproof-map/);
+test('manifestlessSide: a bare dir with no maps is NOT flagged (empty ≠ legacy bundle)', () => {
+  // A dir with zero maps is "no baseline yet", owned by the base/head-missing guards —
+  // not a legacy committed-map bundle. The manifest refusal must not swallow it.
+  const withManifest = manifestDir();
+  const bare = mkTmp('styleproof-bare-');
+  try {
+    assert.equal(manifestlessSide(bare, withManifest), null);
+    assert.equal(manifestlessSide(withManifest, bare), null);
+    assert.equal(manifestlessSide(bare, mkTmp('styleproof-bare-')), null);
+  } finally {
+    rmTmp(withManifest);
+    rmTmp(bare);
+  }
+});
+
+test('manifestlessError: names the side and points at re-capturing (v4 refuses)', () => {
+  assert.match(manifestlessError('before'), /before carries no styleproof-manifest\.json/);
+  assert.match(manifestlessError('after'), /after carries no styleproof-manifest\.json/);
+  assert.match(manifestlessError('both'), /before and after carry no styleproof-manifest\.json/);
+  assert.match(manifestlessError('both'), /unsupported since v4/);
+  assert.match(manifestlessError('both'), /Re-capture with current StyleProof/);
+});
+
+test('writeCaptureManifest: stamps a compat manifest, degrading git fields outside a repo', () => {
+  // A one-shot styleproof-capture output dir under a NON-git tmp path — the design-mockup
+  // case. The manifest must still carry the fields the same-environment guard consumes.
+  const dir = mkTmp('styleproof-capture-manifest-');
+  try {
+    // cwd = the tmp dir itself (not a git repo) so the git fields degrade.
+    const manifest = writeCaptureManifest({ dir, screenshots: true, cwd: dir });
+    // Git fields degrade gracefully (tmp dir is not a git repo).
+    assert.equal(manifest.sha, 'uncommitted');
+    assert.equal(manifest.dirty, true);
+    // The comparability fields are present and real.
+    assert.equal(manifest.platform, process.platform);
+    assert.equal(manifest.arch, process.arch);
+    assert.equal(manifest.nodeMajor, process.versions.node.split('.')[0]);
+    assert.match(manifest.compatibilityKey, /^[0-9a-f]{16}$/);
+    assert.equal(manifest.screenshots, true);
+    // And it round-trips through the reader, so a diff can pick it up on both sides.
+    const read = readMapManifest(dir);
+    assert.equal(read.compatibilityKey, manifest.compatibilityKey);
+    // Two capture dirs stamped in the same environment are mutually compatible.
+    const other = mkTmp('styleproof-capture-manifest-');
+    try {
+      writeCaptureManifest({ dir: other, screenshots: true, cwd: other });
+      assert.doesNotThrow(() => assertCompatibleMapDirs(dir, other));
+    } finally {
+      rmTmp(other);
+    }
+  } finally {
+    rmTmp(dir);
+  }
 });
 
 test('writeBrowserBuildSidecar(undefined) CLEARS a stale sidecar so a version-less run stamps no browserVersion', () => {

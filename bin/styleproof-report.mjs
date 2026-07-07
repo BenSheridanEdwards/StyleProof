@@ -18,7 +18,7 @@ import {
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
   cleanupCachedCaptureDirs,
-  manifestlessNotice,
+  manifestlessError,
   manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
@@ -148,8 +148,10 @@ if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
 
 let result;
 try {
+  // v4: refuse a manifest-less side (exit 2 via the catch) — same-environment
+  // compatibility can't be verified without a manifest on both sides.
   const manifestless = manifestlessSide(beforeDir, afterDir);
-  if (manifestless) console.error(manifestlessNotice(manifestless));
+  if (manifestless) throw new Error(manifestlessError(manifestless));
   assertCompatibleMapDirs(beforeDir, afterDir);
   result = generateStyleMapReport({
     beforeDir,
