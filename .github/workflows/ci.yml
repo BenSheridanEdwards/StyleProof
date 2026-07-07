@@ -53,6 +53,12 @@ jobs:
         if: matrix.node == '22'
         run: npm run privacy:check
 
+      # Fail the build on a known high/critical-severity vulnerability in the
+      # dependency tree. Runs once on the supported toolchain, like lint/format.
+      - name: Dependency audit
+        if: matrix.node == '22'
+        run: npm audit --audit-level=high
+
       # The committed demo report (docs/demo/) must match what the current report
       # renderer produces — so every PR shows the REAL report, never a stale one.
       # Deterministic synthetic inputs, so this is gate-safe on one Node version.

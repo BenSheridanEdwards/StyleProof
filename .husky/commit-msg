@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+set -e
+
+echo "› commitlint"
+# Reject any commit message that is not Conventional Commits (@commitlint/config-conventional).
+npx --no-install commitlint --edit "$1"

@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Enforced quality gates and an agent context layer** (repository tooling only;
+  no change to the published package, CLI, or Action). A `commit-msg` commitlint
+  hook and PR-title/body validation enforce Conventional Commits; gitleaks
+  (staged-diff hook + full-history CI, fail-closed), CodeQL, and
+  `npm audit --audit-level=high` add secret/SAST/dependency scanning; a machine
+  `pull_request` check validates the PR template shape. `AGENTS.md` is now the
+  tool-agnostic source of truth (previously a symlink to `CLAUDE.md`, now a thin
+  vendor adapter), with `.agents/project/` documenting architecture, conventions,
+  tech stack, glossary, the gate matrix, PR quality, and the Definition of Done
+  (moved from `.agents/DEFINITION_OF_DONE.md`). Adds `.agents/decisions/` ADRs, a
+  root `TODO.md`, and a `.claude/` PreToolUse hook that blocks `--no-verify`.
+
 ## [3.21.0] - 2026-07-07
 
 ### Added
