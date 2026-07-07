@@ -50,9 +50,16 @@ exists before CI starts — then CI is report-only (no build, no browser).
 
 Computed styles depend on the **browser build and installed fonts**, so maps are
 only comparable when captured in the same runtime. StyleProof records a
-compatibility key and **refuses to compare maps from different browser/platform
-settings** — CI then recaptures both sides rather than produce a bogus report.
-Capture both sides in the same browser + fonts.
+compatibility key — including the **real browser build** (`browser().version()`),
+not just the Playwright npm version, which can hold constant across a Chromium
+re-download — and **refuses to compare maps from different browser/platform
+settings** (exit 2, both builds named). CI then recaptures both sides rather
+than produce a bogus report. Fonts aren't fingerprinted (too noisy across
+machines): capture both sides on the same fonts yourself.
+
+The manifest also carries the coverage/determinism **ledger**
+(`styleproof-coverage.json`) that `styleproof-diff` reads to qualify a green —
+see the `styleproof-diff` skill.
 
 ## Next
 

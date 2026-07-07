@@ -18,17 +18,38 @@ styleproof-diff <beforeDir> <afterDir>   # explicit two-directory form (design-v
 
 With no args it restores base/head from the `styleproof-maps` store and infers
 the base: `GITHUB_BASE_REF` → `branch.<name>.gh-merge-base` → `gh pr view`
-(stacked PRs) → `origin/main`/`origin/master`/`main`/`master`. Add `--json` for
-the structured diff (includes `compared`); `--max <n>` caps lines per surface.
+(stacked PRs) → `origin/main`/`origin/master`/`main`/`master`. `--json <file>`
+writes the full structured diff (findings + coverage/determinism/inventory
+verdicts + `compared`); `--max <n>` caps lines per surface (default 40).
 
 ## Exit codes — the gate contract
 
 | Code | Meaning |
 |---|---|
 | **0** | certified — identical (`0 changed surfaces across N captured surface(s)`) |
-| **1** | differences found |
-| **2** | usage / capture error |
-| **3** | only new surfaces present — no baseline to diff against (approval policy decides if that gates) |
+| **1** | reviewable diff — style/DOM/state differences, **or a blocked gate**: an unacknowledged inventory removal, unacknowledged data residue (gates by default), an incomplete coverage registry, or an unproven-determinism capture |
+| **2** | usage / capture error — including a **missing map** (a manifest with zero captures) or, in v4, a **map-bearing side with no manifest at all** (the same-environment guard can't verify it); either side is refused loudly rather than mislabelled as all-new |
+| **3** | only new surfaces present — no baseline for *those* surfaces (or no base manifest at all: first adoption); approval policy decides if that gates |
+
+## The three verdicts behind a zero
+
+A green is qualified by ledgers that travel with the map bundle:
+
+- **Coverage** — the `expected` registry rides along as
+  `styleproof-coverage.json`; the gate prints `✓ coverage complete`,
+  `✗ INCOMPLETE` (blocks), or `⚠ not asserted` (no registry declared).
+- **Determinism** — how the capture proved itself (`self-checked` / `replayed`);
+  an `unproven` capture blocks, because a clean diff of two nondeterministic
+  reads could just be luck.
+- **Inventory** — when maps carry `inventory: true`, a nav item/route that went
+  unreachable exits 1 unless acknowledged in `styleproof.inventory.json`
+  (`{"<key>": "<why>"}`; path override `STYLEPROOF_INVENTORY`).
+- **Data residue** — a data-boundary request (`replayUrl`, default `**/api/**`)
+  that *failed* during capture means the surface rendered its fallback branch,
+  so the response-driven state was never captured. Warned always; **gates by
+  default** (v4) — an unacknowledged failure blocks (ack in
+  `styleproof.data-residue.json`, `{"<surface·endpoint>": "why"}`);
+  `dataResidue: 'warn'` opts down to record-only.
 
 ## What it compares (and what it doesn't)
 

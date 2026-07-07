@@ -7,9 +7,11 @@ description: Use when capturing the computed-style map of any URL you point at �
 
 One job: record the browser's computed styles for a page you just point at, with
 no spec. `styleproof-capture` writes the same map shape any capture writes
-(`<dir>/<key>@<width>.json.gz` + `.png`), so `styleproof-diff` can compare it
-against anything. Use it for **matching a design** or capturing a third-party
-page you don't own a spec for.
+(`<dir>/<key>@<width>.json.gz` + `.png`) plus a `styleproof-manifest.json` (v4 —
+so the two-directory diff can verify the same-environment guard, degrading git
+fields gracefully when the target isn't in a repo), so `styleproof-diff` can
+compare it against anything. Use it for **matching a design** or capturing a
+third-party page you don't own a spec for.
 
 (For your own app's surfaces with the coverage guard + map store + record/replay,
 use the spec-driven `styleproof-map` — the `styleproof-baseline` skill.)
@@ -22,7 +24,7 @@ styleproof-diff design .styleproof/maps/current   # design vs your build
 ```
 
 Flags:
-- `--key <name>` — surface key (defaults from the URL).
+- `--key <name>` — surface key / capture file prefix (default `page`).
 - `--widths 1440,1024,768` — **omit** to auto-detect the page's own `@media`
   bands; pin them for a page with a cross-origin sheet (detection reads every
   sheet and fails loudly rather than guess).
@@ -47,4 +49,5 @@ the crawler and setup steps — the `styleproof-coverage` skill (`--crawl`,
 ## Next
 
 `styleproof-diff` to compare; `styleproof-report` for the visual before/after;
-the design→production flow is the `design-to-production` skill.
+the README's *Match a design pixel-for-pixel* section is the full design→build
+flow.

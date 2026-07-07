@@ -34,11 +34,17 @@ Two independent guards; use both:
 
 - **Crawl coverage:** after a crawl, StyleProof compares every class the page's
   own CSSOM defines against the classes actually rendered, and prints the
-  residue. `--require-full-coverage` turns any residue into **exit 4**. What's
-  left is either dead CSS (delete it) or an unreached state (drive it).
+  residue. `--require-full-coverage` turns any residue into **exit 4**; an
+  unreadable cross-origin sheet also fails rather than pass unverified.
+  `--until-covered` stops the crawl early once every class has rendered — the
+  fast coverage check, vs the exhaustive default sweep. What's left is either
+  dead CSS (delete it) or an unreached state (drive it).
 - **Spec coverage:** `expected` in `defineStyleMapCapture` (the
   `styleproof-surfaces` skill) fails a static guard when a declared route/view/
-  component has no surface.
+  component has no surface. The registry also travels with the map bundle as a
+  ledger (`styleproof-coverage.json`), so `styleproof-diff` states a green's
+  completeness basis — `✓ coverage complete`, `✗ INCOMPLETE` (blocks), or
+  `⚠ not asserted` (no registry).
 
 ## 3. Reach gated states
 
@@ -56,6 +62,28 @@ Two independent guards; use both:
 gate; `${ENV_VAR}` in values is interpolated at load time (credentials never hit
 the file or the maps). A failed non-`optional` step aborts loudly.
 
+## 4. The un-exercised-state gap — a branch that never rendered
+
+Coverage guards prove a *surface* was captured; they can't prove a surface
+exercised every *conditional render branch* whose styling matters. A fault/empty
+branch that never renders on either side produces byte-identical maps and a
+trivially clean diff. Two halves:
+
+- **Failing-request half — caught automatically (data residue, #208).** A
+  data-boundary request (`replayUrl`, default `**/api/**`) that *fails* during
+  capture (network error / 4xx / 5xx) means the surface painted its *fallback*
+  branch. StyleProof warns always, records it on `StyleMap.dataResidue`, and
+  **gates by default** (v4) — an unacknowledged failure blocks the diff (ack
+  ledger `styleproof.data-residue.json`, `{"<surface·endpoint>": "why"}`; a
+  stale ack fails too); `dataResidue: 'warn'` opts down to record-only. A
+  healthy 2xx is never flagged.
+- **Healthy-but-never-rendered half — yours to close.** An endpoint that
+  *succeeds* with data that simply never drives the branch is invisible to any
+  honest recapture. Only a **fixture-driven surface** exercises it: a pinned
+  `liveState`/`variant` whose `page.route` override is scoped **per-surface** (a
+  global override leaks the payload into other surfaces), plus a browserless
+  guard test tied to the branch's source so the coverage can't rot.
+
 ## Gotchas from a real 100%-coverage push
 
 - **Crawl the STANDALONE design for coverage, never the built route.** A built
@@ -69,4 +97,5 @@ the file or the maps). A failed non-`optional` step aborts loudly.
 
 ## Next
 
-Feeds `styleproof-diff` (the gate) and the `design-to-production` workflow.
+Feeds `styleproof-diff` (the gate); `styleproof-surfaces` owns the `expected`
+registry this proves against.

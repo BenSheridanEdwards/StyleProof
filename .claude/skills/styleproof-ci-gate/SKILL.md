@@ -33,26 +33,37 @@ pinned environment first (correctness beats a stale cache).
   **Approve all changes** checkbox; the status is green on no change, red until
   approved. Use when intentional visual changes are normal.
 - **Certify** (`fail-on-diff: true`, the default): **any** diff fails the job.
-  Use when the whole promise is "output unchanged" (see `styleproof-refactor`
-  guidance in the `styleproof` skill).
+  Use when the whole promise is "output unchanged" (the *Certify a refactor*
+  mode in the `styleproof` skill).
 
 Key inputs: `require-approval`, `fail-on-diff`, `status-context` (must match the
-approve workflow + branch protection), `baseline-dir`, `fresh-dir`. Outputs:
-`changed`, `report-url`.
+approve workflow + branch protection), `baseline-dir`, `fresh-dir`,
+`report-branch` (default `styleproof-reports`; the scaffolded workflow prunes a
+PR's report folder when it closes). Outputs: `changed`, `report-url`.
+
+In **both** modes the Action also hard-gates an **unacknowledged inventory
+removal** (a nav item/route that went unreachable) when the maps carry
+inventory — acknowledge intentional removals in `styleproof.inventory.json`
+(`{"<key>": "<why>"}`), or opt out with `"gateInventoryRemovals": false` in
+`styleproof.config.json`.
 
 ## The approve workflow
 
-Copy `example/styleproof-approve.yml` to `.github/workflows/` **on your default
-branch** — GitHub only runs `issue_comment` workflows from the default branch, so
-the checkbox is inert until it's merged there.
+`styleproof-init` **installs `styleproof-approve.yml` for you** — the review gate
+ships complete, not half-wired. If you wire the gate by hand instead, copy
+`example/styleproof-approve.yml` to `.github/workflows/` yourself. Either way it
+must sit **on your default branch**: GitHub only runs `issue_comment` workflows
+from there, so the checkbox is inert until the change merges.
 
 ## Blocking without branch protection
 
 A status only *blocks a merge* where a branch-protection rule requires it (needs
-GitHub Pro / public repo). On a free private repo, set `{"blocking": true}` in
-`styleproof.config.json` to also **fail** the job on unapproved changes → a red
-check regardless. It's async: tick **Approve all changes**, then **re-run** the
-job so it sees the sign-off.
+GitHub Pro / public repo). In v4 StyleProof **blocks by default**: in review-gate
+mode an unapproved change (or a new surface with no baseline) also **fails** the
+report job (red ✗), so the check holds even without branch protection. Opt down
+to advisory-only (status red, job green) with `{"blocking": false}` in
+`styleproof.config.json`. It's async: tick **Approve all changes**, then
+**re-run** the job so it sees the sign-off.
 
 ## Fork & Dependabot — split capture from report
 

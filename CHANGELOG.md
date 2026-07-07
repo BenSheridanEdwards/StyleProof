@@ -40,7 +40,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (`{"<surface·endpoint>": "why"}`), or set `dataResidue: 'warn'` in the capture spec to
   restore the previous non-gating behaviour. A capture with no failing data request is
   unaffected. (#205)
-  
+
 - **BREAKING: `blocking` now defaults to `true`.** In review-gate mode
   (`require-approval: true`), an **unapproved** visual change now **fails the
   report job** (red ✗) out of the box, so the check blocks a merge even on a repo

@@ -1,5 +1,65 @@
 # Progress
 
+## Active Task: fact-check the Claude Code skills against current main (PR #214)
+
+## Completed
+
+- Fact-checked the ten `.claude/skills/styleproof*` skills against the real
+  `bin/*.mjs`, `src/index.ts`, and `action.yml` surface. First pass fixed the
+  drift the skills carried since #144/#152: removed dead cross-references
+  (`design-to-production`, `styleproof-refactor`) and a non-generic `hud/` path;
+  fixed the `--key` default (`page`); documented the ledger-era gate contract in
+  `styleproof-diff`; added the crawl `expected`/`exclude` + inventory guards to
+  `styleproof-surfaces`; the browser-build compatibility key to
+  `styleproof-baseline`; `--until-covered` + gate verdicts to
+  `styleproof-coverage`; report exit codes + gates-first lead to
+  `styleproof-report`; the crawl-by-default scaffold to `styleproof-install`;
+  `report-branch` pruning + the inventory gate to `styleproof-ci-gate`.
+- **Rebased #214 off its stale base (pre-3.20.0) onto current `main` (3.21.0).**
+  Resolved the two files `main` had changed underneath it: took `main`'s #206
+  rewrite of `styleproof-prepush` (publish-to-store, maps never on the PR
+  branch) and #209's README rewrite wholesale, dropping my superseded edits to
+  both. Dropped the CHANGELOG entry — `.claude/skills/` isn't in the published
+  package `files`, so a skills-only change adds no changelog noise (#213
+  precedent).
+- **Refresh pass for features merged since the base:** the data-residue guard
+  (#208) into `styleproof-diff`, `styleproof-coverage` (both halves of the
+  un-exercised-state gap), `styleproof-surfaces`, `styleproof-report`, and the
+  hub `styleproof` skill; the pre-push hook + approval workflow now installed by
+  default (#207/#201) into `styleproof-install` and `styleproof-ci-gate`.
+- **The four v4 PRs merged mid-session — rebased again and folded them in.**
+  #210 (blocking on by default), #211 (dataResidue gates by default), #212
+  (capture writes a manifest; a map-bearing side with no manifest is refused,
+  exit 2), #213 (un-exercised-state gap) all landed on `main`. Updated
+  `styleproof-diff`/`-surfaces`/`-coverage` to gate-by-default wording, the
+  `blocking` default in `styleproof-ci-gate`, and the manifest note in
+  `styleproof-capture`. Each new default is labelled `(v4)` since the released
+  3.21.0 still carries the old ones; the skills track `main`.
+
+## Findings
+
+- #214 was built on `81a874a` while `main` sprinted ahead — two releases, a full
+  README rewrite (#209), and then the four v4 breaking PRs all merged while this
+  branch was in flight (the merge-mid-session pattern). Rebased twice. `prepush`
+  and the README are left at `main`'s versions; the skills otherwise track `main`
+  including `[Unreleased]`/v4 behaviour.
+
+## Next Action
+
+- Force-push the rebased branch; the PR stays open.
+
+## Blockers
+
+- None.
+
+## Verification Status
+
+- `npm run format:check` passes. Stale-reference grep
+  (`design-to-production|styleproof-refactor|hud/`) over skills: clean. All skill
+  README cross-refs resolve against the #209 README. Privacy grep: clean.
+
+---
+
 ## Active Task: popup reset verification + identity-bound triggers (#183)
 
 ## Completed

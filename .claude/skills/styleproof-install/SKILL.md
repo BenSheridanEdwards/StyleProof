@@ -21,9 +21,12 @@ Requires **Node ≥ 18** (ESM) and **@playwright/test ≥ 1.40** (peer dep).
 `styleproof-init` scaffolds, non-destructively (it sits beside your existing
 Playwright config, never edits it):
 
-- **`e2e/styleproof.spec.ts`** — the capture spec. A **Next.js** repo gets its
-  App-Router + Pages-Router routes *and* the `expected` coverage guard wired via
-  `discoverNextRoutes()`, so it's protected out of the box.
+- **`e2e/styleproof.spec.ts`** — the capture spec, with the inventory guard
+  (`inventory: true`) on. A **Next.js** repo gets its App-Router + Pages-Router
+  routes *and* the `expected` coverage guard wired via `discoverNextRoutes()`;
+  any other repo gets a **crawl-by-default** spec (`defineCrawlCapture` from
+  `/`) that discovers surfaces from the rendered nav — either way it's
+  protected out of the box.
 - **`playwright.styleproof.config.ts`** — a dedicated config that **builds and
   serves a production build** (never a flaky dev server — dev's per-route JIT
   compile under CI load is what makes captures race late content), scopes
@@ -31,6 +34,15 @@ Playwright config, never edits it):
 - **`.gitignore`** entries for `.styleproof/`, `test-results/`, `playwright-report/`.
 - a **cache-first CI workflow** that restores maps from the `styleproof-maps`
   branch and reports without a browser when both maps already exist.
+- a **pre-push hook** (`.husky/` if present, else `.githooks/` + `git config
+  core.hooksPath`) that captures each pushed commit and publishes the bundle to
+  the `styleproof-maps` store branch — so CI stays report-only and maps never
+  land on the PR branch (`styleproof-prepush` skill).
+- the **approval workflow** (`styleproof-approve.yml`) that flips the
+  `StyleProof` status green when a reviewer ticks **Approve all changes** — so
+  the review gate ships complete, not half-wired (it goes live once the init PR
+  merges, since GitHub runs `issue_comment` workflows only from the default
+  branch).
 
 Generated commands follow the repo's lockfile (`bun`/`pnpm`/`yarn`/npm), respect
 Corepack pins, and detect Vite/Next preview commands — it won't assume `npm start`
