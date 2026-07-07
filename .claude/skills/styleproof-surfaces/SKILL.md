@@ -78,7 +78,7 @@ on the head gates loudly instead of vanishing between captures. On by default in
 ## Let auto-discovery keep the inventory honest
 
 - **Next.js:** `discoverNextRoutes()` wires `surfaces` + `expected` from `app/`+`pages/`.
-- **Single-route SPA** (every view is `/?tab=…`): `defineCrawlCapture({ from: '/', match: /\?tab=/ })` — the surface set *is* the rendered nav's `<a href>`s (SVG links count too).
+- **Single-route SPA** (every view is `/?tab=…`): `defineCrawlCapture({ from: '/', match: /\?tab=/ })` — the surface set *is* the rendered nav's `<a href>`s.
 - **Component catalog:** `discoverComponentFiles({ roots: ['src/components'] })` +
   `componentCatalogSurfaces(...)` — fails CI when a component file has no surface.
 - **Harvest one-step variants:** `styleproof-variants --base-url … --route /` writes a manifest of controls that actually change computed styles.

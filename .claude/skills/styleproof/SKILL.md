@@ -32,8 +32,9 @@ This skill is the map. Each step has its own skill; follow them in order.
 
 - **`styleproof-capture`** — one-shot capture of any URL you point at.
 - **`styleproof-diff`** — the gate: 0 = certified identical, 1 = changed (or a
-  blocked gate: unacknowledged inventory removal, incomplete coverage, unproven
-  determinism), 3 = new surface. Validate the differ before trusting a 0.
+  blocked gate: unacknowledged inventory removal, unacknowledged failing data
+  endpoint, incomplete coverage, unproven determinism), 3 = new surface.
+  Validate the differ before trusting a 0.
 - **`styleproof-report`** — the before/after visual review artifact.
 - **`styleproof-coverage`** — `--crawl` + `--require-full-coverage` + `--setup`;
   prove no surface/state was missed (the captures can't catch an un-taken

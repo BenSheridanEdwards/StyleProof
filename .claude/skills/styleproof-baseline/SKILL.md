@@ -57,9 +57,13 @@ settings** (exit 2, both builds named). CI then recaptures both sides rather
 than produce a bogus report. Fonts aren't fingerprinted (too noisy across
 machines): capture both sides on the same fonts yourself.
 
-The manifest also carries the coverage/determinism **ledger**
-(`styleproof-coverage.json`) that `styleproof-diff` reads to qualify a green —
-see the `styleproof-diff` skill.
+The bundle also carries the coverage/determinism **ledger**
+(`styleproof-coverage.json`, a sidecar beside the manifest) that
+`styleproof-diff` reads to qualify a green — see the `styleproof-diff` skill.
+Since v4 the manifest itself is **required**: a map-bearing dir without one is
+refused at compare time (exit 2), and every capture flow stamps it — the
+`styleproof-map`/`styleproof-capture` CLIs and the runner itself, so even a raw
+`STYLEMAP_DIR=x npx playwright test` run produces a comparable bundle.
 
 ## Next
 

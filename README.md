@@ -251,7 +251,7 @@ mockup and diffing your build against it until the number hits zero. See
 
 ## What a green certifies
 
-A passing check is more than "no style changed". Three gates qualify it, and the
+A passing check is more than "no style changed". Four gates qualify it, and the
 report leads with their verdicts:
 
 - **Coverage** — the `expected` registry travels with the captured bundle as a
@@ -270,6 +270,12 @@ report leads with their verdicts:
   can't rot. Details and the keying rules:
   [docs/inventory-guard.md](docs/inventory-guard.md). Make it advisory in the
   Action with `"gateInventoryRemovals": false` in `styleproof.config.json`.
+- **Data residue** — a data-boundary request that **failed** during capture
+  means the fallback branch was captured, not the state its responses drive.
+  Gating is the default (`dataResidue: 'gate'`): an unacknowledged failing
+  endpoint blocks until acknowledged in `styleproof.data-residue.json`, and a
+  stale acknowledgement also fails. Opt down with `dataResidue: 'warn'`. See
+  [Data residue](#data-residue-a-failed-data-request-is-named-not-swallowed).
 
 ## Coverage: what you own, what's discovered
 
