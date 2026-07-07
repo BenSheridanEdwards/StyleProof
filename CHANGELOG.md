@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unset capture specs no longer inflate Playwright's skipped-test count.** When
+  `defineStyleMapCapture({ dir: process.env.STYLEMAP_DIR, ... })` or
+  `defineCrawlCapture({ dir: process.env.STYLEMAP_DIR, ... })` runs with no `dir`,
+  StyleProof now returns before registering generated capture tests instead of
+  registering one skipped test per surface. Static `expected` coverage guards still
+  run in the normal suite. (#215)
+
 ## [4.0.0] - 2026-07-07
 
 The first major since v3. Three breaking defaults make StyleProof strict out of

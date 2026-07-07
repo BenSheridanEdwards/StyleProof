@@ -1060,7 +1060,6 @@ function writeBrowserBuildTest(settings: Settings, dir: string): void {
 
 export function defineStyleMapCapture(options: DefineOptions): void {
   const { surfaces, expected, exclude = {}, dir } = options;
-  const settings = resolveSettings(options);
   const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
   assertUniqueExpandedKeys(captureSurfaces);
 
@@ -1094,10 +1093,12 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     });
   }
 
+  if (!dir) return;
+
+  const settings = resolveSettings(options);
   test.describe('styleproof capture', () => {
-    test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
-    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
-    if (dir) writeBrowserBuildTest(settings, dir);
+    writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
+    writeBrowserBuildTest(settings, dir);
     for (const surface of captureSurfaces) {
       if (surface.widths && surface.widths.length > 0) {
         // Explicit widths: one parallelizable test per surface × width.
@@ -1274,12 +1275,13 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     expected,
     exclude = {},
   } = options;
+  if (!dir) return;
+
   const settings = resolveSettings(options);
 
   // Title contains "styleproof capture" so the same `--grep 'styleproof capture'`
   // that styleproof-map uses to select capture tests picks up crawl specs too.
   test.describe('styleproof capture (crawl)', () => {
-    test.skip(!dir, 'set STYLEMAP_DIR=<label> to capture computed-style maps');
     // Record the completeness basis. Without `expected` a crawl has no registry to
     // check against, so it records `expected: null` (honestly "not asserted": it
     // captures what the nav links to, and can't prove that's every route). With
@@ -1292,8 +1294,8 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     const ledgerSurfaces = (expected ?? []).flatMap((key) =>
       expandSurfaceVariants({ key, go: async () => {}, variants, liveStates }),
     );
-    if (dir) writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, ledgerSurfaces);
-    if (dir) writeBrowserBuildTest(settings, dir);
+    writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, ledgerSurfaces);
+    writeBrowserBuildTest(settings, dir);
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
       // 1. Load the root and read its hydrated nav links into the surface set.
       const links = await discoverCrawlLinks(page, { from, match, key, linkTimeout });
