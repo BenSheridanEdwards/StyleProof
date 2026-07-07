@@ -44,7 +44,7 @@ import {
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
   cleanupCachedCaptureDirs,
-  manifestlessNotice,
+  manifestlessError,
   manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
@@ -337,8 +337,10 @@ let determinismVerdict = null;
 let residueAudit = null;
 let surfacePaths = new Map();
 try {
+  // v4: a side without a manifest is unsupported — the same-environment guard can't be
+  // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
   const manifestless = manifestlessSide(dirA, dirB);
-  if (manifestless) console.error(manifestlessNotice(manifestless));
+  if (manifestless) throw new Error(manifestlessError(manifestless));
   assertCompatibleMapDirs(dirA, dirB);
   result = diffStyleMapDirs(dirA, dirB);
   // Read inventory + the certification ledgers here, while the (possibly cached/restored)
