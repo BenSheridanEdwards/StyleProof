@@ -567,13 +567,20 @@ automatically: in GitHub Actions it uses the PR base/head SHAs; locally it check
 `master`. Pin the base with `styleproof-diff main` or `styleproof-diff master`.
 
 **That's the whole loop.** Build the map outside CI when possible by running
-`styleproof-map` after committing. On the PR, CI first restores the base/head
-bundles and only generates the report — no build, no browser. If either bundle
-is missing or incompatible, CI recaptures both sides in the same pinned
-environment before reporting. Correctness wins over a stale cache, but the hot
-path is report-only.
+`styleproof-map` after committing — a pre-push hook is the natural place to
+automate it. On the PR, CI first restores the base/head bundles and only
+generates the report — no build, no browser. If either bundle is missing or
+incompatible, CI recaptures both sides in the same pinned environment before
+reporting. Correctness wins over a stale cache, but the hot path is
+report-only.
 
-> **Same-environment note.** Computed styles depend on the browser build and installed fonts, so maps are only comparable when captured in the same runtime environment. StyleProof records a compatibility key to select the right cached bundle and refuses to compare maps captured under different browser/platform settings; CI then recaptures both sides instead of producing a bogus report. Each capture also records the **real browser build** (`browser().version()`) in its manifest — the npm `@playwright/test` version is only a proxy, and the actual Chromium binary can change while it holds constant (a `playwright install` re-download, a different `PLAYWRIGHT_BROWSERS_PATH`, a CI image bump). When both sides carry it, a differing build refuses to compare (exit 2, both builds named) instead of walling the PR with false diffs. This guard needs a `styleproof-manifest.json` on **both** sides; a two-directory `styleproof-diff`/`styleproof-report` where either side lacks one (e.g. a committed-map workflow that ships maps but no manifest) can't verify the environment, so it prints a one-line notice to stderr naming the bare side(s) and compares anyway — exit code unchanged. **Installed fonts are your responsibility:** they are noisy across machines (user-installed families, OS updates, and no cheap cross-platform enumeration), so StyleProof does not fingerprint them — capture both sides on the same fonts, which is what CI's pinned image already gives you.
+Maps travel via the SHA-keyed `styleproof-maps` branch (or a CI artifact for
+forks) — **never as files committed to the PR branch**. Committed maps show up
+as changed files in every review, and because every PR writes the same paths,
+each merge forces every other open PR to rebase. `.styleproof/` and
+`stylemaps/` are gitignored to keep that door shut.
+
+> **Same-environment note.** Computed styles depend on the browser build and installed fonts, so maps are only comparable when captured in the same runtime environment. StyleProof records a compatibility key to select the right cached bundle and refuses to compare maps captured under different browser/platform settings; CI then recaptures both sides instead of producing a bogus report. Each capture also records the **real browser build** (`browser().version()`) in its manifest — the npm `@playwright/test` version is only a proxy, and the actual Chromium binary can change while it holds constant (a `playwright install` re-download, a different `PLAYWRIGHT_BROWSERS_PATH`, a CI image bump). When both sides carry it, a differing build refuses to compare (exit 2, both builds named) instead of walling the PR with false diffs. This guard needs a `styleproof-manifest.json` on **both** sides; a two-directory `styleproof-diff`/`styleproof-report` where either side lacks one (e.g. a legacy committed-map workflow that ships maps but no manifest) can't verify the environment, so it prints a one-line notice to stderr naming the bare side(s) and compares anyway — exit code unchanged. **Installed fonts are your responsibility:** they are noisy across machines (user-installed families, OS updates, and no cheap cross-platform enumeration), so StyleProof does not fingerprint them — capture both sides on the same fonts, which is what CI's pinned image already gives you.
 
 **Want the local side-by-side report** (not just a pass/fail diff)? Run `npx
 styleproof-report` after `styleproof-map`; it uses the same inferred base ref and
@@ -758,7 +765,7 @@ Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)`
 
 ### Show the skip list, then wire the pre-push hook
 
-Before you trust a skip, print it. `explainAffectedSurfaces(result, allSurfaceKeys)` renders the verdict as reviewer-checkable lines — which surfaces re-capture and which reuse their committed base map — and takes an optional reason string for the `'all'` case:
+Before you trust a skip, print it. `explainAffectedSurfaces(result, allSurfaceKeys)` renders the verdict as reviewer-checkable lines — which surfaces re-capture and which reuse their restored base map — and takes an optional reason string for the `'all'` case:
 
 ```ts
 import { affectedSurfaces, explainAffectedSurfaces } from 'styleproof';
@@ -785,7 +792,7 @@ selective remap: OFF → re-capture all 3 surface(s) — src/tokens.css is a glo
   ↻ pricing (re-capture)
 ```
 
-Wired into a pre-push hook, the whole recipe is: diff the changed files, produce the graph, ask `affectedSurfaces`, print the skip list, then capture only the subset and reuse the committed base maps for the rest.
+Wired into a pre-push hook, the whole recipe is: diff the changed files, produce the graph, ask `affectedSurfaces`, print the skip list, then capture only the subset and reuse the base maps restored from `styleproof-maps` for the rest.
 
 ```sh
 #!/usr/bin/env sh
@@ -795,7 +802,7 @@ npx dependency-cruiser src --no-config --output-type json > dc.json
 node scripts/selective-remap.mjs "$CHANGED" dc.json   # affectedSurfaces + explain + capture subset
 ```
 
-`scripts/selective-remap.mjs` is yours to own — it maps `dc.json` into `{ from, to }` edges (as above), calls `affectedSurfaces`, prints `explainAffectedSurfaces`, then captures only the returned keys and copies each reused surface's committed base map forward. `main` re-captures everything, so a PR-time miss is still caught at merge.
+`scripts/selective-remap.mjs` is yours to own — it maps `dc.json` into `{ from, to }` edges (as above), calls `affectedSurfaces`, prints `explainAffectedSurfaces`, then captures only the returned keys and copies each reused surface's restored base map forward. `main` re-captures everything, so a PR-time miss is still caught at merge.
 
 ## Newly-added elements show their full style
 

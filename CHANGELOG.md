@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **Pre-push guidance no longer commits maps to the PR branch** (docs and repo
+  hygiene only; no change to the published package, CLI, or Action). The
+  pre-push recipe previously ended with `git add stylemaps` + a map commit on
+  the branch — so maps appeared as changed files in every PR, and because all
+  PRs wrote the same `stylemaps/` paths, each merge forced every other open PR
+  to rebase. The recipe now captures and publishes to the SHA-keyed
+  `styleproof-maps` store branch (what `styleproof-map` already does outside
+  CI) and never touches the PR branch; `stylemaps/` is gitignored as a
+  guardrail, and the README states the maps-never-in-PR rule explicitly.
+
 ### Added
 
 - **`styleproof-init` now installs the approval workflow.** The generated report
