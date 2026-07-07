@@ -84,6 +84,7 @@ for (const manager of [
       /baseline-dir: __stylemaps__\/base/,
       /fresh-dir: __stylemaps__\/head/,
     ],
+    hook: /npx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
   },
   {
     name: 'Yarn v1 lockfile',
@@ -97,6 +98,7 @@ for (const manager of [
       /BenSheridanEdwards\/StyleProof@v3/,
     ],
     absent: [/npm ci/],
+    hook: /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts/,
   },
   {
     name: 'pnpm lockfile',
@@ -111,6 +113,7 @@ for (const manager of [
       /BenSheridanEdwards\/StyleProof@v3/,
     ],
     absent: [/npm ci/],
+    hook: /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts/,
   },
   {
     name: 'Bun lockfile',
@@ -124,6 +127,7 @@ for (const manager of [
       /BenSheridanEdwards\/StyleProof@v3/,
     ],
     absent: [/npm ci/],
+    hook: /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
   },
 ]) {
   test(`styleproof-init: generated commands follow ${manager.name}`, () => {
@@ -136,7 +140,12 @@ for (const manager of [
       const config = readFile(root, 'playwright.styleproof.config.ts');
       assert.match(config, manager.config);
 
-      assert.equal(fs.existsSync(path.join(root, '.githooks', 'pre-push')), false);
+      // Pre-push publish hook is default, uses the manager's exec form, and never
+      // stages maps onto the branch.
+      const hook = readFile(root, '.githooks/pre-push');
+      assert.match(hook, manager.hook);
+      assert.match(hook, /STYLEPROOF_SKIP_CAPTURE/);
+      assert.doesNotMatch(hook, /git add/);
       assert.match(readFile(root, '.gitignore'), /\.styleproof\//);
 
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
@@ -177,6 +186,40 @@ test('styleproof-init: installs the approval workflow so require-approval is not
     assert.match(rerun.stdout, /styleproof-approve\.yml already exists — left untouched/);
   } finally {
     rmTmp(root);
+  }
+});
+
+test('styleproof-init: pre-push publish hook — husky-aware, executable, idempotent', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    const hookPath = path.join(root, '.githooks', 'pre-push');
+    assert.match(res.stdout, /created \.githooks\/pre-push/);
+    assert.match(res.stdout, /git config core\.hooksPath \.githooks/); // activation hint
+    if (process.platform !== 'win32') {
+      assert.ok(fs.statSync(hookPath).mode & 0o111, 'hook is executable');
+    }
+    // Idempotent: a second run leaves an existing hook untouched.
+    const rerun = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(rerun.status, 0, rerun.stderr);
+    assert.match(rerun.stdout, /pre-push already exists — left untouched/);
+  } finally {
+    rmTmp(root);
+  }
+
+  // A husky repo gets the hook in .husky/ instead, and an existing hook survives.
+  const husky = mkTmp();
+  try {
+    fs.mkdirSync(path.join(husky, '.husky'));
+    fs.writeFileSync(path.join(husky, '.husky', 'pre-push'), '#!/bin/sh\nnpm test\n');
+    const res = runInit(husky, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(fs.existsSync(path.join(husky, '.githooks')), false);
+    assert.equal(readFile(husky, '.husky/pre-push'), '#!/bin/sh\nnpm test\n'); // untouched
+    assert.match(res.stdout, /pre-push already exists — left untouched/);
+  } finally {
+    rmTmp(husky);
   }
 });
 

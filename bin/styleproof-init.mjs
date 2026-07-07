@@ -589,6 +589,33 @@ if (approveWorkflow !== undefined) {
   }
 }
 
+// Pre-push publish hook — the default fast path. Capture locally at push time and
+// publish to the SHA-keyed styleproof-maps branch; CI restores by SHA and stays
+// report-only. Maps are NEVER committed to the PR branch: a shared tracked map path
+// shows up in every PR's changed files and forces cross-PR rebases on each merge.
+const HOOK = `#!/bin/sh
+# StyleProof pre-push: capture this commit's map and publish it to the
+# styleproof-maps branch, so CI restores it and reports without a browser.
+# Maps never get committed to the PR branch.
+# Skip (e.g. a docs-only push): STYLEPROOF_SKIP_CAPTURE=1 git push
+set -e
+[ "\${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
+${PM.exec(`styleproof-map --spec ${specPath}`)}
+${PM.exec('styleproof-diff')} || true # advisory: show drift before CI does
+`;
+const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
+const hookPath = path.join(hookDir, 'pre-push');
+const hook = writeFileSafe(hookPath, HOOK);
+if (hook.wrote) {
+  fs.chmodSync(hookPath, 0o755);
+  touched.push(hookPath);
+  console.log(`created ${hookPath} (pre-push capture → publish; maps never land on the PR branch)`);
+  if (hookDir === '.githooks') console.log('  activate with: git config core.hooksPath .githooks');
+  wroteSomething = true;
+} else {
+  console.log(`${hookPath} already exists — left untouched`);
+}
+
 if (touched.length) {
   // State exactly what init wrote, and — because adopters have blamed init for the
   // `styleproof` entry their package manager's `install` added — say plainly that it
@@ -600,11 +627,10 @@ if (touched.length) {
 console.log('\nHow the gate works — it runs on your first PR with no extra steps:');
 console.log('  1. Commit and open a PR. CI captures the base and head surfaces in one pinned');
 console.log('     environment and posts the StyleProof report — no local step required.');
-console.log('  2. (Optional, faster) Pre-cache this commit so CI skips recapturing the base:');
-console.log('       npx styleproof-map');
-console.log('     It captures a production-build map into .styleproof/ and uploads the bundle to');
-console.log('     the styleproof-maps branch when the git remote is available; CI then restores');
-console.log('     it and generates the report without a browser.');
+console.log('  2. The pre-push hook captures each pushed commit into .styleproof/ and publishes');
+console.log('     the bundle to the styleproof-maps branch; CI restores it by SHA and generates');
+console.log('     the report without a browser. Maps never get committed to the PR branch.');
+console.log('     Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
 console.log('  3. Merge this PR. The approval workflow only runs from your default branch, so');
 console.log('     the "Approve all changes" checkbox goes live once styleproof-approve.yml is there.');
 
