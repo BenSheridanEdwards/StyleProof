@@ -93,8 +93,9 @@ runs:
 
     # Policy config: an optional styleproof.config.json at the consumer repo root.
     # Today it carries one setting — `blocking` — but it's the home for future gate
-    # policy. Absent/unreadable → all defaults (non-blocking). Inputs stay the home
-    # for plumbing (dirs, token, mode); the config file is the home for policy.
+    # policy. Absent/unreadable → all defaults (blocking on; opt out with
+    # "blocking": false). Inputs stay the home for plumbing (dirs, token, mode);
+    # the config file is the home for policy.
     - id: config
       uses: actions/github-script@v9
       with:
@@ -109,7 +110,7 @@ runs:
           } catch (e) {
             if (e.code !== 'ENOENT') core.warning(`StyleProof: ignoring unreadable styleproof.config.json — ${e.message}`);
           }
-          core.setOutput('blocking', cfg.blocking === true ? 'true' : 'false');
+          core.setOutput('blocking', cfg.blocking === false ? 'false' : 'true');
           // A removed navigable affordance (a route/tab/menu-item the UI stopped offering)
           // is a feature going unreachable — high-stakes, and NOT something the style
           // "approve all" box should wave through. It hard-fails unless the removal is
@@ -303,10 +304,11 @@ runs:
             ...(changed && !approved && url ? { target_url: url } : {}),
           });
 
-    # blocking (styleproof.config.json: "blocking": true): on UNAPPROVED changes/new surfaces,
-    # fail the job so the check is red even on a repo without a branch-protection rule
-    # requiring the status. Async by design — sign off in the comment, then re-run this
-    # job; the re-run sees the approval (via the gate step) and passes. Review-gate only.
+    # blocking (on by default; opt out with styleproof.config.json "blocking": false): on
+    # UNAPPROVED changes/new surfaces, fail the job so the check is red even on a repo
+    # without a branch-protection rule requiring the status. Async by design — sign off in
+    # the comment, then re-run this job; the re-run sees the approval (via the gate step)
+    # and passes. Review-gate only.
     - name: Block on unapproved changes
       if: >-
         steps.context.outputs.pr-number != '' &&
