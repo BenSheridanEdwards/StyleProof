@@ -24,7 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: fallow-rs/fallow@v2
+      - uses: fallow-rs/fallow@v3
         with:
           command: audit
           comment: true
@@ -39,7 +39,7 @@ jobs:
       # Fails only on NEW functions over the cyclomatic/cognitive thresholds in
       # .fallowrc.jsonc, beyond the committed baseline.
       - name: Complexity gate
-        uses: fallow-rs/fallow@v2
+        uses: fallow-rs/fallow@v3
         with:
           command: health
           production: true
