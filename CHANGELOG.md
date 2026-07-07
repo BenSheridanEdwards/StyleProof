@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [3.20.0] - 2026-07-07
+
 ### Fixed
 
 - **Crawl no longer double-captures `/` and `/index.html` as two surfaces.** On a
