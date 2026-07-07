@@ -1,6 +1,19 @@
+<!--
+This PR's TITLE and BODY are machine-validated in CI ("Validate PR body",
+scripts/validate-pr-body.mjs). To pass:
+  1. Title = Conventional Commits: type(scope): summary
+     (feat, fix, docs, chore, ci, build, perf, refactor, revert, style, test).
+  2. Keep the four "#" section headings below EXACTLY as written and IN THIS ORDER.
+     Renaming or reordering a heading fails the check.
+  3. Fill every section with real content. A bare "-", an empty checkbox, or an
+     untouched placeholder counts as empty and fails.
+  4. Behavioural Proof must embed an image — ![alt](URL?raw=1) — OR say
+     "Not applicable" with a reason. Prose alone does not pass.
+-->
+
 # Why does this feature exist?
 
-<!-- The user, product, or technical reason for the change. Link any issue. -->
+<!-- The user, product, or technical reason for the change. Link any issue. Replace the "-" below. -->
 
 -
 
