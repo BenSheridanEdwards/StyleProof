@@ -7,6 +7,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Removed
+
+- **BREAKING: a manifest-less map bundle is no longer compared — it fails with exit
+  `2`.** Before, a two-directory `styleproof-diff`/`styleproof-report` where a side
+  shipped captured maps but no `styleproof-manifest.json` (the legacy committed-map
+  workflow) printed a one-line stderr notice and **compared anyway** (the tolerance
+  added in #200). The same-environment guard can't be enforced without a manifest, so
+  captures from different browser builds or platforms could diff as false changes. For
+  **v4** that tolerance is removed: a side that ships maps with no manifest now fails
+  loudly with exit `2` (usage/capture error), naming the bare side(s) and the remedy —
+  re-capture with current StyleProof; maps without a manifest are unsupported. A dir
+  with _no maps at all_ is unchanged: it is "no baseline yet", still the first-adoption
+  review path (exit `3`), not a bare bundle. **Migration:** re-capture both sides —
+  `styleproof-map` for spec-driven surfaces, or `styleproof-capture` for a one-shot
+  design diff; both now write a `styleproof-manifest.json` into their output dir
+  (`styleproof-capture` previously wrote none, which would have made the design-match
+  flow fail under this change — it now stamps one, degrading the git SHA/dirty fields
+  gracefully when run outside a git repo).
+
 ### Changed
 
 - **BREAKING: `dataResidue` now defaults to `'gate'` instead of `'warn'`.** A
@@ -21,6 +40,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (`{"<surface·endpoint>": "why"}`), or set `dataResidue: 'warn'` in the capture spec to
   restore the previous non-gating behaviour. A capture with no failing data request is
   unaffected. (#205)
+  
+- **BREAKING: `blocking` now defaults to `true`.** In review-gate mode
+  (`require-approval: true`), an **unapproved** visual change now **fails the
+  report job** (red ✗) out of the box, so the check blocks a merge even on a repo
+  without a branch-protection rule requiring the `StyleProof` status (which needs
+  GitHub Pro or a public repo). Previously the default was `false` — advisory-only,
+  where only the commit status went red. The approve→re-run flow is unchanged: tick
+  **Approve all changes**, re-run the job, and the re-run sees the sign-off and
+  passes. Certify mode (`fail-on-diff: true`) is unaffected. **Migration:** to keep
+  the old advisory-only behaviour, set `"blocking": false` in
+  `styleproof.config.json` at your repo root.
 - **Pre-push guidance no longer commits maps to the PR branch** (docs and repo
   hygiene only; no change to the published package, CLI, or Action). The
   pre-push recipe previously ended with `git add stylemaps` + a map commit on

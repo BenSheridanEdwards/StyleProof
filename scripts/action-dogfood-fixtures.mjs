@@ -42,10 +42,30 @@ function png([r, g, b]) {
   return PNG.sync.write(image);
 }
 
+// Since v4 a map-bearing dir without a styleproof-manifest.json is refused (exit 2),
+// so every fixture dir carries one. Identical on all sides — the fixtures are
+// synthetic, and the same-environment guard only needs the two sides to match.
+const MANIFEST = {
+  version: 1,
+  packageVersion: '0.0.0-dogfood',
+  sha: 'dogfood-fixture',
+  dirty: false,
+  spec: 'scripts/action-dogfood-fixtures.mjs',
+  specHash: 'dogfood',
+  platform: 'dogfood',
+  arch: 'dogfood',
+  nodeMajor: 'dogfood',
+  screenshots: true,
+  har: false,
+  compatibilityKey: 'dogfood-fixture',
+  createdAt: '2026-01-01T00:00:00.000Z',
+};
+
 function writeCapture(dir, surface, styleMap, image) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, `${surface}.json.gz`), gzipSync(JSON.stringify(styleMap)));
   fs.writeFileSync(path.join(dir, `${surface}.png`), image);
+  fs.writeFileSync(path.join(dir, 'styleproof-manifest.json'), JSON.stringify(MANIFEST, null, 2));
 }
 
 fs.rmSync(root, { recursive: true, force: true });

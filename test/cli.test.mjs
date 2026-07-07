@@ -20,7 +20,10 @@ function run(script, args) {
 }
 
 // Two surfaces that differ in one longhand, and an identical pair.
-function differingPair() {
+// A real capture always carries a manifest (v4 refuses a map-bearing side without one),
+// so the fixtures stamp one on both sides by default. Pass `{ bare: true }` for the
+// manifest-refusal tests that deliberately ship maps with no manifest (a legacy bundle).
+function differingPair({ bare = false } = {}) {
   const root = mkTmp();
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
@@ -36,10 +39,14 @@ function differingPair() {
     makeMap({ elements: { 'body > div:nth-child(1)': { tag: 'div', cls: 'x', style: { color: 'rgb(255, 0, 0)' } } } }),
     null,
   );
+  if (!bare) {
+    writeManifest(A, 'base-sha', 'same-env-key');
+    writeManifest(B, 'head-sha', 'same-env-key');
+  }
   return { root, A, B };
 }
 
-function identicalPair() {
+function identicalPair({ bare = false } = {}) {
   const root = mkTmp();
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
@@ -48,6 +55,10 @@ function identicalPair() {
   });
   writeCapture(A, 'home@1280', m, null);
   writeCapture(B, 'home@1280', m, null);
+  if (!bare) {
+    writeManifest(A, 'base-sha', 'same-env-key');
+    writeManifest(B, 'head-sha', 'same-env-key');
+  }
   return { root, A, B };
 }
 
@@ -251,8 +262,9 @@ test('diff CLI exits 2 (never 3) when the before dir has a manifest but zero cap
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
   fs.mkdirSync(A, { recursive: true });
-  fs.writeFileSync(path.join(A, MAP_MANIFEST), '{}');
+  writeManifest(A, 'base-sha', 'same-env-key'); // a valid manifest but the bundle holds zero maps
   writeCapture(B, 'home@1280', makeMap({ elements: { body: { tag: 'body' } } }), null);
+  writeManifest(B, 'head-sha', 'same-env-key'); // the head side is a real capture with a manifest
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stderr}`);
   assert.notEqual(r.status, 3);
@@ -271,6 +283,7 @@ test('diff CLI keeps exit 3 for a truly bare before dir — no baseline was ever
   const B = path.join(root, 'b');
   fs.mkdirSync(A, { recursive: true });
   writeCapture(B, 'home@1280', makeMap({ elements: { body: { tag: 'body' } } }), null);
+  writeManifest(B, 'head-sha', 'same-env-key'); // head is a real capture; base is genuinely bare
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 3, `expected exit 3, got ${r.status}: ${r.stderr}`);
   assert.match(r.stdout, /new surface\(s\) captured with no baseline/);
@@ -286,6 +299,7 @@ test('diff CLI exits 2 (never 3) when the after dir has zero captures but the be
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
   writeCapture(A, 'home@1280', makeMap({ elements: { body: { tag: 'body' } } }), null);
+  writeManifest(A, 'base-sha', 'same-env-key'); // the base side is a real capture with a manifest
   fs.mkdirSync(B, { recursive: true });
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stderr}`);
@@ -305,6 +319,8 @@ test('diff CLI keeps exit 3 when a baseline exists and only specific surfaces ar
   writeCapture(A, 'home@1280', m, null);
   writeCapture(B, 'home@1280', m, null);
   writeCapture(B, 'about@1280', m, null);
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 3, `expected exit 3, got ${r.status}: ${r.stderr}`);
   assert.match(r.stdout, /new surface\(s\) captured with no baseline/);
@@ -359,6 +375,8 @@ test('diff CLI --max truncates the per-surface listing and prints a hint', () =>
     });
   writeCapture(A, 'home@1280', mk('rgb(0, 0, 0)'), null);
   writeCapture(B, 'home@1280', mk('rgb(1, 1, 1)'), null);
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
   const r = run(DIFF, [A, B, '--max', '1']);
   assert.equal(r.status, 1);
   assert.match(r.stdout, /more lines/);
@@ -375,43 +393,42 @@ test('diff CLI allows different cache keys when the runtime environment matches'
   rmTmp(root);
 });
 
-// The two-directory diff no-ops the same-environment guard when a side has no
-// manifest (issue #198). These pin the fail-loud notice: it names the bare side(s),
-// prints to stderr, and never changes the exit code — a both-present pair is silent.
-test('diff CLI warns to stderr when the before dir has no manifest, exit unchanged', () => {
-  const { root, A, B } = differingPair();
-  writeManifest(B, 'head-sha', 'head-spec-key');
+// v4: a two-directory diff/report REFUSES a side without a manifest — the
+// same-environment guard can't be enforced, so it exits 2 (usage/capture error)
+// naming the bare side(s), rather than the legacy "compare anyway" tolerance (#198).
+// A both-present pair stays silent and compares normally.
+test('diff CLI exits 2 when the before dir is a legacy bundle (maps, no manifest)', () => {
+  const { root, A, B } = differingPair({ bare: true });
+  writeManifest(B, 'head-sha', 'head-spec-key'); // only the after side has one
   const r = run(DIFF, [A, B]);
-  assert.equal(r.status, 1, r.stderr); // same as the manifest-less baseline: real diff
-  assert.match(r.stderr, /environment compatibility not verifiable — before carries no styleproof-manifest\.json/);
-  assert.match(r.stderr, /Capture via styleproof-map/);
+  assert.equal(r.status, 2, r.stderr); // v4 refuses — never the exit-1 real-diff path
+  assert.match(r.stderr, /before carries no styleproof-manifest\.json/);
+  assert.match(r.stderr, /unsupported since v4/);
   rmTmp(root);
 });
 
-test('diff CLI warns naming the after dir when only it lacks a manifest', () => {
-  const { root, A, B } = differingPair();
-  writeManifest(A, 'base-sha', 'base-spec-key');
+test('diff CLI exits 2 naming the after dir when only it lacks a manifest', () => {
+  const { root, A, B } = differingPair({ bare: true });
+  writeManifest(A, 'base-sha', 'base-spec-key'); // only the before side has one
   const r = run(DIFF, [A, B]);
-  assert.equal(r.status, 1, r.stderr);
+  assert.equal(r.status, 2, r.stderr);
   assert.match(r.stderr, /after carries no styleproof-manifest\.json/);
   rmTmp(root);
 });
 
-test('diff CLI warns naming both sides when neither dir has a manifest', () => {
-  const { root, A, B } = identicalPair();
+test('diff CLI exits 2 naming both sides when neither dir has a manifest', () => {
+  const { root, A, B } = identicalPair({ bare: true });
   const r = run(DIFF, [A, B]);
-  assert.equal(r.status, 0, r.stderr); // identical → exit 0, unchanged by the notice
+  assert.equal(r.status, 2, r.stderr); // refused even though the maps are identical
   assert.match(r.stderr, /before and after carry no styleproof-manifest\.json/);
   rmTmp(root);
 });
 
-test("diff CLI stays silent when both dirs carry a manifest (today's behaviour)", () => {
-  const { root, A, B } = differingPair();
-  writeManifest(A, 'base-sha', 'base-spec-key');
-  writeManifest(B, 'head-sha', 'head-spec-key');
+test('diff CLI compares normally when both dirs carry a manifest', () => {
+  const { root, A, B } = differingPair(); // helper stamps both manifests
   const r = run(DIFF, [A, B]);
-  assert.equal(r.status, 1, r.stderr);
-  assert.doesNotMatch(r.stderr, /environment compatibility not verifiable/);
+  assert.equal(r.status, 1, r.stderr); // real diff → exit 1, not the manifest refusal
+  assert.doesNotMatch(r.stderr, /no styleproof-manifest\.json/);
   rmTmp(root);
 });
 
@@ -429,6 +446,8 @@ test('diff CLI reads a plain .json capture against a .json.gz capture', () => {
     path.join(B, 'home@1280.json.gz'),
     makeMap({ elements: { 'body > p:nth-child(1)': { tag: 'p', style: { color: 'rgb(9, 9, 9)' } } } }),
   );
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 1);
   rmTmp(root);
@@ -688,24 +707,22 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
   rmTmp(root);
 });
 
-test('report CLI warns to stderr on a manifest-less pair, exit unchanged (issue #198)', () => {
-  const { root, A, B } = differingPair();
+test('report CLI exits 2 on a manifest-less pair (v4 refuses)', () => {
+  const { root, A, B } = differingPair({ bare: true });
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
-  assert.equal(r.status, 1, r.stderr); // real diff → exit 1, unchanged by the notice
+  assert.equal(r.status, 2, r.stderr); // refused, not the exit-1 report-generated path
   assert.match(r.stderr, /before and after carry no styleproof-manifest\.json/);
-  assert.match(r.stderr, /Capture via styleproof-map/);
+  assert.match(r.stderr, /unsupported since v4/);
   rmTmp(root);
 });
 
-test('report CLI stays silent when both dirs carry a manifest', () => {
-  const { root, A, B } = differingPair();
-  writeManifest(A, 'base-sha', 'base-spec-key');
-  writeManifest(B, 'head-sha', 'head-spec-key');
+test('report CLI compares normally when both dirs carry a manifest', () => {
+  const { root, A, B } = differingPair(); // helper stamps both manifests
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
-  assert.equal(r.status, 1, r.stderr);
-  assert.doesNotMatch(r.stderr, /environment compatibility not verifiable/);
+  assert.equal(r.status, 1, r.stderr); // real diff → report generated, not refused
+  assert.doesNotMatch(r.stderr, /no styleproof-manifest\.json/);
   rmTmp(root);
 });
 
@@ -751,6 +768,8 @@ test('diff CLI exits 2 with a naming message on a corrupt .gz', () => {
   fs.mkdirSync(B, { recursive: true });
   fs.writeFileSync(path.join(A, 'home@1280.json.gz'), Buffer.from('this is not gzip'));
   fs.writeFileSync(path.join(B, 'home@1280.json.gz'), Buffer.from('this is not gzip'));
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /corrupt or truncated/);
@@ -925,6 +944,8 @@ test('diff CLI groups a one-view restyle to one finding with a derived-longhand 
       writeCapture(A, `pricing@${w}`, pricing, null);
       writeCapture(B, `pricing@${w}`, pricing, null);
     }
+    writeManifest(A, 'base-sha', 'same-env-key');
+    writeManifest(B, 'head-sha', 'same-env-key');
     const r = run(DIFF, [A, B]);
     assert.equal(r.status, 1, r.stderr);
     // One grouped finding, not one per surface. The header carries the per-surface
@@ -955,6 +976,8 @@ test('diff CLI --json stays the raw, complete machine contract regardless of hum
       writeCapture(A, `home@${w}`, ctaRestyleMap(false, w), null);
       writeCapture(B, `home@${w}`, ctaRestyleMap(true, w), null);
     }
+    writeManifest(A, 'base-sha', 'same-env-key');
+    writeManifest(B, 'head-sha', 'same-env-key');
     const r = run(DIFF, [A, B, '--json', jsonPath]);
     assert.equal(r.status, 1, r.stderr);
     const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
@@ -1011,6 +1034,8 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
     });
     writeCapture(A, 'home@1280', homeBefore, null);
     writeCapture(B, 'home@1280', homeAfter, null);
+    writeManifest(A, 'base-sha', 'same-env-key');
+    writeManifest(B, 'head-sha', 'same-env-key');
 
     const r = run(DIFF, [A, B]);
     assert.equal(r.status, 1, r.stderr);
@@ -1046,6 +1071,8 @@ test('diff CLI does NOT promote a change that hit only SOME surfaces (#193)', ()
     writeCapture(A, 'reports@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), null);
     writeCapture(B, 'reports@1280', makeMap({ elements: nav('rgb(0, 0, 0)') }), null);
 
+    writeManifest(A, 'base-sha', 'same-env-key');
+    writeManifest(B, 'head-sha', 'same-env-key');
     const r = run(DIFF, [A, B]);
     assert.equal(r.status, 1, r.stderr);
     assert.doesNotMatch(r.stdout, /Global chrome/, 'a change on only some hosting surfaces is not chrome');

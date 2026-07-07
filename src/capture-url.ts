@@ -4,6 +4,7 @@ import type { Browser, Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { runSetup, type SetupStep } from './crawl-surfaces.js';
+import { writeCaptureManifest } from './map-store.js';
 
 /**
  * One-shot capture of a single URL's computed-style map — no spec, no config,
@@ -253,6 +254,10 @@ export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Prom
       requests.dispose();
     }
   }
+  // Stamp a manifest so `styleproof-diff <thisDir> <build>` has the same-environment
+  // guard on both sides — v4 refuses to compare a manifest-less side. May run outside
+  // a git repo (a design mockup); the git fields degrade gracefully.
+  writeCaptureManifest({ dir: opts.out, screenshots: opts.screenshots });
   return results;
 }
 
