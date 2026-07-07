@@ -58,8 +58,9 @@ defineStyleMapCapture({
 
 A key in neither `surfaces` nor `exclude` fails the guard; an `exclude` key not
 in `expected` (a renamed/removed route) fails too — the opt-out ledger can't rot.
-The registry also travels with the captured bundle, so `styleproof-diff` can
-state a green's completeness basis at gate time (`styleproof-coverage` skill).
+The registry also travels with the captured bundle, so the gate can state a
+green's completeness basis — the `styleproof-diff` skill owns that verdict
+contract.
 
 `defineCrawlCapture` takes the same `expected`/`exclude` pair: the crawl
 reconciles the **rendered nav** against it, both directions — a new linked route

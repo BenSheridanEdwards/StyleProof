@@ -58,12 +58,12 @@ than produce a bogus report. Fonts aren't fingerprinted (too noisy across
 machines): capture both sides on the same fonts yourself.
 
 The bundle also carries the coverage/determinism **ledger**
-(`styleproof-coverage.json`, a sidecar beside the manifest) that
-`styleproof-diff` reads to qualify a green — see the `styleproof-diff` skill.
-Since v4 the manifest itself is **required**: a map-bearing dir without one is
-refused at compare time (exit 2), and every capture flow stamps it — the
-`styleproof-map`/`styleproof-capture` CLIs and the runner itself, so even a raw
-`STYLEMAP_DIR=x npx playwright test` run produces a comparable bundle.
+(`styleproof-coverage.json`, a sidecar beside the manifest) that the gate reads
+to qualify a green — the `styleproof-diff` skill owns that verdict contract.
+Since v4 the manifest is **required** (a map-bearing dir without one is refused
+at compare time), and every capture flow stamps it — the CLIs and the runner
+alike, so even a raw `STYLEMAP_DIR=x npx playwright test` run publishes a
+comparable bundle.
 
 ## Next
 

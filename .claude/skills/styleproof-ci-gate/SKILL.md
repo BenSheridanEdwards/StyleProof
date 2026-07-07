@@ -43,8 +43,8 @@ PR's report folder when it closes). Outputs: `changed`, `report-url`.
 
 In **both** modes the Action also hard-gates an **unacknowledged inventory
 removal** (a nav item/route that went unreachable) when the maps carry
-inventory — acknowledge intentional removals in `styleproof.inventory.json`
-(`{"<key>": "<why>"}`), or opt out with `"gateInventoryRemovals": false` in
+inventory — the `styleproof-diff` skill owns the acknowledgement mechanics.
+The Action-level opt-out is `"gateInventoryRemovals": false` in
 `styleproof.config.json`.
 
 ## The approve workflow

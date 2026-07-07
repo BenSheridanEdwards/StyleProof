@@ -42,9 +42,8 @@ Two independent guards; use both:
 - **Spec coverage:** `expected` in `defineStyleMapCapture` (the
   `styleproof-surfaces` skill) fails a static guard when a declared route/view/
   component has no surface. The registry also travels with the map bundle as a
-  ledger (`styleproof-coverage.json`), so `styleproof-diff` states a green's
-  completeness basis — `✓ coverage complete`, `✗ INCOMPLETE` (blocks), or
-  `⚠ not asserted` (no registry).
+  ledger (`styleproof-coverage.json`), so the gate states a green's
+  completeness basis — the `styleproof-diff` skill owns that verdict contract.
 
 ## 3. Reach gated states
 

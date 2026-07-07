@@ -35,7 +35,8 @@ Flags:
 
 **Capture both sides in the same browser build + fonts.** Computed styles resolve
 differently across Chromium versions and installed fonts; that's the yardstick
-"identical" is measured against. Same box, same browser, both captures.
+"identical" is measured against. Same box, same browser, both captures — the
+full same-environment rule is the `styleproof-baseline` skill's.
 
 ## Beyond the landing state
 
