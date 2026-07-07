@@ -523,7 +523,9 @@ Requires **Node ≥ 18** (ESM), **`@playwright/test` ≥ 1.40** (peer dep). Forc
 
 ## Quickstart
 
-After installing (above), one command sets up the whole gate:
+Three commands, run in order. After installing (above):
+
+### 1. Scaffold the gate
 
 ```bash
 npx styleproof-init
@@ -536,7 +538,9 @@ It scaffolds:
 - `.gitignore` entries for `.styleproof/`, `test-results/`, and `playwright-report/`;
 - a **cache-first CI workflow** that restores reusable maps from the `styleproof-maps` branch and generates the report without a browser when both maps are already built.
 
-Describe your surfaces — **omit `widths`** and StyleProof sweeps your real `@media` breakpoints automatically:
+### 2. Describe your surfaces
+
+**Omit `widths`** and StyleProof sweeps your real `@media` breakpoints automatically:
 
 ```ts
 import { defineStyleMapCapture } from 'styleproof';
@@ -553,12 +557,11 @@ defineStyleMapCapture({
 });
 ```
 
-The manual loop is deliberately three commands:
+### 3. Capture, then diff
 
 ```bash
-npx styleproof-init
-npx styleproof-map
-npx styleproof-diff
+npx styleproof-map    # capture this commit's computed styles
+npx styleproof-diff   # compare against the base branch
 ```
 
 `styleproof-map` captures the current commit into `.styleproof/maps/current`,
