@@ -80,16 +80,18 @@
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.0",
+    "@commitlint/config-conventional": "^21.2.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",
     "@types/node": "^26.0.0",
     "@types/pngjs": "^6.0.5",
     "eslint": "^10.5.0",
+    "fallow": "^3.2.0",
     "globals": "^17.6.0",
+    "husky": "^9.1.7",
     "prettier": "^3.4.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.18.0",
-    "husky": "^9.1.7",
-    "fallow": "^3.2.0"
+    "typescript-eslint": "^8.18.0"
   }
 }

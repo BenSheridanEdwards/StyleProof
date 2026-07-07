@@ -1,9 +1,9 @@
 # Agent tooling
 
-This repo is wired for Claude Code with three tools. The canonical description
-lives in [`AGENTS.md`](../AGENTS.md) (symlinked to `CLAUDE.md`) under **Agent
-tooling** and the auto-generated **GitNexus — Code Intelligence** block. This file
-records how they fit the workflow here.
+This repo is wired for Claude Code with three tools. The tool-agnostic operating
+rules live in [`AGENTS.md`](../AGENTS.md); the Claude-specific tooling notes and
+the auto-generated **GitNexus — Code Intelligence** block live in
+[`CLAUDE.md`](../CLAUDE.md). This file records how they fit the workflow here.
 
 ## The stack
 

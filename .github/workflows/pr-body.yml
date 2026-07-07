@@ -1,0 +1,38 @@
+name: PR body
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+# Read-only: the validator only reads the PR title and body from the event.
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-body-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate PR body
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      # Pass title and body through the ENVIRONMENT, sourced via toJSON so any
+      # quotes/backticks/newlines in a hostile body stay data — never interpolated
+      # into the run script where they could inject shell.
+      - name: Validate PR title and body
+        env:
+          PR_TITLE: ${{ toJSON(github.event.pull_request.title) }}
+          PR_BODY: ${{ toJSON(github.event.pull_request.body) }}
+        run: |
+          # toJSON double-quotes and escapes the values; decode them back to raw
+          # strings with a tiny node shim, then hand off to the pure validator.
+          PR_TITLE="$(node -e 'process.stdout.write(JSON.parse(process.env.PR_TITLE))')" \
+          PR_BODY="$(node -e 'process.stdout.write(JSON.parse(process.env.PR_BODY))')" \
+          node scripts/validate-pr-body.mjs
