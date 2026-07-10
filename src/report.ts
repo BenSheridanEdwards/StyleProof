@@ -906,18 +906,54 @@ type RenderCtx = {
   foldDetailsAt: number;
 };
 
+/** A changed element can anchor useful visual proof only when the browser paints it. */
+function isPaintedEntry(entry: ElementEntry | undefined): boolean {
+  if (!entry?.rect || !visible(rectToBox(entry.rect))) return false;
+  if (entry.style.display === 'none' || entry.style.visibility === 'hidden') return false;
+  return Number(entry.style.opacity ?? '1') > 0;
+}
+
+type RepresentativeScore = { hasPaintedChange: boolean; isPopup: boolean; width: number };
+
+/** Prefer proof a reviewer can see: a painted changed element, then an ordinary
+ * page over a popup state that can obscure shared chrome, then the widest width. */
+function representativeScore(candidate: PreparedSurface, beforeDir: string, afterDir: string): RepresentativeScore {
+  const beforeMap = loadStyleMap(findCapture(beforeDir, candidate.sd.surface));
+  const afterMap = loadStyleMap(findCapture(afterDir, candidate.sd.surface));
+  const changedPaths = [...new Set(candidate.findings.map((finding) => finding.path))];
+  const hasPaintedChange = changedPaths.some(
+    (changedPath) => isPaintedEntry(afterMap.elements[changedPath]) || isPaintedEntry(beforeMap.elements[changedPath]),
+  );
+  const isPopup = beforeMap.metadata?.variantKind === 'popup' || afterMap.metadata?.variantKind === 'popup';
+  return { hasPaintedChange, isPopup, width: surfaceWidth(candidate.sd.surface) };
+}
+
+function isBetterRepresentative(candidate: RepresentativeScore, current: RepresentativeScore): boolean {
+  if (candidate.hasPaintedChange !== current.hasPaintedChange) return candidate.hasPaintedChange;
+  if (candidate.isPopup !== current.isPopup) return !candidate.isPopup;
+  return candidate.width > current.width;
+}
+
 // Group surfaces that changed in the SAME way (the rects differ per width; the change
-// itself does not) so an identical change shows once, not once per surface — keeping
-// the widest surface as the representative image.
-function groupBySignature(prepared: PreparedSurface[]): ChangeGroup[] {
+// itself does not) so an identical change shows once, not once per surface. Select
+// the representative by visible proof first; width only breaks otherwise-equal ties.
+function groupBySignature(prepared: PreparedSurface[], beforeDir: string, afterDir: string): ChangeGroup[] {
   const bySig = new Map<string, ChangeGroup>();
+  const scoreBySurface = new Map<string, RepresentativeScore>();
+  const score = (candidate: PreparedSurface): RepresentativeScore => {
+    const existing = scoreBySurface.get(candidate.sd.surface);
+    if (existing) return existing;
+    const computed = representativeScore(candidate, beforeDir, afterDir);
+    scoreBySurface.set(candidate.sd.surface, computed);
+    return computed;
+  };
   for (const p of prepared) {
     if (p.sd.missing) continue;
     const sig = signatureOf(p.findings);
     const existing = bySig.get(sig);
     if (existing) {
       existing.surfaces.push(p.sd.surface);
-      if (surfaceWidth(p.sd.surface) > surfaceWidth(existing.rep.sd.surface)) existing.rep = p;
+      if (isBetterRepresentative(score(p), score(existing.rep))) existing.rep = p;
     } else {
       bySig.set(sig, { surfaces: [p.sd.surface], rep: p, findings: p.findings });
     }
@@ -1336,7 +1372,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     .filter((p) => p.sd.missing || p.findings.length > 0);
 
   const missing = prepared.filter((p) => p.sd.missing);
-  const changeGroups = groupBySignature(prepared);
+  const changeGroups = groupBySignature(prepared, beforeDir, afterDir);
   // Shared-chrome tier (#193): promote a change that rode the frame every view
   // draws (nav rail, header) to a callout, so the reviewer reads "the nav changed
   // everywhere" once instead of inferring it from a long surface list on several

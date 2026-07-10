@@ -368,6 +368,45 @@ test('an identical change across surfaces collapses into one grouped section', (
   rmTmp(root);
 });
 
+test('an added shared element prefers a visible page over a wider popup representative', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const before = () =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1440, 800], style: {} },
+      },
+    });
+  const after = (visibility, metadata = undefined) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1440, 800], style: {} },
+        'body > nav:nth-child(1) > a:nth-child(2)': {
+          tag: 'a',
+          cls: 'nav-item',
+          rect: [24, 180, 120, 32],
+          style: { display: 'flex', visibility },
+        },
+      },
+    }),
+    ...(metadata ? { metadata } : {}),
+  });
+  const popupMetadata = { variantKind: 'popup', variantKey: 'settings' };
+
+  writeCapture(beforeDir, 'page@1280', before(), solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after('visible'), solidPng(1280, 800, [0, 220, 220]));
+  writeCapture(beforeDir, 'settings-dialog@1440', { ...before(), metadata: popupMetadata }, solidPng(1440, 800));
+  writeCapture(afterDir, 'settings-dialog@1440', after('hidden', popupMetadata), solidPng(1440, 800));
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.equal(
+    report.surfaces[0].representative,
+    'page@1280',
+    'the crop should show the visible added element, not the wider popup that hides it',
+  );
+  rmTmp(root);
+});
+
 test('two far-apart changes become two crop sections, each holding only its own changes', () => {
   // A top-right `nav-cta` and a far-below `card` — non-overlapping rects, so the
   // report must split them into two screenshots, and the tables under each must

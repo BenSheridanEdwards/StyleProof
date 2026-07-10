@@ -217,6 +217,11 @@ summary, and the exact property change folded under a toggle. A change too small
 to see at 1:1 (say a 2px icon tweak) also gets a magnified zoom crop, so a
 sub-pixel change can't slip past a reviewer.
 
+When one change appears both on an ordinary page and in an open popup, the report
+chooses a representative where the changed element is painted, then prefers the
+ordinary page before using viewport width as a tie-breaker. A modal cannot turn a
+visible navigation addition into a misleading identical before/after crop.
+
 Element identity is stable across ordinary list insertions. StyleProof prefers a
 privacy-safe hash of a unique `data-styleproof-key`, ID, test ID, link destination,
 or form name for each sibling and falls back to `:nth-child()` only when the DOM
