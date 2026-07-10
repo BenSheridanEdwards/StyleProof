@@ -218,9 +218,10 @@ to see at 1:1 (say a 2px icon tweak) also gets a magnified zoom crop, so a
 sub-pixel change can't slip past a reviewer.
 
 When one change appears both on an ordinary page and in an open popup, the report
-chooses a representative where the changed element is painted, then prefers the
-ordinary page before using viewport width as a tie-breaker. A modal cannot turn a
-visible navigation addition into a misleading identical before/after crop.
+chooses a representative where the changed element is visibly exposed, then prefers
+the ordinary page before using viewport width as a tie-breaker. Modal-background DOM
+content is excluded; if no captured state visibly paints the change, the report keeps
+the audit details but omits a misleading identical before/after crop.
 
 Element identity is stable across ordinary list insertions. StyleProof prefers a
 privacy-safe hash of a unique `data-styleproof-key`, ID, test ID, link destination,

@@ -407,6 +407,92 @@ test('an added shared element prefers a visible page over a wider popup represen
   rmTmp(root);
 });
 
+test('an added shared element avoids a wider active-modal background representative', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const navItemPath = 'body > nav:nth-child(1) > a:nth-child(2)';
+  const modalPath = 'body > div:nth-child(2)';
+  const before = () =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1440, 800], style: {} },
+      },
+    });
+  const after = () =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1440, 800], style: {} },
+        [navItemPath]: {
+          tag: 'a',
+          cls: 'nav-item',
+          rect: [24, 180, 120, 32],
+          style: { display: 'flex', visibility: 'visible' },
+        },
+      },
+    });
+  const modal = {
+    path: modalPath,
+    tag: 'div',
+    cls: 'settings-dialog',
+    reason: 'role=dialog, aria-modal=true',
+    role: 'dialog',
+    ariaModal: 'true',
+  };
+  const modalMap = (map) => ({
+    ...map,
+    elements: {
+      ...map.elements,
+      [modalPath]: { tag: 'div', cls: 'settings-dialog', rect: [300, 80, 800, 640], style: { display: 'block' } },
+    },
+    overlays: [modal],
+  });
+
+  writeCapture(beforeDir, 'page@1280', before(), solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after(), solidPng(1280, 800, [0, 220, 220]));
+  writeCapture(beforeDir, 'settings-dialog@1440', modalMap(before()), solidPng(1440, 800));
+  writeCapture(afterDir, 'settings-dialog@1440', modalMap(after()), solidPng(1440, 800));
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.equal(
+    report.surfaces[0].representative,
+    'page@1280',
+    'the crop should avoid a visible DOM node that is only modal-background content',
+  );
+  rmTmp(root);
+});
+
+test('a group without an exposed changed element keeps audit details but omits misleading crops', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const itemPath = 'body > nav:nth-child(1) > a:nth-child(2)';
+  const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1024, 800], style: {} } } });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1024, 800], style: {} },
+      [itemPath]: {
+        tag: 'a',
+        cls: 'nav-item',
+        rect: [24, 180, 120, 32],
+        style: { display: 'flex', visibility: 'hidden' },
+      },
+    },
+  });
+  writeCapture(beforeDir, 'page@1024', before, solidPng(1024, 800));
+  writeCapture(afterDir, 'page@1024', after, solidPng(1024, 800));
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.match(markdown, /before\/after crop would be misleading/);
+  assert.doesNotMatch(markdown, /!\[before/);
+  assert.equal(report.surfaces[0].visualEvidence, 'not-rendered');
+  assert.equal(
+    fs.readdirSync(path.join(outDir, 'crops')).filter((fileName) => fileName.endsWith('.png')).length,
+    0,
+    'no duplicate crop files are emitted',
+  );
+  rmTmp(root);
+});
+
 test('two far-apart changes become two crop sections, each holding only its own changes', () => {
   // A top-right `nav-cta` and a far-below `card` — non-overlapping rects, so the
   // report must split them into two screenshots, and the tables under each must

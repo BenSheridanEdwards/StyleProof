@@ -913,23 +913,48 @@ function isPaintedEntry(entry: ElementEntry | undefined): boolean {
   return Number(entry.style.opacity ?? '1') > 0;
 }
 
-type RepresentativeScore = { hasPaintedChange: boolean; isPopup: boolean; width: number };
+function isSameOrDescendantPath(candidatePath: string, ancestorPath: string): boolean {
+  return candidatePath === ancestorPath || candidatePath.startsWith(`${ancestorPath} > `);
+}
 
-/** Prefer proof a reviewer can see: a painted changed element, then an ordinary
- * page over a popup state that can obscure shared chrome, then the widest width. */
+/** A modal leaves its background in the DOM but makes it unsuitable as visual proof.
+ * A change inside the modal itself is foreground content and remains eligible. */
+function isBackgroundBehindActiveModal(map: StyleMap, changedPath: string): boolean {
+  return (map.overlays ?? []).some(
+    (overlay) => overlay.ariaModal === 'true' && !isSameOrDescendantPath(changedPath, overlay.path),
+  );
+}
+
+function isExposedChangedEntry(map: StyleMap, changedPath: string): boolean {
+  return isPaintedEntry(map.elements[changedPath]) && !isBackgroundBehindActiveModal(map, changedPath);
+}
+
+function hasExposedChangedEntry(mapA: StyleMap, mapB: StyleMap, changedPaths: string[]): boolean {
+  return changedPaths.some(
+    (changedPath) => isExposedChangedEntry(mapA, changedPath) || isExposedChangedEntry(mapB, changedPath),
+  );
+}
+
+type RepresentativeScore = { hasExposedChange: boolean; hasActiveModal: boolean; isPopup: boolean; width: number };
+
+/** Prefer proof a reviewer can see: an exposed changed element, then a non-modal
+ * ordinary page over a popup state that can leave shared chrome in the background,
+ * then the widest width. */
 function representativeScore(candidate: PreparedSurface, beforeDir: string, afterDir: string): RepresentativeScore {
   const beforeMap = loadStyleMap(findCapture(beforeDir, candidate.sd.surface));
   const afterMap = loadStyleMap(findCapture(afterDir, candidate.sd.surface));
   const changedPaths = [...new Set(candidate.findings.map((finding) => finding.path))];
-  const hasPaintedChange = changedPaths.some(
-    (changedPath) => isPaintedEntry(afterMap.elements[changedPath]) || isPaintedEntry(beforeMap.elements[changedPath]),
+  const hasExposedChange = hasExposedChangedEntry(beforeMap, afterMap, changedPaths);
+  const hasActiveModal = [...(beforeMap.overlays ?? []), ...(afterMap.overlays ?? [])].some(
+    (overlay) => overlay.ariaModal === 'true',
   );
   const isPopup = beforeMap.metadata?.variantKind === 'popup' || afterMap.metadata?.variantKind === 'popup';
-  return { hasPaintedChange, isPopup, width: surfaceWidth(candidate.sd.surface) };
+  return { hasExposedChange, hasActiveModal, isPopup, width: surfaceWidth(candidate.sd.surface) };
 }
 
 function isBetterRepresentative(candidate: RepresentativeScore, current: RepresentativeScore): boolean {
-  if (candidate.hasPaintedChange !== current.hasPaintedChange) return candidate.hasPaintedChange;
+  if (candidate.hasExposedChange !== current.hasExposedChange) return candidate.hasExposedChange;
+  if (candidate.hasActiveModal !== current.hasActiveModal) return !candidate.hasActiveModal;
   if (candidate.isPopup !== current.isPopup) return !candidate.isPopup;
   return candidate.width > current.width;
 }
@@ -1216,10 +1241,26 @@ function renderChangeGroup(
   const mapB = loadStyleMap(findCapture(ctx.afterDir, sd.surface));
   // Theme-token reverse-indexes so colour changes can name `red-200` per side.
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
+  const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
+  if (!hasExposedChangedEntry(mapA, mapB, changedPaths)) {
+    const reason =
+      'The changed element is not visibly painted in this representative state (it is hidden at this breakpoint or is background content behind an active modal), so a before/after crop would be misleading.';
+    return {
+      md: ['', `_${reason}_`, '', ...renderCropChanges(surfaceFindings, ctx.foldDetailsAt, describeCtx)],
+      json: {
+        surfaces: cg.surfaces,
+        representative: sd.surface,
+        regions: [],
+        findings: surfaceFindings,
+        visualEvidence: 'not-rendered',
+        reason,
+      },
+      findingCount: surfaceFindings.length,
+      cropSeq,
+    };
+  }
   const pngA = readPng(path.join(ctx.beforeDir, `${sd.surface}.png`));
   const pngB = readPng(path.join(ctx.afterDir, `${sd.surface}.png`));
-
-  const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
   let groups = groupRegions(changedPaths, mapA, mapB, ctx.padBy);
   if (groups.length > maxCrops) groups = collapseGroups(groups);
   // Read top-to-bottom: one section per crop, in page order.

@@ -21,9 +21,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **New-surface screenshots no longer preserve a blank full-page tail.** New
   captures record their viewport and reports show that top viewport when the
   full-page screenshot is taller.
-- **Shared changes now choose visible proof over a wider obscured popup.** When
+- **Shared changes now choose exposed proof and suppress misleading crops.** When
   the same change appears on an ordinary page and a modal-open state, the report
-  prefers a painted changed element, then the ordinary page, before viewport width.
+  excludes modal-background DOM content before viewport width; if no captured
+  state visibly paints the change, it retains the audit details without images.
 
 ### Changed
 
