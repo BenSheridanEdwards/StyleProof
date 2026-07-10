@@ -1001,6 +1001,14 @@ function countShownChanges(changeGroups: ChangeGroup[]): DiffCounts {
 
 // The identical / changed / new-surface summary line(s). Split out (with an early
 // return for the all-identical case) so reportHeadline stays flat.
+function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
+  const bases = [...new Set(missing.map((p) => surfaceBase(p.sd.surface)))].sort();
+  const shownBases = new Set(bases.slice(0, maxNamed));
+  const shownSurfaces = missing.map((p) => p.sd.surface).filter((surface) => shownBases.has(surfaceBase(surface)));
+  const more = bases.length > maxNamed ? `, +${bases.length - maxNamed} more` : '';
+  return '`' + formatSurfaceList(shownSurfaces) + '`' + more;
+}
+
 function summaryLines(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
@@ -1017,16 +1025,16 @@ function summaryLines(args: {
     ];
   }
   const md: string[] = [];
-  if (changeGroups.length > 0) {
+  if (missing.length > 0) {
     md.push(
-      `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${changedSurfaceCount} surface(s).`,
+      `🆕 **${missing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(missing)}. ` +
+        `Approve them before they become the baseline.`,
     );
   }
-  if (missing.length > 0) {
-    if (changeGroups.length > 0) md.push('');
+  if (changeGroups.length > 0) {
+    if (md.length > 0) md.push('');
     md.push(
-      `🆕 **${missing.length} new surface(s)** captured with no baseline to compare — shown below for review. ` +
-        `Approve them before they become the baseline.`,
+      `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${changedSurfaceCount} existing surface(s).`,
     );
   }
   return md;

@@ -1,8 +1,8 @@
 ## 🗺️ StyleProof report
 
-**2 computed-style difference(s)** across 1 distinct change(s) in 1 surface(s).
+🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.
 
-🆕 **1 new surface(s)** captured with no baseline to compare — shown below for review. Approve them before they become the baseline.
+**2 computed-style difference(s)** across 1 distinct change(s) in 1 existing surface(s).
 
 ## 🆕 New pages, states, or surfaces — review first
 
