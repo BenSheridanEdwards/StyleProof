@@ -87,6 +87,8 @@ export type CapturedOverlay = {
 export type StyleMap = {
   /** Optional runner-supplied context; ignored by the certification diff. */
   metadata?: CaptureMetadata;
+  /** Browser viewport used for this capture. Report-only; ignored by the certification diff. */
+  viewport?: { width: number; height: number };
   defaults: Record<string, Props>;
   elements: Record<string, ElementEntry>;
   states: Record<string, Record<string, Record<string, Props>>>;
@@ -303,13 +305,43 @@ function injectPathOf(): void {
   (window as unknown as { __spPathOf?: (el: Element) => string }).__spPathOf = (el: Element): string => {
     if (el === document.documentElement) return 'html';
     if (el === document.body) return 'body';
+    const identityCandidates = (element: Element): string[] => {
+      const tag = element.tagName.toLowerCase();
+      const attributes: Array<[string, string | null]> = [
+        ['styleproof', element.getAttribute('data-styleproof-key')],
+        ['id', element.getAttribute('id')],
+        ['testid', element.getAttribute('data-testid')],
+        ['test', element.getAttribute('data-test')],
+        ...(tag === 'a' ? ([['href', element.getAttribute('href')]] as Array<[string, string | null]>) : []),
+        ...(['input', 'select', 'textarea'].includes(tag)
+          ? ([['name', element.getAttribute('name')]] as Array<[string, string | null]>)
+          : []),
+      ];
+      return attributes.flatMap(([name, value]) => (value ? [`${name}:${value}`] : []));
+    };
+    const privacySafeHash = (value: string): string => {
+      let hash = 2166136261;
+      for (let characterIndex = 0; characterIndex < value.length; characterIndex++) {
+        hash ^= value.charCodeAt(characterIndex);
+        hash = Math.imul(hash, 16777619);
+      }
+      return (hash >>> 0).toString(36);
+    };
+    const stableSegment = (element: Element, parent: Element): string => {
+      const candidate = identityCandidates(element).find(
+        (identity) =>
+          [...parent.children].filter((sibling) => identityCandidates(sibling).includes(identity)).length === 1,
+      );
+      if (candidate) return `${element.tagName.toLowerCase()}:sp-key(${privacySafeHash(candidate)})`;
+      return `${element.tagName.toLowerCase()}:nth-child(${Array.prototype.indexOf.call(parent.children, element) + 1})`;
+    };
     const parts: string[] = [];
-    let n: Element | null = el;
-    while (n && n !== document.body) {
-      const parent: Element | null = n.parentElement;
+    let element: Element | null = el;
+    while (element && element !== document.body) {
+      const parent: Element | null = element.parentElement;
       if (!parent) break;
-      parts.unshift(`${n.tagName.toLowerCase()}:nth-child(${Array.prototype.indexOf.call(parent.children, n) + 1})`);
-      n = parent;
+      parts.unshift(stableSegment(element, parent));
+      element = parent;
     }
     return 'body > ' + parts.join(' > ');
   };
@@ -605,19 +637,7 @@ type SubtreeArgs = { selector: string; index: number };
 // fallow-ignore-next-line complexity
 function snapSubtree({ selector, index }: SubtreeArgs) {
   const el = document.querySelectorAll(selector)[index];
-  const pathOf = (n: Element): string => {
-    if (n === document.documentElement) return 'html';
-    if (n === document.body) return 'body';
-    const parts: string[] = [];
-    let c: Element | null = n;
-    while (c && c !== document.body) {
-      const parent: Element | null = c.parentElement;
-      if (!parent) break;
-      parts.unshift(`${c.tagName.toLowerCase()}:nth-child(${Array.prototype.indexOf.call(parent.children, c) + 1})`);
-      c = parent;
-    }
-    return 'body > ' + parts.join(' > ');
-  };
+  const pathOf = (window as unknown as WithPathOf).__spPathOf;
   const out: Record<string, Record<string, string>> = {};
   if (!el) return out;
   for (const n of [el, ...el.querySelectorAll('*')]) {
@@ -1043,6 +1063,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const stabilize = options.stabilize ?? true;
   const captureText = options.captureText ?? false;
   const captureComponent = options.captureComponent ?? false;
+  const viewport = page.viewportSize();
   // Neutralise real hover/focus the same way FREEZE_CSS neutralises motion: park
   // the pointer over an ignored 1px sink and blur whatever element holds focus so
   // every read below is the no-interaction resting state. Real :hover/:focus is
@@ -1115,6 +1136,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     const inventory = await harvestInventoryFor(page, options.inventory);
     return {
       ...(options.metadata ? { metadata: options.metadata } : {}),
+      ...(viewport ? { viewport } : {}),
       defaults: base.defaults,
       elements: base.elements,
       states,

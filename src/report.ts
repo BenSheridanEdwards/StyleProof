@@ -260,14 +260,21 @@ function strokeRect(png: PNG, x: number, y: number, w: number, h: number, t = 2,
 
 /** Clone a crop and outline each changed element's box (page coords mapped into
  *  the crop via its origin), so the eye lands on exactly what the bullet named. */
-function annotateCrop(crop: Crop, rects: Rect[]): PNG {
+function annotateCrop(crop: Crop, rects: Rect[]): { png: PNG; highlighted: boolean } {
   const out = new PNG({ width: crop.png.width, height: crop.png.height });
   PNG.bitblt(crop.png, out, 0, 0, crop.png.width, crop.png.height, 0, 0);
+  let highlighted = false;
   for (const [rx, ry, rw, rh] of rects) {
     if (rw <= 0 || rh <= 0) continue;
-    strokeRect(out, rx - crop.ox, ry - crop.oy, rw, rh);
+    const left = Math.max(0, rx - crop.ox);
+    const top = Math.max(0, ry - crop.oy);
+    const right = Math.min(crop.png.width, rx - crop.ox + rw);
+    const bottom = Math.min(crop.png.height, ry - crop.oy + rh);
+    if (right <= left || bottom <= top) continue;
+    strokeRect(out, left, top, right - left, bottom - top, Math.min(2, right - left, bottom - top));
+    highlighted = true;
   }
-  return out;
+  return { png: out, highlighted };
 }
 
 /**
@@ -1043,12 +1050,16 @@ function buildRegionImages(args: {
   const markPaths = innermost([...new Set(regionFindings.map((f) => f.path))]);
   const rectsA = markPaths.map((p) => mapA.elements[p]?.rect).filter((r): r is Rect => !!r);
   const rectsB = markPaths.map((p) => mapB.elements[p]?.rect).filter((r): r is Rect => !!r);
-  const annotated = compositePair(annotateCrop(before, rectsA), annotateCrop(after, rectsB));
-  writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
+  const annotatedBefore = annotateCrop(before, rectsA);
+  const annotatedAfter = annotateCrop(after, rectsB);
   const images: { composite?: string; annotated?: string; zoom?: string } = {
     composite: `${stem}-composite.png`,
-    annotated: `${stem}-annotated.png`,
   };
+  if (annotatedBefore.highlighted || annotatedAfter.highlighted) {
+    const annotated = compositePair(annotatedBefore.png, annotatedAfter.png);
+    writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
+    images.annotated = `${stem}-annotated.png`;
+  }
 
   // Name the changed element(s) so the reviewer knows where to look without expanding
   // anything (e.g. `changed: span.caret`).
@@ -1086,11 +1097,15 @@ function buildRegionImages(args: {
     `![before ◀ │ ▶ after](${img(images.composite!)})`,
     '',
     `<sub>◀ before  ·  after ▶ — ${ctxLabel}</sub>`,
-    '',
-    `![highlighted before ◀ │ ▶ after](${img(images.annotated!)})`,
-    '',
-    `<sub>🔍 magenta boxes mark each change${changedLabel}</sub>`,
   ];
+  if (images.annotated) {
+    md.push(
+      '',
+      `![highlighted before ◀ │ ▶ after](${img(images.annotated)})`,
+      '',
+      `<sub>🔍 magenta boxes mark each change${changedLabel}</sub>`,
+    );
+  }
   if (images.zoom) {
     md.push(
       '',
@@ -1213,7 +1228,7 @@ function renderNewSurface(
   const json: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: true };
   if (png) {
     cropSeq++;
-    const h = Math.min(maxHeight, png.height);
+    const h = Math.min(maxHeight, png.height, map.viewport?.height ?? png.height);
     const crop = cropPng(png, { x: 0, y: 0, w: png.width, h }, png.width, h).png;
     const stem = `crops/${p.sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}-new`;
     writePng(path.join(outDir, `${stem}.png`), crop);
@@ -1221,7 +1236,7 @@ function renderNewSurface(
       '',
       `![new surface — ${side}](${img(`${stem}.png`)})`,
       '',
-      `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top of page)' : ''}</sub>`,
+      `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top viewport of page)' : ''}</sub>`,
     );
     json.image = `${stem}.png`;
   } else {
@@ -1402,6 +1417,18 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const totalSurfaceBases = new Set(surfaceKeysIn(afterDir).map(surfaceBase)).size;
   const chromeSet = new Set(chrome);
   let chromeHeaderEmitted = false;
+  if (missing.length > 0) {
+    md.push('', '## 🆕 New pages, states, or surfaces — review first');
+  }
+  for (const p of missing) {
+    const r = renderNewSurface(p, ctx, cropSeq);
+    json.push(r.json);
+    cropSeq = r.cropSeq;
+    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · new surface`);
+  }
+  if (orderedGroups.length > 0) {
+    md.push('', '## Element-level changes');
+  }
   for (const cg of orderedGroups) {
     const r = renderChangeGroup(cg, ctx, maxCrops, cropSeq);
     json.push(r.json);
@@ -1415,13 +1442,6 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         : r.md;
     emitDetail(detail, compactChangeSummary(cg, r.json, img));
   }
-  for (const p of missing) {
-    const r = renderNewSurface(p, ctx, cropSeq);
-    json.push(r.json);
-    cropSeq = r.cropSeq;
-    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · new surface`);
-  }
-
   md.push(...contentSection.md);
 
   const reportMdPath = path.join(outDir, 'report.md');

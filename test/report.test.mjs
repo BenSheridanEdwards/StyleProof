@@ -670,6 +670,51 @@ test('end-to-end: a new surface is shown with its captured-side screenshot', () 
   rmTmp(root);
 });
 
+test('new surfaces render before ordinary element changes', () => {
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  writeCapture(beforeDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), solidPng(1280, 800));
+  writeCapture(
+    afterDir,
+    'home@1280',
+    sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
+    solidPng(1280, 800),
+  );
+  writeCapture(
+    afterDir,
+    'pricing@1280',
+    sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    solidPng(1280, 800),
+  );
+
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  const newSurfaceIndex = md.indexOf('`pricing@1280` · new surface');
+  const changedElementIndex = md.indexOf('### `button');
+  assert.ok(newSurfaceIndex >= 0, 'new surface is present');
+  assert.ok(changedElementIndex >= 0, 'ordinary changed element is present');
+  assert.ok(newSurfaceIndex < changedElementIndex, 'the new page/surface is shown before lower-level element changes');
+  rmTmp(root);
+});
+
+test('new-surface proof uses the captured viewport height instead of a blank full-page tail', () => {
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  writeCapture(beforeDir, 'home@1280', makeMap(), solidPng(1280, 600));
+  writeCapture(afterDir, 'home@1280', makeMap(), solidPng(1280, 600));
+  writeCapture(
+    afterDir,
+    'pricing@1280',
+    { ...makeMap(), viewport: { width: 1280, height: 600 } },
+    solidPng(1280, 1400),
+  );
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  const image = md.match(/!\[new surface — after\]\((crops\/[^)]+-new\.png)\)/)?.[1];
+  assert.ok(image, 'new-surface image is present');
+  assert.equal(PNG.sync.read(fs.readFileSync(path.join(outDir, image))).height, 600);
+  assert.match(md, /top viewport of page/);
+  rmTmp(root);
+});
+
 test('end-to-end: a live region is auto-excluded and noted, not reported as a change', () => {
   // After differs ONLY on a path the after-capture flagged volatile (a live region).
   const { beforeDir, afterDir, outDir, root } = pairFixture({
@@ -1019,6 +1064,33 @@ test('end-to-end: each crop shows a clean image plus a highlighted twin by defau
     }
   }
   assert.ok(hasHilite, 'annotated crop contains the highlight colour');
+  rmTmp(root);
+});
+
+test('end-to-end: a highlight outside the crop does not publish the clean image twice', () => {
+  const map = (color) =>
+    makeMap({
+      elements: {
+        'body > a:nth-child(1)': {
+          tag: 'a',
+          cls: 'link',
+          rect: [-500, 20, 80, 20],
+          style: { color },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: map('rgb(0, 0, 0)'),
+    after: map('rgb(255, 0, 0)'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.doesNotMatch(md, /highlighted before/);
+  assert.equal(fs.readdirSync(path.join(outDir, 'crops')).filter((file) => file.endsWith('-annotated.png')).length, 0);
   rmTmp(root);
 });
 
