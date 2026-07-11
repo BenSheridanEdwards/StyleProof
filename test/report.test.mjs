@@ -545,6 +545,77 @@ test('two far-apart changes become two crop sections, each holding only its own 
   rmTmp(root);
 });
 
+test('new surfaces are named in the summary that the PR comment slices', () => {
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  const baseMap = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 900, 700], style: {} } } });
+  const workspaceMap = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 900, 900], style: {} },
+      'body > main:nth-child(1)': {
+        tag: 'main',
+        cls: 'workspace-shell',
+        rect: [0, 0, 900, 900],
+        style: { display: 'grid' },
+      },
+    },
+  });
+  writeCapture(beforeDir, 'home@900', baseMap, solidPng(900, 700));
+  writeCapture(afterDir, 'home@900', baseMap, solidPng(900, 700));
+  writeCapture(afterDir, 'workspace@1280', workspaceMap, solidPng(1280, 900));
+  writeCapture(afterDir, 'workspace@390', workspaceMap, solidPng(390, 900));
+
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  const commentSummary = md.slice(0, md.indexOf('\n### '));
+  assert.match(commentSummary, /🆕 \*\*2 new surface\(s\)\*\*/);
+  assert.match(commentSummary, /`workspace @ 1280, 390`/);
+  assert.doesNotMatch(commentSummary, /shown below for review/);
+  rmTmp(root);
+});
+
+test('new surface details render before existing-surface change groups', () => {
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  const existingBefore = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 900, 700], style: {} },
+      'body > nav:nth-child(1)': { tag: 'nav', cls: 'nav', rect: [0, 0, 900, 80], style: { color: 'rgb(0, 0, 0)' } },
+    },
+  });
+  const existingAfter = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 900, 700], style: {} },
+      'body > nav:nth-child(1)': { tag: 'nav', cls: 'nav', rect: [0, 0, 900, 80], style: { color: 'rgb(255, 0, 0)' } },
+    },
+  });
+  const workspaceMap = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 900, 900], style: {} },
+      'body > main:nth-child(1)': {
+        tag: 'main',
+        cls: 'workspace-shell',
+        rect: [0, 0, 900, 900],
+        style: { display: 'grid' },
+      },
+    },
+  });
+  writeCapture(beforeDir, 'home@900', existingBefore, solidPng(900, 700));
+  writeCapture(afterDir, 'home@900', existingAfter, solidPng(900, 700));
+  writeCapture(afterDir, 'workspace@900', workspaceMap, solidPng(900, 900));
+
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  const newIdx = md.indexOf('`workspace@900` · new surface');
+  const changedIdx = md.indexOf('`nav.nav` · 1 element restyled');
+  assert.ok(newIdx > 0, 'new surface section is present');
+  assert.ok(changedIdx > 0, 'changed-surface section is present');
+  assert.ok(newIdx < changedIdx, 'new page evidence leads before existing-surface churn');
+  const commentSummary = md.slice(0, md.indexOf('\n### '));
+  assert.ok(
+    commentSummary.indexOf('🆕 **1 new surface(s)**') < commentSummary.indexOf('**1 computed-style difference(s)**'),
+    'comment summary leads with the named new surface before aggregate existing-surface churn',
+  );
+  assert.match(commentSummary, /`workspace @ 900`/);
+  rmTmp(root);
+});
+
 test('property tables fold under a <details> toggle with an essence line; foldDetailsAt keeps small changes inline', () => {
   const map = (radius) =>
     makeMap({

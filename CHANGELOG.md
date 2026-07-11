@@ -30,6 +30,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **New pages, states, and surfaces render before element-level diffs.** A new
   page can no longer be buried beneath shared-frame changes in the report.
+- StyleProof reports now lead with named new surfaces in the summary that PR comments quote, and render new-surface screenshots before existing-surface diff groups so new-page PRs do not read like broad restyle churn.
 
 ## [4.0.1] - 2026-07-07
 
