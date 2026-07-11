@@ -215,7 +215,11 @@ export function summarizeProps(props: PropChange[]): PropChange[] {
 
 /** `div.who-grid`, `a.nav-cta`, `h3` — the semantic marker class, else the tag. */
 export function prettyLabel(p: string, cls: string): string {
-  const tag = (p.split('>').pop() ?? '').trim().replace(/:nth-child\(\d+\)/, '') || 'el';
+  const tag =
+    (p.split('>').pop() ?? '')
+      .trim()
+      .replace(/:nth-child\(\d+\)/, '')
+      .replace(/:sp-key\([a-z0-9]+\)/, '') || 'el';
   const first = cls.split(/\s+/)[0] ?? '';
   return /^[a-z][a-z0-9-]*$/.test(first) ? `${tag}.${first}` : tag;
 }

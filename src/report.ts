@@ -260,14 +260,21 @@ function strokeRect(png: PNG, x: number, y: number, w: number, h: number, t = 2,
 
 /** Clone a crop and outline each changed element's box (page coords mapped into
  *  the crop via its origin), so the eye lands on exactly what the bullet named. */
-function annotateCrop(crop: Crop, rects: Rect[]): PNG {
+function annotateCrop(crop: Crop, rects: Rect[]): { png: PNG; highlighted: boolean } {
   const out = new PNG({ width: crop.png.width, height: crop.png.height });
   PNG.bitblt(crop.png, out, 0, 0, crop.png.width, crop.png.height, 0, 0);
+  let highlighted = false;
   for (const [rx, ry, rw, rh] of rects) {
     if (rw <= 0 || rh <= 0) continue;
-    strokeRect(out, rx - crop.ox, ry - crop.oy, rw, rh);
+    const left = Math.max(0, rx - crop.ox);
+    const top = Math.max(0, ry - crop.oy);
+    const right = Math.min(crop.png.width, rx - crop.ox + rw);
+    const bottom = Math.min(crop.png.height, ry - crop.oy + rh);
+    if (right <= left || bottom <= top) continue;
+    strokeRect(out, left, top, right - left, bottom - top, Math.min(2, right - left, bottom - top));
+    highlighted = true;
   }
-  return out;
+  return { png: out, highlighted };
 }
 
 /**
@@ -899,18 +906,79 @@ type RenderCtx = {
   foldDetailsAt: number;
 };
 
+/** A changed element can anchor useful visual proof only when the browser paints it. */
+function isPaintedEntry(entry: ElementEntry | undefined): boolean {
+  if (!entry?.rect || !visible(rectToBox(entry.rect))) return false;
+  if (entry.style.display === 'none' || entry.style.visibility === 'hidden') return false;
+  return Number(entry.style.opacity ?? '1') > 0;
+}
+
+function isSameOrDescendantPath(candidatePath: string, ancestorPath: string): boolean {
+  return candidatePath === ancestorPath || candidatePath.startsWith(`${ancestorPath} > `);
+}
+
+/** A modal leaves its background in the DOM but makes it unsuitable as visual proof.
+ * A change inside the modal itself is foreground content and remains eligible. */
+function isBackgroundBehindActiveModal(map: StyleMap, changedPath: string): boolean {
+  return (map.overlays ?? []).some(
+    (overlay) => overlay.ariaModal === 'true' && !isSameOrDescendantPath(changedPath, overlay.path),
+  );
+}
+
+function isExposedChangedEntry(map: StyleMap, changedPath: string): boolean {
+  return isPaintedEntry(map.elements[changedPath]) && !isBackgroundBehindActiveModal(map, changedPath);
+}
+
+function hasExposedChangedEntry(mapA: StyleMap, mapB: StyleMap, changedPaths: string[]): boolean {
+  return changedPaths.some(
+    (changedPath) => isExposedChangedEntry(mapA, changedPath) || isExposedChangedEntry(mapB, changedPath),
+  );
+}
+
+type RepresentativeScore = { hasExposedChange: boolean; hasActiveModal: boolean; isPopup: boolean; width: number };
+
+/** Prefer proof a reviewer can see: an exposed changed element, then a non-modal
+ * ordinary page over a popup state that can leave shared chrome in the background,
+ * then the widest width. */
+function representativeScore(candidate: PreparedSurface, beforeDir: string, afterDir: string): RepresentativeScore {
+  const beforeMap = loadStyleMap(findCapture(beforeDir, candidate.sd.surface));
+  const afterMap = loadStyleMap(findCapture(afterDir, candidate.sd.surface));
+  const changedPaths = [...new Set(candidate.findings.map((finding) => finding.path))];
+  const hasExposedChange = hasExposedChangedEntry(beforeMap, afterMap, changedPaths);
+  const hasActiveModal = [...(beforeMap.overlays ?? []), ...(afterMap.overlays ?? [])].some(
+    (overlay) => overlay.ariaModal === 'true',
+  );
+  const isPopup = beforeMap.metadata?.variantKind === 'popup' || afterMap.metadata?.variantKind === 'popup';
+  return { hasExposedChange, hasActiveModal, isPopup, width: surfaceWidth(candidate.sd.surface) };
+}
+
+function isBetterRepresentative(candidate: RepresentativeScore, current: RepresentativeScore): boolean {
+  if (candidate.hasExposedChange !== current.hasExposedChange) return candidate.hasExposedChange;
+  if (candidate.hasActiveModal !== current.hasActiveModal) return !candidate.hasActiveModal;
+  if (candidate.isPopup !== current.isPopup) return !candidate.isPopup;
+  return candidate.width > current.width;
+}
+
 // Group surfaces that changed in the SAME way (the rects differ per width; the change
-// itself does not) so an identical change shows once, not once per surface — keeping
-// the widest surface as the representative image.
-function groupBySignature(prepared: PreparedSurface[]): ChangeGroup[] {
+// itself does not) so an identical change shows once, not once per surface. Select
+// the representative by visible proof first; width only breaks otherwise-equal ties.
+function groupBySignature(prepared: PreparedSurface[], beforeDir: string, afterDir: string): ChangeGroup[] {
   const bySig = new Map<string, ChangeGroup>();
+  const scoreBySurface = new Map<string, RepresentativeScore>();
+  const score = (candidate: PreparedSurface): RepresentativeScore => {
+    const existing = scoreBySurface.get(candidate.sd.surface);
+    if (existing) return existing;
+    const computed = representativeScore(candidate, beforeDir, afterDir);
+    scoreBySurface.set(candidate.sd.surface, computed);
+    return computed;
+  };
   for (const p of prepared) {
     if (p.sd.missing) continue;
     const sig = signatureOf(p.findings);
     const existing = bySig.get(sig);
     if (existing) {
       existing.surfaces.push(p.sd.surface);
-      if (surfaceWidth(p.sd.surface) > surfaceWidth(existing.rep.sd.surface)) existing.rep = p;
+      if (isBetterRepresentative(score(p), score(existing.rep))) existing.rep = p;
     } else {
       bySig.set(sig, { surfaces: [p.sd.surface], rep: p, findings: p.findings });
     }
@@ -1043,12 +1111,16 @@ function buildRegionImages(args: {
   const markPaths = innermost([...new Set(regionFindings.map((f) => f.path))]);
   const rectsA = markPaths.map((p) => mapA.elements[p]?.rect).filter((r): r is Rect => !!r);
   const rectsB = markPaths.map((p) => mapB.elements[p]?.rect).filter((r): r is Rect => !!r);
-  const annotated = compositePair(annotateCrop(before, rectsA), annotateCrop(after, rectsB));
-  writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
+  const annotatedBefore = annotateCrop(before, rectsA);
+  const annotatedAfter = annotateCrop(after, rectsB);
   const images: { composite?: string; annotated?: string; zoom?: string } = {
     composite: `${stem}-composite.png`,
-    annotated: `${stem}-annotated.png`,
   };
+  if (annotatedBefore.highlighted || annotatedAfter.highlighted) {
+    const annotated = compositePair(annotatedBefore.png, annotatedAfter.png);
+    writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
+    images.annotated = `${stem}-annotated.png`;
+  }
 
   // Name the changed element(s) so the reviewer knows where to look without expanding
   // anything (e.g. `changed: span.caret`).
@@ -1086,11 +1158,15 @@ function buildRegionImages(args: {
     `![before ◀ │ ▶ after](${img(images.composite!)})`,
     '',
     `<sub>◀ before  ·  after ▶ — ${ctxLabel}</sub>`,
-    '',
-    `![highlighted before ◀ │ ▶ after](${img(images.annotated!)})`,
-    '',
-    `<sub>🔍 magenta boxes mark each change${changedLabel}</sub>`,
   ];
+  if (images.annotated) {
+    md.push(
+      '',
+      `![highlighted before ◀ │ ▶ after](${img(images.annotated)})`,
+      '',
+      `<sub>🔍 magenta boxes mark each change${changedLabel}</sub>`,
+    );
+  }
   if (images.zoom) {
     md.push(
       '',
@@ -1165,10 +1241,26 @@ function renderChangeGroup(
   const mapB = loadStyleMap(findCapture(ctx.afterDir, sd.surface));
   // Theme-token reverse-indexes so colour changes can name `red-200` per side.
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
+  const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
+  if (!hasExposedChangedEntry(mapA, mapB, changedPaths)) {
+    const reason =
+      'The changed element is not visibly painted in this representative state (it is hidden at this breakpoint or is background content behind an active modal), so a before/after crop would be misleading.';
+    return {
+      md: ['', `_${reason}_`, '', ...renderCropChanges(surfaceFindings, ctx.foldDetailsAt, describeCtx)],
+      json: {
+        surfaces: cg.surfaces,
+        representative: sd.surface,
+        regions: [],
+        findings: surfaceFindings,
+        visualEvidence: 'not-rendered',
+        reason,
+      },
+      findingCount: surfaceFindings.length,
+      cropSeq,
+    };
+  }
   const pngA = readPng(path.join(ctx.beforeDir, `${sd.surface}.png`));
   const pngB = readPng(path.join(ctx.afterDir, `${sd.surface}.png`));
-
-  const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
   let groups = groupRegions(changedPaths, mapA, mapB, ctx.padBy);
   if (groups.length > maxCrops) groups = collapseGroups(groups);
   // Read top-to-bottom: one section per crop, in page order.
@@ -1213,7 +1305,7 @@ function renderNewSurface(
   const json: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: true };
   if (png) {
     cropSeq++;
-    const h = Math.min(maxHeight, png.height);
+    const h = Math.min(maxHeight, png.height, map.viewport?.height ?? png.height);
     const crop = cropPng(png, { x: 0, y: 0, w: png.width, h }, png.width, h).png;
     const stem = `crops/${p.sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}-new`;
     writePng(path.join(outDir, `${stem}.png`), crop);
@@ -1221,7 +1313,7 @@ function renderNewSurface(
       '',
       `![new surface — ${side}](${img(`${stem}.png`)})`,
       '',
-      `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top of page)' : ''}</sub>`,
+      `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top viewport of page)' : ''}</sub>`,
     );
     json.image = `${stem}.png`;
   } else {
@@ -1321,7 +1413,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     .filter((p) => p.sd.missing || p.findings.length > 0);
 
   const missing = prepared.filter((p) => p.sd.missing);
-  const changeGroups = groupBySignature(prepared);
+  const changeGroups = groupBySignature(prepared, beforeDir, afterDir);
   // Shared-chrome tier (#193): promote a change that rode the frame every view
   // draws (nav rail, header) to a callout, so the reviewer reads "the nav changed
   // everywhere" once instead of inferring it from a long surface list on several
@@ -1402,6 +1494,18 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const totalSurfaceBases = new Set(surfaceKeysIn(afterDir).map(surfaceBase)).size;
   const chromeSet = new Set(chrome);
   let chromeHeaderEmitted = false;
+  if (missing.length > 0) {
+    md.push('', '## 🆕 New pages, states, or surfaces — review first');
+  }
+  for (const p of missing) {
+    const r = renderNewSurface(p, ctx, cropSeq);
+    json.push(r.json);
+    cropSeq = r.cropSeq;
+    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · new surface`);
+  }
+  if (orderedGroups.length > 0) {
+    md.push('', '## Element-level changes');
+  }
   for (const cg of orderedGroups) {
     const r = renderChangeGroup(cg, ctx, maxCrops, cropSeq);
     json.push(r.json);
@@ -1415,13 +1519,6 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
         : r.md;
     emitDetail(detail, compactChangeSummary(cg, r.json, img));
   }
-  for (const p of missing) {
-    const r = renderNewSurface(p, ctx, cropSeq);
-    json.push(r.json);
-    cropSeq = r.cropSeq;
-    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · new surface`);
-  }
-
   md.push(...contentSection.md);
 
   const reportMdPath = path.join(outDir, 'report.md');

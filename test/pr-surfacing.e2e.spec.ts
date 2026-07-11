@@ -106,6 +106,39 @@ test.describe('every PR change class is surfaced in the diff', () => {
     expect(f, 'an added element is surfaced as dom/added').toBeTruthy();
   });
 
+  test('inserting a middle navigation link does not restyle the links after it', async ({ page }) => {
+    const css = [
+      'nav{display:flex;flex-direction:column}',
+      'a{display:block;padding:8px}',
+      'a[href="/home"]{color:rgb(20,40,60)}',
+      'a[href="/pricing"]{color:rgb(80,100,120)}',
+      'a[href="/about"]{color:rgb(140,160,180)}',
+    ].join('');
+    const base = await cap(page, css, '<nav><a href="/home">Home</a><a href="/about">About</a></nav>');
+    const head = await cap(
+      page,
+      css,
+      '<nav><a href="/home">Home</a><a href="/pricing">Pricing</a><a href="/about">About</a></nav>',
+    );
+
+    const findings = diffStyleMaps(base, head);
+    expect(Object.keys(head.elements).some((elementPath) => elementPath.includes('/pricing'))).toBe(false);
+    const added = findings.filter((finding) => finding.kind === 'dom' && finding.change === 'added');
+    expect(added).toHaveLength(1);
+    const changedAnchorPaths = new Set(
+      findings
+        .filter((finding) => finding.kind === 'style' && finding.path.includes(' > a:'))
+        .map((finding) => finding.path),
+    );
+    expect(changedAnchorPaths, 'only the newly inserted link may carry anchor style findings').toEqual(
+      new Set([added[0].path]),
+    );
+    expect(
+      new Set(findings.filter((finding) => finding.kind === 'state').map((finding) => finding.path)),
+      'only the newly inserted link may carry interaction-state findings',
+    ).toEqual(new Set([added[0].path]));
+  });
+
   // GAP CLOSED: a retagged element had no end-to-end proof. An element's tag is
   // part of its identity (the path is `…> button:nth-child(1)`), so swapping the
   // tag reads as the old element removed and a new one added at that position —

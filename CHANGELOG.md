@@ -7,6 +7,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Inserting a semantic sibling no longer turns every following element into a
+  false restyle.** Capture paths now prefer privacy-safe hashed identities from
+  stable attributes (`data-styleproof-key`, IDs, test IDs, link destinations,
+  and form names) when they are unique among siblings, falling back to
+  `:nth-child()` only when no stable identity exists. Raw attribute values never
+  enter the map.
+- **Reports no longer publish an unchanged image as a misleading highlighted
+  twin.** The annotated crop is omitted when every changed rectangle falls
+  outside the rendered crop.
+- **New-surface screenshots no longer preserve a blank full-page tail.** New
+  captures record their viewport and reports show that top viewport when the
+  full-page screenshot is taller.
+- **Shared changes now choose exposed proof and suppress misleading crops.** When
+  the same change appears on an ordinary page and a modal-open state, the report
+  excludes modal-background DOM content before viewport width; if no captured
+  state visibly paints the change, it retains the audit details without images.
+
+### Changed
+
+- **New pages, states, and surfaces render before element-level diffs.** A new
+  page can no longer be buried beneath shared-frame changes in the report.
+
 ## [4.0.1] - 2026-07-07
 
 ### Fixed

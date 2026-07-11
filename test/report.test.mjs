@@ -368,6 +368,131 @@ test('an identical change across surfaces collapses into one grouped section', (
   rmTmp(root);
 });
 
+test('an added shared element prefers a visible page over a wider popup representative', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const before = () =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1440, 800], style: {} },
+      },
+    });
+  const after = (visibility, metadata = undefined) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1440, 800], style: {} },
+        'body > nav:nth-child(1) > a:nth-child(2)': {
+          tag: 'a',
+          cls: 'nav-item',
+          rect: [24, 180, 120, 32],
+          style: { display: 'flex', visibility },
+        },
+      },
+    }),
+    ...(metadata ? { metadata } : {}),
+  });
+  const popupMetadata = { variantKind: 'popup', variantKey: 'settings' };
+
+  writeCapture(beforeDir, 'page@1280', before(), solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after('visible'), solidPng(1280, 800, [0, 220, 220]));
+  writeCapture(beforeDir, 'settings-dialog@1440', { ...before(), metadata: popupMetadata }, solidPng(1440, 800));
+  writeCapture(afterDir, 'settings-dialog@1440', after('hidden', popupMetadata), solidPng(1440, 800));
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.equal(
+    report.surfaces[0].representative,
+    'page@1280',
+    'the crop should show the visible added element, not the wider popup that hides it',
+  );
+  rmTmp(root);
+});
+
+test('an added shared element avoids a wider active-modal background representative', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const navItemPath = 'body > nav:nth-child(1) > a:nth-child(2)';
+  const modalPath = 'body > div:nth-child(2)';
+  const before = () =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1440, 800], style: {} },
+      },
+    });
+  const after = () =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1440, 800], style: {} },
+        [navItemPath]: {
+          tag: 'a',
+          cls: 'nav-item',
+          rect: [24, 180, 120, 32],
+          style: { display: 'flex', visibility: 'visible' },
+        },
+      },
+    });
+  const modal = {
+    path: modalPath,
+    tag: 'div',
+    cls: 'settings-dialog',
+    reason: 'role=dialog, aria-modal=true',
+    role: 'dialog',
+    ariaModal: 'true',
+  };
+  const modalMap = (map) => ({
+    ...map,
+    elements: {
+      ...map.elements,
+      [modalPath]: { tag: 'div', cls: 'settings-dialog', rect: [300, 80, 800, 640], style: { display: 'block' } },
+    },
+    overlays: [modal],
+  });
+
+  writeCapture(beforeDir, 'page@1280', before(), solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after(), solidPng(1280, 800, [0, 220, 220]));
+  writeCapture(beforeDir, 'settings-dialog@1440', modalMap(before()), solidPng(1440, 800));
+  writeCapture(afterDir, 'settings-dialog@1440', modalMap(after()), solidPng(1440, 800));
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.equal(
+    report.surfaces[0].representative,
+    'page@1280',
+    'the crop should avoid a visible DOM node that is only modal-background content',
+  );
+  rmTmp(root);
+});
+
+test('a group without an exposed changed element keeps audit details but omits misleading crops', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const itemPath = 'body > nav:nth-child(1) > a:nth-child(2)';
+  const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1024, 800], style: {} } } });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1024, 800], style: {} },
+      [itemPath]: {
+        tag: 'a',
+        cls: 'nav-item',
+        rect: [24, 180, 120, 32],
+        style: { display: 'flex', visibility: 'hidden' },
+      },
+    },
+  });
+  writeCapture(beforeDir, 'page@1024', before, solidPng(1024, 800));
+  writeCapture(afterDir, 'page@1024', after, solidPng(1024, 800));
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.match(markdown, /before\/after crop would be misleading/);
+  assert.doesNotMatch(markdown, /!\[before/);
+  assert.equal(report.surfaces[0].visualEvidence, 'not-rendered');
+  assert.equal(
+    fs.readdirSync(path.join(outDir, 'crops')).filter((fileName) => fileName.endsWith('.png')).length,
+    0,
+    'no duplicate crop files are emitted',
+  );
+  rmTmp(root);
+});
+
 test('two far-apart changes become two crop sections, each holding only its own changes', () => {
   // A top-right `nav-cta` and a far-below `card` — non-overlapping rects, so the
   // report must split them into two screenshots, and the tables under each must
@@ -667,6 +792,51 @@ test('end-to-end: a new surface is shown with its captured-side screenshot', () 
   const m = md.match(/!\[new surface — after\]\((crops\/[^)]+-new\.png)\)/);
   assert.ok(m, 'new-surface screenshot is embedded');
   assert.ok(fs.existsSync(path.join(outDir, m[1])), 'the crop file was written');
+  rmTmp(root);
+});
+
+test('new surfaces render before ordinary element changes', () => {
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  writeCapture(beforeDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), solidPng(1280, 800));
+  writeCapture(
+    afterDir,
+    'home@1280',
+    sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
+    solidPng(1280, 800),
+  );
+  writeCapture(
+    afterDir,
+    'pricing@1280',
+    sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    solidPng(1280, 800),
+  );
+
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  const newSurfaceIndex = md.indexOf('`pricing@1280` · new surface');
+  const changedElementIndex = md.indexOf('### `button');
+  assert.ok(newSurfaceIndex >= 0, 'new surface is present');
+  assert.ok(changedElementIndex >= 0, 'ordinary changed element is present');
+  assert.ok(newSurfaceIndex < changedElementIndex, 'the new page/surface is shown before lower-level element changes');
+  rmTmp(root);
+});
+
+test('new-surface proof uses the captured viewport height instead of a blank full-page tail', () => {
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  writeCapture(beforeDir, 'home@1280', makeMap(), solidPng(1280, 600));
+  writeCapture(afterDir, 'home@1280', makeMap(), solidPng(1280, 600));
+  writeCapture(
+    afterDir,
+    'pricing@1280',
+    { ...makeMap(), viewport: { width: 1280, height: 600 } },
+    solidPng(1280, 1400),
+  );
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  const image = md.match(/!\[new surface — after\]\((crops\/[^)]+-new\.png)\)/)?.[1];
+  assert.ok(image, 'new-surface image is present');
+  assert.equal(PNG.sync.read(fs.readFileSync(path.join(outDir, image))).height, 600);
+  assert.match(md, /top viewport of page/);
   rmTmp(root);
 });
 
@@ -1019,6 +1189,33 @@ test('end-to-end: each crop shows a clean image plus a highlighted twin by defau
     }
   }
   assert.ok(hasHilite, 'annotated crop contains the highlight colour');
+  rmTmp(root);
+});
+
+test('end-to-end: a highlight outside the crop does not publish the clean image twice', () => {
+  const map = (color) =>
+    makeMap({
+      elements: {
+        'body > a:nth-child(1)': {
+          tag: 'a',
+          cls: 'link',
+          rect: [-500, 20, 80, 20],
+          style: { color },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: map('rgb(0, 0, 0)'),
+    after: map('rgb(255, 0, 0)'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.doesNotMatch(md, /highlighted before/);
+  assert.equal(fs.readdirSync(path.join(outDir, 'crops')).filter((file) => file.endsWith('-annotated.png')).length, 0);
   rmTmp(root);
 });
 

@@ -209,7 +209,27 @@ element's whole look is reviewable, not just its `:hover` changes.
 
 ### What a report looks like
 
-One change — the hero CTA recoloured cyan → amber — appears as a single section in the report: a side-by-side before/after cropped screenshot, the same crop again with magenta boxes marking exactly what changed, a one-line summary, then the exact property change folded under a toggle. A change too small to see at 1:1 (say a 2px icon tweak) also gets a magnified zoom crop, so a sub-pixel change can't slip past a reviewer.
+New pages, states, and surfaces appear first, before lower-level element diffs, and
+show the captured top viewport when there is no baseline side to compare. Existing
+surfaces then render one change per section: a side-by-side before/after crop, an
+annotated twin when a visible changed element can actually be boxed, a one-line
+summary, and the exact property change folded under a toggle. A change too small
+to see at 1:1 (say a 2px icon tweak) also gets a magnified zoom crop, so a
+sub-pixel change can't slip past a reviewer.
+
+When one change appears both on an ordinary page and in an open popup, the report
+chooses a representative where the changed element is visibly exposed, then prefers
+the ordinary page before using viewport width as a tie-breaker. Modal-background DOM
+content is excluded; if no captured state visibly paints the change, the report keeps
+the audit details but omits a misleading identical before/after crop.
+
+Element identity is stable across ordinary list insertions. StyleProof prefers a
+privacy-safe hash of a unique `data-styleproof-key`, ID, test ID, link destination,
+or form name for each sibling and falls back to `:nth-child()` only when the DOM
+offers no stable semantic identity. Attribute values are never written into the
+map. This keeps inserting one navigation link from falsely restyling every link
+after it; add `data-styleproof-key` when repeated controls have no other stable
+attribute.
 
 ![A StyleProof report: the CTA button before (cyan) and after (amber), side by side](https://raw.githubusercontent.com/BenSheridanEdwards/StyleProof/main/docs/demo-composite.png)
 
