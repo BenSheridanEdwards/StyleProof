@@ -38,6 +38,9 @@ const CARET_HEAD = [37, 99, 235]; // … recoloured blue (tiny: only visible zoo
 const CTA_BASE = [37, 99, 235]; // blue CTA …
 const CTA_HEAD = [220, 38, 38]; // … recoloured red (normal-size change)
 const HERO = [37, 99, 235];
+const TOOLBAR = [55, 65, 81];
+const SWITCH = [88, 28, 135];
+const GRID = [229, 231, 235];
 
 function newPng(w, h, [r, g, b]) {
   const png = new PNG({ width: w, height: h });
@@ -111,6 +114,66 @@ function pricingMap() {
   });
 }
 
+function insertionScreenshot(tone) {
+  const png = newPng(W, H, PAGE);
+  if (tone === 'head') {
+    fill(png, 650, 20, 210, 40, SWITCH);
+    fill(png, 670, 30, 80, 20, BRAND);
+  }
+  const offset = tone === 'base' ? 0 : 60;
+  fill(png, 40, 20 + offset, 820, 40, TOOLBAR);
+  fill(png, 60, 30 + offset, 100, 20, BRAND);
+  fill(png, 40, 80 + offset, 820, 240, GRID);
+  fill(png, 60, 100 + offset, 340, 180, CARD);
+  return PNG.sync.write(png);
+}
+
+function insertionMap(tone) {
+  const elements = {
+    body: { tag: 'body', cls: '', rect: [0, 0, W, H], style: { 'background-color': rgb(PAGE) } },
+  };
+  const offset = tone === 'base' ? 0 : 1;
+  if (tone === 'head') {
+    elements['body > div:nth-child(1)'] = {
+      tag: 'div',
+      cls: 'scope-switch',
+      rect: [650, 20, 210, 40],
+      style: { 'background-color': rgb(SWITCH) },
+    };
+    elements['body > div:nth-child(1) > button:nth-child(1)'] = {
+      tag: 'button',
+      cls: 'scope-option',
+      rect: [670, 30, 80, 20],
+      style: { color: rgb(BRAND) },
+    };
+  }
+  elements[`body > div:nth-child(${1 + offset})`] = {
+    tag: 'div',
+    cls: 'toolbar',
+    rect: [40, 20 + offset * 60, 820, 40],
+    style: { 'background-color': rgb(TOOLBAR) },
+  };
+  elements[`body > div:nth-child(${1 + offset}) > button:nth-child(1)`] = {
+    tag: 'button',
+    cls: 'filter',
+    rect: [60, 30 + offset * 60, 100, 20],
+    style: { color: rgb(BRAND) },
+  };
+  elements[`body > div:nth-child(${2 + offset})`] = {
+    tag: 'div',
+    cls: 'grid',
+    rect: [40, 80 + offset * 60, 820, 240],
+    style: { 'background-color': rgb(GRID) },
+  };
+  elements[`body > div:nth-child(${2 + offset}) > article:nth-child(1)`] = {
+    tag: 'article',
+    cls: 'card',
+    rect: [60, 100 + offset * 60, 340, 180],
+    style: { 'background-color': rgb(CARD) },
+  };
+  return makeMap(elements);
+}
+
 // Minimal StyleMap builder (mirrors test/helpers.mjs makeMap) so this script has
 // no test-only dependency.
 function makeMap(elements) {
@@ -134,6 +197,8 @@ function render(outDir) {
   const afterDir = path.join(work, 'after');
   writeCapture(beforeDir, 'home@900', homeMap('base'), homeScreenshot('base'));
   writeCapture(afterDir, 'home@900', homeMap('head'), homeScreenshot('head'));
+  writeCapture(beforeDir, 'sibling-insertion@900', insertionMap('base'), insertionScreenshot('base'));
+  writeCapture(afterDir, 'sibling-insertion@900', insertionMap('head'), insertionScreenshot('head'));
   // pricing exists only on the head → reported as a new surface.
   writeCapture(afterDir, 'pricing@900', pricingMap(), pricingScreenshot());
 

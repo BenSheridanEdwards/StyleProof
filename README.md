@@ -217,6 +217,12 @@ summary, and the exact property change folded under a toggle. A change too small
 to see at 1:1 (say a 2px icon tweak) also gets a magnified zoom crop, so a
 sub-pixel change can't slip past a reviewer.
 
+Annotation boxes reconcile exact-equivalent elements that moved to a different
+structural path. When an unkeyed sibling insertion shifts unchanged descendants,
+the clean comparison still shows the complete rendered result and the audit keeps
+every structural finding, but magenta boxes mark only unmatched additions,
+removals, and restyles instead of painting the displaced subtree as changed.
+
 When one change appears both on an ordinary page and in an open popup, the report
 chooses a representative where the changed element is visibly exposed, then prefers
 the ordinary page before using viewport width as a tie-breaker. Modal-background DOM

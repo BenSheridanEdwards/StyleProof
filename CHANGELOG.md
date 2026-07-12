@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Annotated report crops no longer paint path-shifted subtrees as visual
+  changes.** When an unkeyed sibling insertion renumbers `:nth-child()` paths,
+  the report reconciles exact-equivalent entries across paths for annotation
+  only. Genuine additions and removals stay highlighted, while exhaustive
+  structural findings remain in the certification and audit details.
+
 ## [4.0.2] - 2026-07-11
 
 ### Fixed
