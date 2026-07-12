@@ -132,6 +132,7 @@ test('dogfood workflow runs on every same-repo PR', () => {
 test('dogfood workflow asserts the PR report comment and branch artifact', () => {
   assert.ok(dogfoodYml.includes('Assert PR report was published'));
   assert.ok(dogfoodYml.includes('<!-- styleproof-report -->'));
+  assert.match(dogfoodYml, /blob\/\[0-9a-f\]\{40\}\/\$\{report_path\}/);
   assert.ok(dogfoodYml.includes('/issues/${PR_NUMBER}/comments'));
   assert.ok(dogfoodYml.includes('/contents/${report_path}?ref=${REPORT_BRANCH}'));
 });

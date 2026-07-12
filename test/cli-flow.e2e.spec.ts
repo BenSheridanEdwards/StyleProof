@@ -29,7 +29,7 @@ async function freePort(): Promise<number> {
 
 function commandEnv(env: NodeJS.ProcessEnv = {}) {
   const merged = { ...process.env, PATH: `${PLAYWRIGHT_BIN}${path.delimiter}${process.env.PATH}`, CI: '1', ...env };
-  for (const key of ['GITHUB_BASE_REF', 'GITHUB_SHA', 'GITHUB_HEAD_SHA']) {
+  for (const key of ['GITHUB_BASE_REF', 'GITHUB_SHA', 'GITHUB_HEAD_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_EVENT_PATH']) {
     if (!Object.prototype.hasOwnProperty.call(env, key)) delete merged[key];
   }
   return merged;

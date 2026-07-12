@@ -462,7 +462,7 @@ function gitInit(dir) {
 }
 function cliEnv(overrides = {}) {
   const env = { ...process.env, ...overrides };
-  for (const key of ['GITHUB_BASE_REF', 'GITHUB_SHA', 'GITHUB_HEAD_SHA']) {
+  for (const key of ['GITHUB_BASE_REF', 'GITHUB_SHA', 'GITHUB_HEAD_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_EVENT_PATH']) {
     if (!Object.prototype.hasOwnProperty.call(overrides, key)) delete env[key];
   }
   return env;
