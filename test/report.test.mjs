@@ -1263,6 +1263,123 @@ test('end-to-end: each crop shows a clean image plus a highlighted twin by defau
   rmTmp(root);
 });
 
+test('end-to-end: sibling insertion highlights the real addition, not path-shifted content', () => {
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', cls: '', rect: [0, 0, 640, 400], style: {} },
+      'body > main:nth-child(1)': { tag: 'main', cls: 'page', rect: [0, 0, 640, 400], style: {} },
+      'body > main:nth-child(1) > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'toolbar',
+        rect: [20, 20, 600, 40],
+        style: { display: 'flex', 'background-color': 'rgb(0, 0, 0)' },
+      },
+      'body > main:nth-child(1) > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'filter',
+        rect: [30, 30, 80, 20],
+        style: { color: 'rgb(255, 255, 255)' },
+      },
+      'body > main:nth-child(1) > div:nth-child(2)': {
+        tag: 'div',
+        cls: 'grid',
+        rect: [20, 80, 600, 240],
+        style: { display: 'grid' },
+      },
+      'body > main:nth-child(1) > div:nth-child(2) > article:nth-child(1)': {
+        tag: 'article',
+        cls: 'card',
+        rect: [20, 80, 280, 200],
+        style: { 'background-color': 'rgb(8, 18, 32)' },
+      },
+      'body > main:nth-child(1) > div:nth-child(2) > article:nth-child(1) > span:nth-child(1)': {
+        tag: 'span',
+        cls: 'title',
+        rect: [30, 90, 120, 20],
+        style: { color: 'rgb(255, 255, 255)' },
+      },
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', cls: '', rect: [0, 0, 640, 460], style: {} },
+      'body > main:nth-child(1)': { tag: 'main', cls: 'page', rect: [0, 0, 640, 460], style: {} },
+      'body > main:nth-child(1) > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'switch',
+        rect: [420, 20, 200, 40],
+        style: { display: 'flex', 'background-color': 'rgb(30, 10, 40)' },
+      },
+      'body > main:nth-child(1) > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'scope',
+        rect: [430, 30, 80, 20],
+        style: { color: 'rgb(255, 0, 200)' },
+      },
+      'body > main:nth-child(1) > div:nth-child(2)': {
+        tag: 'div',
+        cls: 'toolbar',
+        rect: [20, 80, 600, 40],
+        style: { display: 'flex', 'background-color': 'rgb(0, 0, 0)' },
+      },
+      'body > main:nth-child(1) > div:nth-child(2) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'filter',
+        rect: [30, 90, 80, 20],
+        style: { color: 'rgb(255, 255, 255)' },
+      },
+      'body > main:nth-child(1) > div:nth-child(3)': {
+        tag: 'div',
+        cls: 'grid',
+        rect: [20, 140, 600, 240],
+        style: { display: 'grid' },
+      },
+      'body > main:nth-child(1) > div:nth-child(3) > article:nth-child(1)': {
+        tag: 'article',
+        cls: 'card',
+        rect: [20, 140, 280, 200],
+        style: { 'background-color': 'rgb(8, 18, 32)' },
+      },
+      'body > main:nth-child(1) > div:nth-child(3) > article:nth-child(1) > span:nth-child(1)': {
+        tag: 'span',
+        cls: 'title',
+        rect: [30, 150, 120, 20],
+        style: { color: 'rgb(255, 255, 255)' },
+      },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@640',
+    before,
+    after,
+    beforePng: solidPng(640, 400),
+    afterPng: solidPng(640, 460),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
+  const annotated = PNG.sync.read(fs.readFileSync(path.join(outDir, annotatedPath)));
+  const dividerWidth = 12;
+  const halfWidth = (annotated.width - dividerWidth) / 2;
+  let beforeHighlights = 0;
+  let afterHighlights = 0;
+  for (let y = 0; y < annotated.height; y++) {
+    for (let x = 0; x < annotated.width; x++) {
+      const offset = (y * annotated.width + x) * 4;
+      if (annotated.data[offset] !== 255 || annotated.data[offset + 1] !== 0 || annotated.data[offset + 2] !== 200)
+        continue;
+      if (x < halfWidth) beforeHighlights++;
+      else if (x >= halfWidth + dividerWidth) afterHighlights++;
+    }
+  }
+
+  assert.equal(beforeHighlights, 0, 'unchanged elements displaced to new paths are not boxed as removals');
+  assert.ok(afterHighlights > 0, 'the genuinely inserted control remains highlighted');
+  assert.ok(report.counts.dom > 0, 'structural findings remain in the certification report');
+  rmTmp(root);
+});
+
 test('end-to-end: a highlight outside the crop does not publish the clean image twice', () => {
   const map = (color) =>
     makeMap({
