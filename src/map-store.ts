@@ -190,7 +190,27 @@ export function expectedCompatibilityKey(options: { cwd?: string; spec?: string;
 }
 
 export function currentGitSha(cwd = process.cwd(), env: NodeJS.ProcessEnv = process.env): string {
-  const fromEnv = env.GITHUB_SHA || env.GITHUB_HEAD_SHA;
+  const fromEvent = (() => {
+    if (
+      !env.GITHUB_EVENT_PATH ||
+      !['pull_request', 'pull_request_target', 'workflow_run'].includes(env.GITHUB_EVENT_NAME ?? '')
+    ) {
+      return undefined;
+    }
+    try {
+      const event = JSON.parse(fs.readFileSync(env.GITHUB_EVENT_PATH, 'utf8')) as {
+        pull_request?: { head?: { sha?: string } };
+        workflow_run?: { head_sha?: string };
+      };
+      return event.pull_request?.head?.sha ?? event.workflow_run?.head_sha;
+    } catch {
+      return undefined;
+    }
+  })();
+  // STYLEPROOF_SHA/GITHUB_HEAD_SHA are explicit overrides. On a pull_request
+  // run, GITHUB_SHA is the synthetic merge commit, so consult the trusted event
+  // payload before falling back to it.
+  const fromEnv = env.STYLEPROOF_SHA || env.GITHUB_HEAD_SHA || fromEvent || env.GITHUB_SHA;
   if (fromEnv && /^[0-9a-f]{7,40}$/i.test(fromEnv)) return fromEnv;
   const sha = gitOutput(cwd, ['rev-parse', 'HEAD']);
   if (!sha) throw new MapStoreError('must run inside a git repository, or pass --sha <commit>');

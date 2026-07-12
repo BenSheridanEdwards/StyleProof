@@ -181,7 +181,9 @@ runs:
         # different folders, so a rejected push just means another job advanced
         # the branch — start over from its new tip. No rebase, so no
         # unrelated-histories trap on a first-run race.
-        REPORT_MSG="StyleProof report ${REPORT_PATH} @ ${{ github.sha }}"
+        REPORT_SHA='${{ steps.context.outputs.head-sha }}'
+        [ -n "$REPORT_SHA" ] || REPORT_SHA='${{ github.sha }}'
+        REPORT_MSG="StyleProof report ${REPORT_PATH} @ ${REPORT_SHA}"
         ok=
         for i in 1 2 3 4 5; do
           TMP="$(mktemp -d)"
@@ -205,14 +207,21 @@ runs:
 
           git -C "$TMP" add -A
           git -C "$TMP" commit -q -m "$REPORT_MSG" || true
-          if git -C "$TMP" push -q origin "HEAD:$BRANCH"; then ok=1; rm -rf "$TMP"; break; fi
+          if git -C "$TMP" push -q origin "HEAD:$BRANCH"; then
+            REPORT_COMMIT="$(git -C "$TMP" rev-parse HEAD)"
+            echo "sha=$REPORT_COMMIT" >> "$GITHUB_OUTPUT"
+            ok=1
+            rm -rf "$TMP"
+            break
+          fi
           rm -rf "$TMP"
           sleep $((i * 2))
         done
         [ -n "$ok" ] || { echo "could not push report branch after retries" >&2; exit 1; }
 
-        echo "url=https://github.com/${REPO}/blob/${BRANCH}/${REPORT_PATH}/report.md" >> "$GITHUB_OUTPUT"
-        echo "raw-base=https://raw.githubusercontent.com/${REPO}/${BRANCH}/${REPORT_PATH}" >> "$GITHUB_OUTPUT"
+        [ -n "${REPORT_COMMIT:-}" ] || { echo "report branch push did not return a commit" >&2; exit 1; }
+        echo "url=https://github.com/${REPO}/blob/${REPORT_COMMIT}/${REPORT_PATH}/report.md" >> "$GITHUB_OUTPUT"
+        echo "raw-base=https://raw.githubusercontent.com/${REPO}/${REPORT_COMMIT}/${REPORT_PATH}" >> "$GITHUB_OUTPUT"
 
     - name: Upsert PR comment
       if: steps.context.outputs.pr-number != ''
@@ -264,17 +273,17 @@ runs:
           // status), so the comment matches the green status without re-running approval.
           const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
           const box = requireApproval && changed ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`] : [];
-          const footer = requireApproval
-            ? [
-                '---',
-                !changed
-                  ? `_No visual changes detected — the **${statusContext}** check is green._`
-                  : approved
-                    ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
-                    : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`,
-                `<!-- styleproof-sha:${headSha} -->`,
-              ]
-            : ['---', '_To accept: rebuild the map with `styleproof-map`, then rerun the report._'];
+          const footer = [
+            '---',
+            requireApproval
+              ? !changed
+                ? `_No visual changes detected — the **${statusContext}** check is green._`
+                : approved
+                  ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
+                  : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
+              : '_To accept: rebuild the map with `styleproof-map`, then rerun the report._',
+            ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
+          ];
 
           const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
           await upsert(body);
