@@ -9,16 +9,27 @@
 - Chosen annotation-only reconciliation so certification findings remain exhaustive.
 - Restricted reconciliation to unambiguous one-to-one moves so duplicate siblings
   keep truthful addition, removal, and restyle annotations.
+- Included forced-state values in movement identity so genuine state changes stay
+  annotated while unchanged stateful movement remains path churn.
+- Rejected ambiguous cross-path swaps when same-shell elements occupy both
+  endpoints, and normalized owner pseudo-element state targets relative to their
+  moving element.
 
 ## Findings
 
 - An inserted unkeyed sibling can renumber unchanged descendants.
 - The clean composite remains truthful, but the annotated twin boxes path churn as if every element visibly changed.
 - Exact-equivalent entries can be reconciled across paths for annotation without changing the diff gate.
+- Visually identical duplicates have no provable physical provenance; matching
+  guarantees deterministic unmatched cardinality, not a guessed physical origin.
+- A duplicate restyle swap is observationally ambiguous, so both sides retain
+  annotation proof instead of being suppressed as a possible move.
 
 ## Verification Status
 
-- Verification is recorded in the pull request for the final branch.
+- Follow-up verification passed on `agent/fix-styleproof-annotation-duplicates`:
+  424 unit tests, 109 browser tests, all static gates, demo freshness, package
+  dry-run, and high-severity audit (0 vulnerabilities).
 
 ---
 

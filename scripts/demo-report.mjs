@@ -41,6 +41,7 @@ const HERO = [37, 99, 235];
 const TOOLBAR = [55, 65, 81];
 const SWITCH = [88, 28, 135];
 const GRID = [229, 231, 235];
+const DUPLICATE_CONTROL = [37, 99, 235];
 
 function newPng(w, h, [r, g, b]) {
   const png = new PNG({ width: w, height: h });
@@ -174,6 +175,32 @@ function insertionMap(tone) {
   return makeMap(elements);
 }
 
+function duplicateInsertionScreenshot(tone) {
+  const png = newPng(W, H, PAGE);
+  fill(png, 0, 0, W, 64, HEADER);
+  const count = tone === 'base' ? 1 : 2;
+  for (let index = 0; index < count; index++) fill(png, 80, 120 + index * 80, 220, 44, DUPLICATE_CONTROL);
+  return PNG.sync.write(png);
+}
+
+function duplicateInsertionMap(tone) {
+  const count = tone === 'base' ? 1 : 2;
+  return makeMap({
+    body: { tag: 'body', cls: '', rect: [0, 0, W, H], style: { 'background-color': rgb(PAGE) } },
+    ...Object.fromEntries(
+      Array.from({ length: count }, (_, index) => [
+        `body > button:nth-child(${index + 1})`,
+        {
+          tag: 'button',
+          cls: 'duplicate-control',
+          rect: [80, 120 + index * 80, 220, 44],
+          style: { 'background-color': rgb(DUPLICATE_CONTROL) },
+        },
+      ]),
+    ),
+  });
+}
+
 // Minimal StyleMap builder (mirrors test/helpers.mjs makeMap) so this script has
 // no test-only dependency.
 function makeMap(elements) {
@@ -199,6 +226,18 @@ function render(outDir) {
   writeCapture(afterDir, 'home@900', homeMap('head'), homeScreenshot('head'));
   writeCapture(beforeDir, 'sibling-insertion@900', insertionMap('base'), insertionScreenshot('base'));
   writeCapture(afterDir, 'sibling-insertion@900', insertionMap('head'), insertionScreenshot('head'));
+  writeCapture(
+    beforeDir,
+    'duplicate-insertion@900',
+    duplicateInsertionMap('base'),
+    duplicateInsertionScreenshot('base'),
+  );
+  writeCapture(
+    afterDir,
+    'duplicate-insertion@900',
+    duplicateInsertionMap('head'),
+    duplicateInsertionScreenshot('head'),
+  );
   // pricing exists only on the head → reported as a new surface.
   writeCapture(afterDir, 'pricing@900', pricingMap(), pricingScreenshot());
 

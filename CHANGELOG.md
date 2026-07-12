@@ -21,6 +21,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and published report links point to the immutable report commit.
 - **Certify-mode report comments now carry their source head marker**, so stale
   comments can be distinguished from the current PR head.
+- **Annotation reconciliation preserves duplicate additions, removals, and
+  forced-state changes.** Matching is one-to-one within a structural
+  neighborhood, and indistinguishable duplicate provenance is reported as a
+  deterministic unmatched occurrence rather than guessed. Ambiguous duplicate
+  restyle swaps retain visual proof on both sides.
 
 ## [4.0.2] - 2026-07-11
 

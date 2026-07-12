@@ -217,11 +217,15 @@ summary, and the exact property change folded under a toggle. A change too small
 to see at 1:1 (say a 2px icon tweak) also gets a magnified zoom crop, so a
 sub-pixel change can't slip past a reviewer.
 
-Annotation boxes reconcile exact-equivalent elements that moved to a different
-structural path. When an unkeyed sibling insertion shifts unchanged descendants,
-the clean comparison still shows the complete rendered result and the audit keeps
-every structural finding, but magenta boxes mark only unmatched additions,
-removals, and restyles instead of painting the displaced subtree as changed.
+Annotation boxes reconcile exact-equivalent elements one-to-one within a structural
+neighborhood. When an unkeyed sibling insertion shifts unchanged descendants, the
+clean comparison still shows the complete rendered result and the audit keeps every
+structural finding, but magenta boxes mark only unmatched additions, removals, and
+restyles instead of painting the displaced subtree as changed. Visually identical
+duplicates have no provable physical provenance, so the report marks a deterministic
+unmatched occurrence rather than claiming which duplicate moved. When duplicate
+restyles could also be explained as a swap, the report keeps both sides annotated
+because the captured data cannot prove a move.
 
 When one change appears both on an ordinary page and in an open popup, the report
 chooses a representative where the changed element is visibly exposed, then prefers
