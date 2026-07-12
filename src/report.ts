@@ -206,20 +206,30 @@ function indexAnnotationIdentities(map: StyleMap): Map<string, string[]> {
 function hasEquivalentEntryAtAnotherPath(
   elementPath: string,
   entry: ElementEntry | undefined,
+  samePathsByIdentity: Map<string, string[]>,
   otherPathsByIdentity: Map<string, string[]>,
 ): boolean {
-  return (
-    !!entry &&
-    (otherPathsByIdentity.get(annotationIdentity(entry)) ?? []).some((candidatePath) => candidatePath !== elementPath)
-  );
+  if (!entry) return false;
+  const identity = annotationIdentity(entry);
+  const samePaths = samePathsByIdentity.get(identity) ?? [];
+  const otherPaths = otherPathsByIdentity.get(identity) ?? [];
+  // Reconcile only an unambiguous one-to-one move. If an identity is duplicated
+  // on either side, an arbitrary cross-path match can hide a real restyle or an
+  // inserted/removed sibling from the annotated proof.
+  return samePaths.length === 1 && otherPaths.length === 1 && otherPaths[0] !== elementPath;
 }
 
 function annotationSides(
   finding: Finding,
   beforeMoved: boolean,
   afterMoved: boolean,
+  reconcileMoved: boolean,
 ): { before: boolean; after: boolean } {
-  if (finding.kind !== 'dom') return { before: !beforeMoved, after: !afterMoved };
+  // A style/state finding already proves that the element at this path changed.
+  // Only reconcile it when the same surface also has structural churn; without a
+  // DOM finding, cross-path identity matching can erase a real style swap.
+  if (finding.kind !== 'dom')
+    return reconcileMoved ? { before: !beforeMoved, after: !afterMoved } : { before: true, after: true };
   if (finding.change === 'removed') return { before: !beforeMoved, after: false };
   if (finding.change === 'added') return { before: false, after: !afterMoved };
   return { before: true, after: true };
@@ -232,15 +242,26 @@ function annotationPaths(
 ): { before: string[]; after: string[] } {
   const beforePathsByIdentity = indexAnnotationIdentities(beforeMap);
   const afterPathsByIdentity = indexAnnotationIdentities(afterMap);
+  const reconcileMoved = findings.some((finding) => finding.kind === 'dom');
   const beforePaths = new Set<string>();
   const afterPaths = new Set<string>();
 
   for (const finding of findings) {
     const beforeEntry = beforeMap.elements[finding.path];
     const afterEntry = afterMap.elements[finding.path];
-    const beforeMoved = hasEquivalentEntryAtAnotherPath(finding.path, beforeEntry, afterPathsByIdentity);
-    const afterMoved = hasEquivalentEntryAtAnotherPath(finding.path, afterEntry, beforePathsByIdentity);
-    const sides = annotationSides(finding, beforeMoved, afterMoved);
+    const beforeMoved = hasEquivalentEntryAtAnotherPath(
+      finding.path,
+      beforeEntry,
+      beforePathsByIdentity,
+      afterPathsByIdentity,
+    );
+    const afterMoved = hasEquivalentEntryAtAnotherPath(
+      finding.path,
+      afterEntry,
+      afterPathsByIdentity,
+      beforePathsByIdentity,
+    );
+    const sides = annotationSides(finding, beforeMoved, afterMoved, reconcileMoved);
     if (sides.before) beforePaths.add(finding.path);
     if (sides.after) afterPaths.add(finding.path);
   }
