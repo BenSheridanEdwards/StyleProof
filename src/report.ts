@@ -175,6 +175,82 @@ function innermost(paths: string[]): string[] {
   return paths.filter((p) => !paths.some((q) => q !== p && q.startsWith(p + ' > ')));
 }
 
+function annotationIdentity(entry: ElementEntry): string {
+  const sortedPseudo = Object.fromEntries(
+    Object.entries(entry.pseudo ?? {})
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([pseudo, properties]) => [
+        pseudo,
+        Object.entries(properties).sort(([left], [right]) => left.localeCompare(right)),
+      ]),
+  );
+  return JSON.stringify([
+    entry.tag,
+    entry.cls,
+    entry.rect?.[2] ?? null,
+    entry.rect?.[3] ?? null,
+    Object.entries(entry.style).sort(([left], [right]) => left.localeCompare(right)),
+    sortedPseudo,
+  ]);
+}
+
+function indexAnnotationIdentities(map: StyleMap): Map<string, string[]> {
+  const pathsByIdentity = new Map<string, string[]>();
+  for (const [elementPath, entry] of Object.entries(map.elements)) {
+    const identity = annotationIdentity(entry);
+    pathsByIdentity.set(identity, [...(pathsByIdentity.get(identity) ?? []), elementPath]);
+  }
+  return pathsByIdentity;
+}
+
+function hasEquivalentEntryAtAnotherPath(
+  elementPath: string,
+  entry: ElementEntry | undefined,
+  otherPathsByIdentity: Map<string, string[]>,
+): boolean {
+  return (
+    !!entry &&
+    (otherPathsByIdentity.get(annotationIdentity(entry)) ?? []).some((candidatePath) => candidatePath !== elementPath)
+  );
+}
+
+function annotationPaths(
+  findings: Finding[],
+  beforeMap: StyleMap,
+  afterMap: StyleMap,
+): { before: string[]; after: string[] } {
+  const beforePathsByIdentity = indexAnnotationIdentities(beforeMap);
+  const afterPathsByIdentity = indexAnnotationIdentities(afterMap);
+  const beforePaths = new Set<string>();
+  const afterPaths = new Set<string>();
+
+  for (const finding of findings) {
+    const beforeEntry = beforeMap.elements[finding.path];
+    const afterEntry = afterMap.elements[finding.path];
+    const beforeMoved = hasEquivalentEntryAtAnotherPath(finding.path, beforeEntry, afterPathsByIdentity);
+    const afterMoved = hasEquivalentEntryAtAnotherPath(finding.path, afterEntry, beforePathsByIdentity);
+
+    if (finding.kind === 'dom' && finding.change === 'removed') {
+      if (!beforeMoved) beforePaths.add(finding.path);
+      continue;
+    }
+    if (finding.kind === 'dom' && finding.change === 'added') {
+      if (!afterMoved) afterPaths.add(finding.path);
+      continue;
+    }
+    if (finding.kind === 'dom') {
+      beforePaths.add(finding.path);
+      afterPaths.add(finding.path);
+      continue;
+    }
+
+    if (!beforeMoved) beforePaths.add(finding.path);
+    if (!afterMoved) afterPaths.add(finding.path);
+  }
+
+  return { before: innermost([...beforePaths]), after: innermost([...afterPaths]) };
+}
+
 /** Headline counts with the zeros dropped — `0 state-delta difference(s)` is noise. */
 function changeCountLabel(shown: DiffCounts): string {
   const parts: string[] = [];
@@ -1116,9 +1192,9 @@ function buildRegionImages(args: {
   // cards) on each side — not the merged container the crop anchors on, whose box would
   // just trace the whole frame. An element present on only one side (added/removed) is
   // boxed only there.
-  const markPaths = innermost([...new Set(regionFindings.map((f) => f.path))]);
-  const rectsA = markPaths.map((p) => mapA.elements[p]?.rect).filter((r): r is Rect => !!r);
-  const rectsB = markPaths.map((p) => mapB.elements[p]?.rect).filter((r): r is Rect => !!r);
+  const markedPaths = annotationPaths(regionFindings, mapA, mapB);
+  const rectsA = markedPaths.before.map((p) => mapA.elements[p]?.rect).filter((r): r is Rect => !!r);
+  const rectsB = markedPaths.after.map((p) => mapB.elements[p]?.rect).filter((r): r is Rect => !!r);
   const annotatedBefore = annotateCrop(before, rectsA);
   const annotatedAfter = annotateCrop(after, rectsB);
   const images: { composite?: string; annotated?: string; zoom?: string } = {
@@ -1134,8 +1210,10 @@ function buildRegionImages(args: {
   // anything (e.g. `changed: span.caret`).
   const changedNames = [
     ...new Set(
-      markPaths
-        .map((p) => mapA.elements[p] ?? mapB.elements[p])
+      [
+        ...markedPaths.before.map((elementPath) => mapA.elements[elementPath]),
+        ...markedPaths.after.map((elementPath) => mapB.elements[elementPath]),
+      ]
         .filter((e): e is ElementEntry => !!e)
         .map((e) => (e.cls ? `${e.tag}.${e.cls.split(/\s+/)[0]}` : e.tag)),
     ),

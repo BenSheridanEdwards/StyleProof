@@ -2,7 +2,7 @@
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.
 
-**2 computed-style difference(s)** across 1 distinct change(s) in 1 existing surface(s).
+**4 DOM change(s) · 7 computed-style difference(s)** across 2 distinct change(s) in 2 existing surface(s).
 
 ## 🆕 New pages, states, or surfaces — review first
 
@@ -73,5 +73,69 @@ Style:
 | Property | Before | After |
 | --- | --- | --- |
 | `background-color` | `#2563eb` | `#dc2626` |
+
+</details>
+
+### `div.toolbar` + 2 more · 3 elements added, 1 element removed, 2 elements restyled
+
+_sibling-insertion @ 900_
+
+![before ◀ │ ▶ after](crops/sibling-insertion-900-4-composite.png)
+
+<sub>◀ before  ·  after ▶ — sibling-insertion @ 900</sub>
+
+![highlighted before ◀ │ ▶ after](crops/sibling-insertion-900-4-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `div.scope-switch`</sub>
+
+- **1** element removed
+- **3** elements added
+- **`div.toolbar`** — background dark green (`#374151`) → dark indigo (`#581c87`)
+- **`div.grid`** — background white (`#e5e7eb`) → dark green (`#374151`)
+
+<details>
+<summary>Show all 5 property changes</summary>
+
+**`div.toolbar`**
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `background-color` | `#374151` | `#581c87` |
+
+**`div.grid`**
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `background-color` | `#e5e7eb` | `#374151` |
+
+**Removed** `article.card`
+
+**Added** `button.filter`
+
+Style:
+
+| Property | Value |
+| --- | --- |
+| `color` | `#ffffff` |
+
+**Added** `div.grid`
+
+Style:
+
+| Property | Value |
+| --- | --- |
+| `background-color` | `#e5e7eb` |
+
+**Added** `article.card`
+
+Style:
+
+| Property | Value |
+| --- | --- |
+| `background-color` | `#ffffff` |
 
 </details>
