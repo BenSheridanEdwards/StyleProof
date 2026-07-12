@@ -45,6 +45,23 @@ test('composite action publishes every generated report crop', () => {
   assert.doesNotMatch(publishStep[0], /\*-composite\.png.*\*-annotated\.png.*\*-new\.png/);
 });
 
+test('composite action binds report commits and links to the exact report revision', () => {
+  const publishStep = actionYml.match(/- id: publish[\s\S]*?(?=\n\s{4}- name: Upsert PR comment)/);
+
+  assert.ok(publishStep, 'action.yml should include a report publish step');
+  assert.match(publishStep[0], /REPORT_SHA='\$\{\{ steps\.context\.outputs\.head-sha \}\}'/);
+  assert.match(publishStep[0], /REPORT_MSG="StyleProof report \$\{REPORT_PATH\} @ \$\{REPORT_SHA\}"/);
+  assert.match(publishStep[0], /REPORT_COMMIT="\$\(git -C "\$TMP" rev-parse HEAD\)"/);
+  assert.match(publishStep[0], /blob\/\$\{REPORT_COMMIT\}\/\$\{REPORT_PATH\}\/report\.md/);
+});
+
+test('composite action marks certify-mode comments with their source head SHA', () => {
+  const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+
+  assert.ok(commentStep, 'action.yml should include a PR comment step');
+  assert.match(commentStep[0], /\.\.\.\(headSha \? \[`<!-- styleproof-sha:\$\{headSha\} -->`\] : \[\]\)/);
+});
+
 test('dogfood workflow runs the local composite action against clean, changed, new-surface, and removal maps', () => {
   assert.match(dogfoodYml, /uses: \.\/\n/g);
   assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 4);

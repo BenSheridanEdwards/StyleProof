@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import {
   assertCompatibleMapDirs,
   BROWSER_BUILD_SIDECAR,
+  currentGitSha,
   manifestlessError,
   manifestlessSide,
   MAP_MANIFEST,
@@ -16,6 +17,35 @@ import {
   writeMapManifest,
 } from '../dist/map-store.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+
+test('currentGitSha binds pull-request captures to the real head, not the merge commit', () => {
+  const dir = mkTmp('styleproof-event-');
+  const headSha = 'b'.repeat(40);
+  try {
+    const eventPath = path.join(dir, 'event.json');
+    fs.writeFileSync(eventPath, JSON.stringify({ pull_request: { head: { sha: headSha } } }));
+    assert.equal(
+      currentGitSha(dir, {
+        GITHUB_EVENT_NAME: 'pull_request',
+        GITHUB_EVENT_PATH: eventPath,
+        GITHUB_SHA: 'a'.repeat(40),
+      }),
+      headSha,
+    );
+    assert.equal(
+      currentGitSha(dir, {
+        GITHUB_EVENT_NAME: 'pull_request',
+        GITHUB_EVENT_PATH: eventPath,
+        GITHUB_SHA: 'a'.repeat(40),
+        STYLEPROOF_SHA: 'c'.repeat(40),
+      }),
+      'c'.repeat(40),
+      'an explicit StyleProof override wins over GitHub event metadata',
+    );
+  } finally {
+    rmTmp(dir);
+  }
+});
 
 /** Write a manifest into `dir`, overriding defaults with `overrides`. */
 function manifestDir(overrides = {}) {

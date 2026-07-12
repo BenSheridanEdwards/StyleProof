@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Pull-request captures and reports now stay bound to the real head commit.**
+  GitHub's synthetic merge SHA no longer becomes the map or report provenance,
+  and published report links point to the immutable report commit.
+- **Certify-mode report comments now carry their source head marker**, so stale
+  comments can be distinguished from the current PR head.
+
 ## [4.0.2] - 2026-07-11
 
 ### Fixed
