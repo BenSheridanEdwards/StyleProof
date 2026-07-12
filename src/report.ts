@@ -214,6 +214,17 @@ function hasEquivalentEntryAtAnotherPath(
   );
 }
 
+function annotationSides(
+  finding: Finding,
+  beforeMoved: boolean,
+  afterMoved: boolean,
+): { before: boolean; after: boolean } {
+  if (finding.kind !== 'dom') return { before: !beforeMoved, after: !afterMoved };
+  if (finding.change === 'removed') return { before: !beforeMoved, after: false };
+  if (finding.change === 'added') return { before: false, after: !afterMoved };
+  return { before: true, after: true };
+}
+
 function annotationPaths(
   findings: Finding[],
   beforeMap: StyleMap,
@@ -229,23 +240,9 @@ function annotationPaths(
     const afterEntry = afterMap.elements[finding.path];
     const beforeMoved = hasEquivalentEntryAtAnotherPath(finding.path, beforeEntry, afterPathsByIdentity);
     const afterMoved = hasEquivalentEntryAtAnotherPath(finding.path, afterEntry, beforePathsByIdentity);
-
-    if (finding.kind === 'dom' && finding.change === 'removed') {
-      if (!beforeMoved) beforePaths.add(finding.path);
-      continue;
-    }
-    if (finding.kind === 'dom' && finding.change === 'added') {
-      if (!afterMoved) afterPaths.add(finding.path);
-      continue;
-    }
-    if (finding.kind === 'dom') {
-      beforePaths.add(finding.path);
-      afterPaths.add(finding.path);
-      continue;
-    }
-
-    if (!beforeMoved) beforePaths.add(finding.path);
-    if (!afterMoved) afterPaths.add(finding.path);
+    const sides = annotationSides(finding, beforeMoved, afterMoved);
+    if (sides.before) beforePaths.add(finding.path);
+    if (sides.after) afterPaths.add(finding.path);
   }
 
   return { before: innermost([...beforePaths]), after: innermost([...afterPaths]) };
