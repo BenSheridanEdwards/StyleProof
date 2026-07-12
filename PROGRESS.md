@@ -1,12 +1,14 @@
 # Progress
 
-## Active Task: truthful annotations after structural path churn
+## Completed: truthful annotations after structural path churn
 
 ## Completed
 
 - Confirmed the issue on a clean `origin/main` checkout at StyleProof 4.0.2.
 - Traced misleading annotation boxes to positional `:nth-child()` path churn.
 - Chosen annotation-only reconciliation so certification findings remain exhaustive.
+- Restricted reconciliation to unambiguous one-to-one moves so duplicate siblings
+  keep truthful addition, removal, and restyle annotations.
 
 ## Findings
 
@@ -14,20 +16,9 @@
 - The clean composite remains truthful, but the annotated twin boxes path churn as if every element visibly changed.
 - Exact-equivalent entries can be reconciled across paths for annotation without changing the diff gate.
 
-## Next Action
-
-- Commit, push, and open the ready pull request.
-
-## Blockers
-
-- None.
-
 ## Verification Status
 
-- Build, typecheck, lint, format check, privacy check, and demo freshness pass.
-- Unit suite passes: 416 tests.
-- Browser suite passes: 109 tests.
-- Package dry-run succeeds with 62 files.
+- Verification is recorded in the pull request for the final branch.
 
 ---
 

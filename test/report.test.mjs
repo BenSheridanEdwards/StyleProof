@@ -1380,6 +1380,110 @@ test('end-to-end: sibling insertion highlights the real addition, not path-shift
   rmTmp(root);
 });
 
+test('end-to-end: duplicate siblings that swap styles keep both annotation sides', () => {
+  const item = (index, color) => ({
+    tag: 'li',
+    cls: 'item',
+    rect: [20, 20 + index * 40, 200, 30],
+    style: { color },
+  });
+  const map = (first, second) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 400, 160], style: {} },
+        'body > ul:nth-child(1)': { tag: 'ul', rect: [0, 0, 400, 160], style: {} },
+        'body > ul:nth-child(1) > li:nth-child(1)': item(0, first),
+        'body > ul:nth-child(1) > li:nth-child(2)': item(1, second),
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'duplicate-swap@400',
+    before: map('rgb(255, 0, 0)', 'rgb(0, 0, 255)'),
+    after: map('rgb(0, 0, 255)', 'rgb(255, 0, 0)'),
+    beforePng: solidPng(400, 160),
+    afterPng: solidPng(400, 160),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
+  assert.match(annotatedPath, /-annotated\.png$/);
+  const annotated = PNG.sync.read(fs.readFileSync(path.join(outDir, annotatedPath)));
+  const dividerWidth = 12;
+  const halfWidth = (annotated.width - dividerWidth) / 2;
+  let beforeHighlights = 0;
+  let afterHighlights = 0;
+  for (let y = 0; y < annotated.height; y++) {
+    for (let x = 0; x < annotated.width; x++) {
+      const offset = (y * annotated.width + x) * 4;
+      if (annotated.data[offset] !== 255 || annotated.data[offset + 1] !== 0 || annotated.data[offset + 2] !== 200)
+        continue;
+      if (x < halfWidth) beforeHighlights++;
+      else if (x >= halfWidth + dividerWidth) afterHighlights++;
+    }
+  }
+
+  assert.equal(report.counts.style, 2);
+  assert.ok(beforeHighlights > 0, 'a real duplicate restyle keeps its before annotation');
+  assert.ok(afterHighlights > 0, 'a real duplicate restyle keeps its after annotation');
+  rmTmp(root);
+});
+
+test('end-to-end: an inserted duplicate sibling remains annotated as an addition', () => {
+  const card = (index) => ({
+    tag: 'article',
+    cls: 'card',
+    rect: [20, 20 + index * 100, 200, 80],
+    style: { 'background-color': 'rgb(255, 255, 255)' },
+  });
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 300, 160], style: {} },
+      'body > main:nth-child(1)': { tag: 'main', rect: [0, 0, 300, 160], style: {} },
+      'body > main:nth-child(1) > article:nth-child(1)': card(0),
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 300, 260], style: {} },
+      'body > main:nth-child(1)': { tag: 'main', rect: [0, 0, 300, 260], style: {} },
+      'body > main:nth-child(1) > article:nth-child(1)': card(0),
+      'body > main:nth-child(1) > article:nth-child(2)': card(1),
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'duplicate-insertion@300',
+    before,
+    after,
+    beforePng: solidPng(300, 160),
+    afterPng: solidPng(300, 260),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
+  assert.match(annotatedPath, /-annotated\.png$/);
+  const annotated = PNG.sync.read(fs.readFileSync(path.join(outDir, annotatedPath)));
+  const dividerWidth = 12;
+  const halfWidth = (annotated.width - dividerWidth) / 2;
+  let beforeHighlights = 0;
+  let afterHighlights = 0;
+  for (let y = 0; y < annotated.height; y++) {
+    for (let x = 0; x < annotated.width; x++) {
+      const offset = (y * annotated.width + x) * 4;
+      if (annotated.data[offset] !== 255 || annotated.data[offset + 1] !== 0 || annotated.data[offset + 2] !== 200)
+        continue;
+      if (x < halfWidth) beforeHighlights++;
+      else if (x >= halfWidth + dividerWidth) afterHighlights++;
+    }
+  }
+
+  assert.equal(report.counts.dom, 1);
+  assert.ok(beforeHighlights === 0, 'the unchanged side of an addition stays unboxed');
+  assert.ok(afterHighlights > 0, 'the inserted duplicate remains highlighted');
+  rmTmp(root);
+});
+
 test('end-to-end: a highlight outside the crop does not publish the clean image twice', () => {
   const map = (color) =>
     makeMap({
