@@ -644,6 +644,64 @@ function pushMapStoreCommit(
   };
 }
 
+function removeTemporaryMapStoreCheckout(temporaryCheckout: string | undefined): void {
+  if (temporaryCheckout) fs.rmSync(temporaryCheckout, { recursive: true, force: true });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function publishMapStoreAttempt(options: {
+  cwd: string;
+  remote: string;
+  branch: string;
+  sha: string;
+  compatibilityKey: string;
+  target: string;
+  dir: string;
+  includeHar: boolean;
+  manifest: MapManifest;
+  authenticationArguments: string[];
+}): { ok: boolean; phase: 'setup' | 'publish'; error: string } {
+  let temporaryCheckout: string | undefined;
+  try {
+    temporaryCheckout = checkoutMapStore(options.cwd, options.remote, options.branch, options.sha);
+    runGit(temporaryCheckout, ['config', 'user.name', 'github-actions[bot]']);
+    runGit(temporaryCheckout, ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+    fs.writeFileSync(
+      path.join(temporaryCheckout, 'README.md'),
+      '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n',
+    );
+    fs.rmSync(path.join(temporaryCheckout, options.target), { recursive: true, force: true });
+    copyDir(options.dir, path.join(temporaryCheckout, options.target), options.includeHar);
+    if (!options.includeHar) {
+      fs.writeFileSync(
+        path.join(temporaryCheckout, options.target, MAP_MANIFEST),
+        JSON.stringify({ ...options.manifest, har: false }, null, 2),
+      );
+    }
+    runGit(temporaryCheckout, ['add', '-A', '--sparse', '--', 'README.md', options.target]);
+    runGit(
+      temporaryCheckout,
+      ['commit', '-q', '-m', `StyleProof map ${options.sha.slice(0, 12)} ${options.compatibilityKey}`],
+      1 << 20,
+    );
+    const push = pushMapStoreCommit(
+      options.cwd,
+      temporaryCheckout,
+      options.remote,
+      options.branch,
+      options.authenticationArguments,
+    );
+    return { ok: push.status === 0, phase: 'publish', error: push.stderr.trim() || `git exited ${push.status}` };
+  } catch (error) {
+    return { ok: false, phase: 'setup', error: errorMessage(error) };
+  } finally {
+    removeTemporaryMapStoreCheckout(temporaryCheckout);
+  }
+}
+
 export function publishMapBundle(options: {
   dir: string;
   branch?: string;
@@ -673,33 +731,26 @@ export function publishMapBundle(options: {
 
   let ok = false;
   let lastError = '';
+  const attemptFailures: string[] = [];
   for (let attempt = 1; attempt <= 5; attempt++) {
-    const tmp = checkoutMapStore(cwd, remote, branch, sha);
-    try {
-      runGit(tmp, ['config', 'user.name', 'github-actions[bot]']);
-      runGit(tmp, ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
-
-      fs.writeFileSync(
-        path.join(tmp, 'README.md'),
-        '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n',
-      );
-      fs.rmSync(path.join(tmp, target), { recursive: true, force: true });
-      copyDir(options.dir, path.join(tmp, target), options.includeHar === true);
-      if (!options.includeHar) {
-        fs.writeFileSync(path.join(tmp, target, MAP_MANIFEST), JSON.stringify({ ...manifest, har: false }, null, 2));
-      }
-
-      runGit(tmp, ['add', '-A', '--sparse', '--', 'README.md', target]);
-      runGit(tmp, ['commit', '-q', '-m', `StyleProof map ${sha.slice(0, 12)} ${compatibilityKey}`], 1 << 20);
-      const push = pushMapStoreCommit(cwd, tmp, remote, branch, pushAuthenticationArguments);
-      if (push.status === 0) {
-        ok = true;
-        break;
-      }
-      lastError = push.stderr.trim();
-    } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
+    const result = publishMapStoreAttempt({
+      cwd,
+      remote,
+      branch,
+      sha,
+      compatibilityKey,
+      target,
+      dir: options.dir,
+      includeHar: options.includeHar === true,
+      manifest,
+      authenticationArguments: pushAuthenticationArguments,
+    });
+    if (result.ok) {
+      ok = true;
+      break;
     }
+    attemptFailures.push(`attempt ${attempt} ${result.phase}:\n${result.error}`);
+    lastError = attemptFailures.join('\n');
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 250);
   }
   if (!ok) throw new MapStoreError(lastError || `could not push ${branch}`);

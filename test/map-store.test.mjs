@@ -226,6 +226,7 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
   const previousConsumerRepository = process.env.STYLEPROOF_TEST_CONSUMER_REPO;
   const previousMapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
   const previousRejectAllPushes = process.env.STYLEPROOF_TEST_REJECT_ALL_PUSHES;
+  const previousPushRejectedMarker = process.env.STYLEPROOF_TEST_PUSH_REJECTED_MARKER;
   const checkoutExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
   const checkoutCredentialsFile = path.join(root, 'checkout-credentials.config');
   try {
@@ -274,7 +275,7 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     const gitShim = path.join(shimDirectory, 'git');
     fs.writeFileSync(
       gitShim,
-      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\nif [ "$STYLEPROOF_TEST_REJECT_ALL_PUSHES" = 1 ]; then\n  case "$*" in\n    *"push -q origin"*) echo "deliberate push rejection: $*" >&2; exit 128 ;;\n  esac\nfi\ncase "$*" in *"extraheader=AUTHORIZATION: basic"*"push -q origin HEAD:styleproof-maps"*) echo "isolated header push rejected" >&2; exit 128 ;; esac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\nif [ "$STYLEPROOF_TEST_REJECT_ALL_PUSHES" = 1 ]; then\n  case "$*" in\n    *"clone -q"*) if [ -f "$STYLEPROOF_TEST_PUSH_REJECTED_MARKER" ]; then echo "retry clone rejected" >&2; exit 128; fi ;;\n    *"push -q origin"*) touch "$STYLEPROOF_TEST_PUSH_REJECTED_MARKER"; echo "deliberate push rejection: $*" >&2; exit 128 ;;\n  esac\nfi\ncase "$*" in *"extraheader=AUTHORIZATION: basic"*"push -q origin HEAD:styleproof-maps"*) echo "isolated header push rejected" >&2; exit 128 ;; esac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
     );
     fs.chmodSync(gitShim, 0o755);
     process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
@@ -359,12 +360,14 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     );
 
     process.env.STYLEPROOF_TEST_REJECT_ALL_PUSHES = '1';
+    process.env.STYLEPROOF_TEST_PUSH_REJECTED_MARKER = path.join(root, 'push-rejected');
     assert.throws(
       () => publishMapBundle({ dir: capture, cwd: repo }),
       (error) => {
         assert.match(error.message, /isolated map-store push: deliberate push rejection/);
         assert.match(error.message, /workflow-token credential push: deliberate push rejection/);
         assert.match(error.message, /consumer checkout push: deliberate push rejection/);
+        assert.match(error.message, /attempt 2 setup:\nretry clone rejected/);
         return true;
       },
       'a failed authenticated retry remains visible instead of being hidden by the final fallback',
@@ -382,6 +385,8 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     else process.env.STYLEPROOF_MAP_STORE_TOKEN = previousMapStoreToken;
     if (previousRejectAllPushes === undefined) delete process.env.STYLEPROOF_TEST_REJECT_ALL_PUSHES;
     else process.env.STYLEPROOF_TEST_REJECT_ALL_PUSHES = previousRejectAllPushes;
+    if (previousPushRejectedMarker === undefined) delete process.env.STYLEPROOF_TEST_PUSH_REJECTED_MARKER;
+    else process.env.STYLEPROOF_TEST_PUSH_REJECTED_MARKER = previousPushRejectedMarker;
     rmTmp(root);
   }
 });
