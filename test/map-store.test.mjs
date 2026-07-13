@@ -279,7 +279,6 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     );
     assert.match(invocations, /push -q origin HEAD:styleproof-maps/, 'the authenticated checkout publishes the map');
 
-    git(repo, 'config', '--local', '--unset-all', 'includeIf.gitdir:/github/workspace/.git.path');
     process.env.STYLEPROOF_MAP_STORE_TOKEN = 'fake-workflow-token';
     fs.writeFileSync(invocationLog, '');
     assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
@@ -288,7 +287,12 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     const workflowExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
     assert.ok(
       tokenInvocations.includes(`-c ${workflowExtraHeaderKey}=AUTHORIZATION: basic ${encodedWorkflowCredential} clone`),
-      'the explicit workflow token authenticates the isolated clone when checkout credentials are unavailable',
+      'the explicit workflow token takes precedence over checkout credentials',
+    );
+    assert.doesNotMatch(
+      tokenInvocations,
+      /fake-checkout-token/,
+      'stale checkout credentials are not reused when the workflow supplies an explicit token',
     );
   } finally {
     if (previousPath === undefined) delete process.env.PATH;

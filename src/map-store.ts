@@ -108,6 +108,16 @@ function parseGitHttpExtraHeaders(configuredHeaders: string): GitHttpExtraHeader
 }
 
 function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
+  const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
+  if (mapStoreToken) {
+    return [
+      {
+        key: ['http.https:', '', 'github.com', '.extraheader'].join('/'),
+        value: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${mapStoreToken}`).toString('base64')}`,
+      },
+    ];
+  }
+
   const configuredHeaders = runGit(cwd, ['config', '--includes', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
   const effectiveHeaders = parseGitHttpExtraHeaders(configuredHeaders.stdout);
   if (effectiveHeaders.length > 0) return effectiveHeaders;
@@ -129,14 +139,7 @@ function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
     });
   if (includedHeaders.length > 0) return includedHeaders;
 
-  const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
-  if (!mapStoreToken) return [];
-  return [
-    {
-      key: ['http.https:', '', 'github.com', '.extraheader'].join('/'),
-      value: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${mapStoreToken}`).toString('base64')}`,
-    },
-  ];
+  return [];
 }
 
 function gitOutput(cwd: string, args: string[]): string {
