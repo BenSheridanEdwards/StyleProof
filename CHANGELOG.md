@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
+  Checkout v7 keeps its HTTP header in an included temporary config rather than
+  directly in `.git/config`; StyleProof now reads the effective Git config before
+  carrying that header into its isolated clone and push.
 - **Map-store uploads now reuse the HTTP authentication persisted by
   `actions/checkout`.** The isolated `styleproof-maps` clone carries the
   checkout's URL-scoped extra header through clone and push, so cache-miss
