@@ -352,8 +352,7 @@ export function diffStyleMapDirs(
 
   const surfaces: SurfaceDiff[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
-  let volatile = 0;
-  let statesUncertified = 0;
+  const uncompared = { volatile: 0, statesUncertified: 0 };
   for (const surface of names) {
     if (!indexA[surface] || !indexB[surface]) {
       // A surface present on only one side has no baseline to diff against — it's
@@ -363,18 +362,25 @@ export function diffStyleMapDirs(
       surfaces.push({ surface, missing: indexA[surface] ? 'after' : 'before', findings: [] });
       continue;
     }
-    const mapA = loadStyleMap(indexA[surface]);
-    const mapB = loadStyleMap(indexB[surface]);
-    volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
-    // BOTH sides skipped the forced-state layer → {} vs {} compares clean while
-    // certifying nothing. The XOR case is a finding (diffStyleMaps); the both-
-    // sides case is counted here so the gate can say the layer is uncertified.
-    if (mapA.statesSkipped && mapB.statesSkipped) statesUncertified++;
-    const findings = diffStyleMaps(mapA, mapB);
+    const findings = diffSurfacePair(indexA[surface], indexB[surface], uncompared);
     tallyCounts(findings, counts);
     if (findings.length) surfaces.push({ surface, findings });
   }
-  return { surfaces, counts, volatile, statesUncertified, compared: names.length };
+  return { surfaces, counts, ...uncompared, compared: names.length };
+}
+
+/** Diff one paired surface, tallying what was NOT compared (volatile subtrees;
+ *  a forced-state layer skipped on BOTH sides — {} vs {} certifies nothing). */
+function diffSurfacePair(
+  fileA: string,
+  fileB: string,
+  uncompared: { volatile: number; statesUncertified: number },
+): Finding[] {
+  const mapA = loadStyleMap(fileA);
+  const mapB = loadStyleMap(fileB);
+  uncompared.volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
+  if (mapA.statesSkipped && mapB.statesSkipped) uncompared.statesUncertified++;
+  return diffStyleMaps(mapA, mapB);
 }
 
 /**
