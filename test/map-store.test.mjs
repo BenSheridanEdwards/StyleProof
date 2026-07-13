@@ -256,7 +256,7 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     const gitShim = path.join(shimDirectory, 'git');
     fs.writeFileSync(
       gitShim,
-      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in *"push -q origin HEAD:styleproof-maps"*) if [ "$PWD" != "$STYLEPROOF_TEST_CONSUMER_REPO" ]; then echo "isolated push rejected" >&2; exit 128; fi ;; esac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in *"extraheader=AUTHORIZATION: basic"*"push -q origin HEAD:styleproof-maps"*) echo "isolated header push rejected" >&2; exit 128 ;; *"extraheader= push -q origin HEAD:styleproof-maps"*) test -x "$GIT_ASKPASS" && test "$("$GIT_ASKPASS" Username)" = x-access-token && test "$("$GIT_ASKPASS" Password)" = "$STYLEPROOF_MAP_STORE_TOKEN" || exit 129 ;; esac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
     );
     fs.chmodSync(gitShim, 0o755);
     process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
@@ -331,8 +331,8 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     );
     assert.match(
       tokenInvocations,
-      /push -q origin [a-f0-9]{40}:styleproof-maps/,
-      'the workflow-token path also falls back through the authenticated consumer checkout',
+      /-c http\.https:\/\/github\.com\/\.extraheader= push -q origin HEAD:styleproof-maps/,
+      'the workflow-token path retries through Git askpass after clearing the rejected header',
     );
     assert.doesNotMatch(
       tokenInvocations,

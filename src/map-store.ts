@@ -578,6 +578,43 @@ function pushMapStoreCommit(
   );
   if (isolatedPush.status === 0) return isolatedPush;
 
+  const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
+  if (mapStoreToken) {
+    const askpassDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-askpass-'));
+    const askpassScript = path.join(askpassDirectory, 'askpass.sh');
+    fs.writeFileSync(
+      askpassScript,
+      '#!/bin/sh\ncase "$1" in *Username*) printf "%s\\n" x-access-token ;; *) printf "%s\\n" "$STYLEPROOF_MAP_STORE_TOKEN" ;; esac\n',
+      { mode: 0o700 },
+    );
+    try {
+      const askpassPush = spawnSync(
+        'git',
+        [
+          '-c',
+          `${['http.https:', '', 'github.com', '.extraheader'].join('/')}=`,
+          'push',
+          '-q',
+          'origin',
+          `HEAD:${branch}`,
+        ],
+        {
+          cwd: temporaryCheckout,
+          encoding: 'utf8',
+          maxBuffer: 1 << 20,
+          env: {
+            ...gitProcessEnvironment(),
+            GIT_ASKPASS: askpassScript,
+            GIT_TERMINAL_PROMPT: '0',
+          },
+        },
+      );
+      if (askpassPush.status === 0) return askpassPush;
+    } finally {
+      fs.rmSync(askpassDirectory, { recursive: true, force: true });
+    }
+  }
+
   const mapStoreCommit = gitOutput(temporaryCheckout, ['rev-parse', 'HEAD']);
   const importCommit = runGit(
     cwd,
