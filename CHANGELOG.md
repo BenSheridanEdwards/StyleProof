@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Generated cache-first CI now preserves the installed StyleProof release across
+  base checkouts.** Cold-cache capture installs the head's exact release into an
+  older base checkout and invokes the installed binary directly, preventing package
+  manager reconciliation from silently running the base's older capture logic.
+- **Generated workflows now reuse checkout authentication for map publication.**
+  The redundant map-store token environment variable is omitted; the persisted
+  checkout credential supplies the existing least-privilege `contents: write` path.
+
 ## [4.4.16] - 2026-07-13
 
 ### Fixed

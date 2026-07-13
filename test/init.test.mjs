@@ -78,14 +78,12 @@ for (const manager of [
     workflow: [
       /cache: npm/,
       /npm ci/,
-      /npx styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir "\$MAP_ROOT" --spec e2e\/styleproof\.spec\.ts/,
-      /npx playwright install --with-deps chromium/,
-      /npx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir base --base-dir "\$MAP_ROOT" --keep-har --sha "\$BASE_SHA" --upload/,
-      /npx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir "\$MAP_ROOT" --sha "\$HEAD_SHA" --upload/,
+      /npm install --no-save --package-lock=false "styleproof@\$STYLEPROOF_VERSION"/,
       /BenSheridanEdwards\/StyleProof@v4/,
       /baseline-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/base/,
       /fresh-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/head/,
     ],
+    workflowAbsent: [/npx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
     hookRestore:
       /npx styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
     hookCapture: /npx styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
@@ -97,13 +95,11 @@ for (const manager of [
     workflow: [
       /cache: yarn/,
       /npx -y yarn@1\.22\.22 install --frozen-lockfile --non-interactive/,
-      /npx -y yarn@1\.22\.22 styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir "\$MAP_ROOT" --spec e2e\/styleproof\.spec\.ts/,
-      /npx -y yarn@1\.22\.22 playwright install --with-deps chromium/,
-      /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts --dir base --base-dir "\$MAP_ROOT" --keep-har --sha "\$BASE_SHA" --upload/,
-      /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir "\$MAP_ROOT" --sha "\$HEAD_SHA" --upload/,
+      /npx -y yarn@1\.22\.22 add --dev --exact "styleproof@\$STYLEPROOF_VERSION"/,
       /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
+    workflowAbsent: [/npx -y yarn@1\.22\.22 styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
     hookRestore:
       /npx -y yarn@1\.22\.22 styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
     hookCapture: /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
@@ -116,13 +112,11 @@ for (const manager of [
       /cache: pnpm/,
       /corepack enable/,
       /pnpm install --frozen-lockfile/,
-      /pnpm exec styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir "\$MAP_ROOT" --spec e2e\/styleproof\.spec\.ts/,
-      /pnpm exec playwright install --with-deps chromium/,
-      /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts --dir base --base-dir "\$MAP_ROOT" --keep-har --sha "\$BASE_SHA" --upload/,
-      /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir "\$MAP_ROOT" --sha "\$HEAD_SHA" --upload/,
+      /pnpm add --save-dev --save-exact "styleproof@\$STYLEPROOF_VERSION"/,
       /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
+    workflowAbsent: [/pnpm exec styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
     hookRestore:
       /pnpm exec styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
     hookCapture: /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
@@ -134,13 +128,11 @@ for (const manager of [
     workflow: [
       /oven-sh\/setup-bun@v2/,
       /bun install --frozen-lockfile/,
-      /bunx styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir "\$MAP_ROOT" --spec e2e\/styleproof\.spec\.ts/,
-      /bunx playwright install --with-deps chromium/,
-      /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir base --base-dir "\$MAP_ROOT" --keep-har --sha "\$BASE_SHA" --upload/,
-      /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir "\$MAP_ROOT" --sha "\$HEAD_SHA" --upload/,
+      /bun add --dev --exact "styleproof@\$STYLEPROOF_VERSION"/,
       /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
+    workflowAbsent: [/bunx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
     hookRestore:
       /bunx styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
     hookCapture: /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
@@ -166,9 +158,26 @@ for (const manager of [
       assert.match(readFile(root, '.gitignore'), /\.styleproof\//);
 
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
-      assert.match(workflow, /STYLEPROOF_MAP_STORE_TOKEN: \$\{\{ github\.token \}\}/);
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
+      for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(workflow, pattern);
+
+      // CI always executes the installed release directly. In the cold path,
+      // the base's older dependency is upgraded before capture and the head is
+      // checked out only after that exact-release capture has completed.
+      assert.match(
+        workflow,
+        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-map\.mjs --restore --sha "\$BASE_SHA"/,
+      );
+      assert.match(workflow, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" playwright install --with-deps chromium/);
+      const exactReleaseInstallIndex = workflow.indexOf('"styleproof@$STYLEPROOF_VERSION"');
+      const baseCaptureIndex = workflow.indexOf(
+        'node node_modules/styleproof/bin/styleproof-map.mjs --spec e2e/styleproof.spec.ts --dir base',
+      );
+      const headCheckoutIndex = workflow.indexOf('git checkout --force "$HEAD_SHA"');
+      assert.ok(exactReleaseInstallIndex >= 0, 'cold capture installs the head StyleProof release');
+      assert.ok(baseCaptureIndex > exactReleaseInstallIndex, 'base capture uses that exact release');
+      assert.ok(headCheckoutIndex > baseCaptureIndex, 'base capture finishes before manifest reset');
 
       // Report branch self-prunes on PR close (out of the box) — manager-independent.
       assert.match(workflow, /types: \[opened, synchronize, reopened, closed\]/);
