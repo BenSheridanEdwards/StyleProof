@@ -96,8 +96,8 @@ interface GitHttpExtraHeader {
   value: string;
 }
 
-function localGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
-  const configuredHeaders = runGit(cwd, ['config', '--local', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
+function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
+  const configuredHeaders = runGit(cwd, ['config', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
   if (configuredHeaders.status !== 0) return [];
   return configuredHeaders.stdout
     .split('\n')
@@ -497,7 +497,7 @@ function copyDir(src: string, dest: string, includeHar: boolean): void {
 function checkoutMapStore(cwd: string, remote: string, branch: string): string {
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
   const remoteUrl = gitOutput(cwd, ['remote', 'get-url', remote]);
-  const httpExtraHeaders = localGitHttpExtraHeaders(cwd);
+  const httpExtraHeaders = effectiveGitHttpExtraHeaders(cwd);
   const authenticationArguments = httpExtraHeaders.flatMap(({ key, value }) => ['-c', `${key}=${value}`]);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-'));
   if (runGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20).status === 0) {

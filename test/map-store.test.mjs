@@ -191,7 +191,7 @@ test('publishMapBundle ignores hook-exported Git repository variables and leaves
   }
 });
 
-test('publishMapBundle reuses actions checkout HTTP authentication for the isolated clone and push', () => {
+test('publishMapBundle reuses actions checkout v7 included HTTP authentication for the isolated clone and push', () => {
   const root = mkTmp('styleproof-checkout-auth-');
   const remote = path.join(root, 'remote.git');
   const repo = path.join(root, 'consumer');
@@ -205,6 +205,7 @@ test('publishMapBundle reuses actions checkout HTTP authentication for the isola
   const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
   const previousInvocationLog = process.env.STYLEPROOF_TEST_GIT_LOG;
   const checkoutExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
+  const checkoutCredentialsFile = path.join(root, 'checkout-credentials.config');
   try {
     fs.mkdirSync(repo);
     git(root, 'init', '--bare', '-q', remote);
@@ -219,7 +220,21 @@ test('publishMapBundle reuses actions checkout HTTP authentication for the isola
     git(repo, 'init', '-q', '-b', 'main');
     git(repo, 'config', 'user.email', 'styleproof@example.test');
     git(repo, 'config', 'user.name', 'StyleProof Test');
-    git(repo, 'config', checkoutExtraHeaderKey, 'AUTHORIZATION: basic fake-checkout-token');
+    git(
+      root,
+      'config',
+      '--file',
+      checkoutCredentialsFile,
+      checkoutExtraHeaderKey,
+      'AUTHORIZATION: basic fake-checkout-token',
+    );
+    git(
+      repo,
+      'config',
+      '--local',
+      `includeIf.gitdir:${path.join(fs.realpathSync(repo), '.git')}.path`,
+      checkoutCredentialsFile,
+    );
     git(repo, 'remote', 'add', 'origin', remote);
     fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
     fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
