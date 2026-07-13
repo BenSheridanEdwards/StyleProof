@@ -96,21 +96,36 @@ interface GitHttpExtraHeader {
   value: string;
 }
 
-function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
-  const configuredHeaders = runGit(cwd, ['config', '--includes', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
-  if (configuredHeaders.status !== 0) return [];
-  return configuredHeaders.stdout
+function parseGitHttpExtraHeaders(configuredHeaders: string): GitHttpExtraHeader[] {
+  return configuredHeaders
     .split('\n')
     .filter(Boolean)
     .flatMap((configuredHeader) => {
       const separatorIndex = configuredHeader.indexOf(' ');
       if (separatorIndex === -1) return [];
-      return [
-        {
-          key: configuredHeader.slice(0, separatorIndex),
-          value: configuredHeader.slice(separatorIndex + 1),
-        },
-      ];
+      return [{ key: configuredHeader.slice(0, separatorIndex), value: configuredHeader.slice(separatorIndex + 1) }];
+    });
+}
+
+function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
+  const configuredHeaders = runGit(cwd, ['config', '--includes', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
+  const effectiveHeaders = parseGitHttpExtraHeaders(configuredHeaders.stdout);
+  if (effectiveHeaders.length > 0) return effectiveHeaders;
+
+  const registeredIncludes = runGit(cwd, ['config', '--local', '--get-regexp', '^includeIf\\..*\\.path$'], 1 << 20);
+  return registeredIncludes.stdout
+    .split('\n')
+    .filter(Boolean)
+    .flatMap((registeredInclude) => {
+      const separatorIndex = registeredInclude.indexOf(' ');
+      if (separatorIndex === -1) return [];
+      const includedConfigPath = registeredInclude.slice(separatorIndex + 1);
+      const includedHeaders = runGit(
+        cwd,
+        ['config', '--file', includedConfigPath, '--get-regexp', '^http\\..*\\.extraheader$'],
+        1 << 20,
+      );
+      return parseGitHttpExtraHeaders(includedHeaders.stdout);
     });
 }
 

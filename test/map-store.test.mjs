@@ -228,13 +228,7 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
       checkoutExtraHeaderKey,
       'AUTHORIZATION: basic fake-checkout-token',
     );
-    git(
-      repo,
-      'config',
-      '--local',
-      `includeIf.gitdir:${path.join(fs.realpathSync(repo), '.git')}.path`,
-      checkoutCredentialsFile,
-    );
+    git(repo, 'config', '--local', 'includeIf.gitdir:/github/workspace/.git.path', checkoutCredentialsFile);
     git(repo, 'remote', 'add', 'origin', remote);
     fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
     fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
@@ -270,6 +264,8 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
       /config --includes --get-regexp \^http\\\.\.\*\\\.extraheader\$/,
       'the checkout credential lookup explicitly follows conditional includes',
     );
+    assert.match(invocations, /config --local --get-regexp \^includeIf\\\..\*\\\.path\$/);
+    assert.match(invocations, /config --file .*checkout-credentials\.config --get-regexp/);
     assert.match(
       invocations,
       /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token clone/,
