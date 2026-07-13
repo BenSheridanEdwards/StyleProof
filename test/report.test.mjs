@@ -1234,6 +1234,23 @@ test('end-to-end: responsive grids (same track count, different px) collapse to 
 
 // ---------------------------------------------- annotated crops (1.8.0)
 
+function highlightPixelsBySide(filePath) {
+  const png = PNG.sync.read(fs.readFileSync(filePath));
+  const dividerWidth = 12;
+  const halfWidth = (png.width - dividerWidth) / 2;
+  let before = 0;
+  let after = 0;
+  for (let y = 0; y < png.height; y++) {
+    for (let x = 0; x < png.width; x++) {
+      const offset = (y * png.width + x) * 4;
+      if (png.data[offset] !== 255 || png.data[offset + 1] !== 0 || png.data[offset + 2] !== 200) continue;
+      if (x < halfWidth) before++;
+      else if (x >= halfWidth + dividerWidth) after++;
+    }
+  }
+  return { before, after };
+}
+
 test('end-to-end: each crop shows a clean image plus a highlighted twin by default', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
@@ -1481,6 +1498,234 @@ test('end-to-end: an inserted duplicate sibling remains annotated as an addition
   assert.equal(report.counts.dom, 1);
   assert.ok(beforeHighlights === 0, 'the unchanged side of an addition stays unboxed');
   assert.ok(afterHighlights > 0, 'the inserted duplicate remains highlighted');
+  rmTmp(root);
+});
+
+test('end-to-end: duplicate sibling removal keeps one deterministic removal highlighted', () => {
+  const button = { tag: 'button', cls: 'same', rect: [20, 20, 100, 30], style: {} };
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 640, 400], style: {} },
+      'body > button:nth-child(1)': button,
+      'body > button:nth-child(2)': { ...button, rect: [140, 20, 100, 30] },
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 640, 400], style: {} },
+      'body > button:nth-child(1)': button,
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'duplicate-removal@640',
+    before,
+    after,
+    beforePng: solidPng(640, 400),
+    afterPng: solidPng(640, 400),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
+  assert.ok(annotatedPath, 'duplicate removal keeps an annotated crop');
+  const highlights = highlightPixelsBySide(path.join(outDir, annotatedPath));
+  assert.ok(highlights.before > 0, 'one deterministic unmatched removal is highlighted before');
+  assert.equal(highlights.after, 0, 'the unchanged after side stays clean');
+  assert.equal(report.counts.dom, 1, 'the structural removal remains in the report');
+  rmTmp(root);
+});
+
+test('end-to-end: a stable-path forced-state change stays annotated', () => {
+  const element = { tag: 'button', cls: 'same', rect: [20, 20, 100, 30], style: {} };
+  const before = makeMap({
+    elements: { body: { tag: 'body', rect: [0, 0, 640, 400], style: {} }, 'body > button:nth-child(1)': element },
+    states: { 'body > button:nth-child(1)': { hover: { 'body > button:nth-child(1)': { color: 'rgb(0, 0, 0)' } } } },
+  });
+  const after = makeMap({
+    elements: { body: { tag: 'body', rect: [0, 0, 640, 400], style: {} }, 'body > button:nth-child(1)': element },
+    states: {
+      'body > button:nth-child(1)': { hover: { 'body > button:nth-child(1)': { color: 'rgb(255, 0, 0)' } } },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'state-change@640',
+    before,
+    after,
+    beforePng: solidPng(640, 400),
+    afterPng: solidPng(640, 400),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
+  assert.ok(annotatedPath, 'a genuine forced-state change keeps an annotated crop');
+  assert.equal(report.counts.state, 1);
+  rmTmp(root);
+});
+
+test('end-to-end: unchanged forced-state movement is suppressed as path churn', () => {
+  const element = { tag: 'button', cls: 'same', rect: [20, 20, 100, 30], style: {} };
+  const before = makeMap({
+    elements: { body: { tag: 'body', rect: [0, 0, 640, 400], style: {} }, 'body > button:nth-child(1)': element },
+    states: { 'body > button:nth-child(1)': { hover: { 'body > button:nth-child(1)': { color: 'rgb(0, 0, 0)' } } } },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 640, 400], style: {} },
+      'body > button:nth-child(2)': { ...element, rect: [140, 20, 100, 30] },
+    },
+    states: { 'body > button:nth-child(2)': { hover: { 'body > button:nth-child(2)': { color: 'rgb(0, 0, 0)' } } } },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'state-movement@640',
+    before,
+    after,
+    beforePng: solidPng(640, 400),
+    afterPng: solidPng(640, 400),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.ok(report.surfaces[0].regions.length > 0, 'structural findings remain reportable');
+  assert.ok(
+    report.surfaces[0].regions.every((region) => !region.images.annotated),
+    'path churn has no annotation',
+  );
+  assert.equal(report.counts.state, 2, 'state findings remain in the audit data');
+  rmTmp(root);
+});
+
+test('end-to-end: moved forced-state changes stay annotated', () => {
+  const element = { tag: 'button', cls: 'same', rect: [20, 20, 100, 30], style: {} };
+  const before = makeMap({
+    elements: { body: { tag: 'body', rect: [0, 0, 640, 400], style: {} }, 'body > button:nth-child(1)': element },
+    states: { 'body > button:nth-child(1)': { hover: { 'body > button:nth-child(1)': { color: 'rgb(0, 0, 0)' } } } },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 640, 400], style: {} },
+      'body > button:nth-child(2)': { ...element, rect: [140, 20, 100, 30] },
+    },
+    states: { 'body > button:nth-child(2)': { hover: { 'body > button:nth-child(2)': { color: 'rgb(255, 0, 0)' } } } },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'state-movement-change@640',
+    before,
+    after,
+    beforePng: solidPng(640, 400),
+    afterPng: solidPng(640, 400),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
+  assert.ok(annotatedPaths.length > 0, 'a moved forced-state change keeps annotated crops');
+  const highlights = annotatedPaths
+    .map((annotatedPath) => highlightPixelsBySide(path.join(outDir, annotatedPath)))
+    .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }), {
+      before: 0,
+      after: 0,
+    });
+  assert.ok(highlights.before > 0, 'the changed before state remains visible in proof');
+  assert.ok(highlights.after > 0, 'the changed after state remains visible in proof');
+  assert.equal(report.counts.state, 2, 'state findings remain in the audit data');
+  rmTmp(root);
+});
+
+test('end-to-end: owner pseudo-element state movement is suppressed as path churn', () => {
+  const element = {
+    tag: 'button',
+    cls: 'same',
+    rect: [20, 20, 100, 30],
+    style: {},
+    pseudo: { '::before': { color: 'rgb(0, 0, 0)' } },
+  };
+  const before = makeMap({
+    elements: { body: { tag: 'body', rect: [0, 0, 640, 400], style: {} }, 'body > button:nth-child(1)': element },
+    states: {
+      'body > button:nth-child(1)': {
+        hover: { 'body > button:nth-child(1)::before': { color: 'rgb(0, 0, 0)' } },
+      },
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 640, 400], style: {} },
+      'body > button:nth-child(2)': { ...element, rect: [140, 20, 100, 30] },
+    },
+    states: {
+      'body > button:nth-child(2)': {
+        hover: { 'body > button:nth-child(2)::before': { color: 'rgb(0, 0, 0)' } },
+      },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'pseudo-state-movement@640',
+    before,
+    after,
+    beforePng: solidPng(640, 400),
+    afterPng: solidPng(640, 400),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.ok(report.surfaces[0].regions.length > 0, 'structural findings remain reportable');
+  assert.ok(
+    report.surfaces[0].regions.every((region) => !region.images.annotated),
+    'owner pseudo-element path churn has no annotation',
+  );
+  assert.equal(report.counts.state, 2, 'pseudo-element state findings remain in the audit data');
+  rmTmp(root);
+});
+
+test('end-to-end: moved owner pseudo-element state changes stay annotated', () => {
+  const element = {
+    tag: 'button',
+    cls: 'same',
+    rect: [20, 20, 100, 30],
+    style: {},
+    pseudo: { '::before': { color: 'rgb(0, 0, 0)' } },
+  };
+  const before = makeMap({
+    elements: { body: { tag: 'body', rect: [0, 0, 640, 400], style: {} }, 'body > button:nth-child(1)': element },
+    states: {
+      'body > button:nth-child(1)': {
+        hover: { 'body > button:nth-child(1)::before': { color: 'rgb(0, 0, 0)' } },
+      },
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 640, 400], style: {} },
+      'body > button:nth-child(2)': { ...element, rect: [140, 20, 100, 30] },
+    },
+    states: {
+      'body > button:nth-child(2)': {
+        hover: { 'body > button:nth-child(2)::before': { color: 'rgb(255, 0, 0)' } },
+      },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'pseudo-state-movement-change@640',
+    before,
+    after,
+    beforePng: solidPng(640, 400),
+    afterPng: solidPng(640, 400),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
+  assert.ok(annotatedPaths.length > 0, 'a moved pseudo-element state change keeps annotated crops');
+  const highlights = annotatedPaths
+    .map((annotatedPath) => highlightPixelsBySide(path.join(outDir, annotatedPath)))
+    .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }), {
+      before: 0,
+      after: 0,
+    });
+  assert.ok(highlights.before > 0, 'the changed before pseudo-state remains visible in proof');
+  assert.ok(highlights.after > 0, 'the changed after pseudo-state remains visible in proof');
+  assert.equal(report.counts.state, 2, 'pseudo-element state findings remain in the audit data');
   rmTmp(root);
 });
 

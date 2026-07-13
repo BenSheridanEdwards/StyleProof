@@ -175,61 +175,177 @@ function innermost(paths: string[]): string[] {
   return paths.filter((p) => !paths.some((q) => q !== p && q.startsWith(p + ' > ')));
 }
 
-function annotationIdentity(entry: ElementEntry): string {
+function sortedProperties(props: Record<string, string>): [string, string][] {
+  return Object.entries(props).sort(([left], [right]) => left.localeCompare(right, 'en'));
+}
+
+function restingAnnotationIdentity(entry: ElementEntry | undefined): unknown {
+  if (!entry) return null;
   const sortedPseudo = Object.fromEntries(
     Object.entries(entry.pseudo ?? {})
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([pseudo, properties]) => [
-        pseudo,
-        Object.entries(properties).sort(([left], [right]) => left.localeCompare(right)),
-      ]),
+      .sort(([left], [right]) => left.localeCompare(right, 'en'))
+      .map(([pseudo, properties]) => [pseudo, sortedProperties(properties)]),
   );
-  return JSON.stringify([
+  return [
     entry.tag,
     entry.cls,
     entry.rect?.[2] ?? null,
     entry.rect?.[3] ?? null,
-    Object.entries(entry.style).sort(([left], [right]) => left.localeCompare(right)),
+    sortedProperties(entry.style),
     sortedPseudo,
-  ]);
+  ];
+}
+
+function annotationStructuralShell(entry: ElementEntry | undefined): string {
+  return JSON.stringify([entry?.tag ?? null, entry?.cls ?? null, entry?.rect?.[2] ?? null, entry?.rect?.[3] ?? null]);
+}
+
+function normalizeStructuralPath(elementPath: string): string {
+  return elementPath.replace(/:nth-(?:child|of-type)\(\d+\)/g, (selector) => selector.replace(/\d+/, '*'));
+}
+
+function annotationScope(elementPath: string): string {
+  const parentSeparator = elementPath.lastIndexOf(' > ');
+  return normalizeStructuralPath(parentSeparator === -1 ? '' : elementPath.slice(0, parentSeparator));
+}
+
+function relativeStateTarget(ownerPath: string, targetPath: string): string {
+  if (targetPath === ownerPath) return '';
+  const ownerPseudoPrefix = `${ownerPath}::`;
+  if (targetPath.startsWith(ownerPseudoPrefix)) return targetPath.slice(ownerPath.length);
+  const descendantPrefix = `${ownerPath} > `;
+  const relativePath = targetPath.startsWith(descendantPrefix) ? targetPath.slice(descendantPrefix.length) : targetPath;
+  return normalizeStructuralPath(relativePath);
+}
+
+function canonicalForcedStates(map: StyleMap, ownerPath: string): unknown[] {
+  return Object.entries(map.states?.[ownerPath] ?? {})
+    .sort(([left], [right]) => left.localeCompare(right, 'en'))
+    .map(([stateName, deltas]) => [
+      stateName,
+      Object.entries(deltas)
+        .map(([targetPath, properties]) => [
+          relativeStateTarget(ownerPath, targetPath),
+          restingAnnotationIdentity(map.elements[targetPath]),
+          sortedProperties(properties),
+        ])
+        .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right), 'en')),
+    ]);
+}
+
+function annotationIdentity(map: StyleMap, elementPath: string, entry: ElementEntry): string {
+  return JSON.stringify([restingAnnotationIdentity(entry), canonicalForcedStates(map, elementPath)]);
+}
+
+function sortedAnnotationPaths(paths: string[]): string[] {
+  return [...paths].sort((left, right) => left.localeCompare(right, 'en', { numeric: true }));
 }
 
 function indexAnnotationIdentities(map: StyleMap): Map<string, string[]> {
   const pathsByIdentity = new Map<string, string[]>();
   for (const [elementPath, entry] of Object.entries(map.elements)) {
-    const identity = annotationIdentity(entry);
+    const identity = annotationIdentity(map, elementPath, entry);
     pathsByIdentity.set(identity, [...(pathsByIdentity.get(identity) ?? []), elementPath]);
   }
   return pathsByIdentity;
 }
 
-function hasEquivalentEntryAtAnotherPath(
-  elementPath: string,
-  entry: ElementEntry | undefined,
-  samePathsByIdentity: Map<string, string[]>,
-  otherPathsByIdentity: Map<string, string[]>,
+type AnnotationPathMatches = {
+  beforeToAfter: Map<string, string>;
+  afterToBefore: Map<string, string>;
+};
+
+function pathsByAnnotationScope(paths: Iterable<string>): Map<string, string[]> {
+  const pathsByScope = new Map<string, string[]>();
+  for (const elementPath of paths) {
+    const scope = annotationScope(elementPath);
+    pathsByScope.set(scope, [...(pathsByScope.get(scope) ?? []), elementPath]);
+  }
+  for (const scopedPaths of pathsByScope.values())
+    scopedPaths.sort((left, right) => left.localeCompare(right, 'en', { numeric: true }));
+  return pathsByScope;
+}
+
+function canReconcileAnnotationPair(
+  beforeMap: StyleMap,
+  afterMap: StyleMap,
+  beforePath: string,
+  afterPath: string,
+  remainingAfter: Set<string>,
 ): boolean {
-  if (!entry) return false;
-  const identity = annotationIdentity(entry);
-  const samePaths = samePathsByIdentity.get(identity) ?? [];
-  const otherPaths = otherPathsByIdentity.get(identity) ?? [];
-  // Reconcile only an unambiguous one-to-one move. If an identity is duplicated
-  // on either side, an arbitrary cross-path match can hide a real restyle or an
-  // inserted/removed sibling from the annotated proof.
-  return samePaths.length === 1 && otherPaths.length === 1 && otherPaths[0] !== elementPath;
+  if (!remainingAfter.has(afterPath)) return false;
+  const beforeShell = annotationStructuralShell(beforeMap.elements[beforePath]);
+  const afterShellAtBeforePath = annotationStructuralShell(afterMap.elements[beforePath]);
+  const afterShell = annotationStructuralShell(afterMap.elements[afterPath]);
+  const beforeShellAtAfterPath = annotationStructuralShell(beforeMap.elements[afterPath]);
+  return beforeShell !== afterShellAtBeforePath && afterShell !== beforeShellAtAfterPath;
+}
+
+function reconcileIdentityPaths(
+  beforeMap: StyleMap,
+  afterMap: StyleMap,
+  beforePaths: string[],
+  afterPaths: string[],
+  matches: AnnotationPathMatches,
+): void {
+  const remainingBefore = new Set(beforePaths);
+  const remainingAfter = new Set(afterPaths);
+
+  // Preserve stable paths first. This keeps duplicate occurrences deterministic
+  // without claiming which indistinguishable physical node was inserted.
+  for (const beforePath of beforePaths) {
+    if (!remainingAfter.has(beforePath)) continue;
+    matches.beforeToAfter.set(beforePath, beforePath);
+    matches.afterToBefore.set(beforePath, beforePath);
+    remainingBefore.delete(beforePath);
+    remainingAfter.delete(beforePath);
+  }
+
+  const remainingAfterPathsByScope = pathsByAnnotationScope(remainingAfter);
+
+  // Reconcile only within the same normalized structural neighborhood. Any
+  // excess occurrence remains unmatched and is annotated as an addition/removal.
+  for (const beforePath of sortedAnnotationPaths([...remainingBefore])) {
+    const candidates = remainingAfterPathsByScope.get(annotationScope(beforePath)) ?? [];
+    const afterPath = candidates.find((candidate) =>
+      canReconcileAnnotationPair(beforeMap, afterMap, beforePath, candidate, remainingAfter),
+    );
+    if (!afterPath) continue;
+    matches.beforeToAfter.set(beforePath, afterPath);
+    matches.afterToBefore.set(afterPath, beforePath);
+    remainingBefore.delete(beforePath);
+    remainingAfter.delete(afterPath);
+  }
+}
+
+function reconcileAnnotationPaths(beforeMap: StyleMap, afterMap: StyleMap): AnnotationPathMatches {
+  const beforePathsByIdentity = indexAnnotationIdentities(beforeMap);
+  const afterPathsByIdentity = indexAnnotationIdentities(afterMap);
+  const matches: AnnotationPathMatches = {
+    beforeToAfter: new Map(),
+    afterToBefore: new Map(),
+  };
+  const identities = new Set([...beforePathsByIdentity.keys(), ...afterPathsByIdentity.keys()]);
+
+  for (const identity of identities) {
+    reconcileIdentityPaths(
+      beforeMap,
+      afterMap,
+      sortedAnnotationPaths(beforePathsByIdentity.get(identity) ?? []),
+      sortedAnnotationPaths(afterPathsByIdentity.get(identity) ?? []),
+      matches,
+    );
+  }
+
+  return matches;
 }
 
 function annotationSides(
   finding: Finding,
   beforeMoved: boolean,
   afterMoved: boolean,
-  reconcileMoved: boolean,
 ): { before: boolean; after: boolean } {
-  // A style/state finding already proves that the element at this path changed.
-  // Only reconcile it when the same surface also has structural churn; without a
-  // DOM finding, cross-path identity matching can erase a real style swap.
-  if (finding.kind !== 'dom')
-    return reconcileMoved ? { before: !beforeMoved, after: !afterMoved } : { before: true, after: true };
+  if (finding.kind !== 'dom') return { before: !beforeMoved, after: !afterMoved };
   if (finding.change === 'removed') return { before: !beforeMoved, after: false };
   if (finding.change === 'added') return { before: false, after: !afterMoved };
   return { before: true, after: true };
@@ -240,28 +356,16 @@ function annotationPaths(
   beforeMap: StyleMap,
   afterMap: StyleMap,
 ): { before: string[]; after: string[] } {
-  const beforePathsByIdentity = indexAnnotationIdentities(beforeMap);
-  const afterPathsByIdentity = indexAnnotationIdentities(afterMap);
-  const reconcileMoved = findings.some((finding) => finding.kind === 'dom');
+  const matches = reconcileAnnotationPaths(beforeMap, afterMap);
   const beforePaths = new Set<string>();
   const afterPaths = new Set<string>();
 
   for (const finding of findings) {
-    const beforeEntry = beforeMap.elements[finding.path];
-    const afterEntry = afterMap.elements[finding.path];
-    const beforeMoved = hasEquivalentEntryAtAnotherPath(
-      finding.path,
-      beforeEntry,
-      beforePathsByIdentity,
-      afterPathsByIdentity,
-    );
-    const afterMoved = hasEquivalentEntryAtAnotherPath(
-      finding.path,
-      afterEntry,
-      afterPathsByIdentity,
-      beforePathsByIdentity,
-    );
-    const sides = annotationSides(finding, beforeMoved, afterMoved, reconcileMoved);
+    const beforeMatch = matches.beforeToAfter.get(finding.path);
+    const afterMatch = matches.afterToBefore.get(finding.path);
+    const beforeMoved = beforeMatch !== undefined && beforeMatch !== finding.path;
+    const afterMoved = afterMatch !== undefined && afterMatch !== finding.path;
+    const sides = annotationSides(finding, beforeMoved, afterMoved);
     if (sides.before) beforePaths.add(finding.path);
     if (sides.after) afterPaths.add(finding.path);
   }
