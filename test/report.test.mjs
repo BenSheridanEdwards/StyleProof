@@ -1976,3 +1976,110 @@ test('report does NOT promote a change that hit only some hosting surfaces (#193
   assert.doesNotMatch(md, /Global chrome/, 'a change on only some hosting surfaces is not chrome');
   rmTmp(root);
 });
+
+// A cross-path annotation match is a MOVE claim, so it may suppress annotations
+// only when the displacement is provable: the container where the paths diverge
+// gained or lost captured children, or a same-container slide into a vacated
+// slot. The three tests below pin the unprovable cases the reconciler must NOT
+// swallow, and the provable one it must.
+
+test('end-to-end: a size-changing duplicate style swap keeps annotated proof', () => {
+  const item = (y, h, color) => ({ tag: 'li', cls: 'item', rect: [20, y, 200, h], style: { color } });
+  const swapMap = (firstH, firstC, secondH, secondC) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 400, 200], style: {} },
+        'body > ul:nth-child(1)': { tag: 'ul', rect: [0, 0, 400, 200], style: {} },
+        'body > ul:nth-child(1) > li:nth-child(1)': item(20, firstH, firstC),
+        'body > ul:nth-child(1) > li:nth-child(2)': item(80, secondH, secondC),
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'sized-swap@400',
+    before: swapMap(30, 'rgb(255, 0, 0)', 40, 'rgb(0, 0, 255)'),
+    after: swapMap(40, 'rgb(0, 0, 255)', 30, 'rgb(255, 0, 0)'),
+    beforePng: solidPng(400, 200),
+    afterPng: solidPng(400, 200),
+  });
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
+  assert.ok(report.counts.style >= 2, 'the diff itself still records the restyle');
+  assert.ok(annotatedPaths.length > 0, 'a restyle that could be a swap keeps annotated proof');
+  rmTmp(root);
+});
+
+test('end-to-end: uniform-shell list insertion leaves unchanged displaced items unboxed', () => {
+  const item = (y, color) => ({ tag: 'li', cls: 'item', rect: [20, y, 200, 30], style: { color } });
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 400, 300], style: {} },
+      'body > ul:nth-child(1)': { tag: 'ul', rect: [0, 0, 400, 300], style: {} },
+      'body > ul:nth-child(1) > li:nth-child(1)': item(20, 'rgb(255, 0, 0)'),
+      'body > ul:nth-child(1) > li:nth-child(2)': item(60, 'rgb(0, 0, 255)'),
+      'body > ul:nth-child(1) > li:nth-child(3)': item(100, 'rgb(0, 128, 0)'),
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 400, 300], style: {} },
+      'body > ul:nth-child(1)': { tag: 'ul', rect: [0, 0, 400, 300], style: {} },
+      'body > ul:nth-child(1) > li:nth-child(1)': item(20, 'rgb(255, 255, 0)'),
+      'body > ul:nth-child(1) > li:nth-child(2)': item(60, 'rgb(255, 0, 0)'),
+      'body > ul:nth-child(1) > li:nth-child(3)': item(100, 'rgb(0, 0, 255)'),
+      'body > ul:nth-child(1) > li:nth-child(4)': item(140, 'rgb(0, 128, 0)'),
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'uniform-insertion@400',
+    before,
+    after,
+    beforePng: solidPng(400, 300),
+    afterPng: solidPng(400, 300),
+  });
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
+  const highlights = annotatedPaths
+    .map((annotatedPath) => highlightPixelsBySide(path.join(outDir, annotatedPath)))
+    .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }), {
+      before: 0,
+      after: 0,
+    });
+  assert.equal(highlights.before, 0, 'unchanged displaced items must not be boxed on the before side');
+  assert.ok(highlights.after > 0, 'the inserted item itself stays annotated');
+  rmTmp(root);
+});
+
+test('end-to-end: a removal and an identical addition in different containers both stay annotated', () => {
+  const card = (y) => ({ tag: 'div', cls: 'card', rect: [20, y, 200, 80], style: { color: 'rgb(0, 0, 0)' } });
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 600, 500], style: {} },
+      'body > section:nth-child(1)': { tag: 'section', rect: [0, 0, 600, 200], style: {} },
+      'body > section:nth-child(1) > div:nth-child(1)': card(20),
+      'body > section:nth-child(2)': { tag: 'section', rect: [0, 200, 600, 200], style: {} },
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 600, 500], style: {} },
+      'body > section:nth-child(1)': { tag: 'section', rect: [0, 0, 600, 200], style: {} },
+      'body > section:nth-child(2)': { tag: 'section', rect: [0, 200, 600, 200], style: {} },
+      'body > section:nth-child(2) > div:nth-child(1)': card(220),
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'cross-container@600',
+    before,
+    after,
+    beforePng: solidPng(600, 500),
+    afterPng: solidPng(600, 500),
+  });
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
+  assert.equal(report.counts.dom, 2, 'both structural findings remain in the audit');
+  assert.ok(annotatedPaths.length > 0, 'independent changes in different containers keep visual proof');
+  rmTmp(root);
+});

@@ -761,6 +761,8 @@ You watch one number as you implement: the diff starts large and shrinks toward 
 
 A design is mostly _behind clicks_ — modals, drawers, popovers, tabs that don't exist in the DOM until you open them. A single capture sees only the landing state. `--crawl` maps the rest for you: point it at the URL and it drives every non-destructive control, keeps whatever opens a structurally new surface, and recurses into it — a modal's tabs, a drawer's sub-views, a popover's panels — capturing each under a derived key. No spec, no selectors, no hand-holding.
 
+It follows the nav too: every same-origin page the site links to is crawled the same way, keyed by its route (`about`, `pricing`, `blog-post`, …), with class coverage aggregated across the pages that share stylesheets. `--no-follow-links` keeps the sweep to the entry page's interactive surface only.
+
 ```bash
 styleproof-capture https://example.com --crawl --out design    # maps every reachable surface
 styleproof-diff design .styleproof/maps/current                # diff the whole surface vs your build

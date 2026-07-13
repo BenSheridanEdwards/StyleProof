@@ -79,6 +79,9 @@ export type CaptureUrlOptions = {
   dataStates: boolean;
   /** crawl: concurrent sweep workers (default 4). 1 = byte-stable key attribution. */
   workers: number;
+  /** crawl: also crawl every same-origin page the nav links to (default true).
+   *  Off = the entry page's interactive surface only. */
+  followLinks: boolean;
 };
 
 const DEFAULTS = {
@@ -100,6 +103,7 @@ const DEFAULTS = {
   untilCovered: false,
   dataStates: true,
   workers: 4,
+  followLinks: true,
 };
 
 function positiveNumber(raw: string, flag: string): number {
@@ -142,6 +146,8 @@ const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--until-covered': (o) => (o.untilCovered = true),
   '--data-states': (o) => (o.dataStates = true),
   '--no-data-states': (o) => (o.dataStates = false),
+  '--follow-links': (o) => (o.followLinks = true),
+  '--no-follow-links': (o) => (o.followLinks = false),
 };
 
 // Apply one argv token to the accumulator; returns the index to resume from
@@ -193,6 +199,7 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
     setupFile: undefined,
     dataStates: DEFAULTS.dataStates,
     workers: DEFAULTS.workers,
+    followLinks: DEFAULTS.followLinks,
   };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) i = applyArg(o, argv, i, positional);

@@ -27,6 +27,8 @@ styleproof-diff design .styleproof/maps/current
   byte-stable dup-key attribution.
 - **Never clicks destructive-looking controls** (delete/deploy/pay/revoke) —
   those states need a spec.
+- **Follows same-origin nav links** — every linked page is crawled too, keyed
+  by route; coverage aggregates across pages. `--no-follow-links` to opt out.
 
 ## 2. Prove full coverage — `--require-full-coverage` / `expected`
 

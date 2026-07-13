@@ -28,7 +28,13 @@ test('defaults: just a url', () => {
     setupFile: undefined,
     dataStates: true,
     workers: 4,
+    followLinks: true,
   });
+});
+
+test('--no-follow-links turns off the page sweep', () => {
+  const o = parseCaptureUrlArgs(['u', '--crawl', '--no-follow-links']);
+  assert.equal(o.followLinks, false);
 });
 
 test('crawl flags parse', () => {

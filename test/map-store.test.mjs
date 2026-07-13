@@ -47,6 +47,52 @@ test('currentGitSha binds pull-request captures to the real head, not the merge 
   }
 });
 
+// The event head must label ONLY the synthetic-merge checkout. A job that checks
+// out any other tree (the base branch on a cache miss) keeps that tree's own SHA —
+// otherwise a base-tree map uploads under the head's store key and every later
+// restore of the "head" map diffs base-vs-base: a false green.
+test('currentGitSha labels a non-head checkout with its own HEAD, not the event head', () => {
+  const dir = mkTmp('styleproof-basecheckout-');
+  const git = (...args) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' }).toString().trim();
+  try {
+    git('init', '-q');
+    git('config', 'user.email', 'styleproof@example.test');
+    git('config', 'user.name', 'StyleProof Test');
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'base');
+    git('add', '-A');
+    git('commit', '-qm', 'base');
+    const baseSha = git('rev-parse', 'HEAD');
+    const eventPath = path.join(dir, 'event.json');
+    const headSha = 'b'.repeat(40);
+    fs.writeFileSync(eventPath, JSON.stringify({ pull_request: { head: { sha: headSha } } }));
+    const env = {
+      GITHUB_EVENT_NAME: 'pull_request',
+      GITHUB_EVENT_PATH: eventPath,
+      GITHUB_SHA: 'a'.repeat(40), // the synthetic merge commit — NOT what's checked out
+    };
+    assert.equal(currentGitSha(dir, env), baseSha, 'a base-branch checkout keeps its own SHA');
+    assert.equal(
+      currentGitSha(dir, { ...env, GITHUB_SHA: baseSha }),
+      headSha,
+      'a checkout of the synthetic GITHUB_SHA itself is relabeled to the real head',
+    );
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('currentGitSha rejects a malformed explicit override instead of mislabeling', () => {
+  const dir = mkTmp('styleproof-badsha-');
+  try {
+    assert.throws(
+      () => currentGitSha(dir, { STYLEPROOF_SHA: 'refs/heads/main', GITHUB_SHA: 'a'.repeat(40) }),
+      /not a commit SHA/,
+    );
+  } finally {
+    rmTmp(dir);
+  }
+});
+
 /** Write a manifest into `dir`, overriding defaults with `overrides`. */
 function manifestDir(overrides = {}) {
   const dir = mkTmp('styleproof-manifest-');

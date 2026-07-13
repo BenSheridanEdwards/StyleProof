@@ -196,10 +196,6 @@ function restingAnnotationIdentity(entry: ElementEntry | undefined): unknown {
   ];
 }
 
-function annotationStructuralShell(entry: ElementEntry | undefined): string {
-  return JSON.stringify([entry?.tag ?? null, entry?.cls ?? null, entry?.rect?.[2] ?? null, entry?.rect?.[3] ?? null]);
-}
-
 function normalizeStructuralPath(elementPath: string): string {
   return elementPath.replace(/:nth-(?:child|of-type)\(\d+\)/g, (selector) => selector.replace(/\d+/, '*'));
 }
@@ -266,24 +262,67 @@ function pathsByAnnotationScope(paths: Iterable<string>): Map<string, string[]> 
   return pathsByScope;
 }
 
+/** Captured children per concrete container path, for the displacement proof. */
+function containerChildCounts(map: StyleMap): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const elementPath of Object.keys(map.elements)) {
+    const separator = elementPath.lastIndexOf(' > ');
+    const container = separator === -1 ? '' : elementPath.slice(0, separator);
+    counts.set(container, (counts.get(container) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** The concrete container where two element paths diverge (never the leaf itself). */
+function deepestCommonContainer(beforePath: string, afterPath: string): string {
+  const beforeSegments = beforePath.split(' > ');
+  const afterSegments = afterPath.split(' > ');
+  const shared: string[] = [];
+  const limit = Math.min(beforeSegments.length, afterSegments.length) - 1;
+  for (let i = 0; i < limit && beforeSegments[i] === afterSegments[i]; i++) shared.push(beforeSegments[i]);
+  return shared.join(' > ');
+}
+
+function containerOf(elementPath: string): string {
+  const separator = elementPath.lastIndexOf(' > ');
+  return separator === -1 ? '' : elementPath.slice(0, separator);
+}
+
+/**
+ * A cross-path match is a MOVE claim, and a matched pair's annotations are
+ * suppressed — so the move must be PROVABLE from the captured data, one of:
+ *
+ * - the container where the two paths diverge gained or lost captured children
+ *   (a sibling insertion/removal displaced everything after it), or
+ * - a same-container slide into a vacated slot: the source slot emptied and the
+ *   destination slot is new. That is displacement by an UNCAPTURED sibling — an
+ *   injected `<style>`/`<script>` shifts `nth-child` without entering the census.
+ *
+ * A pair with neither proof — a style swap between siblings, a pure reorder of
+ * occupied slots, or a coincidental twin in a cousin container — stays
+ * annotated, because the data cannot prove nothing changed there.
+ */
 function canReconcileAnnotationPair(
   beforeMap: StyleMap,
   afterMap: StyleMap,
+  beforeCounts: Map<string, number>,
+  afterCounts: Map<string, number>,
   beforePath: string,
   afterPath: string,
   remainingAfter: Set<string>,
 ): boolean {
   if (!remainingAfter.has(afterPath)) return false;
-  const beforeShell = annotationStructuralShell(beforeMap.elements[beforePath]);
-  const afterShellAtBeforePath = annotationStructuralShell(afterMap.elements[beforePath]);
-  const afterShell = annotationStructuralShell(afterMap.elements[afterPath]);
-  const beforeShellAtAfterPath = annotationStructuralShell(beforeMap.elements[afterPath]);
-  return beforeShell !== afterShellAtBeforePath && afterShell !== beforeShellAtAfterPath;
+  const divergence = deepestCommonContainer(beforePath, afterPath);
+  if ((beforeCounts.get(divergence) ?? 0) !== (afterCounts.get(divergence) ?? 0)) return true;
+  if (containerOf(beforePath) !== containerOf(afterPath)) return false;
+  return !beforeMap.elements[afterPath] && !afterMap.elements[beforePath];
 }
 
 function reconcileIdentityPaths(
   beforeMap: StyleMap,
   afterMap: StyleMap,
+  beforeCounts: Map<string, number>,
+  afterCounts: Map<string, number>,
   beforePaths: string[],
   afterPaths: string[],
   matches: AnnotationPathMatches,
@@ -308,7 +347,7 @@ function reconcileIdentityPaths(
   for (const beforePath of sortedAnnotationPaths([...remainingBefore])) {
     const candidates = remainingAfterPathsByScope.get(annotationScope(beforePath)) ?? [];
     const afterPath = candidates.find((candidate) =>
-      canReconcileAnnotationPair(beforeMap, afterMap, beforePath, candidate, remainingAfter),
+      canReconcileAnnotationPair(beforeMap, afterMap, beforeCounts, afterCounts, beforePath, candidate, remainingAfter),
     );
     if (!afterPath) continue;
     matches.beforeToAfter.set(beforePath, afterPath);
@@ -321,6 +360,8 @@ function reconcileIdentityPaths(
 function reconcileAnnotationPaths(beforeMap: StyleMap, afterMap: StyleMap): AnnotationPathMatches {
   const beforePathsByIdentity = indexAnnotationIdentities(beforeMap);
   const afterPathsByIdentity = indexAnnotationIdentities(afterMap);
+  const beforeCounts = containerChildCounts(beforeMap);
+  const afterCounts = containerChildCounts(afterMap);
   const matches: AnnotationPathMatches = {
     beforeToAfter: new Map(),
     afterToBefore: new Map(),
@@ -331,6 +372,8 @@ function reconcileAnnotationPaths(beforeMap: StyleMap, afterMap: StyleMap): Anno
     reconcileIdentityPaths(
       beforeMap,
       afterMap,
+      beforeCounts,
+      afterCounts,
       sortedAnnotationPaths(beforePathsByIdentity.get(identity) ?? []),
       sortedAnnotationPaths(afterPathsByIdentity.get(identity) ?? []),
       matches,
