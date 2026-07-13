@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Generated cache restores now evaluate each map in its own commit context.**
+  CI checks out the base before restoring the base bundle and returns to the head
+  before restoring the head bundle, so lockfile-changing pull requests reach the
+  browserless hot path after their first published pair.
+
 ## [4.4.18] - 2026-07-13
 
 ### Fixed

@@ -179,12 +179,12 @@ for (const manager of [
         'node node_modules/styleproof/bin/styleproof-map.mjs --spec e2e/styleproof.spec.ts --dir base',
       );
       const metadataRestoreIndex = workflow.indexOf('Restore only those files: node_modules must');
-      const headCheckoutIndex = workflow.indexOf('git checkout --force "$HEAD_SHA"');
+      const headCheckoutAfterBaseCaptureIndex = workflow.indexOf('git checkout --force "$HEAD_SHA"', baseCaptureIndex);
       assert.ok(exactReleaseInstallIndex >= 0, 'cold capture installs the head StyleProof release');
       assert.ok(metadataRestoreIndex > exactReleaseInstallIndex, 'cold capture cleans temporary package metadata');
       assert.ok(baseCaptureIndex > exactReleaseInstallIndex, 'base capture uses that exact release');
       assert.ok(baseCaptureIndex > metadataRestoreIndex, 'base capture starts from a clean tracked tree');
-      assert.ok(headCheckoutIndex > baseCaptureIndex, 'base capture finishes before manifest reset');
+      assert.ok(headCheckoutAfterBaseCaptureIndex > baseCaptureIndex, 'base capture finishes before manifest reset');
 
       // Report branch self-prunes on PR close (out of the box) — manager-independent.
       assert.match(workflow, /types: \[opened, synchronize, reopened, closed\]/);
