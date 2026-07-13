@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.15] - 2026-07-13
+
+### Fixed
+
+- **Failed map-store uploads now retain every Git transport error.** The
+  workflow-token credential retry is no longer hidden by a later fallback, so
+  hosted CI reports the authenticated failure needed to repair publication.
+
 ## [4.4.14] - 2026-07-13
 
 ### Fixed
