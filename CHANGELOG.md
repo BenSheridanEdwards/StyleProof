@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Workflow-token publication now uses Git's credential protocol for the final retry.**
+  The token stays out of remote URLs and process arguments, while real Git credential
+  lookup is covered directly instead of relying on an executable askpass script.
+
 ## [4.4.13] - 2026-07-13
 
 ### Fixed

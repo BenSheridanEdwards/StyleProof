@@ -91,6 +91,13 @@ function runGit(cwd: string, args: string[], maxBuffer = 1 << 28) {
   return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer, env: gitProcessEnvironment() });
 }
 
+const WORKFLOW_TOKEN_CREDENTIAL_HELPER =
+  '!f() { if [ "$1" = get ]; then printf \'%s\\n\' username=x-access-token "password=$STYLEPROOF_MAP_STORE_TOKEN"; fi; }; f';
+
+export function workflowTokenCredentialArguments(): string[] {
+  return ['-c', 'credential.helper=', '-c', `credential.helper=${WORKFLOW_TOKEN_CREDENTIAL_HELPER}`];
+}
+
 interface GitHttpExtraHeader {
   key: string;
   value: string;
@@ -580,39 +587,30 @@ function pushMapStoreCommit(
 
   const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
   if (mapStoreToken) {
-    const askpassDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-askpass-'));
-    const askpassScript = path.join(askpassDirectory, 'askpass.sh');
-    fs.writeFileSync(
-      askpassScript,
-      '#!/bin/sh\ncase "$1" in *Username*) printf "%s\\n" x-access-token ;; *) printf "%s\\n" "$STYLEPROOF_MAP_STORE_TOKEN" ;; esac\n',
-      { mode: 0o700 },
-    );
-    try {
-      const askpassPush = spawnSync(
-        'git',
-        [
-          '-c',
-          `${['http.https:', '', 'github.com', '.extraheader'].join('/')}=`,
-          'push',
-          '-q',
-          'origin',
-          `HEAD:${branch}`,
-        ],
-        {
-          cwd: temporaryCheckout,
-          encoding: 'utf8',
-          maxBuffer: 1 << 20,
-          env: {
-            ...gitProcessEnvironment(),
-            GIT_ASKPASS: askpassScript,
-            GIT_TERMINAL_PROMPT: '0',
-          },
+    const githubExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
+    runGit(temporaryCheckout, ['config', '--local', '--unset-all', githubExtraHeaderKey], 1 << 20);
+    const credentialPush = spawnSync(
+      'git',
+      [
+        '-c',
+        `${githubExtraHeaderKey}=`,
+        ...workflowTokenCredentialArguments(),
+        'push',
+        '-q',
+        'origin',
+        `HEAD:${branch}`,
+      ],
+      {
+        cwd: temporaryCheckout,
+        encoding: 'utf8',
+        maxBuffer: 1 << 20,
+        env: {
+          ...gitProcessEnvironment(),
+          GIT_TERMINAL_PROMPT: '0',
         },
-      );
-      if (askpassPush.status === 0) return askpassPush;
-    } finally {
-      fs.rmSync(askpassDirectory, { recursive: true, force: true });
-    }
+      },
+    );
+    if (credentialPush.status === 0) return credentialPush;
   }
 
   const mapStoreCommit = gitOutput(temporaryCheckout, ['rev-parse', 'HEAD']);
