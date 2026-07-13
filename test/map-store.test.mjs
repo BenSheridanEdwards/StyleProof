@@ -193,7 +193,7 @@ test('publishMapBundle ignores hook-exported Git repository variables and leaves
   }
 });
 
-test('publishMapBundle reuses actions checkout v7 included HTTP authentication for the isolated clone and push', () => {
+test('publishMapBundle falls back through the authenticated consumer checkout when the isolated push is rejected', () => {
   const root = mkTmp('styleproof-checkout-auth-');
   const remote = path.join(root, 'remote.git');
   const repo = path.join(root, 'consumer');
@@ -206,6 +206,7 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
   const previousPath = process.env.PATH;
   const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
   const previousInvocationLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  const previousConsumerRepository = process.env.STYLEPROOF_TEST_CONSUMER_REPO;
   const previousMapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
   const checkoutExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
   const checkoutCredentialsFile = path.join(root, 'checkout-credentials.config');
@@ -255,12 +256,13 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     const gitShim = path.join(shimDirectory, 'git');
     fs.writeFileSync(
       gitShim,
-      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in *"push -q origin HEAD:styleproof-maps"*) if [ "$PWD" != "$STYLEPROOF_TEST_CONSUMER_REPO" ]; then echo "isolated push rejected" >&2; exit 128; fi ;; esac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
     );
     fs.chmodSync(gitShim, 0o755);
     process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
     process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
     process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
+    process.env.STYLEPROOF_TEST_CONSUMER_REPO = repo;
 
     assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
     const invocations = fs.readFileSync(invocationLog, 'utf8');
@@ -293,6 +295,12 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
       /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token push -q origin HEAD:styleproof-maps/,
       'the push receives the checkout credential directly',
     );
+    assert.match(invocations, /fetch -q --no-write-fetch-head .*styleproof-map-store-.* [a-f0-9]{40}/);
+    assert.match(
+      invocations,
+      /push -q origin [a-f0-9]{40}:styleproof-maps/,
+      'a rejected isolated push is retried through the authenticated consumer checkout',
+    );
     assert.equal(
       git(root, '--git-dir', remote, 'show', 'styleproof-maps:unseen-sha/unseen-compatibility/keep.txt'),
       'keep',
@@ -321,6 +329,11 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
       ),
       'the push receives the explicit workflow token directly after clearing inherited authentication',
     );
+    assert.match(
+      tokenInvocations,
+      /push -q origin [a-f0-9]{40}:styleproof-maps/,
+      'the workflow-token path also falls back through the authenticated consumer checkout',
+    );
     assert.doesNotMatch(
       tokenInvocations,
       /fake-checkout-token/,
@@ -333,6 +346,8 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
     if (previousInvocationLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
     else process.env.STYLEPROOF_TEST_GIT_LOG = previousInvocationLog;
+    if (previousConsumerRepository === undefined) delete process.env.STYLEPROOF_TEST_CONSUMER_REPO;
+    else process.env.STYLEPROOF_TEST_CONSUMER_REPO = previousConsumerRepository;
     if (previousMapStoreToken === undefined) delete process.env.STYLEPROOF_MAP_STORE_TOKEN;
     else process.env.STYLEPROOF_MAP_STORE_TOKEN = previousMapStoreToken;
     rmTmp(root);

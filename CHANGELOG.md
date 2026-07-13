@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Map-store publication now survives an isolated push losing Actions
+  authentication.** If the sparse temporary checkout is rejected, StyleProof
+  imports its generated commit into the original checkout and retries the push
+  through checkout-v7's authenticated Git context.
+
 ## [4.4.11] - 2026-07-13
 
 ### Fixed
