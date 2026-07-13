@@ -17,6 +17,19 @@ export const MAP_MANIFEST = 'styleproof-manifest.json';
  *  has exited — no browser — so it reads the build back from here. Not a surface map. */
 export const BROWSER_BUILD_SIDECAR = 'styleproof-browser.json';
 const GENERATED_DIRTY_ALLOWLIST = new Set(['next-env.d.ts']);
+const GIT_REPOSITORY_ENVIRONMENT_VARIABLES = [
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_COMMON_DIR',
+  'GIT_DIR',
+  'GIT_GRAFT_FILE',
+  'GIT_INDEX_FILE',
+  'GIT_INTERNAL_SUPER_PREFIX',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_PREFIX',
+  'GIT_REPLACE_REF_BASE',
+  'GIT_SHALLOW_FILE',
+  'GIT_WORK_TREE',
+] as const;
 
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
@@ -68,8 +81,14 @@ export interface CachedCaptureDirs {
   tmpRoot: string;
 }
 
+function gitProcessEnvironment(): NodeJS.ProcessEnv {
+  const environment = { ...process.env };
+  for (const variableName of GIT_REPOSITORY_ENVIRONMENT_VARIABLES) delete environment[variableName];
+  return environment;
+}
+
 function runGit(cwd: string, args: string[], maxBuffer = 1 << 28) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer });
+  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer, env: gitProcessEnvironment() });
 }
 
 function gitOutput(cwd: string, args: string[]): string {
@@ -460,6 +479,7 @@ function checkoutMapStore(cwd: string, remote: string, branch: string): string {
     const clone = spawnSync('git', ['clone', '-q', '--depth', '1', '--branch', branch, remoteUrl, tmp], {
       encoding: 'utf8',
       maxBuffer: 1 << 20,
+      env: gitProcessEnvironment(),
     });
     if (clone.status !== 0) {
       fs.rmSync(tmp, { recursive: true, force: true });
