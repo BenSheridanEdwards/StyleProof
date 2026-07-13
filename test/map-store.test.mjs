@@ -204,6 +204,7 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
   const previousPath = process.env.PATH;
   const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
   const previousInvocationLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  const previousMapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
   const checkoutExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
   const checkoutCredentialsFile = path.join(root, 'checkout-credentials.config');
   try {
@@ -277,6 +278,18 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
       'the isolated checkout persists the credential for its later push',
     );
     assert.match(invocations, /push -q origin HEAD:styleproof-maps/, 'the authenticated checkout publishes the map');
+
+    git(repo, 'config', '--local', '--unset-all', 'includeIf.gitdir:/github/workspace/.git.path');
+    process.env.STYLEPROOF_MAP_STORE_TOKEN = 'fake-workflow-token';
+    fs.writeFileSync(invocationLog, '');
+    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    const tokenInvocations = fs.readFileSync(invocationLog, 'utf8');
+    const encodedWorkflowCredential = Buffer.from('x-access-token:fake-workflow-token').toString('base64');
+    const workflowExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
+    assert.ok(
+      tokenInvocations.includes(`-c ${workflowExtraHeaderKey}=AUTHORIZATION: basic ${encodedWorkflowCredential} clone`),
+      'the explicit workflow token authenticates the isolated clone when checkout credentials are unavailable',
+    );
   } finally {
     if (previousPath === undefined) delete process.env.PATH;
     else process.env.PATH = previousPath;
@@ -284,6 +297,8 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
     if (previousInvocationLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
     else process.env.STYLEPROOF_TEST_GIT_LOG = previousInvocationLog;
+    if (previousMapStoreToken === undefined) delete process.env.STYLEPROOF_MAP_STORE_TOKEN;
+    else process.env.STYLEPROOF_MAP_STORE_TOKEN = previousMapStoreToken;
     rmTmp(root);
   }
 });

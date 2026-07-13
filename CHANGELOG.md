@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Generated CI authenticates map publication explicitly.** `styleproof-init`
+  passes the workflow's least-privilege `github.token` as
+  `STYLEPROOF_MAP_STORE_TOKEN`, so cold-cache uploads do not depend on private
+  `actions/checkout` credential-storage details. Local hooks continue to reuse
+  normal Git credentials without requiring this variable.
 - **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
   Checkout v7 keeps its HTTP header in an included temporary config rather than
   directly in `.git/config`; StyleProof now explicitly enables Git config includes

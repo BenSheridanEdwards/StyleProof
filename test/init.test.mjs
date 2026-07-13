@@ -166,6 +166,7 @@ for (const manager of [
       assert.match(readFile(root, '.gitignore'), /\.styleproof\//);
 
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
+      assert.match(workflow, /STYLEPROOF_MAP_STORE_TOKEN: \$\{\{ github\.token \}\}/);
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
 
