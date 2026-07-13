@@ -267,6 +267,11 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     const invocations = fs.readFileSync(invocationLog, 'utf8');
     assert.match(
       invocations,
+      /config --includes --get-regexp \^http\\\.\.\*\\\.extraheader\$/,
+      'the checkout credential lookup explicitly follows conditional includes',
+    );
+    assert.match(
+      invocations,
       /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token clone/,
       'the initial isolated clone receives the checkout credential',
     );

@@ -97,7 +97,7 @@ interface GitHttpExtraHeader {
 }
 
 function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
-  const configuredHeaders = runGit(cwd, ['config', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
+  const configuredHeaders = runGit(cwd, ['config', '--includes', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
   if (configuredHeaders.status !== 0) return [];
   return configuredHeaders.stdout
     .split('\n')
