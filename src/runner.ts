@@ -580,7 +580,7 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<void
       console.warn(`styleproof: no replay HAR at ${har} — capturing live (NON-deterministic)`);
     }
   } else {
-    await page.routeFromHAR(path.join(s.baseDir, s.dir, harName), {
+    await page.routeFromHAR(path.join(resolveOutputDir(s.baseDir, s.dir), harName), {
       url: s.replayUrl,
       update: true,
       updateContent: 'embed', // single portable file, no sidecar resources
@@ -815,7 +815,7 @@ async function capturePopupCandidate(
       }
     }
 
-    const stem = path.join(s.baseDir, s.dir, `${surface.key}-${popupId}@${width}`);
+    const stem = path.join(resolveOutputDir(s.baseDir, s.dir), `${surface.key}-${popupId}@${width}`);
     saveStyleMap(`${stem}.json.gz`, map);
     if (s.screenshots) await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
   } finally {
@@ -873,7 +873,7 @@ async function captureSurface(page: Page, surface: ExpandedSurface, width: numbe
     // (deduped in the watcher). Warn always; the recorded residue is what the gate reads.
     attachDataResidue(map, residue.residue());
 
-    const stem = path.join(s.baseDir, s.dir, `${surface.key}@${width}`);
+    const stem = path.join(resolveOutputDir(s.baseDir, s.dir), `${surface.key}@${width}`);
     saveStyleMap(`${stem}.json.gz`, map);
     if (s.screenshots) {
       // captureStyleMap froze animations/transitions, so this is the same settled
@@ -915,6 +915,13 @@ export function defaultSelfCheck(
   env: string | undefined = process.env.STYLEPROOF_SELFCHECK,
 ): boolean {
   return env === '1' || !replayFrom;
+}
+
+/** Resolve a capture output dir: an ABSOLUTE `dir` is respected as-is (a user's
+ *  `STYLEMAP_DIR=/abs/path` must not be buried under `baseDir`); a relative one
+ *  nests under `baseDir` as before. */
+export function resolveOutputDir(baseDir: string, dir: string): string {
+  return path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
 }
 
 /**
@@ -1005,7 +1012,7 @@ function writeCoverageLedgerTest(
   captureSurfaces: ReadonlyArray<{ key: string; metadata?: CaptureMetadata }>,
 ): void {
   test('styleproof coverage ledger', () => {
-    const outDir = path.join(settings.baseDir, dir);
+    const outDir = resolveOutputDir(settings.baseDir, dir);
     fs.mkdirSync(outDir, { recursive: true });
     // Determinism basis: self-check ON proves it (a drift would have failed the capture);
     // else a replay run is deterministic by construction; else it's unproven.
@@ -1052,7 +1059,7 @@ function writeCoverageLedgerTest(
 function writeBrowserBuildTest(settings: Settings, dir: string): void {
   test('styleproof browser build', ({ page }) => {
     const version = page.context().browser()?.version();
-    const outDir = path.join(settings.baseDir, dir);
+    const outDir = resolveOutputDir(settings.baseDir, dir);
     writeBrowserBuildSidecar(outDir, version);
     writeCaptureManifest({ dir: outDir, screenshots: settings.screenshots });
   });

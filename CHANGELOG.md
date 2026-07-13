@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.3.1] - 2026-07-13
+
+### Fixed
+
+- **An absolute `STYLEMAP_DIR` (or `--dir`) is respected as-is.** It was joined
+  under `baseDir`, so `STYLEMAP_DIR=/abs/path styleproof-map` stranded the maps
+  at `.styleproof/maps/abs/path` where no consumer looks. Relative dirs nest
+  under `baseDir` unchanged. Found dogfooding against the F.L.E.E.T HUD.
+
 ## [4.3.0] - 2026-07-13
 
 ### Changed

@@ -9,6 +9,7 @@ import {
   defaultSelfCheck,
   expandSurfaceVariants,
   resolveBaseDir,
+  resolveOutputDir,
   resolveDataResidue,
   resolvePopupCaptureOptions,
   resolveScreenshots,
@@ -290,4 +291,11 @@ test('selfCheckErrorMessage: explains volatile root layout drift as a variant pr
   assert.match(message, /Auto-detected live-state candidate/);
   assert.match(message, /div.status \(role=status\)/);
   assert.match(message, /First: html block-size: 800px → 1268px/);
+});
+
+// An absolute STYLEMAP_DIR must be respected as-is — burying it under baseDir
+// (.styleproof/maps/private/tmp/…) strands the maps where no consumer looks.
+test('resolveOutputDir: absolute dir is respected, relative nests under baseDir', () => {
+  assert.equal(resolveOutputDir('.styleproof/maps', '/abs/target'), '/abs/target');
+  assert.equal(resolveOutputDir('.styleproof/maps', 'current'), path.join('.styleproof/maps', 'current'));
 });
