@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Map-store uploads from Git hooks no longer inherit the caller repository's
+  Git location variables.** A cold `styleproof-maps` upload could otherwise run
+  its temporary `git init` against the consumer repository, set
+  `core.bare=true`, and reject the push after a successful capture. StyleProof
+  now isolates every child Git process from hook-exported repository paths.
+
 ## [4.4.1] - 2026-07-13
 
 ### Changed

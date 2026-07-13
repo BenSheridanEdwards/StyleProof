@@ -10,6 +10,7 @@ import {
   manifestlessError,
   manifestlessSide,
   MAP_MANIFEST,
+  publishMapBundle,
   readMapManifest,
   workingTreeDirty,
   writeBrowserBuildSidecar,
@@ -140,6 +141,53 @@ test('workingTreeDirty: ignorePrefix skips the map output dir but still catches 
     assert.equal(workingTreeDirty(repo, '.styleproof/maps/current'), true, 'source edit still caught');
   } finally {
     rmTmp(repo);
+  }
+});
+
+test('publishMapBundle ignores hook-exported Git repository variables and leaves the caller non-bare', () => {
+  const root = mkTmp('styleproof-hook-env-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+  const previousGitDirectory = process.env.GIT_DIR;
+  const previousGitWorkTree = process.env.GIT_WORK_TREE;
+  try {
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{}');
+    writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: repo,
+    });
+
+    // Git exports these while running hooks. Child Git commands aimed at the
+    // temporary map-store checkout must not inherit them and mutate this repo.
+    process.env.GIT_DIR = path.join(repo, '.git');
+    process.env.GIT_WORK_TREE = repo;
+    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    assert.equal(git(repo, 'config', '--bool', 'core.bare'), 'false');
+    assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
+  } finally {
+    if (previousGitDirectory === undefined) delete process.env.GIT_DIR;
+    else process.env.GIT_DIR = previousGitDirectory;
+    if (previousGitWorkTree === undefined) delete process.env.GIT_WORK_TREE;
+    else process.env.GIT_WORK_TREE = previousGitWorkTree;
+    rmTmp(root);
   }
 });
 
