@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.16] - 2026-07-13
+
+### Fixed
+
+- **Map-store publication now retains failures that occur while preparing a retry.**
+  If an authenticated push fails and the next clone also fails, StyleProof reports
+  both errors with their attempt and phase instead of replacing the actionable push
+  failure with the later setup error.
+
 ## [4.4.15] - 2026-07-13
 
 ### Fixed
