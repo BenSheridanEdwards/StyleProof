@@ -178,6 +178,14 @@ export type DefineOptions = {
    */
   selfCheck?: boolean;
   /**
+   * Run the generated capture tests in PARALLEL across Playwright workers
+   * (default true). Every capture test is independent, so parallel is safe and
+   * ~workers× faster on a multi-surface spec — even when the project config
+   * pins `fullyParallel: false`. Set false ONLY for a spec file whose OTHER
+   * tests read the captured maps in file order (an in-file assertion suite).
+   */
+  parallel?: boolean;
+  /**
    * Opt-in content layer (default OFF). Record each element's own rendered text
    * so the report's optional content section can surface copy changes (run
    * `styleproof-report --include-content`). Advisory only — never gates. See
@@ -221,7 +229,9 @@ export type DefineOptions = {
 };
 
 /** Resolved per-capture settings, shared with the helpers below. */
-type Settings = Required<Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude' | 'popups'>> & {
+type Settings = Required<
+  Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude' | 'popups' | 'parallel'>
+> & {
   dir: string;
   replayFrom?: string;
   popups: ResolvedPopupCaptureOptions;
@@ -1104,6 +1114,15 @@ export function defineStyleMapCapture(options: DefineOptions): void {
 
   const settings = resolveSettings(options);
   test.describe('styleproof capture', () => {
+    // Every generated test is independent — its own page, its own map/HAR files,
+    // its own self-check; the ledger/manifest tests mkdir and tolerate any order.
+    // Declare the block PARALLEL so captures fan out across the consumer's
+    // Playwright workers even when the project pins `fullyParallel: false` for
+    // its behaviour suite (150 serial surface×width captures is a ~25-minute CI
+    // step; 4 workers make it ~4x faster with byte-identical maps).
+    // `parallel: false` keeps file order for specs whose own sibling tests read
+    // the captured maps.
+    if (options.parallel !== false) test.describe.configure({ mode: 'parallel' });
     writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
     writeBrowserBuildTest(settings, dir);
     for (const surface of captureSurfaces) {

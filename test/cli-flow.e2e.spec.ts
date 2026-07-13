@@ -544,6 +544,65 @@ test('styleproof-map fails loudly when a crawled link redirects off-origin', asy
   }
 });
 
+// Captures must parallelize ACROSS WORKERS even when the consumer's config pins
+// `fullyParallel: false` for its behaviour suite (a real consumer shape, where
+// 150 serial surface×width captures made a ~25-minute CI step). The capture
+// describe declares parallel mode itself; this pins that a parallel run still
+// produces a complete bundle — every surface, ledger, and manifest present.
+test('explicit-surface capture fans out across workers under fullyParallel:false', async () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-parallel-'));
+  const port = await freePort();
+  try {
+    writeMultiPageApp(app, port);
+    git(app, ['init', '-q']);
+    git(app, ['config', 'user.email', 'styleproof@example.test']);
+    git(app, ['config', 'user.name', 'StyleProof Test']);
+    git(app, ['checkout', '-qb', 'main']);
+    const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
+    expect(init.status, init.stderr).toBe(0);
+    // The serial-consumer shape: behaviour suite pins fullyParallel:false + workers.
+    const configPath = path.join(app, 'playwright.styleproof.config.ts');
+    const config = fs.readFileSync(configPath, 'utf8');
+    expect(config).toContain('fullyParallel: true');
+    fs.writeFileSync(configPath, config.replace('fullyParallel: true', 'fullyParallel: false,\n  workers: 4'));
+    // Explicit surfaces (one test per surface × width) — the parallelized shape.
+    fs.writeFileSync(
+      path.join(app, 'e2e/styleproof.spec.ts'),
+      `import { defineStyleMapCapture } from 'styleproof';
+defineStyleMapCapture({
+  surfaces: [
+    { key: 'index', widths: [1280, 600], go: async (page) => { await page.goto('/'); } },
+    { key: 'pricing', widths: [1280, 600], go: async (page) => { await page.goto('/pricing'); } },
+    { key: 'about', widths: [1280, 600], go: async (page) => { await page.goto('/about'); } },
+  ],
+  screenshots: false,
+  dir: process.env.STYLEMAP_DIR,
+});
+`,
+    );
+    git(app, ['add', '-A']);
+    git(app, ['commit', '-qm', 'styleproof setup']);
+
+    const map = run(app, process.execPath, [MAP]);
+    expect(map.status, map.stderr + map.stdout).toBe(0);
+    // Playwright reports the worker fan-out; a serial run would say "1 worker".
+    // eslint-disable-next-line no-control-regex
+    const plainStdout = map.stdout.replace(/\u001b\[[0-9;]*m/g, '');
+    expect(plainStdout).toMatch(/using [2-9] workers/);
+    const mapsDir = path.join(app, '.styleproof/maps/current');
+    const files = fs.readdirSync(mapsDir);
+    for (const key of ['index', 'pricing', 'about']) {
+      for (const width of [1280, 600]) {
+        expect(files.includes(`${key}@${width}.json.gz`), `${key}@${width} captured`).toBe(true);
+      }
+    }
+    expect(files.includes('styleproof-coverage.json'), 'ledger written').toBe(true);
+    expect(files.includes('styleproof-manifest.json'), 'manifest written').toBe(true);
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});
+
 test('zero-config: init on a multi-page app crawls and captures every page — no spec editing', async () => {
   const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-zeroconfig-'));
   const port = await freePort();

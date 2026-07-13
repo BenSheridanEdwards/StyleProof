@@ -1,35 +1,27 @@
 # Progress
 
-## Completed: gate-truthfulness audit + off-origin crawl guard (4.3.0)
+## Completed: parallel spec captures + absolute STYLEMAP_DIR (4.4.0)
 
 ## Completed
 
-- Adversarial audit of the diff/gate subsystem (exit codes, surface pairing,
-  volatile handling, ledger auditing, inventory guard, Action wiring).
-- Removed surfaces now exit 1 as `REMOVED`, never exit 3 as "new".
-- Corrupt coverage ledger exits 2; ledger-less residue footer named truthfully.
-- Volatile-excluded count and both-sides-skipped forced-state layer surfaced in
-  output and --json.
-- Stale inventory allowances gate (CLI and Action), mirroring residue.
-- Action fails closed on undefined diff exit codes and hard-gates
-  coverage/determinism/residue failures post-approval.
-- Both crawls refuse off-origin redirect targets.
-- Dogfooded the released 4.2.0 end to end: consumer init→map→store→restore→diff
-  round trip, base-checkout SHA labeling under PR event env, multi-page CLI
-  crawl edge cases, and a real Next.js app capture that caught a single hover
-  tint change with zero noise.
+- Declared the spec-driven capture describe `parallel`, with a documented
+  `parallel: false` opt-out for spec files whose sibling tests read the maps in
+  file order (both in-repo ordered suites now opt out explicitly).
+- Benchmarked on a real 150-capture consumer workload: 24.5 minutes serial to
+  6.0 minutes at 4 workers, byte-complete bundle, all self-checks passing.
+- Respected an absolute STYLEMAP_DIR/--dir in the runner and styleproof-map
+  instead of nesting it under baseDir.
 
 ## Findings
 
-- Head-side auto-volatile subtrees suppressed real changes with zero trace at
-  the gate; the count existed in the library result but the CLI dropped it.
-- Deleting or corrupting the head ledger disarmed coverage, determinism, and
-  residue at once, and the residue footer blamed the warn opt-out.
-- action.yml mapped crash exit codes (127/137/143) to "no changes" = green.
-- A deleted route exited 3 under the "new surfaces" banner.
-- A same-origin nav link that 302s off-origin was captured as app content.
+- The runner already generated one independent test per surface×width, but a
+  consumer config with `fullyParallel: false` ran all of them serially in one
+  worker — the whole 25-minute capture step was a scheduling artifact.
+- Two in-repo e2e suites depended on in-file capture-then-assert ordering; the
+  parallel default surfaced them immediately (0ms ENOENT failures), hence the
+  explicit opt-out knob rather than a silent heuristic.
 
 ## Verification Status
 
-- 442 unit tests and full Playwright e2e suite pass; new regression tests pin
-  every fix at gate level (not just library level).
+- 441 unit tests, 113 Playwright e2e (including the new fan-out pin), all
+  static gates, demo byte-identical, privacy scan clean.

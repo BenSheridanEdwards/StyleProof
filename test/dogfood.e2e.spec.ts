@@ -111,6 +111,7 @@ function popupSurface(tone: 'base' | 'head') {
 
 test.describe('dogfood live-state base capture', () => {
   defineStyleMapCapture({
+    parallel: false, // this file's own tests read the maps in file order
     surfaces: [liveSurface('base')],
     dir: 'dogfood-base',
     baseDir: LIVE_ROOT,
@@ -121,6 +122,7 @@ test.describe('dogfood live-state base capture', () => {
 
 test.describe('dogfood live-state head capture', () => {
   defineStyleMapCapture({
+    parallel: false, // this file's own tests read the maps in file order
     surfaces: [liveSurface('head')],
     dir: 'dogfood-head',
     baseDir: LIVE_ROOT,
@@ -131,6 +133,7 @@ test.describe('dogfood live-state head capture', () => {
 
 test.describe('dogfood popup base capture', () => {
   defineStyleMapCapture({
+    parallel: false, // this file's own tests read the maps in file order
     surfaces: [popupSurface('base')],
     dir: 'popup-base',
     baseDir: POPUP_ROOT,
@@ -141,6 +144,7 @@ test.describe('dogfood popup base capture', () => {
 
 test.describe('dogfood popup head capture', () => {
   defineStyleMapCapture({
+    parallel: false, // this file's own tests read the maps in file order
     surfaces: [popupSurface('head')],
     dir: 'popup-head',
     baseDir: POPUP_ROOT,
