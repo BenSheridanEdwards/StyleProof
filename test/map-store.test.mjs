@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import {
   assertCompatibleMapDirs,
   BROWSER_BUILD_SIDECAR,
@@ -12,6 +13,7 @@ import {
   MAP_MANIFEST,
   publishMapBundle,
   readMapManifest,
+  restoreMapBundle,
   workingTreeDirty,
   writeBrowserBuildSidecar,
   writeCaptureManifest,
@@ -215,6 +217,8 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     git(seed, 'config', 'user.email', 'styleproof@example.test');
     git(seed, 'config', 'user.name', 'StyleProof Test');
     fs.writeFileSync(path.join(seed, 'README.md'), '# StyleProof maps\n');
+    fs.mkdirSync(path.join(seed, 'unseen-sha', 'unseen-compatibility'), { recursive: true });
+    fs.writeFileSync(path.join(seed, 'unseen-sha', 'unseen-compatibility', 'keep.txt'), 'keep\n');
     git(seed, 'add', '-A');
     git(seed, 'commit', '-qm', 'seed map store');
     git(seed, 'push', '-q', 'origin', 'styleproof-maps');
@@ -272,12 +276,22 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
       /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token clone/,
       'the initial isolated clone receives the checkout credential',
     );
+    assert.doesNotMatch(
+      invocations,
+      /clone[^\n]*--no-checkout/,
+      'publishing keeps a complete working tree so unseen bundles cannot be deleted',
+    );
     assert.match(
       invocations,
       /config --local http\.https:\/\/github\.com\/\.extraheader AUTHORIZATION: basic fake-checkout-token/,
       'the isolated checkout persists the credential for its later push',
     );
     assert.match(invocations, /push -q origin HEAD:styleproof-maps/, 'the authenticated checkout publishes the map');
+    assert.equal(
+      git(root, '--git-dir', remote, 'show', 'styleproof-maps:unseen-sha/unseen-compatibility/keep.txt'),
+      'keep',
+      'publishing preserves a bundle that was not part of the new capture',
+    );
 
     git(repo, 'config', '--local', '--unset-all', 'includeIf.gitdir:/github/workspace/.git.path');
     process.env.STYLEPROOF_MAP_STORE_TOKEN = 'fake-workflow-token';
@@ -299,6 +313,118 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     else process.env.STYLEPROOF_TEST_GIT_LOG = previousInvocationLog;
     if (previousMapStoreToken === undefined) delete process.env.STYLEPROOF_MAP_STORE_TOKEN;
     else process.env.STYLEPROOF_MAP_STORE_TOKEN = previousMapStoreToken;
+    rmTmp(root);
+  }
+});
+
+test('restoreMapBundle retrieves only the requested SHA from a large map store', () => {
+  const root = mkTmp('styleproof-sparse-restore-');
+  const remote = path.join(root, 'remote.git');
+  const seed = path.join(root, 'seed');
+  const consumer = path.join(root, 'consumer');
+  const restored = path.join(root, 'restored');
+  const shimDirectory = path.join(root, 'bin');
+  const invocationLog = path.join(root, 'git-invocations.log');
+  const uploadLog = path.join(root, 'git-upload-pack.bin');
+  const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  const git = (cwd, ...args) => execFileSync(realGit, args, { cwd, stdio: 'pipe' }).toString().trim();
+  const requestedSha = 'a'.repeat(40);
+  const unrelatedSha = 'b'.repeat(40);
+  const compatibilityKey = 'deadbeefdeadbeef';
+  const previousPath = process.env.PATH;
+  const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
+  const previousInvocationLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  const previousSshCommand = process.env.GIT_SSH_COMMAND;
+  const previousUploadLog = process.env.STYLEPROOF_TEST_UPLOAD_LOG;
+
+  try {
+    git(root, 'init', '--bare', '-q', remote);
+    git(root, 'clone', '-q', remote, seed);
+    git(seed, 'checkout', '-q', '-b', 'styleproof-maps');
+    git(seed, 'config', 'user.email', 'styleproof@example.test');
+    git(seed, 'config', 'user.name', 'StyleProof Test');
+
+    const requestedBundle = path.join(seed, requestedSha, compatibilityKey);
+    fs.mkdirSync(requestedBundle, { recursive: true });
+    fs.writeFileSync(path.join(requestedBundle, 'home@1280.json'), '{"requested":true}\n');
+    fs.writeFileSync(
+      path.join(requestedBundle, MAP_MANIFEST),
+      JSON.stringify({
+        version: 1,
+        packageVersion: 'test',
+        sha: requestedSha,
+        dirty: false,
+        spec: 'styleproof.spec.ts',
+        specHash: 'test',
+        platform: 'linux',
+        arch: 'x64',
+        nodeMajor: '22',
+        screenshots: false,
+        har: false,
+        compatibilityKey,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+    );
+
+    const unrelatedBundle = path.join(seed, unrelatedSha, compatibilityKey);
+    fs.mkdirSync(unrelatedBundle, { recursive: true });
+    const unrelatedPayload = randomBytes(8 * 1024 * 1024);
+    fs.writeFileSync(path.join(unrelatedBundle, 'unrelated.bin'), unrelatedPayload);
+    git(seed, 'add', '-A');
+    git(seed, 'commit', '-qm', 'seed map store');
+    git(seed, 'push', '-q', 'origin', 'styleproof-maps');
+    git(root, '--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true');
+
+    fs.mkdirSync(consumer);
+    git(consumer, 'init', '-q', '-b', 'main');
+    git(consumer, 'remote', 'add', 'origin', `ssh://styleproof.test${remote}`);
+
+    fs.mkdirSync(shimDirectory);
+    const gitShim = path.join(shimDirectory, 'git');
+    fs.writeFileSync(
+      gitShim,
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+    );
+    fs.chmodSync(gitShim, 0o755);
+    const sshShim = path.join(shimDirectory, 'ssh');
+    fs.writeFileSync(
+      sshShim,
+      '#!/bin/sh\nfor argument do remote_command="$argument"; done\nsh -c "$remote_command" | tee -a "$STYLEPROOF_TEST_UPLOAD_LOG"\n',
+    );
+    fs.chmodSync(sshShim, 0o755);
+    process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
+    process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
+    process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
+    process.env.GIT_SSH_COMMAND = sshShim;
+    process.env.STYLEPROOF_TEST_UPLOAD_LOG = uploadLog;
+
+    restoreMapBundle({ sha: requestedSha, outDir: restored, cwd: consumer });
+
+    assert.equal(fs.readFileSync(path.join(restored, 'home@1280.json'), 'utf8'), '{"requested":true}\n');
+    assert.equal(fs.existsSync(path.join(restored, 'unrelated.bin')), false);
+    assert.ok(
+      fs.statSync(uploadLog).size < unrelatedPayload.length / 2,
+      'the remote sends far less data than the unrelated bundle alone',
+    );
+    const invocations = fs.readFileSync(invocationLog, 'utf8');
+    assert.match(
+      invocations,
+      /clone -q --filter=blob:none --no-checkout --depth 1 --single-branch --branch styleproof-maps/,
+      'restore clones tree metadata without checking out every cached bundle',
+    );
+    assert.match(invocations, new RegExp(`sparse-checkout set ${requestedSha}`));
+    assert.match(invocations, /checkout -q styleproof-maps/);
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousRealGit === undefined) delete process.env.STYLEPROOF_TEST_REAL_GIT;
+    else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
+    if (previousInvocationLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
+    else process.env.STYLEPROOF_TEST_GIT_LOG = previousInvocationLog;
+    if (previousSshCommand === undefined) delete process.env.GIT_SSH_COMMAND;
+    else process.env.GIT_SSH_COMMAND = previousSshCommand;
+    if (previousUploadLog === undefined) delete process.env.STYLEPROOF_TEST_UPLOAD_LOG;
+    else process.env.STYLEPROOF_TEST_UPLOAD_LOG = previousUploadLog;
     rmTmp(root);
   }
 });

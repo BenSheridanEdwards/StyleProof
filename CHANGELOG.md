@@ -19,6 +19,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   directly in `.git/config`; StyleProof now explicitly enables Git config includes
   and falls back to its locally registered checkout config before carrying that
   header into the isolated clone and push.
+- **Map-store restore now retrieves only the requested commit bundle.** Restore
+  clones branch metadata without a checkout, sparsely selects the requested SHA,
+  and, on partial-clone-capable remotes such as GitHub, downloads only that
+  bundle's blobs. Large long-lived map stores therefore no longer make every
+  cache lookup clone all historical bundles on supported remotes. Publishing
+  deliberately keeps its complete checkout so a commit cannot delete unseen bundles.
 - **Map-store uploads now reuse the HTTP authentication persisted by
   `actions/checkout`.** The isolated `styleproof-maps` clone carries the
   checkout's URL-scoped extra header through clone and push, so cache-miss

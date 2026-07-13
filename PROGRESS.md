@@ -25,3 +25,14 @@
 
 - 441 unit tests, 113 Playwright e2e (including the new fan-out pin), all
   static gates, demo byte-identical, privacy scan clean.
+
+## In progress: selective map-store restore
+
+- Completed: reproduced full-branch checkout through the public restore seam
+  and added a regression test that requires partial, sparse retrieval while
+  preserving full-tree publishing.
+- Completed: restore now checks out only the requested SHA bundle; the focused
+  regression test passes.
+- Next: run the complete quality gates, verify against a large remote store,
+  review the diff, and publish the ready pull request.
+- Blockers: none.

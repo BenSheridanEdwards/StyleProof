@@ -519,22 +519,21 @@ function copyDir(src: string, dest: string, includeHar: boolean): void {
   });
 }
 
-function checkoutMapStore(cwd: string, remote: string, branch: string): string {
+function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSegment?: string): string {
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
   const remoteUrl = gitOutput(cwd, ['remote', 'get-url', remote]);
   const httpExtraHeaders = effectiveGitHttpExtraHeaders(cwd);
   const authenticationArguments = httpExtraHeaders.flatMap(({ key, value }) => ['-c', `${key}=${value}`]);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-'));
   if (runGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20).status === 0) {
-    const clone = spawnSync(
-      'git',
-      [...authenticationArguments, 'clone', '-q', '--depth', '1', '--branch', branch, remoteUrl, tmp],
-      {
-        encoding: 'utf8',
-        maxBuffer: 1 << 20,
-        env: gitProcessEnvironment(),
-      },
-    );
+    const cloneArguments = sparseSegment
+      ? ['clone', '-q', '--filter=blob:none', '--no-checkout', '--depth', '1', '--single-branch', '--branch', branch]
+      : ['clone', '-q', '--depth', '1', '--branch', branch];
+    const clone = spawnSync('git', [...authenticationArguments, ...cloneArguments, remoteUrl, tmp], {
+      encoding: 'utf8',
+      maxBuffer: 1 << 20,
+      env: gitProcessEnvironment(),
+    });
     if (clone.status !== 0) {
       fs.rmSync(tmp, { recursive: true, force: true });
       throw new MapStoreError(clone.stderr.trim() || 'could not clone map store branch');
@@ -544,6 +543,14 @@ function checkoutMapStore(cwd: string, remote: string, branch: string): string {
     runGit(tmp, ['remote', 'add', 'origin', remoteUrl]);
   }
   for (const { key, value } of httpExtraHeaders) runGit(tmp, ['config', '--local', key, value]);
+  if (sparseSegment) {
+    const sparseCheckout = runGit(tmp, ['sparse-checkout', 'set', sparseSegment], 1 << 20);
+    const checkout = sparseCheckout.status === 0 ? runGit(tmp, ['checkout', '-q', branch], 1 << 20) : sparseCheckout;
+    if (checkout.status !== 0) {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      throw new MapStoreError(checkout.stderr.trim() || `could not check out ${sparseSegment} from map store`);
+    }
+  }
   return tmp;
 }
 
@@ -625,7 +632,7 @@ export function restoreMapBundle(options: {
     throw new MapStoreError(`map store branch ${branch} does not exist`);
   }
 
-  const tmp = checkoutMapStore(cwd, remote, branch);
+  const tmp = checkoutMapStore(cwd, remote, branch, sha);
   try {
     const shaDir = path.join(tmp, sha);
     if (!fs.existsSync(shaDir)) throw new MapStoreError(`no cached map for ${sha} on ${branch}`);
