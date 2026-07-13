@@ -113,7 +113,7 @@ function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
   if (effectiveHeaders.length > 0) return effectiveHeaders;
 
   const registeredIncludes = runGit(cwd, ['config', '--local', '--get-regexp', '^includeIf\\..*\\.path$'], 1 << 20);
-  return registeredIncludes.stdout
+  const includedHeaders = registeredIncludes.stdout
     .split('\n')
     .filter(Boolean)
     .flatMap((registeredInclude) => {
@@ -127,6 +127,16 @@ function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
       );
       return parseGitHttpExtraHeaders(includedHeaders.stdout);
     });
+  if (includedHeaders.length > 0) return includedHeaders;
+
+  const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
+  if (!mapStoreToken) return [];
+  return [
+    {
+      key: ['http.https:', '', 'github.com', '.extraheader'].join('/'),
+      value: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${mapStoreToken}`).toString('base64')}`,
+    },
+  ];
 }
 
 function gitOutput(cwd: string, args: string[]): string {

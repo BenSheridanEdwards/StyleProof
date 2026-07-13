@@ -388,6 +388,8 @@ jobs:
     # Report on open/update; the prune job below handles close.
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
+    env:
+      STYLEPROOF_MAP_STORE_TOKEN: \${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
