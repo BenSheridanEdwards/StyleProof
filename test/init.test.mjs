@@ -78,13 +78,17 @@ for (const manager of [
     workflow: [
       /cache: npm/,
       /npm ci/,
-      /npx styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir __stylemaps__ --spec e2e\/styleproof\.spec\.ts/,
-      /npx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir __stylemaps__ --no-upload/,
-      /BenSheridanEdwards\/StyleProof@v3/,
-      /baseline-dir: __stylemaps__\/base/,
-      /fresh-dir: __stylemaps__\/head/,
+      /npx styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir "\$MAP_ROOT" --spec e2e\/styleproof\.spec\.ts/,
+      /npx playwright install --with-deps chromium/,
+      /npx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir base --base-dir "\$MAP_ROOT" --keep-har --sha "\$BASE_SHA" --upload/,
+      /npx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir "\$MAP_ROOT" --sha "\$HEAD_SHA" --upload/,
+      /BenSheridanEdwards\/StyleProof@v4/,
+      /baseline-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/base/,
+      /fresh-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/head/,
     ],
-    hook: /npx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
+    hookRestore:
+      /npx styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
+    hookCapture: /npx styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
   },
   {
     name: 'Yarn v1 lockfile',
@@ -93,12 +97,16 @@ for (const manager of [
     workflow: [
       /cache: yarn/,
       /npx -y yarn@1\.22\.22 install --frozen-lockfile --non-interactive/,
-      /npx -y yarn@1\.22\.22 styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir __stylemaps__ --spec e2e\/styleproof\.spec\.ts/,
-      /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir __stylemaps__ --no-upload/,
-      /BenSheridanEdwards\/StyleProof@v3/,
+      /npx -y yarn@1\.22\.22 styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir "\$MAP_ROOT" --spec e2e\/styleproof\.spec\.ts/,
+      /npx -y yarn@1\.22\.22 playwright install --with-deps chromium/,
+      /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts --dir base --base-dir "\$MAP_ROOT" --keep-har --sha "\$BASE_SHA" --upload/,
+      /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir "\$MAP_ROOT" --sha "\$HEAD_SHA" --upload/,
+      /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
-    hook: /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts/,
+    hookRestore:
+      /npx -y yarn@1\.22\.22 styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
+    hookCapture: /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
   },
   {
     name: 'pnpm lockfile',
@@ -108,12 +116,16 @@ for (const manager of [
       /cache: pnpm/,
       /corepack enable/,
       /pnpm install --frozen-lockfile/,
-      /pnpm exec styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir __stylemaps__ --spec e2e\/styleproof\.spec\.ts/,
-      /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir __stylemaps__ --no-upload/,
-      /BenSheridanEdwards\/StyleProof@v3/,
+      /pnpm exec styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir "\$MAP_ROOT" --spec e2e\/styleproof\.spec\.ts/,
+      /pnpm exec playwright install --with-deps chromium/,
+      /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts --dir base --base-dir "\$MAP_ROOT" --keep-har --sha "\$BASE_SHA" --upload/,
+      /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir "\$MAP_ROOT" --sha "\$HEAD_SHA" --upload/,
+      /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
-    hook: /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts/,
+    hookRestore:
+      /pnpm exec styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
+    hookCapture: /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
   },
   {
     name: 'Bun lockfile',
@@ -122,12 +134,16 @@ for (const manager of [
     workflow: [
       /oven-sh\/setup-bun@v2/,
       /bun install --frozen-lockfile/,
-      /bunx styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir __stylemaps__ --spec e2e\/styleproof\.spec\.ts/,
-      /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir __stylemaps__ --no-upload/,
-      /BenSheridanEdwards\/StyleProof@v3/,
+      /bunx styleproof-map --restore --sha "\$BASE_SHA" --dir base --base-dir "\$MAP_ROOT" --spec e2e\/styleproof\.spec\.ts/,
+      /bunx playwright install --with-deps chromium/,
+      /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir base --base-dir "\$MAP_ROOT" --keep-har --sha "\$BASE_SHA" --upload/,
+      /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts --dir head --base-dir "\$MAP_ROOT" --sha "\$HEAD_SHA" --upload/,
+      /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
-    hook: /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts/,
+    hookRestore:
+      /bunx styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
+    hookCapture: /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
   },
 ]) {
   test(`styleproof-init: generated commands follow ${manager.name}`, () => {
@@ -143,7 +159,8 @@ for (const manager of [
       // Pre-push publish hook is default, uses the manager's exec form, and never
       // stages maps onto the branch.
       const hook = readFile(root, '.githooks/pre-push');
-      assert.match(hook, manager.hook);
+      assert.match(hook, manager.hookRestore);
+      assert.match(hook, manager.hookCapture);
       assert.match(hook, /STYLEPROOF_SKIP_CAPTURE/);
       assert.doesNotMatch(hook, /git add/);
       assert.match(readFile(root, '.gitignore'), /\.styleproof\//);

@@ -366,13 +366,13 @@ export default defineConfig({
 const CI_PATH = '.github/workflows/styleproof.yml';
 const CI_WORKFLOW = `name: StyleProof
 
-# Cache-first v3 flow:
+# Cache-first v4 flow:
 # - run \`styleproof-map\` locally after committing to build/upload this commit's map
 #   outside CI when possible;
 # - CI restores base/head maps from the styleproof-maps branch and generates the
 #   report without a browser;
-# - on cache miss, CI recaptures both sides in one pinned environment so the
-#   comparison stays valid.
+# - on a head-only miss, CI captures/publishes only the head; on a base miss it
+#   recaptures/publishes the pair in one pinned environment.
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
@@ -400,13 +400,16 @@ ${PM.setup}
         run: |
           BASE_SHA="\${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          rm -rf __stylemaps__
+          MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
+          rm -rf "$MAP_ROOT"
           set +e
-          ${PM.exec(`styleproof-map --restore --sha "$BASE_SHA" --dir base --base-dir __stylemaps__ --spec ${specPath}`)}
+          ${PM.exec(`styleproof-map --restore --sha "$BASE_SHA" --dir base --base-dir "$MAP_ROOT" --spec ${specPath}`)}
           base_code=$?
-          ${PM.exec(`styleproof-map --restore --sha "$HEAD_SHA" --dir head --base-dir __stylemaps__ --spec ${specPath}`)}
+          ${PM.exec(`styleproof-map --restore --sha "$HEAD_SHA" --dir head --base-dir "$MAP_ROOT" --spec ${specPath}`)}
           head_code=$?
           set -e
+          echo "base-hit=$([ "$base_code" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "head-hit=$([ "$head_code" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           if [ "$base_code" -eq 0 ] && [ "$head_code" -eq 0 ]; then
             echo "capture-needed=false" >> "$GITHUB_OUTPUT"
           else
@@ -418,27 +421,40 @@ ${PM.setup}
         run: |
           BASE_SHA="\${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          rm -rf __stylemaps__
+          MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
 
-          git checkout "$BASE_SHA"
-          ${PM.install}
-          if [ -f "${specPath}" ]; then
-            ${PM.exec(`styleproof-map --spec ${specPath} --dir base --base-dir __stylemaps__ --keep-har --no-upload`)}
+          if [ "\${{ steps.maps.outputs.base-hit }}" != 'true' ]; then
+            # Without a compatible base bundle, rebuild and publish the pair in
+            # one pinned environment. This is the expensive cold path.
+            rm -rf "$MAP_ROOT"
+            git checkout "$BASE_SHA"
+            ${PM.install}
+            ${PM.exec('playwright install --with-deps chromium')}
+            if [ -f "${specPath}" ]; then
+              ${PM.exec(`styleproof-map --spec ${specPath} --dir base --base-dir "$MAP_ROOT" --keep-har --sha "$BASE_SHA" --upload`)}
+            else
+              mkdir -p "$MAP_ROOT/base"
+            fi
+
+            git checkout "$HEAD_SHA"
+            ${PM.install}
+            ${PM.exec('playwright install --with-deps chromium')}
           else
-            mkdir -p __stylemaps__/base
+            # A compatible base hit proves the current head environment. Keep
+            # that restored base and capture only the missing head.
+            rm -rf "$MAP_ROOT/head"
+            ${PM.exec('playwright install --with-deps chromium')}
           fi
 
-          git checkout "$HEAD_SHA"
-          ${PM.install}
-          if find __stylemaps__/base -name '*.har' -print -quit | grep -q .; then
-            STYLEPROOF_REPLAY_FROM=__stylemaps__/base ${PM.exec(`styleproof-map --spec ${specPath} --dir head --base-dir __stylemaps__ --no-upload`)}
+          if find "$MAP_ROOT/base" -name '*.har' -print -quit | grep -q .; then
+            STYLEPROOF_REPLAY_FROM="$MAP_ROOT/base" ${PM.exec(`styleproof-map --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload`)}
           else
-            ${PM.exec(`styleproof-map --spec ${specPath} --dir head --base-dir __stylemaps__ --no-upload`)}
+            ${PM.exec(`styleproof-map --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload`)}
           fi
-      - uses: BenSheridanEdwards/StyleProof@v3
+      - uses: BenSheridanEdwards/StyleProof@v4
         with:
-          baseline-dir: __stylemaps__/base
-          fresh-dir: __stylemaps__/head
+          baseline-dir: \${{ runner.temp }}/styleproof-maps/base
+          fresh-dir: \${{ runner.temp }}/styleproof-maps/head
           require-approval: true
 
   prune:
@@ -600,7 +616,10 @@ const HOOK = `#!/bin/sh
 # Skip (e.g. a docs-only push): STYLEPROOF_SKIP_CAPTURE=1 git push
 set -e
 [ "\${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-${PM.exec(`styleproof-map --spec ${specPath}`)}
+head_sha="$(git rev-parse HEAD)"
+if ! ${PM.exec(`styleproof-map --restore --sha "$head_sha" --dir current --base-dir .styleproof/maps --spec ${specPath}`)}; then
+  ${PM.exec(`styleproof-map --spec ${specPath} --sha "$head_sha" --upload`)}
+fi
 ${PM.exec('styleproof-diff')} || true # advisory: show drift before CI does
 `;
 const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
@@ -627,8 +646,8 @@ if (touched.length) {
 console.log('\nHow the gate works — it runs on your first PR with no extra steps:');
 console.log('  1. Commit and open a PR. CI captures the base and head surfaces in one pinned');
 console.log('     environment and posts the StyleProof report — no local step required.');
-console.log('  2. The pre-push hook captures each pushed commit into .styleproof/ and publishes');
-console.log('     the bundle to the styleproof-maps branch; CI restores it by SHA and generates');
+console.log('  2. The pre-push hook restores an existing exact-SHA map or captures once and');
+console.log('     publishes it to styleproof-maps; CI restores by SHA and generates');
 console.log('     the report without a browser. Maps never get committed to the PR branch.');
 console.log('     Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
 console.log('  3. Merge this PR. The approval workflow only runs from your default branch, so');
