@@ -869,6 +869,11 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
       /styleproof-map\.mjs --restore --sha "\$BASE_SHA"/,
       'CI first restores cached maps with the installed release',
     );
+    assert.match(
+      ci,
+      /git checkout --force "\$BASE_SHA"[\s\S]*styleproof-map\.mjs --restore --sha "\$BASE_SHA"[\s\S]*git checkout --force "\$HEAD_SHA"[\s\S]*styleproof-map\.mjs --restore --sha "\$HEAD_SHA"/,
+      'CI computes each restore key from the lockfile at that exact commit',
+    );
     assert.match(ci, /capture-needed=true/, 'CI records cache misses');
     assert.match(ci, /Capture maps in CI on cache miss/, 'CI has a correctness fallback');
     assert.match(ci, /STYLEPROOF_REPLAY_FROM="\$MAP_ROOT\/base"/, 'fallback replays base data for head');

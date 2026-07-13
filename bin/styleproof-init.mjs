@@ -415,9 +415,16 @@ ${PM.setup}
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
           MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
           rm -rf "$MAP_ROOT"
+          # Compatibility keys include the checked-out lockfile. Resolve each
+          # exact-SHA bundle in that commit's own dependency context, while
+          # reusing the already-installed StyleProof binary from node_modules.
+          git checkout --force "$BASE_SHA"
           set +e
           PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --restore --sha "$BASE_SHA" --dir base --base-dir "$MAP_ROOT" --spec ${specPath}
           base_code=$?
+          set -e
+          git checkout --force "$HEAD_SHA"
+          set +e
           PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --restore --sha "$HEAD_SHA" --dir head --base-dir "$MAP_ROOT" --spec ${specPath}
           head_code=$?
           set -e
