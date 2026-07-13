@@ -7,6 +7,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.8] - 2026-07-13
+
+### Fixed
+
+- **Map-store restore now retrieves only the requested commit bundle.** Restore
+  clones branch metadata without a checkout, sparsely selects the requested SHA,
+  and, on partial-clone-capable remotes such as GitHub, downloads only that
+  bundle's blobs. Large long-lived map stores therefore no longer make every
+  cache lookup clone all historical bundles on supported remotes. Publishing
+  uses the same sparse checkout and stages only the requested bundle plus the
+  store README; Git's sparse index preserves unseen bundles without downloading
+  their blobs, so cache misses no longer materialise the complete store either.
+
+## [4.4.7] - 2026-07-13
+
 ### Fixed
 
 - **Generated CI authenticates map publication explicitly.** `styleproof-init`
@@ -19,14 +34,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   directly in `.git/config`; StyleProof now explicitly enables Git config includes
   and falls back to its locally registered checkout config before carrying that
   header into the isolated clone and push.
-- **Map-store restore now retrieves only the requested commit bundle.** Restore
-  clones branch metadata without a checkout, sparsely selects the requested SHA,
-  and, on partial-clone-capable remotes such as GitHub, downloads only that
-  bundle's blobs. Large long-lived map stores therefore no longer make every
-  cache lookup clone all historical bundles on supported remotes. Publishing
-  uses the same sparse checkout and stages only the requested bundle plus the
-  store README; Git's sparse index preserves unseen bundles without downloading
-  their blobs, so cache misses no longer materialise the complete store either.
+- **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
+  Checkout v7 keeps its HTTP header in an included temporary config rather than
+  directly in `.git/config`; StyleProof now explicitly enables Git config includes
+  and falls back to its locally registered checkout config before carrying that
+  header into the isolated clone and push.
 - **Map-store uploads now reuse the HTTP authentication persisted by
   `actions/checkout`.** The isolated `styleproof-maps` clone carries the
   checkout's URL-scoped extra header through clone and push, so cache-miss
