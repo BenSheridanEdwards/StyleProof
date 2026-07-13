@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.14] - 2026-07-13
+
 ### Fixed
 
 - **Workflow-token publication now uses Git's credential protocol for the final retry.**
