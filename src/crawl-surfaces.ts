@@ -53,7 +53,15 @@ export type CrawledSurface = { key: string; depth: number; path: CrawlStep[]; el
  *  the browser could not parse (cross-origin, no CORS): their class vocabulary is
  *  invisible, so coverage cannot be PROVEN against them. Full coverage = empty
  *  `missing` AND empty `unreadable`. */
-export type CrawlCoverage = { defined: number; rendered: number; missing: string[]; unreadable: string[] };
+export type CrawlCoverage = {
+  defined: number;
+  rendered: number;
+  missing: string[];
+  unreadable: string[];
+  /** The class names that WERE rendered — so a multi-page caller can aggregate
+   *  coverage across crawls sharing stylesheets (defined = rendered ∪ missing). */
+  renderedClasses: string[];
+};
 
 export type CrawlReport = {
   surfaces: CrawledSurface[];
@@ -125,6 +133,9 @@ export type SurfaceCrawlOptions = {
   /** Factory for worker pages — create each in its OWN browser context so
    *  storage resets cannot interfere across concurrent sweeps. */
   newPage?: () => Promise<Page>;
+  /** Namespace for every derived surface key (multi-page sweeps): the root
+   *  surface keys as the prefix itself, sub-states as `<prefix>-<label>`. */
+  keyPrefix?: string;
 };
 
 // Exhaustive by default — these ceilings are safety backstops, not budgets.
@@ -179,8 +190,12 @@ function pathAndSearch(url: string): string {
   }
 }
 
-function deriveKey(steps: CrawlStep[], used: Set<string>): string {
-  const base = steps.length === 0 ? 'base' : slug(steps[steps.length - 1].label);
+function deriveKey(steps: CrawlStep[], used: Set<string>, prefix = ''): string {
+  const bare = steps.length === 0 ? 'base' : slug(steps[steps.length - 1].label);
+  // A prefixed crawl (one page of a multi-page sweep) keys its root surface as
+  // the prefix itself and namespaces every sub-state under it, so two pages'
+  // surfaces can never overwrite each other in a shared --out directory.
+  const base = prefix === '' ? bare : bare === 'base' ? prefix : `${prefix}-${bare}`;
   let key = base;
   for (let i = 2; used.has(key); i++) key = `${base}-${i}`;
   used.add(key);
@@ -680,7 +695,7 @@ async function record(
   retryOnly = false,
   viaRetry = false,
 ): Promise<void> {
-  const key = deriveKey(newPath, st.used);
+  const key = deriveKey(newPath, st.used, opts.keyPrefix ?? '');
   const surface: CrawledSurface = { key, depth, path: newPath, elements: fp.elements };
   st.surfaces.push(surface);
   let addsVocab = false;
@@ -969,6 +984,7 @@ async function recordDataState(
     const key = deriveKey(
       [{ action: 'click', selector: `(data:${mode})`, label: mode, reason: 'data-state' }],
       st.used,
+      opts.keyPrefix ?? '',
     );
     const surface: CrawledSurface = { key, depth: 0, path: [], elements: fp.elements };
     st.surfaces.push(surface);
@@ -1114,7 +1130,13 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     skipped: counters.skipped,
     captured: st.captured,
     failed: st.failed,
-    coverage: { defined: defined.length, rendered: defined.length - missing.length, missing, unreadable },
+    coverage: {
+      defined: defined.length,
+      rendered: defined.length - missing.length,
+      missing,
+      unreadable,
+      renderedClasses: defined.filter((c) => st.classes.has(c)).sort(),
+    },
   };
 }
 

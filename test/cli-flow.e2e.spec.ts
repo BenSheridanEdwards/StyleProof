@@ -366,6 +366,72 @@ http.createServer((req, res) => {
   );
 }
 
+// The CLI crawl must follow the nav too: `styleproof-capture --crawl` on a
+// multi-page site captures every same-origin page it links to, each keyed by
+// route, with class coverage aggregated across the pages that share the CSS.
+// (Before this pinned it, the CLI crawl drove controls but silently dropped
+// links — a 3-page site reported "1/1 surfaces, coverage ✓".)
+test('styleproof-capture --crawl follows same-origin nav links across pages', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-multipage-cli-'));
+  const port = await freePort();
+  try {
+    writeMultiPageApp(app, port);
+    const server = spawn('node', ['server.mjs', String(port)], { cwd: app });
+    try {
+      await new Promise((r) => setTimeout(r, 500));
+      const out = path.join(app, 'maps');
+      const result = await runAsync(app, process.execPath, [
+        CAPTURE,
+        `http://127.0.0.1:${port}/`,
+        '--crawl',
+        '--no-screenshots',
+        '--widths',
+        '1280',
+        '--out',
+        out,
+        '--require-full-coverage',
+      ]);
+      expect(result.status, result.stderr + result.stdout).toBe(0);
+      const files = fs.readdirSync(out);
+      expect(
+        files.some((f) => /^base@1280\.json\.gz$/.test(f)),
+        'entry page captured',
+      ).toBe(true);
+      for (const key of ['pricing', 'about']) {
+        expect(
+          files.some((f) => f === `${key}@1280.json.gz`),
+          `${key} captured via its nav link`,
+        ).toBe(true);
+      }
+      expect(result.stdout).toContain('across 3 page(s)');
+      // Pages share the stylesheet; coverage aggregates across them instead of
+      // flagging per-page "missing" classes that render elsewhere.
+      expect(result.stdout).toMatch(/✓ coverage \(3 pages\)/);
+
+      // Opt-out: --no-follow-links keeps the old single-page behaviour.
+      const solo = path.join(app, 'solo');
+      const soloRun = await runAsync(app, process.execPath, [
+        CAPTURE,
+        `http://127.0.0.1:${port}/`,
+        '--crawl',
+        '--no-follow-links',
+        '--no-screenshots',
+        '--widths',
+        '1280',
+        '--out',
+        solo,
+      ]);
+      expect(soloRun.status, soloRun.stderr + soloRun.stdout).toBe(0);
+      expect(fs.readdirSync(solo).some((f) => /pricing|about/.test(f))).toBe(false);
+    } finally {
+      server.kill();
+    }
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});
+
 test('zero-config: init on a multi-page app crawls and captures every page — no spec editing', async () => {
   const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-zeroconfig-'));
   const port = await freePort();

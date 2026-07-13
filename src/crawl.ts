@@ -120,7 +120,7 @@ function toLink(href: string, base: URL, keyFor: (url: URL) => string, match?: L
  * The navigable url the caller returns keeps its original form; only the SET
  * membership test is normalized, so the first-seen href still wins.
  */
-function dedupIdentity(pathAndSearch: string): string {
+export function dedupIdentity(pathAndSearch: string): string {
   const q = pathAndSearch.indexOf('?');
   const path = q === -1 ? pathAndSearch : pathAndSearch.slice(0, q);
   const search = q === -1 ? '' : pathAndSearch.slice(q);

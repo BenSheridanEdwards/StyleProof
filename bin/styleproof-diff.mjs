@@ -238,7 +238,13 @@ function printDeterminismVerdict(v) {
     return false;
   }
   if (v.status === 'unknown') {
-    console.log('\n⚠ determinism basis unknown — a capture predates the determinism ledger; recapture to certify it.');
+    // No ledger at all = an ad-hoc `styleproof-capture` output (which doesn't
+    // self-check) or a pre-3.10 bundle; a spec capture records the basis.
+    console.log(
+      '\n⚠ determinism basis unknown — a side carries no determinism ledger (an ad-hoc styleproof-capture\n' +
+        '  output, or a capture from before the ledger existed). A spec-driven capture (styleproof-map)\n' +
+        '  self-checks and records it; ad-hoc captures are compared as-is.',
+    );
     return false;
   }
   console.log(

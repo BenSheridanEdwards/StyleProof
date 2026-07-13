@@ -191,10 +191,11 @@ export function expectedCompatibilityKey(options: { cwd?: string; spec?: string;
 
 export function currentGitSha(cwd = process.cwd(), env: NodeJS.ProcessEnv = process.env): string {
   const fromEvent = (() => {
-    if (
-      !env.GITHUB_EVENT_PATH ||
-      !['pull_request', 'pull_request_target', 'workflow_run'].includes(env.GITHUB_EVENT_NAME ?? '')
-    ) {
+    // pull_request_target is deliberately absent: there GITHUB_SHA *is* the base
+    // tip, so its default checkout would be relabeled to the fork's (attacker-
+    // chosen) head. A pull_request_target job that really checks out the head
+    // gets the right SHA from `git rev-parse HEAD` with no relabel needed.
+    if (!env.GITHUB_EVENT_PATH || !['pull_request', 'workflow_run'].includes(env.GITHUB_EVENT_NAME ?? '')) {
       return undefined;
     }
     try {
@@ -207,14 +208,29 @@ export function currentGitSha(cwd = process.cwd(), env: NodeJS.ProcessEnv = proc
       return undefined;
     }
   })();
-  // STYLEPROOF_SHA/GITHUB_HEAD_SHA are explicit overrides. On a pull_request
-  // run, GITHUB_SHA is the synthetic merge commit, so consult the trusted event
-  // payload before falling back to it.
-  const fromEnv = env.STYLEPROOF_SHA || env.GITHUB_HEAD_SHA || fromEvent || env.GITHUB_SHA;
-  if (fromEnv && /^[0-9a-f]{7,40}$/i.test(fromEnv)) return fromEnv;
-  const sha = gitOutput(cwd, ['rev-parse', 'HEAD']);
-  if (!sha) throw new MapStoreError('must run inside a git repository, or pass --sha <commit>');
-  return sha;
+  // STYLEPROOF_SHA/GITHUB_HEAD_SHA are explicit overrides: they always win, and
+  // a malformed value errors instead of silently falling through to a wrong label.
+  const explicit = env.STYLEPROOF_SHA || env.GITHUB_HEAD_SHA;
+  if (explicit) {
+    if (!/^[0-9a-f]{7,40}$/i.test(explicit)) {
+      throw new MapStoreError(`STYLEPROOF_SHA/GITHUB_HEAD_SHA is not a commit SHA: ${explicit}`);
+    }
+    return explicit;
+  }
+  const head = gitOutput(cwd, ['rev-parse', 'HEAD']);
+  if (head) {
+    // The checked-out tree is the truth. The one exception: a checkout of the
+    // synthetic GITHUB_SHA commit (pull_request merge commit / workflow_run
+    // default tip) is labeled with the event's real head, because nothing ever
+    // restores by the synthetic SHA. A checkout of anything else — e.g. the
+    // base branch in a cache-miss job — keeps its own SHA, so a base-tree map
+    // is never published under the head's store key (a false-green poisoning).
+    if (fromEvent && head === env.GITHUB_SHA) return fromEvent;
+    return head;
+  }
+  const fallback = fromEvent ?? env.GITHUB_SHA;
+  if (fallback && /^[0-9a-f]{7,40}$/i.test(fallback)) return fallback;
+  throw new MapStoreError('must run inside a git repository, or pass --sha <commit>');
 }
 
 export function refSha(ref: string, cwd = process.cwd()): string {

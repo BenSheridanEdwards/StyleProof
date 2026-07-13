@@ -7,6 +7,42 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-07-13
+
+### Changed
+
+- **`styleproof-capture --crawl` now follows same-origin nav links.** Every
+  page the site links to is crawled like the entry page, keyed by its route
+  (`about`, `pricing`, …), with class coverage aggregated across the pages that
+  share stylesheets. Previously the CLI crawl drove controls but silently
+  dropped links, so a multi-page site reported "1/1 surfaces, coverage ✓" while
+  losing every other page. `--no-follow-links` restores the entry-page-only
+  sweep.
+
+### Fixed
+
+- **A non-head checkout in CI is no longer stamped with the pull request's head
+  SHA.** `currentGitSha` now trusts `git rev-parse HEAD` and relabels only a
+  checkout of the synthetic `GITHUB_SHA` merge commit, so a base-branch capture
+  (the scaffolded cache-miss job) can never publish a base-tree map under the
+  head's store key — a store poisoning that made later restores diff
+  base-vs-base and report a false green. `pull_request_target` payloads are no
+  longer trusted for relabeling at all, and a malformed `STYLEPROOF_SHA`
+  override now errors instead of silently falling back.
+- **Annotation move-suppression now requires provable displacement.** A
+  cross-path annotation match may suppress its magenta boxes only when the
+  container where the two paths diverge gained or lost captured children, or
+  when the element slid into a vacated slot in its own container. This fixes
+  three truthfulness bugs at once: a size-changing duplicate restyle swap no
+  longer loses all visual proof, a sibling insertion into a uniform-shell list
+  (menus, navs) no longer re-boxes every unchanged displaced item, and an
+  independent removal + identical addition in different containers no longer
+  cancel each other's annotations to zero.
+- **`styleproof-diff` no longer misreports fresh ad-hoc captures as predating
+  the determinism ledger.** The unknown-basis warning now names the real cause:
+  ad-hoc `styleproof-capture` output records no ledger; spec-driven captures
+  self-check and do.
+
 ## [4.1.0] - 2026-07-12
 
 ### Fixed
