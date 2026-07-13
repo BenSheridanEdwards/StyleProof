@@ -564,6 +564,30 @@ function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSeg
   return tmp;
 }
 
+function pushMapStoreCommit(
+  cwd: string,
+  temporaryCheckout: string,
+  remote: string,
+  branch: string,
+  authenticationArguments: string[],
+) {
+  const isolatedPush = runGit(
+    temporaryCheckout,
+    [...authenticationArguments, 'push', '-q', 'origin', `HEAD:${branch}`],
+    1 << 20,
+  );
+  if (isolatedPush.status === 0) return isolatedPush;
+
+  const mapStoreCommit = gitOutput(temporaryCheckout, ['rev-parse', 'HEAD']);
+  const importCommit = runGit(
+    cwd,
+    ['fetch', '-q', '--no-write-fetch-head', temporaryCheckout, mapStoreCommit],
+    1 << 20,
+  );
+  if (importCommit.status !== 0) return isolatedPush;
+  return runGit(cwd, ['push', '-q', remote, `${mapStoreCommit}:${branch}`], 1 << 20);
+}
+
 export function publishMapBundle(options: {
   dir: string;
   branch?: string;
@@ -611,7 +635,7 @@ export function publishMapBundle(options: {
 
       runGit(tmp, ['add', '-A', '--sparse', '--', 'README.md', target]);
       runGit(tmp, ['commit', '-q', '-m', `StyleProof map ${sha.slice(0, 12)} ${compatibilityKey}`], 1 << 20);
-      const push = runGit(tmp, [...pushAuthenticationArguments, 'push', '-q', 'origin', `HEAD:${branch}`], 1 << 20);
+      const push = pushMapStoreCommit(cwd, tmp, remote, branch, pushAuthenticationArguments);
       if (push.status === 0) {
         ok = true;
         break;
