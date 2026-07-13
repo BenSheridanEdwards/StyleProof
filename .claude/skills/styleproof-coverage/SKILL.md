@@ -11,7 +11,7 @@ is the two ways StyleProof makes missing coverage loud.
 
 ## 1. Crawl an interactive surface — `--crawl`
 
-A design/app is mostly *behind clicks*. `--crawl` drives every non-destructive
+A design/app is mostly _behind clicks_. `--crawl` drives every non-destructive
 control, keeps whatever opens a structurally-new surface, and recurses:
 
 ```bash
@@ -49,15 +49,15 @@ Two independent guards; use both:
 
 ## 3. Reach gated states
 
-| State | Reached by |
-|---|---|
-| Click-opened (modals, drawers, tabs) | crawl, automatically |
-| Loading / error data states | crawl — automatic data-states (`--no-data-states` to skip) |
-| Login / unlock / typed input | `--setup <file>` |
-| `:hover`/`:focus`/`:active` | forced-state layer of every capture |
-| Empty/partial/streaming data | spec `liveStates`/`variants` with fixtures |
-| Destructive-gated, drag-drop, keyboard | a spec driving them explicitly |
-| Unmounted components | a component catalog page |
+| State                                  | Reached by                                                 |
+| -------------------------------------- | ---------------------------------------------------------- |
+| Click-opened (modals, drawers, tabs)   | crawl, automatically                                       |
+| Loading / error data states            | crawl — automatic data-states (`--no-data-states` to skip) |
+| Login / unlock / typed input           | `--setup <file>`                                           |
+| `:hover`/`:focus`/`:active`            | forced-state layer of every capture                        |
+| Empty/partial/streaming data           | spec `liveStates`/`variants` with fixtures                 |
+| Destructive-gated, drag-drop, keyboard | a spec driving them explicitly                             |
+| Unmounted components                   | a component catalog page                                   |
 
 `--setup` runs after **every** fresh navigation so each reset re-establishes the
 gate; `${ENV_VAR}` in values is interpolated at load time (credentials never hit

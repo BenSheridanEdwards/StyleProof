@@ -46,7 +46,7 @@ Both are **off by default** and **advisory** — they never feed certification, 
 - **Content layer** — a pure-style diff is blind to copy, but longer text can
   overflow its box. `defineStyleMapCapture({ …, captureText: true })` +
   `styleproof-report … --include-content` adds a **📝 Content changes** section
-  with before/after strings + crops. (Only an element's *own* text; live-region
+  with before/after strings + crops. (Only an element's _own_ text; live-region
   churn auto-excluded.)
 - **React component layer** — `captureComponent: true` records the component
   display name + sanitized primitive props, so the report says

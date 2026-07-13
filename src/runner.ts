@@ -1313,11 +1313,21 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           )
         : null;
       if (gap) throw new Error(gap);
+      // The nav's hrefs are same-origin by selection, but a link can still 302
+      // off-origin (SSO, /out?url=…). External content is nondeterministic and
+      // never belongs in a map, so the landing origin is verified per surface.
+      const entryOrigin = new URL(page.url()).origin;
       const captureSurfaces = links.flatMap((link) =>
         expandSurfaceVariants({
           key: link.key,
           go: async (p) => {
             await p.goto(link.url, { waitUntil: 'load' });
+            const landed = new URL(p.url()).origin;
+            if (landed !== entryOrigin) {
+              throw new Error(
+                `styleproof crawl: ${link.url} redirected off-origin to ${landed} — external content is never captured`,
+              );
+            }
             if (settle) await settle(p);
           },
           widths,

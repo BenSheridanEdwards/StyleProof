@@ -40,7 +40,7 @@ exists before CI starts — then CI is report-only (no build, no browser).
 ## Determinism is built in
 
 - **Record/replay** — the base records each surface's `**/api/**` responses to a
-  HAR; the head replays them, so head renders *its code* against *base's data*.
+  HAR; the head replays them, so head renders _its code_ against _base's data_.
   No phantom diff from a `5m ago` timestamp or a backend blip. Set
   `STYLEPROOF_REPLAY_FROM=<base dir>` on the head capture; tune the boundary with
   `STYLEPROOF_REPLAY_URL` if your API isn't under `/api`.

@@ -7,6 +7,48 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-07-13
+
+### Changed
+
+- **A removed surface now blocks (exit 1) instead of riding the exit-3 "only new
+  surfaces" path.** A surface captured only on the base side is a deleted route
+  or a dropped width — a reviewable change, printed as `✗ REMOVED surface` —
+  never an onboarding case the approve-all box waves through under a "new
+  surfaces" banner. Exit 3 now means only NEW (head-side-only) surfaces.
+- **Stale acknowledgements gate everywhere.** A stale `allowRemoved` entry in
+  `styleproof.inventory.json` now blocks like a stale data-residue
+  acknowledgement (and the Action's inventory hard-gate counts both), so a
+  ledger entry left behind cannot pre-acknowledge the next removal of that key.
+
+### Fixed
+
+- **Crawls never capture an off-origin redirect target.** A same-origin link
+  that 302s to another origin (SSO, `/out?url=…`) previously entered the map as
+  a surface — third-party, nondeterministic content. The CLI sweep now skips the
+  page loudly and continues; a spec-driven capture fails naming the surface; an
+  entry URL that redirects off-origin is a hard error.
+- **The gate now surfaces what it did NOT compare.** The diff prints (and
+  `--json` carries) the count of auto-detected volatile subtrees excluded from
+  the comparison, and warns when the forced-state layer was skipped on BOTH
+  sides — previously a head-side volatile region or a twice-skipped state layer
+  could hide a real change with zero trace in the output.
+- **A corrupt coverage ledger is a hard error (exit 2), not a silent disarm.**
+  Unparseable `styleproof-coverage.json` used to read as "no registry", quietly
+  turning the coverage, determinism, and residue gates into warnings at once.
+  The residue footer also no longer misattributes a ledger-less bundle to the
+  `dataResidue: "warn"` opt-out.
+- **The Action fails closed on unexpected diff exit codes.** A node crash, OOM
+  kill, or missing file (127/137/143/…) previously fell through to
+  `changed=false` — a green "No visual changes" status for a run that never
+  compared anything.
+- **Approval can no longer wave through certification failures.** The Action
+  gained a post-approval hard gate (like the inventory gate) for incomplete
+  coverage, unproven determinism, and armed data-residue failures — none of
+  which are restyles the approve-all checkbox should clear.
+- Stale `exclude` entries are printed with the coverage verdict, and "coverage
+  complete" now says "captured or explicitly excluded".
+
 ## [4.2.0] - 2026-07-13
 
 ### Changed

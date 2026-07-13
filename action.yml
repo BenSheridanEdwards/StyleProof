@@ -126,6 +126,13 @@ runs:
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
+        # Fail CLOSED on anything the contract doesn't define (a node crash, OOM kill,
+        # SIGTERM, missing dist → 127/137/143/…): an undefined exit must never read as
+        # "no visual changes" and set a green status.
+        if [ "$code" -ne 0 ] && [ "$code" -ne 1 ] && [ "$code" -ne 3 ]; then
+          echo "styleproof-diff exited with unexpected code $code — failing closed (this is a crash, not a verdict)" >&2
+          exit "$code"
+        fi
         # 1 = computed-style differences; 3 = only NEW surfaces with no baseline.
         # Both need human review in approval mode; `report` publishes the receipt.
         if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
@@ -363,10 +370,36 @@ runs:
           echo "::notice::StyleProof: inventory gate is on but the captured maps carry no inventory — nothing to gate. Set \`inventory: true\` in your capture spec (styleproof-init scaffolds this) or opt out with \"gateInventoryRemovals\": false."
           exit 0
         fi
-        count="$(node -e "const j=require('./styleproof-diff.json'); process.stdout.write(String((j.inventory?.unacknowledged||[]).length))")"
+        # Unacknowledged removals AND stale acknowledgements both gate: a stale entry left
+        # in styleproof.inventory.json pre-acknowledges the NEXT removal of that key.
+        count="$(node -e "const j=require('./styleproof-diff.json'); const i=j.inventory||{}; process.stdout.write(String((i.unacknowledged||[]).length + (i.staleAcknowledgements||[]).length))")"
         if [ "${count:-0}" -gt 0 ]; then
-          echo "::error::StyleProof: ${count} navigable affordance(s) removed without acknowledgement — a feature is no longer reachable. Restore it, or record the decision in styleproof.inventory.json ({\"<key>\":\"<why>\"})."
-          node -e "const j=require('./styleproof-diff.json'); for (const k of (j.inventory?.unacknowledged||[])) console.log('  ✗ removed (unacknowledged): '+k)"
+          echo "::error::StyleProof: ${count} inventory gate failure(s) — removals without acknowledgement, or stale acknowledgements that must be pruned from styleproof.inventory.json."
+          node -e "const j=require('./styleproof-diff.json'); const i=j.inventory||{}; for (const k of (i.unacknowledged||[])) console.log('  ✗ removed (unacknowledged): '+k); for (const k of (i.staleAcknowledgements||[])) console.log('  ✗ stale acknowledgement: '+k)"
           exit 1
         fi
         echo "✓ navigable inventory: no unacknowledged removals"
+
+    # Provenance hard-gate (runs LAST, in BOTH modes, like the inventory gate): incomplete
+    # coverage, an unproven-determinism capture, and an armed data-residue failure are
+    # categorically NOT restyles — the style "approve all" box must not wave them through.
+    # Each is a hole in what the green would certify, so they fail hard even after approval.
+    - name: Block on unapprovable certification failures
+      shell: bash
+      run: |
+        set -euo pipefail
+        [ -f styleproof-diff.json ] || { echo "no styleproof-diff.json — nothing to gate"; exit 0; }
+        fails="$(node -e "
+          const j = require('./styleproof-diff.json');
+          const out = [];
+          if (j.coverage?.basis === 'incomplete') out.push('coverage incomplete: ' + (j.coverage.uncovered || []).join(', '));
+          if (j.determinism?.status === 'unproven') out.push('determinism unproven (base ' + j.determinism.base + ', head ' + j.determinism.head + ')');
+          if ((j.dataResidue?.blocking ?? 0) > 0) out.push('data-residue gate: ' + j.dataResidue.blocking + ' blocking failure(s)');
+          process.stdout.write(out.join('\n'));
+        ")"
+        if [ -n "$fails" ]; then
+          echo "::error::StyleProof: certification failure(s) that approval cannot wave through:"
+          echo "$fails"
+          exit 1
+        fi
+        echo "✓ certification: coverage, determinism, and data-residue verdicts are approvable or clean"

@@ -24,10 +24,15 @@ const SURFACES: Surface[] = [
   {
     key: 'home',
     go: (p) => p.goto('/'),
-    variants: [{ key: 'dialog-open', go: async (p) => {
-      await p.getByRole('button', { name: /settings/i }).click();
-      await p.getByRole('dialog').waitFor();
-    }}],
+    variants: [
+      {
+        key: 'dialog-open',
+        go: async (p) => {
+          await p.getByRole('button', { name: /settings/i }).click();
+          await p.getByRole('dialog').waitFor();
+        },
+      },
+    ],
   },
 ];
 defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
@@ -50,8 +55,8 @@ runs in your normal suite):
 ```ts
 defineStyleMapCapture({
   surfaces: SURFACES,
-  expected: ROUTES.map((r) => r.id),        // everything StyleProof should cover
-  exclude: { checkout: 'auth-gated — fixture pending' },  // key → reason, reviewed opt-outs
+  expected: ROUTES.map((r) => r.id), // everything StyleProof should cover
+  exclude: { checkout: 'auth-gated — fixture pending' }, // key → reason, reviewed opt-outs
   dir: process.env.STYLEMAP_DIR,
 });
 ```
@@ -65,13 +70,13 @@ contract.
 `defineCrawlCapture` takes the same `expected`/`exclude` pair: the crawl
 reconciles the **rendered nav** against it, both directions — a new linked route
 with no `expected` entry fails, and an `expected` route the nav stopped linking
-fails. This runs *inside the capture test* (the link set isn't known until the
+fails. This runs _inside the capture test_ (the link set isn't known until the
 page renders), unlike the static spec guard.
 
 ## The inventory guard — `inventory: true`
 
 Orthogonal to coverage: harvest each surface's **navigable affordances** (links,
-tabs, menu items) into the map, so a nav item or route that goes *unreachable*
+tabs, menu items) into the map, so a nav item or route that goes _unreachable_
 on the head gates loudly instead of vanishing between captures. On by default in
 `styleproof-init` scaffolds; acknowledge intentional removals in
 `styleproof.inventory.json` (`{"<key>": "<why>"}`).
@@ -79,7 +84,7 @@ on the head gates loudly instead of vanishing between captures. On by default in
 ## Let auto-discovery keep the inventory honest
 
 - **Next.js:** `discoverNextRoutes()` wires `surfaces` + `expected` from `app/`+`pages/`.
-- **Single-route SPA** (every view is `/?tab=…`): `defineCrawlCapture({ from: '/', match: /\?tab=/ })` — the surface set *is* the rendered nav's `<a href>`s.
+- **Single-route SPA** (every view is `/?tab=…`): `defineCrawlCapture({ from: '/', match: /\?tab=/ })` — the surface set _is_ the rendered nav's `<a href>`s.
 - **Component catalog:** `discoverComponentFiles({ roots: ['src/components'] })` +
   `componentCatalogSurfaces(...)` — fails CI when a component file has no surface.
 - **Harvest one-step variants:** `styleproof-variants --base-url … --route /` writes a manifest of controls that actually change computed styles.

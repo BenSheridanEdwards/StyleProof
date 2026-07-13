@@ -1301,7 +1301,7 @@ function reportHeadline(args: {
       : '';
     md.push(
       '',
-      `_${volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — they don't affect the check.${candidates}_`,
+      `_${volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — changes inside them are NOT certified by this check.${candidates}_`,
     );
   }
   if (contentCount > 0 && (changeGroups.length > 0 || missing.length > 0)) {

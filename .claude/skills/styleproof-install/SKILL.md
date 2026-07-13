@@ -23,7 +23,7 @@ Playwright config, never edits it):
 
 - **`e2e/styleproof.spec.ts`** — the capture spec, with the inventory guard
   (`inventory: true`) on. A **Next.js** repo gets its App-Router + Pages-Router
-  routes *and* the `expected` coverage guard wired via `discoverNextRoutes()`;
+  routes _and_ the `expected` coverage guard wired via `discoverNextRoutes()`;
   any other repo gets a **crawl-by-default** spec (`defineCrawlCapture` from
   `/`) that discovers surfaces from the rendered nav — either way it's
   protected out of the box.

@@ -71,6 +71,14 @@ BASE_URL=http://localhost:3000 STYLEMAP_DIR=after  npx playwright test example/
 npx styleproof-diff __stylemaps__/before __stylemaps__/after
 ```
 
+When dogfooding the full consumer flow (`styleproof-init` → `styleproof-map`) in a
+scratch project, install the repo as a **tarball**, not a path: `npm install
+$(npm pack --pack-destination /tmp /path/to/StyleProof | tail -1)`. A path install
+symlinks `node_modules/styleproof` to the repo, and in a CommonJS consumer
+Playwright's transpiler then treats the linked ESM `dist/` as project code —
+`styleproof-map` dies with a misleading `Cannot use 'import.meta' outside a module`
+/ "No tests found". Registry and tarball installs are unaffected.
+
 ## Pull request norms
 
 - **One concern per PR.** Keep diffs small and reviewable.

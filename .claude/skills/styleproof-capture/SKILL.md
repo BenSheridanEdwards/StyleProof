@@ -22,6 +22,7 @@ styleproof-diff design .styleproof/maps/current   # design vs your build
 ```
 
 Flags:
+
 - `--key <name>` — surface key / capture file prefix (default `page`).
 - `--widths 1440,1024,768` — **omit** to auto-detect the page's own `@media`
   bands; pin them for a page with a cross-origin sheet (detection reads every
@@ -48,5 +49,5 @@ the crawler and setup steps — the `styleproof-coverage` skill (`--crawl`,
 ## Next
 
 `styleproof-diff` to compare; `styleproof-report` for the visual before/after;
-the README's *Match a design pixel-for-pixel* section is the full design→build
+the README's _Match a design pixel-for-pixel_ section is the full design→build
 flow.

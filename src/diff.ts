@@ -327,7 +327,7 @@ function indexDir(dir: string): Record<string, string> {
 export function diffStyleMapDirs(
   dirA: string,
   dirB: string,
-): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number; compared: number } {
+): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number; statesUncertified: number; compared: number } {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
@@ -353,6 +353,7 @@ export function diffStyleMapDirs(
   const surfaces: SurfaceDiff[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
   let volatile = 0;
+  let statesUncertified = 0;
   for (const surface of names) {
     if (!indexA[surface] || !indexB[surface]) {
       // A surface present on only one side has no baseline to diff against — it's
@@ -365,11 +366,15 @@ export function diffStyleMapDirs(
     const mapA = loadStyleMap(indexA[surface]);
     const mapB = loadStyleMap(indexB[surface]);
     volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
+    // BOTH sides skipped the forced-state layer → {} vs {} compares clean while
+    // certifying nothing. The XOR case is a finding (diffStyleMaps); the both-
+    // sides case is counted here so the gate can say the layer is uncertified.
+    if (mapA.statesSkipped && mapB.statesSkipped) statesUncertified++;
     const findings = diffStyleMaps(mapA, mapB);
     tallyCounts(findings, counts);
     if (findings.length) surfaces.push({ surface, findings });
   }
-  return { surfaces, counts, volatile, compared: names.length };
+  return { surfaces, counts, volatile, statesUncertified, compared: names.length };
 }
 
 /**
