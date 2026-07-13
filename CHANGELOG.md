@@ -7,6 +7,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.1] - 2026-07-13
+
+### Changed
+
+- **`styleproof-init` now scaffolds the least-work v4 map loop.** Pull-request
+  CI restores exact base/head bundles from `styleproof-maps`; a compatible base
+  hit plus head miss captures only the head, while a base miss rebuilds the
+  pair. Every fallback capture is bound to its explicit commit SHA and
+  published, so the same cold work is not repeated on later pull requests.
+  Temporary CI maps live under `runner.temp`, outside the checkout, and the
+  fallback installs Chromium before capture. The generated Action pin is `v4`.
+- **The generated pre-push hook is restore-first too.** Re-pushing an already
+  published commit restores its exact bundle and skips the browser; a real miss
+  captures once and requires a clean SHA-keyed upload before the push proceeds.
+
 ## [4.4.0] - 2026-07-13
 
 ### Changed

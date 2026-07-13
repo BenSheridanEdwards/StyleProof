@@ -858,7 +858,8 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.equal(r.status, 0, r.stderr);
 
     const hook = fs.readFileSync(path.join(dir, '.githooks', 'pre-push'), 'utf8');
-    assert.match(hook, /styleproof-map/, 'hook captures and publishes the pushed commit');
+    assert.match(hook, /styleproof-map --restore --sha "\$head_sha"/, 'hook restores an existing exact map first');
+    assert.match(hook, /--sha "\$head_sha" --upload/, 'hook requires a clean exact-SHA upload on a miss');
     assert.doesNotMatch(hook, /git add/, 'maps never get committed to the PR branch');
     assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 
@@ -866,14 +867,17 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.match(ci, /styleproof-map --restore --sha "\$BASE_SHA"/, 'CI first restores cached maps');
     assert.match(ci, /capture-needed=true/, 'CI records cache misses');
     assert.match(ci, /Capture maps in CI on cache miss/, 'CI has a correctness fallback');
-    assert.match(ci, /STYLEPROOF_REPLAY_FROM=__stylemaps__\/base/, 'fallback replays base data for head');
-    assert.match(ci, /BenSheridanEdwards\/StyleProof@v3/, 'workflow uses the full report action');
+    assert.match(ci, /STYLEPROOF_REPLAY_FROM="\$MAP_ROOT\/base"/, 'fallback replays base data for head');
+    assert.match(ci, /steps\.maps\.outputs\.base-hit/, 'a base hit avoids rebuilding the base');
+    assert.match(ci, /--sha "\$BASE_SHA" --upload/, 'cold base capture is published for reuse');
+    assert.match(ci, /--sha "\$HEAD_SHA" --upload/, 'cold head capture is published for reuse');
+    assert.match(ci, /BenSheridanEdwards\/StyleProof@v4/, 'workflow uses the current report action');
     assert.match(ci, /require-approval: true/, 'workflow enables the approval report gate');
     assert.doesNotMatch(ci, /git add stylemaps/);
     assert.doesNotMatch(ci, /core\.hooksPath/);
 
     assert.match(r.stdout, /it runs on your first PR with no extra steps/, 'guidance leads with zero-config');
-    assert.match(r.stdout, /pre-push hook captures each pushed commit/, 'the publish hook is framed as the default');
+    assert.match(r.stdout, /pre-push hook restores an existing exact-SHA map/, 'the least-work hook is the default');
   } finally {
     rmTmp(dir);
   }
