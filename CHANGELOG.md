@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Explicit workflow authentication no longer duplicates the checkout header.**
+  StyleProof clears any inherited GitHub HTTP authorization value before adding
+  `STYLEPROOF_MAP_STORE_TOKEN`, preventing GitHub from rejecting cold-cache
+  clones with `Duplicate header: "Authorization"` while retaining explicit-token
+  precedence over stale checkout credentials.
+
 ## [4.4.8] - 2026-07-13
 
 ### Fixed
