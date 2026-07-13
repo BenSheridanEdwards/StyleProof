@@ -27,6 +27,7 @@ jobs:
       - uses: fallow-rs/fallow@v3
         with:
           command: audit
+          no-cache: true
           comment: true
           review-comments: true
           # Grandfather the same known-complex functions the complexity gate below
@@ -42,6 +43,7 @@ jobs:
         uses: fallow-rs/fallow@v3
         with:
           command: health
+          no-cache: true
           production: true
           baseline: .fallow/health-baseline.json
           fail-on-issues: true
