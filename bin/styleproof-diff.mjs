@@ -20,7 +20,8 @@
  *
  * Custom properties (--*) are ignored: they are inputs, not outcomes (see
  * README). Exit code 0 = identical, 1 = reviewable differences, 2 = usage/capture
- * error, 3 = only new surfaces (present on one side, no baseline to diff against).
+ * error, 3 = only NEW surfaces (present only on the head side, no baseline to diff
+ * against). A REMOVED surface (present only on the base side) is a change: exit 1.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -109,12 +110,15 @@ function printInventoryAudit(audit) {
     );
   }
   for (const it of delta.added) console.log(`  + added: ${it.key} ("${it.label}")`);
-  for (const k of staleAllowances) console.log(`  ⚠ stale allowRemoved (key is not actually removed): ${k}`);
+  for (const k of staleAllowances)
+    console.log(`  ✗ stale allowRemoved (key is not actually removed): ${k} — prune it from styleproof.inventory.json`);
   if (unexplained.length)
     console.log(
       `  → ${unexplained.length} unacknowledged removal(s): restore the affordance, or record the decision in styleproof.inventory.json {"<key>":"<why>"}.`,
     );
-  return unexplained.length;
+  // A stale allowance BLOCKS like a stale residue acknowledgement: left in place it
+  // pre-acknowledges the NEXT removal of that key, so the ledger must not rot.
+  return unexplained.length + staleAllowances.length;
 }
 
 // ── data-residue guard (gate by default) ─────────────────────────────────────────
@@ -139,11 +143,11 @@ function loadAcknowledgedResidue() {
 // Audit the HEAD bundle's residue against the ack ledger, carrying whether the head
 // ledger armed the gate. Returns null when no captured map carried residue AND the
 // gate wasn't armed — so a clean healthy run prints/gates nothing (byte-identical).
-function readResidueAudit(dirB, armed) {
+function readResidueAudit(dirB, armed, hasLedger) {
   const headResidue = readResidue(dirB);
   if (!armed && !headResidue.some((m) => m.dataResidue?.length)) return null;
   const acknowledged = loadAcknowledgedResidue();
-  return { acknowledged, ...auditRunResidue(headResidue, acknowledged, armed) };
+  return { acknowledged, hasLedger, ...auditRunResidue(headResidue, acknowledged, armed) };
 }
 
 // Print the Data-residue section; return the count of UNACKNOWLEDGED failing endpoints
@@ -155,17 +159,20 @@ function residueLine(r, ackReason, armed) {
   return `  ${armed ? '✗ ' : '⚠ '}${r.surface} · ${r.endpoint} (${r.reason})${armed ? ', unacknowledged' : ''}`;
 }
 
-/** The action footer: the gate (default) names the remedy; warn mode is the opt-out. */
-function residueFooter(armed, unacknowledgedCount) {
+/** The action footer: the gate (default) names the remedy; warn mode is the opt-out.
+ *  A bundle with NO ledger at all is named as such — not misattributed to the opt-out. */
+function residueFooter(armed, unacknowledgedCount, hasLedger) {
   if (!unacknowledgedCount) return null;
-  return armed
-    ? `  → ${unacknowledgedCount} unacknowledged failing endpoint(s): fixture each (page.route / liveStates), acknowledge intentional ones in styleproof.data-residue.json {"<key>":"<why>"}, or opt down with \`dataResidue: "warn"\` in the capture spec.`
-    : '  → recorded and warned (dataResidue: "warn" — the opt-out). Remove it to restore the default gate that BLOCKS on these.';
+  if (armed)
+    return `  → ${unacknowledgedCount} unacknowledged failing endpoint(s): fixture each (page.route / liveStates), acknowledge intentional ones in styleproof.data-residue.json {"<key>":"<why>"}, or opt down with \`dataResidue: "warn"\` in the capture spec.`;
+  if (!hasLedger)
+    return '  → recorded and warned — the head bundle carries no coverage ledger (ad-hoc or pre-3.10 capture), so the residue gate cannot arm. A spec-driven capture records the ledger and gates by default.';
+  return '  → recorded and warned (dataResidue: "warn" — the opt-out). Remove it to restore the default gate that BLOCKS on these.';
 }
 
 function printResidueAudit(audit) {
   if (!audit) return 0;
-  const { residue, unacknowledged, staleAcknowledgements, armed } = audit;
+  const { residue, unacknowledged, staleAcknowledgements, armed, hasLedger } = audit;
   if (!residue.length && !staleAcknowledgements.length) {
     console.log('\n🩹 Data residue: no failing data-boundary request during capture');
     return 0;
@@ -174,7 +181,7 @@ function printResidueAudit(audit) {
   for (const r of residue) console.log(residueLine(r, audit.acknowledged[r.key], armed));
   for (const k of staleAcknowledgements)
     console.log(`  ⚠ stale acknowledgement (endpoint no longer failing/present): ${k}`);
-  const footer = residueFooter(armed, unacknowledged.length);
+  const footer = residueFooter(armed, unacknowledged.length, hasLedger);
   if (footer) console.log(footer);
   // Only an ARMED gate blocks; warn-mode surfaces without gating. A stale acknowledgement
   // always blocks when armed, so the ledger can't rot (mirrors the `exclude` guard).
@@ -204,14 +211,22 @@ function readLedger(dir) {
   try {
     return JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch {
-    return null; // a corrupt ledger reads as no registry → "not asserted", never a false green
+    // A ledger that EXISTS but cannot be parsed is tampering or truncation, and
+    // reading it as "no registry" would silently disarm the coverage,
+    // determinism, AND residue gates at once. Fail loud instead.
+    console.error(
+      `${COMMAND}: corrupt coverage ledger: ${p} — recapture the bundle; refusing to compare with disarmed gates.`,
+    );
+    process.exit(2);
   }
 }
 
 // Print the completeness verdict; return true if it BLOCKS (a registered surface is missing).
 function printCoverageVerdict(v) {
   if (v.basis === 'complete') {
-    console.log(`\n✓ coverage complete — all ${v.registrySize} registered surface(s) captured`);
+    console.log(`\n✓ coverage complete — all ${v.registrySize} registered surface(s) captured or explicitly excluded`);
+    for (const k of v.staleExclusions ?? [])
+      console.log(`  ⚠ stale exclude (not in the registry): ${k} — prune it from the spec`);
     return false;
   }
   if (v.basis === 'unasserted') {
@@ -271,7 +286,8 @@ options:
   -h, --help       show this help
 
 exit: 0 identical (certified), 1 differences found, 2 usage/capture error,
-      3 only new surfaces (present on one side, no baseline to diff against).
+      3 only NEW surfaces (present only on the head side, no baseline to diff
+      against); a REMOVED surface (present only on the base side) exits 1
 `;
 
 const argv = process.argv.slice(2);
@@ -359,7 +375,7 @@ try {
   determinismVerdict = auditDeterminism(readLedger(dirA), headLedger);
   // Data-residue: the head bundle's failing data endpoints, gated only if its ledger
   // armed `dataResidue: 'gate'`. Same "read while the dirs exist" rule as the ledgers.
-  residueAudit = readResidueAudit(dirB, headLedger?.dataResidue === 'gate');
+  residueAudit = readResidueAudit(dirB, headLedger?.dataResidue === 'gate', headLedger != null);
   // Element-path sets per surface, for the shared-chrome tier — same "read while
   // the dirs exist" rule as the ledgers above.
   surfacePaths = surfaceElementPaths(dirA, dirB);
@@ -369,7 +385,7 @@ try {
 } finally {
   cleanupCachedCaptureDirs(cacheCapture);
 }
-const { surfaces, counts, compared } = result;
+const { surfaces, counts, compared, volatile, statesUncertified } = result;
 
 // ── grouped human output ─────────────────────────────────────────────────────
 // Reuse the report's dedup so one real change doesn't print once per surface with
@@ -410,11 +426,17 @@ function elementLines(findings) {
   return lines;
 }
 
-// New (one-sided) surfaces keep their own line, unchanged.
+// One-sided surfaces keep their own line. The two directions are NOT the same
+// verdict: only-in-after is a NEW surface (no baseline, review before
+// baselining); only-in-before is a REMOVED surface — a route or width that
+// existed and is gone, which is a change, never an onboarding case.
 for (const sd of surfaces) {
   if (!sd.missing) continue;
-  const side = sd.missing === 'before' ? 'after' : 'before';
-  console.log(`\n${sd.surface}: new surface — captured only in the ${side} set, no baseline to compare`);
+  console.log(
+    sd.missing === 'before'
+      ? `\n${sd.surface}: new surface — captured only in the after set, no baseline to compare`
+      : `\n${sd.surface}: ✗ REMOVED surface — captured only in the before set; the head no longer renders it`,
+  );
 }
 
 // Group the changed surfaces the way the report does, so an identical change
@@ -472,6 +494,13 @@ if (jsonOut) {
           counts,
           surfaces,
           compared,
+          // Subtrees excluded from every layer of the comparison because a side
+          // auto-detected them as volatile (still mutating at capture settle).
+          // Changes inside them are NOT certified by this diff.
+          volatileExcluded: volatile,
+          // Surfaces whose forced-state layer was skipped on BOTH sides — the
+          // :hover/:focus/:active layer compared {} vs {} and certifies nothing.
+          statesUncertified,
           coverage: coverageVerdict,
           determinism: determinismVerdict,
           // The inventory verdict, machine-readable — parallel to coverage/determinism and
@@ -514,26 +543,48 @@ if (jsonOut) {
 }
 
 const total = counts.dom + counts.style + counts.state;
-const newSurfaces = surfaces.filter((s) => s.missing).length;
+const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
+const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;
 // One SurfaceDiff per distinct surface across both sides (incl. missing-on-one-side).
 const surfaceCount = surfaces.length;
+if (volatile > 0)
+  console.log(
+    `\n⚠ ${volatile} auto-detected volatile subtree(s) excluded from the comparison (still mutating at capture\n` +
+      '  settle) — changes inside them are NOT certified. Fixture the region, or `ignore` it deliberately.',
+  );
+if (statesUncertified > 0)
+  console.log(
+    `\n⚠ forced-state layer uncertified on ${statesUncertified} surface(s): BOTH captures skipped it, so\n` +
+      '  :hover/:focus/:active differences there were never compared.',
+  );
 const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
-const invNote = invRemovals ? ` + ${invRemovals} unacknowledged inventory removal(s)` : '';
+const removedNote = removedSurfaces ? ` + ${removedSurfaces} REMOVED surface(s)` : '';
+const invNote = invRemovals ? ` + ${invRemovals} inventory gate failure(s) (unacknowledged or stale)` : '';
 // residueFails counts unacknowledged failing endpoints AND stale acknowledgements (both gate).
 const resNote = residueFails ? ` + ${residueFails} data-residue gate failure(s) (unacknowledged or stale)` : '';
 const covNote = coverageFails ? ` + ${coverageVerdict.uncovered.length} uncaptured registered surface(s)` : '';
 const detNote = determinismFails ? ' + determinism unproven' : '';
-const clean = total === 0 && invRemovals === 0 && residueFails === 0 && !coverageFails && !determinismFails;
+const clean =
+  total === 0 &&
+  removedSurfaces === 0 &&
+  invRemovals === 0 &&
+  residueFails === 0 &&
+  !coverageFails &&
+  !determinismFails;
 console.log(
   clean
     ? newSurfaces === 0
       ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
       : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${invNote}${resNote}${covNote}${detNote}`,
+    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${covNote}${detNote}`,
 );
-// 0 = identical, 1 = reviewable differences (incl. unacknowledged inventory removals, an
-// unacknowledged failing data endpoint under an armed residue gate, an incomplete coverage
-// registry, or an unproven-determinism capture), 3 = only new surfaces (no baseline). 2 = usage.
+// 0 = identical, 1 = reviewable differences (incl. a REMOVED surface, inventory/residue gate
+// failures — unacknowledged or stale — an incomplete coverage registry, or an
+// unproven-determinism capture), 3 = ONLY new surfaces (no baseline). 2 = usage.
 process.exit(
-  total > 0 || invRemovals > 0 || residueFails > 0 || coverageFails || determinismFails ? 1 : newSurfaces > 0 ? 3 : 0,
+  total > 0 || removedSurfaces > 0 || invRemovals > 0 || residueFails > 0 || coverageFails || determinismFails
+    ? 1
+    : newSurfaces > 0
+      ? 3
+      : 0,
 );

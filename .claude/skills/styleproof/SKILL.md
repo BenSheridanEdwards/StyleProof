@@ -6,7 +6,7 @@ description: Use when standing up StyleProof end-to-end in a repo or running it 
 # StyleProof — the full workflow
 
 StyleProof is a **PR gate for visual CSS changes**: it opens the app states you
-declare in a real browser, records the browser's *computed* styles, diffs head
+declare in a real browser, records the browser's _computed_ styles, diffs head
 vs base, and reports exactly which rendered styles changed. It's not a screenshot
 diff — screenshots are in the report for humans; the gate compares resolved CSS,
 keyed by DOM structure so a class rewrite still lines up.
@@ -25,7 +25,7 @@ This skill is the map. Each step has its own skill; follow them in order.
    maps to the `styleproof-maps` store the gate diffs against.
 4. **`styleproof-ci-gate`** — wire `BenSheridanEdwards/StyleProof@v4` as the PR
    gate; pick review-gate or certify mode; add the approve workflow + fork split.
-5. **`styleproof-prepush`** *(optional)* — capture locally at pre-push so CI is
+5. **`styleproof-prepush`** _(optional)_ — capture locally at pre-push so CI is
    report-only.
 
 ## Use it (every PR / every check)
@@ -43,12 +43,12 @@ This skill is the map. Each step has its own skill; follow them in order.
 ## Two modes — pick by intent
 
 - **Certify a refactor** (`fail-on-diff: true`) — the job StyleProof was born
-  for: prove a change touched *nothing* visual (CSS-Modules→Tailwind, a
+  for: prove a change touched _nothing_ visual (CSS-Modules→Tailwind, a
   design-system swap, a dependency/build bump). Zero diff is the contract; one
   drifting longhand is a regression to investigate.
 - **Match a design pixel-for-pixel** (`styleproof-capture` design vs build) —
   point at the design and the build, diff, watch the number shrink to zero
-  (README: *Match a design pixel-for-pixel*).
+  (README: _Match a design pixel-for-pixel_).
 
 ## What's automatic vs what you set
 

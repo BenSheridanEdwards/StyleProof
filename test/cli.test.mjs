@@ -1080,3 +1080,91 @@ test('diff CLI does NOT promote a change that hit only SOME surfaces (#193)', ()
     rmTmp(root);
   }
 });
+
+// A surface present only in the BEFORE set is a REMOVED surface — a deleted route
+// or a dropped width. That is a change to review (exit 1), never part of the exit-3
+// "only new surfaces" onboarding path, which the approve-all box waves through
+// under a "new surfaces" banner.
+test('diff CLI exits 1 and says REMOVED when a surface exists only in the before set', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(A, 'checkout@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 1, `expected exit 1, got ${r.status}: ${r.stderr}${r.stdout}`);
+  assert.match(r.stdout, /REMOVED surface/);
+  assert.match(r.stdout, /checkout/);
+  rmTmp(root);
+});
+
+// A ledger that EXISTS but cannot be parsed is tampering or truncation; reading it
+// as "no registry" would silently disarm coverage, determinism, AND residue at once.
+test('diff CLI exits 2 on a corrupt coverage ledger', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  fs.writeFileSync(path.join(B, 'styleproof-coverage.json'), '{corrupt');
+  const r = run(DIFF, [A, B]);
+  assert.equal(r.status, 2, `expected exit 2, got ${r.status}: ${r.stderr}${r.stdout}`);
+  assert.match(r.stderr, /corrupt coverage ledger/);
+  rmTmp(root);
+});
+
+// Volatile subtrees are excluded from every layer of the comparison, so their count
+// must be VISIBLE at the gate — a head-side auto-volatile region can hide a real
+// change, and silence would read as "everything compared".
+test('diff CLI surfaces the excluded-volatile count in output and --json', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  writeCapture(
+    A,
+    'home@1280',
+    makeMap({
+      elements: { body: { tag: 'body' }, 'body > div:nth-child(1)': { tag: 'div', style: { color: 'rgb(0, 0, 0)' } } },
+    }),
+    null,
+  );
+  const headMap = makeMap({ elements: { body: { tag: 'body' } } });
+  headMap.volatile = ['body > div:nth-child(1)'];
+  writeCapture(B, 'home@1280', headMap, null);
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  const jsonOut = path.join(root, 'out.json');
+  const r = run(DIFF, [A, B, '--json', jsonOut]);
+  assert.match(r.stdout, /volatile subtree\(s\) excluded/);
+  assert.match(r.stdout, /NOT certified/);
+  const j = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(j.volatileExcluded, 1);
+  rmTmp(root);
+});
+
+// BOTH sides skipping the forced-state layer compares {} vs {} — certifying nothing.
+// The gate must say the layer is uncertified instead of "every state matches".
+test('diff CLI warns when the forced-state layer was skipped on both sides', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  m.statesSkipped = true;
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  const jsonOut = path.join(root, 'out.json');
+  const r = run(DIFF, [A, B, '--json', jsonOut]);
+  assert.match(r.stdout, /forced-state layer uncertified on 1 surface/);
+  const j = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(j.statesUncertified, 1);
+  rmTmp(root);
+});

@@ -25,12 +25,12 @@ data-residue verdicts + `compared`); `--max <n>` caps lines per surface
 
 ## Exit codes — the gate contract
 
-| Code | Meaning |
-|---|---|
-| **0** | certified — identical (`0 changed surfaces across N captured surface(s)`) |
-| **1** | reviewable diff — style/DOM/state differences, **or a blocked gate**: an unacknowledged inventory removal, an unacknowledged failing data endpoint (`dataResidue`), an incomplete coverage registry, or an unproven-determinism capture |
+| Code  | Meaning                                                                                                                                                                                                                                                                                         |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0** | certified — identical (`0 changed surfaces across N captured surface(s)`)                                                                                                                                                                                                                       |
+| **1** | reviewable diff — style/DOM/state differences, **or a blocked gate**: an unacknowledged inventory removal, an unacknowledged failing data endpoint (`dataResidue`), an incomplete coverage registry, or an unproven-determinism capture                                                         |
 | **2** | usage / capture error — including a **manifest-less side** (since v4 a map-bearing dir without `styleproof-manifest.json` is refused; re-capture with current StyleProof) and a **missing map** (a manifest with zero captures, either side), refused loudly rather than mislabelled as all-new |
-| **3** | only new surfaces present — no baseline for *those* surfaces (or no base manifest at all: first adoption); approval policy decides if that gates |
+| **3** | only NEW surfaces present (head-side only) — no baseline for _those_ surfaces (or no base manifest at all: first adoption); approval policy decides if that gates. A surface present only on the base side is a REMOVED surface and exits **1**                                                 |
 
 ## The four verdicts behind a zero
 
@@ -68,7 +68,7 @@ A green is qualified by ledgers that travel with the map bundle:
 
 ## Validate the differ before you trust a zero
 
-When certifying "no change," a `0` is only meaningful if the differ *can* see a
+When certifying "no change," a `0` is only meaningful if the differ _can_ see a
 change: sanity-check that two genuinely-different surfaces report non-zero and
 that the two capture files are distinct byte streams (not accidentally the same
 dir). A false zero is worse than a red.
@@ -76,5 +76,5 @@ dir). A false zero is worse than a red.
 ## Next
 
 `styleproof-report` renders the human-readable before/after; `styleproof-ci-gate`
-runs this inside the Action. To prove the diff covered *everything*, see
+runs this inside the Action. To prove the diff covered _everything_, see
 `styleproof-coverage`.

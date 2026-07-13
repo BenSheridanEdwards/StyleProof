@@ -134,3 +134,18 @@ test('styleproof-diff --json inventory is null when no capture carried inventory
   assert.match(j.inventoryNote, /inventory: true/, 'null verdict carries a note explaining how to arm the gate');
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+// A stale allowance BLOCKS like a stale residue acknowledgement: left in place it
+// pre-acknowledges the NEXT removal of that key, so the ledger must not rot.
+test('a stale allowRemoved entry BLOCKS (exit 1) until pruned', () => {
+  const { root, a, b } = fixture(['agents', 'faults'], ['agents', 'faults']);
+  fs.writeFileSync(
+    path.join(root, 'styleproof.inventory.json'),
+    JSON.stringify({ 'nav-button:model-config': 'was removed in an old PR, then restored' }),
+  );
+  const { code, out } = runDiff(a, b, root);
+  assert.equal(code, 1, `expected exit 1 on a stale allowance, got ${code}\n${out}`);
+  assert.match(out, /stale allowRemoved.*nav-button:model-config/, out);
+  assert.match(out, /prune it/, out);
+  fs.rmSync(root, { recursive: true, force: true });
+});

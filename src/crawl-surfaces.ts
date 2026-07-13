@@ -549,6 +549,16 @@ async function scrollReveal(page: Page): Promise<void> {
 async function gotoFresh(page: Page, opts: SurfaceCrawlOptions): Promise<void> {
   await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
   await page.goto(opts.url, { waitUntil: 'load' });
+  // A same-origin URL can still 302 off-origin (SSO, /out?url=…). External
+  // content is nondeterministic and never belongs in a map — abort the crawl of
+  // this page rather than capture a third-party render as if it were the app.
+  const wanted = URL.canParse(opts.url) ? new URL(opts.url).origin : null; // relative url → origin unknowable
+  const landed = new URL(page.url()).origin;
+  if (wanted && landed !== wanted) {
+    throw new Error(
+      `styleproof crawl: ${opts.url} redirected off-origin to ${landed} — external content is never captured`,
+    );
+  }
   // Tolerant wait: the generic settle below is the real readiness signal; an
   // optional waitSelector just accelerates it and must not fail the crawl.
   const ready = opts.waitSelector ? page.locator(opts.waitSelector).first() : null;

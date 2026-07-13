@@ -20,7 +20,7 @@ skill is the model for tuning it or wiring it by hand.
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
-    require-approval: true   # review-gate mode; omit + fail-on-diff:true to certify
+    require-approval: true # review-gate mode; omit + fail-on-diff:true to certify
 ```
 
 Restore the two bundles from the `styleproof-maps` store, then hand them to the
@@ -33,7 +33,7 @@ pinned environment first (correctness beats a stale cache).
   **Approve all changes** checkbox; the status is green on no change, red until
   approved. Use when intentional visual changes are normal.
 - **Certify** (`fail-on-diff: true`, the default): **any** diff fails the job.
-  Use when the whole promise is "output unchanged" (the *Certify a refactor*
+  Use when the whole promise is "output unchanged" (the _Certify a refactor_
   mode in the `styleproof` skill).
 
 Key inputs: `require-approval`, `fail-on-diff`, `status-context` (must match the
@@ -55,7 +55,7 @@ the checkbox is inert until it's merged there.
 
 ## Blocking without branch protection
 
-A status only *blocks a merge* where a branch-protection rule requires it (needs
+A status only _blocks a merge_ where a branch-protection rule requires it (needs
 GitHub Pro / public repo). On a free private repo, set `{"blocking": true}` in
 `styleproof.config.json` to also **fail** the job on unapproved changes → a red
 check regardless. It's async: tick **Approve all changes**, then **re-run** the

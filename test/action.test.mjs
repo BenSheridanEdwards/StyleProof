@@ -84,9 +84,29 @@ test('composite action hard-gates on unacknowledged navigable removals in both m
   );
   assert.ok(gate, 'action.yml should include the inventory removal gate step');
   assert.match(gate[0], /gate-inventory-removals != 'false'/);
-  assert.match(gate[0], /inventory\?\.unacknowledged/);
+  assert.match(gate[0], /i\.unacknowledged/);
+  assert.match(gate[0], /staleAcknowledgements/, 'stale acknowledgements gate too — the ledger must not rot');
   assert.match(gate[0], /exit 1/);
   assert.doesNotMatch(gate[0], /require-approval/, 'the removal gate must fire in BOTH modes');
+});
+
+test('composite action fails closed on unexpected diff exit codes', () => {
+  // A node crash / OOM / SIGTERM (127/137/143/…) must never read as "no changes".
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:)/);
+  assert.ok(diffStep, 'action.yml should include the diff step');
+  assert.match(diffStep[0], /-ne 0.*-ne 1.*-ne 3|failing closed/s, 'unexpected exit codes hard-fail');
+});
+
+test('composite action hard-gates certification failures the approve box cannot clear', () => {
+  const gate = actionYml.match(
+    /- name: Block on unapprovable certification failures[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/,
+  );
+  assert.ok(gate, 'action.yml should include the provenance gate step');
+  assert.match(gate[0], /coverage\?\.basis === 'incomplete'/);
+  assert.match(gate[0], /determinism\?\.status === 'unproven'/);
+  assert.match(gate[0], /dataResidue\?\.blocking/);
+  assert.match(gate[0], /exit 1/);
+  assert.doesNotMatch(gate[0], /require-approval/, 'the provenance gate must fire in BOTH modes');
 });
 
 test('composite action blocks unapproved changes by default (opt out with "blocking": false)', () => {

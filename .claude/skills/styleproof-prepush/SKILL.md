@@ -16,7 +16,7 @@ for understanding and customizing it.
 The scaffolded `pre-push` hook:
 
 1. **Skips** pushes that can't affect render — `STYLEPROOF_SKIP_CAPTURE=1 git
-   push`; add a changed-files grep (e.g. only `src/` or the spec) to automate
+push`; add a changed-files grep (e.g. only `src/` or the spec) to automate
    the skip for your layout.
 2. **Captures and publishes** the map (`npx styleproof-map`). Outside CI it
    auto-uploads the bundle to the dedicated `styleproof-maps` branch, keyed by
@@ -52,7 +52,7 @@ If init wrote `.githooks/pre-push` (no husky), activate once per clone:
   recaptures both sides itself. Safe, but slow: commit everything before
   pushing so the capture is clean and publishable.
 - **`core.hooksPath` is repo-global across worktrees** — a worktree whose main
-  checkout sits on a stale branch runs *that* branch's hook. Override per-push
+  checkout sits on a stale branch runs _that_ branch's hook. Override per-push
   with `git -c core.hooksPath=<this-worktree>/.githooks push` when they diverge.
 - **Environment must match CI.** Maps carry a compatibility key (platform +
   browser build); a locally-published head map captured under a different
@@ -66,8 +66,8 @@ If init wrote `.githooks/pre-push` (no husky), activate once per clone:
 ## Faster still: capture only affected surfaces
 
 On a big app, the slow part is capturing every surface. The opt-in
-`affectedSurfaces` / `explainAffectedSurfaces` helpers (README: *Optional:
-selective remap*) take the changed files + a module graph and return the
+`affectedSurfaces` / `explainAffectedSurfaces` helpers (README: _Optional:
+selective remap_) take the changed files + a module graph and return the
 surfaces that could have rendered differently — everything else reuses its
 restored base map. Fail-closed: anything unbounded (a global stylesheet, a token
 file) returns `'all'`. Print the skip list in the hook before trusting it, and

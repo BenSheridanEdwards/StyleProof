@@ -190,6 +190,19 @@ function enqueueLinkedPages(links, sweep) {
   }
 }
 
+// Crawl one page of the sweep. The entry page failing is a broken run (rethrow);
+// a LINKED page failing (e.g. an off-origin redirect) returns null after warning,
+// and the sweep continues.
+async function crawlPage(browser, page, url, prefix, statesLeft) {
+  try {
+    return await crawlAndCapture(page, pageCrawlOptions(browser, url, prefix, statesLeft));
+  } catch (e) {
+    if (prefix === '') throw e;
+    console.log(`⚠ ${url}: ${e instanceof Error ? e.message : String(e)} — page skipped`);
+    return null;
+  }
+}
+
 async function runCrawl() {
   const browser = await chromium.launch();
   try {
@@ -209,7 +222,8 @@ async function runCrawl() {
 
     while (sweep.queue.length > 0 && statesLeft > 0) {
       const { url, prefix } = sweep.queue.shift();
-      const report = await crawlAndCapture(page, pageCrawlOptions(browser, url, prefix, statesLeft));
+      const report = await crawlPage(browser, page, url, prefix, statesLeft);
+      if (!report) continue; // linked page skipped loudly (e.g. off-origin redirect)
       reports.push(report);
       statesLeft -= report.surfaces.length;
       if (opts.followLinks) enqueueLinkedPages(await harvestPageLinks(page, url), sweep);

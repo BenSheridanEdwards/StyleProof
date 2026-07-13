@@ -432,6 +432,118 @@ test('styleproof-capture --crawl follows same-origin nav links across pages', as
   }
 });
 
+// A same-origin href can still 302 off-origin (SSO, /out?url=…). External
+// content is nondeterministic and must never enter a map: the CLI sweep skips
+// the page loudly and continues; a spec-driven capture fails naming the surface.
+test('crawls never capture an off-origin redirect target', async () => {
+  const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-redirect-'));
+  const port = await freePort();
+  try {
+    fs.writeFileSync(
+      path.join(app, 'server.mjs'),
+      `import http from 'node:http';
+const port = Number(process.argv[2]);
+http.createServer((req, res) => {
+  const url = req.url.split('?')[0];
+  if (url === '/away') { res.statusCode = 302; res.setHeader('location', 'https://example.com/'); return res.end(); }
+  res.setHeader('content-type', 'text/html');
+  res.end('<!doctype html><html><head><style>.k{color:rgb(20,20,30)}</style></head><body>' +
+    '<nav><a href="/">Home</a> <a href="/away">Away</a></nav><h1 class="k">Home</h1></body></html>');
+}).listen(port, '127.0.0.1');
+`,
+    );
+    const server = spawn('node', ['server.mjs', String(port)], { cwd: app });
+    try {
+      await new Promise((r) => setTimeout(r, 500));
+      const out = path.join(app, 'maps');
+      const result = await runAsync(app, process.execPath, [
+        CAPTURE,
+        `http://127.0.0.1:${port}/`,
+        '--crawl',
+        '--no-screenshots',
+        '--widths',
+        '1280',
+        '--out',
+        out,
+      ]);
+      expect(result.status, result.stderr + result.stdout).toBe(0);
+      expect(result.stdout).toContain('redirected off-origin');
+      expect(result.stdout).toContain('page skipped');
+      const files = fs.readdirSync(out);
+      expect(
+        files.some((f) => /^away@/.test(f)),
+        'external page must not be captured',
+      ).toBe(false);
+      expect(
+        files.some((f) => /^base@1280\.json\.gz$/.test(f)),
+        'entry page still captured',
+      ).toBe(true);
+
+      // An entry URL that itself redirects off-origin is a broken run, not a skip.
+      const entryRedirect = await runAsync(app, process.execPath, [
+        CAPTURE,
+        `http://127.0.0.1:${port}/away`,
+        '--crawl',
+        '--no-screenshots',
+        '--widths',
+        '1280',
+        '--out',
+        path.join(app, 'maps2'),
+      ]);
+      expect(entryRedirect.status).toBe(3);
+      expect(entryRedirect.stderr).toContain('redirected off-origin');
+    } finally {
+      server.kill();
+    }
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});
+
+// Spec-driven counterpart: a crawl-discovered surface that redirects off-origin
+// FAILS the capture naming the surface — a gate capture must never silently
+// swallow (or silently skip) a surface it cannot truthfully record.
+test('styleproof-map fails loudly when a crawled link redirects off-origin', async () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-redirect-map-'));
+  const port = await freePort();
+  try {
+    writeMultiPageApp(app, port);
+    // Add an off-origin redirect route + a nav link to it.
+    const server = path.join(app, 'server.mjs');
+    fs.writeFileSync(
+      server,
+      fs
+        .readFileSync(server, 'utf8')
+        .replace(
+          "const url = req.url.split('?')[0];",
+          "const url = req.url.split('?')[0];\n  if (url === '/away') { res.statusCode = 302; res.setHeader('location', 'https://example.com/'); return res.end(); }",
+        )
+        .replace('<a href="/about">About</a>', '<a href="/about">About</a> <a href="/away">Away</a>'),
+    );
+    git(app, ['init', '-q']);
+    git(app, ['config', 'user.email', 'styleproof@example.test']);
+    git(app, ['config', 'user.name', 'StyleProof Test']);
+    git(app, ['checkout', '-qb', 'main']);
+    const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
+    expect(init.status, init.stderr).toBe(0);
+    git(app, ['add', '-A']);
+    git(app, ['commit', '-qm', 'styleproof setup']);
+
+    const map = run(app, process.execPath, [MAP]);
+    expect(map.status, 'a surface that cannot be truthfully captured must fail the capture').not.toBe(0);
+    expect(map.stdout + map.stderr).toContain('redirected off-origin');
+    const mapsDir = path.join(app, '.styleproof/maps/current');
+    const files = fs.existsSync(mapsDir) ? fs.readdirSync(mapsDir) : [];
+    expect(
+      files.some((f) => /^away@/.test(f)),
+      'external page must not be captured',
+    ).toBe(false);
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});
+
 test('zero-config: init on a multi-page app crawls and captures every page — no spec editing', async () => {
   const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-zeroconfig-'));
   const port = await freePort();

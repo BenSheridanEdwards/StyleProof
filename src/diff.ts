@@ -327,7 +327,7 @@ function indexDir(dir: string): Record<string, string> {
 export function diffStyleMapDirs(
   dirA: string,
   dirB: string,
-): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number; compared: number } {
+): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number; statesUncertified: number; compared: number } {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
@@ -352,7 +352,7 @@ export function diffStyleMapDirs(
 
   const surfaces: SurfaceDiff[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
-  let volatile = 0;
+  const uncompared = { volatile: 0, statesUncertified: 0 };
   for (const surface of names) {
     if (!indexA[surface] || !indexB[surface]) {
       // A surface present on only one side has no baseline to diff against — it's
@@ -362,14 +362,25 @@ export function diffStyleMapDirs(
       surfaces.push({ surface, missing: indexA[surface] ? 'after' : 'before', findings: [] });
       continue;
     }
-    const mapA = loadStyleMap(indexA[surface]);
-    const mapB = loadStyleMap(indexB[surface]);
-    volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
-    const findings = diffStyleMaps(mapA, mapB);
+    const findings = diffSurfacePair(indexA[surface], indexB[surface], uncompared);
     tallyCounts(findings, counts);
     if (findings.length) surfaces.push({ surface, findings });
   }
-  return { surfaces, counts, volatile, compared: names.length };
+  return { surfaces, counts, ...uncompared, compared: names.length };
+}
+
+/** Diff one paired surface, tallying what was NOT compared (volatile subtrees;
+ *  a forced-state layer skipped on BOTH sides — {} vs {} certifies nothing). */
+function diffSurfacePair(
+  fileA: string,
+  fileB: string,
+  uncompared: { volatile: number; statesUncertified: number },
+): Finding[] {
+  const mapA = loadStyleMap(fileA);
+  const mapB = loadStyleMap(fileB);
+  uncompared.volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
+  if (mapA.statesSkipped && mapB.statesSkipped) uncompared.statesUncertified++;
+  return diffStyleMaps(mapA, mapB);
 }
 
 /**
