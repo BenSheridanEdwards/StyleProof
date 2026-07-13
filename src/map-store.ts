@@ -91,6 +91,29 @@ function runGit(cwd: string, args: string[], maxBuffer = 1 << 28) {
   return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer, env: gitProcessEnvironment() });
 }
 
+interface GitHttpExtraHeader {
+  key: string;
+  value: string;
+}
+
+function localGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
+  const configuredHeaders = runGit(cwd, ['config', '--local', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
+  if (configuredHeaders.status !== 0) return [];
+  return configuredHeaders.stdout
+    .split('\n')
+    .filter(Boolean)
+    .flatMap((configuredHeader) => {
+      const separatorIndex = configuredHeader.indexOf(' ');
+      if (separatorIndex === -1) return [];
+      return [
+        {
+          key: configuredHeader.slice(0, separatorIndex),
+          value: configuredHeader.slice(separatorIndex + 1),
+        },
+      ];
+    });
+}
+
 function gitOutput(cwd: string, args: string[]): string {
   const r = runGit(cwd, args);
   return r.status === 0 ? r.stdout.trim() : '';
@@ -474,13 +497,19 @@ function copyDir(src: string, dest: string, includeHar: boolean): void {
 function checkoutMapStore(cwd: string, remote: string, branch: string): string {
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
   const remoteUrl = gitOutput(cwd, ['remote', 'get-url', remote]);
+  const httpExtraHeaders = localGitHttpExtraHeaders(cwd);
+  const authenticationArguments = httpExtraHeaders.flatMap(({ key, value }) => ['-c', `${key}=${value}`]);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-'));
   if (runGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20).status === 0) {
-    const clone = spawnSync('git', ['clone', '-q', '--depth', '1', '--branch', branch, remoteUrl, tmp], {
-      encoding: 'utf8',
-      maxBuffer: 1 << 20,
-      env: gitProcessEnvironment(),
-    });
+    const clone = spawnSync(
+      'git',
+      [...authenticationArguments, 'clone', '-q', '--depth', '1', '--branch', branch, remoteUrl, tmp],
+      {
+        encoding: 'utf8',
+        maxBuffer: 1 << 20,
+        env: gitProcessEnvironment(),
+      },
+    );
     if (clone.status !== 0) {
       fs.rmSync(tmp, { recursive: true, force: true });
       throw new MapStoreError(clone.stderr.trim() || 'could not clone map store branch');
@@ -489,6 +518,7 @@ function checkoutMapStore(cwd: string, remote: string, branch: string): string {
     runGit(tmp, ['init', '-q', '-b', branch]);
     runGit(tmp, ['remote', 'add', 'origin', remoteUrl]);
   }
+  for (const { key, value } of httpExtraHeaders) runGit(tmp, ['config', '--local', key, value]);
   return tmp;
 }
 
