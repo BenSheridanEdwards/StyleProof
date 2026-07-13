@@ -864,7 +864,11 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
-    assert.match(ci, /styleproof-map --restore --sha "\$BASE_SHA"/, 'CI first restores cached maps');
+    assert.match(
+      ci,
+      /styleproof-map\.mjs --restore --sha "\$BASE_SHA"/,
+      'CI first restores cached maps with the installed release',
+    );
     assert.match(ci, /capture-needed=true/, 'CI records cache misses');
     assert.match(ci, /Capture maps in CI on cache miss/, 'CI has a correctness fallback');
     assert.match(ci, /STYLEPROOF_REPLAY_FROM="\$MAP_ROOT\/base"/, 'fallback replays base data for head');

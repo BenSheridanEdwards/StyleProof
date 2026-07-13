@@ -221,6 +221,7 @@ const PACKAGE_MANAGERS = {
     run: (script) => `npm run ${script}`,
     exec: (command) => `npx ${command}`,
     install: 'npm ci',
+    installExactStyleProof: 'npm install --no-save --package-lock=false "styleproof@$STYLEPROOF_VERSION"',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -231,6 +232,7 @@ const PACKAGE_MANAGERS = {
     run: (script) => `npx -y yarn@1.22.22 ${script}`,
     exec: (command) => `npx -y yarn@1.22.22 ${command}`,
     install: 'npx -y yarn@1.22.22 install --frozen-lockfile --non-interactive',
+    installExactStyleProof: 'npx -y yarn@1.22.22 add --dev --exact "styleproof@$STYLEPROOF_VERSION"',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -242,6 +244,7 @@ const PACKAGE_MANAGERS = {
     run: (script) => `pnpm run ${script}`,
     exec: (command) => `pnpm exec ${command}`,
     install: 'pnpm install --frozen-lockfile',
+    installExactStyleProof: 'pnpm add --save-dev --save-exact "styleproof@$STYLEPROOF_VERSION"',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -254,6 +257,7 @@ const PACKAGE_MANAGERS = {
     run: (script) => `bun run ${script}`,
     exec: (command) => `bunx ${command}`,
     install: 'bun install --frozen-lockfile',
+    installExactStyleProof: 'bun add --dev --exact "styleproof@$STYLEPROOF_VERSION"',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -388,8 +392,6 @@ jobs:
     # Report on open/update; the prune job below handles close.
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
-    env:
-      STYLEPROOF_MAP_STORE_TOKEN: \${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -405,9 +407,9 @@ ${PM.setup}
           MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
           rm -rf "$MAP_ROOT"
           set +e
-          ${PM.exec(`styleproof-map --restore --sha "$BASE_SHA" --dir base --base-dir "$MAP_ROOT" --spec ${specPath}`)}
+          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --restore --sha "$BASE_SHA" --dir base --base-dir "$MAP_ROOT" --spec ${specPath}
           base_code=$?
-          ${PM.exec(`styleproof-map --restore --sha "$HEAD_SHA" --dir head --base-dir "$MAP_ROOT" --spec ${specPath}`)}
+          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --restore --sha "$HEAD_SHA" --dir head --base-dir "$MAP_ROOT" --spec ${specPath}
           head_code=$?
           set -e
           echo "base-hit=$([ "$base_code" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
@@ -421,37 +423,43 @@ ${PM.setup}
         if: steps.maps.outputs.capture-needed == 'true'
         shell: bash
         run: |
+          set -euo pipefail
           BASE_SHA="\${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
           MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
+          STYLEPROOF_VERSION="$(node -p "require('./node_modules/styleproof/package.json').version")"
 
           if [ "\${{ steps.maps.outputs.base-hit }}" != 'true' ]; then
             # Without a compatible base bundle, rebuild and publish the pair in
             # one pinned environment. This is the expensive cold path.
             rm -rf "$MAP_ROOT"
-            git checkout "$BASE_SHA"
+            git checkout --force "$BASE_SHA"
             ${PM.install}
-            ${PM.exec('playwright install --with-deps chromium')}
+            # The base may depend on an older StyleProof. Install the head's
+            # exact release, then invoke its binary directly so a later package
+            # manager command cannot silently reconcile node_modules backwards.
+            ${PM.installExactStyleProof}
+            PATH="$PWD/node_modules/.bin:$PATH" playwright install --with-deps chromium
             if [ -f "${specPath}" ]; then
-              ${PM.exec(`styleproof-map --spec ${specPath} --dir base --base-dir "$MAP_ROOT" --keep-har --sha "$BASE_SHA" --upload`)}
+              PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --spec ${specPath} --dir base --base-dir "$MAP_ROOT" --keep-har --sha "$BASE_SHA" --upload
             else
               mkdir -p "$MAP_ROOT/base"
             fi
 
-            git checkout "$HEAD_SHA"
+            git checkout --force "$HEAD_SHA"
             ${PM.install}
-            ${PM.exec('playwright install --with-deps chromium')}
+            PATH="$PWD/node_modules/.bin:$PATH" playwright install --with-deps chromium
           else
             # A compatible base hit proves the current head environment. Keep
             # that restored base and capture only the missing head.
             rm -rf "$MAP_ROOT/head"
-            ${PM.exec('playwright install --with-deps chromium')}
+            PATH="$PWD/node_modules/.bin:$PATH" playwright install --with-deps chromium
           fi
 
           if find "$MAP_ROOT/base" -name '*.har' -print -quit | grep -q .; then
-            STYLEPROOF_REPLAY_FROM="$MAP_ROOT/base" ${PM.exec(`styleproof-map --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload`)}
+            PATH="$PWD/node_modules/.bin:$PATH" STYLEPROOF_REPLAY_FROM="$MAP_ROOT/base" node node_modules/styleproof/bin/styleproof-map.mjs --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload
           else
-            ${PM.exec(`styleproof-map --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload`)}
+            PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload
           fi
       - uses: BenSheridanEdwards/StyleProof@v4
         with:
