@@ -586,6 +586,10 @@ export function publishMapBundle(options: {
   const sha = safeSegment(manifest.sha, 'sha');
   const compatibilityKey = safeSegment(manifest.compatibilityKey, 'compatibility key');
   const target = `${sha}/${compatibilityKey}`;
+  const pushAuthenticationArguments = effectiveGitHttpExtraHeaders(cwd).flatMap(({ key, value }) => [
+    '-c',
+    `${key}=${value}`,
+  ]);
 
   let ok = false;
   let lastError = '';
@@ -607,7 +611,7 @@ export function publishMapBundle(options: {
 
       runGit(tmp, ['add', '-A', '--sparse', '--', 'README.md', target]);
       runGit(tmp, ['commit', '-q', '-m', `StyleProof map ${sha.slice(0, 12)} ${compatibilityKey}`], 1 << 20);
-      const push = runGit(tmp, ['push', '-q', 'origin', `HEAD:${branch}`], 1 << 20);
+      const push = runGit(tmp, [...pushAuthenticationArguments, 'push', '-q', 'origin', `HEAD:${branch}`], 1 << 20);
       if (push.status === 0) {
         ok = true;
         break;

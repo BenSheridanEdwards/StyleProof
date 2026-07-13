@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Map-store pushes now receive workflow authentication directly.** The final
+  `git push` uses the same explicit reset-and-token arguments as the isolated
+  clone, so temporary sparse-checkout config cannot drop the Actions token after
+  a successful cold-cache capture.
+
 ## [4.4.10] - 2026-07-13
 
 ### Fixed

@@ -288,7 +288,11 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
       /config --local http\.https:\/\/github\.com\/\.extraheader AUTHORIZATION: basic fake-checkout-token/,
       'the isolated checkout persists the credential for its later push',
     );
-    assert.match(invocations, /push -q origin HEAD:styleproof-maps/, 'the authenticated checkout publishes the map');
+    assert.match(
+      invocations,
+      /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token push -q origin HEAD:styleproof-maps/,
+      'the push receives the checkout credential directly',
+    );
     assert.equal(
       git(root, '--git-dir', remote, 'show', 'styleproof-maps:unseen-sha/unseen-compatibility/keep.txt'),
       'keep',
@@ -310,6 +314,12 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     assert.ok(
       tokenInvocations.includes(`-c ${workflowExtraHeaderKey}=AUTHORIZATION: basic ${encodedWorkflowCredential} clone`),
       'the explicit workflow token takes precedence over checkout credentials',
+    );
+    assert.ok(
+      tokenInvocations.includes(
+        `-c ${workflowExtraHeaderKey}= -c ${workflowExtraHeaderKey}=AUTHORIZATION: basic ${encodedWorkflowCredential} push`,
+      ),
+      'the push receives the explicit workflow token directly after clearing inherited authentication',
     );
     assert.doesNotMatch(
       tokenInvocations,
