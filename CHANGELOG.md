@@ -24,7 +24,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and, on partial-clone-capable remotes such as GitHub, downloads only that
   bundle's blobs. Large long-lived map stores therefore no longer make every
   cache lookup clone all historical bundles on supported remotes. Publishing
-  deliberately keeps its complete checkout so a commit cannot delete unseen bundles.
+  uses the same sparse checkout and stages only the requested bundle plus the
+  store README; Git's sparse index preserves unseen bundles without downloading
+  their blobs, so cache misses no longer materialise the complete store either.
 - **Map-store uploads now reuse the HTTP authentication persisted by
   `actions/checkout`.** The isolated `styleproof-maps` clone carries the
   checkout's URL-scoped extra header through clone and push, so cache-miss

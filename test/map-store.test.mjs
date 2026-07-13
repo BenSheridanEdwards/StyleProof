@@ -273,13 +273,15 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     assert.match(invocations, /config --file .*checkout-credentials\.config --get-regexp/);
     assert.match(
       invocations,
-      /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token clone/,
+      /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token clone -q --filter=blob:none --no-checkout/,
       'the initial isolated clone receives the checkout credential',
     );
-    assert.doesNotMatch(
+    const publishedSha = git(repo, 'rev-parse', 'HEAD');
+    assert.match(invocations, new RegExp(`sparse-checkout set ${publishedSha}`));
+    assert.match(
       invocations,
-      /clone[^\n]*--no-checkout/,
-      'publishing keeps a complete working tree so unseen bundles cannot be deleted',
+      new RegExp(`add -A --sparse -- README.md ${publishedSha}/[a-f0-9]{16}`),
+      'publishing stages only the selected bundle while the sparse index preserves every unseen bundle',
     );
     assert.match(
       invocations,
@@ -313,6 +315,108 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     else process.env.STYLEPROOF_TEST_GIT_LOG = previousInvocationLog;
     if (previousMapStoreToken === undefined) delete process.env.STYLEPROOF_MAP_STORE_TOKEN;
     else process.env.STYLEPROOF_MAP_STORE_TOKEN = previousMapStoreToken;
+    rmTmp(root);
+  }
+});
+
+test('publishMapBundle preserves unseen bundles without downloading their blobs', () => {
+  const root = mkTmp('styleproof-sparse-publish-');
+  const remote = path.join(root, 'remote.git');
+  const seed = path.join(root, 'seed');
+  const consumer = path.join(root, 'consumer');
+  const capture = path.join(consumer, '.styleproof/maps/current');
+  const shimDirectory = path.join(root, 'bin');
+  const transferLog = path.join(root, 'ssh-transfers.log');
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+  const unrelatedSha = 'b'.repeat(40);
+  const unrelatedPayload = randomBytes(8 * 1024 * 1024);
+  const previousSshCommand = process.env.GIT_SSH_COMMAND;
+  const previousTransferLog = process.env.STYLEPROOF_TEST_TRANSFER_LOG;
+
+  try {
+    git(root, 'init', '--bare', '-q', remote);
+    git(root, 'clone', '-q', remote, seed);
+    git(seed, 'checkout', '-q', '-b', 'styleproof-maps');
+    git(seed, 'config', 'user.email', 'styleproof@example.test');
+    git(seed, 'config', 'user.name', 'StyleProof Test');
+    fs.writeFileSync(path.join(seed, 'README.md'), '# StyleProof maps\n');
+    const unrelatedBundle = path.join(seed, unrelatedSha, 'unseen-compatibility');
+    fs.mkdirSync(unrelatedBundle, { recursive: true });
+    fs.writeFileSync(path.join(unrelatedBundle, 'unrelated.bin'), unrelatedPayload);
+    git(seed, 'add', '-A');
+    git(seed, 'commit', '-qm', 'seed large map store');
+    git(seed, 'push', '-q', 'origin', 'styleproof-maps');
+    git(root, '--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true');
+
+    fs.mkdirSync(consumer);
+    git(consumer, 'init', '-q', '-b', 'main');
+    git(consumer, 'config', 'user.email', 'styleproof@example.test');
+    git(consumer, 'config', 'user.name', 'StyleProof Test');
+    git(consumer, 'remote', 'add', 'origin', `ssh://styleproof.test${remote}`);
+    fs.writeFileSync(path.join(consumer, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(consumer, 'styleproof.spec.ts'), 'export default {};\n');
+    git(consumer, 'add', '-A');
+    git(consumer, 'commit', '-qm', 'consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{}');
+    writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(consumer, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: consumer,
+    });
+
+    fs.mkdirSync(shimDirectory);
+    const sshShim = path.join(shimDirectory, 'ssh');
+    fs.writeFileSync(
+      sshShim,
+      `#!/usr/bin/env node
+const { appendFileSync } = require('node:fs');
+const { spawn } = require('node:child_process');
+const command = process.argv.at(-1);
+const child = spawn('/bin/sh', ['-c', command], { stdio: ['pipe', 'pipe', 'inherit'] });
+let bytes = 0;
+process.stdin.pipe(child.stdin);
+child.stdout.on('data', (chunk) => { bytes += chunk.length; process.stdout.write(chunk); });
+child.on('close', (code) => {
+  appendFileSync(process.env.STYLEPROOF_TEST_TRANSFER_LOG, command + '\\t' + bytes + '\\n');
+  process.exit(code ?? 1);
+});
+`,
+    );
+    fs.chmodSync(sshShim, 0o755);
+    process.env.GIT_SSH_COMMAND = sshShim;
+    process.env.STYLEPROOF_TEST_TRANSFER_LOG = transferLog;
+
+    publishMapBundle({ dir: capture, cwd: consumer });
+
+    const uploadPackTransfer = fs
+      .readFileSync(transferLog, 'utf8')
+      .split('\n')
+      .find((line) => line.includes('git-upload-pack'));
+    assert.ok(uploadPackTransfer, 'the test observed the map-store fetch');
+    const transferredBytes = Number(uploadPackTransfer.split('\t').at(-1));
+    assert.ok(
+      transferredBytes < unrelatedPayload.length / 2,
+      'publishing receives far less data than the unrelated bundle alone',
+    );
+    assert.equal(
+      execFileSync(
+        'git',
+        ['--git-dir', remote, 'show', `styleproof-maps:${unrelatedSha}/unseen-compatibility/unrelated.bin`],
+        { cwd: root, stdio: 'pipe', maxBuffer: unrelatedPayload.length * 2 },
+      ).length,
+      unrelatedPayload.length,
+      'publishing preserves the unseen bundle',
+    );
+  } finally {
+    if (previousSshCommand === undefined) delete process.env.GIT_SSH_COMMAND;
+    else process.env.GIT_SSH_COMMAND = previousSshCommand;
+    if (previousTransferLog === undefined) delete process.env.STYLEPROOF_TEST_TRANSFER_LOG;
+    else process.env.STYLEPROOF_TEST_TRANSFER_LOG = previousTransferLog;
     rmTmp(root);
   }
 });
