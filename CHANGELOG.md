@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.17] - 2026-07-13
+
 ### Fixed
 
 - **Generated cache-first CI now preserves the installed StyleProof release across
