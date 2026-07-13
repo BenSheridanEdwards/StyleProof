@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.18] - 2026-07-13
+
+### Fixed
+
+- **Generated cold-cache workflows now publish from a clean tracked tree.** Yarn,
+  pnpm, and Bun restore only the package metadata changed by the temporary exact
+  StyleProof install while retaining that release in `node_modules` for capture.
+
 ## [4.4.17] - 2026-07-13
 
 ### Fixed
