@@ -113,6 +113,10 @@ function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
     return [
       {
         key: ['http.https:', '', 'github.com', '.extraheader'].join('/'),
+        value: '',
+      },
+      {
+        key: ['http.https:', '', 'github.com', '.extraheader'].join('/'),
         value: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${mapStoreToken}`).toString('base64')}`,
       },
     ];
