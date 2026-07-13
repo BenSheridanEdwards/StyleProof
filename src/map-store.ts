@@ -578,12 +578,14 @@ function pushMapStoreCommit(
   branch: string,
   authenticationArguments: string[],
 ) {
+  const pushFailures: string[] = [];
   const isolatedPush = runGit(
     temporaryCheckout,
     [...authenticationArguments, 'push', '-q', 'origin', `HEAD:${branch}`],
     1 << 20,
   );
   if (isolatedPush.status === 0) return isolatedPush;
+  pushFailures.push(`isolated map-store push: ${isolatedPush.stderr.trim() || `git exited ${isolatedPush.status}`}`);
 
   const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
   if (mapStoreToken) {
@@ -611,6 +613,9 @@ function pushMapStoreCommit(
       },
     );
     if (credentialPush.status === 0) return credentialPush;
+    pushFailures.push(
+      `workflow-token credential push: ${credentialPush.stderr.trim() || `git exited ${credentialPush.status}`}`,
+    );
   }
 
   const mapStoreCommit = gitOutput(temporaryCheckout, ['rev-parse', 'HEAD']);
@@ -619,8 +624,24 @@ function pushMapStoreCommit(
     ['fetch', '-q', '--no-write-fetch-head', temporaryCheckout, mapStoreCommit],
     1 << 20,
   );
-  if (importCommit.status !== 0) return isolatedPush;
-  return runGit(cwd, ['push', '-q', remote, `${mapStoreCommit}:${branch}`], 1 << 20);
+  if (importCommit.status !== 0) {
+    return {
+      ...isolatedPush,
+      stderr: [
+        ...pushFailures,
+        `consumer checkout import: ${importCommit.stderr.trim() || `git exited ${importCommit.status}`}`,
+      ].join('\n'),
+    };
+  }
+  const consumerCheckoutPush = runGit(cwd, ['push', '-q', remote, `${mapStoreCommit}:${branch}`], 1 << 20);
+  if (consumerCheckoutPush.status === 0) return consumerCheckoutPush;
+  return {
+    ...consumerCheckoutPush,
+    stderr: [
+      ...pushFailures,
+      `consumer checkout push: ${consumerCheckoutPush.stderr.trim() || `git exited ${consumerCheckoutPush.status}`}`,
+    ].join('\n'),
+  };
 }
 
 export function publishMapBundle(options: {
