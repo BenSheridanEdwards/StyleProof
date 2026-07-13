@@ -8,6 +8,11 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadStyleMap } from '../dist/index.js';
 
+// Every test here builds its own fixture (mkdtemp / own page); none reads another
+// test's output. Declare the file parallel so its tests spread across workers —
+// serial-in-one-worker made this file the long pole of the e2e wall time.
+test.describe.configure({ mode: 'parallel' });
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const INIT = path.join(root, 'bin/styleproof-init.mjs');

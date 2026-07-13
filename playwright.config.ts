@@ -11,5 +11,8 @@ export default defineConfig({
   // matches testMatch too and would double every run. Don't collect it.
   testIgnore: ['**/.claude/**'],
   timeout: 120_000,
+  // CI runners are dedicated to this suite — use every core (default is 50%).
+  // Local stays at the default so a dev machine remains usable during a run.
+  workers: process.env.CI ? '100%' : undefined,
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });
