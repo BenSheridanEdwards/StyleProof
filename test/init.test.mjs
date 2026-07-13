@@ -79,6 +79,7 @@ for (const manager of [
       /cache: npm/,
       /npm ci/,
       /npm install --no-save --package-lock=false "styleproof@\$STYLEPROOF_VERSION"/,
+      /true # npm exact install leaves package metadata unchanged/,
       /BenSheridanEdwards\/StyleProof@v4/,
       /baseline-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/base/,
       /fresh-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/head/,
@@ -96,6 +97,7 @@ for (const manager of [
       /cache: yarn/,
       /npx -y yarn@1\.22\.22 install --frozen-lockfile --non-interactive/,
       /npx -y yarn@1\.22\.22 add --dev --exact "styleproof@\$STYLEPROOF_VERSION"/,
+      /git checkout -- package\.json yarn\.lock/,
       /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
@@ -113,6 +115,7 @@ for (const manager of [
       /corepack enable/,
       /pnpm install --frozen-lockfile/,
       /pnpm add --save-dev --save-exact "styleproof@\$STYLEPROOF_VERSION"/,
+      /git checkout -- package\.json pnpm-lock\.yaml/,
       /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
@@ -129,6 +132,7 @@ for (const manager of [
       /oven-sh\/setup-bun@v2/,
       /bun install --frozen-lockfile/,
       /bun add --dev --exact "styleproof@\$STYLEPROOF_VERSION"/,
+      /git checkout -- package\.json[\s\S]*git checkout -- "\$package_metadata_file"/,
       /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
@@ -174,9 +178,12 @@ for (const manager of [
       const baseCaptureIndex = workflow.indexOf(
         'node node_modules/styleproof/bin/styleproof-map.mjs --spec e2e/styleproof.spec.ts --dir base',
       );
+      const metadataRestoreIndex = workflow.indexOf('Restore only those files: node_modules must');
       const headCheckoutIndex = workflow.indexOf('git checkout --force "$HEAD_SHA"');
       assert.ok(exactReleaseInstallIndex >= 0, 'cold capture installs the head StyleProof release');
+      assert.ok(metadataRestoreIndex > exactReleaseInstallIndex, 'cold capture cleans temporary package metadata');
       assert.ok(baseCaptureIndex > exactReleaseInstallIndex, 'base capture uses that exact release');
+      assert.ok(baseCaptureIndex > metadataRestoreIndex, 'base capture starts from a clean tracked tree');
       assert.ok(headCheckoutIndex > baseCaptureIndex, 'base capture finishes before manifest reset');
 
       // Report branch self-prunes on PR close (out of the box) — manager-independent.

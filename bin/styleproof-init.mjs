@@ -222,6 +222,7 @@ const PACKAGE_MANAGERS = {
     exec: (command) => `npx ${command}`,
     install: 'npm ci',
     installExactStyleProof: 'npm install --no-save --package-lock=false "styleproof@$STYLEPROOF_VERSION"',
+    restorePackageMetadata: 'true # npm exact install leaves package metadata unchanged',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -233,6 +234,7 @@ const PACKAGE_MANAGERS = {
     exec: (command) => `npx -y yarn@1.22.22 ${command}`,
     install: 'npx -y yarn@1.22.22 install --frozen-lockfile --non-interactive',
     installExactStyleProof: 'npx -y yarn@1.22.22 add --dev --exact "styleproof@$STYLEPROOF_VERSION"',
+    restorePackageMetadata: 'git checkout -- package.json yarn.lock',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -245,6 +247,7 @@ const PACKAGE_MANAGERS = {
     exec: (command) => `pnpm exec ${command}`,
     install: 'pnpm install --frozen-lockfile',
     installExactStyleProof: 'pnpm add --save-dev --save-exact "styleproof@$STYLEPROOF_VERSION"',
+    restorePackageMetadata: 'git checkout -- package.json pnpm-lock.yaml',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -258,6 +261,12 @@ const PACKAGE_MANAGERS = {
     exec: (command) => `bunx ${command}`,
     install: 'bun install --frozen-lockfile',
     installExactStyleProof: 'bun add --dev --exact "styleproof@$STYLEPROOF_VERSION"',
+    restorePackageMetadata: `git checkout -- package.json
+            for package_metadata_file in bun.lock bun.lockb; do
+              if git ls-files --error-unmatch "$package_metadata_file" >/dev/null 2>&1; then
+                git checkout -- "$package_metadata_file"
+              fi
+            done`,
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -439,6 +448,10 @@ ${PM.setup}
             # exact release, then invoke its binary directly so a later package
             # manager command cannot silently reconcile node_modules backwards.
             ${PM.installExactStyleProof}
+            # Package managers that record the temporary exact release dirty
+            # tracked metadata. Restore only those files: node_modules must
+            # retain the exact release for the clean-tree capture below.
+            ${PM.restorePackageMetadata}
             PATH="$PWD/node_modules/.bin:$PATH" playwright install --with-deps chromium
             if [ -f "${specPath}" ]; then
               PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --spec ${specPath} --dir base --base-dir "$MAP_ROOT" --keep-har --sha "$BASE_SHA" --upload
