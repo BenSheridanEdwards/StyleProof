@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Map-store uploads now reuse the HTTP authentication persisted by
+  `actions/checkout`.** The isolated `styleproof-maps` clone carries the
+  checkout's URL-scoped extra header through clone and push, so cache-miss
+  captures publish successfully without every consumer wiring a token into the
+  CLI step.
 - **Map-store uploads from Git hooks no longer inherit the caller repository's
   Git location variables.** A cold `styleproof-maps` upload could otherwise run
   its temporary `git init` against the consumer repository, set

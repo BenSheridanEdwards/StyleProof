@@ -191,6 +191,87 @@ test('publishMapBundle ignores hook-exported Git repository variables and leaves
   }
 });
 
+test('publishMapBundle reuses actions checkout HTTP authentication for the isolated clone and push', () => {
+  const root = mkTmp('styleproof-checkout-auth-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const seed = path.join(root, 'seed');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const shimDirectory = path.join(root, 'bin');
+  const invocationLog = path.join(root, 'git-invocations.log');
+  const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  const git = (cwd, ...args) => execFileSync(realGit, args, { cwd, stdio: 'pipe' }).toString().trim();
+  const previousPath = process.env.PATH;
+  const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
+  const previousInvocationLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  const checkoutExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
+  try {
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(root, 'clone', '-q', remote, seed);
+    git(seed, 'checkout', '-q', '-b', 'styleproof-maps');
+    git(seed, 'config', 'user.email', 'styleproof@example.test');
+    git(seed, 'config', 'user.name', 'StyleProof Test');
+    fs.writeFileSync(path.join(seed, 'README.md'), '# StyleProof maps\n');
+    git(seed, 'add', '-A');
+    git(seed, 'commit', '-qm', 'seed map store');
+    git(seed, 'push', '-q', 'origin', 'styleproof-maps');
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'config', checkoutExtraHeaderKey, 'AUTHORIZATION: basic fake-checkout-token');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{}');
+    writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: repo,
+    });
+
+    fs.mkdirSync(shimDirectory);
+    const gitShim = path.join(shimDirectory, 'git');
+    fs.writeFileSync(
+      gitShim,
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+    );
+    fs.chmodSync(gitShim, 0o755);
+    process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
+    process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
+    process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
+
+    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    const invocations = fs.readFileSync(invocationLog, 'utf8');
+    assert.match(
+      invocations,
+      /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token clone/,
+      'the initial isolated clone receives the checkout credential',
+    );
+    assert.match(
+      invocations,
+      /config --local http\.https:\/\/github\.com\/\.extraheader AUTHORIZATION: basic fake-checkout-token/,
+      'the isolated checkout persists the credential for its later push',
+    );
+    assert.match(invocations, /push -q origin HEAD:styleproof-maps/, 'the authenticated checkout publishes the map');
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousRealGit === undefined) delete process.env.STYLEPROOF_TEST_REAL_GIT;
+    else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
+    if (previousInvocationLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
+    else process.env.STYLEPROOF_TEST_GIT_LOG = previousInvocationLog;
+    rmTmp(root);
+  }
+});
+
 test('assertCompatibleMapDirs: differing browser build refuses to compare, naming both', () => {
   const before = manifestDir({ browserVersion: '124.0.6367.60', sha: 'b'.repeat(40) });
   const after = manifestDir({ browserVersion: '125.0.6422.60', sha: 'c'.repeat(40) });
