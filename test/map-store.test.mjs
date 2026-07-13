@@ -302,6 +302,12 @@ test('publishMapBundle reuses actions checkout v7 included HTTP authentication f
     const encodedWorkflowCredential = Buffer.from('x-access-token:fake-workflow-token').toString('base64');
     const workflowExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
     assert.ok(
+      tokenInvocations.includes(
+        `-c ${workflowExtraHeaderKey}= -c ${workflowExtraHeaderKey}=AUTHORIZATION: basic ${encodedWorkflowCredential} clone`,
+      ),
+      'the explicit workflow token clears inherited checkout authentication before adding its header',
+    );
+    assert.ok(
       tokenInvocations.includes(`-c ${workflowExtraHeaderKey}=AUTHORIZATION: basic ${encodedWorkflowCredential} clone`),
       'the explicit workflow token takes precedence over checkout credentials',
     );
