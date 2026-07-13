@@ -7,6 +7,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-07-13
+
+### Changed
+
+- **Spec-driven captures now run in parallel across Playwright workers.** The
+  capture describe declares `parallel` mode itself, so surface×width tests fan
+  out over the consumer's `workers` even when the project pins
+  `fullyParallel: false` for its behaviour suite. Every generated test was
+  already independent (own page, own map/HAR files, own self-check; ledger and
+  manifest tests mkdir and tolerate any order), so the maps are byte-identical —
+  a real consumer's 150-capture run dropped from 24.5 to 6.0 minutes at 4
+  workers on the same box. A spec file whose OWN sibling tests read the captured
+  maps in file order can opt out with `parallel: false`. Found while
+  dogfooding against a large single-route consumer app.
+
+### Fixed
+
+- **An absolute `STYLEMAP_DIR` (or `--dir`) is respected as-is.** It was joined
+  under `baseDir`, so `STYLEMAP_DIR=/abs/path styleproof-map` stranded the maps
+  at `.styleproof/maps/abs/path` where no consumer looks. Relative dirs nest
+  under `baseDir` unchanged. Also found dogfooding against a consumer app.
+
 ## [4.3.0] - 2026-07-13
 
 ### Changed

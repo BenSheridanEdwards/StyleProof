@@ -148,6 +148,7 @@ const TOAST_ONLY_HTML = `
 
 test.describe('popup leak capture', () => {
   defineStyleMapCapture({
+    parallel: false, // this file's own tests read the maps in file order
     surfaces: [{ key: 'leak-demo', widths: [WIDTH], popups: true, go: spaGo(LEAK_HTML) }],
     dir: 'leak',
     baseDir: ROOT,
@@ -158,6 +159,7 @@ test.describe('popup leak capture', () => {
 
 test.describe('popup trigger-shift capture', () => {
   defineStyleMapCapture({
+    parallel: false, // this file's own tests read the maps in file order
     surfaces: [{ key: 'shift-demo', widths: [WIDTH], popups: true, go: spaGo(SHIFT_HTML) }],
     dir: 'shift',
     baseDir: ROOT,
@@ -168,6 +170,7 @@ test.describe('popup trigger-shift capture', () => {
 
 test.describe('popup same-parent sibling-shift capture', () => {
   defineStyleMapCapture({
+    parallel: false, // this file's own tests read the maps in file order
     surfaces: [{ key: 'sibling-shift', widths: [WIDTH], popups: true, go: spaGo(SIBLING_SHIFT_HTML) }],
     dir: 'sibling-shift',
     baseDir: ROOT,
@@ -178,6 +181,7 @@ test.describe('popup same-parent sibling-shift capture', () => {
 
 test.describe('popup self-check leak capture', () => {
   defineStyleMapCapture({
+    parallel: false, // this file's own tests read the maps in file order
     surfaces: [{ key: 'toast-selfcheck', widths: [WIDTH], popups: true, go: spaGo(TOAST_ONLY_HTML) }],
     dir: 'toast-selfcheck',
     baseDir: ROOT,

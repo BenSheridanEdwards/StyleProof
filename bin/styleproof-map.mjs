@@ -253,7 +253,9 @@ function runVariantCrawl(env) {
   if (status !== 0) process.exit(status);
 }
 
-const targetDir = path.join(baseDir, dir);
+// An ABSOLUTE STYLEMAP_DIR/--dir is respected as-is; a relative one nests under
+// baseDir (.styleproof/maps by default) — mirrors the runner's resolveOutputDir.
+const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
 // Sample the tree state the capture is ABOUT to render, so the manifest can bind the
 // map to it. A capture runs for minutes; if the source is edited or HEAD moves in that
 // window, the map renders one state but would otherwise be stamped clean@post-HEAD and

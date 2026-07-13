@@ -178,6 +178,14 @@ export type DefineOptions = {
    */
   selfCheck?: boolean;
   /**
+   * Run the generated capture tests in PARALLEL across Playwright workers
+   * (default true). Every capture test is independent, so parallel is safe and
+   * ~workers× faster on a multi-surface spec — even when the project config
+   * pins `fullyParallel: false`. Set false ONLY for a spec file whose OTHER
+   * tests read the captured maps in file order (an in-file assertion suite).
+   */
+  parallel?: boolean;
+  /**
    * Opt-in content layer (default OFF). Record each element's own rendered text
    * so the report's optional content section can surface copy changes (run
    * `styleproof-report --include-content`). Advisory only — never gates. See
@@ -221,7 +229,9 @@ export type DefineOptions = {
 };
 
 /** Resolved per-capture settings, shared with the helpers below. */
-type Settings = Required<Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude' | 'popups'>> & {
+type Settings = Required<
+  Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude' | 'popups' | 'parallel'>
+> & {
   dir: string;
   replayFrom?: string;
   popups: ResolvedPopupCaptureOptions;
@@ -580,7 +590,7 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<void
       console.warn(`styleproof: no replay HAR at ${har} — capturing live (NON-deterministic)`);
     }
   } else {
-    await page.routeFromHAR(path.join(s.baseDir, s.dir, harName), {
+    await page.routeFromHAR(path.join(resolveOutputDir(s.baseDir, s.dir), harName), {
       url: s.replayUrl,
       update: true,
       updateContent: 'embed', // single portable file, no sidecar resources
@@ -815,7 +825,7 @@ async function capturePopupCandidate(
       }
     }
 
-    const stem = path.join(s.baseDir, s.dir, `${surface.key}-${popupId}@${width}`);
+    const stem = path.join(resolveOutputDir(s.baseDir, s.dir), `${surface.key}-${popupId}@${width}`);
     saveStyleMap(`${stem}.json.gz`, map);
     if (s.screenshots) await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
   } finally {
@@ -873,7 +883,7 @@ async function captureSurface(page: Page, surface: ExpandedSurface, width: numbe
     // (deduped in the watcher). Warn always; the recorded residue is what the gate reads.
     attachDataResidue(map, residue.residue());
 
-    const stem = path.join(s.baseDir, s.dir, `${surface.key}@${width}`);
+    const stem = path.join(resolveOutputDir(s.baseDir, s.dir), `${surface.key}@${width}`);
     saveStyleMap(`${stem}.json.gz`, map);
     if (s.screenshots) {
       // captureStyleMap froze animations/transitions, so this is the same settled
@@ -915,6 +925,13 @@ export function defaultSelfCheck(
   env: string | undefined = process.env.STYLEPROOF_SELFCHECK,
 ): boolean {
   return env === '1' || !replayFrom;
+}
+
+/** Resolve a capture output dir: an ABSOLUTE `dir` is respected as-is (a user's
+ *  `STYLEMAP_DIR=/abs/path` must not be buried under `baseDir`); a relative one
+ *  nests under `baseDir` as before. */
+export function resolveOutputDir(baseDir: string, dir: string): string {
+  return path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
 }
 
 /**
@@ -1005,7 +1022,7 @@ function writeCoverageLedgerTest(
   captureSurfaces: ReadonlyArray<{ key: string; metadata?: CaptureMetadata }>,
 ): void {
   test('styleproof coverage ledger', () => {
-    const outDir = path.join(settings.baseDir, dir);
+    const outDir = resolveOutputDir(settings.baseDir, dir);
     fs.mkdirSync(outDir, { recursive: true });
     // Determinism basis: self-check ON proves it (a drift would have failed the capture);
     // else a replay run is deterministic by construction; else it's unproven.
@@ -1052,7 +1069,7 @@ function writeCoverageLedgerTest(
 function writeBrowserBuildTest(settings: Settings, dir: string): void {
   test('styleproof browser build', ({ page }) => {
     const version = page.context().browser()?.version();
-    const outDir = path.join(settings.baseDir, dir);
+    const outDir = resolveOutputDir(settings.baseDir, dir);
     writeBrowserBuildSidecar(outDir, version);
     writeCaptureManifest({ dir: outDir, screenshots: settings.screenshots });
   });
@@ -1097,6 +1114,15 @@ export function defineStyleMapCapture(options: DefineOptions): void {
 
   const settings = resolveSettings(options);
   test.describe('styleproof capture', () => {
+    // Every generated test is independent — its own page, its own map/HAR files,
+    // its own self-check; the ledger/manifest tests mkdir and tolerate any order.
+    // Declare the block PARALLEL so captures fan out across the consumer's
+    // Playwright workers even when the project pins `fullyParallel: false` for
+    // its behaviour suite (150 serial surface×width captures is a ~25-minute CI
+    // step; 4 workers make it ~4x faster with byte-identical maps).
+    // `parallel: false` keeps file order for specs whose own sibling tests read
+    // the captured maps.
+    if (options.parallel !== false) test.describe.configure({ mode: 'parallel' });
     writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
     writeBrowserBuildTest(settings, dir);
     for (const surface of captureSurfaces) {
