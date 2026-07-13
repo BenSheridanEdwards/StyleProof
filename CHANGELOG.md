@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Workflow-token publication now retries through Git askpass.** When GitHub
+  rejects the temporary checkout's explicit HTTP header, StyleProof clears that
+  header and supplies the token through Git's credential prompt protocol without
+  placing the secret in the remote URL or command arguments.
+
 ## [4.4.12] - 2026-07-13
 
 ### Fixed
