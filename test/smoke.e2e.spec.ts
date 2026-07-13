@@ -8,6 +8,11 @@ import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests, cap
 import { diffStyleMaps, selectCrawlLinks, detectViewportWidths, crawlAndCapture } from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
+// Every test here builds its own fixture (mkdtemp / own page); none reads another
+// test's output. Declare the file parallel so its tests spread across workers —
+// serial-in-one-worker made this file the long pole of the e2e wall time.
+test.describe.configure({ mode: 'parallel' });
+
 type PageViewport = Parameters<Page['setViewportSize']>[0];
 
 /** Navigate to inline HTML (no waiting past `load`) and run a callback. */
