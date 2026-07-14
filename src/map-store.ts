@@ -307,15 +307,20 @@ function hasHar(dir: string): boolean {
 }
 
 function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: string }) {
-  const specPath = path.resolve(options.cwd, options.spec);
-  const lock = detectLockfile(options.cwd);
+  // Normalize FIRST: a relative cwd ('.') made createRequire throw inside
+  // playwrightVersion, silently dropping that field from the key — so publish
+  // and restore could stamp DIFFERENT keys for the same environment, and every
+  // cache lookup missed (a silent full-recapture tax, never an error).
+  const cwd = path.resolve(options.cwd);
+  const specPath = path.resolve(cwd, options.spec);
+  const lock = detectLockfile(cwd);
   return {
     packageVersion: styleProofPackageVersion(),
-    spec: path.relative(options.cwd, specPath) || options.spec,
+    spec: path.relative(cwd, specPath) || options.spec,
     specHash: hashFile(specPath) ?? 'missing',
     lockfile: lock.file,
     lockfileHash: lock.hash,
-    playwrightVersion: playwrightVersion(options.cwd),
+    playwrightVersion: playwrightVersion(cwd),
     platform: process.platform,
     arch: process.arch,
     nodeMajor: process.versions.node.split('.')[0] ?? process.versions.node,
