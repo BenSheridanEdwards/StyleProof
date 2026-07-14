@@ -1,0 +1,5 @@
+## 🗺️ StyleProof report
+
+✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.
+
+<!-- styleproof-receipt head-sha:db077548191ef50abf559e174e7b9e5831b18ad3 run-id:29351243769 run-attempt:1 -->
