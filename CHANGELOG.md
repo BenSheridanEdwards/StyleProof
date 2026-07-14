@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.20] - 2026-07-14
+
 ### Fixed
 
 - **Map-store network operations can no longer wedge CI indefinitely.** Remote
