@@ -143,6 +143,17 @@ function parseGitHttpExtraHeaders(configuredHeaders: string): GitHttpExtraHeader
     });
 }
 
+function resetInheritedGitHttpExtraHeaders(configuredHeaders: GitHttpExtraHeader[]): GitHttpExtraHeader[] {
+  const resetHeaderKeys = new Set<string>();
+  return configuredHeaders.flatMap((configuredHeader) => {
+    if (resetHeaderKeys.has(configuredHeader.key)) return [configuredHeader];
+    resetHeaderKeys.add(configuredHeader.key);
+    return configuredHeader.value === ''
+      ? [configuredHeader]
+      : [{ key: configuredHeader.key, value: '' }, configuredHeader];
+  });
+}
+
 function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
   const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
   if (mapStoreToken) {
@@ -160,7 +171,7 @@ function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
 
   const configuredHeaders = runGit(cwd, ['config', '--includes', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
   const effectiveHeaders = parseGitHttpExtraHeaders(configuredHeaders.stdout);
-  if (effectiveHeaders.length > 0) return effectiveHeaders;
+  if (effectiveHeaders.length > 0) return resetInheritedGitHttpExtraHeaders(effectiveHeaders);
 
   const registeredIncludes = runGit(cwd, ['config', '--local', '--get-regexp', '^includeIf\\..*\\.path$'], 1 << 20);
   const includedHeaders = registeredIncludes.stdout
@@ -177,7 +188,7 @@ function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
       );
       return parseGitHttpExtraHeaders(includedHeaders.stdout);
     });
-  if (includedHeaders.length > 0) return includedHeaders;
+  if (includedHeaders.length > 0) return resetInheritedGitHttpExtraHeaders(includedHeaders);
 
   return [];
 }
@@ -596,7 +607,7 @@ function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSeg
     runGit(tmp, ['init', '-q', '-b', branch]);
     runGit(tmp, ['remote', 'add', 'origin', remoteUrl]);
   }
-  for (const { key, value } of httpExtraHeaders) runGit(tmp, ['config', '--local', key, value]);
+  for (const { key, value } of httpExtraHeaders) runGit(tmp, ['config', '--local', '--add', key, value]);
   if (sparseSegment && branchExists) checkoutSparseSegment(tmp, branch, sparseSegment);
   return tmp;
 }

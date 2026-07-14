@@ -294,8 +294,8 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     assert.match(invocations, /config --file .*checkout-credentials\.config --get-regexp/);
     assert.match(
       invocations,
-      /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token clone -q --filter=blob:none --no-checkout/,
-      'the initial isolated clone receives the checkout credential',
+      /-c http\.https:\/\/github\.com\/\.extraheader= -c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token clone -q --filter=blob:none --no-checkout/,
+      'the initial isolated clone clears inherited authentication before applying the checkout credential once',
     );
     const publishedSha = git(repo, 'rev-parse', 'HEAD');
     assert.match(invocations, new RegExp(`sparse-checkout set ${publishedSha}`));
@@ -306,13 +306,13 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     );
     assert.match(
       invocations,
-      /config --local http\.https:\/\/github\.com\/\.extraheader AUTHORIZATION: basic fake-checkout-token/,
-      'the isolated checkout persists the credential for its later push',
+      /config --local --add http\.https:\/\/github\.com\/\.extraheader\s*\n.*config --local --add http\.https:\/\/github\.com\/\.extraheader AUTHORIZATION: basic fake-checkout-token/,
+      'the isolated checkout persists an inherited-header reset followed by exactly one credential',
     );
     assert.match(
       invocations,
-      /-c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token push -q origin HEAD:styleproof-maps/,
-      'the push receives the checkout credential directly',
+      /-c http\.https:\/\/github\.com\/\.extraheader= -c http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic fake-checkout-token push -q origin HEAD:styleproof-maps/,
+      'the push clears inherited authentication before receiving the checkout credential once',
     );
     assert.match(invocations, /fetch -q --no-write-fetch-head .*styleproof-map-store-.* [a-f0-9]{40}/);
     assert.match(
