@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.4.21] - 2026-07-14
+
+### Fixed
+
+- **GitHub Actions map publication no longer sends duplicate authorization headers.**
+  StyleProof now resets inherited checkout headers before applying the single
+  effective credential to isolated map-store clone and push operations.
+
 ## [4.4.20] - 2026-07-14
 
 ### Fixed
