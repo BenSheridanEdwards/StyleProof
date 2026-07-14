@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Map-store network operations can no longer wedge CI indefinitely.** Remote
+  lookup, clone, and push commands now have a bounded timeout, and a stalled
+  isolated push falls through to the authenticated consumer checkout path.
+
 ## [4.4.19] - 2026-07-14
 
 ### Fixed

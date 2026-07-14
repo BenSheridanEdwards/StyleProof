@@ -91,6 +91,35 @@ function runGit(cwd: string, args: string[], maxBuffer = 1 << 28) {
   return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer, env: gitProcessEnvironment() });
 }
 
+const DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS = 30_000;
+
+function mapStoreGitTimeoutMilliseconds(): number {
+  const configuredTimeout = Number(process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS);
+  return Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? Math.floor(configuredTimeout)
+    : DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS;
+}
+
+function runMapStoreNetworkGit(cwd: string, args: string[], maxBuffer = 1 << 20) {
+  return spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer,
+    timeout: mapStoreGitTimeoutMilliseconds(),
+    env: {
+      ...gitProcessEnvironment(),
+      GIT_TERMINAL_PROMPT: '0',
+    },
+  });
+}
+
+function gitFailureMessage(result: ReturnType<typeof spawnSync>, fallback: string): string {
+  const standardError = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+  if (standardError) return standardError;
+  if (result.error) return result.error.message;
+  return fallback;
+}
+
 const WORKFLOW_TOKEN_CREDENTIAL_HELPER =
   '!f() { if [ "$1" = get ]; then printf \'%s\\n\' username=x-access-token "password=$STYLEPROOF_MAP_STORE_TOKEN"; fi; }; f';
 
@@ -548,19 +577,20 @@ function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSeg
   const httpExtraHeaders = effectiveGitHttpExtraHeaders(cwd);
   const authenticationArguments = httpExtraHeaders.flatMap(({ key, value }) => ['-c', `${key}=${value}`]);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-'));
-  const branchExists = runGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20).status === 0;
+  const branchLookup = runMapStoreNetworkGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20);
+  if (branchLookup.status !== 0 && branchLookup.status !== 2) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    throw new MapStoreError(gitFailureMessage(branchLookup, 'could not query map store branch'));
+  }
+  const branchExists = branchLookup.status === 0;
   if (branchExists) {
     const cloneArguments = sparseSegment
       ? ['clone', '-q', '--filter=blob:none', '--no-checkout', '--depth', '1', '--single-branch', '--branch', branch]
       : ['clone', '-q', '--depth', '1', '--branch', branch];
-    const clone = spawnSync('git', [...authenticationArguments, ...cloneArguments, remoteUrl, tmp], {
-      encoding: 'utf8',
-      maxBuffer: 1 << 20,
-      env: gitProcessEnvironment(),
-    });
+    const clone = runMapStoreNetworkGit(cwd, [...authenticationArguments, ...cloneArguments, remoteUrl, tmp]);
     if (clone.status !== 0) {
       fs.rmSync(tmp, { recursive: true, force: true });
-      throw new MapStoreError(clone.stderr.trim() || 'could not clone map store branch');
+      throw new MapStoreError(gitFailureMessage(clone, 'could not clone map store branch'));
     }
   } else {
     runGit(tmp, ['init', '-q', '-b', branch]);
@@ -579,42 +609,30 @@ function pushMapStoreCommit(
   authenticationArguments: string[],
 ) {
   const pushFailures: string[] = [];
-  const isolatedPush = runGit(
+  const isolatedPush = runMapStoreNetworkGit(
     temporaryCheckout,
     [...authenticationArguments, 'push', '-q', 'origin', `HEAD:${branch}`],
     1 << 20,
   );
   if (isolatedPush.status === 0) return isolatedPush;
-  pushFailures.push(`isolated map-store push: ${isolatedPush.stderr.trim() || `git exited ${isolatedPush.status}`}`);
+  pushFailures.push(`isolated map-store push: ${gitFailureMessage(isolatedPush, `git exited ${isolatedPush.status}`)}`);
 
   const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
   if (mapStoreToken) {
     const githubExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
     runGit(temporaryCheckout, ['config', '--local', '--unset-all', githubExtraHeaderKey], 1 << 20);
-    const credentialPush = spawnSync(
-      'git',
-      [
-        '-c',
-        `${githubExtraHeaderKey}=`,
-        ...workflowTokenCredentialArguments(),
-        'push',
-        '-q',
-        'origin',
-        `HEAD:${branch}`,
-      ],
-      {
-        cwd: temporaryCheckout,
-        encoding: 'utf8',
-        maxBuffer: 1 << 20,
-        env: {
-          ...gitProcessEnvironment(),
-          GIT_TERMINAL_PROMPT: '0',
-        },
-      },
-    );
+    const credentialPush = runMapStoreNetworkGit(temporaryCheckout, [
+      '-c',
+      `${githubExtraHeaderKey}=`,
+      ...workflowTokenCredentialArguments(),
+      'push',
+      '-q',
+      'origin',
+      `HEAD:${branch}`,
+    ]);
     if (credentialPush.status === 0) return credentialPush;
     pushFailures.push(
-      `workflow-token credential push: ${credentialPush.stderr.trim() || `git exited ${credentialPush.status}`}`,
+      `workflow-token credential push: ${gitFailureMessage(credentialPush, `git exited ${credentialPush.status}`)}`,
     );
   }
 
@@ -633,13 +651,17 @@ function pushMapStoreCommit(
       ].join('\n'),
     };
   }
-  const consumerCheckoutPush = runGit(cwd, ['push', '-q', remote, `${mapStoreCommit}:${branch}`], 1 << 20);
+  const consumerCheckoutPush = runMapStoreNetworkGit(
+    cwd,
+    ['push', '-q', remote, `${mapStoreCommit}:${branch}`],
+    1 << 20,
+  );
   if (consumerCheckoutPush.status === 0) return consumerCheckoutPush;
   return {
     ...consumerCheckoutPush,
     stderr: [
       ...pushFailures,
-      `consumer checkout push: ${consumerCheckoutPush.stderr.trim() || `git exited ${consumerCheckoutPush.status}`}`,
+      `consumer checkout push: ${gitFailureMessage(consumerCheckoutPush, `git exited ${consumerCheckoutPush.status}`)}`,
     ].join('\n'),
   };
 }
