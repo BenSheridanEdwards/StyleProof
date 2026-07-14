@@ -952,7 +952,7 @@ node scripts/selective-remap.mjs "$CHANGED" dc.json   # affectedSurfaces + expla
 | `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.            |
 | `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.          |
 
-Outputs: `changed` (`"true"` when any existing surface changed, or a new surface needs approval), `report-url`. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
+Outputs: `changed` (`"true"` when any existing surface changed, or a new surface needs approval) and `report-url` (a durable report receipt for every run, including clean runs). Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
 **Policy file `styleproof.config.json`** (optional, at the repo root) — gate policy that isn't workflow plumbing:
 

@@ -44,7 +44,7 @@ outputs:
       baseline and must be approved before becoming part of the baseline.
     value: ${{ steps.diff.outputs.changed }}
   report-url:
-    description: 'Blob URL of the committed report (when changed).'
+    description: 'Blob URL of the durable report receipt for this run.'
     value: ${{ steps.publish.outputs.url }}
 
 runs:
@@ -134,9 +134,8 @@ runs:
           exit "$code"
         fi
         # 1 = computed-style differences; 3 = only NEW surfaces with no baseline.
-        # Both need human review in approval mode; `report` publishes the receipt.
+        # Both need human review in approval mode. Every defined verdict publishes a receipt.
         if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
-        if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then echo "report=true" >> "$GITHUB_OUTPUT"; else echo "report=false" >> "$GITHUB_OUTPUT"; fi
 
     # Is THIS commit's diff already signed off? Read the existing review status so a
     # re-run after approval keeps the check green (and renders the box ticked) instead
@@ -168,13 +167,20 @@ runs:
     # NOT pass --image-base-url — a raw.githubusercontent URL is fetched anonymously
     # by GitHub's Camo proxy and 404s on private repos).
     - id: publish
-      if: steps.diff.outputs.report == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
         set -euo pipefail
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report || true
+        rm -rf styleproof-report
+        set +e
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report
+        report_exit_code=$?
+        set -e
+        if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
+          echo "styleproof-report exited with code $report_exit_code — no trustworthy report was generated" >&2
+          exit "$report_exit_code"
+        fi
 
         REPO='${{ github.repository }}'
         BRANCH='${{ inputs.report-branch }}'
@@ -208,12 +214,21 @@ runs:
           rm -rf "${TMP:?}/${REPORT_PATH}"
           mkdir -p "$TMP/$REPORT_PATH/crops"
           cp styleproof-report/report.md "$TMP/$REPORT_PATH/report.md"
+          printf '\n<!-- styleproof-receipt head-sha:%s run-id:%s run-attempt:%s -->\n' \
+            "$REPORT_SHA" '${{ github.run_id }}' '${{ github.run_attempt }}' \
+            >> "$TMP/$REPORT_PATH/report.md"
           # Copy every generated crop referenced by report.md: composite,
           # annotated, zoom, content, and new-surface images.
           cp styleproof-report/crops/*.png "$TMP/$REPORT_PATH/crops/" 2>/dev/null || true
 
           git -C "$TMP" add -A
-          git -C "$TMP" commit -q -m "$REPORT_MSG" || true
+          git -C "$TMP" commit -q -m "$REPORT_MSG" || {
+            git -C "$TMP" log -1 --format=%B | grep -Fqx "$REPORT_MSG" || {
+              echo "report receipt did not create or match a current commit" >&2
+              rm -rf "$TMP"
+              exit 1
+            }
+          }
           if git -C "$TMP" push -q origin "HEAD:$BRANCH"; then
             REPORT_COMMIT="$(git -C "$TMP" rev-parse HEAD)"
             echo "sha=$REPORT_COMMIT" >> "$GITHUB_OUTPUT"
@@ -240,9 +255,8 @@ runs:
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
           const marker = '<!-- styleproof-report -->';
           // `changed` = review required: before/after differences OR new surfaces
-          // with no baseline. `report` posts the receipt for either.
+          // with no baseline. Publication always supplies the durable receipt.
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
-          const report = '${{ steps.diff.outputs.report }}' === 'true';
           const { data: comments } = await github.rest.issues.listComments({
             ...context.repo, issue_number: prNumber, per_page: 100,
           });
@@ -250,11 +264,6 @@ runs:
           const upsert = (body) => existing
             ? github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
             : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
-
-          if (!report) {
-            await upsert(`${marker}\n## 🗺️ StyleProof report\n\n✓ No visual changes detected.`);
-            return;
-          }
 
           const url = '${{ steps.publish.outputs.url }}';
 
@@ -338,11 +347,10 @@ runs:
         exit 1
 
     # Certify mode: fail the job on any diff (default). Skipped
-    # in review-gate mode, where the status check is the gate instead. Uses
-    # `report` (not `changed`) so a new surface with no baseline also fails the
-    # certification — "nothing changed" means the capture set didn't grow either.
+    # in review-gate mode, where the status check is the gate instead. New surfaces
+    # set `changed`, so certification also fails when the capture set grows.
     - name: Fail on diff
-      if: steps.diff.outputs.report == 'true' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true'
+      if: steps.diff.outputs.changed == 'true' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true'
       shell: bash
       run: |
         echo 'Style changes detected — review the PR comment. To accept, rebuild the map with styleproof-map and rerun the report.' >&2
