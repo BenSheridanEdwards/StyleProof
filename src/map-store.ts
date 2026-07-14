@@ -673,33 +673,52 @@ function pushMapStoreCommit(
   }
 
   const mapStoreCommit = gitOutput(temporaryCheckout, ['rev-parse', 'HEAD']);
-  const importCommit = runGit(
+  // The temporary checkout is a blob:none partial clone, and upload-pack refuses to
+  // lazy-fetch while serving, so importing its commit demands every historic map blob
+  // the filter skipped. Fetch the branch tip through the consumer checkout's own
+  // credentials first: negotiation then narrows the import to the newly committed
+  // objects, which the temporary checkout holds in full. A missing branch is fine -
+  // then the temporary checkout is an unfiltered fresh repository.
+  const mapStoreTipImportRef = 'refs/styleproof/map-store-tip';
+  const importTip = runMapStoreNetworkGit(
     cwd,
-    ['fetch', '-q', '--no-write-fetch-head', temporaryCheckout, mapStoreCommit],
+    ['fetch', '-q', '--no-write-fetch-head', remote, `+refs/heads/${branch}:${mapStoreTipImportRef}`],
     1 << 20,
   );
-  if (importCommit.status !== 0) {
+  if (importTip.status !== 0) {
+    pushFailures.push(`consumer tip fetch: ${gitFailureMessage(importTip, `git exited ${importTip.status}`)}`);
+  }
+  try {
+    const importCommit = runGit(
+      cwd,
+      ['fetch', '-q', '--no-write-fetch-head', temporaryCheckout, mapStoreCommit],
+      1 << 20,
+    );
+    if (importCommit.status !== 0) {
+      return {
+        ...isolatedPush,
+        stderr: [
+          ...pushFailures,
+          `consumer checkout import: ${importCommit.stderr.trim() || `git exited ${importCommit.status}`}`,
+        ].join('\n'),
+      };
+    }
+    const consumerCheckoutPush = runMapStoreNetworkGit(
+      cwd,
+      ['push', '-q', remote, `${mapStoreCommit}:refs/heads/${branch}`],
+      1 << 20,
+    );
+    if (consumerCheckoutPush.status === 0) return consumerCheckoutPush;
     return {
-      ...isolatedPush,
+      ...consumerCheckoutPush,
       stderr: [
         ...pushFailures,
-        `consumer checkout import: ${importCommit.stderr.trim() || `git exited ${importCommit.status}`}`,
+        `consumer checkout push: ${gitFailureMessage(consumerCheckoutPush, `git exited ${consumerCheckoutPush.status}`)}`,
       ].join('\n'),
     };
+  } finally {
+    runGit(cwd, ['update-ref', '-d', mapStoreTipImportRef]);
   }
-  const consumerCheckoutPush = runMapStoreNetworkGit(
-    cwd,
-    ['push', '-q', remote, `${mapStoreCommit}:${branch}`],
-    1 << 20,
-  );
-  if (consumerCheckoutPush.status === 0) return consumerCheckoutPush;
-  return {
-    ...consumerCheckoutPush,
-    stderr: [
-      ...pushFailures,
-      `consumer checkout push: ${gitFailureMessage(consumerCheckoutPush, `git exited ${consumerCheckoutPush.status}`)}`,
-    ].join('\n'),
-  };
 }
 
 function removeTemporaryMapStoreCheckout(temporaryCheckout: string | undefined): void {
