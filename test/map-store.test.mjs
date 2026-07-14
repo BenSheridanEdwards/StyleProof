@@ -391,6 +391,81 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
   }
 });
 
+test('publishMapBundle bounds a wedged isolated push and falls back to the consumer checkout', () => {
+  const root = mkTmp('styleproof-push-timeout-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const shimDirectory = path.join(root, 'bin');
+  const invocationLog = path.join(root, 'git-invocations.log');
+  const timeoutMarker = path.join(root, 'timed-out-once');
+  const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  const git = (cwd, ...args) => execFileSync(realGit, args, { cwd, stdio: 'pipe' }).toString().trim();
+  const previousPath = process.env.PATH;
+  const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
+  const previousInvocationLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  const previousTimeoutMarker = process.env.STYLEPROOF_TEST_TIMEOUT_MARKER;
+  const previousTimeout = process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS;
+  try {
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{}');
+    writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: repo,
+    });
+
+    fs.mkdirSync(shimDirectory);
+    const gitShim = path.join(shimDirectory, 'git');
+    fs.writeFileSync(
+      gitShim,
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in\n  *"push -q origin HEAD:styleproof-maps"*)\n    if [ ! -f "$STYLEPROOF_TEST_TIMEOUT_MARKER" ]; then\n      touch "$STYLEPROOF_TEST_TIMEOUT_MARKER"\n      sleep 10\n      exit 1\n    fi\n  ;;\nesac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+    );
+    fs.chmodSync(gitShim, 0o755);
+    process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
+    process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
+    process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
+    process.env.STYLEPROOF_TEST_TIMEOUT_MARKER = timeoutMarker;
+    process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS = '100';
+
+    const startedAt = Date.now();
+    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    assert.ok(Date.now() - startedAt < 4_000, 'a wedged push should be terminated before falling back');
+    assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
+    const pushInvocations = fs
+      .readFileSync(invocationLog, 'utf8')
+      .split('\n')
+      .filter((invocation) => invocation.includes('push -q')).length;
+    assert.ok(pushInvocations >= 2, 'a fallback push should run after the isolated push times out');
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousRealGit === undefined) delete process.env.STYLEPROOF_TEST_REAL_GIT;
+    else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
+    if (previousInvocationLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
+    else process.env.STYLEPROOF_TEST_GIT_LOG = previousInvocationLog;
+    if (previousTimeoutMarker === undefined) delete process.env.STYLEPROOF_TEST_TIMEOUT_MARKER;
+    else process.env.STYLEPROOF_TEST_TIMEOUT_MARKER = previousTimeoutMarker;
+    if (previousTimeout === undefined) delete process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS;
+    else process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS = previousTimeout;
+    rmTmp(root);
+  }
+});
+
 test('publishMapBundle preserves unseen bundles without downloading their blobs', () => {
   const root = mkTmp('styleproof-sparse-publish-');
   const remote = path.join(root, 'remote.git');
