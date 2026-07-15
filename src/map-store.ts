@@ -47,6 +47,15 @@ export function isMapFile(name: string): boolean {
 
 export class MapStoreError extends Error {}
 
+/** A restore that failed because the requested bundle is genuinely absent — the map
+ *  store branch does not exist yet, or it holds no bundle for this SHA/compatibility.
+ *  This is an EXPECTED cache miss (the cold path should recapture), NOT an infrastructure
+ *  fault. Kept distinct from a plain {@link MapStoreError} (network, clone, timeout, auth)
+ *  so a caller can recapture on a true miss but fail loudly on a transient fault instead
+ *  of silently paying a full cold recapture every flaky run. Extends MapStoreError, so
+ *  existing `instanceof MapStoreError` handlers still catch it. */
+export class MapStoreNotFoundError extends MapStoreError {}
+
 export interface MapManifest {
   version: 1;
   packageVersion: string;
@@ -118,6 +127,22 @@ function gitFailureMessage(result: ReturnType<typeof spawnSync>, fallback: strin
   if (standardError) return standardError;
   if (result.error) return result.error.message;
   return fallback;
+}
+
+const DEFAULT_MAP_STORE_RESTORE_ATTEMPTS = 3;
+
+/** How many times {@link restoreMapBundle} retries an INFRASTRUCTURE fault (network,
+ *  clone, timeout) before giving up. A genuine cache miss is never retried. Overridable
+ *  via `STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS` (tests pin it to 1 to stay fast). */
+function mapStoreRestoreAttempts(): number {
+  const configured = Number(process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS);
+  return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_MAP_STORE_RESTORE_ATTEMPTS;
+}
+
+/** Blocking backoff between map-store network retries. Blocks the thread on purpose:
+ *  these are short-lived CLI processes with nothing else to do while git recovers. */
+function mapStoreBackoff(attempt: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 250);
 }
 
 const WORKFLOW_TOKEN_CREDENTIAL_HELPER =
@@ -790,6 +815,66 @@ export function publishMapBundle(options: {
   return { sha, compatibilityKey, branch };
 }
 
+/** Outcome of a single {@link restoreMapBundle} attempt. `miss` is an expected cache
+ *  miss (never retried → NotFound); `infra` is a transient fault (retried). */
+type RestoreAttemptResult =
+  { status: 'hit'; manifest: MapManifest } | { status: 'miss'; message: string } | { status: 'infra'; message: string };
+
+/** One restore attempt: probe the branch, checkout the one SHA's tree, copy the bundle.
+ *  Classifies its own failure so the retry loop stays trivial — a plain `runGit` on the
+ *  probe would misread a network blip as "branch does not exist" and force a needless cold
+ *  recapture, so the bounded network git's `--exit-code` (2 = true miss) is what decides. */
+function restoreMapStoreAttempt(options: {
+  cwd: string;
+  remote: string;
+  branch: string;
+  sha: string;
+  compatibilityKey?: string;
+  outDir: string;
+}): RestoreAttemptResult {
+  const { cwd, remote, branch, sha, compatibilityKey, outDir } = options;
+  const branchLookup = runMapStoreNetworkGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20);
+  if (branchLookup.status === 2) return { status: 'miss', message: `map store branch ${branch} does not exist` };
+  if (branchLookup.status !== 0) {
+    return { status: 'infra', message: gitFailureMessage(branchLookup, 'could not query map store branch') };
+  }
+
+  let tmp: string;
+  try {
+    // checkoutMapStore throws only on infra (clone/checkout/network) — a bundle simply
+    // being absent surfaces below as an empty tree, not an exception.
+    tmp = checkoutMapStore(cwd, remote, branch, sha);
+  } catch (error) {
+    return { status: 'infra', message: errorMessage(error) };
+  }
+
+  try {
+    const shaDir = path.join(tmp, sha);
+    if (!fs.existsSync(shaDir)) return { status: 'miss', message: `no cached map for ${sha} on ${branch}` };
+    const candidates = fs
+      .readdirSync(shaDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => !compatibilityKey || name === compatibilityKey)
+      .sort();
+    if (!candidates.length) {
+      return {
+        status: 'miss',
+        message: compatibilityKey
+          ? `no cached map for ${sha} with compatibility ${compatibilityKey} on ${branch}`
+          : `no cached map bundle under ${sha} on ${branch}`,
+      };
+    }
+    fs.rmSync(outDir, { recursive: true, force: true });
+    copyDir(path.join(shaDir, candidates[0]), outDir, true);
+    const manifest = readMapManifest(outDir);
+    if (!manifest) return { status: 'miss', message: `cached map for ${sha} is missing ${MAP_MANIFEST}` };
+    return { status: 'hit', manifest };
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 export function restoreMapBundle(options: {
   sha: string;
   outDir: string;
@@ -806,36 +891,22 @@ export function restoreMapBundle(options: {
     ? safeSegment(options.compatibilityKey, 'compatibility key')
     : undefined;
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
-  if (runGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20).status !== 0) {
-    throw new MapStoreError(`map store branch ${branch} does not exist`);
+
+  const attempts = mapStoreRestoreAttempts();
+  let lastInfraError = '';
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const result = restoreMapStoreAttempt({ cwd, remote, branch, sha, compatibilityKey, outDir: options.outDir });
+    if (result.status === 'hit') return result.manifest;
+    // A genuine miss is terminal — the cold path recaptures. Only infra faults retry.
+    if (result.status === 'miss') throw new MapStoreNotFoundError(result.message);
+    lastInfraError = result.message;
+    if (attempt < attempts) mapStoreBackoff(attempt);
   }
 
-  const tmp = checkoutMapStore(cwd, remote, branch, sha);
-  try {
-    const shaDir = path.join(tmp, sha);
-    if (!fs.existsSync(shaDir)) throw new MapStoreError(`no cached map for ${sha} on ${branch}`);
-    const candidates = fs
-      .readdirSync(shaDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .filter((name) => !compatibilityKey || name === compatibilityKey)
-      .sort();
-    if (!candidates.length) {
-      throw new MapStoreError(
-        compatibilityKey
-          ? `no cached map for ${sha} with compatibility ${compatibilityKey} on ${branch}`
-          : `no cached map bundle under ${sha} on ${branch}`,
-      );
-    }
-    const src = path.join(shaDir, candidates[0]);
-    fs.rmSync(options.outDir, { recursive: true, force: true });
-    copyDir(src, options.outDir, true);
-    const manifest = readMapManifest(options.outDir);
-    if (!manifest) throw new MapStoreError(`cached map for ${sha} is missing ${MAP_MANIFEST}`);
-    return manifest;
-  } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
-  }
+  throw new MapStoreError(
+    `could not restore ${sha} from ${branch} after ${attempts} ${attempts === 1 ? 'attempt' : 'attempts'}: ` +
+      (lastInfraError || 'unknown map store error'),
+  );
 }
 
 export function resolveCachedCaptureDirs(options: {

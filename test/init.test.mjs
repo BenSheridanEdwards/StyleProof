@@ -174,6 +174,13 @@ for (const manager of [
         /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-map\.mjs --restore --sha "\$BASE_SHA"/,
       );
       assert.match(workflow, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" playwright install --with-deps chromium/);
+
+      // A restore exit code that is neither 0 (hit) nor 4 (genuine miss) is a
+      // persistent map-store/network fault: fail the job loudly rather than silently
+      // paying a full cold recapture on every flaky run.
+      assert.match(workflow, /if \[ "\$base_code" -ne 0 \] && \[ "\$base_code" -ne 4 \]; then/);
+      assert.match(workflow, /if \[ "\$head_code" -ne 0 \] && \[ "\$head_code" -ne 4 \]; then/);
+      assert.match(workflow, /::error::StyleProof: base map restore hit a map-store\/network fault/);
       const exactReleaseInstallIndex = workflow.indexOf('"styleproof@$STYLEPROOF_VERSION"');
       const baseCaptureIndex = workflow.indexOf(
         'node node_modules/styleproof/bin/styleproof-map.mjs --spec e2e/styleproof.spec.ts --dir base',

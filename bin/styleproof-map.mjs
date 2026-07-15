@@ -28,6 +28,7 @@ import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
   MapStoreError,
+  MapStoreNotFoundError,
   currentGitSha,
   expectedCompatibilityKey,
   isMapFile,
@@ -285,14 +286,25 @@ if (restore) {
     process.exit(0);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    // Exit code taxonomy so CI can tell a genuine cache miss from an infra fault:
+    //   4 — bundle absent (expected miss → the cold path should recapture);
+    //   5 — infrastructure fault after retries (network/clone/timeout → fail loudly,
+    //       don't silently burn a full recapture on a flaky network).
+    // A restore never exits 2: that code is reserved for usage errors above.
+    const notFound = e instanceof MapStoreNotFoundError;
+    process.exitCode = notFound ? 4 : 5;
     console.error(
       [
-        `styleproof-map: could not restore ${sha} from ${cacheBranch}`,
+        notFound
+          ? `styleproof-map: no cached map for ${sha} on ${cacheBranch} (cache miss)`
+          : `styleproof-map: could not reach the map store to restore ${sha} from ${cacheBranch}`,
         message,
-        `Next: run styleproof-map at that commit to build/upload the map, or let CI recapture both sides.`,
+        notFound
+          ? `Next: run styleproof-map at that commit to build/upload the map, or let CI recapture both sides.`
+          : `Next: retry — this is a transient map-store/network fault, not a missing bundle.`,
       ].join('\n'),
     );
-    process.exit(2);
+    process.exit(process.exitCode);
   }
 }
 

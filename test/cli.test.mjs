@@ -616,6 +616,44 @@ test('diff accepts a single base ref and uses cached maps', () => {
   rmTmp(repo);
 });
 
+test('styleproof-map --restore exits 4 (cache miss) when no bundle exists for the SHA', () => {
+  // A genuine miss must be exit 4 so CI recaptures on the cold path — never confused
+  // with an infra fault (exit 5) that should fail the job loudly.
+  const { repo } = setupCachedComparison();
+  const r = runIn(repo, MAP, [
+    '--restore',
+    '--sha',
+    'f'.repeat(40),
+    '--dir',
+    'head',
+    '--base-dir',
+    path.join(repo, 'out'),
+  ]);
+  assert.equal(r.status, 4, `expected exit 4, got ${r.status}: ${r.stderr}`);
+  assert.match(r.stderr, /cache miss/);
+  rmTmp(repo);
+});
+
+test('styleproof-map --restore exits 4 when the map store branch does not exist', () => {
+  const repo = mkTmp();
+  gitInit(repo);
+  addBareOrigin(repo);
+  spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
+  writeSpec(repo);
+  commitAll(repo, 'base');
+  const r = runIn(repo, MAP, [
+    '--restore',
+    '--sha',
+    'a'.repeat(40),
+    '--dir',
+    'head',
+    '--base-dir',
+    path.join(repo, 'out'),
+  ]);
+  assert.equal(r.status, 4, `expected exit 4, got ${r.status}: ${r.stderr}`);
+  rmTmp(repo);
+});
+
 test('diff default flow explains how to recover when cached maps are missing', () => {
   const repo = mkTmp();
   gitInit(repo);
