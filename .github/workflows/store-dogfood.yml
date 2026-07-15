@@ -85,13 +85,15 @@ jobs:
 
       - name: Delete the scratch store branch
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
           git ls-remote --exit-code --heads origin "$STYLEPROOF_CACHE_BRANCH" >/dev/null
           code=$?
           set -e
           case "$code" in
-            0) git push origin --delete "$STYLEPROOF_CACHE_BRANCH" ;;
+            0) gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${STYLEPROOF_CACHE_BRANCH}" ;;
             2) echo "Scratch branch was never published; nothing to delete." ;;
             *) echo "::error::Could not inspect scratch branch before cleanup (exit $code)." >&2; exit "$code" ;;
           esac

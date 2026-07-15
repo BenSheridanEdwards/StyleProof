@@ -42,10 +42,16 @@ test('store dogfood isolates and cleans up its scratch branch', () => {
   assert.doesNotMatch(workflow, /MAP_ROOT: \$\{\{ runner\.temp \}\}/);
   // Deleted even when the round trip fails.
   const cleanup = workflow.match(
-    /if: always\(\)[\s\S]*?git ls-remote --exit-code --heads origin "\$STYLEPROOF_CACHE_BRANCH"[\s\S]*?git push origin --delete "\$STYLEPROOF_CACHE_BRANCH"/,
+    /if: always\(\)[\s\S]*?git ls-remote --exit-code --heads origin "\$STYLEPROOF_CACHE_BRANCH"[\s\S]*?gh api --method DELETE/,
   );
   assert.ok(cleanup, 'the scratch branch is deleted in an always() step');
   assert.doesNotMatch(cleanup[0], /\|\| true/, 'cleanup failures are never suppressed');
+  assert.doesNotMatch(
+    cleanup[0],
+    /git push/,
+    'cleanup must not invoke the repository pre-push hook with dogfood-only environment variables',
+  );
+  assert.match(cleanup[0], /GH_TOKEN: \$\{\{ github\.token \}\}/);
   // Forks lack write permission for the scratch branch.
   assert.match(workflow, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
   assert.match(workflow, /contents: write/);
