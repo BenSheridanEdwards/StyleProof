@@ -640,13 +640,58 @@ if (approveWorkflow !== undefined) {
 // report-only. Maps are NEVER committed to the PR branch: a shared tracked map path
 // shows up in every PR's changed files and forces cross-PR rebases on each merge.
 const HOOK = `#!/bin/sh
-# StyleProof pre-push: capture this commit's map and publish it to the
-# styleproof-maps branch, so CI restores it and reports without a browser.
-# Maps never get committed to the PR branch.
-# Skip (e.g. a docs-only push): STYLEPROOF_SKIP_CAPTURE=1 git push
+# StyleProof pre-push: capture the pushed commit's map and publish it to the
+# styleproof-maps branch, so CI restores it and reports without a browser. Maps
+# never get committed to the PR branch.
+#
+# A skipped capture is always safe — CI just recaptures on a cache miss. Skips:
+#   • STYLEPROOF_SKIP_CAPTURE=1 git push          — skip unconditionally
+#   • a docs-only push (only *.md/*.mdx/*.markdown/*.txt/docs/**/LICENSE change)
 set -e
 [ "\${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-head_sha="$(git rev-parse HEAD)"
+
+sp_zero=0000000000000000000000000000000000000000
+sp_head="$(git rev-parse HEAD 2>/dev/null || true)"
+
+# Return 0 (docs-only → skip) iff every file changed between two commits is a
+# non-render doc. A new ref ($sp_zero base) or an unreadable range never skips.
+sp_docs_only() {
+  [ "$1" = "$sp_zero" ] && return 1
+  sp_changed="$(git diff --name-only "$1" "$2" 2>/dev/null)" || return 1
+  [ -n "$sp_changed" ] || return 1
+  printf '%s\\n' "$sp_changed" | while IFS= read -r sp_file; do
+    case "$sp_file" in
+      *.md|*.mdx|*.markdown|*.txt|docs/*|LICENSE|LICENSE.*) : ;;
+      *) exit 1 ;;
+    esac
+  done
+}
+
+# git feeds pre-push one line per ref on stdin: <local-ref> <local-oid>
+# <remote-ref> <remote-oid>. Capture the ref whose tip is the CHECKED-OUT tree —
+# the only commit whose render we can faithfully capture and bind to its SHA.
+# Pushing some other branch (local-oid != HEAD) is left for CI to recapture,
+# never captured from the wrong tree under that SHA.
+head_sha=""
+sp_saw_ref=0
+while read -r sp_localref sp_localoid sp_remoteref sp_remoteoid; do
+  sp_saw_ref=1
+  [ "$sp_localoid" = "$sp_zero" ] && continue
+  [ "$sp_localoid" = "$sp_head" ] || continue
+  if sp_docs_only "$sp_remoteoid" "$sp_localoid"; then
+    echo "styleproof: docs-only push ($sp_localref) — skipping capture" >&2
+    continue
+  fi
+  head_sha="$sp_localoid"
+  break
+done
+
+# No refs on stdin (a manual run, or an older git): fall back to HEAD.
+[ "$sp_saw_ref" = 0 ] && head_sha="$sp_head"
+
+# Nothing to faithfully capture (all deletes / docs-only / a non-checked-out ref).
+[ -n "$head_sha" ] || exit 0
+
 if ! ${PM.exec(`styleproof-map --restore --sha "$head_sha" --dir current --base-dir .styleproof/maps --spec ${specPath}`)}; then
   ${PM.exec(`styleproof-map --spec ${specPath} --sha "$head_sha" --upload`)}
 fi

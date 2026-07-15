@@ -159,6 +159,14 @@ for (const manager of [
       assert.match(hook, manager.hookCapture);
       assert.match(hook, /STYLEPROOF_SKIP_CAPTURE/);
       assert.doesNotMatch(hook, /git add/);
+      // Honour the pushed refspec from stdin, capturing only the ref whose tip is the
+      // checked-out tree — never HEAD blindly (which mislabels a non-HEAD ref push).
+      assert.match(hook, /while read -r sp_localref sp_localoid sp_remoteref sp_remoteoid/);
+      assert.match(hook, /\[ "\$sp_localoid" = "\$sp_head" \] \|\| continue/);
+      assert.doesNotMatch(hook, /head_sha="\$\(git rev-parse HEAD\)"/); // no blind HEAD capture
+      // Default docs-only skip (safe: CI recaptures on a miss).
+      assert.match(hook, /sp_docs_only\(\)/);
+      assert.match(hook, /\*\.md\|\*\.mdx\|\*\.markdown\|\*\.txt\|docs\/\*\|LICENSE/);
       assert.match(readFile(root, '.gitignore'), /\.styleproof\//);
 
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
