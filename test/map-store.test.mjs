@@ -1128,6 +1128,7 @@ test('restoreMapBundle retries an infrastructure fault and fails as a plain MapS
     else process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = previousAttempts;
     rmTmp(root);
   }
+});
 
 // A relative cwd made createRequire throw inside playwrightVersion, silently
 // dropping the field from the compatibility key — publish (hook, relative cwd)
