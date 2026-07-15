@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import {
   isHelpArg,
   missingSpecMessage,
+  nonLinuxUploadWarning,
   playwrightMissingMessage,
   showHelpAndExit,
   unknownFlagMessage,
@@ -204,6 +205,11 @@ function shouldAutoUpload() {
 function upload(dirPath) {
   if (uploadMode === 'off') return;
   if (!shouldAutoUpload() && uploadMode !== 'required') return;
+  const platformWarning = nonLinuxUploadWarning(
+    process.platform,
+    process.env.STYLEPROOF_SUPPRESS_PLATFORM_WARNING === '1',
+  );
+  if (platformWarning) console.error(platformWarning);
   try {
     const res = publishMapBundle({ dir: dirPath, branch: cacheBranch, remote });
     console.error(`styleproof-map: uploaded ${res.sha.slice(0, 12)} (${res.compatibilityKey}) to ${res.branch}`);
