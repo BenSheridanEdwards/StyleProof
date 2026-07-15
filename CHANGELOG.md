@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`styleproof-ci --spec-ref <ref>`**: on a cold base capture, when the base commit
+  already contains the configured `--spec` path, overlay that file's bytes from
+  `<ref>:<spec>` for the base render only (app source and lockfile stay at `--base`).
+  The overlay is hidden from the dirty-tree gate with a narrowly scoped
+  `assume-unchanged` index flag and is always cleared before the head checkout,
+  including after a failed base capture. Omitted `--spec-ref` preserves 4.5.0 behavior.
+  Invalid refs, missing specs at the ref, or absolute/out-of-repo spec paths fail loudly.
+
 ## [4.5.0] - 2026-07-15
 
 ### Added
