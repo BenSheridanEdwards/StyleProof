@@ -534,6 +534,46 @@ ${PM.setup}
           git rm -r --quiet "pr-$PR"
           git commit -m "chore(styleproof): prune report for closed PR #$PR"
           git push origin "$BRANCH"
+      - name: Prune this PR's head map from the map store
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+          BRANCH: styleproof-maps
+          REPO: \${{ github.repository }}
+          HEAD_SHA: \${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          # The map store grows one \`<sha>/\` folder per pushed commit and never shrank.
+          # On close, drop this PR's head-SHA maps — UNLESS that SHA landed on the default
+          # branch (a fast-forward / rebase merge), where it is now the base-tip map every
+          # later PR restores. A squash / merge-commit close orphans the head SHA, so it is
+          # safe to reclaim. Fail safe: any uncertainty keeps the map.
+          status="$(gh api "repos/$REPO/compare/$HEAD_SHA...$DEFAULT_BRANCH" --jq .status 2>/dev/null || echo unknown)"
+          case "$status" in
+            ahead|identical|behind|unknown)
+              echo "Head $HEAD_SHA is on $DEFAULT_BRANCH (or status unknown: '$status') — keeping its map."
+              exit 0 ;;
+          esac
+          REMOTE="https://x-access-token:\${GH_TOKEN}@github.com/$REPO.git"
+          if ! git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "No $BRANCH branch yet — nothing to prune."; exit 0
+          fi
+          TMP="$(mktemp -d)"
+          # Blobless + no-checkout: fetch the tree metadata only, then sparse-checkout just
+          # this one SHA's folder — never download every cached bundle's blobs to delete one.
+          git clone --filter=blob:none --no-checkout --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
+          cd "$TMP"
+          git sparse-checkout set "$HEAD_SHA"
+          git checkout -q "$BRANCH"
+          if [ ! -d "$HEAD_SHA" ]; then
+            echo "No $HEAD_SHA/ folder — nothing to prune."; exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r --quiet "$HEAD_SHA"
+          git commit -m "chore(styleproof): prune map for closed PR #\${{ github.event.pull_request.number }} ($HEAD_SHA)"
+          git push origin "$BRANCH"
 `;
 
 function writeFileSafe(file, contents, { force: f } = {}) {
