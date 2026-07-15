@@ -415,6 +415,11 @@ ${PM.setup}
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
           MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
           rm -rf "$MAP_ROOT"
+          # styleproof-map --restore exit codes: 0 = hit, 4 = genuine cache miss
+          # (recaptured below), any other = infra/network fault. Retries already run
+          # inside the CLI, so a code that is still neither 0 nor 4 is a PERSISTENT
+          # fault: fail the job loudly (a re-run is cheap and correct) rather than
+          # silently paying a full cold recapture on every flaky network blip.
           # Compatibility keys include the checked-out lockfile. Resolve each
           # exact-SHA bundle in that commit's own dependency context, while
           # reusing the already-installed StyleProof binary from node_modules.
@@ -423,11 +428,19 @@ ${PM.setup}
           PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --restore --sha "$BASE_SHA" --dir base --base-dir "$MAP_ROOT" --spec ${specPath}
           base_code=$?
           set -e
+          if [ "$base_code" -ne 0 ] && [ "$base_code" -ne 4 ]; then
+            echo "::error::StyleProof: base map restore hit a map-store/network fault (exit $base_code). Re-run the job." >&2
+            exit "$base_code"
+          fi
           git checkout --force "$HEAD_SHA"
           set +e
           PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --restore --sha "$HEAD_SHA" --dir head --base-dir "$MAP_ROOT" --spec ${specPath}
           head_code=$?
           set -e
+          if [ "$head_code" -ne 0 ] && [ "$head_code" -ne 4 ]; then
+            echo "::error::StyleProof: head map restore hit a map-store/network fault (exit $head_code). Re-run the job." >&2
+            exit "$head_code"
+          fi
           echo "base-hit=$([ "$base_code" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "head-hit=$([ "$head_code" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           if [ "$base_code" -eq 0 ] && [ "$head_code" -eq 0 ]; then

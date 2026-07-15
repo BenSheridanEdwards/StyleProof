@@ -11,6 +11,8 @@ import {
   manifestlessError,
   manifestlessSide,
   MAP_MANIFEST,
+  MapStoreError,
+  MapStoreNotFoundError,
   publishMapBundle,
   readMapManifest,
   restoreMapBundle,
@@ -848,5 +850,150 @@ test('writeBrowserBuildSidecar(undefined) CLEARS a stale sidecar so a version-le
     assert.equal(readMapManifest(dir).browserVersion, undefined);
   } finally {
     rmTmp(dir);
+  }
+});
+
+// ── restore error taxonomy: a genuine cache miss (MapStoreNotFoundError) must be
+// distinguishable from an infrastructure fault (plain MapStoreError), and infra
+// faults must be retried. The CLI/CI maps these to exit 4 (miss → recapture) vs
+// exit 5 (fault → fail loudly), so the two must never be conflated. ──
+
+/** Stand up a bare remote whose `styleproof-maps` branch holds one bundle for
+ *  `seededSha`, and a consumer repo pointing at it by local path. Returns paths. */
+function seedMapStore(root, seededSha, compatibilityKey) {
+  const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  const git = (cwd, ...args) => execFileSync(realGit, args, { cwd, stdio: 'pipe' }).toString().trim();
+  const remote = path.join(root, 'remote.git');
+  const seed = path.join(root, 'seed');
+  const consumer = path.join(root, 'consumer');
+  git(root, 'init', '--bare', '-q', remote);
+  git(root, 'clone', '-q', remote, seed);
+  git(seed, 'checkout', '-q', '-b', 'styleproof-maps');
+  git(seed, 'config', 'user.email', 'styleproof@example.test');
+  git(seed, 'config', 'user.name', 'StyleProof Test');
+  if (seededSha) {
+    const bundle = path.join(seed, seededSha, compatibilityKey);
+    fs.mkdirSync(bundle, { recursive: true });
+    fs.writeFileSync(path.join(bundle, 'home@1280.json'), '{"seeded":true}\n');
+    fs.writeFileSync(
+      path.join(bundle, MAP_MANIFEST),
+      JSON.stringify({
+        version: 1,
+        packageVersion: 'test',
+        sha: seededSha,
+        dirty: false,
+        spec: 'styleproof.spec.ts',
+        specHash: 'test',
+        platform: 'linux',
+        arch: 'x64',
+        nodeMajor: '22',
+        screenshots: false,
+        har: false,
+        compatibilityKey,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+    );
+  } else {
+    fs.writeFileSync(path.join(seed, 'README.md'), '# maps\n');
+  }
+  git(seed, 'add', '-A');
+  git(seed, 'commit', '-qm', 'seed');
+  git(seed, 'push', '-q', 'origin', 'styleproof-maps');
+  git(root, '--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true');
+  fs.mkdirSync(consumer);
+  git(consumer, 'init', '-q', '-b', 'main');
+  git(consumer, 'remote', 'add', 'origin', remote);
+  return { consumer };
+}
+
+test('restoreMapBundle raises MapStoreNotFoundError when the map store branch is absent', () => {
+  const root = mkTmp('styleproof-restore-nobranch-');
+  try {
+    const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    const remote = path.join(root, 'remote.git');
+    const consumer = path.join(root, 'consumer');
+    execFileSync(realGit, ['init', '--bare', '-q', remote], { stdio: 'pipe' });
+    fs.mkdirSync(consumer);
+    execFileSync(realGit, ['init', '-q', '-b', 'main'], { cwd: consumer, stdio: 'pipe' });
+    execFileSync(realGit, ['remote', 'add', 'origin', remote], { cwd: consumer, stdio: 'pipe' });
+    let error;
+    try {
+      restoreMapBundle({ sha: 'a'.repeat(40), outDir: path.join(root, 'out'), cwd: consumer });
+    } catch (thrown) {
+      error = thrown;
+    }
+    assert.ok(error instanceof MapStoreNotFoundError, `expected MapStoreNotFoundError, got ${error}`);
+    assert.match(error.message, /does not exist/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('restoreMapBundle raises MapStoreNotFoundError when the branch exists but the SHA is absent', () => {
+  const root = mkTmp('styleproof-restore-missingsha-');
+  try {
+    const { consumer } = seedMapStore(root, 'a'.repeat(40), 'deadbeefdeadbeef');
+    let error;
+    try {
+      restoreMapBundle({ sha: 'b'.repeat(40), outDir: path.join(root, 'out'), cwd: consumer });
+    } catch (thrown) {
+      error = thrown;
+    }
+    assert.ok(error instanceof MapStoreNotFoundError, `expected MapStoreNotFoundError, got ${error}`);
+    assert.match(error.message, /no cached map for b{40}/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('restoreMapBundle retries an infrastructure fault and fails as a plain MapStoreError, not a miss', () => {
+  const root = mkTmp('styleproof-restore-infra-');
+  const shimDirectory = path.join(root, 'bin');
+  const invocationLog = path.join(root, 'git.log');
+  const previousPath = process.env.PATH;
+  const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
+  const previousLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  const previousAttempts = process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS;
+  try {
+    const { consumer } = seedMapStore(root, 'a'.repeat(40), 'deadbeefdeadbeef');
+    const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    fs.mkdirSync(shimDirectory);
+    const gitShim = path.join(shimDirectory, 'git');
+    // ls-remote passes through (branch exists → status 0); every clone fails with a
+    // non-2, non-zero status — an infra fault the restore must retry, never a miss.
+    fs.writeFileSync(
+      gitShim,
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in\n  *"clone "*) echo "simulated clone failure" >&2; exit 128 ;;\nesac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+    );
+    fs.chmodSync(gitShim, 0o755);
+    process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
+    process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
+    process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
+    process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = '2';
+
+    let error;
+    try {
+      restoreMapBundle({ sha: 'a'.repeat(40), outDir: path.join(root, 'out'), cwd: consumer });
+    } catch (thrown) {
+      error = thrown;
+    }
+    assert.ok(error instanceof MapStoreError, `expected MapStoreError, got ${error}`);
+    assert.ok(!(error instanceof MapStoreNotFoundError), 'an infra fault is not a cache miss');
+    assert.match(error.message, /after 2 attempts/);
+    const cloneAttempts = fs
+      .readFileSync(invocationLog, 'utf8')
+      .split('\n')
+      .filter((line) => line.startsWith('clone ')).length;
+    assert.equal(cloneAttempts, 2, 'the failing clone is retried up to the configured attempt count');
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousRealGit === undefined) delete process.env.STYLEPROOF_TEST_REAL_GIT;
+    else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
+    if (previousLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
+    else process.env.STYLEPROOF_TEST_GIT_LOG = previousLog;
+    if (previousAttempts === undefined) delete process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS;
+    else process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = previousAttempts;
+    rmTmp(root);
   }
 });
