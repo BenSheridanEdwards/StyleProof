@@ -7,6 +7,34 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`styleproof-ci`** — the cache-first CI orchestration as one command:
+  `--base <sha> --head <sha>` restores both exact-SHA bundles, captures just the
+  head on a head-only miss (HAR replay when the base recorded data), and rebuilds
+  the pair cold on a base miss under the head's exact StyleProof release, with
+  package-manager commands detected from the lockfile at run time. The
+  init-generated workflow step is now a single invocation instead of ~80 lines of
+  copied bash, and still emits `base-hit`/`head-hit`/`capture-needed`.
+- **`styleproof-prepush`** — the canonical pre-push capture→publish flow,
+  packaged. The generated hook is a two-line shim that execs it, so the rules
+  (pushed-refspec selection, docs-only skip, restore-before-capture) update with
+  each release instead of drifting in a copied hook file, and
+  `styleproof-init --hook` refreshes a stale hook in place.
+- **`styleproof-affected`** — the selective-remap verdict as a CLI over
+  `affectedSurfaces`: dependency-cruiser graph in, changed files from git (or
+  `--changed`), reviewer-checkable skip list and `--json` verdict out; exit `0`
+  scoped / `3` unbounded.
+- **`--dirty-allow <path>`** on `styleproof-map` (and `STYLEPROOF_DIRTY_ALLOW`) —
+  tracked files a dev tool rewrites on every run (e.g. `next dev` regenerating a
+  `tsconfig.json`) no longer mark a capture dirty, generalizing the built-in
+  `next-env.d.ts` allowance.
+- **The Action self-verifies its published report.** After pushing the report
+  branch it reads the report back at the exact advertised commit and requires the
+  embedded receipt to name this run's head SHA, run id, and attempt — failing
+  closed instead of shipping a green run with a dead or stale `report-url`, so
+  consumers can drop their own post-action read-back checks.
+
 ### Fixed
 
 - **Every Action run now publishes a durable report receipt.** Clean comparisons
