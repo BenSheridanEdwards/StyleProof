@@ -147,6 +147,50 @@ test('styleproof-map writes no manifest when the capture produced zero surfaces'
   }
 });
 
+test('styleproof-map --upload warns on a non-Linux capture and honours suppression', () => {
+  // A map's compatibility key is platform-specific, so a bundle captured off Linux
+  // can't be restored by the ubuntu-latest CI. Warn (don't block) so the pre-push
+  // publish isn't a silent no-op — and let the user silence it.
+  const root = mkTmp();
+  const binDir = mkTmp('styleproof-fakebin-'); // OUTSIDE the repo, so the tree stays clean
+  try {
+    gitInit(root);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+    writeSpec(root);
+    addBareOrigin(root);
+    const headSha = commitAll(root, 'base');
+
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const withEnv = (extra = {}) => cliEnv({ PATH: `${binDir}${path.delimiter}${process.env.PATH}`, ...extra });
+
+    const r = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env: withEnv(),
+    });
+    assert.equal(r.status, 0, r.stderr);
+    if (process.platform === 'linux') assert.doesNotMatch(r.stderr, /ubuntu-latest/);
+    else assert.match(r.stderr, /ubuntu-latest.*captures on linux/s);
+
+    const suppressed = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env: withEnv({ STYLEPROOF_SUPPRESS_PLATFORM_WARNING: '1' }),
+    });
+    assert.equal(suppressed.status, 0, suppressed.stderr);
+    assert.doesNotMatch(suppressed.stderr, /ubuntu-latest/);
+  } finally {
+    rmTmp(root);
+    rmTmp(binDir);
+  }
+});
+
 test('styleproof-map runs configured variant crawl before Playwright capture', () => {
   const root = mkTmp();
   try {
