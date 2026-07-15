@@ -25,6 +25,7 @@ is listed here only if it exists and runs on a clean checkout.
 | CLI smoke               | Node `--test` (package-smoke)        | CI (macOS + Windows)          | `node --test test/package-smoke.test.mjs`                              |
 | Demo report freshness   | `scripts/demo-report.mjs --check`    | CI (Node 22)                  | `npm run demo:check`                                                  |
 | Action dogfood          | the Action itself, on fixtures       | CI (`pull_request`)           | `.github/workflows/action-dogfood.yml`                                 |
+| Map-store dogfood       | real capture + map store + diff       | CI (`pull_request`)           | `.github/workflows/store-dogfood.yml`                                  |
 | Gate-bypass block       | `.claude/hooks/block-gate-bypass.sh` | PreToolUse (Claude Code)      | Exits non-zero on `git commit`/`push` with `--no-verify`/`-n`          |
 
 ## Where each gate fires
@@ -38,7 +39,7 @@ is listed here only if it exists and runs on a clean checkout.
   privacy, npm audit, demo freshness, unit, and e2e on Node 22; CLI smoke on
   macOS + Windows.
 - **CI (dedicated workflows)** — `secret-scan.yml`, `codeql.yml`, `pr-body.yml`,
-  `fallow.yml`, `action-dogfood.yml`.
+  `fallow.yml`, `action-dogfood.yml`, `store-dogfood.yml`.
 
 ## Bypass policy
 

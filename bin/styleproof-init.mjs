@@ -49,7 +49,18 @@ options:
   --base-url <url>    baseURL for a generated playwright.styleproof.config.ts
                       (default: http://localhost:3000)
   --force             overwrite the spec if it already exists
+  --hook              (re)write ONLY the pre-push hook, overwriting an existing one —
+                      the upgrade path after a styleproof release changes the hook
+  --upgrade           refresh every MACHINE-OWNED generated file (pre-push hook,
+                      report workflow, approval workflow) to this release's
+                      templates; never touches the spec or playwright config
+  --check             report drift between the machine-owned files and this
+                      release's templates without writing; exit 1 if any differ —
+                      run it in CI to learn when --upgrade is due
   -h, --help          show this help
+
+--upgrade/--check interpolate the spec path into the templates: pass the same
+--dir you scaffolded with if your spec is not at the default location.
 
 What it writes:
   - the spec at --dir, with a minimal settle() helper (scroll-reveal only).
@@ -74,6 +85,9 @@ const argv = process.argv.slice(2);
 let specPath = 'e2e/styleproof.spec.ts';
 let baseUrl = 'http://localhost:3000';
 let force = false;
+let hookOnly = false;
+let upgrade = false;
+let checkOnly = false;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
@@ -82,6 +96,9 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--base-url') baseUrl = argv[++i];
   else if (a.startsWith('--base-url=')) baseUrl = a.slice(11);
   else if (a === '--force') force = true;
+  else if (a === '--hook') hookOnly = true;
+  else if (a === '--upgrade') upgrade = true;
+  else if (a === '--check') checkOnly = true;
   else {
     console.error(`unknown argument: ${a}\n`);
     process.stderr.write(HELP);
@@ -395,66 +412,24 @@ jobs:
 ${PM.setup}
       - run: ${PM.install}
       - id: maps
-        name: Restore cached StyleProof maps
+        name: Restore or capture StyleProof maps
         shell: bash
         run: |
-          BASE_SHA="\${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
-          rm -rf "$MAP_ROOT"
-          set +e
-          ${PM.exec(`styleproof-map --restore --sha "$BASE_SHA" --dir base --base-dir "$MAP_ROOT" --spec ${specPath}`)}
-          base_code=$?
-          ${PM.exec(`styleproof-map --restore --sha "$HEAD_SHA" --dir head --base-dir "$MAP_ROOT" --spec ${specPath}`)}
-          head_code=$?
-          set -e
-          echo "base-hit=$([ "$base_code" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "head-hit=$([ "$head_code" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          if [ "$base_code" -eq 0 ] && [ "$head_code" -eq 0 ]; then
-            echo "capture-needed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "capture-needed=true" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Capture maps in CI on cache miss
-        if: steps.maps.outputs.capture-needed == 'true'
-        shell: bash
-        run: |
-          BASE_SHA="\${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
-
-          if [ "\${{ steps.maps.outputs.base-hit }}" != 'true' ]; then
-            # Without a compatible base bundle, rebuild and publish the pair in
-            # one pinned environment. This is the expensive cold path.
-            rm -rf "$MAP_ROOT"
-            git checkout "$BASE_SHA"
-            ${PM.install}
-            ${PM.exec('playwright install --with-deps chromium')}
-            if [ -f "${specPath}" ]; then
-              ${PM.exec(`styleproof-map --spec ${specPath} --dir base --base-dir "$MAP_ROOT" --keep-har --sha "$BASE_SHA" --upload`)}
-            else
-              mkdir -p "$MAP_ROOT/base"
-            fi
-
-            git checkout "$HEAD_SHA"
-            ${PM.install}
-            ${PM.exec('playwright install --with-deps chromium')}
-          else
-            # A compatible base hit proves the current head environment. Keep
-            # that restored base and capture only the missing head.
-            rm -rf "$MAP_ROOT/head"
-            ${PM.exec('playwright install --with-deps chromium')}
-          fi
-
-          if find "$MAP_ROOT/base" -name '*.har' -print -quit | grep -q .; then
-            STYLEPROOF_REPLAY_FROM="$MAP_ROOT/base" ${PM.exec(`styleproof-map --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload`)}
-          else
-            ${PM.exec(`styleproof-map --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload`)}
-          fi
+          # Cache-first, in one packaged command: restore both exact-SHA bundles
+          # from the styleproof-maps branch; on a miss, capture in this pinned
+          # environment and publish for reuse. The rules — restore exit-code
+          # triage, the cold-path base rebuild under the head's exact StyleProof
+          # release, HAR replay for the head — live in styleproof-ci, so this
+          # step updates with the release instead of drifting per repo. It still
+          # sets base-hit / head-hit / capture-needed / base-capture-failed for
+          # steps that branch on steps.maps.outputs.*, and it invokes the installed
+          # release directly.
+          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "\${{ github.event.pull_request.base.sha }}" --head "\${{ github.event.pull_request.head.sha }}" --spec ${specPath} --base-dir "\${{ runner.temp }}/styleproof-maps"
       - uses: BenSheridanEdwards/StyleProof@v4
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
+          base-capture-failed: \${{ steps.maps.outputs.base-capture-failed }}
           require-approval: true
 
   prune:
@@ -491,6 +466,46 @@ ${PM.setup}
           git rm -r --quiet "pr-$PR"
           git commit -m "chore(styleproof): prune report for closed PR #$PR"
           git push origin "$BRANCH"
+      - name: Prune this PR's head map from the map store
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+          BRANCH: styleproof-maps
+          REPO: \${{ github.repository }}
+          HEAD_SHA: \${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          # The map store grows one \`<sha>/\` folder per pushed commit and never shrank.
+          # On close, drop this PR's head-SHA maps — UNLESS that SHA landed on the default
+          # branch (a fast-forward / rebase merge), where it is now the base-tip map every
+          # later PR restores. A squash / merge-commit close orphans the head SHA, so it is
+          # safe to reclaim. Fail safe: any uncertainty keeps the map.
+          status="$(gh api "repos/$REPO/compare/$HEAD_SHA...$DEFAULT_BRANCH" --jq .status 2>/dev/null || echo unknown)"
+          case "$status" in
+            ahead|identical|behind|unknown)
+              echo "Head $HEAD_SHA is on $DEFAULT_BRANCH (or status unknown: '$status') — keeping its map."
+              exit 0 ;;
+          esac
+          REMOTE="https://x-access-token:\${GH_TOKEN}@github.com/$REPO.git"
+          if ! git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "No $BRANCH branch yet — nothing to prune."; exit 0
+          fi
+          TMP="$(mktemp -d)"
+          # Blobless + no-checkout: fetch the tree metadata only, then sparse-checkout just
+          # this one SHA's folder — never download every cached bundle's blobs to delete one.
+          git clone --filter=blob:none --no-checkout --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
+          cd "$TMP"
+          git sparse-checkout set "$HEAD_SHA"
+          git checkout -q "$BRANCH"
+          if [ ! -d "$HEAD_SHA" ]; then
+            echo "No $HEAD_SHA/ folder — nothing to prune."; exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r --quiet "$HEAD_SHA"
+          git commit -m "chore(styleproof): prune map for closed PR #\${{ github.event.pull_request.number }} ($HEAD_SHA)"
+          git push origin "$BRANCH"
 `;
 
 function writeFileSafe(file, contents, { force: f } = {}) {
@@ -508,6 +523,140 @@ function ensureGitignoreLine(line) {
   const prefix = existing && !existing.endsWith('\n') ? '\n' : '';
   fs.writeFileSync(file, `${existing}${prefix}${line}\n`);
   return true;
+}
+
+// Pre-push publish hook — the default fast path. Capture locally at push time and
+// publish to the SHA-keyed styleproof-maps branch; CI restores by SHA and stays
+// report-only. Maps are NEVER committed to the PR branch: a shared tracked map path
+// shows up in every PR's changed files and forces cross-PR rebases on each merge.
+//
+// The hook file is a thin shim: the refspec/docs-only/capture rules live in the
+// packaged styleproof-prepush command, so behavior updates with each styleproof
+// release instead of drifting in a copied bash file per consumer.
+const HOOK = `#!/bin/sh
+# StyleProof pre-push (generated by styleproof-init; refresh with: styleproof-init --hook).
+# Capture the pushed commit's map and publish it to the styleproof-maps branch, so CI
+# restores it and reports without a browser. Maps never get committed to the PR branch.
+# The rules (pushed-refspec selection, docs-only skip, restore-before-capture) live in
+# the packaged styleproof-prepush command, which reads git's refspecs from stdin.
+#
+# A skipped capture is always safe — CI just recaptures on a cache miss:
+#   STYLEPROOF_SKIP_CAPTURE=1 git push
+[ "\${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
+exec ./node_modules/.bin/styleproof-prepush --spec ${specPath}
+`;
+const HOOK_OWNERSHIP_MARKER = '# StyleProof pre-push';
+
+function installPrePushHook({ force: f = false } = {}) {
+  const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
+  const hookPath = path.join(hookDir, 'pre-push');
+  const hook = writeFileSafe(hookPath, HOOK, { force: f });
+  if (hook.wrote) {
+    fs.chmodSync(hookPath, 0o755);
+    console.log(
+      `${hook.exists ? 'refreshed' : 'created'} ${hookPath} (pre-push capture → publish via styleproof-prepush; maps never land on the PR branch)`,
+    );
+    if (hookDir === '.githooks') console.log('  activate with: git config core.hooksPath .githooks');
+  } else {
+    console.log(`${hookPath} already exists — left untouched (refresh it with: styleproof-init --hook)`);
+  }
+  return { ...hook, hookPath };
+}
+
+// --hook: (re)write ONLY the pre-push hook — the upgrade path for a hook installed
+// by an older release (init never overwrites it during a full scaffold, so without
+// this a stale copy would outlive every fix shipped to the shim or its flags).
+if (hookOnly) {
+  installPrePushHook({ force: true });
+  process.exit(0);
+}
+
+const APPROVE_PATH = '.github/workflows/styleproof-approve.yml';
+function readApproveTemplate() {
+  const approveSource = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'example',
+    'styleproof-approve.yml',
+  );
+  try {
+    return fs.readFileSync(approveSource, 'utf8');
+  } catch {
+    // Packaged example missing (unexpected) — don't abort the rest of init.
+    console.warn(`could not read the approval workflow template at ${approveSource} — skipped`);
+    return undefined;
+  }
+}
+
+// MACHINE-OWNED generated files: their content is fully derived from this release
+// plus init's inputs (spec path, package manager), so `--upgrade` may rewrite them
+// and `--check` can diff them against the current templates. The capture spec and
+// playwright.styleproof.config.ts are USER-owned — never listed here, never touched.
+// (Custom spec path? Pass the same --dir you scaffolded with, so the templates
+// interpolate the matching path.)
+function machineOwnedFiles() {
+  const approve = readApproveTemplate();
+  const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
+  return [
+    {
+      file: path.join(hookDir, 'pre-push'),
+      contents: HOOK,
+      executable: true,
+      ownershipMarker: HOOK_OWNERSHIP_MARKER,
+    },
+    { file: CI_PATH, contents: CI_WORKFLOW },
+    ...(approve === undefined ? [] : [{ file: APPROVE_PATH, contents: approve }]),
+  ];
+}
+
+// --check: report drift between the machine-owned files on disk and this release's
+// templates, writing NOTHING. Exit 1 on any drift so a consumer CI step can say
+// "a styleproof upgrade changed the generated files — run styleproof-init --upgrade".
+if (checkOnly) {
+  let stale = 0;
+  for (const { file, contents, ownershipMarker } of machineOwnedFiles()) {
+    if (!fs.existsSync(file)) {
+      console.log(`missing  ${file}`);
+      stale++;
+    } else if (ownershipMarker && !fs.readFileSync(file, 'utf8').includes(ownershipMarker)) {
+      console.log(`unmanaged ${file} (left to the repository owner)`);
+    } else if (fs.readFileSync(file, 'utf8') !== contents) {
+      console.log(`stale    ${file}`);
+      stale++;
+    } else {
+      console.log(`current  ${file}`);
+    }
+  }
+  if (stale) {
+    console.log(
+      `\n${stale} machine-owned file(s) differ from this styleproof release — run: styleproof-init --upgrade`,
+    );
+    process.exit(1);
+  }
+  console.log('\nall machine-owned files match this styleproof release');
+  process.exit(0);
+}
+
+// --upgrade: refresh every machine-owned file to this release's template, leaving
+// the user-owned spec and playwright config alone. Idempotent — an already-current
+// file is reported, not rewritten.
+if (upgrade) {
+  for (const { file, contents, executable, ownershipMarker } of machineOwnedFiles()) {
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
+    if (existing !== undefined && ownershipMarker && !existing.includes(ownershipMarker)) {
+      console.log(`unmanaged ${file} (left unchanged; use --hook to replace it explicitly)`);
+      continue;
+    }
+    if (existing === contents) {
+      console.log(`current   ${file}`);
+      continue;
+    }
+    const wrote = writeFileSafe(file, contents, { force: true });
+    if (executable) fs.chmodSync(file, 0o755);
+    console.log(`${wrote.exists ? 'refreshed' : 'created'} ${file}`);
+  }
+  console.log('\nmachine-owned files now match this styleproof release (spec and playwright config untouched)');
+  process.exit(0);
 }
 
 // Choose the scaffold: routes-aware when this is a Next.js app with discoverable
@@ -580,20 +729,7 @@ if (ci.wrote) {
 // copy the packaged example verbatim rather than regenerate it. GitHub only runs
 // issue_comment workflows from the DEFAULT branch, so it activates when the init PR
 // merges — writing it to the feature branch now is correct and harmless.
-const APPROVE_PATH = '.github/workflows/styleproof-approve.yml';
-const approveSource = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  'example',
-  'styleproof-approve.yml',
-);
-let approveWorkflow;
-try {
-  approveWorkflow = fs.readFileSync(approveSource, 'utf8');
-} catch {
-  // Packaged example missing (unexpected) — don't abort the rest of init.
-  console.warn(`could not read the approval workflow template at ${approveSource} — skipped`);
-}
+const approveWorkflow = readApproveTemplate();
 if (approveWorkflow !== undefined) {
   const approve = writeFileSafe(APPROVE_PATH, approveWorkflow);
   if (approve.wrote) {
@@ -605,34 +741,10 @@ if (approveWorkflow !== undefined) {
   }
 }
 
-// Pre-push publish hook — the default fast path. Capture locally at push time and
-// publish to the SHA-keyed styleproof-maps branch; CI restores by SHA and stays
-// report-only. Maps are NEVER committed to the PR branch: a shared tracked map path
-// shows up in every PR's changed files and forces cross-PR rebases on each merge.
-const HOOK = `#!/bin/sh
-# StyleProof pre-push: capture this commit's map and publish it to the
-# styleproof-maps branch, so CI restores it and reports without a browser.
-# Maps never get committed to the PR branch.
-# Skip (e.g. a docs-only push): STYLEPROOF_SKIP_CAPTURE=1 git push
-set -e
-[ "\${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-head_sha="$(git rev-parse HEAD)"
-if ! ${PM.exec(`styleproof-map --restore --sha "$head_sha" --dir current --base-dir .styleproof/maps --spec ${specPath}`)}; then
-  ${PM.exec(`styleproof-map --spec ${specPath} --sha "$head_sha" --upload`)}
-fi
-${PM.exec('styleproof-diff')} || true # advisory: show drift before CI does
-`;
-const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
-const hookPath = path.join(hookDir, 'pre-push');
-const hook = writeFileSafe(hookPath, HOOK);
+const hook = installPrePushHook();
 if (hook.wrote) {
-  fs.chmodSync(hookPath, 0o755);
-  touched.push(hookPath);
-  console.log(`created ${hookPath} (pre-push capture → publish; maps never land on the PR branch)`);
-  if (hookDir === '.githooks') console.log('  activate with: git config core.hooksPath .githooks');
+  touched.push(hook.hookPath);
   wroteSomething = true;
-} else {
-  console.log(`${hookPath} already exists — left untouched`);
 }
 
 if (touched.length) {

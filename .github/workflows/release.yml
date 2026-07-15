@@ -107,7 +107,12 @@ jobs:
           elif npm view "styleproof@${VERSION}" version >/dev/null 2>&1; then
             echo "::notice::styleproof@${VERSION} is already on npm — verifying."
           else
-            npm publish --provenance --access public
+            # --ignore-scripts: prepublishOnly re-runs the ENTIRE validation
+            # suite (clean+build+lint+format+privacy+unit+e2e) that this job
+            # just ran step by step above — publishing the already-built,
+            # already-validated dist/ directly halves the release wall time.
+            # Local `npm publish` keeps the prepublishOnly safety net.
+            npm publish --provenance --access public --ignore-scripts
           fi
           PUBLISHED=""
           for attempt in 1 2 3 4 5 6; do

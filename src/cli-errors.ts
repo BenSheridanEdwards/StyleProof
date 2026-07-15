@@ -1,3 +1,5 @@
+import { type StyleProofConfig, loadStyleProofConfig } from './config.js';
+
 export function isHelpArg(arg: string | undefined): boolean {
   return arg === '-h' || arg === '--help';
 }
@@ -9,6 +11,20 @@ export function showHelpAndExit(help: string): never {
 
 export function cliErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Shared CLI prologue: the repo's styleproof.config.json as the lowest-precedence
+ * default layer (flag > env > file > built-in), or a loud usage-error exit —
+ * config the user wrote must never be silently dropped.
+ */
+export function projectConfigOrExit(cli: string): StyleProofConfig {
+  try {
+    return loadStyleProofConfig();
+  } catch (error) {
+    process.stderr.write(`${cli}: ${cliErrorMessage(error)}\n`);
+    process.exit(2);
+  }
 }
 
 /**
@@ -65,5 +81,24 @@ export function baseInferenceMessage(command: string, message: string): string {
   return [
     `${command}: ${message}`,
     `Next: pass a base ref explicitly, e.g. ${command} main, or set git config branch.<name>.gh-merge-base main.`,
+  ].join('\n');
+}
+
+/**
+ * Advisory shown when a map is uploaded from a non-Linux platform. A map's
+ * compatibility key is platform-specific, and the scaffolded CI runs on
+ * `ubuntu-latest` — so a bundle captured on macOS/Windows can never be restored by
+ * that Linux CI, which recaptures instead. The upload isn't wrong (CI may be
+ * non-Linux, or the user knows better), so this warns rather than blocks. Returns
+ * `null` on Linux (and when suppressed via `STYLEPROOF_SUPPRESS_PLATFORM_WARNING=1`).
+ */
+export function nonLinuxUploadWarning(platform: string, suppressed = false): string | null {
+  if (suppressed || platform === 'linux') return null;
+  return [
+    `styleproof-map: capturing on ${platform}, but StyleProof CI (ubuntu-latest) captures on linux.`,
+    "  A map's compatibility key is platform-specific, so a Linux CI will NOT restore this bundle —",
+    '  it will recapture both sides instead, and this upload just adds an unused bundle to the store.',
+    '  To make the pre-push capture count, capture on Linux (e.g. a container matching CI).',
+    '  Suppress this notice with STYLEPROOF_SUPPRESS_PLATFORM_WARNING=1.',
   ].join('\n');
 }

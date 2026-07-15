@@ -7,6 +7,244 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`styleproof.config.json` is now the single project-config surface.** Every
+  CLI reads `spec`, `dirtyAllow`, `cacheBranch`, `remote`, and
+  `affected.{surfaces,graph,base}` from it as the lowest-precedence default
+  layer (flag > env > file > built-in), alongside the Action's existing
+  gate-policy keys. A configured repo runs `styleproof-affected` bare, and
+  dirty-allow paths live in config instead of being threaded through hook and
+  workflow invocations. A malformed file or wrongly-typed key fails loudly.
+- **`styleproof-init --upgrade` and `--check`.** The generated pre-push hook,
+  report workflow, and approval workflow are machine-owned thin wrappers;
+  `--check` reports drift against the current release's templates without
+  writing (exit 1 — CI-able), and `--upgrade` refreshes them in place, never
+  touching the user-owned spec or playwright config.
+
+- **`styleproof-ci`** — the cache-first CI orchestration as one command:
+  `--base <sha> --head <sha>` restores both exact-SHA bundles, captures just the
+  head on a head-only miss (HAR replay when the base recorded data), and rebuilds
+  the pair cold on a base miss under the head's exact StyleProof release, with
+  package-manager commands detected independently at each checkout. A failed
+  base capture now produces explicit head-only degraded evidence while head
+  capture remains fail-closed. The
+  init-generated workflow step is now a single invocation instead of ~80 lines of
+  copied bash, and emits `base-hit`/`head-hit`/`capture-needed`/
+  `base-capture-failed`.
+- **`styleproof-prepush`** — the canonical pre-push capture→publish flow,
+  packaged. The generated hook is a two-line shim that execs it, so the rules
+  (pushed-refspec selection, docs-only skip, restore-before-capture) update with
+  each release instead of drifting in a copied hook file. The shim invokes the
+  installed local binary directly, so a missing install fails instead of falling
+  through to a package-registry download, and
+  `styleproof-init --hook` refreshes a stale hook in place.
+- **`styleproof-affected`** — the selective-remap verdict as a CLI over
+  `affectedSurfaces`: dependency-cruiser graph in, changed files from git (or
+  `--changed`), reviewer-checkable skip list and `--json` verdict out; exit `0`
+  scoped / `3` unbounded.
+- **`--dirty-allow <path>`** on `styleproof-map` (and `STYLEPROOF_DIRTY_ALLOW`) —
+  tracked files a dev tool rewrites on every run (e.g. `next dev` regenerating a
+  `tsconfig.json`) no longer mark a capture dirty, generalizing the built-in
+  `next-env.d.ts` allowance.
+- **The Action self-verifies its published report.** After pushing the report
+  branch it reads the report back at the exact advertised commit and requires the
+  embedded receipt to name this run's head SHA, run id, and attempt — failing
+  closed instead of shipping a green run with a dead or stale `report-url`, so
+  consumers can drop their own post-action read-back checks.
+- **Map-store dogfood runs the production roundtrip on every same-repo PR.** A
+  real browser capture is published to a per-attempt scratch branch, restored by
+  exact SHA, certified byte-identical, and checked for the exit-4 miss contract.
+  Cleanup distinguishes an absent branch from an inspection or deletion fault,
+  so leaked scratch branches cannot hide behind a green run.
+
+### Fixed
+
+- **Restore faults no longer masquerade as cache misses.** `styleproof-prepush`
+  exits with the persistent map-store/network failure instead of attempting an
+  unrelated capture, and fallback captures now preserve explicit map/base dirs.
+- **`styleproof-init --upgrade` preserves repository-owned pre-push hooks.** It
+  only refreshes hooks carrying StyleProof's ownership marker; replacement of a
+  custom hook still requires the explicit `--hook` command.
+- **Action configuration now fails loudly through the shared config loader.**
+  Malformed policy is no longer warned about and silently replaced with defaults.
+- **Generated pre-push hooks execute the installed local binary.** Missing
+  installs can no longer fall through to a registry lookup for an unpublished
+  package name.
+
+- **Every Action run now publishes a durable report receipt.** Clean comparisons
+  commit the no-change report and return its immutable URL, so consumers can
+  verify publication for every completed run instead of treating missing
+  evidence as a clean verdict.
+- **The consumer-checkout publish fallback now works from a partial isolated clone.**
+  The isolated map-store checkout is a blob:none partial clone, and Git refuses to
+  lazy-fetch missing objects while serving a local fetch, so importing the new
+  commit into the consumer checkout failed with "protocol error: bad pack header"
+  whenever the store already held other bundles. The consumer now fetches the
+  branch tip through its own credentials first, which narrows the import to the
+  newly committed objects, and the fallback push fully qualifies its destination
+  ref so it can also create the branch on first publish.
+- **Explicit workflow authentication no longer duplicates the checkout header.**
+  StyleProof clears any inherited GitHub HTTP authorization value before adding
+  `STYLEPROOF_MAP_STORE_TOKEN`, preventing GitHub from rejecting cold-cache
+  clones with `Duplicate header: "Authorization"` while retaining explicit-token
+  precedence over stale checkout credentials.
+
+## [4.4.22] - 2026-07-13
+
+### Fixed
+
+- **The compatibility key no longer depends on how `cwd` was spelled.** A
+  relative `cwd` made the Playwright-version probe throw internally, silently
+  dropping that field from the key — so a publish and a restore in the same
+  environment could stamp different keys, and every cache lookup missed
+  (a silent full-recapture tax, never an error). The key inputs now resolve
+  `cwd` first, and a regression test pins relative/absolute equality.
+
+## [4.4.21] - 2026-07-14
+
+### Fixed
+
+- **GitHub Actions map publication no longer sends duplicate authorization headers.**
+  StyleProof now resets inherited checkout headers before applying the single
+  effective credential to isolated map-store clone and push operations.
+
+## [4.4.20] - 2026-07-14
+
+### Fixed
+
+- **Map-store network operations can no longer wedge CI indefinitely.** Remote
+  lookup, clone, and push commands now have a bounded timeout, and a stalled
+  isolated push falls through to the authenticated consumer checkout path.
+
+## [4.4.19] - 2026-07-14
+
+### Fixed
+
+- **Generated cache restores now evaluate each map in its own commit context.**
+  CI checks out the base before restoring the base bundle and returns to the head
+  before restoring the head bundle, so lockfile-changing pull requests reach the
+  browserless hot path after their first published pair.
+
+## [4.4.18] - 2026-07-13
+
+### Fixed
+
+- **Generated cold-cache workflows now publish from a clean tracked tree.** Yarn,
+  pnpm, and Bun restore only the package metadata changed by the temporary exact
+  StyleProof install while retaining that release in `node_modules` for capture.
+
+## [4.4.17] - 2026-07-13
+
+### Fixed
+
+- **Generated cache-first CI now preserves the installed StyleProof release across
+  base checkouts.** Cold-cache capture installs the head's exact release into an
+  older base checkout and invokes the installed binary directly, preventing package
+  manager reconciliation from silently running the base's older capture logic.
+- **Generated workflows now reuse checkout authentication for map publication.**
+  The redundant map-store token environment variable is omitted; the persisted
+  checkout credential supplies the existing least-privilege `contents: write` path.
+
+## [4.4.16] - 2026-07-13
+
+### Fixed
+
+- **Map-store publication now retains failures that occur while preparing a retry.**
+  If an authenticated push fails and the next clone also fails, StyleProof reports
+  both errors with their attempt and phase instead of replacing the actionable push
+  failure with the later setup error.
+
+## [4.4.15] - 2026-07-13
+
+### Fixed
+
+- **Failed map-store uploads now retain every Git transport error.** The
+  workflow-token credential retry is no longer hidden by a later fallback, so
+  hosted CI reports the authenticated failure needed to repair publication.
+
+## [4.4.14] - 2026-07-13
+
+### Fixed
+
+- **Workflow-token publication now uses Git's credential protocol for the final retry.**
+  The token stays out of remote URLs and process arguments, while real Git credential
+  lookup is covered directly instead of relying on an executable askpass script.
+
+## [4.4.13] - 2026-07-13
+
+### Fixed
+
+- **Workflow-token publication now retries through Git askpass.** When GitHub
+  rejects the temporary checkout's explicit HTTP header, StyleProof clears that
+  header and supplies the token through Git's credential prompt protocol without
+  placing the secret in the remote URL or command arguments.
+
+## [4.4.12] - 2026-07-13
+
+### Fixed
+
+- **Map-store publication now survives an isolated push losing Actions
+  authentication.** If the sparse temporary checkout is rejected, StyleProof
+  imports its generated commit into the original checkout and retries the push
+  through checkout-v7's authenticated Git context.
+
+## [4.4.11] - 2026-07-13
+
+### Fixed
+
+- **Map-store pushes now receive workflow authentication directly.** The final
+  `git push` uses the same explicit reset-and-token arguments as the isolated
+  clone, so temporary sparse-checkout config cannot drop the Actions token after
+  a successful cold-cache capture.
+
+## [4.4.8] - 2026-07-13
+
+### Fixed
+
+- **Map-store restore now retrieves only the requested commit bundle.** Restore
+  clones branch metadata without a checkout, sparsely selects the requested SHA,
+  and, on partial-clone-capable remotes such as GitHub, downloads only that
+  bundle's blobs. Large long-lived map stores therefore no longer make every
+  cache lookup clone all historical bundles on supported remotes. Publishing
+  uses the same sparse checkout and stages only the requested bundle plus the
+  store README; Git's sparse index preserves unseen bundles without downloading
+  their blobs, so cache misses no longer materialise the complete store either.
+
+## [4.4.7] - 2026-07-13
+
+### Fixed
+
+- **Explicit map-store credentials take precedence over checkout state.** When
+  `STYLEPROOF_MAP_STORE_TOKEN` is set, StyleProof now uses it before inspecting
+  persisted Git headers, so stale `actions/checkout` credentials cannot break a
+  cold-cache map upload.
+- **Generated CI authenticates map publication explicitly.** `styleproof-init`
+  passes the workflow's least-privilege `github.token` as
+  `STYLEPROOF_MAP_STORE_TOKEN`, so cold-cache uploads do not depend on private
+  `actions/checkout` credential-storage details. Local hooks continue to reuse
+  normal Git credentials without requiring this variable.
+- **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
+  Checkout v7 keeps its HTTP header in an included temporary config rather than
+  directly in `.git/config`; StyleProof now explicitly enables Git config includes
+  and falls back to its locally registered checkout config before carrying that
+  header into the isolated clone and push.
+- **Map-store uploads now reuse credentials from `actions/checkout@v7`.**
+  Checkout v7 keeps its HTTP header in an included temporary config rather than
+  directly in `.git/config`; StyleProof now explicitly enables Git config includes
+  and falls back to its locally registered checkout config before carrying that
+  header into the isolated clone and push.
+- **Map-store uploads now reuse the HTTP authentication persisted by
+  `actions/checkout`.** The isolated `styleproof-maps` clone carries the
+  checkout's URL-scoped extra header through clone and push, so cache-miss
+  captures publish successfully without every consumer wiring a token into the
+  CLI step.
+- **Map-store uploads from Git hooks no longer inherit the caller repository's
+  Git location variables.** A cold `styleproof-maps` upload could otherwise run
+  its temporary `git init` against the consumer repository, set
+  `core.bare=true`, and reject the push after a successful capture. StyleProof
+  now isolates every child Git process from hook-exported repository paths.
+
 ## [4.4.1] - 2026-07-13
 
 ### Changed

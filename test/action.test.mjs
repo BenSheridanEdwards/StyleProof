@@ -8,6 +8,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
 const dogfoodYml = fs.readFileSync(path.join(here, '..', '.github/workflows/action-dogfood.yml'), 'utf8');
 
+function extractActionStep(stepStartPattern, stepEndPattern) {
+  return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
+}
+
 test('composite action builds its checkout before running local bins', () => {
   const installStep = actionYml.match(/- name: Install StyleProof action runtime[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
 
@@ -17,16 +21,33 @@ test('composite action builds its checkout before running local bins', () => {
   assert.doesNotMatch(installStep[0], /npm ci .*--omit=dev/);
 });
 
-test('composite action creates a no-change PR receipt on a clean first run', () => {
-  const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+test('composite action publishes a durable no-change report on a clean first run', () => {
+  const publishStep = extractActionStep('- id: publish', '\\n\\s{4}- name: Upsert PR comment');
+  const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
 
+  assert.ok(publishStep, 'action.yml should include a report publish step');
   assert.ok(commentStep, 'action.yml should include a PR comment step');
-  assert.match(commentStep[0], /if \(!report\) \{/);
-  assert.match(
-    commentStep[0],
-    /await upsert\(`\$\{marker\}\\n## 🗺️ StyleProof report\\n\\n✓ No visual changes detected\.`\);/,
+  assert.doesNotMatch(publishStep[0], /if: steps\.diff\.outputs/);
+  assert.match(publishStep[0], /rm -rf styleproof-report/);
+  assert.match(publishStep[0], /styleproof-report\.mjs/);
+  assert.doesNotMatch(publishStep[0], /styleproof-report\.mjs[^\n]*\|\| true/);
+  assert.match(publishStep[0], /report_exit_code=\$\?/);
+  assert.match(publishStep[0], /"\$report_exit_code" -ne 0.*"\$report_exit_code" -ne 1/);
+  assert.match(publishStep[0], /styleproof-receipt head-sha:%s run-id:%s run-attempt:%s/);
+  assert.match(commentStep[0], /const url =/);
+  assert.doesNotMatch(commentStep[0], /if \(!report\)/);
+  assert.doesNotMatch(
+    dogfoodYml.match(/- id: clean[\s\S]*?(?=\n\s{6}- name: Assert clean output)/)[0],
+    /fail-on-diff:/,
   );
-  assert.doesNotMatch(commentStep[0], /if \(existing\) await upsert/, 'clean first run must create a comment too');
+});
+
+test('certify mode fails only when the difference verdict changed', () => {
+  const failOnDifferenceStep = actionYml.match(/- name: Fail on diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+
+  assert.ok(failOnDifferenceStep, 'action.yml should include the certify-mode difference gate');
+  assert.match(failOnDifferenceStep[0], /steps\.diff\.outputs\.changed == 'true'/);
+  assert.doesNotMatch(failOnDifferenceStep[0], /steps\.diff\.outputs\.report == 'true'/);
 });
 
 test('composite action only compares explicit base/head directories', () => {
@@ -38,7 +59,7 @@ test('composite action only compares explicit base/head directories', () => {
 });
 
 test('composite action publishes every generated report crop', () => {
-  const publishStep = actionYml.match(/- id: publish[\s\S]*?(?=\n\s{4}- name: Upsert PR comment)/);
+  const publishStep = extractActionStep('- id: publish', '\\n\\s{4}- name: Upsert PR comment');
 
   assert.ok(publishStep, 'action.yml should include a report publish step');
   assert.match(publishStep[0], /cp styleproof-report\/crops\/\*\.png "\$TMP\/\$REPORT_PATH\/crops\/"/);
@@ -46,33 +67,71 @@ test('composite action publishes every generated report crop', () => {
 });
 
 test('composite action binds report commits and links to the exact report revision', () => {
-  const publishStep = actionYml.match(/- id: publish[\s\S]*?(?=\n\s{4}- name: Upsert PR comment)/);
+  const publishStep = extractActionStep('- id: publish', '\\n\\s{4}- name: Upsert PR comment');
 
   assert.ok(publishStep, 'action.yml should include a report publish step');
   assert.match(publishStep[0], /REPORT_SHA='\$\{\{ steps\.context\.outputs\.head-sha \}\}'/);
   assert.match(publishStep[0], /REPORT_MSG="StyleProof report \$\{REPORT_PATH\} @ \$\{REPORT_SHA\}"/);
+  assert.match(publishStep[0], /git -C "\$TMP" log -1 --format=%B \| grep -Fqx "\$REPORT_MSG"/);
   assert.match(publishStep[0], /REPORT_COMMIT="\$\(git -C "\$TMP" rev-parse HEAD\)"/);
   assert.match(publishStep[0], /blob\/\$\{REPORT_COMMIT\}\/\$\{REPORT_PATH\}\/report\.md/);
 });
 
 test('composite action marks certify-mode comments with their source head SHA', () => {
-  const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+  const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
 
   assert.ok(commentStep, 'action.yml should include a PR comment step');
   assert.match(commentStep[0], /\.\.\.\(headSha \? \[`<!-- styleproof-sha:\$\{headSha\} -->`\] : \[\]\)/);
 });
 
-test('dogfood workflow runs the local composite action against clean, changed, new-surface, and removal maps', () => {
+test('dogfood workflow runs the local composite action against every trust-state class', () => {
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 4);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 6);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
+  assert.match(dogfoodYml, /action-dogfood\/residue-base/);
   assert.match(dogfoodYml, /action-dogfood\/removed-base/);
+  assert.match(dogfoodYml, /action-dogfood\/degraded-base/);
+  assert.match(dogfoodYml, /steps\.clean\.outputs\.report-url }}'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
   assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'true'/);
+  assert.match(dogfoodYml, /steps\.clean\.outputs\.trust-state }}' = 'NO_VISUAL_CHANGES'/);
+  assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'VISUAL_APPROVAL_REQUIRED'/);
+  assert.match(dogfoodYml, /steps\.residue\.outputs\.trust-state }}' = 'DATA_RESIDUE_UNACKNOWLEDGED'/);
+  assert.match(dogfoodYml, /steps\.degraded\.outputs\.trust-state }}' = 'DEGRADED_BASELINE'/);
   // The inventory removal must FAIL the action even with fail-on-diff off.
   assert.match(dogfoodYml, /steps\.removed\.outcome }}' = 'failure'/);
+  assert.match(dogfoodYml, /steps\.removed\.outputs\.trust-state }}' = 'INVENTORY_REMOVAL_UNACKNOWLEDGED'/);
+});
+
+test('composite action exposes one precedence-ordered machine-readable trust verdict', () => {
+  assert.match(actionYml, /trust-state:[\s\S]*?steps\.trust\.outputs\.state/);
+  assert.match(actionYml, /data-residue-keys:[\s\S]*?steps\.verdict\.outputs\.data-residue-keys/);
+  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
+  const residue = verdict[0].indexOf('DATA_RESIDUE_UNACKNOWLEDGED');
+  const inventory = verdict[0].indexOf('INVENTORY_REMOVAL_UNACKNOWLEDGED');
+  const certification = verdict[0].indexOf('CERTIFICATION_FAILED');
+  const degraded = verdict[0].indexOf('DEGRADED_BASELINE');
+  const visual = verdict[0].indexOf('VISUAL_APPROVAL_REQUIRED');
+  assert.ok(
+    residue > 0 && inventory > residue && certification > inventory && degraded > certification && visual > degraded,
+  );
+  const terminal = actionYml.match(/- id: trust[\s\S]*$/);
+  assert.ok(terminal, 'action.yml should always expose a terminal trust state');
+  assert.match(terminal[0], /if: always\(\)/);
+  assert.match(terminal[0], /REPORT_PUBLICATION_FAILED/);
+});
+
+test('composite action exposes and hard-gates degraded head-only evidence', () => {
+  assert.match(actionYml, /base-capture-failed:[\s\S]*?default: 'false'/);
+  assert.match(actionYml, /DEGRADED_BASELINE/);
+  const gate = actionYml.match(/- name: Block on degraded baseline[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/);
+  assert.ok(gate, 'action.yml should fail rather than certify a head-only report');
+  assert.match(gate[0], /inputs\.base-capture-failed == 'true'/);
+  assert.match(gate[0], /exit 1/);
+  assert.doesNotMatch(gate[0], /require-approval/, 'visual approval cannot turn degraded evidence into a comparison');
 });
 
 test('composite action hard-gates on unacknowledged navigable removals in both modes', () => {
@@ -115,6 +174,8 @@ test('composite action blocks unapproved changes by default (opt out with "block
   const configStep = actionYml.match(/- id: config[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:)/);
 
   assert.ok(configStep, 'action.yml should include a config step');
+  assert.match(configStep[0], /loadStyleProofConfig/);
+  assert.doesNotMatch(configStep[0], /ignoring unreadable styleproof\.config\.json/);
   assert.match(
     configStep[0],
     /core\.setOutput\('blocking', cfg\.blocking === false \? 'false' : 'true'\);/,
@@ -127,7 +188,7 @@ test('composite action blocks unapproved changes by default (opt out with "block
   assert.ok(blockStep, 'action.yml should include the unapproved-changes block step');
   assert.match(blockStep[0], /inputs\.require-approval == 'true'/);
   assert.match(blockStep[0], /steps\.config\.outputs\.blocking == 'true'/);
-  assert.match(blockStep[0], /steps\.diff\.outputs\.changed == 'true'/);
+  assert.match(blockStep[0], /steps\.verdict\.outputs\.state == 'VISUAL_APPROVAL_REQUIRED'/);
   assert.match(blockStep[0], /steps\.gate\.outputs\.approved != 'true'/);
   assert.match(blockStep[0], /exit 1/);
 
@@ -155,4 +216,25 @@ test('dogfood workflow asserts the PR report comment and branch artifact', () =>
   assert.match(dogfoodYml, /blob\/\[0-9a-f\]\{40\}\/\$\{report_path\}/);
   assert.ok(dogfoodYml.includes('/issues/${PR_NUMBER}/comments'));
   assert.ok(dogfoodYml.includes('/contents/${report_path}?ref=${REPORT_BRANCH}'));
+});
+
+test('composite action self-verifies the published receipt before advertising the report URL', () => {
+  const publishStep = extractActionStep('- id: publish', '\n\\s{4}- name: Upsert PR comment');
+
+  assert.ok(publishStep, 'action.yml should include a report publish step');
+  // The read-back: fetch the report at the EXACT commit being advertised and
+  // require the receipt embedded for this run (head SHA + run id + attempt).
+  assert.match(
+    publishStep[0],
+    /EXPECTED_RECEIPT="styleproof-receipt head-sha:\$\{REPORT_SHA\} run-id:\$\{\{ github\.run_id \}\} run-attempt:\$\{\{ github\.run_attempt \}\}"/,
+  );
+  assert.match(publishStep[0], /Accept: application\/vnd\.github\.raw/);
+  assert.match(publishStep[0], /contents\/\$\{REPORT_PATH\}\/report\.md\?ref=\$\{REPORT_COMMIT\}/);
+  assert.match(publishStep[0], /grep -Fq "\$EXPECTED_RECEIPT"/);
+  // Fail CLOSED on a dead or mismatched report — never a green run with a bad URL.
+  assert.match(publishStep[0], /\[ -n "\$verified" \] \|\| \{[\s\S]*?exit 1/);
+  // The url/raw-base outputs exist ONLY once verification passed.
+  const verifiedIndex = publishStep[0].indexOf('[ -n "$verified" ]');
+  const urlIndex = publishStep[0].indexOf('echo "url=');
+  assert.ok(verifiedIndex > 0 && urlIndex > verifiedIndex, 'outputs are written only after the receipt verifies');
 });

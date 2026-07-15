@@ -8,6 +8,11 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadStyleMap } from '../dist/index.js';
 
+// Every test here builds its own fixture (mkdtemp / own page); none reads another
+// test's output. Declare the file parallel so its tests spread across workers —
+// serial-in-one-worker made this file the long pole of the e2e wall time.
+test.describe.configure({ mode: 'parallel' });
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const INIT = path.join(root, 'bin/styleproof-init.mjs');
@@ -717,5 +722,145 @@ test('crawl coverage guard: a rendered link with no `expected` owner fails the c
     expect(ledger.expected).toEqual(['index', 'pricing', 'about']);
   } finally {
     fs.rmSync(app, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Pre-push hook dogfood: the ONE place the real scaffolded `.githooks/pre-push`
+// is executed the way git executes it (refspecs on stdin), driving the full
+// production flow — miss → capture → publish to the styleproof-maps branch keyed
+// by the PUSHED SHA, re-run → restore hit (no recapture), docs-only push → skip —
+// and then the CI side of the contract: a FRESH clone restores that SHA's bundle
+// from the store and a two-directory diff proves the roundtrip is byte-faithful.
+// Everything else in the repo asserts the hook's TEXT; this asserts its BEHAVIOR.
+// ---------------------------------------------------------------------------
+
+/** Give the fixture real local package binaries: shims in node_modules/.bin that
+ *  exec this checkout's bins, matching what an installed styleproof package exposes. */
+function writeBinShims(app: string) {
+  const bin = path.join(app, 'node_modules/.bin');
+  fs.mkdirSync(bin, { recursive: true });
+  for (const name of ['styleproof-map', 'styleproof-diff', 'styleproof-prepush']) {
+    const shim = path.join(bin, name);
+    fs.writeFileSync(shim, `#!/bin/sh\nexec "${process.execPath}" "${path.join(root, `bin/${name}.mjs`)}" "$@"\n`);
+    fs.chmodSync(shim, 0o755);
+  }
+}
+
+/** Symlink this checkout into `dir` the same way writeFixtureApp does, so the
+ *  compatibility key (which resolves @playwright/test through the consumer's
+ *  node_modules) computes identically in the CI-side clone. */
+function linkNodeModules(dir: string) {
+  fs.mkdirSync(path.join(dir, 'node_modules/@playwright'), { recursive: true });
+  fs.symlinkSync(root, path.join(dir, 'node_modules/styleproof'), 'dir');
+  fs.symlinkSync(
+    path.join(root, 'node_modules/@playwright/test'),
+    path.join(dir, 'node_modules/@playwright/test'),
+    'dir',
+  );
+}
+
+/** Run the scaffolded pre-push hook exactly as git would: `sh .githooks/pre-push
+ *  <remote> <url>` with one `<local-ref> <local-oid> <remote-ref> <remote-oid>`
+ *  line per pushed ref on stdin. */
+function runPrePushHook(app: string, remoteUrl: string, stdinLines: string) {
+  return spawnSync('sh', ['.githooks/pre-push', 'origin', remoteUrl], {
+    cwd: app,
+    encoding: 'utf8',
+    input: stdinLines,
+    env: commandEnv(),
+  });
+}
+
+test('pre-push hook dogfood: capture→publish→docs-skip→fresh-clone restore by SHA', async () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-dogfood-'));
+  const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-dogfood-remote-'));
+  const ci = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-dogfood-ci-'));
+  const port = await freePort();
+  const zero = '0'.repeat(40);
+  try {
+    writeFixtureApp(app, port);
+    writeBinShims(app);
+    // Real apps never track node_modules; without this the clone would already
+    // carry the committed symlinks and linkNodeModules would EEXIST.
+    fs.writeFileSync(path.join(app, '.gitignore'), 'node_modules/\n');
+    git(app, ['init', '-q']);
+    git(app, ['config', 'user.email', 'styleproof@example.test']);
+    git(app, ['config', 'user.name', 'StyleProof Test']);
+    git(app, ['checkout', '-qb', 'main']);
+    git(remote, ['init', '--bare', '-q']);
+    git(app, ['remote', 'add', 'origin', remote]);
+
+    const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
+    expect(init.status, init.stderr).toBe(0);
+    expect(fs.existsSync(path.join(app, '.githooks/pre-push'))).toBe(true);
+    fs.writeFileSync(path.join(app, 'README.md'), '# dogfood\n');
+    git(app, ['add', '-A']);
+    git(app, ['commit', '-qm', 'app + styleproof setup']);
+    const headSha = run(app, 'git', ['rev-parse', 'HEAD']).stdout.trim();
+
+    // 1. First push of the branch (remote oid all-zeros): the docs-only check must
+    //    NOT swallow it; the store is empty, so the hook restore misses, captures
+    //    for real, and publishes under the pushed SHA.
+    const firstPush = runPrePushHook(app, remote, `refs/heads/main ${headSha} refs/heads/main ${zero}\n`);
+    expect(firstPush.status, firstPush.stderr + firstPush.stdout).toBe(0);
+    expect(firstPush.stderr).toContain(`uploaded ${headSha.slice(0, 12)}`);
+    const stored = git(remote, ['ls-tree', '-r', '--name-only', 'styleproof-maps']).stdout;
+    expect(stored).toContain(`${headSha}/`);
+    expect(stored).toMatch(new RegExp(`${headSha}/[0-9a-f]{16}/index@\\d+\\.json\\.gz`));
+    expect(stored).toMatch(new RegExp(`${headSha}/[0-9a-f]{16}/styleproof-manifest\\.json`));
+
+    // 2. Re-run for the same SHA: the SHA-keyed store must serve it back — a
+    //    restore HIT, not a second capture (the whole latency win of the flow).
+    const rePush = runPrePushHook(app, remote, `refs/heads/main ${headSha} refs/heads/main ${zero}\n`);
+    expect(rePush.status, rePush.stderr + rePush.stdout).toBe(0);
+    expect(rePush.stdout).toContain(`restored ${headSha.slice(0, 12)}`);
+    expect(rePush.stderr).not.toContain('uploaded');
+
+    // 3. A docs-only push (README edit) skips capture entirely and publishes
+    //    nothing — CI recaptures on the miss, so skipping is always safe.
+    fs.writeFileSync(path.join(app, 'README.md'), '# dogfood (edited)\n');
+    git(app, ['add', '-A']);
+    git(app, ['commit', '-qm', 'docs: readme']);
+    const docsSha = run(app, 'git', ['rev-parse', 'HEAD']).stdout.trim();
+    const docsPush = runPrePushHook(app, remote, `refs/heads/main ${docsSha} refs/heads/main ${headSha}\n`);
+    expect(docsPush.status, docsPush.stderr + docsPush.stdout).toBe(0);
+    expect(docsPush.stderr).toContain('docs-only push');
+    expect(git(remote, ['ls-tree', '-r', '--name-only', 'styleproof-maps']).stdout).not.toContain(`${docsSha}/`);
+
+    // 4. The CI side of the contract. Complete what git does after a passing
+    //    hook — the push itself — then a FRESH clone (no local maps, no capture)
+    //    restores the pushed SHA's bundle from the store branch...
+    git(app, ['push', '-q', 'origin', 'main']);
+    git(ci, ['clone', '-q', '-b', 'main', remote, 'checkout']);
+    const ciApp = path.join(ci, 'checkout');
+    linkNodeModules(ciApp);
+    const mapRoot = path.join(ci, 'stylemaps');
+    const restore = run(ciApp, process.execPath, [
+      MAP,
+      '--restore',
+      '--sha',
+      headSha,
+      '--dir',
+      'head',
+      '--base-dir',
+      mapRoot,
+    ]);
+    expect(restore.status, restore.stderr + restore.stdout).toBe(0);
+    expect(restore.stdout).toContain(`restored ${headSha.slice(0, 12)}`);
+
+    // ...and the restored bundle diffs CLEAN against what the hook captured —
+    // the store roundtrip changed nothing (exit 0, not merely "compatible").
+    const diff = run(ciApp, process.execPath, [
+      DIFF,
+      path.join(app, '.styleproof/maps/current'),
+      path.join(mapRoot, 'head'),
+    ]);
+    expect(diff.status, diff.stderr + diff.stdout).toBe(0);
+    expect(diff.stdout).toContain('0 changed surfaces');
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+    fs.rmSync(remote, { recursive: true, force: true });
+    fs.rmSync(ci, { recursive: true, force: true });
   }
 });

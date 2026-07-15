@@ -17,6 +17,19 @@ export const MAP_MANIFEST = 'styleproof-manifest.json';
  *  has exited — no browser — so it reads the build back from here. Not a surface map. */
 export const BROWSER_BUILD_SIDECAR = 'styleproof-browser.json';
 const GENERATED_DIRTY_ALLOWLIST = new Set(['next-env.d.ts']);
+const GIT_REPOSITORY_ENVIRONMENT_VARIABLES = [
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_COMMON_DIR',
+  'GIT_DIR',
+  'GIT_GRAFT_FILE',
+  'GIT_INDEX_FILE',
+  'GIT_INTERNAL_SUPER_PREFIX',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_PREFIX',
+  'GIT_REPLACE_REF_BASE',
+  'GIT_SHALLOW_FILE',
+  'GIT_WORK_TREE',
+] as const;
 
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
@@ -34,11 +47,22 @@ export function isMapFile(name: string): boolean {
 
 export class MapStoreError extends Error {}
 
+/** A restore that failed because the requested bundle is genuinely absent — the map
+ *  store branch does not exist yet, or it holds no bundle for this SHA/compatibility.
+ *  This is an EXPECTED cache miss (the cold path should recapture), NOT an infrastructure
+ *  fault. Kept distinct from a plain {@link MapStoreError} (network, clone, timeout, auth)
+ *  so a caller can recapture on a true miss but fail loudly on a transient fault instead
+ *  of silently paying a full cold recapture every flaky run. Extends MapStoreError, so
+ *  existing `instanceof MapStoreError` handlers still catch it. */
+export class MapStoreNotFoundError extends MapStoreError {}
+
 export interface MapManifest {
   version: 1;
   packageVersion: string;
   sha: string;
   dirty: boolean;
+  /** Repo-relative files/directories excluded from dirty provenance for this capture. */
+  dirtyAllow?: string[];
   spec: string;
   specHash: string;
   lockfile?: string;
@@ -68,8 +92,132 @@ export interface CachedCaptureDirs {
   tmpRoot: string;
 }
 
+function gitProcessEnvironment(): NodeJS.ProcessEnv {
+  const environment = { ...process.env };
+  for (const variableName of GIT_REPOSITORY_ENVIRONMENT_VARIABLES) delete environment[variableName];
+  return environment;
+}
+
 function runGit(cwd: string, args: string[], maxBuffer = 1 << 28) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer });
+  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer, env: gitProcessEnvironment() });
+}
+
+const DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS = 30_000;
+
+function mapStoreGitTimeoutMilliseconds(): number {
+  const configuredTimeout = Number(process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS);
+  return Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? Math.floor(configuredTimeout)
+    : DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS;
+}
+
+function runMapStoreNetworkGit(cwd: string, args: string[], maxBuffer = 1 << 20) {
+  return spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer,
+    timeout: mapStoreGitTimeoutMilliseconds(),
+    env: {
+      ...gitProcessEnvironment(),
+      GIT_TERMINAL_PROMPT: '0',
+    },
+  });
+}
+
+function gitFailureMessage(result: ReturnType<typeof spawnSync>, fallback: string): string {
+  const standardError = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+  if (standardError) return standardError;
+  if (result.error) return result.error.message;
+  return fallback;
+}
+
+const DEFAULT_MAP_STORE_RESTORE_ATTEMPTS = 3;
+
+/** How many times {@link restoreMapBundle} retries an INFRASTRUCTURE fault (network,
+ *  clone, timeout) before giving up. A genuine cache miss is never retried. Overridable
+ *  via `STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS` (tests pin it to 1 to stay fast). */
+function mapStoreRestoreAttempts(): number {
+  const configured = Number(process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS);
+  return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_MAP_STORE_RESTORE_ATTEMPTS;
+}
+
+/** Blocking backoff between map-store network retries. Blocks the thread on purpose:
+ *  these are short-lived CLI processes with nothing else to do while git recovers. */
+function mapStoreBackoff(attempt: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 250);
+}
+
+const WORKFLOW_TOKEN_CREDENTIAL_HELPER =
+  '!f() { if [ "$1" = get ]; then printf \'%s\\n\' username=x-access-token "password=$STYLEPROOF_MAP_STORE_TOKEN"; fi; }; f';
+
+export function workflowTokenCredentialArguments(): string[] {
+  return ['-c', 'credential.helper=', '-c', `credential.helper=${WORKFLOW_TOKEN_CREDENTIAL_HELPER}`];
+}
+
+interface GitHttpExtraHeader {
+  key: string;
+  value: string;
+}
+
+function parseGitHttpExtraHeaders(configuredHeaders: string): GitHttpExtraHeader[] {
+  return configuredHeaders
+    .split('\n')
+    .filter(Boolean)
+    .flatMap((configuredHeader) => {
+      const separatorIndex = configuredHeader.indexOf(' ');
+      if (separatorIndex === -1) return [];
+      return [{ key: configuredHeader.slice(0, separatorIndex), value: configuredHeader.slice(separatorIndex + 1) }];
+    });
+}
+
+function resetInheritedGitHttpExtraHeaders(configuredHeaders: GitHttpExtraHeader[]): GitHttpExtraHeader[] {
+  const resetHeaderKeys = new Set<string>();
+  return configuredHeaders.flatMap((configuredHeader) => {
+    if (resetHeaderKeys.has(configuredHeader.key)) return [configuredHeader];
+    resetHeaderKeys.add(configuredHeader.key);
+    return configuredHeader.value === ''
+      ? [configuredHeader]
+      : [{ key: configuredHeader.key, value: '' }, configuredHeader];
+  });
+}
+
+function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
+  const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
+  if (mapStoreToken) {
+    return [
+      {
+        key: ['http.https:', '', 'github.com', '.extraheader'].join('/'),
+        value: '',
+      },
+      {
+        key: ['http.https:', '', 'github.com', '.extraheader'].join('/'),
+        value: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${mapStoreToken}`).toString('base64')}`,
+      },
+    ];
+  }
+
+  const configuredHeaders = runGit(cwd, ['config', '--includes', '--get-regexp', '^http\\..*\\.extraheader$'], 1 << 20);
+  const effectiveHeaders = parseGitHttpExtraHeaders(configuredHeaders.stdout);
+  if (effectiveHeaders.length > 0) return resetInheritedGitHttpExtraHeaders(effectiveHeaders);
+
+  const registeredIncludes = runGit(cwd, ['config', '--local', '--get-regexp', '^includeIf\\..*\\.path$'], 1 << 20);
+  const includedHeaders = registeredIncludes.stdout
+    .split('\n')
+    .filter(Boolean)
+    .flatMap((registeredInclude) => {
+      const separatorIndex = registeredInclude.indexOf(' ');
+      if (separatorIndex === -1) return [];
+      const includedConfigPath = registeredInclude.slice(separatorIndex + 1);
+      const includedHeaders = runGit(
+        cwd,
+        ['config', '--file', includedConfigPath, '--get-regexp', '^http\\..*\\.extraheader$'],
+        1 << 20,
+      );
+      return parseGitHttpExtraHeaders(includedHeaders.stdout);
+    });
+  if (includedHeaders.length > 0) return resetInheritedGitHttpExtraHeaders(includedHeaders);
+
+  return [];
 }
 
 function gitOutput(cwd: string, args: string[]): string {
@@ -161,15 +309,20 @@ function hasHar(dir: string): boolean {
 }
 
 function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: string }) {
-  const specPath = path.resolve(options.cwd, options.spec);
-  const lock = detectLockfile(options.cwd);
+  // Normalize FIRST: a relative cwd ('.') made createRequire throw inside
+  // playwrightVersion, silently dropping that field from the key — so publish
+  // and restore could stamp DIFFERENT keys for the same environment, and every
+  // cache lookup missed (a silent full-recapture tax, never an error).
+  const cwd = path.resolve(options.cwd);
+  const specPath = path.resolve(cwd, options.spec);
+  const lock = detectLockfile(cwd);
   return {
     packageVersion: styleProofPackageVersion(),
-    spec: path.relative(options.cwd, specPath) || options.spec,
+    spec: path.relative(cwd, specPath) || options.spec,
     specHash: hashFile(specPath) ?? 'missing',
     lockfile: lock.file,
     lockfileHash: lock.hash,
-    playwrightVersion: playwrightVersion(options.cwd),
+    playwrightVersion: playwrightVersion(cwd),
     platform: process.platform,
     arch: process.arch,
     nodeMajor: process.versions.node.split('.')[0] ?? process.versions.node,
@@ -240,19 +393,23 @@ export function refSha(ref: string, cwd = process.cwd()): string {
 }
 
 /**
- * True if any tracked file is modified/added/deleted. `ignorePrefix` (a repo-relative
- * directory) is excluded — pass the map OUTPUT dir when re-sampling AFTER a capture, so
- * the maps the capture just wrote don't read as tree dirt and mask a real source edit.
+ * True if any tracked file is modified/added/deleted. `ignore` (repo-relative files or
+ * directories) are excluded — pass the map OUTPUT dir when re-sampling AFTER a capture,
+ * so the maps the capture just wrote don't read as tree dirt and mask a real source
+ * edit, and pass `--dirty-allow` paths for files a dev tool rewrites on every run
+ * (the ambient equivalent of the built-in next-env.d.ts allowance).
  */
-export function workingTreeDirty(cwd = process.cwd(), ignorePrefix?: string): boolean {
+export function workingTreeDirty(cwd = process.cwd(), ignore?: string | readonly string[]): boolean {
   const r = runGit(cwd, ['status', '--porcelain']);
   const status = r.status === 0 ? r.stdout.trimEnd() : '';
   if (!status) return false;
-  const prefix = ignorePrefix ? `${ignorePrefix.replace(/\/+$/, '')}/` : undefined;
+  const prefixes = (typeof ignore === 'string' ? [ignore] : (ignore ?? []))
+    .filter(Boolean)
+    .map((p) => `${p.replace(/\/+$/, '')}/`);
   return status.split(/\r?\n/).some((line) => {
     const file = line.slice(3).trim();
     if (!file || GENERATED_DIRTY_ALLOWLIST.has(file)) return false;
-    if (prefix && (file === prefix.slice(0, -1) || file.startsWith(prefix))) return false;
+    if (prefixes.some((prefix) => file === prefix.slice(0, -1) || file.startsWith(prefix))) return false;
     return true;
   });
 }
@@ -269,6 +426,7 @@ function buildManifest(options: {
   input: ReturnType<typeof compatibilityInput>;
   sha: string;
   dirty: boolean;
+  dirtyAllow?: readonly string[];
   screenshots: boolean;
 }): MapManifest {
   const { dir, input } = options;
@@ -278,6 +436,7 @@ function buildManifest(options: {
     packageVersion: input.packageVersion,
     sha: options.sha,
     dirty: options.dirty,
+    ...(options.dirtyAllow?.length ? { dirtyAllow: [...options.dirtyAllow] } : {}),
     spec: input.spec,
     specHash: input.specHash,
     ...(input.lockfile ? { lockfile: input.lockfile } : {}),
@@ -301,6 +460,7 @@ export function writeMapManifest(options: {
   sha?: string;
   screenshots: boolean;
   dirty?: boolean;
+  dirtyAllow?: readonly string[];
   cwd?: string;
   env?: NodeJS.ProcessEnv;
 }): MapManifest {
@@ -311,6 +471,7 @@ export function writeMapManifest(options: {
     input,
     sha: options.sha ?? currentGitSha(cwd, options.env),
     dirty: options.dirty ?? workingTreeDirty(cwd),
+    dirtyAllow: options.dirtyAllow,
     screenshots: options.screenshots,
   });
   fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
@@ -452,24 +613,185 @@ function copyDir(src: string, dest: string, includeHar: boolean): void {
   });
 }
 
-function checkoutMapStore(cwd: string, remote: string, branch: string): string {
+function checkoutSparseSegment(tmp: string, branch: string, segment: string): void {
+  const sparseCheckout = runGit(tmp, ['sparse-checkout', 'set', segment], 1 << 20);
+  const checkout = sparseCheckout.status === 0 ? runGit(tmp, ['checkout', '-q', branch], 1 << 20) : sparseCheckout;
+  if (checkout.status !== 0) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    throw new MapStoreError(checkout.stderr.trim() || `could not check out ${segment} from map store`);
+  }
+}
+
+function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSegment?: string): string {
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
   const remoteUrl = gitOutput(cwd, ['remote', 'get-url', remote]);
+  const httpExtraHeaders = effectiveGitHttpExtraHeaders(cwd);
+  const authenticationArguments = httpExtraHeaders.flatMap(({ key, value }) => ['-c', `${key}=${value}`]);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-'));
-  if (runGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20).status === 0) {
-    const clone = spawnSync('git', ['clone', '-q', '--depth', '1', '--branch', branch, remoteUrl, tmp], {
-      encoding: 'utf8',
-      maxBuffer: 1 << 20,
-    });
+  const branchLookup = runMapStoreNetworkGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20);
+  if (branchLookup.status !== 0 && branchLookup.status !== 2) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    throw new MapStoreError(gitFailureMessage(branchLookup, 'could not query map store branch'));
+  }
+  const branchExists = branchLookup.status === 0;
+  if (branchExists) {
+    const cloneArguments = sparseSegment
+      ? ['clone', '-q', '--filter=blob:none', '--no-checkout', '--depth', '1', '--single-branch', '--branch', branch]
+      : ['clone', '-q', '--depth', '1', '--branch', branch];
+    const clone = runMapStoreNetworkGit(cwd, [...authenticationArguments, ...cloneArguments, remoteUrl, tmp]);
     if (clone.status !== 0) {
       fs.rmSync(tmp, { recursive: true, force: true });
-      throw new MapStoreError(clone.stderr.trim() || 'could not clone map store branch');
+      throw new MapStoreError(gitFailureMessage(clone, 'could not clone map store branch'));
     }
   } else {
     runGit(tmp, ['init', '-q', '-b', branch]);
     runGit(tmp, ['remote', 'add', 'origin', remoteUrl]);
   }
+  for (const { key, value } of httpExtraHeaders) runGit(tmp, ['config', '--local', '--add', key, value]);
+  if (sparseSegment && branchExists) checkoutSparseSegment(tmp, branch, sparseSegment);
   return tmp;
+}
+
+function pushMapStoreCommit(
+  cwd: string,
+  temporaryCheckout: string,
+  remote: string,
+  branch: string,
+  authenticationArguments: string[],
+) {
+  const pushFailures: string[] = [];
+  const isolatedPush = runMapStoreNetworkGit(
+    temporaryCheckout,
+    [...authenticationArguments, 'push', '-q', 'origin', `HEAD:${branch}`],
+    1 << 20,
+  );
+  if (isolatedPush.status === 0) return isolatedPush;
+  pushFailures.push(`isolated map-store push: ${gitFailureMessage(isolatedPush, `git exited ${isolatedPush.status}`)}`);
+
+  const mapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
+  if (mapStoreToken) {
+    const githubExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
+    runGit(temporaryCheckout, ['config', '--local', '--unset-all', githubExtraHeaderKey], 1 << 20);
+    const credentialPush = runMapStoreNetworkGit(temporaryCheckout, [
+      '-c',
+      `${githubExtraHeaderKey}=`,
+      ...workflowTokenCredentialArguments(),
+      'push',
+      '-q',
+      'origin',
+      `HEAD:${branch}`,
+    ]);
+    if (credentialPush.status === 0) return credentialPush;
+    pushFailures.push(
+      `workflow-token credential push: ${gitFailureMessage(credentialPush, `git exited ${credentialPush.status}`)}`,
+    );
+  }
+
+  const mapStoreCommit = gitOutput(temporaryCheckout, ['rev-parse', 'HEAD']);
+  // The temporary checkout is a blob:none partial clone, and upload-pack refuses to
+  // lazy-fetch while serving, so importing its commit demands every historic map blob
+  // the filter skipped. Fetch the branch tip through the consumer checkout's own
+  // credentials first: negotiation then narrows the import to the newly committed
+  // objects, which the temporary checkout holds in full. A missing branch is fine -
+  // then the temporary checkout is an unfiltered fresh repository.
+  const mapStoreTipImportRef = 'refs/styleproof/map-store-tip';
+  const importTip = runMapStoreNetworkGit(
+    cwd,
+    ['fetch', '-q', '--no-write-fetch-head', remote, `+refs/heads/${branch}:${mapStoreTipImportRef}`],
+    1 << 20,
+  );
+  if (importTip.status !== 0) {
+    pushFailures.push(`consumer tip fetch: ${gitFailureMessage(importTip, `git exited ${importTip.status}`)}`);
+  }
+  try {
+    const importCommit = runGit(
+      cwd,
+      ['fetch', '-q', '--no-write-fetch-head', temporaryCheckout, mapStoreCommit],
+      1 << 20,
+    );
+    if (importCommit.status !== 0) {
+      return {
+        ...isolatedPush,
+        stderr: [
+          ...pushFailures,
+          `consumer checkout import: ${importCommit.stderr.trim() || `git exited ${importCommit.status}`}`,
+        ].join('\n'),
+      };
+    }
+    const consumerCheckoutPush = runMapStoreNetworkGit(
+      cwd,
+      ['push', '-q', remote, `${mapStoreCommit}:refs/heads/${branch}`],
+      1 << 20,
+    );
+    if (consumerCheckoutPush.status === 0) return consumerCheckoutPush;
+    return {
+      ...consumerCheckoutPush,
+      stderr: [
+        ...pushFailures,
+        `consumer checkout push: ${gitFailureMessage(consumerCheckoutPush, `git exited ${consumerCheckoutPush.status}`)}`,
+      ].join('\n'),
+    };
+  } finally {
+    runGit(cwd, ['update-ref', '-d', mapStoreTipImportRef]);
+  }
+}
+
+function removeTemporaryMapStoreCheckout(temporaryCheckout: string | undefined): void {
+  if (temporaryCheckout) fs.rmSync(temporaryCheckout, { recursive: true, force: true });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function publishMapStoreAttempt(options: {
+  cwd: string;
+  remote: string;
+  branch: string;
+  sha: string;
+  compatibilityKey: string;
+  target: string;
+  dir: string;
+  includeHar: boolean;
+  manifest: MapManifest;
+  authenticationArguments: string[];
+}): { ok: boolean; phase: 'setup' | 'publish'; error: string } {
+  let temporaryCheckout: string | undefined;
+  try {
+    temporaryCheckout = checkoutMapStore(options.cwd, options.remote, options.branch, options.sha);
+    runGit(temporaryCheckout, ['config', 'user.name', 'github-actions[bot]']);
+    runGit(temporaryCheckout, ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+    fs.writeFileSync(
+      path.join(temporaryCheckout, 'README.md'),
+      '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n',
+    );
+    fs.rmSync(path.join(temporaryCheckout, options.target), { recursive: true, force: true });
+    copyDir(options.dir, path.join(temporaryCheckout, options.target), options.includeHar);
+    if (!options.includeHar) {
+      fs.writeFileSync(
+        path.join(temporaryCheckout, options.target, MAP_MANIFEST),
+        JSON.stringify({ ...options.manifest, har: false }, null, 2),
+      );
+    }
+    runGit(temporaryCheckout, ['add', '-A', '--sparse', '--', 'README.md', options.target]);
+    runGit(
+      temporaryCheckout,
+      ['commit', '-q', '-m', `StyleProof map ${options.sha.slice(0, 12)} ${options.compatibilityKey}`],
+      1 << 20,
+    );
+    const push = pushMapStoreCommit(
+      options.cwd,
+      temporaryCheckout,
+      options.remote,
+      options.branch,
+      options.authenticationArguments,
+    );
+    return { ok: push.status === 0, phase: 'publish', error: push.stderr.trim() || `git exited ${push.status}` };
+  } catch (error) {
+    return { ok: false, phase: 'setup', error: errorMessage(error) };
+  } finally {
+    removeTemporaryMapStoreCheckout(temporaryCheckout);
+  }
 }
 
 export function publishMapBundle(options: {
@@ -494,40 +816,97 @@ export function publishMapBundle(options: {
   const sha = safeSegment(manifest.sha, 'sha');
   const compatibilityKey = safeSegment(manifest.compatibilityKey, 'compatibility key');
   const target = `${sha}/${compatibilityKey}`;
+  const pushAuthenticationArguments = effectiveGitHttpExtraHeaders(cwd).flatMap(({ key, value }) => [
+    '-c',
+    `${key}=${value}`,
+  ]);
 
   let ok = false;
   let lastError = '';
+  const attemptFailures: string[] = [];
   for (let attempt = 1; attempt <= 5; attempt++) {
-    const tmp = checkoutMapStore(cwd, remote, branch);
-    try {
-      runGit(tmp, ['config', 'user.name', 'github-actions[bot]']);
-      runGit(tmp, ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
-
-      fs.writeFileSync(
-        path.join(tmp, 'README.md'),
-        '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n',
-      );
-      fs.rmSync(path.join(tmp, target), { recursive: true, force: true });
-      copyDir(options.dir, path.join(tmp, target), options.includeHar === true);
-      if (!options.includeHar) {
-        fs.writeFileSync(path.join(tmp, target, MAP_MANIFEST), JSON.stringify({ ...manifest, har: false }, null, 2));
-      }
-
-      runGit(tmp, ['add', '-A']);
-      runGit(tmp, ['commit', '-q', '-m', `StyleProof map ${sha.slice(0, 12)} ${compatibilityKey}`], 1 << 20);
-      const push = runGit(tmp, ['push', '-q', 'origin', `HEAD:${branch}`], 1 << 20);
-      if (push.status === 0) {
-        ok = true;
-        break;
-      }
-      lastError = push.stderr.trim();
-    } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
+    const result = publishMapStoreAttempt({
+      cwd,
+      remote,
+      branch,
+      sha,
+      compatibilityKey,
+      target,
+      dir: options.dir,
+      includeHar: options.includeHar === true,
+      manifest,
+      authenticationArguments: pushAuthenticationArguments,
+    });
+    if (result.ok) {
+      ok = true;
+      break;
     }
+    attemptFailures.push(`attempt ${attempt} ${result.phase}:\n${result.error}`);
+    lastError = attemptFailures.join('\n');
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 250);
   }
   if (!ok) throw new MapStoreError(lastError || `could not push ${branch}`);
   return { sha, compatibilityKey, branch };
+}
+
+/** Outcome of a single {@link restoreMapBundle} attempt. `miss` is an expected cache
+ *  miss (never retried → NotFound); `infra` is a transient fault (retried). */
+type RestoreAttemptResult =
+  { status: 'hit'; manifest: MapManifest } | { status: 'miss'; message: string } | { status: 'infra'; message: string };
+
+/** One restore attempt: probe the branch, checkout the one SHA's tree, copy the bundle.
+ *  Classifies its own failure so the retry loop stays trivial — a plain `runGit` on the
+ *  probe would misread a network blip as "branch does not exist" and force a needless cold
+ *  recapture, so the bounded network git's `--exit-code` (2 = true miss) is what decides. */
+function restoreMapStoreAttempt(options: {
+  cwd: string;
+  remote: string;
+  branch: string;
+  sha: string;
+  compatibilityKey?: string;
+  outDir: string;
+}): RestoreAttemptResult {
+  const { cwd, remote, branch, sha, compatibilityKey, outDir } = options;
+  const branchLookup = runMapStoreNetworkGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20);
+  if (branchLookup.status === 2) return { status: 'miss', message: `map store branch ${branch} does not exist` };
+  if (branchLookup.status !== 0) {
+    return { status: 'infra', message: gitFailureMessage(branchLookup, 'could not query map store branch') };
+  }
+
+  let tmp: string;
+  try {
+    // checkoutMapStore throws only on infra (clone/checkout/network) — a bundle simply
+    // being absent surfaces below as an empty tree, not an exception.
+    tmp = checkoutMapStore(cwd, remote, branch, sha);
+  } catch (error) {
+    return { status: 'infra', message: errorMessage(error) };
+  }
+
+  try {
+    const shaDir = path.join(tmp, sha);
+    if (!fs.existsSync(shaDir)) return { status: 'miss', message: `no cached map for ${sha} on ${branch}` };
+    const candidates = fs
+      .readdirSync(shaDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => !compatibilityKey || name === compatibilityKey)
+      .sort();
+    if (!candidates.length) {
+      return {
+        status: 'miss',
+        message: compatibilityKey
+          ? `no cached map for ${sha} with compatibility ${compatibilityKey} on ${branch}`
+          : `no cached map bundle under ${sha} on ${branch}`,
+      };
+    }
+    fs.rmSync(outDir, { recursive: true, force: true });
+    copyDir(path.join(shaDir, candidates[0]), outDir, true);
+    const manifest = readMapManifest(outDir);
+    if (!manifest) return { status: 'miss', message: `cached map for ${sha} is missing ${MAP_MANIFEST}` };
+    return { status: 'hit', manifest };
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 export function restoreMapBundle(options: {
@@ -546,36 +925,22 @@ export function restoreMapBundle(options: {
     ? safeSegment(options.compatibilityKey, 'compatibility key')
     : undefined;
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
-  if (runGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20).status !== 0) {
-    throw new MapStoreError(`map store branch ${branch} does not exist`);
+
+  const attempts = mapStoreRestoreAttempts();
+  let lastInfraError = '';
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const result = restoreMapStoreAttempt({ cwd, remote, branch, sha, compatibilityKey, outDir: options.outDir });
+    if (result.status === 'hit') return result.manifest;
+    // A genuine miss is terminal — the cold path recaptures. Only infra faults retry.
+    if (result.status === 'miss') throw new MapStoreNotFoundError(result.message);
+    lastInfraError = result.message;
+    if (attempt < attempts) mapStoreBackoff(attempt);
   }
 
-  const tmp = checkoutMapStore(cwd, remote, branch);
-  try {
-    const shaDir = path.join(tmp, sha);
-    if (!fs.existsSync(shaDir)) throw new MapStoreError(`no cached map for ${sha} on ${branch}`);
-    const candidates = fs
-      .readdirSync(shaDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .filter((name) => !compatibilityKey || name === compatibilityKey)
-      .sort();
-    if (!candidates.length) {
-      throw new MapStoreError(
-        compatibilityKey
-          ? `no cached map for ${sha} with compatibility ${compatibilityKey} on ${branch}`
-          : `no cached map bundle under ${sha} on ${branch}`,
-      );
-    }
-    const src = path.join(shaDir, candidates[0]);
-    fs.rmSync(options.outDir, { recursive: true, force: true });
-    copyDir(src, options.outDir, true);
-    const manifest = readMapManifest(options.outDir);
-    if (!manifest) throw new MapStoreError(`cached map for ${sha} is missing ${MAP_MANIFEST}`);
-    return manifest;
-  } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
-  }
+  throw new MapStoreError(
+    `could not restore ${sha} from ${branch} after ${attempts} ${attempts === 1 ? 'attempt' : 'attempts'}: ` +
+      (lastInfraError || 'unknown map store error'),
+  );
 }
 
 export function resolveCachedCaptureDirs(options: {

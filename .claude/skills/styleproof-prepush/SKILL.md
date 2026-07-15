@@ -15,13 +15,18 @@ for understanding and customizing it.
 
 The scaffolded `pre-push` hook:
 
-1. **Skips** pushes that can't affect render — `STYLEPROOF_SKIP_CAPTURE=1 git
-push`; add a changed-files grep (e.g. only `src/` or the spec) to automate
-   the skip for your layout.
-2. **Captures and publishes** the map (`npx styleproof-map`). Outside CI it
+1. **Skips** pushes that can't affect render — either `STYLEPROOF_SKIP_CAPTURE=1
+git push`, or automatically when the pushed range is **docs-only**
+   (`*.md`/`*.mdx`/`*.markdown`/`*.txt`/`docs/**`/`LICENSE`). A skip is always
+   safe: CI just recaptures on the resulting cache miss.
+2. **Reads the pushed refspec from stdin** and captures the ref whose tip is the
+   checked-out tree, so the map binds to the SHA it actually rendered — pushing
+   some _other_ branch (local oid ≠ HEAD) is left for CI, never captured from the
+   wrong tree.
+3. **Captures and publishes** the map (`npx styleproof-map`). Outside CI it
    auto-uploads the bundle to the dedicated `styleproof-maps` branch, keyed by
    commit SHA — CI restores it from there by the PR head SHA.
-3. **Diffs** the fresh map against the inferred base (`styleproof-diff`), so you
+4. **Diffs** the fresh map against the inferred base (`styleproof-diff`), so you
    see drift before it reaches CI.
 
 The map is **never committed to the PR branch**. Maps on the PR branch show up
@@ -29,18 +34,24 @@ as changed files in review and — because every PR writes the same paths — fo
 a rebase of every open PR each time one merges. The store branch is keyed per
 SHA, so PRs never collide.
 
-The scaffolded hook (add a changed-files bail-early for your layout if you
-want docs-only pushes skipped automatically):
+The hook file itself is a **two-line shim** — all the rules above live in the
+packaged `styleproof-prepush` command, so they update with each styleproof
+release instead of drifting in a copied hook file:
 
 ```sh
 #!/bin/sh
-set -e
 # Skip a push that can't affect render: STYLEPROOF_SKIP_CAPTURE=1 git push
 [ "${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-
-npx styleproof-map            # capture → .styleproof/maps/current, publish to styleproof-maps
-npx styleproof-diff || true   # advisory: show drift before CI does
+exec ./node_modules/.bin/styleproof-prepush --spec e2e/styleproof.spec.ts
 ```
+
+The direct local binary is intentional: a missing StyleProof install fails
+loudly instead of asking a package runner to download an unrelated command.
+
+`styleproof-prepush` accepts `--spec`, `--dir`, `--base-dir`, repeatable
+`--dirty-allow <path>` (forwarded to the capture for tracked files a dev tool
+rewrites), and `--no-diff` to skip the advisory diff. A hook written by an older
+release is refreshed in place with `styleproof-init --hook`.
 
 If init wrote `.githooks/pre-push` (no husky), activate once per clone:
 `git config core.hooksPath .githooks`.

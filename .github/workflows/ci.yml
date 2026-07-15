@@ -70,17 +70,23 @@ jobs:
         run: npm test
 
       # The one place the browser capture path (page.evaluate + CDP) is
-      # exercised — a self-contained file:// fixture, no live server.
+      # exercised — a self-contained file:// fixture, no live server. Runs on
+      # ONE Node version: the suite exercises browser-evaluated code (Node-
+      # agnostic); the Node-sensitive paths (CLI, fs, runner) are covered per
+      # version by the unit suite above.
       - name: Cache Playwright browser
+        if: matrix.node == '22'
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Chromium
+        if: matrix.node == '22'
         run: npx playwright install --with-deps chromium
 
       - name: Smoke e2e
+        if: matrix.node == '22'
         run: npm run test:e2e
 
   cli-smoke:
