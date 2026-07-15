@@ -13,6 +13,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   commit the no-change report and return its immutable URL, so consumers can
   verify publication for every completed run instead of treating missing
   evidence as a clean verdict.
+- **The consumer-checkout publish fallback now works from a partial isolated clone.**
+  The isolated map-store checkout is a blob:none partial clone, and Git refuses to
+  lazy-fetch missing objects while serving a local fetch, so importing the new
+  commit into the consumer checkout failed with "protocol error: bad pack header"
+  whenever the store already held other bundles. The consumer now fetches the
+  branch tip through its own credentials first, which narrows the import to the
+  newly committed objects, and the fallback push fully qualifies its destination
+  ref so it can also create the branch on first publish.
 
 ## [4.4.21] - 2026-07-14
 

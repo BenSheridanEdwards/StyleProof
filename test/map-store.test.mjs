@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import {
   assertCompatibleMapDirs,
   BROWSER_BUILD_SIDECAR,
@@ -319,9 +320,31 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     assert.match(invocations, /fetch -q --no-write-fetch-head .*styleproof-map-store-.* [a-f0-9]{40}/);
     assert.match(
       invocations,
-      /push -q origin [a-f0-9]{40}:styleproof-maps/,
+      /fetch -q --no-write-fetch-head origin \+refs\/heads\/styleproof-maps:refs\/styleproof\/map-store-tip/,
+      'the consumer import is preceded by a tip fetch so the partial isolated clone never serves historic blobs',
+    );
+    assert.match(
+      invocations,
+      /push -q origin [a-f0-9]{40}:refs\/heads\/styleproof-maps/,
       'a rejected isolated push is retried through the authenticated consumer checkout',
     );
+    const assertSingleAuthorizationHeader = (loggedInvocations, phase) => {
+      for (const invocation of loggedInvocations.split('\n')) {
+        const authorizationEntries = invocation.split('extraheader=AUTHORIZATION').length - 1;
+        assert.ok(
+          authorizationEntries <= 1,
+          `${phase}: a git call must never carry two AUTHORIZATION headers: ${invocation}`,
+        );
+        if (authorizationEntries === 1) {
+          assert.match(
+            invocation,
+            /extraheader= -c \S*extraheader=AUTHORIZATION/,
+            `${phase}: an inherited-header reset precedes the single AUTHORIZATION entry: ${invocation}`,
+          );
+        }
+      }
+    };
+    assertSingleAuthorizationHeader(invocations, 'checkout-credential fallback');
     assert.equal(
       git(root, '--git-dir', remote, 'show', 'styleproof-maps:unseen-sha/unseen-compatibility/keep.txt'),
       'keep',
@@ -360,6 +383,7 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
       /fake-checkout-token/,
       'stale checkout credentials are not reused when the workflow supplies an explicit token',
     );
+    assertSingleAuthorizationHeader(tokenInvocations, 'workflow token');
 
     process.env.STYLEPROOF_TEST_REJECT_ALL_PUSHES = '1';
     process.env.STYLEPROOF_TEST_PUSH_REJECTED_MARKER = path.join(root, 'push-rejected');
@@ -389,6 +413,113 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     else process.env.STYLEPROOF_TEST_REJECT_ALL_PUSHES = previousRejectAllPushes;
     if (previousPushRejectedMarker === undefined) delete process.env.STYLEPROOF_TEST_PUSH_REJECTED_MARKER;
     else process.env.STYLEPROOF_TEST_PUSH_REJECTED_MARKER = previousPushRejectedMarker;
+    rmTmp(root);
+  }
+});
+
+test('publishMapBundle consumer fallback survives a partial isolated clone that cannot serve historic blobs', () => {
+  const root = mkTmp('styleproof-partial-fallback-');
+  const remote = path.join(root, 'remote.git');
+  const seed = path.join(root, 'seed');
+  const consumer = path.join(root, 'consumer');
+  const capture = path.join(consumer, '.styleproof/maps/current');
+  const shimDirectory = path.join(root, 'bin');
+  const invocationLog = path.join(root, 'git-invocations.log');
+  const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  const git = (cwd, ...args) => execFileSync(realGit, args, { cwd, stdio: 'pipe' }).toString().trim();
+  const previousPath = process.env.PATH;
+  const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
+  const previousInvocationLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  const previousMapStoreToken = process.env.STYLEPROOF_MAP_STORE_TOKEN;
+  try {
+    // file:// (unlike a plain local path) goes through the real transport, so the
+    // isolated checkout becomes a genuine blob:none partial clone whose upload-pack
+    // cannot serve the seeded historic bundle back to the consumer.
+    git(root, 'init', '--bare', '-q', remote);
+    git(root, '--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true');
+    git(root, 'clone', '-q', remote, seed);
+    git(seed, 'checkout', '-q', '-b', 'styleproof-maps');
+    git(seed, 'config', 'user.email', 'styleproof@example.test');
+    git(seed, 'config', 'user.name', 'StyleProof Test');
+    fs.writeFileSync(path.join(seed, 'README.md'), '# StyleProof maps\n');
+    fs.mkdirSync(path.join(seed, 'unseen-sha', 'unseen-compatibility'), { recursive: true });
+    fs.writeFileSync(path.join(seed, 'unseen-sha', 'unseen-compatibility', 'keep.txt'), 'keep\n');
+    git(seed, 'add', '-A');
+    git(seed, 'commit', '-qm', 'seed map store');
+    git(seed, 'push', '-q', 'origin', 'styleproof-maps');
+
+    fs.mkdirSync(consumer);
+    git(consumer, 'init', '-q', '-b', 'main');
+    git(consumer, 'config', 'user.email', 'styleproof@example.test');
+    git(consumer, 'config', 'user.name', 'StyleProof Test');
+    git(consumer, 'remote', 'add', 'origin', pathToFileURL(remote).href);
+    fs.writeFileSync(path.join(consumer, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(consumer, 'styleproof.spec.ts'), 'export default {};\n');
+    git(consumer, 'add', '-A');
+    git(consumer, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{}');
+    writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(consumer, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: consumer,
+    });
+
+    fs.mkdirSync(shimDirectory);
+    const gitShim = path.join(shimDirectory, 'git');
+    fs.writeFileSync(
+      gitShim,
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in *"push -q origin HEAD:styleproof-maps"*) echo "isolated push rejected" >&2; exit 128 ;; esac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+    );
+    fs.chmodSync(gitShim, 0o755);
+    process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
+    process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
+    process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
+    delete process.env.STYLEPROOF_MAP_STORE_TOKEN;
+
+    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: consumer }));
+
+    const invocations = fs.readFileSync(invocationLog, 'utf8');
+    assert.match(
+      invocations,
+      /clone -q --filter=blob:none --no-checkout --depth 1/,
+      'the isolated checkout really was a filtered partial clone',
+    );
+    assert.match(
+      invocations,
+      /fetch -q --no-write-fetch-head origin \+refs\/heads\/styleproof-maps:refs\/styleproof\/map-store-tip/,
+      'the consumer fetches the branch tip with its own credentials before importing',
+    );
+    const publishedSha = git(consumer, 'rev-parse', 'HEAD');
+    assert.equal(
+      git(root, '--git-dir', remote, 'ls-tree', '--name-only', 'styleproof-maps', `${publishedSha}/`).length > 0,
+      true,
+      'the consumer fallback published the new bundle',
+    );
+    assert.equal(
+      git(root, '--git-dir', remote, 'show', 'styleproof-maps:unseen-sha/unseen-compatibility/keep.txt'),
+      'keep',
+      'the fallback publish preserves bundles that were never fetched locally',
+    );
+    assert.equal(
+      git(consumer, 'for-each-ref', 'refs/styleproof/'),
+      '',
+      'the temporary tip import ref is removed from the consumer checkout',
+    );
+    assert.ok(!fs.existsSync(path.join(consumer, '.git', 'shallow')), 'the consumer checkout never becomes shallow');
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousRealGit === undefined) delete process.env.STYLEPROOF_TEST_REAL_GIT;
+    else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
+    if (previousInvocationLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
+    else process.env.STYLEPROOF_TEST_GIT_LOG = previousInvocationLog;
+    if (previousMapStoreToken === undefined) delete process.env.STYLEPROOF_MAP_STORE_TOKEN;
+    else process.env.STYLEPROOF_MAP_STORE_TOKEN = previousMapStoreToken;
     rmTmp(root);
   }
 });
