@@ -19,6 +19,7 @@ import {
   missingSpecMessage,
   nonLinuxUploadWarning,
   playwrightMissingMessage,
+  projectConfigOrExit,
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
@@ -67,7 +68,14 @@ options:
   --crawl-strict      fail if live-state fixtures or skipped candidates remain
   --cache-branch <b>  map store branch (default: ${DEFAULT_MAP_STORE_BRANCH})
   --remote <name>     git remote for the map store (default: ${DEFAULT_REMOTE})
+  --dirty-allow <path>
+                      tracked file or directory whose changes never mark the capture
+                      dirty (a dev tool rewriting e.g. tsconfig.json); repeatable,
+                      also via STYLEPROOF_DIRTY_ALLOW (comma-separated)
   -h, --help          show this help
+
+A styleproof.config.json at the repo root supplies project defaults — "spec",
+"dirtyAllow", "cacheBranch", "remote" — with flags and env overriding it.
 
 If playwright.styleproof.config.ts exists, styleproof-map passes it to Playwright
 by default. Override with: styleproof-map -- --config playwright.config.ts
@@ -85,15 +93,16 @@ Examples:
 `;
 
 const argv = process.argv.slice(2);
-let spec = 'e2e/styleproof.spec.ts';
+const projectConfig = projectConfigOrExit('styleproof-map');
+let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
 let dir = process.env.STYLEMAP_DIR ?? DEFAULT_MAP_LABEL;
 let baseDir = process.env.STYLEPROOF_BASEDIR ?? DEFAULT_MAP_DIR;
 let screenshots = process.env.STYLEPROOF_SCREENSHOTS ?? '1';
 let keepHar = process.env.STYLEPROOF_KEEP_HAR === '1';
 let sha = process.env.STYLEPROOF_SHA ?? '';
 let restore = false;
-let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? DEFAULT_MAP_STORE_BRANCH;
-let remote = process.env.STYLEPROOF_REMOTE ?? DEFAULT_REMOTE;
+let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
+let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
 let uploadMode =
   process.env.STYLEPROOF_UPLOAD === '1' ? 'required' : process.env.STYLEPROOF_UPLOAD === '0' ? 'off' : 'auto';
 let crawlBaseUrl = process.env.STYLEPROOF_CRAWL_BASE_URL ?? '';
@@ -106,6 +115,15 @@ let crawlMaxActions = process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ?? '';
 let crawlWidth = process.env.STYLEPROOF_CRAWL_WIDTH ?? '';
 let crawlHeight = process.env.STYLEPROOF_CRAWL_HEIGHT ?? '';
 let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1';
+// Allow paths accumulate across layers (config + env + flags) — they are all
+// "files my tooling rewrites", never mutually exclusive alternatives.
+const dirtyAllow = [
+  ...(projectConfig.dirtyAllow ?? []),
+  ...(process.env.STYLEPROOF_DIRTY_ALLOW ?? '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean),
+];
 const playwrightArgs = [];
 
 for (let i = 0; i < argv.length; i++) {
@@ -141,6 +159,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--crawl-height') crawlHeight = argv[++i];
   else if (a.startsWith('--crawl-height=')) crawlHeight = a.slice(15);
   else if (a === '--crawl-strict') crawlStrict = true;
+  else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
+  else if (a.startsWith('--dirty-allow=')) dirtyAllow.push(a.slice(14));
   else if (a === '--cache-branch' || a === '--remote') {
     const value = argv[++i];
     if (a === '--cache-branch') cacheBranch = value;
@@ -271,7 +291,7 @@ const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
 let dirtyBeforeCapture;
 let headBeforeCapture;
 try {
-  dirtyBeforeCapture = workingTreeDirty(process.cwd());
+  dirtyBeforeCapture = workingTreeDirty(process.cwd(), dirtyAllow);
   headBeforeCapture = currentGitSha(process.cwd());
 } catch {
   dirtyBeforeCapture = false;
@@ -367,7 +387,8 @@ if (status === 0) {
   try {
     const rel = path.relative(process.cwd(), targetDir) || targetDir;
     const headAfter = currentGitSha(process.cwd(), env);
-    if (workingTreeDirty(process.cwd(), rel) || (headBeforeCapture && headAfter !== headBeforeCapture)) dirty = true;
+    if (workingTreeDirty(process.cwd(), [...dirtyAllow, rel]) || (headBeforeCapture && headAfter !== headBeforeCapture))
+      dirty = true;
   } catch {
     // git unreadable now — keep the pre-capture verdict rather than guess
   }
@@ -378,6 +399,7 @@ if (status === 0) {
       sha: manifestSha,
       screenshots: screenshots !== '0',
       dirty,
+      dirtyAllow,
       env,
     });
     console.error(`styleproof-map: wrote ${targetDir} for ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey})`);

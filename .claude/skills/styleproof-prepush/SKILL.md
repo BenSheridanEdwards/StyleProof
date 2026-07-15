@@ -34,19 +34,24 @@ as changed files in review and — because every PR writes the same paths — fo
 a rebase of every open PR each time one merges. The store branch is keyed per
 SHA, so PRs never collide.
 
-The scaffolded hook, in essence (it also reads the pushed refspec from stdin and
-auto-skips a docs-only push — see the numbered steps above; widen the docs
-allowlist in the generated hook if your layout needs it):
+The hook file itself is a **two-line shim** — all the rules above live in the
+packaged `styleproof-prepush` command, so they update with each styleproof
+release instead of drifting in a copied hook file:
 
 ```sh
 #!/bin/sh
-set -e
 # Skip a push that can't affect render: STYLEPROOF_SKIP_CAPTURE=1 git push
 [ "${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-
-npx styleproof-map            # capture → .styleproof/maps/current, publish to styleproof-maps
-npx styleproof-diff || true   # advisory: show drift before CI does
+exec ./node_modules/.bin/styleproof-prepush --spec e2e/styleproof.spec.ts
 ```
+
+The direct local binary is intentional: a missing StyleProof install fails
+loudly instead of asking a package runner to download an unrelated command.
+
+`styleproof-prepush` accepts `--spec`, `--dir`, `--base-dir`, repeatable
+`--dirty-allow <path>` (forwarded to the capture for tracked files a dev tool
+rewrites), and `--no-diff` to skip the advisory diff. A hook written by an older
+release is refreshed in place with `styleproof-init --hook`.
 
 If init wrote `.githooks/pre-push` (no husky), activate once per clone:
 `git config core.hooksPath .githooks`.

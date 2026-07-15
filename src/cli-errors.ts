@@ -1,3 +1,5 @@
+import { type StyleProofConfig, loadStyleProofConfig } from './config.js';
+
 export function isHelpArg(arg: string | undefined): boolean {
   return arg === '-h' || arg === '--help';
 }
@@ -9,6 +11,20 @@ export function showHelpAndExit(help: string): never {
 
 export function cliErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Shared CLI prologue: the repo's styleproof.config.json as the lowest-precedence
+ * default layer (flag > env > file > built-in), or a loud usage-error exit —
+ * config the user wrote must never be silently dropped.
+ */
+export function projectConfigOrExit(cli: string): StyleProofConfig {
+  try {
+    return loadStyleProofConfig();
+  } catch (error) {
+    process.stderr.write(`${cli}: ${cliErrorMessage(error)}\n`);
+    process.exit(2);
+  }
 }
 
 /**

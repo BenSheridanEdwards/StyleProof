@@ -940,28 +940,31 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.equal(r.status, 0, r.stderr);
 
     const hook = fs.readFileSync(path.join(dir, '.githooks', 'pre-push'), 'utf8');
-    assert.match(hook, /styleproof-map --restore --sha "\$head_sha"/, 'hook restores an existing exact map first');
-    assert.match(hook, /--sha "\$head_sha" --upload/, 'hook requires a clean exact-SHA upload on a miss');
+    assert.match(
+      hook,
+      /exec \.\/node_modules\/\.bin\/styleproof-prepush --spec/,
+      'hook delegates to the installed packaged pre-push command',
+    );
+    assert.doesNotMatch(hook, /styleproof-map --/, 'no inlined capture invocation to drift');
     assert.doesNotMatch(hook, /git add/, 'maps never get committed to the PR branch');
     assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
+    // The whole restore → capture-on-miss → replay → publish orchestration is ONE
+    // packaged command invoked on the installed release — no inlined bash to drift.
     assert.match(
       ci,
-      /styleproof-map\.mjs --restore --sha "\$BASE_SHA"/,
-      'CI first restores cached maps with the installed release',
+      /node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$\{\{ github\.event\.pull_request\.base\.sha \}\}" --head "\$\{\{ github\.event\.pull_request\.head\.sha \}\}"/,
+      'CI delegates restore/capture to the packaged styleproof-ci',
     );
-    assert.match(
+    assert.match(ci, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs/);
+    assert.doesNotMatch(ci, /styleproof-map\.mjs/, 'no inlined restore/capture invocations remain');
+    assert.doesNotMatch(ci, /Capture maps in CI on cache miss/, 'the fallback lives inside styleproof-ci now');
+    assert.doesNotMatch(
       ci,
-      /git checkout --force "\$BASE_SHA"[\s\S]*styleproof-map\.mjs --restore --sha "\$BASE_SHA"[\s\S]*git checkout --force "\$HEAD_SHA"[\s\S]*styleproof-map\.mjs --restore --sha "\$HEAD_SHA"/,
-      'CI computes each restore key from the lockfile at that exact commit',
+      /"styleproof@\$STYLEPROOF_VERSION"/,
+      'the exact-release pin lives inside styleproof-ci now',
     );
-    assert.match(ci, /capture-needed=true/, 'CI records cache misses');
-    assert.match(ci, /Capture maps in CI on cache miss/, 'CI has a correctness fallback');
-    assert.match(ci, /STYLEPROOF_REPLAY_FROM="\$MAP_ROOT\/base"/, 'fallback replays base data for head');
-    assert.match(ci, /steps\.maps\.outputs\.base-hit/, 'a base hit avoids rebuilding the base');
-    assert.match(ci, /--sha "\$BASE_SHA" --upload/, 'cold base capture is published for reuse');
-    assert.match(ci, /--sha "\$HEAD_SHA" --upload/, 'cold head capture is published for reuse');
     assert.match(ci, /BenSheridanEdwards\/StyleProof@v4/, 'workflow uses the current report action');
     assert.match(ci, /require-approval: true/, 'workflow enables the approval report gate');
     assert.doesNotMatch(ci, /git add stylemaps/);

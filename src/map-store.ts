@@ -61,6 +61,8 @@ export interface MapManifest {
   packageVersion: string;
   sha: string;
   dirty: boolean;
+  /** Repo-relative files/directories excluded from dirty provenance for this capture. */
+  dirtyAllow?: string[];
   spec: string;
   specHash: string;
   lockfile?: string;
@@ -391,19 +393,23 @@ export function refSha(ref: string, cwd = process.cwd()): string {
 }
 
 /**
- * True if any tracked file is modified/added/deleted. `ignorePrefix` (a repo-relative
- * directory) is excluded — pass the map OUTPUT dir when re-sampling AFTER a capture, so
- * the maps the capture just wrote don't read as tree dirt and mask a real source edit.
+ * True if any tracked file is modified/added/deleted. `ignore` (repo-relative files or
+ * directories) are excluded — pass the map OUTPUT dir when re-sampling AFTER a capture,
+ * so the maps the capture just wrote don't read as tree dirt and mask a real source
+ * edit, and pass `--dirty-allow` paths for files a dev tool rewrites on every run
+ * (the ambient equivalent of the built-in next-env.d.ts allowance).
  */
-export function workingTreeDirty(cwd = process.cwd(), ignorePrefix?: string): boolean {
+export function workingTreeDirty(cwd = process.cwd(), ignore?: string | readonly string[]): boolean {
   const r = runGit(cwd, ['status', '--porcelain']);
   const status = r.status === 0 ? r.stdout.trimEnd() : '';
   if (!status) return false;
-  const prefix = ignorePrefix ? `${ignorePrefix.replace(/\/+$/, '')}/` : undefined;
+  const prefixes = (typeof ignore === 'string' ? [ignore] : (ignore ?? []))
+    .filter(Boolean)
+    .map((p) => `${p.replace(/\/+$/, '')}/`);
   return status.split(/\r?\n/).some((line) => {
     const file = line.slice(3).trim();
     if (!file || GENERATED_DIRTY_ALLOWLIST.has(file)) return false;
-    if (prefix && (file === prefix.slice(0, -1) || file.startsWith(prefix))) return false;
+    if (prefixes.some((prefix) => file === prefix.slice(0, -1) || file.startsWith(prefix))) return false;
     return true;
   });
 }
@@ -420,6 +426,7 @@ function buildManifest(options: {
   input: ReturnType<typeof compatibilityInput>;
   sha: string;
   dirty: boolean;
+  dirtyAllow?: readonly string[];
   screenshots: boolean;
 }): MapManifest {
   const { dir, input } = options;
@@ -429,6 +436,7 @@ function buildManifest(options: {
     packageVersion: input.packageVersion,
     sha: options.sha,
     dirty: options.dirty,
+    ...(options.dirtyAllow?.length ? { dirtyAllow: [...options.dirtyAllow] } : {}),
     spec: input.spec,
     specHash: input.specHash,
     ...(input.lockfile ? { lockfile: input.lockfile } : {}),
@@ -452,6 +460,7 @@ export function writeMapManifest(options: {
   sha?: string;
   screenshots: boolean;
   dirty?: boolean;
+  dirtyAllow?: readonly string[];
   cwd?: string;
   env?: NodeJS.ProcessEnv;
 }): MapManifest {
@@ -462,6 +471,7 @@ export function writeMapManifest(options: {
     input,
     sha: options.sha ?? currentGitSha(cwd, options.env),
     dirty: options.dirty ?? workingTreeDirty(cwd),
+    dirtyAllow: options.dirtyAllow,
     screenshots: options.screenshots,
   });
   fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));

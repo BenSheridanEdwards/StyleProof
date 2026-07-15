@@ -151,6 +151,44 @@ test('workingTreeDirty: ignorePrefix skips the map output dir but still catches 
   }
 });
 
+test('workingTreeDirty: multiple allow paths cover files a dev tool rewrites, without masking real edits', () => {
+  const repo = mkTmp('styleproof-dirty-allow-');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    fs.mkdirSync(path.join(repo, 'hud'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'hud/tsconfig.json'), '{}');
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v1');
+    fs.mkdirSync(path.join(repo, '.styleproof/maps/current'), { recursive: true });
+    fs.writeFileSync(path.join(repo, '.styleproof/maps/current/home@1280.json'), '{}');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+
+    // The `next dev` class of dirt: a tracked config file rewritten by tooling.
+    fs.writeFileSync(path.join(repo, 'hud/tsconfig.json'), '{"rewritten":true}');
+    assert.equal(workingTreeDirty(repo), true, 'tool rewrite dirties the raw tree');
+    assert.equal(workingTreeDirty(repo, ['hud/tsconfig.json']), false, 'an exact-file allow skips it');
+
+    // Allow paths compose with the map-output ignore the CLI already passes.
+    fs.writeFileSync(path.join(repo, '.styleproof/maps/current/home@1280.json'), '{"changed":1}');
+    assert.equal(workingTreeDirty(repo, ['hud/tsconfig.json', '.styleproof/maps/current']), false);
+
+    // A real source edit is still caught alongside both allowances.
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v2');
+    assert.equal(workingTreeDirty(repo, ['hud/tsconfig.json', '.styleproof/maps/current']), true);
+
+    // An allowed DIRECTORY prefix must not also allow sibling files sharing the name prefix.
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v1');
+    fs.writeFileSync(path.join(repo, 'hud/tsconfig.json.bak'), 'x');
+    git('add', 'hud/tsconfig.json.bak');
+    assert.equal(workingTreeDirty(repo, ['hud/tsconfig.json']), true, 'prefix match is path-segment exact');
+  } finally {
+    rmTmp(repo);
+  }
+});
+
 test('publishMapBundle ignores hook-exported Git repository variables and leaves the caller non-bare', () => {
   const root = mkTmp('styleproof-hook-env-');
   const remote = path.join(root, 'remote.git');
@@ -980,9 +1018,12 @@ test('writeBrowserBuildSidecar(undefined) CLEARS a stale sidecar so a version-le
       sha: 'd'.repeat(40),
       screenshots: true,
       dirty: false,
+      dirtyAllow: ['hud/tsconfig.json', 'generated/'],
     });
     assert.equal(manifest.browserVersion, undefined);
+    assert.deepEqual(manifest.dirtyAllow, ['hud/tsconfig.json', 'generated/']);
     assert.equal(readMapManifest(dir).browserVersion, undefined);
+    assert.deepEqual(readMapManifest(dir).dirtyAllow, ['hud/tsconfig.json', 'generated/']);
   } finally {
     rmTmp(dir);
   }
