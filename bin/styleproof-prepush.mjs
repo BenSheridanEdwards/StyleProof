@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { DEFAULT_MAP_DIR, DEFAULT_MAP_LABEL } from '../dist/map-store.js';
 import { choosePrePushCaptureSha, parsePrePushRefs } from '../dist/prepush.js';
 
@@ -42,10 +42,14 @@ options:
                       mark the capture dirty; repeatable
   --no-diff           skip the advisory styleproof-diff after restore/capture
   -h, --help          show this help
+
+A styleproof.config.json at the repo root supplies project defaults ("spec",
+"dirtyAllow", …) so the generated hook shim needs no per-repo flag threading.
 `;
 
 const argv = process.argv.slice(2);
-let spec = 'e2e/styleproof.spec.ts';
+const projectConfig = projectConfigOrExit('styleproof-prepush');
+let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
 let dir = DEFAULT_MAP_LABEL;
 let baseDir = DEFAULT_MAP_DIR;
 let advisoryDiff = true;

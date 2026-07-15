@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from '../dist/ci.js';
 
 const HELP = `styleproof-ci — restore or capture the base/head maps for a PR, cache-first
@@ -54,9 +54,12 @@ exit codes:
 `;
 
 const argv = process.argv.slice(2);
+// Loaded from the CURRENT checkout — by the time captures run, the flow has
+// checked out the commit whose config should govern it anyway.
+const projectConfig = projectConfigOrExit('styleproof-ci');
 let base = '';
 let head = '';
-let spec = 'e2e/styleproof.spec.ts';
+let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
 let baseDir = process.env.RUNNER_TEMP ? path.join(process.env.RUNNER_TEMP, 'styleproof-maps') : '.styleproof/ci-maps';
 let force = false;
 for (let i = 0; i < argv.length; i++) {

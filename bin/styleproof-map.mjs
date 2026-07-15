@@ -19,6 +19,7 @@ import {
   missingSpecMessage,
   nonLinuxUploadWarning,
   playwrightMissingMessage,
+  projectConfigOrExit,
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
@@ -73,6 +74,9 @@ options:
                       also via STYLEPROOF_DIRTY_ALLOW (comma-separated)
   -h, --help          show this help
 
+A styleproof.config.json at the repo root supplies project defaults — "spec",
+"dirtyAllow", "cacheBranch", "remote" — with flags and env overriding it.
+
 If playwright.styleproof.config.ts exists, styleproof-map passes it to Playwright
 by default. Override with: styleproof-map -- --config playwright.config.ts
 
@@ -89,15 +93,16 @@ Examples:
 `;
 
 const argv = process.argv.slice(2);
-let spec = 'e2e/styleproof.spec.ts';
+const projectConfig = projectConfigOrExit('styleproof-map');
+let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
 let dir = process.env.STYLEMAP_DIR ?? DEFAULT_MAP_LABEL;
 let baseDir = process.env.STYLEPROOF_BASEDIR ?? DEFAULT_MAP_DIR;
 let screenshots = process.env.STYLEPROOF_SCREENSHOTS ?? '1';
 let keepHar = process.env.STYLEPROOF_KEEP_HAR === '1';
 let sha = process.env.STYLEPROOF_SHA ?? '';
 let restore = false;
-let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? DEFAULT_MAP_STORE_BRANCH;
-let remote = process.env.STYLEPROOF_REMOTE ?? DEFAULT_REMOTE;
+let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
+let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
 let uploadMode =
   process.env.STYLEPROOF_UPLOAD === '1' ? 'required' : process.env.STYLEPROOF_UPLOAD === '0' ? 'off' : 'auto';
 let crawlBaseUrl = process.env.STYLEPROOF_CRAWL_BASE_URL ?? '';
@@ -110,10 +115,15 @@ let crawlMaxActions = process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ?? '';
 let crawlWidth = process.env.STYLEPROOF_CRAWL_WIDTH ?? '';
 let crawlHeight = process.env.STYLEPROOF_CRAWL_HEIGHT ?? '';
 let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1';
-const dirtyAllow = (process.env.STYLEPROOF_DIRTY_ALLOW ?? '')
-  .split(',')
-  .map((p) => p.trim())
-  .filter(Boolean);
+// Allow paths accumulate across layers (config + env + flags) — they are all
+// "files my tooling rewrites", never mutually exclusive alternatives.
+const dirtyAllow = [
+  ...(projectConfig.dirtyAllow ?? []),
+  ...(process.env.STYLEPROOF_DIRTY_ALLOW ?? '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean),
+];
 const playwrightArgs = [];
 
 for (let i = 0; i < argv.length; i++) {

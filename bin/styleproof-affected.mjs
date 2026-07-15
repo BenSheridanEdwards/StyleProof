@@ -17,7 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from '../dist/affected-surfaces.js';
 
 const HELP = `styleproof-affected — which declared surfaces could this change have restyled?
@@ -25,13 +25,17 @@ const HELP = `styleproof-affected — which declared surfaces could this change 
 usage: styleproof-affected --graph <depcruise.json> (--surfaces <json> | --surface k=path ...)
                            (--base <ref> | --changed <path> ...) [options]
 
-inputs:
+inputs (each falls back to the "affected" block of styleproof.config.json, so a
+configured repo can run a bare \`styleproof-affected\`):
   --graph <json>      dependency-cruiser JSON for the source tree, e.g.
                         npx depcruise src --no-config --output-type json > dc.json
+                      (config: affected.graph)
   --surfaces <json>   JSON file mapping capture key → surface entry module path,
                         { "home": "src/pages/Home.tsx", "pricing": "src/pages/Pricing.tsx" }
-  --surface <k=path>  one mapping entry inline; repeatable, merges over --surfaces
+                      (config: affected.surfaces, an inline map; --surfaces replaces it)
+  --surface <k=path>  one mapping entry inline; repeatable, merges over the rest
   --base <ref>        derive changed files from git: git diff --name-only <ref>...HEAD
+                      (config: affected.base)
   --changed <path>    a changed file (repo-relative, as it appears in the graph);
                       repeatable, replaces the git derivation
   --root <dir>        directory the graph's relative paths resolve against, for
@@ -95,12 +99,22 @@ function readJson(file, what) {
   }
 }
 
-if (!graphPath) usageError('--graph <depcruise.json> is required');
-if (!surfacesPath && inlineSurfaces.length === 0)
-  usageError('provide --surfaces <json> or at least one --surface k=path');
-if (!baseRef && changedArgs.length === 0) usageError('provide --base <ref> or at least one --changed <path>');
+// The "affected" block of styleproof.config.json is the lowest-precedence layer,
+// so a configured repo runs a bare `styleproof-affected` with no flags at all.
+const affectedConfig = projectConfigOrExit('styleproof-affected').affected ?? {};
+if (!graphPath && affectedConfig.graph) graphPath = affectedConfig.graph;
+if (!baseRef && changedArgs.length === 0 && affectedConfig.base) baseRef = affectedConfig.base;
 
-const surfaces = surfacesPath ? readJson(surfacesPath, 'the surfaces map') : {};
+if (!graphPath) usageError('--graph <depcruise.json> is required (or set affected.graph in styleproof.config.json)');
+if (!surfacesPath && inlineSurfaces.length === 0 && !affectedConfig.surfaces)
+  usageError(
+    'provide --surfaces <json>, at least one --surface k=path, or affected.surfaces in styleproof.config.json',
+  );
+if (!baseRef && changedArgs.length === 0)
+  usageError('provide --base <ref>, at least one --changed <path>, or affected.base in styleproof.config.json');
+
+// --surfaces replaces the config map wholesale; inline --surface entries merge on top.
+const surfaces = surfacesPath ? readJson(surfacesPath, 'the surfaces map') : { ...(affectedConfig.surfaces ?? {}) };
 for (const entry of inlineSurfaces) {
   const eq = entry.indexOf('=');
   if (eq <= 0) usageError(`--surface expects key=path, got '${entry}'`);
