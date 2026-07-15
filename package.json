@@ -42,7 +42,8 @@
     "styleproof-diff": "./bin/styleproof-diff.mjs",
     "styleproof-report": "./bin/styleproof-report.mjs",
     "styleproof-variants": "./bin/styleproof-variants.mjs",
-    "styleproof-prepush": "./bin/styleproof-prepush.mjs"
+    "styleproof-prepush": "./bin/styleproof-prepush.mjs",
+    "styleproof-affected": "./bin/styleproof-affected.mjs"
   },
   "files": [
     "dist",

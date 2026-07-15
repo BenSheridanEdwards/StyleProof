@@ -928,17 +928,20 @@ selective remap: OFF → re-capture all 3 surface(s) — src/tokens.css is a glo
   ↻ pricing (re-capture)
 ```
 
-Wired into a pre-push hook, the whole recipe is: diff the changed files, produce the graph, ask `affectedSurfaces`, print the skip list, then capture only the subset and reuse the base maps restored from `styleproof-maps` for the rest.
+The whole recipe is packaged as the **`styleproof-affected`** CLI — it maps a dependency-cruiser JSON into edges, derives the changed files from git (or takes them explicitly), calls `affectedSurfaces`, and prints `explainAffectedSurfaces`. Declare the key → entry-module map once in a JSON file; exit `0` is a scoped verdict, exit `3` means unbounded (re-capture everything):
 
 ```sh
 #!/usr/bin/env sh
 # .husky/pre-push (opt-in; the default CI gate still captures every surface)
-CHANGED=$(git diff --name-only origin/main...HEAD)
 npx dependency-cruiser src --no-config --output-type json > dc.json
-node scripts/selective-remap.mjs "$CHANGED" dc.json   # affectedSurfaces + explain + capture subset
+if npx styleproof-affected --graph dc.json --surfaces styleproof.surfaces.json --base origin/main --json > verdict.json; then
+  : # capture only .recapture from verdict.json; copy each .reuse surface's restored base map forward
+else
+  npx styleproof-map   # unbounded change (or usage error): capture everything
+fi
 ```
 
-`scripts/selective-remap.mjs` is yours to own — it maps `dc.json` into `{ from, to }` edges (as above), calls `affectedSurfaces`, prints `explainAffectedSurfaces`, then captures only the returned keys and copies each reused surface's restored base map forward. `main` re-captures everything, so a PR-time miss is still caught at merge.
+The capture-the-subset step stays yours (it depends on your map layout), but the graph mapping, diffing, verdict, and skip-list printing no longer are. `main` re-captures everything, so a PR-time miss is still caught at merge. The programmatic `affectedSurfaces` API above remains for custom pipelines.
 
 ## Reference
 
@@ -1023,6 +1026,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 - `styleproof-capture` — one-shot capture of any URL (no spec): `styleproof-capture <url> --key <name> --out <dir>`, with `--widths` (omit to auto-detect `@media` bands), `--wait <selector>`, `--ignore <selector>`, `--no-screenshots`, and the crawler flags (`--crawl`, `--setup <file>`, `--require-full-coverage` → exit 4 on residue, `--until-covered`, `--workers <n>`, `--no-data-states`) described in [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel).
 - `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
 - `styleproof-prepush` — the canonical pre-push flow, packaged: reads git's refspecs from stdin, captures the pushed commit only when its tip is the checked-out tree, skips docs-only pushes, restores an already-published exact-SHA map or captures and publishes once, then runs the advisory diff. The hook `styleproof-init` writes is a two-line shim that execs this command, so the rules update with each release instead of drifting in a copied hook file — refresh an old hook with `styleproof-init --hook`.
+- `styleproof-affected` — the selective-remap verdict as a command: `--graph dc.json --surfaces styleproof.surfaces.json --base origin/main` answers "which declared surfaces could this change have restyled?" from a dependency-cruiser graph and the git diff, printing the reviewer-checkable skip list and (with `--json`) a machine verdict of `recapture` vs `reuse` keys. Exit `0` = scoped, `3` = unbounded (`'all'` — re-capture everything), `2` = usage error. Advisory: it never captures or gates by itself (see **Optional: selective remap**).
 
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
 
