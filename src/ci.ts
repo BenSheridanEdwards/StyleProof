@@ -95,6 +95,11 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
 
 /** The `$GITHUB_OUTPUT` lines the old workflow step emitted, verbatim, so existing
  *  consumer steps keyed on `steps.maps.outputs.*` keep working after the collapse. */
-export function ciOutputLines(baseHit: boolean, headHit: boolean): string[] {
-  return [`base-hit=${baseHit}`, `head-hit=${headHit}`, `capture-needed=${!(baseHit && headHit)}`];
+export function ciOutputLines(baseHit: boolean, headHit: boolean, baseCaptureFailed = false): string[] {
+  return [
+    `base-hit=${baseHit}`,
+    `head-hit=${headHit}`,
+    `capture-needed=${!(baseHit && headHit)}`,
+    `base-capture-failed=${baseCaptureFailed}`,
+  ];
 }

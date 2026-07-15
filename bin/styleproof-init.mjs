@@ -421,13 +421,15 @@ ${PM.setup}
           # triage, the cold-path base rebuild under the head's exact StyleProof
           # release, HAR replay for the head — live in styleproof-ci, so this
           # step updates with the release instead of drifting per repo. It still
-          # sets base-hit / head-hit / capture-needed for steps that branch on
-          # steps.maps.outputs.*, and it invokes the installed release directly.
+          # sets base-hit / head-hit / capture-needed / base-capture-failed for
+          # steps that branch on steps.maps.outputs.*, and it invokes the installed
+          # release directly.
           PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "\${{ github.event.pull_request.base.sha }}" --head "\${{ github.event.pull_request.head.sha }}" --spec ${specPath} --base-dir "\${{ runner.temp }}/styleproof-maps"
       - uses: BenSheridanEdwards/StyleProof@v4
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
+          base-capture-failed: \${{ steps.maps.outputs.base-capture-failed }}
           require-approval: true
 
   prune:
@@ -541,8 +543,9 @@ const HOOK = `#!/bin/sh
 # A skipped capture is always safe — CI just recaptures on a cache miss:
 #   STYLEPROOF_SKIP_CAPTURE=1 git push
 [ "\${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-exec ${PM.exec(`styleproof-prepush --spec ${specPath}`)}
+exec ./node_modules/.bin/styleproof-prepush --spec ${specPath}
 `;
+const HOOK_OWNERSHIP_MARKER = '# StyleProof pre-push';
 
 function installPrePushHook({ force: f = false } = {}) {
   const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
@@ -595,7 +598,12 @@ function machineOwnedFiles() {
   const approve = readApproveTemplate();
   const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
   return [
-    { file: path.join(hookDir, 'pre-push'), contents: HOOK, executable: true },
+    {
+      file: path.join(hookDir, 'pre-push'),
+      contents: HOOK,
+      executable: true,
+      ownershipMarker: HOOK_OWNERSHIP_MARKER,
+    },
     { file: CI_PATH, contents: CI_WORKFLOW },
     ...(approve === undefined ? [] : [{ file: APPROVE_PATH, contents: approve }]),
   ];
@@ -606,10 +614,12 @@ function machineOwnedFiles() {
 // "a styleproof upgrade changed the generated files — run styleproof-init --upgrade".
 if (checkOnly) {
   let stale = 0;
-  for (const { file, contents } of machineOwnedFiles()) {
+  for (const { file, contents, ownershipMarker } of machineOwnedFiles()) {
     if (!fs.existsSync(file)) {
       console.log(`missing  ${file}`);
       stale++;
+    } else if (ownershipMarker && !fs.readFileSync(file, 'utf8').includes(ownershipMarker)) {
+      console.log(`unmanaged ${file} (left to the repository owner)`);
     } else if (fs.readFileSync(file, 'utf8') !== contents) {
       console.log(`stale    ${file}`);
       stale++;
@@ -631,8 +641,13 @@ if (checkOnly) {
 // the user-owned spec and playwright config alone. Idempotent — an already-current
 // file is reported, not rewritten.
 if (upgrade) {
-  for (const { file, contents, executable } of machineOwnedFiles()) {
-    if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === contents) {
+  for (const { file, contents, executable, ownershipMarker } of machineOwnedFiles()) {
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
+    if (existing !== undefined && ownershipMarker && !existing.includes(ownershipMarker)) {
+      console.log(`unmanaged ${file} (left unchanged; use --hook to replace it explicitly)`);
+      continue;
+    }
+    if (existing === contents) {
       console.log(`current   ${file}`);
       continue;
     }

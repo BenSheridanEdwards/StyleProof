@@ -15,6 +15,9 @@ inputs:
   fresh-dir:
     description: 'Directory with restored or freshly captured PR-head maps to compare (.json.gz + .png).'
     required: true
+  base-capture-failed:
+    description: 'Set true when the baseline capture failed and baseline-dir is intentionally bare. Produces a failing DEGRADED_BASELINE trust state.'
+    default: 'false'
   report-branch:
     description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close.'
     default: 'styleproof-reports'
@@ -46,6 +49,16 @@ outputs:
   report-url:
     description: 'Blob URL of the durable report receipt for this run.'
     value: ${{ steps.publish.outputs.url }}
+  trust-state:
+    description: >-
+      Machine-readable terminal classification: NO_VISUAL_CHANGES,
+      VISUAL_APPROVAL_REQUIRED, DATA_RESIDUE_UNACKNOWLEDGED,
+      INVENTORY_REMOVAL_UNACKNOWLEDGED, CERTIFICATION_FAILED,
+      DEGRADED_BASELINE, or REPORT_PUBLICATION_FAILED.
+    value: ${{ steps.trust.outputs.state }}
+  data-residue-keys:
+    description: 'JSON array of unacknowledged <surface>·<endpoint> residue keys.'
+    value: ${{ steps.verdict.outputs.data-residue-keys }}
 
 runs:
   using: composite
@@ -93,23 +106,17 @@ runs:
 
     # Policy config: an optional styleproof.config.json at the consumer repo root.
     # Today it carries one setting — `blocking` — but it's the home for future gate
-    # policy. Absent/unreadable → all defaults (blocking on; opt out with
-    # "blocking": false). Inputs stay the home for plumbing (dirs, token, mode);
+    # policy. Absent → all defaults (blocking on; opt out with "blocking": false);
+    # malformed policy fails loudly. Inputs stay the home for plumbing (dirs, token, mode);
     # the config file is the home for policy.
     - id: config
       uses: actions/github-script@v9
       with:
         script: |
-          const fs = require('fs');
-          const path = require('path');
-          const file = path.join(process.env.GITHUB_WORKSPACE || '.', 'styleproof.config.json');
-          let cfg = {};
-          try {
-            cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
-            core.info(`StyleProof: loaded ${file}`);
-          } catch (e) {
-            if (e.code !== 'ENOENT') core.warning(`StyleProof: ignoring unreadable styleproof.config.json — ${e.message}`);
-          }
+          const { loadStyleProofConfig, STYLEPROOF_CONFIG_FILE } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/config.js`);
+          const root = process.env.GITHUB_WORKSPACE || '.';
+          const cfg = loadStyleProofConfig(root);
+          core.info(`StyleProof: loaded ${STYLEPROOF_CONFIG_FILE} policy (or defaults when absent)`);
           core.setOutput('blocking', cfg.blocking === false ? 'false' : 'true');
           // A removed navigable affordance (a route/tab/menu-item the UI stopped offering)
           // is a feature going unreachable — high-stakes, and NOT something the style
@@ -136,6 +143,33 @@ runs:
         # 1 = computed-style differences; 3 = only NEW surfaces with no baseline.
         # Both need human review in approval mode. Every defined verdict publishes a receipt.
         if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+
+    # One machine-readable verdict for every defined diff. Consumers should not
+    # re-parse styleproof-diff.json or guess whether approval can clear the run.
+    - id: verdict
+      uses: actions/github-script@v9
+      with:
+        script: |
+          const fs = require('fs');
+          const diff = JSON.parse(fs.readFileSync('styleproof-diff.json', 'utf8'));
+          const residueKeys = (diff.dataResidue?.unacknowledged || []).map((entry) =>
+            typeof entry === 'string' ? entry : entry.key,
+          );
+          const inventoryFailures =
+            (diff.inventory?.unacknowledged || []).length +
+            (diff.inventory?.staleAcknowledgements || []).length;
+          const certificationFailed =
+            diff.coverage?.basis === 'incomplete' ||
+            diff.determinism?.status === 'unproven';
+          let state = 'NO_VISUAL_CHANGES';
+          if ((diff.dataResidue?.blocking ?? 0) > 0) state = 'DATA_RESIDUE_UNACKNOWLEDGED';
+          else if (inventoryFailures > 0) state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED';
+          else if (certificationFailed) state = 'CERTIFICATION_FAILED';
+          else if ('${{ inputs.base-capture-failed }}' === 'true') state = 'DEGRADED_BASELINE';
+          else if ('${{ steps.diff.outputs.changed }}' === 'true') state = 'VISUAL_APPROVAL_REQUIRED';
+          core.setOutput('state', state);
+          core.setOutput('data-residue-keys', JSON.stringify(residueKeys));
+          core.info(`StyleProof trust state: ${state}`);
 
     # Is THIS commit's diff already signed off? Read the existing review status so a
     # re-run after approval keeps the check green (and renders the box ticked) instead
@@ -301,6 +335,7 @@ runs:
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const approver = '${{ steps.gate.outputs.approver }}';
           const statusContext = '${{ inputs.status-context }}';
+          const trustState = '${{ steps.verdict.outputs.state }}';
           // Bind approval to this exact commit so a post-report push can't inherit green.
           const headSha = '${{ steps.context.outputs.head-sha }}';
 
@@ -309,16 +344,24 @@ runs:
           // pre-ticked and carries "approved by @x" (reconstructed from the commit
           // status), so the comment matches the green status without re-running approval.
           const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
-          const box = requireApproval && changed ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`] : [];
+          const box = requireApproval && trustState === 'VISUAL_APPROVAL_REQUIRED'
+            ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
+            : [];
+          const trustGuidance = {
+            DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; visual approval cannot clear this failure._',
+            INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; visual approval cannot clear this failure._',
+            CERTIFICATION_FAILED: '_Coverage or determinism evidence is incomplete — repair the capture; visual approval cannot clear this failure._',
+            DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; visual approval cannot clear this failure._',
+          }[trustState];
           const footer = [
             '---',
-            requireApproval
+            trustGuidance || (requireApproval
               ? !changed
                 ? `_No visual changes detected — the **${statusContext}** check is green._`
                 : approved
                   ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
                   : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
-              : '_To accept: rebuild the map with `styleproof-map`, then rerun the report._',
+              : '_To accept: rebuild the map with `styleproof-map`, then rerun the report._'),
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
           ];
 
@@ -336,19 +379,41 @@ runs:
         script: |
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
+          const trustState = '${{ steps.verdict.outputs.state }}';
           const sha = '${{ steps.context.outputs.head-sha }}';
           const url = '${{ steps.publish.outputs.url }}';
           // Green when no review is needed OR a prior sign-off already approved this commit
           // (so re-running the report can't clobber an approval the approve workflow set).
-          const green = !changed || approved;
+          const green =
+            trustState === 'NO_VISUAL_CHANGES' ||
+            (trustState === 'VISUAL_APPROVAL_REQUIRED' && approved);
+          const descriptions = {
+            NO_VISUAL_CHANGES: 'No visual changes',
+            VISUAL_APPROVAL_REQUIRED: approved
+              ? 'StyleProof changes approved'
+              : 'StyleProof changes need sign-off — tick the box in the report comment',
+            DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
+            INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
+            CERTIFICATION_FAILED: 'Coverage or determinism evidence is incomplete',
+            DEGRADED_BASELINE: 'Base capture failed — head-only evidence cannot certify this change',
+          };
           await github.rest.repos.createCommitStatus({
             ...context.repo,
             sha,
             context: '${{ inputs.status-context }}',
             state: green ? 'success' : 'failure',
-            description: !changed ? 'No visual changes' : approved ? 'StyleProof changes approved' : 'StyleProof changes need sign-off — tick the box in the report comment',
+            description: descriptions[trustState] || `StyleProof trust failure: ${trustState}`,
             ...(changed && !approved && url ? { target_url: url } : {}),
           });
+
+    # A failed base capture still publishes useful head evidence, but that receipt
+    # is not a comparison and must never become green through visual approval.
+    - name: Block on degraded baseline
+      if: inputs.base-capture-failed == 'true'
+      shell: bash
+      run: |
+        echo 'StyleProof: base capture failed — the published report is head-only degraded evidence, not a base-vs-head certification. Repair the base capture and rerun.' >&2
+        exit 1
 
     # blocking (on by default; opt out with styleproof.config.json "blocking": false): on
     # UNAPPROVED changes/new surfaces, fail the job so the check is red even on a repo
@@ -360,7 +425,7 @@ runs:
         steps.context.outputs.pr-number != '' &&
         inputs.require-approval == 'true' &&
         steps.config.outputs.blocking == 'true' &&
-        steps.diff.outputs.changed == 'true' &&
+        steps.verdict.outputs.state == 'VISUAL_APPROVAL_REQUIRED' &&
         steps.gate.outputs.approved != 'true'
       shell: bash
       run: |
@@ -432,3 +497,17 @@ runs:
           exit 1
         fi
         echo "✓ certification: coverage, determinism, and data-residue verdicts are approvable or clean"
+
+    # Always expose a terminal trust classification, even when a later gate fails.
+    # Publication failure outranks every diff verdict because reviewers have no
+    # durable evidence to inspect in that state.
+    - id: trust
+      if: always()
+      uses: actions/github-script@v9
+      with:
+        script: |
+          const published = '${{ steps.publish.outcome }}' === 'success';
+          const diffState = '${{ steps.verdict.outputs.state }}';
+          const state = published ? (diffState || 'CERTIFICATION_FAILED') : 'REPORT_PUBLICATION_FAILED';
+          core.setOutput('state', state);
+          core.info(`StyleProof terminal trust state: ${state}`);

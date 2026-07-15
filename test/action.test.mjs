@@ -84,18 +84,54 @@ test('composite action marks certify-mode comments with their source head SHA', 
   assert.match(commentStep[0], /\.\.\.\(headSha \? \[`<!-- styleproof-sha:\$\{headSha\} -->`\] : \[\]\)/);
 });
 
-test('dogfood workflow runs the local composite action against clean, changed, new-surface, and removal maps', () => {
+test('dogfood workflow runs the local composite action against every trust-state class', () => {
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 4);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 6);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
+  assert.match(dogfoodYml, /action-dogfood\/residue-base/);
   assert.match(dogfoodYml, /action-dogfood\/removed-base/);
+  assert.match(dogfoodYml, /action-dogfood\/degraded-base/);
   assert.match(dogfoodYml, /steps\.clean\.outputs\.report-url }}'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
   assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'true'/);
+  assert.match(dogfoodYml, /steps\.clean\.outputs\.trust-state }}' = 'NO_VISUAL_CHANGES'/);
+  assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'VISUAL_APPROVAL_REQUIRED'/);
+  assert.match(dogfoodYml, /steps\.residue\.outputs\.trust-state }}' = 'DATA_RESIDUE_UNACKNOWLEDGED'/);
+  assert.match(dogfoodYml, /steps\.degraded\.outputs\.trust-state }}' = 'DEGRADED_BASELINE'/);
   // The inventory removal must FAIL the action even with fail-on-diff off.
   assert.match(dogfoodYml, /steps\.removed\.outcome }}' = 'failure'/);
+  assert.match(dogfoodYml, /steps\.removed\.outputs\.trust-state }}' = 'INVENTORY_REMOVAL_UNACKNOWLEDGED'/);
+});
+
+test('composite action exposes one precedence-ordered machine-readable trust verdict', () => {
+  assert.match(actionYml, /trust-state:[\s\S]*?steps\.trust\.outputs\.state/);
+  assert.match(actionYml, /data-residue-keys:[\s\S]*?steps\.verdict\.outputs\.data-residue-keys/);
+  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
+  const residue = verdict[0].indexOf('DATA_RESIDUE_UNACKNOWLEDGED');
+  const inventory = verdict[0].indexOf('INVENTORY_REMOVAL_UNACKNOWLEDGED');
+  const certification = verdict[0].indexOf('CERTIFICATION_FAILED');
+  const degraded = verdict[0].indexOf('DEGRADED_BASELINE');
+  const visual = verdict[0].indexOf('VISUAL_APPROVAL_REQUIRED');
+  assert.ok(
+    residue > 0 && inventory > residue && certification > inventory && degraded > certification && visual > degraded,
+  );
+  const terminal = actionYml.match(/- id: trust[\s\S]*$/);
+  assert.ok(terminal, 'action.yml should always expose a terminal trust state');
+  assert.match(terminal[0], /if: always\(\)/);
+  assert.match(terminal[0], /REPORT_PUBLICATION_FAILED/);
+});
+
+test('composite action exposes and hard-gates degraded head-only evidence', () => {
+  assert.match(actionYml, /base-capture-failed:[\s\S]*?default: 'false'/);
+  assert.match(actionYml, /DEGRADED_BASELINE/);
+  const gate = actionYml.match(/- name: Block on degraded baseline[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/);
+  assert.ok(gate, 'action.yml should fail rather than certify a head-only report');
+  assert.match(gate[0], /inputs\.base-capture-failed == 'true'/);
+  assert.match(gate[0], /exit 1/);
+  assert.doesNotMatch(gate[0], /require-approval/, 'visual approval cannot turn degraded evidence into a comparison');
 });
 
 test('composite action hard-gates on unacknowledged navigable removals in both modes', () => {
@@ -138,6 +174,8 @@ test('composite action blocks unapproved changes by default (opt out with "block
   const configStep = actionYml.match(/- id: config[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:)/);
 
   assert.ok(configStep, 'action.yml should include a config step');
+  assert.match(configStep[0], /loadStyleProofConfig/);
+  assert.doesNotMatch(configStep[0], /ignoring unreadable styleproof\.config\.json/);
   assert.match(
     configStep[0],
     /core\.setOutput\('blocking', cfg\.blocking === false \? 'false' : 'true'\);/,
@@ -150,7 +188,7 @@ test('composite action blocks unapproved changes by default (opt out with "block
   assert.ok(blockStep, 'action.yml should include the unapproved-changes block step');
   assert.match(blockStep[0], /inputs\.require-approval == 'true'/);
   assert.match(blockStep[0], /steps\.config\.outputs\.blocking == 'true'/);
-  assert.match(blockStep[0], /steps\.diff\.outputs\.changed == 'true'/);
+  assert.match(blockStep[0], /steps\.verdict\.outputs\.state == 'VISUAL_APPROVAL_REQUIRED'/);
   assert.match(blockStep[0], /steps\.gate\.outputs\.approved != 'true'/);
   assert.match(blockStep[0], /exit 1/);
 

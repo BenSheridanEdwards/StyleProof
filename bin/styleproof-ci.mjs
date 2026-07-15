@@ -33,6 +33,10 @@ miss it rebuilds the pair in one pinned environment: base checkout → its own
 dependency install → the head's exact StyleProof release → capture+publish base
 → head checkout → capture+publish head.
 
+If the base capture itself fails, the command records a bare baseline and still
+captures the head. That degraded, head-only result is explicit in
+base-capture-failed=true; a failed head capture still fails the command.
+
 options:
   --base <sha>        base commit (e.g. github.event.pull_request.base.sha)
   --head <sha>        head commit (e.g. github.event.pull_request.head.sha)
@@ -43,8 +47,8 @@ options:
                       discard uncommitted changes in this working tree)
   -h, --help          show this help
 
-Writes base-hit / head-hit / capture-needed to $GITHUB_OUTPUT when set, so
-workflow steps can branch on steps.<id>.outputs.* exactly as before.
+Writes base-hit / head-hit / capture-needed / base-capture-failed to
+$GITHUB_OUTPUT when set, so workflow steps can branch on steps.<id>.outputs.*.
 
 exit codes:
   0  both maps present (restored or captured+published)
@@ -150,7 +154,16 @@ function playwrightInstall() {
 
 function capture(args, extraEnv = {}) {
   const r = spawnSync(process.execPath, [MAP, ...args], { stdio: 'inherit', env: { ...env, ...extraEnv } });
-  if ((r.status ?? 1) !== 0) process.exit(r.status ?? 1);
+  if (r.error) {
+    console.error(`styleproof-ci: could not run styleproof-map capture\n${r.error.message}`);
+    return 1;
+  }
+  return r.status ?? 1;
+}
+
+function captureOrDie(args, extraEnv = {}) {
+  const status = capture(args, extraEnv);
+  if (status !== 0) process.exit(status);
 }
 
 function hasHarFiles(dir) {
@@ -176,40 +189,62 @@ const baseHit = restore(base, 'base');
 checkout(head);
 const headHit = restore(head, 'head');
 
-const outputs = ciOutputLines(baseHit, headHit);
-if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
-log(outputs.join(' '));
+function writeOutputs(baseCaptureFailed = false) {
+  const outputs = ciOutputLines(baseHit, headHit, baseCaptureFailed);
+  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
+  log(outputs.join(' '));
+}
 
 if (baseHit && headHit) {
+  writeOutputs();
   log('both maps restored — no capture needed');
   process.exit(0);
 }
 
-const pm = detectPackageManagerPlan(process.cwd());
+let baseCaptureFailed = false;
 if (!baseHit) {
   // Without a compatible base bundle, rebuild and publish the pair in one pinned
   // environment. This is the expensive cold path.
-  log(`base miss — rebuilding the pair cold (${pm.name})`);
   fs.rmSync(root, { recursive: true, force: true });
   checkout(base);
-  runOrDie(pm.install, `${pm.name} install at base`);
+  const basePm = detectPackageManagerPlan(process.cwd());
+  log(`base miss — rebuilding the pair cold (${basePm.name})`);
+  runOrDie(basePm.install, `${basePm.name} install at base`);
   // The base may depend on an older StyleProof. Install the head's exact release,
   // then restore the tracked metadata that temporary install dirtied: node_modules
   // must keep the exact release while the capture tree stays clean.
-  runOrDie(pm.installExactStyleProof(OWN_VERSION), `install styleproof@${OWN_VERSION}`);
-  for (const file of pm.packageMetadataFiles) {
+  runOrDie(basePm.installExactStyleProof(OWN_VERSION), `install styleproof@${OWN_VERSION}`);
+  for (const file of basePm.packageMetadataFiles) {
     if (tracked(file)) runOrDie(['git', 'checkout', '--', file], `restore ${file}`);
   }
   playwrightInstall();
   if (fs.existsSync(spec)) {
-    capture(['--spec', spec, '--dir', 'base', '--base-dir', root, '--keep-har', '--sha', base, '--upload']);
+    const baseStatus = capture([
+      '--spec',
+      spec,
+      '--dir',
+      'base',
+      '--base-dir',
+      root,
+      '--keep-har',
+      '--sha',
+      base,
+      '--upload',
+    ]);
+    if (baseStatus !== 0) {
+      log(`base capture failed (exit ${baseStatus}) — continuing with a bare baseline`);
+      fs.rmSync(path.join(root, 'base'), { recursive: true, force: true });
+      fs.mkdirSync(path.join(root, 'base'), { recursive: true });
+      baseCaptureFailed = true;
+    }
   } else {
     // The base commit predates the spec (first adoption): an empty base dir means
     // "no baseline yet" and the diff takes the new-surfaces review path.
     fs.mkdirSync(path.join(root, 'base'), { recursive: true });
   }
   checkout(head);
-  runOrDie(pm.install, `${pm.name} install at head`);
+  const headPm = detectPackageManagerPlan(process.cwd());
+  runOrDie(headPm.install, `${headPm.name} install at head`);
   playwrightInstall();
 } else {
   // A compatible base hit proves the current head environment. Keep that restored
@@ -220,5 +255,6 @@ if (!baseHit) {
 }
 
 const replay = hasHarFiles(path.join(root, 'base')) ? { STYLEPROOF_REPLAY_FROM: path.join(root, 'base') } : {};
-capture(['--spec', spec, '--dir', 'head', '--base-dir', root, '--sha', head, '--upload'], replay);
+captureOrDie(['--spec', spec, '--dir', 'head', '--base-dir', root, '--sha', head, '--upload'], replay);
+writeOutputs(baseCaptureFailed);
 process.exit(0);

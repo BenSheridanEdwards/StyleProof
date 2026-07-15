@@ -7,9 +7,8 @@
  * new knob ships.
  *
  * Precedence everywhere: explicit flag > environment variable > this file >
- * built-in default. The gate-policy keys the Action reads from the same file
- * (`blocking`, `gateInventoryRemovals`) are untouched and unvalidated here —
- * one file, two readers, disjoint keys.
+ * built-in default. The Action and CLIs share this validator, so a malformed
+ * gate-policy key cannot silently fall back to a weaker default.
  *
  * A missing file is an empty config. A file that exists but cannot be parsed or
  * carries a wrongly-typed known key is a LOUD error: config the user wrote must
@@ -32,6 +31,10 @@ export type AffectedConfig = {
 };
 
 export type StyleProofConfig = {
+  /** Review-gate failures block the Action unless explicitly false. */
+  blocking?: boolean;
+  /** Unacknowledged inventory removals block unless explicitly false. */
+  gateInventoryRemovals?: boolean;
   /** Capture spec path (default e2e/styleproof.spec.ts). */
   spec?: string;
   /** Tracked files/dirs whose changes never mark a capture dirty. */
@@ -61,6 +64,12 @@ function optionalStringArray(value: unknown, key: string): string[] | undefined 
     fail(`"${key}" must be an array of non-empty strings`);
   }
   return value as string[];
+}
+
+function optionalBoolean(value: unknown, key: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'boolean') fail(`"${key}" must be a boolean`);
+  return value;
 }
 
 function plainObject(value: unknown, key: string): Record<string, unknown> {
@@ -110,6 +119,8 @@ export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
   const record = readConfigObject(cwd);
   if (!record) return {};
   return {
+    blocking: optionalBoolean(record.blocking, 'blocking'),
+    gateInventoryRemovals: optionalBoolean(record.gateInventoryRemovals, 'gateInventoryRemovals'),
     spec: optionalString(record.spec, 'spec'),
     dirtyAllow: optionalStringArray(record.dirtyAllow, 'dirtyAllow'),
     cacheBranch: optionalString(record.cacheBranch, 'cacheBranch'),

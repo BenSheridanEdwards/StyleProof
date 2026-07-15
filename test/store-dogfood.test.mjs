@@ -30,12 +30,22 @@ test('store dogfood runs the whole chain: capture+publish → restore → certif
 });
 
 test('store dogfood isolates and cleans up its scratch branch', () => {
-  // Unique per run, so parallel PRs never collide and the real styleproof-maps
-  // store is never touched.
-  assert.match(workflow, /STYLEPROOF_CACHE_BRANCH: styleproof-maps-dogfood-\$\{\{ github\.run_id \}\}/);
+  // Unique per attempt, so parallel PRs and reruns never collide and the real
+  // styleproof-maps store is never touched.
+  assert.match(
+    workflow,
+    /STYLEPROOF_CACHE_BRANCH: styleproof-maps-dogfood-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/,
+  );
+  // runner.temp is not legal in a job-level env expression. Resolve the native
+  // RUNNER_TEMP variable at step runtime and export it for subsequent steps.
+  assert.match(workflow, /echo "MAP_ROOT=\$RUNNER_TEMP\/store-dogfood" >> "\$GITHUB_ENV"/);
+  assert.doesNotMatch(workflow, /MAP_ROOT: \$\{\{ runner\.temp \}\}/);
   // Deleted even when the round trip fails.
-  const cleanup = workflow.match(/if: always\(\)[\s\S]*?git push origin --delete "\$STYLEPROOF_CACHE_BRANCH"/);
+  const cleanup = workflow.match(
+    /if: always\(\)[\s\S]*?git ls-remote --exit-code --heads origin "\$STYLEPROOF_CACHE_BRANCH"[\s\S]*?git push origin --delete "\$STYLEPROOF_CACHE_BRANCH"/,
+  );
   assert.ok(cleanup, 'the scratch branch is deleted in an always() step');
+  assert.doesNotMatch(cleanup[0], /\|\| true/, 'cleanup failures are never suppressed');
   // Forks lack write permission for the scratch branch.
   assert.match(workflow, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
   assert.match(workflow, /contents: write/);

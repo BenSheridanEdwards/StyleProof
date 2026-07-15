@@ -59,11 +59,12 @@ test('loadStyleProofConfig: reads the CLI default keys and the affected block', 
   );
 });
 
-test("loadStyleProofConfig: coexists with the Action's gate-policy keys (ignored, not rejected)", () => {
+test("loadStyleProofConfig: validates the Action's gate-policy keys in the shared config", () => {
   withConfig({ blocking: false, gateInventoryRemovals: false, dirtyAllow: ['a.json'] }, (dir) => {
     const config = loadStyleProofConfig(dir);
     assert.deepEqual(config.dirtyAllow, ['a.json']);
-    assert.equal('blocking' in config, false);
+    assert.equal(config.blocking, false);
+    assert.equal(config.gateInventoryRemovals, false);
   });
 });
 
@@ -77,6 +78,12 @@ test('loadStyleProofConfig: written-but-broken config fails LOUDLY, never silent
   });
   withConfig({ spec: 42 }, (dir) => {
     assert.throws(() => loadStyleProofConfig(dir), /"spec" must be a non-empty string/);
+  });
+  withConfig({ blocking: 'false' }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"blocking" must be a boolean/);
+  });
+  withConfig({ gateInventoryRemovals: 0 }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"gateInventoryRemovals" must be a boolean/);
   });
   withConfig({ affected: { surfaces: { home: 7 } } }, (dir) => {
     assert.throws(() => loadStyleProofConfig(dir), /"affected\.surfaces\.home"/);

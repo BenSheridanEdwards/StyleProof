@@ -22,7 +22,7 @@ export function projectConfigOrExit(cli: string): StyleProofConfig {
   try {
     return loadStyleProofConfig();
   } catch (error) {
-    console.error(`${cli}: ${cliErrorMessage(error)}`);
+    process.stderr.write(`${cli}: ${cliErrorMessage(error)}\n`);
     process.exit(2);
   }
 }

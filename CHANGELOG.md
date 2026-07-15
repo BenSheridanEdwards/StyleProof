@@ -26,13 +26,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `--base <sha> --head <sha>` restores both exact-SHA bundles, captures just the
   head on a head-only miss (HAR replay when the base recorded data), and rebuilds
   the pair cold on a base miss under the head's exact StyleProof release, with
-  package-manager commands detected from the lockfile at run time. The
+  package-manager commands detected independently at each checkout. A failed
+  base capture now produces explicit head-only degraded evidence while head
+  capture remains fail-closed. The
   init-generated workflow step is now a single invocation instead of ~80 lines of
-  copied bash, and still emits `base-hit`/`head-hit`/`capture-needed`.
+  copied bash, and emits `base-hit`/`head-hit`/`capture-needed`/
+  `base-capture-failed`.
 - **`styleproof-prepush`** — the canonical pre-push capture→publish flow,
   packaged. The generated hook is a two-line shim that execs it, so the rules
   (pushed-refspec selection, docs-only skip, restore-before-capture) update with
-  each release instead of drifting in a copied hook file, and
+  each release instead of drifting in a copied hook file. The shim invokes the
+  installed local binary directly, so a missing install fails instead of falling
+  through to a package-registry download, and
   `styleproof-init --hook` refreshes a stale hook in place.
 - **`styleproof-affected`** — the selective-remap verdict as a CLI over
   `affectedSurfaces`: dependency-cruiser graph in, changed files from git (or
@@ -47,8 +52,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   embedded receipt to name this run's head SHA, run id, and attempt — failing
   closed instead of shipping a green run with a dead or stale `report-url`, so
   consumers can drop their own post-action read-back checks.
+- **Map-store dogfood runs the production roundtrip on every same-repo PR.** A
+  real browser capture is published to a per-attempt scratch branch, restored by
+  exact SHA, certified byte-identical, and checked for the exit-4 miss contract.
+  Cleanup distinguishes an absent branch from an inspection or deletion fault,
+  so leaked scratch branches cannot hide behind a green run.
 
 ### Fixed
+
+- **Restore faults no longer masquerade as cache misses.** `styleproof-prepush`
+  exits with the persistent map-store/network failure instead of attempting an
+  unrelated capture, and fallback captures now preserve explicit map/base dirs.
+- **`styleproof-init --upgrade` preserves repository-owned pre-push hooks.** It
+  only refreshes hooks carrying StyleProof's ownership marker; replacement of a
+  custom hook still requires the explicit `--hook` command.
+- **Action configuration now fails loudly through the shared config loader.**
+  Malformed policy is no longer warned about and silently replaced with defaults.
+- **Generated pre-push hooks execute the installed local binary.** Missing
+  installs can no longer fall through to a registry lookup for an unpublished
+  package name.
 
 - **Every Action run now publishes a durable report receipt.** Clean comparisons
   commit the no-change report and return its immutable URL, so consumers can

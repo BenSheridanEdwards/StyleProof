@@ -53,7 +53,15 @@ function peerVersion(name) {
 // so the staged copy is the real artifact.
 function stagePackageDir(dest) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  const files = ['dist', 'bin', 'docs/demo-composite.png', 'README.md', 'CHANGELOG.md', 'LICENSE'];
+  const files = [
+    'dist',
+    'bin',
+    'example/styleproof-approve.yml',
+    'docs/demo-composite.png',
+    'README.md',
+    'CHANGELOG.md',
+    'LICENSE',
+  ];
   for (const rel of files) {
     const src = path.join(root, rel);
     if (!fs.existsSync(src)) continue; // `dist` is guaranteed present (the suite built it); assets are optional
@@ -99,13 +107,36 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
     );
     assert.equal(importCheck.status, 0, importCheck.stderr);
 
-    for (const bin of ['styleproof-init', 'styleproof-map', 'styleproof-diff', 'styleproof-report']) {
+    for (const bin of [
+      'styleproof-init',
+      'styleproof-map',
+      'styleproof-capture',
+      'styleproof-diff',
+      'styleproof-report',
+      'styleproof-variants',
+      'styleproof-prepush',
+      'styleproof-affected',
+      'styleproof-ci',
+    ]) {
+      const installedShim = path.join(app, 'node_modules', '.bin', process.platform === 'win32' ? `${bin}.cmd` : bin);
+      assert.ok(fs.existsSync(installedShim), `${bin} is missing from the installed package bin manifest`);
       const help = run(process.execPath, [path.join(app, 'node_modules/styleproof/bin', `${bin}.mjs`), '--help'], {
         cwd: app,
       });
       assert.equal(help.status, 0, `${bin}\nstdout:\n${help.stdout}\nstderr:\n${help.stderr}`);
       assert.match(help.stdout, new RegExp(`usage: ${bin}`));
     }
+
+    const scaffold = path.join(tmp, 'scaffold');
+    fs.mkdirSync(scaffold);
+    const init = run(process.execPath, [path.join(app, 'node_modules/styleproof/bin/styleproof-init.mjs')], {
+      cwd: scaffold,
+    });
+    assert.equal(init.status, 0, commandFailure(init));
+    assert.ok(
+      fs.existsSync(path.join(scaffold, '.github/workflows/styleproof-approve.yml')),
+      'the packed approval-workflow template is missing',
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

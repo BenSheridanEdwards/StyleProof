@@ -399,6 +399,7 @@ if (status === 0) {
       sha: manifestSha,
       screenshots: screenshots !== '0',
       dirty,
+      dirtyAllow,
       env,
     });
     console.error(`styleproof-map: wrote ${targetDir} for ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey})`);

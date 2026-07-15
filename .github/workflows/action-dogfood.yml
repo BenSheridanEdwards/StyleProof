@@ -38,6 +38,7 @@ jobs:
       - name: Assert clean output
         run: |
           test '${{ steps.clean.outputs.changed }}' = 'false'
+          test '${{ steps.clean.outputs.trust-state }}' = 'NO_VISUAL_CHANGES'
           test -n '${{ steps.clean.outputs.report-url }}'
 
       - id: changed
@@ -51,6 +52,7 @@ jobs:
       - name: Assert changed output
         run: |
           test '${{ steps.changed.outputs.changed }}' = 'true'
+          test '${{ steps.changed.outputs.trust-state }}' = 'VISUAL_APPROVAL_REQUIRED'
           test -n '${{ steps.changed.outputs.report-url }}'
 
       - id: new-surface
@@ -64,7 +66,40 @@ jobs:
       - name: Assert new-surface-only output
         run: |
           test '${{ steps.new-surface.outputs.changed }}' = 'true'
+          test '${{ steps.new-surface.outputs.trust-state }}' = 'VISUAL_APPROVAL_REQUIRED'
           test -n '${{ steps.new-surface.outputs.report-url }}'
+
+      - id: degraded
+        continue-on-error: true
+        uses: ./
+        with:
+          baseline-dir: action-dogfood/degraded-base
+          fresh-dir: action-dogfood/degraded-head
+          base-capture-failed: 'true'
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert a failed base capture produces degraded, failing evidence
+        run: |
+          test '${{ steps.degraded.outcome }}' = 'failure'
+          test '${{ steps.degraded.outputs.changed }}' = 'true'
+          test '${{ steps.degraded.outputs.trust-state }}' = 'DEGRADED_BASELINE'
+          test -n '${{ steps.degraded.outputs.report-url }}'
+
+      - id: residue
+        continue-on-error: true
+        uses: ./
+        with:
+          baseline-dir: action-dogfood/residue-base
+          fresh-dir: action-dogfood/residue-head
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert unacknowledged data residue FAILS with a machine verdict
+        run: |
+          test '${{ steps.residue.outcome }}' = 'failure'
+          test '${{ steps.residue.outputs.trust-state }}' = 'DATA_RESIDUE_UNACKNOWLEDGED'
+          test '${{ steps.residue.outputs.data-residue-keys }}' = '["home·/api/status"]'
 
       - id: removed
         continue-on-error: true
@@ -83,6 +118,7 @@ jobs:
           # opts out).
           test '${{ steps.removed.outcome }}' = 'failure'
           test '${{ steps.removed.outputs.changed }}' = 'true'
+          test '${{ steps.removed.outputs.trust-state }}' = 'INVENTORY_REMOVAL_UNACKNOWLEDGED'
 
       - name: Assert PR report was published
         if: github.event_name == 'pull_request'

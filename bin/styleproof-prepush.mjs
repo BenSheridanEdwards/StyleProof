@@ -16,15 +16,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { classifyRestoreExit } from '../dist/ci.js';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { DEFAULT_MAP_DIR, DEFAULT_MAP_LABEL } from '../dist/map-store.js';
 import { choosePrePushCaptureSha, parsePrePushRefs } from '../dist/prepush.js';
 
 const HELP = `styleproof-prepush — capture the pushed commit's map and publish it to the map store
 
-usage: git's pre-push hook pipes refspecs to: styleproof-prepush [options]
+usage: styleproof-prepush [options]
 
-For the ref whose tip is the checked-out tree, restore an existing exact-SHA map
+Git's pre-push hook pipes refspec lines to stdin. For the ref whose tip is the
+checked-out tree, restore an existing exact-SHA map
 or capture once and publish to the styleproof-maps branch, so CI restores by SHA
 and reports without a browser. Maps never get committed to the PR branch.
 
@@ -106,10 +108,17 @@ const restore = spawnSync(
   [MAP, '--restore', '--sha', choice.sha, '--dir', dir, '--base-dir', baseDir, '--spec', spec],
   { stdio: 'inherit', env },
 );
-if (restore.status !== 0) {
+const restoreOutcome = classifyRestoreExit(restore.status);
+if (restoreOutcome === 'fault') {
+  console.error(
+    `styleproof-prepush: map restore hit a map-store/network fault (exit ${restore.status}). Retry the push.`,
+  );
+  process.exit(restore.status ?? 5);
+}
+if (restoreOutcome === 'miss') {
   const capture = spawnSync(
     process.execPath,
-    [MAP, '--spec', spec, '--sha', choice.sha, '--upload', ...dirtyAllowArgs],
+    [MAP, '--spec', spec, '--sha', choice.sha, '--dir', dir, '--base-dir', baseDir, '--upload', ...dirtyAllowArgs],
     { stdio: 'inherit', env },
   );
   if ((capture.status ?? 1) !== 0) process.exit(capture.status ?? 1);

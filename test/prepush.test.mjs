@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PRE_PUSH_ZERO_OID, choosePrePushCaptureSha, docsOnlyFiles, parsePrePushRefs } from '../dist/prepush.js';
+import { mkTmp, rmTmp } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PREPUSH = path.join(here, '..', 'bin', 'styleproof-prepush.mjs');
@@ -106,4 +108,37 @@ test('styleproof-prepush: a non-checked-out ref push exits 0 without capturing',
   });
   assert.equal(res.status, 0, res.stderr);
   assert.doesNotMatch(res.stderr, /styleproof-map/);
+});
+
+test('styleproof-prepush: a map-store fault fails loudly instead of recapturing', () => {
+  const root = mkTmp('styleproof-prepush-fault-');
+  try {
+    for (const args of [
+      ['init', '-q'],
+      ['config', 'user.email', 'styleproof@example.test'],
+      ['config', 'user.name', 'StyleProof Test'],
+    ]) {
+      const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+    }
+    fs.writeFileSync(path.join(root, 'README.md'), '# fixture\n');
+    fs.writeFileSync(path.join(root, 'styleproof.spec.ts'), '// fixture spec\n');
+    assert.equal(spawnSync('git', ['add', '.'], { cwd: root }).status, 0);
+    assert.equal(spawnSync('git', ['commit', '-qm', 'test: fixture'], { cwd: root }).status, 0);
+    assert.equal(
+      spawnSync('git', ['remote', 'add', 'origin', path.join(root, 'missing-remote.git')], { cwd: root }).status,
+      0,
+    );
+
+    const res = spawnSync(process.execPath, [PREPUSH, '--spec', 'styleproof.spec.ts'], {
+      cwd: root,
+      encoding: 'utf8',
+      input: '',
+    });
+    assert.equal(res.status, 5, res.stderr);
+    assert.match(res.stderr, /map-store\/network fault/);
+    assert.doesNotMatch(res.stderr, /Playwright could not run|capture produced/);
+  } finally {
+    rmTmp(root);
+  }
 });

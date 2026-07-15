@@ -14,11 +14,11 @@ import { mkTmp, rmTmp } from './helpers.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CI = path.join(here, '..', 'bin', 'styleproof-ci.mjs');
 
-function runCi(args, env = {}) {
+function runCi(args, env = {}, cwd) {
   const merged = { ...process.env, ...env };
   // The driver keys its CI guard on this exact variable.
   if (!('CI' in env)) delete merged.CI;
-  return spawnSync(process.execPath, [CI, ...args], { encoding: 'utf8', env: merged });
+  return spawnSync(process.execPath, [CI, ...args], { encoding: 'utf8', env: merged, cwd });
 }
 
 test('classifyRestoreExit: 0 hit, 4 genuine miss, anything else a loud fault', () => {
@@ -34,9 +34,24 @@ test('classifyRestoreExit: 0 hit, 4 genuine miss, anything else a loud fault', (
 });
 
 test('ciOutputLines: the exact steps.maps.outputs.* contract the workflow bash emitted', () => {
-  assert.deepEqual(ciOutputLines(true, true), ['base-hit=true', 'head-hit=true', 'capture-needed=false']);
-  assert.deepEqual(ciOutputLines(true, false), ['base-hit=true', 'head-hit=false', 'capture-needed=true']);
-  assert.deepEqual(ciOutputLines(false, false), ['base-hit=false', 'head-hit=false', 'capture-needed=true']);
+  assert.deepEqual(ciOutputLines(true, true), [
+    'base-hit=true',
+    'head-hit=true',
+    'capture-needed=false',
+    'base-capture-failed=false',
+  ]);
+  assert.deepEqual(ciOutputLines(true, false), [
+    'base-hit=true',
+    'head-hit=false',
+    'capture-needed=true',
+    'base-capture-failed=false',
+  ]);
+  assert.deepEqual(ciOutputLines(false, false, true), [
+    'base-hit=false',
+    'head-hit=false',
+    'capture-needed=true',
+    'base-capture-failed=true',
+  ]);
 });
 
 test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv (no shell)', () => {
@@ -98,3 +113,114 @@ test('styleproof-ci: usage errors exit 2', () => {
   assert.match(runCi([]).stderr, /--base <sha> and --head <sha> are required/);
   assert.equal(runCi(['--base', 'x', '--head', 'y', '--nope']).status, 2, 'unknown flag');
 });
+
+test(
+  'styleproof-ci: a base capture failure degrades to a bare baseline while head stays fail-closed',
+  { timeout: 30_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-degraded-base-');
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'consumer');
+    const mapRoot = path.join(root, 'maps');
+    const output = path.join(root, 'github-output');
+    const pmLog = path.join(root, 'package-managers');
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    try {
+      fs.mkdirSync(repo);
+      git(root, ['init', '--bare', '-q', remote]);
+      git(repo, ['init', '-q', '-b', 'main']);
+      git(repo, ['config', 'user.email', 'styleproof@example.test']);
+      git(repo, ['config', 'user.name', 'StyleProof Test']);
+      git(repo, ['remote', 'add', 'origin', remote]);
+      fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+      fs.writeFileSync(path.join(repo, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture fixture\n');
+      fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
+      fs.writeFileSync(path.join(repo, 'app.txt'), 'base\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: base']);
+      const base = git(repo, ['rev-parse', 'HEAD']);
+      fs.rmSync(path.join(repo, 'pnpm-lock.yaml'));
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), '{}\n');
+      fs.writeFileSync(path.join(repo, 'app.txt'), 'head\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: head']);
+      const head = git(repo, ['rev-parse', 'HEAD']);
+      git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+      const bin = path.join(repo, 'node_modules', '.bin');
+      fs.mkdirSync(bin, { recursive: true });
+      fs.writeFileSync(path.join(bin, 'pnpm'), '#!/bin/sh\ngit rev-parse HEAD >> "$PM_LOG"\nexit 0\n');
+      fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\ngit rev-parse HEAD >> "$PM_LOG"\nexit 0\n');
+      fs.writeFileSync(
+        path.join(bin, 'playwright'),
+        `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+if [ "$(git rev-parse HEAD)" = "$BASE_FAIL_SHA" ]; then exit 1; fi
+if [ -n "$HEAD_FAIL_SHA" ] && [ "$(git rev-parse HEAD)" = "$HEAD_FAIL_SHA" ]; then exit 1; fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+`,
+      );
+      fs.chmodSync(path.join(bin, 'pnpm'), 0o755);
+      fs.chmodSync(path.join(bin, 'npm'), 0o755);
+      fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+
+      const result = runCi(
+        ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot],
+        {
+          CI: '1',
+          BASE_FAIL_SHA: base,
+          PM_LOG: pmLog,
+          GITHUB_OUTPUT: output,
+          STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        },
+        repo,
+      );
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      assert.equal(git(repo, ['rev-parse', 'HEAD']), head, 'the consumer checkout is restored to the PR head');
+      assert.deepEqual(
+        fs.readdirSync(path.join(mapRoot, 'base')),
+        [],
+        'partial base output is replaced by a bare baseline',
+      );
+      assert.ok(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')));
+      assert.ok(fs.existsSync(path.join(mapRoot, 'head', 'styleproof-manifest.json')));
+      const outputs = fs.readFileSync(output, 'utf8');
+      assert.match(outputs, /base-hit=false/);
+      assert.match(outputs, /head-hit=false/);
+      assert.match(outputs, /capture-needed=true/);
+      assert.match(outputs, /base-capture-failed=true/);
+      assert.match(result.stderr, /base capture failed .* continuing with a bare baseline/);
+      const installedAt = fs.readFileSync(pmLog, 'utf8').trim().split('\n');
+      assert.ok(installedAt.includes(base), 'the base commit uses its pnpm lockfile');
+      assert.equal(installedAt.at(-1), head, 'the head commit re-detects and uses its npm lockfile');
+
+      // Repeat without the newly published cache and make the head fail too. The
+      // degraded base remains useful evidence, but a missing head is never publishable.
+      git(repo, ['push', '-q', 'origin', '--delete', 'styleproof-maps']);
+      const failedOutput = path.join(root, 'failed-github-output');
+      const headFailure = runCi(
+        ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot],
+        {
+          CI: '1',
+          BASE_FAIL_SHA: base,
+          HEAD_FAIL_SHA: head,
+          GITHUB_OUTPUT: failedOutput,
+          PM_LOG: pmLog,
+          STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        },
+        repo,
+      );
+      assert.equal(headFailure.status, 1, headFailure.stderr + headFailure.stdout);
+      assert.equal(git(repo, ['rev-parse', 'HEAD']), head);
+      assert.equal(fs.existsSync(failedOutput), false, 'a failed head capture emits no successful map verdict');
+    } finally {
+      rmTmp(root);
+    }
+  },
+);

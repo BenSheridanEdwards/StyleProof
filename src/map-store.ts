@@ -61,6 +61,8 @@ export interface MapManifest {
   packageVersion: string;
   sha: string;
   dirty: boolean;
+  /** Repo-relative files/directories excluded from dirty provenance for this capture. */
+  dirtyAllow?: string[];
   spec: string;
   specHash: string;
   lockfile?: string;
@@ -424,6 +426,7 @@ function buildManifest(options: {
   input: ReturnType<typeof compatibilityInput>;
   sha: string;
   dirty: boolean;
+  dirtyAllow?: readonly string[];
   screenshots: boolean;
 }): MapManifest {
   const { dir, input } = options;
@@ -433,6 +436,7 @@ function buildManifest(options: {
     packageVersion: input.packageVersion,
     sha: options.sha,
     dirty: options.dirty,
+    ...(options.dirtyAllow?.length ? { dirtyAllow: [...options.dirtyAllow] } : {}),
     spec: input.spec,
     specHash: input.specHash,
     ...(input.lockfile ? { lockfile: input.lockfile } : {}),
@@ -456,6 +460,7 @@ export function writeMapManifest(options: {
   sha?: string;
   screenshots: boolean;
   dirty?: boolean;
+  dirtyAllow?: readonly string[];
   cwd?: string;
   env?: NodeJS.ProcessEnv;
 }): MapManifest {
@@ -466,6 +471,7 @@ export function writeMapManifest(options: {
     input,
     sha: options.sha ?? currentGitSha(cwd, options.env),
     dirty: options.dirty ?? workingTreeDirty(cwd),
+    dirtyAllow: options.dirtyAllow,
     screenshots: options.screenshots,
   });
   fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));

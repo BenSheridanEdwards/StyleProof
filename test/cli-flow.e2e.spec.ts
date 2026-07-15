@@ -735,13 +735,12 @@ test('crawl coverage guard: a rendered link with no `expected` owner fails the c
 // Everything else in the repo asserts the hook's TEXT; this asserts its BEHAVIOR.
 // ---------------------------------------------------------------------------
 
-/** The hook invokes `npx styleproof-map` / `npx styleproof-diff` (the npm PM form).
- *  Give npx real local binaries to resolve: shims in the app's node_modules/.bin
- *  that exec this checkout's bins, so no registry install is ever attempted. */
+/** Give the fixture real local package binaries: shims in node_modules/.bin that
+ *  exec this checkout's bins, matching what an installed styleproof package exposes. */
 function writeBinShims(app: string) {
   const bin = path.join(app, 'node_modules/.bin');
   fs.mkdirSync(bin, { recursive: true });
-  for (const name of ['styleproof-map', 'styleproof-diff']) {
+  for (const name of ['styleproof-map', 'styleproof-diff', 'styleproof-prepush']) {
     const shim = path.join(bin, name);
     fs.writeFileSync(shim, `#!/bin/sh\nexec "${process.execPath}" "${path.join(root, `bin/${name}.mjs`)}" "$@"\n`);
     fs.chmodSync(shim, 0o755);

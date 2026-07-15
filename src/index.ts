@@ -68,9 +68,3 @@ export { generateStyleMapReport, summarizeProps, prettyLabel } from './report.js
 export type { ReportOptions, ReportResult } from './report.js';
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';
-export { PRE_PUSH_ZERO_OID, choosePrePushCaptureSha, docsOnlyFiles, parsePrePushRefs } from './prepush.js';
-export type { PrePushCaptureChoice, PrePushRef } from './prepush.js';
-export { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from './ci.js';
-export type { PackageManagerPlan, RestoreOutcome } from './ci.js';
-export { STYLEPROOF_CONFIG_FILE, StyleProofConfigError, loadStyleProofConfig } from './config.js';
-export type { AffectedConfig, StyleProofConfig } from './config.js';

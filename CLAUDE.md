@@ -32,7 +32,7 @@ Machine-specific Claude settings belong in `.claude/settings.local.json`
 
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **styleproof** (1612 symbols, 3904 relationships, 137 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **styleproof** (1029 symbols, 2443 relationships, 88 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 

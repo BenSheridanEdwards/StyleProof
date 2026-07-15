@@ -42,8 +42,11 @@ release instead of drifting in a copied hook file:
 #!/bin/sh
 # Skip a push that can't affect render: STYLEPROOF_SKIP_CAPTURE=1 git push
 [ "${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-exec npx styleproof-prepush --spec e2e/styleproof.spec.ts
+exec ./node_modules/.bin/styleproof-prepush --spec e2e/styleproof.spec.ts
 ```
+
+The direct local binary is intentional: a missing StyleProof install fails
+loudly instead of asking a package runner to download an unrelated command.
 
 `styleproof-prepush` accepts `--spec`, `--dir`, `--base-dir`, repeatable
 `--dirty-allow <path>` (forwarded to the capture for tracked files a dev tool

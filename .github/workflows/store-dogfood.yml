@@ -31,8 +31,7 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     env:
-      STYLEPROOF_CACHE_BRANCH: styleproof-maps-dogfood-${{ github.run_id }}
-      MAP_ROOT: ${{ runner.temp }}/store-dogfood
+      STYLEPROOF_CACHE_BRANCH: styleproof-maps-dogfood-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v7
 
@@ -44,6 +43,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+
+      - name: Define runner-local map path
+        run: echo "MAP_ROOT=$RUNNER_TEMP/store-dogfood" >> "$GITHUB_ENV"
 
       - name: Capture the example app at the real head SHA and publish it
         run: |
@@ -83,4 +85,13 @@ jobs:
 
       - name: Delete the scratch store branch
         if: always()
-        run: git push origin --delete "$STYLEPROOF_CACHE_BRANCH" || true
+        run: |
+          set +e
+          git ls-remote --exit-code --heads origin "$STYLEPROOF_CACHE_BRANCH" >/dev/null
+          code=$?
+          set -e
+          case "$code" in
+            0) git push origin --delete "$STYLEPROOF_CACHE_BRANCH" ;;
+            2) echo "Scratch branch was never published; nothing to delete." ;;
+            *) echo "::error::Could not inspect scratch branch before cleanup (exit $code)." >&2; exit "$code" ;;
+          esac

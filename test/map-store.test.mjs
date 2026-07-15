@@ -1018,9 +1018,12 @@ test('writeBrowserBuildSidecar(undefined) CLEARS a stale sidecar so a version-le
       sha: 'd'.repeat(40),
       screenshots: true,
       dirty: false,
+      dirtyAllow: ['hud/tsconfig.json', 'generated/'],
     });
     assert.equal(manifest.browserVersion, undefined);
+    assert.deepEqual(manifest.dirtyAllow, ['hud/tsconfig.json', 'generated/']);
     assert.equal(readMapManifest(dir).browserVersion, undefined);
+    assert.deepEqual(readMapManifest(dir).dirtyAllow, ['hud/tsconfig.json', 'generated/']);
   } finally {
     rmTmp(dir);
   }
