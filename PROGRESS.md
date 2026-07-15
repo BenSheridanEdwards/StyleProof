@@ -36,3 +36,10 @@
 - Next: run the complete quality gates, verify against a large remote store,
   review the diff, and publish the ready pull request.
 - Blockers: none.
+
+## In progress: durable no-change Action reports
+
+- Completed: proved the report generator already emits a privacy-clean no-change report.
+- Completed: added regressions requiring clean Action runs to publish an immutable report URL while certify mode continues to fail only on real differences.
+- Next: run focused and full Action dogfood verification, review the patch, and open a ready pull request.
+- Blockers: none.

@@ -34,12 +34,11 @@ jobs:
           baseline-dir: action-dogfood/clean-base
           fresh-dir: action-dogfood/clean-head
           report-branch: styleproof-action-dogfood
-          fail-on-diff: 'false'
 
       - name: Assert clean output
         run: |
           test '${{ steps.clean.outputs.changed }}' = 'false'
-          test -z '${{ steps.clean.outputs.report-url }}'
+          test -n '${{ steps.clean.outputs.report-url }}'
 
       - id: changed
         uses: ./

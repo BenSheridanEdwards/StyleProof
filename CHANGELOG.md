@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every Action run now publishes a durable report receipt.** Clean comparisons
+  commit the no-change report and return its immutable URL, so consumers can
+  verify publication for every completed run instead of treating missing
+  evidence as a clean verdict.
+
 ## [4.4.21] - 2026-07-14
 
 ### Fixed
