@@ -567,18 +567,21 @@ test('publishMapBundle bounds a wedged isolated push and falls back to the consu
     const gitShim = path.join(shimDirectory, 'git');
     fs.writeFileSync(
       gitShim,
-      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in\n  *"push -q origin HEAD:styleproof-maps"*)\n    if [ ! -f "$STYLEPROOF_TEST_TIMEOUT_MARKER" ]; then\n      touch "$STYLEPROOF_TEST_TIMEOUT_MARKER"\n      sleep 10\n      exit 1\n    fi\n  ;;\nesac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in\n  *"push -q origin HEAD:styleproof-maps"*)\n    if [ ! -f "$STYLEPROOF_TEST_TIMEOUT_MARKER" ]; then\n      touch "$STYLEPROOF_TEST_TIMEOUT_MARKER"\n      sleep 30\n      exit 1\n    fi\n  ;;\nesac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
     );
     fs.chmodSync(gitShim, 0o755);
     process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
     process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
     process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
     process.env.STYLEPROOF_TEST_TIMEOUT_MARKER = timeoutMarker;
-    process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS = '100';
+    // The kill timeout must leave healthy git spawns room to finish on slow volumes,
+    // yet the elapsed bound below must stay under the shim's 30s wedge so the test
+    // only passes when the wedged push is killed rather than waited out.
+    process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS = '2000';
 
     const startedAt = Date.now();
     assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
-    assert.ok(Date.now() - startedAt < 4_000, 'a wedged push should be terminated before falling back');
+    assert.ok(Date.now() - startedAt < 15_000, 'a wedged push should be terminated before falling back');
     assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
     const pushInvocations = fs
       .readFileSync(invocationLog, 'utf8')
