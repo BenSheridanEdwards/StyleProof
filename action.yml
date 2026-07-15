@@ -242,6 +242,27 @@ runs:
         [ -n "$ok" ] || { echo "could not push report branch after retries" >&2; exit 1; }
 
         [ -n "${REPORT_COMMIT:-}" ] || { echo "report branch push did not return a commit" >&2; exit 1; }
+
+        # Publish isn't done until the consumer-visible artifact verifiably matches
+        # THIS run: read the report back at the exact commit we are about to
+        # advertise and require the receipt embedded above. Fail CLOSED — a green
+        # run must never hand out a dead or stale report URL. Self-verifying here
+        # replaces the read-back checks consumers otherwise bolt on after the action.
+        EXPECTED_RECEIPT="styleproof-receipt head-sha:${REPORT_SHA} run-id:${{ github.run_id }} run-attempt:${{ github.run_attempt }}"
+        verified=
+        for i in 1 2 3 4 5; do
+          published="$(curl -sf \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github.raw' \
+            "${GITHUB_API_URL:-https://api.github.com}/repos/${REPO}/contents/${REPORT_PATH}/report.md?ref=${REPORT_COMMIT}")" \
+            && printf '%s' "$published" | grep -Fq "$EXPECTED_RECEIPT" && { verified=1; break; }
+          sleep $((i * 2))
+        done
+        [ -n "$verified" ] || {
+          echo "::error::StyleProof: the published report at ${REPORT_PATH} @ ${REPORT_COMMIT} is unreadable or its receipt does not match this run (${EXPECTED_RECEIPT}) — do not trust this run's report" >&2
+          exit 1
+        }
+        echo "report receipt verified at ${REPORT_COMMIT}/${REPORT_PATH}"
         echo "url=https://github.com/${REPO}/blob/${REPORT_COMMIT}/${REPORT_PATH}/report.md" >> "$GITHUB_OUTPUT"
         echo "raw-base=https://raw.githubusercontent.com/${REPO}/${REPORT_COMMIT}/${REPORT_PATH}" >> "$GITHUB_OUTPUT"
 

@@ -179,3 +179,24 @@ test('dogfood workflow asserts the PR report comment and branch artifact', () =>
   assert.ok(dogfoodYml.includes('/issues/${PR_NUMBER}/comments'));
   assert.ok(dogfoodYml.includes('/contents/${report_path}?ref=${REPORT_BRANCH}'));
 });
+
+test('composite action self-verifies the published receipt before advertising the report URL', () => {
+  const publishStep = extractActionStep('- id: publish', '\n\\s{4}- name: Upsert PR comment');
+
+  assert.ok(publishStep, 'action.yml should include a report publish step');
+  // The read-back: fetch the report at the EXACT commit being advertised and
+  // require the receipt embedded for this run (head SHA + run id + attempt).
+  assert.match(
+    publishStep[0],
+    /EXPECTED_RECEIPT="styleproof-receipt head-sha:\$\{REPORT_SHA\} run-id:\$\{\{ github\.run_id \}\} run-attempt:\$\{\{ github\.run_attempt \}\}"/,
+  );
+  assert.match(publishStep[0], /Accept: application\/vnd\.github\.raw/);
+  assert.match(publishStep[0], /contents\/\$\{REPORT_PATH\}\/report\.md\?ref=\$\{REPORT_COMMIT\}/);
+  assert.match(publishStep[0], /grep -Fq "\$EXPECTED_RECEIPT"/);
+  // Fail CLOSED on a dead or mismatched report — never a green run with a bad URL.
+  assert.match(publishStep[0], /\[ -n "\$verified" \] \|\| \{[\s\S]*?exit 1/);
+  // The url/raw-base outputs exist ONLY once verification passed.
+  const verifiedIndex = publishStep[0].indexOf('[ -n "$verified" ]');
+  const urlIndex = publishStep[0].indexOf('echo "url=');
+  assert.ok(verifiedIndex > 0 && urlIndex > verifiedIndex, 'outputs are written only after the receipt verifies');
+});

@@ -955,7 +955,7 @@ The capture-the-subset step stays yours (it depends on your map layout), but the
 | `fail-on-diff`     | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.            |
 | `status-context`   | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.          |
 
-Outputs: `changed` (`"true"` when any existing surface changed, or a new surface needs approval) and `report-url` (a durable report receipt for every run, including clean runs). Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
+Outputs: `changed` (`"true"` when any existing surface changed, or a new surface needs approval) and `report-url` (a durable report receipt for every run, including clean runs). The action **self-verifies** the publish before exposing `report-url`: it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
 **Policy file `styleproof.config.json`** (optional, at the repo root) — gate policy that isn't workflow plumbing:
 
