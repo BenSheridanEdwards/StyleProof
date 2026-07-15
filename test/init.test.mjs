@@ -241,6 +241,63 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
   }
 });
 
+test('styleproof-init --check / --upgrade: machine-owned files track the release, user files never touched', () => {
+  const root = mkTmp();
+  try {
+    // Fresh scaffold → everything current, exit 0.
+    assert.equal(runInit(root, ['--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    const clean = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(clean.status, 0, clean.stdout);
+    assert.match(clean.stdout, /current {2}\.githooks\/pre-push/);
+    assert.match(clean.stdout, /all machine-owned files match/);
+
+    // Drift the hook and the workflow (an older release's copies), and edit the
+    // USER-owned spec — --check must flag the machine files only.
+    fs.writeFileSync(path.join(root, '.githooks', 'pre-push'), '#!/bin/sh\n# old release hook\n');
+    fs.writeFileSync(path.join(root, '.github', 'workflows', 'styleproof.yml'), 'name: old\n');
+    const specBefore = readFile(root, 'e2e/styleproof.spec.ts') + '// my customization\n';
+    fs.writeFileSync(path.join(root, 'e2e/styleproof.spec.ts'), specBefore);
+
+    const drifted = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(drifted.status, 1, 'drift exits 1 so CI can flag it');
+    assert.match(drifted.stdout, /stale {4}\.githooks\/pre-push/);
+    assert.match(drifted.stdout, /stale {4}\.github\/workflows\/styleproof\.yml/);
+    assert.match(drifted.stdout, /current {2}\.github\/workflows\/styleproof-approve\.yml/);
+    assert.match(drifted.stdout, /styleproof-init --upgrade/);
+    assert.doesNotMatch(drifted.stdout, /styleproof\.spec\.ts/); // user-owned: not checked
+    assert.equal(readFile(root, 'e2e/styleproof.spec.ts'), specBefore, '--check writes nothing');
+
+    // --upgrade refreshes exactly the drifted machine files; the spec keeps the edit.
+    const upgraded = runInit(root, ['--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(upgraded.status, 0, upgraded.stderr);
+    assert.match(upgraded.stdout, /refreshed \.githooks\/pre-push/);
+    assert.match(upgraded.stdout, /refreshed \.github\/workflows\/styleproof\.yml/);
+    assert.match(upgraded.stdout, /current {3}\.github\/workflows\/styleproof-approve\.yml/);
+    assert.match(readFile(root, '.githooks/pre-push'), /exec npx styleproof-prepush/);
+    assert.match(readFile(root, '.github/workflows/styleproof.yml'), /styleproof-ci\.mjs/);
+    assert.equal(readFile(root, 'e2e/styleproof.spec.ts'), specBefore, 'user-owned spec untouched');
+    if (process.platform !== 'win32') {
+      assert.ok(fs.statSync(path.join(root, '.githooks', 'pre-push')).mode & 0o111, 'hook stays executable');
+    }
+
+    // And the loop closes: --check is green again.
+    assert.equal(runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']).status, 0);
+  } finally {
+    rmTmp(root);
+  }
+
+  // A never-scaffolded repo: --check reports the files as missing and exits 1.
+  const bare = mkTmp();
+  try {
+    const res = runInit(bare, ['--check']);
+    assert.equal(res.status, 1);
+    assert.match(res.stdout, /missing {2}\.githooks\/pre-push/);
+    assert.match(res.stdout, /missing {2}\.github\/workflows\/styleproof\.yml/);
+  } finally {
+    rmTmp(bare);
+  }
+});
+
 test('styleproof-init --hook: refreshes ONLY the pre-push hook, overwriting a stale copy', () => {
   const root = mkTmp();
   try {

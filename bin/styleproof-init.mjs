@@ -51,7 +51,16 @@ options:
   --force             overwrite the spec if it already exists
   --hook              (re)write ONLY the pre-push hook, overwriting an existing one —
                       the upgrade path after a styleproof release changes the hook
+  --upgrade           refresh every MACHINE-OWNED generated file (pre-push hook,
+                      report workflow, approval workflow) to this release's
+                      templates; never touches the spec or playwright config
+  --check             report drift between the machine-owned files and this
+                      release's templates without writing; exit 1 if any differ —
+                      run it in CI to learn when --upgrade is due
   -h, --help          show this help
+
+--upgrade/--check interpolate the spec path into the templates: pass the same
+--dir you scaffolded with if your spec is not at the default location.
 
 What it writes:
   - the spec at --dir, with a minimal settle() helper (scroll-reveal only).
@@ -77,6 +86,8 @@ let specPath = 'e2e/styleproof.spec.ts';
 let baseUrl = 'http://localhost:3000';
 let force = false;
 let hookOnly = false;
+let upgrade = false;
+let checkOnly = false;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
@@ -86,6 +97,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--base-url=')) baseUrl = a.slice(11);
   else if (a === '--force') force = true;
   else if (a === '--hook') hookOnly = true;
+  else if (a === '--upgrade') upgrade = true;
+  else if (a === '--check') checkOnly = true;
   else {
     console.error(`unknown argument: ${a}\n`);
     process.stderr.write(HELP);
@@ -555,6 +568,82 @@ if (hookOnly) {
   process.exit(0);
 }
 
+const APPROVE_PATH = '.github/workflows/styleproof-approve.yml';
+function readApproveTemplate() {
+  const approveSource = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'example',
+    'styleproof-approve.yml',
+  );
+  try {
+    return fs.readFileSync(approveSource, 'utf8');
+  } catch {
+    // Packaged example missing (unexpected) — don't abort the rest of init.
+    console.warn(`could not read the approval workflow template at ${approveSource} — skipped`);
+    return undefined;
+  }
+}
+
+// MACHINE-OWNED generated files: their content is fully derived from this release
+// plus init's inputs (spec path, package manager), so `--upgrade` may rewrite them
+// and `--check` can diff them against the current templates. The capture spec and
+// playwright.styleproof.config.ts are USER-owned — never listed here, never touched.
+// (Custom spec path? Pass the same --dir you scaffolded with, so the templates
+// interpolate the matching path.)
+function machineOwnedFiles() {
+  const approve = readApproveTemplate();
+  const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
+  return [
+    { file: path.join(hookDir, 'pre-push'), contents: HOOK, executable: true },
+    { file: CI_PATH, contents: CI_WORKFLOW },
+    ...(approve === undefined ? [] : [{ file: APPROVE_PATH, contents: approve }]),
+  ];
+}
+
+// --check: report drift between the machine-owned files on disk and this release's
+// templates, writing NOTHING. Exit 1 on any drift so a consumer CI step can say
+// "a styleproof upgrade changed the generated files — run styleproof-init --upgrade".
+if (checkOnly) {
+  let stale = 0;
+  for (const { file, contents } of machineOwnedFiles()) {
+    if (!fs.existsSync(file)) {
+      console.log(`missing  ${file}`);
+      stale++;
+    } else if (fs.readFileSync(file, 'utf8') !== contents) {
+      console.log(`stale    ${file}`);
+      stale++;
+    } else {
+      console.log(`current  ${file}`);
+    }
+  }
+  if (stale) {
+    console.log(
+      `\n${stale} machine-owned file(s) differ from this styleproof release — run: styleproof-init --upgrade`,
+    );
+    process.exit(1);
+  }
+  console.log('\nall machine-owned files match this styleproof release');
+  process.exit(0);
+}
+
+// --upgrade: refresh every machine-owned file to this release's template, leaving
+// the user-owned spec and playwright config alone. Idempotent — an already-current
+// file is reported, not rewritten.
+if (upgrade) {
+  for (const { file, contents, executable } of machineOwnedFiles()) {
+    if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === contents) {
+      console.log(`current   ${file}`);
+      continue;
+    }
+    const wrote = writeFileSafe(file, contents, { force: true });
+    if (executable) fs.chmodSync(file, 0o755);
+    console.log(`${wrote.exists ? 'refreshed' : 'created'} ${file}`);
+  }
+  console.log('\nmachine-owned files now match this styleproof release (spec and playwright config untouched)');
+  process.exit(0);
+}
+
 // Choose the scaffold: routes-aware when this is a Next.js app with discoverable
 // routes, else the generic one-surface starter.
 const routes = discoverNextRoutes(process.cwd());
@@ -625,20 +714,7 @@ if (ci.wrote) {
 // copy the packaged example verbatim rather than regenerate it. GitHub only runs
 // issue_comment workflows from the DEFAULT branch, so it activates when the init PR
 // merges — writing it to the feature branch now is correct and harmless.
-const APPROVE_PATH = '.github/workflows/styleproof-approve.yml';
-const approveSource = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  'example',
-  'styleproof-approve.yml',
-);
-let approveWorkflow;
-try {
-  approveWorkflow = fs.readFileSync(approveSource, 'utf8');
-} catch {
-  // Packaged example missing (unexpected) — don't abort the rest of init.
-  console.warn(`could not read the approval workflow template at ${approveSource} — skipped`);
-}
+const approveWorkflow = readApproveTemplate();
 if (approveWorkflow !== undefined) {
   const approve = writeFileSafe(APPROVE_PATH, approveWorkflow);
   if (approve.wrote) {

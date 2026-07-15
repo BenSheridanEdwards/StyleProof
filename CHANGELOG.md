@@ -9,6 +9,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`styleproof.config.json` is now the single project-config surface.** Every
+  CLI reads `spec`, `dirtyAllow`, `cacheBranch`, `remote`, and
+  `affected.{surfaces,graph,base}` from it as the lowest-precedence default
+  layer (flag > env > file > built-in), alongside the Action's existing
+  gate-policy keys. A configured repo runs `styleproof-affected` bare, and
+  dirty-allow paths live in config instead of being threaded through hook and
+  workflow invocations. A malformed file or wrongly-typed key fails loudly.
+- **`styleproof-init --upgrade` and `--check`.** The generated pre-push hook,
+  report workflow, and approval workflow are machine-owned thin wrappers;
+  `--check` reports drift against the current release's templates without
+  writing (exit 1 — CI-able), and `--upgrade` refreshes them in place, never
+  touching the user-owned spec or playwright config.
+
 - **`styleproof-ci`** — the cache-first CI orchestration as one command:
   `--base <sha> --head <sha>` restores both exact-SHA bundles, captures just the
   head on a head-only miss (HAR replay when the base recorded data), and rebuilds
