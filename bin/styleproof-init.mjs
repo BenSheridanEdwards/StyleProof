@@ -225,8 +225,6 @@ const PACKAGE_MANAGERS = {
     run: (script) => `npm run ${script}`,
     exec: (command) => `npx ${command}`,
     install: 'npm ci',
-    installExactStyleProof: 'npm install --no-save --package-lock=false "styleproof@$STYLEPROOF_VERSION"',
-    restorePackageMetadata: 'true # npm exact install leaves package metadata unchanged',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -237,8 +235,6 @@ const PACKAGE_MANAGERS = {
     run: (script) => `npx -y yarn@1.22.22 ${script}`,
     exec: (command) => `npx -y yarn@1.22.22 ${command}`,
     install: 'npx -y yarn@1.22.22 install --frozen-lockfile --non-interactive',
-    installExactStyleProof: 'npx -y yarn@1.22.22 add --dev --exact "styleproof@$STYLEPROOF_VERSION"',
-    restorePackageMetadata: 'git checkout -- package.json yarn.lock',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -250,8 +246,6 @@ const PACKAGE_MANAGERS = {
     run: (script) => `pnpm run ${script}`,
     exec: (command) => `pnpm exec ${command}`,
     install: 'pnpm install --frozen-lockfile',
-    installExactStyleProof: 'pnpm add --save-dev --save-exact "styleproof@$STYLEPROOF_VERSION"',
-    restorePackageMetadata: 'git checkout -- package.json pnpm-lock.yaml',
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -264,13 +258,6 @@ const PACKAGE_MANAGERS = {
     run: (script) => `bun run ${script}`,
     exec: (command) => `bunx ${command}`,
     install: 'bun install --frozen-lockfile',
-    installExactStyleProof: 'bun add --dev --exact "styleproof@$STYLEPROOF_VERSION"',
-    restorePackageMetadata: `git checkout -- package.json
-            for package_metadata_file in bun.lock bun.lockb; do
-              if git ls-files --error-unmatch "$package_metadata_file" >/dev/null 2>&1; then
-                git checkout -- "$package_metadata_file"
-              fi
-            done`,
     setup: `      - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -412,92 +399,18 @@ jobs:
 ${PM.setup}
       - run: ${PM.install}
       - id: maps
-        name: Restore cached StyleProof maps
+        name: Restore or capture StyleProof maps
         shell: bash
         run: |
-          BASE_SHA="\${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
-          rm -rf "$MAP_ROOT"
-          # styleproof-map --restore exit codes: 0 = hit, 4 = genuine cache miss
-          # (recaptured below), any other = infra/network fault. Retries already run
-          # inside the CLI, so a code that is still neither 0 nor 4 is a PERSISTENT
-          # fault: fail the job loudly (a re-run is cheap and correct) rather than
-          # silently paying a full cold recapture on every flaky network blip.
-          # Compatibility keys include the checked-out lockfile. Resolve each
-          # exact-SHA bundle in that commit's own dependency context, while
-          # reusing the already-installed StyleProof binary from node_modules.
-          git checkout --force "$BASE_SHA"
-          set +e
-          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --restore --sha "$BASE_SHA" --dir base --base-dir "$MAP_ROOT" --spec ${specPath}
-          base_code=$?
-          set -e
-          if [ "$base_code" -ne 0 ] && [ "$base_code" -ne 4 ]; then
-            echo "::error::StyleProof: base map restore hit a map-store/network fault (exit $base_code). Re-run the job." >&2
-            exit "$base_code"
-          fi
-          git checkout --force "$HEAD_SHA"
-          set +e
-          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --restore --sha "$HEAD_SHA" --dir head --base-dir "$MAP_ROOT" --spec ${specPath}
-          head_code=$?
-          set -e
-          if [ "$head_code" -ne 0 ] && [ "$head_code" -ne 4 ]; then
-            echo "::error::StyleProof: head map restore hit a map-store/network fault (exit $head_code). Re-run the job." >&2
-            exit "$head_code"
-          fi
-          echo "base-hit=$([ "$base_code" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "head-hit=$([ "$head_code" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          if [ "$base_code" -eq 0 ] && [ "$head_code" -eq 0 ]; then
-            echo "capture-needed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "capture-needed=true" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Capture maps in CI on cache miss
-        if: steps.maps.outputs.capture-needed == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE_SHA="\${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          MAP_ROOT="\${{ runner.temp }}/styleproof-maps"
-          STYLEPROOF_VERSION="$(node -p "require('./node_modules/styleproof/package.json').version")"
-
-          if [ "\${{ steps.maps.outputs.base-hit }}" != 'true' ]; then
-            # Without a compatible base bundle, rebuild and publish the pair in
-            # one pinned environment. This is the expensive cold path.
-            rm -rf "$MAP_ROOT"
-            git checkout --force "$BASE_SHA"
-            ${PM.install}
-            # The base may depend on an older StyleProof. Install the head's
-            # exact release, then invoke its binary directly so a later package
-            # manager command cannot silently reconcile node_modules backwards.
-            ${PM.installExactStyleProof}
-            # Package managers that record the temporary exact release dirty
-            # tracked metadata. Restore only those files: node_modules must
-            # retain the exact release for the clean-tree capture below.
-            ${PM.restorePackageMetadata}
-            PATH="$PWD/node_modules/.bin:$PATH" playwright install --with-deps chromium
-            if [ -f "${specPath}" ]; then
-              PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --spec ${specPath} --dir base --base-dir "$MAP_ROOT" --keep-har --sha "$BASE_SHA" --upload
-            else
-              mkdir -p "$MAP_ROOT/base"
-            fi
-
-            git checkout --force "$HEAD_SHA"
-            ${PM.install}
-            PATH="$PWD/node_modules/.bin:$PATH" playwright install --with-deps chromium
-          else
-            # A compatible base hit proves the current head environment. Keep
-            # that restored base and capture only the missing head.
-            rm -rf "$MAP_ROOT/head"
-            PATH="$PWD/node_modules/.bin:$PATH" playwright install --with-deps chromium
-          fi
-
-          if find "$MAP_ROOT/base" -name '*.har' -print -quit | grep -q .; then
-            PATH="$PWD/node_modules/.bin:$PATH" STYLEPROOF_REPLAY_FROM="$MAP_ROOT/base" node node_modules/styleproof/bin/styleproof-map.mjs --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload
-          else
-            PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-map.mjs --spec ${specPath} --dir head --base-dir "$MAP_ROOT" --sha "$HEAD_SHA" --upload
-          fi
+          # Cache-first, in one packaged command: restore both exact-SHA bundles
+          # from the styleproof-maps branch; on a miss, capture in this pinned
+          # environment and publish for reuse. The rules — restore exit-code
+          # triage, the cold-path base rebuild under the head's exact StyleProof
+          # release, HAR replay for the head — live in styleproof-ci, so this
+          # step updates with the release instead of drifting per repo. It still
+          # sets base-hit / head-hit / capture-needed for steps that branch on
+          # steps.maps.outputs.*, and it invokes the installed release directly.
+          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "\${{ github.event.pull_request.base.sha }}" --head "\${{ github.event.pull_request.head.sha }}" --spec ${specPath} --base-dir "\${{ runner.temp }}/styleproof-maps"
       - uses: BenSheridanEdwards/StyleProof@v4
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base

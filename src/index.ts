@@ -70,3 +70,5 @@ export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from '
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';
 export { PRE_PUSH_ZERO_OID, choosePrePushCaptureSha, docsOnlyFiles, parsePrePushRefs } from './prepush.js';
 export type { PrePushCaptureChoice, PrePushRef } from './prepush.js';
+export { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from './ci.js';
+export type { PackageManagerPlan, RestoreOutcome } from './ci.js';

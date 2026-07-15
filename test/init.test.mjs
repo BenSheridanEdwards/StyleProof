@@ -78,8 +78,6 @@ for (const manager of [
     workflow: [
       /cache: npm/,
       /npm ci/,
-      /npm install --no-save --package-lock=false "styleproof@\$STYLEPROOF_VERSION"/,
-      /true # npm exact install leaves package metadata unchanged/,
       /BenSheridanEdwards\/StyleProof@v4/,
       /baseline-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/base/,
       /fresh-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/head/,
@@ -94,8 +92,6 @@ for (const manager of [
     workflow: [
       /cache: yarn/,
       /npx -y yarn@1\.22\.22 install --frozen-lockfile --non-interactive/,
-      /npx -y yarn@1\.22\.22 add --dev --exact "styleproof@\$STYLEPROOF_VERSION"/,
-      /git checkout -- package\.json yarn\.lock/,
       /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
@@ -106,14 +102,7 @@ for (const manager of [
     name: 'pnpm lockfile',
     lockfile: 'pnpm-lock.yaml',
     config: /pnpm run build && pnpm run start/,
-    workflow: [
-      /cache: pnpm/,
-      /corepack enable/,
-      /pnpm install --frozen-lockfile/,
-      /pnpm add --save-dev --save-exact "styleproof@\$STYLEPROOF_VERSION"/,
-      /git checkout -- package\.json pnpm-lock\.yaml/,
-      /BenSheridanEdwards\/StyleProof@v4/,
-    ],
+    workflow: [/cache: pnpm/, /corepack enable/, /pnpm install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v4/],
     absent: [/npm ci/],
     workflowAbsent: [/pnpm exec styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
     hookExec: /exec pnpm exec styleproof-prepush --spec e2e\/styleproof\.spec\.ts/,
@@ -122,13 +111,7 @@ for (const manager of [
     name: 'Bun lockfile',
     lockfile: 'bun.lock',
     config: /bun run build && bun run start/,
-    workflow: [
-      /oven-sh\/setup-bun@v2/,
-      /bun install --frozen-lockfile/,
-      /bun add --dev --exact "styleproof@\$STYLEPROOF_VERSION"/,
-      /git checkout -- package\.json[\s\S]*git checkout -- "\$package_metadata_file"/,
-      /BenSheridanEdwards\/StyleProof@v4/,
-    ],
+    workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v4/],
     absent: [/npm ci/],
     workflowAbsent: [/bunx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
     hookExec: /exec bunx styleproof-prepush --spec e2e\/styleproof\.spec\.ts/,
@@ -162,32 +145,21 @@ for (const manager of [
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
       for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(workflow, pattern);
 
-      // CI always executes the installed release directly. In the cold path,
-      // the base's older dependency is upgraded before capture and the head is
-      // checked out only after that exact-release capture has completed.
+      // The restore → capture-on-miss → replay → publish orchestration is ONE
+      // packaged command (styleproof-ci), invoked on the installed release with the
+      // consumer's bin dir on PATH — the workflow carries no orchestration bash to
+      // drift, and no scaffold-time package-manager commands (styleproof-ci detects
+      // the lockfile at RUN time, so an npm→pnpm migration needs no re-init). The
+      // exit-code triage, cold-path exact-release install, metadata restore, and
+      // HAR replay it used to assert here are unit-tested in ci-cli.test.mjs.
       assert.match(
         workflow,
-        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-map\.mjs --restore --sha "\$BASE_SHA"/,
+        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$\{\{ github\.event\.pull_request\.base\.sha \}\}" --head "\$\{\{ github\.event\.pull_request\.head\.sha \}\}" --spec e2e\/styleproof\.spec\.ts --base-dir "\$\{\{ runner\.temp \}\}\/styleproof-maps"/,
       );
-      assert.match(workflow, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" playwright install --with-deps chromium/);
-
-      // A restore exit code that is neither 0 (hit) nor 4 (genuine miss) is a
-      // persistent map-store/network fault: fail the job loudly rather than silently
-      // paying a full cold recapture on every flaky run.
-      assert.match(workflow, /if \[ "\$base_code" -ne 0 \] && \[ "\$base_code" -ne 4 \]; then/);
-      assert.match(workflow, /if \[ "\$head_code" -ne 0 \] && \[ "\$head_code" -ne 4 \]; then/);
-      assert.match(workflow, /::error::StyleProof: base map restore hit a map-store\/network fault/);
-      const exactReleaseInstallIndex = workflow.indexOf('"styleproof@$STYLEPROOF_VERSION"');
-      const baseCaptureIndex = workflow.indexOf(
-        'node node_modules/styleproof/bin/styleproof-map.mjs --spec e2e/styleproof.spec.ts --dir base',
-      );
-      const metadataRestoreIndex = workflow.indexOf('Restore only those files: node_modules must');
-      const headCheckoutAfterBaseCaptureIndex = workflow.indexOf('git checkout --force "$HEAD_SHA"', baseCaptureIndex);
-      assert.ok(exactReleaseInstallIndex >= 0, 'cold capture installs the head StyleProof release');
-      assert.ok(metadataRestoreIndex > exactReleaseInstallIndex, 'cold capture cleans temporary package metadata');
-      assert.ok(baseCaptureIndex > exactReleaseInstallIndex, 'base capture uses that exact release');
-      assert.ok(baseCaptureIndex > metadataRestoreIndex, 'base capture starts from a clean tracked tree');
-      assert.ok(headCheckoutAfterBaseCaptureIndex > baseCaptureIndex, 'base capture finishes before manifest reset');
+      assert.doesNotMatch(workflow, /styleproof-map\.mjs/);
+      assert.doesNotMatch(workflow, /"styleproof@\$STYLEPROOF_VERSION"/);
+      assert.doesNotMatch(workflow, /playwright install/);
+      assert.doesNotMatch(workflow, /echo "capture-needed/); // emitted by styleproof-ci itself now
 
       // Report branch self-prunes on PR close (out of the box) — manager-independent.
       assert.match(workflow, /types: \[opened, synchronize, reopened, closed\]/);

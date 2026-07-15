@@ -160,8 +160,11 @@ then use the Action on those dirs:
 ```yaml
 # .github/workflows/styleproof.yml
 - uses: actions/checkout@v4
-- run: npx styleproof-map --restore --sha "${{ github.event.pull_request.base.sha }}" --dir base --base-dir __stylemaps__
-- run: npx styleproof-map --restore --sha "${{ github.event.pull_request.head.sha }}" --dir head --base-dir __stylemaps__
+  with:
+    fetch-depth: 0
+# One command: restore both exact-SHA maps, or capture-and-publish on a miss
+# (cold base rebuild under the head's exact release, HAR replay for the head).
+- run: npx styleproof-ci --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --base-dir __stylemaps__
 - uses: BenSheridanEdwards/StyleProof@v4
   with:
     baseline-dir: __stylemaps__/base
@@ -1026,6 +1029,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 - `styleproof-capture` — one-shot capture of any URL (no spec): `styleproof-capture <url> --key <name> --out <dir>`, with `--widths` (omit to auto-detect `@media` bands), `--wait <selector>`, `--ignore <selector>`, `--no-screenshots`, and the crawler flags (`--crawl`, `--setup <file>`, `--require-full-coverage` → exit 4 on residue, `--until-covered`, `--workers <n>`, `--no-data-states`) described in [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel).
 - `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
 - `styleproof-prepush` — the canonical pre-push flow, packaged: reads git's refspecs from stdin, captures the pushed commit only when its tip is the checked-out tree, skips docs-only pushes, restores an already-published exact-SHA map or captures and publishes once, then runs the advisory diff. The hook `styleproof-init` writes is a two-line shim that execs this command, so the rules update with each release instead of drifting in a copied hook file — refresh an old hook with `styleproof-init --hook`.
+- `styleproof-ci` — the whole cache-first CI flow as one command: `--base <sha> --head <sha>` restores both exact-SHA bundles from `styleproof-maps` (failing loudly on a map-store/network fault — exit codes 0 hit / 4 miss / other fault come from `styleproof-map --restore`); on a head-only miss captures just the head (replaying the base's recorded data when HAR files are present); on a base miss rebuilds the pair in one pinned environment — base checkout, its own dependency install (lockfile detected at **run** time: npm/yarn/pnpm/bun), the head's exact StyleProof release, capture+publish. Writes `base-hit`/`head-hit`/`capture-needed` to `$GITHUB_OUTPUT`. It runs `git checkout --force`, so it refuses to run without `CI=1` unless `--force` is passed. The init-generated workflow step is a single invocation of this command.
 - `styleproof-affected` — the selective-remap verdict as a command: `--graph dc.json --surfaces styleproof.surfaces.json --base origin/main` answers "which declared surfaces could this change have restyled?" from a dependency-cruiser graph and the git diff, printing the reviewer-checkable skip list and (with `--json`) a machine verdict of `recapture` vs `reuse` keys. Exit `0` = scoped, `3` = unbounded (`'all'` — re-capture everything), `2` = usage error. Advisory: it never captures or gates by itself (see **Optional: selective remap**).
 
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
