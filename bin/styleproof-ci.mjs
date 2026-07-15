@@ -21,6 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from '../dist/ci.js';
+import { applySpecRefOverlay, CiSpecRefError, shouldApplySpecRefOverlay } from '../dist/ci-spec-ref.js';
 
 const HELP = `styleproof-ci — restore or capture the base/head maps for a PR, cache-first
 
@@ -41,6 +42,10 @@ options:
   --base <sha>        base commit (e.g. github.event.pull_request.base.sha)
   --head <sha>        head commit (e.g. github.event.pull_request.head.sha)
   --spec <path>       StyleProof spec (default: e2e/styleproof.spec.ts)
+  --spec-ref <ref>    When a cold base capture runs and the base commit already has
+                      that spec, source the spec bytes from <ref>:<spec> for the base
+                      render only (app + lockfile stay at --base). Omitted keeps 4.5.0
+                      behavior. Invalid refs or a missing spec at the ref fail loudly.
   --base-dir <path>   map root; base/head land under it
                       (default: $RUNNER_TEMP/styleproof-maps, else .styleproof/ci-maps)
   --force             run outside CI (the flow force-checkouts commits — it will
@@ -64,6 +69,8 @@ const projectConfig = projectConfigOrExit('styleproof-ci');
 let base = '';
 let head = '';
 let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
+let specRef = '';
+let specRefProvided = false;
 let baseDir = process.env.RUNNER_TEMP ? path.join(process.env.RUNNER_TEMP, 'styleproof-maps') : '.styleproof/ci-maps';
 let force = false;
 for (let i = 0; i < argv.length; i++) {
@@ -75,7 +82,13 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--head=')) head = a.slice(7);
   else if (a === '--spec') spec = argv[++i];
   else if (a.startsWith('--spec=')) spec = a.slice(7);
-  else if (a === '--base-dir') baseDir = argv[++i];
+  else if (a === '--spec-ref') {
+    specRefProvided = true;
+    specRef = argv[++i];
+  } else if (a.startsWith('--spec-ref=')) {
+    specRefProvided = true;
+    specRef = a.slice(11);
+  } else if (a === '--base-dir') baseDir = argv[++i];
   else if (a.startsWith('--base-dir=')) baseDir = a.slice(11);
   else if (a === '--force') force = true;
   else {
@@ -86,6 +99,10 @@ for (let i = 0; i < argv.length; i++) {
 
 if (!base || !head) {
   console.error('styleproof-ci: --base <sha> and --head <sha> are required');
+  process.exit(2);
+}
+if (specRefProvided && (typeof specRef !== 'string' || !specRef.trim())) {
+  console.error('styleproof-ci: --spec-ref requires a non-empty git ref');
   process.exit(2);
 }
 if (!process.env.CI && !force) {
@@ -108,6 +125,13 @@ const env = { ...process.env, PATH: `${binDirs.join(path.delimiter)}${path.delim
 
 function log(message) {
   console.error(`styleproof-ci: ${message}`);
+}
+
+function exitSpecRefError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = error instanceof CiSpecRefError ? error.exitCode : 1;
+  console.error(message);
+  process.exit(code);
 }
 
 /** Run a command with inherited stdio; exit with its code (or 1) on failure. */
@@ -219,18 +243,38 @@ if (!baseHit) {
   }
   playwrightInstall();
   if (fs.existsSync(spec)) {
-    const baseStatus = capture([
-      '--spec',
-      spec,
-      '--dir',
-      'base',
-      '--base-dir',
-      root,
-      '--keep-har',
-      '--sha',
-      base,
-      '--upload',
-    ]);
+    let overlay;
+    if (shouldApplySpecRefOverlay(true, specRef)) {
+      try {
+        overlay = applySpecRefOverlay({ spec, specRef, cwd: process.cwd() });
+        log(`overlaying ${spec} from ${specRef} for base capture`);
+      } catch (error) {
+        exitSpecRefError(error);
+      }
+    }
+    let baseStatus;
+    try {
+      baseStatus = capture([
+        '--spec',
+        spec,
+        '--dir',
+        'base',
+        '--base-dir',
+        root,
+        '--keep-har',
+        '--sha',
+        base,
+        '--upload',
+      ]);
+    } finally {
+      if (overlay) {
+        try {
+          overlay.restore();
+        } catch (error) {
+          exitSpecRefError(error);
+        }
+      }
+    }
     if (baseStatus !== 0) {
       log(`base capture failed (exit ${baseStatus}) — continuing with a bare baseline`);
       fs.rmSync(path.join(root, 'base'), { recursive: true, force: true });
