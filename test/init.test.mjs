@@ -192,6 +192,15 @@ for (const manager of [
       assert.match(workflow, /^\s{2}prune:/m);
       assert.match(workflow, /if: github\.event\.action == 'closed'/);
       assert.match(workflow, /git rm -r --quiet "pr-\$PR"/);
+
+      // The map store also self-prunes the closed PR's head-SHA folder, but only when
+      // that SHA is NOT on the default branch (a ff/rebase merge keeps its base-tip map).
+      assert.match(workflow, /Prune this PR's head map from the map store/);
+      assert.match(workflow, /BRANCH: styleproof-maps/);
+      assert.match(workflow, /compare\/\$HEAD_SHA\.\.\.\$DEFAULT_BRANCH/);
+      assert.match(workflow, /ahead\|identical\|behind\|unknown\)/);
+      assert.match(workflow, /git rm -r --quiet "\$HEAD_SHA"/);
+      assert.match(workflow, /git sparse-checkout set "\$HEAD_SHA"/);
     } finally {
       rmTmp(root);
     }
