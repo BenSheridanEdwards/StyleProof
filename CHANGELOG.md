@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-07-15
+
 ### Added
 
 - **`styleproof.config.json` is now the single project-config surface.** Every
