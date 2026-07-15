@@ -67,6 +67,10 @@ options:
   --crawl-strict      fail if live-state fixtures or skipped candidates remain
   --cache-branch <b>  map store branch (default: ${DEFAULT_MAP_STORE_BRANCH})
   --remote <name>     git remote for the map store (default: ${DEFAULT_REMOTE})
+  --dirty-allow <path>
+                      tracked file or directory whose changes never mark the capture
+                      dirty (a dev tool rewriting e.g. tsconfig.json); repeatable,
+                      also via STYLEPROOF_DIRTY_ALLOW (comma-separated)
   -h, --help          show this help
 
 If playwright.styleproof.config.ts exists, styleproof-map passes it to Playwright
@@ -106,6 +110,10 @@ let crawlMaxActions = process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ?? '';
 let crawlWidth = process.env.STYLEPROOF_CRAWL_WIDTH ?? '';
 let crawlHeight = process.env.STYLEPROOF_CRAWL_HEIGHT ?? '';
 let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1';
+const dirtyAllow = (process.env.STYLEPROOF_DIRTY_ALLOW ?? '')
+  .split(',')
+  .map((p) => p.trim())
+  .filter(Boolean);
 const playwrightArgs = [];
 
 for (let i = 0; i < argv.length; i++) {
@@ -141,6 +149,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--crawl-height') crawlHeight = argv[++i];
   else if (a.startsWith('--crawl-height=')) crawlHeight = a.slice(15);
   else if (a === '--crawl-strict') crawlStrict = true;
+  else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
+  else if (a.startsWith('--dirty-allow=')) dirtyAllow.push(a.slice(14));
   else if (a === '--cache-branch' || a === '--remote') {
     const value = argv[++i];
     if (a === '--cache-branch') cacheBranch = value;
@@ -271,7 +281,7 @@ const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
 let dirtyBeforeCapture;
 let headBeforeCapture;
 try {
-  dirtyBeforeCapture = workingTreeDirty(process.cwd());
+  dirtyBeforeCapture = workingTreeDirty(process.cwd(), dirtyAllow);
   headBeforeCapture = currentGitSha(process.cwd());
 } catch {
   dirtyBeforeCapture = false;
@@ -367,7 +377,8 @@ if (status === 0) {
   try {
     const rel = path.relative(process.cwd(), targetDir) || targetDir;
     const headAfter = currentGitSha(process.cwd(), env);
-    if (workingTreeDirty(process.cwd(), rel) || (headBeforeCapture && headAfter !== headBeforeCapture)) dirty = true;
+    if (workingTreeDirty(process.cwd(), [...dirtyAllow, rel]) || (headBeforeCapture && headAfter !== headBeforeCapture))
+      dirty = true;
   } catch {
     // git unreadable now — keep the pre-capture verdict rather than guess
   }
