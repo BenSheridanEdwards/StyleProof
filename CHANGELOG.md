@@ -21,6 +21,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   branch tip through its own credentials first, which narrows the import to the
   newly committed objects, and the fallback push fully qualifies its destination
   ref so it can also create the branch on first publish.
+- **Explicit workflow authentication no longer duplicates the checkout header.**
+  StyleProof clears any inherited GitHub HTTP authorization value before adding
+  `STYLEPROOF_MAP_STORE_TOKEN`, preventing GitHub from rejecting cold-cache
+  clones with `Duplicate header: "Authorization"` while retaining explicit-token
+  precedence over stale checkout credentials.
+
+## [4.4.22] - 2026-07-13
+
+### Fixed
+
+- **The compatibility key no longer depends on how `cwd` was spelled.** A
+  relative `cwd` made the Playwright-version probe throw internally, silently
+  dropping that field from the key — so a publish and a restore in the same
+  environment could stamp different keys, and every cache lookup missed
+  (a silent full-recapture tax, never an error). The key inputs now resolve
+  `cwd` first, and a regression test pins relative/absolute equality.
 
 ## [4.4.21] - 2026-07-14
 
@@ -118,16 +134,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `git push` uses the same explicit reset-and-token arguments as the isolated
   clone, so temporary sparse-checkout config cannot drop the Actions token after
   a successful cold-cache capture.
-
-## [4.4.10] - 2026-07-13
-
-### Fixed
-
-- **Explicit workflow authentication no longer duplicates the checkout header.**
-  StyleProof clears any inherited GitHub HTTP authorization value before adding
-  `STYLEPROOF_MAP_STORE_TOKEN`, preventing GitHub from rejecting cold-cache
-  clones with `Duplicate header: "Authorization"` while retaining explicit-token
-  precedence over stale checkout credentials.
 
 ## [4.4.8] - 2026-07-13
 

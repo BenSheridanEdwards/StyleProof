@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {
   assertCompatibleMapDirs,
+  expectedCompatibilityKey,
   BROWSER_BUILD_SIDECAR,
   currentGitSha,
   manifestlessError,
@@ -1127,4 +1128,14 @@ test('restoreMapBundle retries an infrastructure fault and fails as a plain MapS
     else process.env.STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS = previousAttempts;
     rmTmp(root);
   }
+});
+
+// A relative cwd made createRequire throw inside playwrightVersion, silently
+// dropping the field from the compatibility key — publish (hook, relative cwd)
+// and restore (CLI, absolute cwd) then stamped DIFFERENT keys for the same
+// environment, so every cache lookup missed and CI paid a full recapture.
+test('expectedCompatibilityKey is identical for relative and absolute cwd', () => {
+  const relative = expectedCompatibilityKey({ cwd: '.', spec: 'e2e/styleproof.spec.ts' });
+  const absolute = expectedCompatibilityKey({ cwd: process.cwd(), spec: 'e2e/styleproof.spec.ts' });
+  assert.equal(relative, absolute);
 });
