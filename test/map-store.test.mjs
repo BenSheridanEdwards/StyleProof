@@ -151,6 +151,44 @@ test('workingTreeDirty: ignorePrefix skips the map output dir but still catches 
   }
 });
 
+test('workingTreeDirty: multiple allow paths cover files a dev tool rewrites, without masking real edits', () => {
+  const repo = mkTmp('styleproof-dirty-allow-');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    fs.mkdirSync(path.join(repo, 'hud'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'hud/tsconfig.json'), '{}');
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v1');
+    fs.mkdirSync(path.join(repo, '.styleproof/maps/current'), { recursive: true });
+    fs.writeFileSync(path.join(repo, '.styleproof/maps/current/home@1280.json'), '{}');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+
+    // The `next dev` class of dirt: a tracked config file rewritten by tooling.
+    fs.writeFileSync(path.join(repo, 'hud/tsconfig.json'), '{"rewritten":true}');
+    assert.equal(workingTreeDirty(repo), true, 'tool rewrite dirties the raw tree');
+    assert.equal(workingTreeDirty(repo, ['hud/tsconfig.json']), false, 'an exact-file allow skips it');
+
+    // Allow paths compose with the map-output ignore the CLI already passes.
+    fs.writeFileSync(path.join(repo, '.styleproof/maps/current/home@1280.json'), '{"changed":1}');
+    assert.equal(workingTreeDirty(repo, ['hud/tsconfig.json', '.styleproof/maps/current']), false);
+
+    // A real source edit is still caught alongside both allowances.
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v2');
+    assert.equal(workingTreeDirty(repo, ['hud/tsconfig.json', '.styleproof/maps/current']), true);
+
+    // An allowed DIRECTORY prefix must not also allow sibling files sharing the name prefix.
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'v1');
+    fs.writeFileSync(path.join(repo, 'hud/tsconfig.json.bak'), 'x');
+    git('add', 'hud/tsconfig.json.bak');
+    assert.equal(workingTreeDirty(repo, ['hud/tsconfig.json']), true, 'prefix match is path-segment exact');
+  } finally {
+    rmTmp(repo);
+  }
+});
+
 test('publishMapBundle ignores hook-exported Git repository variables and leaves the caller non-bare', () => {
   const root = mkTmp('styleproof-hook-env-');
   const remote = path.join(root, 'remote.git');
@@ -633,18 +671,21 @@ test('publishMapBundle bounds a wedged isolated push and falls back to the consu
     const gitShim = path.join(shimDirectory, 'git');
     fs.writeFileSync(
       gitShim,
-      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in\n  *"push -q origin HEAD:styleproof-maps"*)\n    if [ ! -f "$STYLEPROOF_TEST_TIMEOUT_MARKER" ]; then\n      touch "$STYLEPROOF_TEST_TIMEOUT_MARKER"\n      sleep 10\n      exit 1\n    fi\n  ;;\nesac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\ncase "$*" in\n  *"push -q origin HEAD:styleproof-maps"*)\n    if [ ! -f "$STYLEPROOF_TEST_TIMEOUT_MARKER" ]; then\n      touch "$STYLEPROOF_TEST_TIMEOUT_MARKER"\n      sleep 30\n      exit 1\n    fi\n  ;;\nesac\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
     );
     fs.chmodSync(gitShim, 0o755);
     process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
     process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
     process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
     process.env.STYLEPROOF_TEST_TIMEOUT_MARKER = timeoutMarker;
-    process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS = '100';
+    // The kill timeout must leave healthy git spawns room to finish on slow volumes,
+    // yet the elapsed bound below must stay under the shim's 30s wedge so the test
+    // only passes when the wedged push is killed rather than waited out.
+    process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS = '2000';
 
     const startedAt = Date.now();
     assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
-    assert.ok(Date.now() - startedAt < 4_000, 'a wedged push should be terminated before falling back');
+    assert.ok(Date.now() - startedAt < 15_000, 'a wedged push should be terminated before falling back');
     assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
     const pushInvocations = fs
       .readFileSync(invocationLog, 'utf8')
@@ -1043,9 +1084,12 @@ test('writeBrowserBuildSidecar(undefined) CLEARS a stale sidecar so a version-le
       sha: 'd'.repeat(40),
       screenshots: true,
       dirty: false,
+      dirtyAllow: ['hud/tsconfig.json', 'generated/'],
     });
     assert.equal(manifest.browserVersion, undefined);
+    assert.deepEqual(manifest.dirtyAllow, ['hud/tsconfig.json', 'generated/']);
     assert.equal(readMapManifest(dir).browserVersion, undefined);
+    assert.deepEqual(readMapManifest(dir).dirtyAllow, ['hud/tsconfig.json', 'generated/']);
   } finally {
     rmTmp(dir);
   }

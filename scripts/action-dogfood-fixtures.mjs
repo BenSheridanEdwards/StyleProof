@@ -31,6 +31,20 @@ function mapNav(routes, color = 'rgb(0, 0, 0)') {
   };
 }
 
+function mapWithResidue() {
+  return {
+    ...map(),
+    dataResidue: [
+      {
+        key: 'home·/api/status',
+        surface: 'home',
+        endpoint: '/api/status',
+        reason: 'HTTP 500',
+      },
+    ],
+  };
+}
+
 function png([r, g, b]) {
   const image = new PNG({ width: 320, height: 180 });
   for (let i = 0; i < image.data.length; i += 4) {
@@ -68,6 +82,17 @@ function writeCapture(dir, surface, styleMap, image) {
   fs.writeFileSync(path.join(dir, 'styleproof-manifest.json'), JSON.stringify(MANIFEST, null, 2));
 }
 
+function armResidueGate(dir) {
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-coverage.json'),
+    JSON.stringify(
+      { version: 1, expected: null, exclude: {}, determinism: 'self-checked', dataResidue: 'gate' },
+      null,
+      2,
+    ),
+  );
+}
+
 fs.rmSync(root, { recursive: true, force: true });
 
 writeCapture(path.join(root, 'clean-base'), 'home@320', map(), png([240, 240, 240]));
@@ -79,6 +104,16 @@ writeCapture(path.join(root, 'changed-head'), 'home@320', map('rgb(255, 0, 0)'),
 writeCapture(path.join(root, 'new-base'), 'home@320', map(), png([240, 240, 240]));
 writeCapture(path.join(root, 'new-head'), 'home@320', map(), png([240, 240, 240]));
 writeCapture(path.join(root, 'new-head'), 'pricing@320', map('rgb(0, 0, 255)'), png([230, 230, 255]));
+
+// A base capture fault is not first-adoption evidence: keep the base genuinely
+// bare and prove the Action labels the head-only receipt as degraded.
+fs.mkdirSync(path.join(root, 'degraded-base'), { recursive: true });
+writeCapture(path.join(root, 'degraded-head'), 'home@320', map(), png([240, 240, 240]));
+
+writeCapture(path.join(root, 'residue-base'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'residue-head'), 'home@320', mapWithResidue(), png([240, 240, 240]));
+armResidueGate(path.join(root, 'residue-base'));
+armResidueGate(path.join(root, 'residue-head'));
 
 // Inventory removal: base offers routes /a + /b; head drops /b → unacknowledged removal.
 writeCapture(path.join(root, 'removed-base'), 'home@320', mapNav(['/a', '/b']), png([240, 240, 240]));

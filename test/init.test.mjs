@@ -78,16 +78,12 @@ for (const manager of [
     workflow: [
       /cache: npm/,
       /npm ci/,
-      /npm install --no-save --package-lock=false "styleproof@\$STYLEPROOF_VERSION"/,
-      /true # npm exact install leaves package metadata unchanged/,
       /BenSheridanEdwards\/StyleProof@v4/,
       /baseline-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/base/,
       /fresh-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/head/,
     ],
     workflowAbsent: [/npx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
-    hookRestore:
-      /npx styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
-    hookCapture: /npx styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
+    hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush --spec e2e\/styleproof\.spec\.ts/,
   },
   {
     name: 'Yarn v1 lockfile',
@@ -96,50 +92,29 @@ for (const manager of [
     workflow: [
       /cache: yarn/,
       /npx -y yarn@1\.22\.22 install --frozen-lockfile --non-interactive/,
-      /npx -y yarn@1\.22\.22 add --dev --exact "styleproof@\$STYLEPROOF_VERSION"/,
-      /git checkout -- package\.json yarn\.lock/,
       /BenSheridanEdwards\/StyleProof@v4/,
     ],
     absent: [/npm ci/],
     workflowAbsent: [/npx -y yarn@1\.22\.22 styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
-    hookRestore:
-      /npx -y yarn@1\.22\.22 styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
-    hookCapture: /npx -y yarn@1\.22\.22 styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
+    hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush --spec e2e\/styleproof\.spec\.ts/,
   },
   {
     name: 'pnpm lockfile',
     lockfile: 'pnpm-lock.yaml',
     config: /pnpm run build && pnpm run start/,
-    workflow: [
-      /cache: pnpm/,
-      /corepack enable/,
-      /pnpm install --frozen-lockfile/,
-      /pnpm add --save-dev --save-exact "styleproof@\$STYLEPROOF_VERSION"/,
-      /git checkout -- package\.json pnpm-lock\.yaml/,
-      /BenSheridanEdwards\/StyleProof@v4/,
-    ],
+    workflow: [/cache: pnpm/, /corepack enable/, /pnpm install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v4/],
     absent: [/npm ci/],
     workflowAbsent: [/pnpm exec styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
-    hookRestore:
-      /pnpm exec styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
-    hookCapture: /pnpm exec styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
+    hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush --spec e2e\/styleproof\.spec\.ts/,
   },
   {
     name: 'Bun lockfile',
     lockfile: 'bun.lock',
     config: /bun run build && bun run start/,
-    workflow: [
-      /oven-sh\/setup-bun@v2/,
-      /bun install --frozen-lockfile/,
-      /bun add --dev --exact "styleproof@\$STYLEPROOF_VERSION"/,
-      /git checkout -- package\.json[\s\S]*git checkout -- "\$package_metadata_file"/,
-      /BenSheridanEdwards\/StyleProof@v4/,
-    ],
+    workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v4/],
     absent: [/npm ci/],
     workflowAbsent: [/bunx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
-    hookRestore:
-      /bunx styleproof-map --restore --sha "\$head_sha" --dir current --base-dir \.styleproof\/maps --spec e2e\/styleproof\.spec\.ts/,
-    hookCapture: /bunx styleproof-map --spec e2e\/styleproof\.spec\.ts --sha "\$head_sha" --upload/,
+    hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush --spec e2e\/styleproof\.spec\.ts/,
   },
 ]) {
   test(`styleproof-init: generated commands follow ${manager.name}`, () => {
@@ -152,21 +127,17 @@ for (const manager of [
       const config = readFile(root, 'playwright.styleproof.config.ts');
       assert.match(config, manager.config);
 
-      // Pre-push publish hook is default, uses the manager's exec form, and never
-      // stages maps onto the branch.
+      // Pre-push publish hook is default and a THIN SHIM: it execs the packaged
+      // styleproof-prepush (which owns the refspec/docs-only/capture rules and reads
+      // git's refspecs from the inherited stdin), so hook behavior ships with each
+      // styleproof release instead of drifting in this copied file.
       const hook = readFile(root, '.githooks/pre-push');
-      assert.match(hook, manager.hookRestore);
-      assert.match(hook, manager.hookCapture);
+      assert.match(hook, manager.hookExec);
       assert.match(hook, /STYLEPROOF_SKIP_CAPTURE/);
+      assert.match(hook, /styleproof-init --hook/); // names its own refresh path
       assert.doesNotMatch(hook, /git add/);
-      // Honour the pushed refspec from stdin, capturing only the ref whose tip is the
-      // checked-out tree — never HEAD blindly (which mislabels a non-HEAD ref push).
-      assert.match(hook, /while read -r sp_localref sp_localoid sp_remoteref sp_remoteoid/);
-      assert.match(hook, /\[ "\$sp_localoid" = "\$sp_head" \] \|\| continue/);
-      assert.doesNotMatch(hook, /head_sha="\$\(git rev-parse HEAD\)"/); // no blind HEAD capture
-      // Default docs-only skip (safe: CI recaptures on a miss).
-      assert.match(hook, /sp_docs_only\(\)/);
-      assert.match(hook, /\*\.md\|\*\.mdx\|\*\.markdown\|\*\.txt\|docs\/\*\|LICENSE/);
+      assert.doesNotMatch(hook, /styleproof-map --/); // no inlined capture invocation to drift
+      assert.doesNotMatch(hook, /sp_docs_only/);
       assert.match(readFile(root, '.gitignore'), /\.styleproof\//);
 
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
@@ -174,32 +145,21 @@ for (const manager of [
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
       for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(workflow, pattern);
 
-      // CI always executes the installed release directly. In the cold path,
-      // the base's older dependency is upgraded before capture and the head is
-      // checked out only after that exact-release capture has completed.
+      // The restore → capture-on-miss → replay → publish orchestration is ONE
+      // packaged command (styleproof-ci), invoked on the installed release with the
+      // consumer's bin dir on PATH — the workflow carries no orchestration bash to
+      // drift, and no scaffold-time package-manager commands (styleproof-ci detects
+      // the lockfile at RUN time, so an npm→pnpm migration needs no re-init). The
+      // exit-code triage, cold-path exact-release install, metadata restore, and
+      // HAR replay it used to assert here are unit-tested in ci-cli.test.mjs.
       assert.match(
         workflow,
-        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-map\.mjs --restore --sha "\$BASE_SHA"/,
+        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$\{\{ github\.event\.pull_request\.base\.sha \}\}" --head "\$\{\{ github\.event\.pull_request\.head\.sha \}\}" --spec e2e\/styleproof\.spec\.ts --base-dir "\$\{\{ runner\.temp \}\}\/styleproof-maps"/,
       );
-      assert.match(workflow, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" playwright install --with-deps chromium/);
-
-      // A restore exit code that is neither 0 (hit) nor 4 (genuine miss) is a
-      // persistent map-store/network fault: fail the job loudly rather than silently
-      // paying a full cold recapture on every flaky run.
-      assert.match(workflow, /if \[ "\$base_code" -ne 0 \] && \[ "\$base_code" -ne 4 \]; then/);
-      assert.match(workflow, /if \[ "\$head_code" -ne 0 \] && \[ "\$head_code" -ne 4 \]; then/);
-      assert.match(workflow, /::error::StyleProof: base map restore hit a map-store\/network fault/);
-      const exactReleaseInstallIndex = workflow.indexOf('"styleproof@$STYLEPROOF_VERSION"');
-      const baseCaptureIndex = workflow.indexOf(
-        'node node_modules/styleproof/bin/styleproof-map.mjs --spec e2e/styleproof.spec.ts --dir base',
-      );
-      const metadataRestoreIndex = workflow.indexOf('Restore only those files: node_modules must');
-      const headCheckoutAfterBaseCaptureIndex = workflow.indexOf('git checkout --force "$HEAD_SHA"', baseCaptureIndex);
-      assert.ok(exactReleaseInstallIndex >= 0, 'cold capture installs the head StyleProof release');
-      assert.ok(metadataRestoreIndex > exactReleaseInstallIndex, 'cold capture cleans temporary package metadata');
-      assert.ok(baseCaptureIndex > exactReleaseInstallIndex, 'base capture uses that exact release');
-      assert.ok(baseCaptureIndex > metadataRestoreIndex, 'base capture starts from a clean tracked tree');
-      assert.ok(headCheckoutAfterBaseCaptureIndex > baseCaptureIndex, 'base capture finishes before manifest reset');
+      assert.doesNotMatch(workflow, /styleproof-map\.mjs/);
+      assert.doesNotMatch(workflow, /"styleproof@\$STYLEPROOF_VERSION"/);
+      assert.doesNotMatch(workflow, /playwright install/);
+      assert.doesNotMatch(workflow, /echo "capture-needed/); // emitted by styleproof-ci itself now
 
       // Report branch self-prunes on PR close (out of the box) — manager-independent.
       assert.match(workflow, /types: \[opened, synchronize, reopened, closed\]/);
@@ -278,6 +238,118 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
     assert.match(res.stdout, /pre-push already exists — left untouched/);
   } finally {
     rmTmp(husky);
+  }
+});
+
+test('styleproof-init --check / --upgrade: machine-owned files track the release, user files never touched', () => {
+  const root = mkTmp();
+  try {
+    // Fresh scaffold → everything current, exit 0.
+    assert.equal(runInit(root, ['--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    const clean = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(clean.status, 0, clean.stdout);
+    assert.match(clean.stdout, /current {2}\.githooks\/pre-push/);
+    assert.match(clean.stdout, /all machine-owned files match/);
+
+    // Drift the hook and the workflow (an older release's copies), and edit the
+    // USER-owned spec — --check must flag the machine files only.
+    fs.writeFileSync(
+      path.join(root, '.githooks', 'pre-push'),
+      '#!/bin/sh\n# StyleProof pre-push (generated by styleproof-init).\n# old release hook\n',
+    );
+    fs.writeFileSync(path.join(root, '.github', 'workflows', 'styleproof.yml'), 'name: old\n');
+    const specBefore = readFile(root, 'e2e/styleproof.spec.ts') + '// my customization\n';
+    fs.writeFileSync(path.join(root, 'e2e/styleproof.spec.ts'), specBefore);
+
+    const drifted = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(drifted.status, 1, 'drift exits 1 so CI can flag it');
+    assert.match(drifted.stdout, /stale {4}\.githooks\/pre-push/);
+    assert.match(drifted.stdout, /stale {4}\.github\/workflows\/styleproof\.yml/);
+    assert.match(drifted.stdout, /current {2}\.github\/workflows\/styleproof-approve\.yml/);
+    assert.match(drifted.stdout, /styleproof-init --upgrade/);
+    assert.doesNotMatch(drifted.stdout, /styleproof\.spec\.ts/); // user-owned: not checked
+    assert.equal(readFile(root, 'e2e/styleproof.spec.ts'), specBefore, '--check writes nothing');
+
+    // --upgrade refreshes exactly the drifted machine files; the spec keeps the edit.
+    const upgraded = runInit(root, ['--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(upgraded.status, 0, upgraded.stderr);
+    assert.match(upgraded.stdout, /refreshed \.githooks\/pre-push/);
+    assert.match(upgraded.stdout, /refreshed \.github\/workflows\/styleproof\.yml/);
+    assert.match(upgraded.stdout, /current {3}\.github\/workflows\/styleproof-approve\.yml/);
+    assert.match(readFile(root, '.githooks/pre-push'), /exec \.\/node_modules\/\.bin\/styleproof-prepush/);
+    assert.match(readFile(root, '.github/workflows/styleproof.yml'), /styleproof-ci\.mjs/);
+    assert.equal(readFile(root, 'e2e/styleproof.spec.ts'), specBefore, 'user-owned spec untouched');
+    if (process.platform !== 'win32') {
+      assert.ok(fs.statSync(path.join(root, '.githooks', 'pre-push')).mode & 0o111, 'hook stays executable');
+    }
+
+    // And the loop closes: --check is green again.
+    assert.equal(runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']).status, 0);
+  } finally {
+    rmTmp(root);
+  }
+
+  // A never-scaffolded repo: --check reports the files as missing and exits 1.
+  const bare = mkTmp();
+  try {
+    const res = runInit(bare, ['--check']);
+    assert.equal(res.status, 1);
+    assert.match(res.stdout, /missing {2}\.githooks\/pre-push/);
+    assert.match(res.stdout, /missing {2}\.github\/workflows\/styleproof\.yml/);
+  } finally {
+    rmTmp(bare);
+  }
+});
+
+test('styleproof-init --hook: refreshes ONLY the pre-push hook, overwriting a stale copy', () => {
+  const root = mkTmp();
+  try {
+    // A hook installed by an older release: --hook must replace it in place.
+    fs.mkdirSync(path.join(root, '.githooks'));
+    fs.writeFileSync(path.join(root, '.githooks', 'pre-push'), '#!/bin/sh\n# old styleproof hook\n');
+    const res = runInit(root, ['--hook', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /refreshed \.githooks\/pre-push/);
+    const hook = readFile(root, '.githooks/pre-push');
+    assert.match(hook, /exec \.\/node_modules\/\.bin\/styleproof-prepush --spec e2e\/styleproof\.spec\.ts/);
+    if (process.platform !== 'win32') {
+      assert.ok(fs.statSync(path.join(root, '.githooks', 'pre-push')).mode & 0o111, 'hook is executable');
+    }
+    // --hook writes nothing else: no spec, no config, no workflows.
+    assert.equal(fs.existsSync(path.join(root, 'e2e/styleproof.spec.ts')), false);
+    assert.equal(fs.existsSync(path.join(root, 'playwright.styleproof.config.ts')), false);
+    assert.equal(fs.existsSync(path.join(root, '.github')), false);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init --upgrade: never overwrites a repository-owned Husky hook', () => {
+  const root = mkTmp();
+  try {
+    fs.mkdirSync(path.join(root, '.husky'));
+    const hookPath = path.join(root, '.husky', 'pre-push');
+    const repositoryHook = '#!/bin/sh\nnpm test\n';
+    fs.writeFileSync(hookPath, repositoryHook);
+
+    const init = runInit(root);
+    assert.equal(init.status, 0, init.stderr);
+    assert.equal(readFile(root, '.husky/pre-push'), repositoryHook, 'normal init preserves the repository hook');
+
+    const check = runInit(root, ['--check']);
+    assert.equal(check.status, 0, check.stdout);
+    assert.match(check.stdout, /unmanaged \.husky\/pre-push/);
+
+    const upgrade = runInit(root, ['--upgrade']);
+    assert.equal(upgrade.status, 0, upgrade.stderr);
+    assert.match(upgrade.stdout, /unmanaged \.husky\/pre-push \(left unchanged/);
+    assert.equal(
+      readFile(root, '.husky/pre-push'),
+      repositoryHook,
+      '--upgrade preserves the repository hook byte-for-byte',
+    );
+  } finally {
+    rmTmp(root);
   }
 });
 
