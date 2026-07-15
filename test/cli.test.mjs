@@ -940,8 +940,8 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.equal(r.status, 0, r.stderr);
 
     const hook = fs.readFileSync(path.join(dir, '.githooks', 'pre-push'), 'utf8');
-    assert.match(hook, /styleproof-map --restore --sha "\$head_sha"/, 'hook restores an existing exact map first');
-    assert.match(hook, /--sha "\$head_sha" --upload/, 'hook requires a clean exact-SHA upload on a miss');
+    assert.match(hook, /exec npx styleproof-prepush --spec/, 'hook delegates to the packaged pre-push command');
+    assert.doesNotMatch(hook, /styleproof-map --/, 'no inlined capture invocation to drift');
     assert.doesNotMatch(hook, /git add/, 'maps never get committed to the PR branch');
     assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 

@@ -41,7 +41,8 @@
     "styleproof-capture": "./bin/styleproof-capture.mjs",
     "styleproof-diff": "./bin/styleproof-diff.mjs",
     "styleproof-report": "./bin/styleproof-report.mjs",
-    "styleproof-variants": "./bin/styleproof-variants.mjs"
+    "styleproof-variants": "./bin/styleproof-variants.mjs",
+    "styleproof-prepush": "./bin/styleproof-prepush.mjs"
   },
   "files": [
     "dist",
