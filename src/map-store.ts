@@ -100,6 +100,31 @@ function runGit(cwd: string, args: string[], maxBuffer = 1 << 28) {
   return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer, env: gitProcessEnvironment() });
 }
 
+/** Node's recursive `rmSync` can spuriously throw ENOTEMPTY (also EBUSY/EPERM) on macOS and
+ *  Windows when a directory is unlinked while the OS — or a lingering Git helper — still holds
+ *  a handle to one of its children. It surfaces most on a busy CI runner where several
+ *  StyleProof runs churn TMPDIR at once. Node retries exactly this class of transient error
+ *  when given `maxRetries`/`retryDelay`, so route every recursive removal through here rather
+ *  than the bare `{ recursive: true, force: true }` (which retries nothing). */
+function removeDirRecursive(dir: string): void {
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+}
+
+/** Best-effort removal of a THROWAWAY temp workspace (an `fs.mkdtemp` dir under `os.tmpdir()`).
+ *  Retries the transient race like {@link removeDirRecursive}, but a residual failure is
+ *  swallowed instead of thrown: the temp dir is disposable (the OS reclaims `/var/folders`,
+ *  and CI reaps leftovers), so a fully successful capture/publish must never be reported as
+ *  failed just because its scratch dir would not unlink — an ENOTEMPTY from cleanup is not an
+ *  upload failure. */
+function removeTempWorkspace(dir: string | undefined): void {
+  if (!dir) return;
+  try {
+    removeDirRecursive(dir);
+  } catch {
+    // Disposable scratch dir — leave it for the OS / CI reaper rather than fail the run.
+  }
+}
+
 const DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS = 30_000;
 
 function mapStoreGitTimeoutMilliseconds(): number {
@@ -607,7 +632,7 @@ function checkoutSparseSegment(tmp: string, branch: string, segment: string): vo
   const sparseCheckout = runGit(tmp, ['sparse-checkout', 'set', segment], 1 << 20);
   const checkout = sparseCheckout.status === 0 ? runGit(tmp, ['checkout', '-q', branch], 1 << 20) : sparseCheckout;
   if (checkout.status !== 0) {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    removeTempWorkspace(tmp);
     throw new MapStoreError(checkout.stderr.trim() || `could not check out ${segment} from map store`);
   }
 }
@@ -620,7 +645,7 @@ function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSeg
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-'));
   const branchLookup = runMapStoreNetworkGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20);
   if (branchLookup.status !== 0 && branchLookup.status !== 2) {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    removeTempWorkspace(tmp);
     throw new MapStoreError(gitFailureMessage(branchLookup, 'could not query map store branch'));
   }
   const branchExists = branchLookup.status === 0;
@@ -630,7 +655,7 @@ function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSeg
       : ['clone', '-q', '--depth', '1', '--branch', branch];
     const clone = runMapStoreNetworkGit(cwd, [...authenticationArguments, ...cloneArguments, remoteUrl, tmp]);
     if (clone.status !== 0) {
-      fs.rmSync(tmp, { recursive: true, force: true });
+      removeTempWorkspace(tmp);
       throw new MapStoreError(gitFailureMessage(clone, 'could not clone map store branch'));
     }
   } else {
@@ -727,7 +752,7 @@ function pushMapStoreCommit(
 }
 
 function removeTemporaryMapStoreCheckout(temporaryCheckout: string | undefined): void {
-  if (temporaryCheckout) fs.rmSync(temporaryCheckout, { recursive: true, force: true });
+  removeTempWorkspace(temporaryCheckout);
 }
 
 function errorMessage(error: unknown): string {
@@ -755,7 +780,7 @@ function publishMapStoreAttempt(options: {
       path.join(temporaryCheckout, 'README.md'),
       '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n',
     );
-    fs.rmSync(path.join(temporaryCheckout, options.target), { recursive: true, force: true });
+    removeDirRecursive(path.join(temporaryCheckout, options.target));
     copyDir(options.dir, path.join(temporaryCheckout, options.target), options.includeHar);
     if (!options.includeHar) {
       fs.writeFileSync(
@@ -889,13 +914,13 @@ function restoreMapStoreAttempt(options: {
           : `no cached map bundle under ${sha} on ${branch}`,
       };
     }
-    fs.rmSync(outDir, { recursive: true, force: true });
+    removeDirRecursive(outDir);
     copyDir(path.join(shaDir, candidates[0]), outDir, true);
     const manifest = readMapManifest(outDir);
     if (!manifest) return { status: 'miss', message: `cached map for ${sha} is missing ${MAP_MANIFEST}` };
     return { status: 'hit', manifest };
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    removeTempWorkspace(tmp);
   }
 }
 
@@ -974,11 +999,11 @@ export function resolveCachedCaptureDirs(options: {
     });
     return { beforeDir, afterDir, baseRef, baseSha, headSha, compatibilityKey, tmpRoot };
   } catch (e) {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    removeTempWorkspace(tmpRoot);
     throw e;
   }
 }
 
 export function cleanupCachedCaptureDirs(captureDirs: CachedCaptureDirs | null): void {
-  if (captureDirs) fs.rmSync(captureDirs.tmpRoot, { recursive: true, force: true });
+  if (captureDirs) removeTempWorkspace(captureDirs.tmpRoot);
 }

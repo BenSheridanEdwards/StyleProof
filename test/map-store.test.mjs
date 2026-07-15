@@ -198,6 +198,72 @@ test('publishMapBundle ignores hook-exported Git repository variables and leaves
   }
 });
 
+test('publishMapBundle survives an ENOTEMPTY while cleaning up its temp checkout, and still lands the map', () => {
+  // A fully successful capture + push must not go red because the throwaway temp checkout
+  // would not unlink: Node's recursive rmSync spuriously raises ENOTEMPTY on macOS/Windows
+  // under concurrent runs, and that removal happens in a `finally`, so a raw throw would
+  // discard the already-successful push and surface as `styleproof-map: upload failed`.
+  const root = mkTmp('styleproof-enotempty-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+  const realRmSync = fs.rmSync;
+  try {
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{}');
+    writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: repo,
+    });
+
+    // Simulate the OS refusing to unlink the temp map-store checkout even after retries:
+    // every recursive removal of an `styleproof-map-store-` scratch dir throws ENOTEMPTY.
+    // The push itself (a git subprocess) is untouched, so the map still reaches the remote.
+    // Match only the temp ROOT itself (basename `styleproof-map-store-XXXXXX`), i.e. the
+    // best-effort cleanup — not the functional target-clear at a subpath inside that root,
+    // which must still remove normally.
+    let cleanupThrows = 0;
+    fs.rmSync = (target, options) => {
+      if (
+        typeof target === 'string' &&
+        path.basename(target).startsWith('styleproof-map-store-') &&
+        options?.recursive
+      ) {
+        cleanupThrows += 1;
+        const error = new Error(`ENOTEMPTY: directory not empty, rmdir '${target}'`);
+        error.code = 'ENOTEMPTY';
+        throw error;
+      }
+      return realRmSync(target, options);
+    };
+
+    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    assert.ok(cleanupThrows > 0, 'the temp-checkout cleanup actually hit the simulated ENOTEMPTY');
+    // Restore before touching git so the assertion below removes real dirs normally.
+    fs.rmSync = realRmSync;
+    assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
+  } finally {
+    fs.rmSync = realRmSync;
+    rmTmp(root);
+  }
+});
+
 test('workflow-token credential arguments let real Git obtain credentials without putting the token in argv', () => {
   const mapStoreToken = 'fake-workflow-token';
   const credentialArguments = workflowTokenCredentialArguments();
