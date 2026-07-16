@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`styleproof-ci` ephemeral worktrees (#277).** Restore probes and cold base
+  install/capture run in detached git worktrees under `RUNNER_TEMP` (or the OS temp
+  dir), so the consumer checkout is never checked out to `--base`. Head capture may
+  still run in the consumer at `--head`. Worktrees are always torn down on success
+  and failure; invalid SHAs fail loudly before capture.
+
 ### Fixed
 
 - **Report headline and global-chrome banners now count surface bases consistently.**

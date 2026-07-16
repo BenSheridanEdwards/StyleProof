@@ -27,6 +27,29 @@ function runCi(args, env = {}, cwd) {
   return spawnSync(process.execPath, [CI, ...args], { encoding: 'utf8', env: merged, cwd });
 }
 
+function realGitPath() {
+  const which = spawnSync('which', ['git'], { encoding: 'utf8' });
+  assert.equal(which.status, 0, which.stderr);
+  return which.stdout.trim();
+}
+
+/** Prepend a git wrapper on PATH for styleproof-ci subprocesses (setup still uses real git). */
+function ciEnvWithGitWrapper(root, wrapperBody, env = {}) {
+  const bin = path.join(root, 'git-bin');
+  fs.mkdirSync(bin, { recursive: true });
+  const script = `#!/bin/sh
+${wrapperBody}
+exec "$STYLEPROOF_CI_REAL_GIT" "$@"
+`;
+  fs.writeFileSync(path.join(bin, 'git'), script);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  return {
+    ...env,
+    STYLEPROOF_CI_REAL_GIT: realGitPath(),
+    PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`,
+  };
+}
+
 test('classifyRestoreExit: 0 hit, 4 genuine miss, anything else a loud fault', () => {
   assert.equal(classifyRestoreExit(0), 'hit');
   assert.equal(classifyRestoreExit(4), 'miss');
@@ -202,8 +225,8 @@ test('styleproof-ci: invalid --spec-ref fails loudly before capture', () => {
     );
     assert.equal(missingRef.status, 2, missingRef.stderr);
     assert.match(missingRef.stderr, /could not resolve --spec-ref/);
-    assert.equal(git(repo, ['rev-parse', 'HEAD']), base, 'cold-path spec-ref failure exits before head checkout');
-    assert.equal(fs.readFileSync(path.join(repo, 'styleproof.spec.ts'), 'utf8'), '// base\n');
+    assert.equal(git(repo, ['rev-parse', 'HEAD']), head, 'consumer checkout never visits --base');
+    assert.equal(fs.readFileSync(path.join(repo, 'styleproof.spec.ts'), 'utf8'), '// head\n');
   } finally {
     rmTmp(root);
   }
@@ -577,3 +600,255 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
     }
   },
 );
+
+test(
+  'styleproof-ci: consumer dirty files outside the spec are not masked by base worktrees',
+  { timeout: 30_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-dirty-');
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'consumer');
+    const mapRoot = path.join(root, 'maps');
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    try {
+      fs.mkdirSync(repo);
+      git(root, ['init', '--bare', '-q', remote]);
+      git(repo, ['init', '-q', '-b', 'main']);
+      git(repo, ['config', 'user.email', 'styleproof@example.test']);
+      git(repo, ['config', 'user.name', 'StyleProof Test']);
+      git(repo, ['remote', 'add', 'origin', remote]);
+      fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture\n');
+      fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'base']);
+      const base = git(repo, ['rev-parse', 'HEAD']);
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture head\n');
+      git(repo, ['add', 'styleproof.spec.ts']);
+      git(repo, ['commit', '-qm', 'head']);
+      const head = git(repo, ['rev-parse', 'HEAD']);
+      git(repo, ['push', '-q', '-u', 'origin', 'main']);
+      fs.writeFileSync(path.join(repo, 'local-only.txt'), 'keep-me\n');
+
+      const bin = path.join(repo, 'node_modules', '.bin');
+      fs.mkdirSync(bin, { recursive: true });
+      fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\nexit 0\n');
+      fs.writeFileSync(
+        path.join(bin, 'playwright'),
+        `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+`,
+      );
+      fs.chmodSync(path.join(bin, 'npm'), 0o755);
+      fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+
+      const result = runCi(
+        ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot, '--force'],
+        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+        repo,
+      );
+      assert.equal(result.status, 2, 'head capture stays fail-closed on a dirty consumer tree');
+      assert.equal(git(repo, ['rev-parse', 'HEAD']), head);
+      assert.equal(
+        fs.readFileSync(path.join(repo, 'local-only.txt'), 'utf8'),
+        'keep-me\n',
+        'untracked local edits are not masked by base worktrees',
+      );
+      assert.equal(
+        git(repo, ['worktree', 'list', '--porcelain'])
+          .split('\n')
+          .filter((line) => line.startsWith('worktree ')).length,
+        1,
+        'ephemeral worktrees are removed after a successful run',
+      );
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
+
+test('styleproof-ci: invalid --base SHA fails loudly before capture', () => {
+  const root = mkTmp('styleproof-ci-bad-base-');
+  const repo = path.join(root, 'consumer');
+  try {
+    fs.mkdirSync(repo);
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git(repo, ['init', '-q', '-b', 'main']);
+    git(repo, ['config', 'user.email', 'styleproof@example.test']);
+    git(repo, ['config', 'user.name', 'StyleProof Test']);
+    fs.writeFileSync(path.join(repo, 'README.md'), 'x\n');
+    git(repo, ['add', 'README.md']);
+    git(repo, ['commit', '-qm', 'head']);
+    const head = git(repo, ['rev-parse', 'HEAD']);
+    const bad = runCi(
+      ['--base', 'not-a-real-base', '--head', head, '--base-dir', path.join(root, 'maps'), '--force'],
+      { CI: '1' },
+      repo,
+    );
+    assert.equal(bad.status, 2, bad.stderr);
+    assert.match(bad.stderr, /could not resolve/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-ci: invalid --head SHA fails loudly before capture', () => {
+  const root = mkTmp('styleproof-ci-bad-head-');
+  const repo = path.join(root, 'consumer');
+  try {
+    fs.mkdirSync(repo);
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git(repo, ['init', '-q', '-b', 'main']);
+    git(repo, ['config', 'user.email', 'styleproof@example.test']);
+    git(repo, ['config', 'user.name', 'StyleProof Test']);
+    fs.writeFileSync(path.join(repo, 'README.md'), 'x\n');
+    git(repo, ['add', 'README.md']);
+    git(repo, ['commit', '-qm', 'base']);
+    const base = git(repo, ['rev-parse', 'HEAD']);
+    const bad = runCi(
+      ['--base', base, '--head', 'not-a-real-head', '--base-dir', path.join(root, 'maps'), '--force'],
+      { CI: '1' },
+      repo,
+    );
+    assert.equal(bad.status, 2, bad.stderr);
+    assert.match(bad.stderr, /could not resolve/);
+    assert.doesNotMatch(bad.stderr, /UnhandledPromiseRejection|throw err at/i);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-ci: mid-run worktree add failure exits 2 and removes ephemeral worktrees', () => {
+  const root = mkTmp('styleproof-ci-wt-add-fail-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  try {
+    fs.mkdirSync(repo);
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git(root, ['init', '--bare', '-q', remote]);
+    git(repo, ['init', '-q', '-b', 'main']);
+    git(repo, ['config', 'user.email', 'styleproof@example.test']);
+    git(repo, ['config', 'user.name', 'StyleProof Test']);
+    git(repo, ['remote', 'add', 'origin', remote]);
+    fs.writeFileSync(path.join(repo, 'README.md'), 'base\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// probe\n');
+    git(repo, ['add', 'README.md', 'styleproof.spec.ts']);
+    git(repo, ['commit', '-qm', 'base']);
+    const base = git(repo, ['rev-parse', 'HEAD']);
+    fs.writeFileSync(path.join(repo, 'README.md'), 'head\n');
+    git(repo, ['add', 'README.md']);
+    git(repo, ['commit', '-qm', 'head']);
+    const head = git(repo, ['rev-parse', 'HEAD']);
+    git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+    const wrapper = `case "$*" in
+  *worktree\\ add*probe-head*)
+    echo "deliberate probe-head worktree add failure" >&2
+    exit 1
+    ;;
+esac
+`;
+    const result = runCi(
+      [
+        '--base',
+        base,
+        '--head',
+        head,
+        '--spec',
+        'styleproof.spec.ts',
+        '--base-dir',
+        path.join(root, 'maps'),
+        '--force',
+      ],
+      ciEnvWithGitWrapper(root, wrapper, { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' }),
+      repo,
+    );
+    assert.equal(result.status, 2, result.stderr + result.stdout);
+    assert.match(result.stderr, /could not create a detached worktree/);
+    assert.doesNotMatch(result.stderr, /UnhandledPromiseRejection|Error:.*\n\s+at /);
+    assert.equal(
+      git(repo, ['worktree', 'list', '--porcelain'])
+        .split('\n')
+        .filter((line) => line.startsWith('worktree ')).length,
+      1,
+      'ephemeral worktrees are removed after a mid-run worktree fault',
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-ci: mid-run cold-base worktree add failure exits 2 after cleanup', { timeout: 30_000 }, () => {
+  const root = mkTmp('styleproof-ci-cold-wt-fail-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const mapRoot = path.join(root, 'maps');
+  const git = (cwd, args) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    fs.mkdirSync(repo);
+    git(root, ['init', '--bare', '-q', remote]);
+    git(repo, ['init', '-q', '-b', 'main']);
+    git(repo, ['config', 'user.email', 'styleproof@example.test']);
+    git(repo, ['config', 'user.name', 'StyleProof Test']);
+    git(repo, ['remote', 'add', 'origin', remote]);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture fixture\n');
+    fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
+    fs.writeFileSync(path.join(repo, 'app.txt'), 'base\n');
+    git(repo, ['add', '-A']);
+    git(repo, ['commit', '-qm', 'test: base']);
+    const base = git(repo, ['rev-parse', 'HEAD']);
+    fs.writeFileSync(path.join(repo, 'app.txt'), 'head\n');
+    git(repo, ['add', 'app.txt']);
+    git(repo, ['commit', '-qm', 'test: head']);
+    const head = git(repo, ['rev-parse', 'HEAD']);
+    git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+    const wrapper = `case "$*" in
+  *worktree\\ add*cold-base*)
+    echo "deliberate cold-base worktree add failure" >&2
+    exit 1
+    ;;
+esac
+`;
+    const result = runCi(
+      ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot],
+      ciEnvWithGitWrapper(root, wrapper, { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' }),
+      repo,
+    );
+    assert.equal(result.status, 2, result.stderr + result.stdout);
+    assert.match(result.stderr, /could not create a detached worktree/);
+    assert.doesNotMatch(result.stderr, /UnhandledPromiseRejection|Error:.*\n\s+at /);
+    assert.equal(
+      git(repo, ['worktree', 'list', '--porcelain'])
+        .split('\n')
+        .filter((line) => line.startsWith('worktree ')).length,
+      1,
+      'ephemeral worktrees are removed after a mid-run worktree fault',
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
