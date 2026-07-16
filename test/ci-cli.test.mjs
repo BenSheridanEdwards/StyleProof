@@ -430,7 +430,7 @@ test('applySpecRefOverlay: missing spec at ref is a usage error', () => {
 });
 
 test('applySpecRefOverlay: resolves a cwd-relative spec when run from a repo subdirectory', () => {
-  // The Fleet regression: `working-directory: hud` + `--spec tests/e2e/….spec.ts`.
+  // The consumer regression shape: `working-directory: hud` + `--spec tests/e2e/….spec.ts`.
   // Bare `<rev>:<path>` resolves from the repo ROOT, so the overlay reported a
   // spec that exists as "missing at --spec-ref". Every lookup must use git's
   // cwd-relative `<rev>:./<path>` form instead.

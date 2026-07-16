@@ -13,7 +13,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `<rev>:<path>` lookups resolved the spec from the repo root, so a workflow
   running the CLI with `working-directory: hud` and `--spec tests/e2e/….spec.ts`
   failed with a false "missing at --spec-ref" even though the file exists (hit by
-  Fleet's 4.5.1 migration on its first cold capture). The lookups now use git's
+  a consumer's 4.5.1 migration on its first cold capture). The lookups now use git's
   cwd-relative `<rev>:./<path>` form, matching how the same spec path is used by
   every pathspec call and filesystem write in the overlay.
 
