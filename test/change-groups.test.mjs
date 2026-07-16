@@ -6,6 +6,9 @@ import {
   chromePaths,
   derivedLonghandCount,
   cleanFindings,
+  countChangedSurfaceScope,
+  formatChangedSurfaceScope,
+  productSurfaceBase,
 } from '../dist/change-groups.js';
 
 // change-groups.ts is the pure grouping/classification leaf shared by the report
@@ -26,6 +29,38 @@ test('groupBySignature collapses surfaces that changed identically, keeps the wi
   assert.equal(groups.length, 1, 'one distinct change across three surfaces');
   assert.deepEqual(groups[0].surfaces.sort(), ['home@1280', 'home@390', 'pricing@1280']);
   assert.equal(groups[0].rep.surface, 'home@1280', 'widest surface is the representative');
+});
+
+test('countChangedSurfaceScope counts unique bases and variant keys', () => {
+  const groups = groupBySignature([
+    { surface: 'home@390', findings: [styleFinding('a', [])] },
+    { surface: 'home@1280', findings: [styleFinding('a', [])] },
+    { surface: 'pricing@1280', findings: [styleFinding('a', [])] },
+  ]);
+  assert.deepEqual(countChangedSurfaceScope(groups), { bases: 2, variants: 3 });
+  assert.equal(formatChangedSurfaceScope(2, 3), '2 changed surface bases (3 variants)');
+  assert.equal(formatChangedSurfaceScope(1, 1), '1 changed surface base');
+});
+
+test('countChangedSurfaceScope uses metadata.surfaceKey for live-state and popup variants', () => {
+  const groups = [
+    {
+      surfaces: ['dashboard@1280', 'dashboard-loaded@1280', 'dashboard-dialog-open@1280'],
+      findings: [styleFinding('a', [])],
+    },
+  ];
+  const surfaceKeyOf = (key) => {
+    if (key.startsWith('dashboard-loaded') || key.startsWith('dashboard-dialog-open')) return 'dashboard';
+    return undefined;
+  };
+  assert.deepEqual(countChangedSurfaceScope(groups, surfaceKeyOf), { bases: 1, variants: 3 });
+});
+
+test('countChangedSurfaceScope falls back to capture-key base without metadata', () => {
+  const groups = [{ surfaces: ['dashboard@1280', 'dashboard-loaded@1280'], findings: [styleFinding('a', [])] }];
+  assert.deepEqual(countChangedSurfaceScope(groups), { bases: 2, variants: 2 });
+  assert.equal(productSurfaceBase('dashboard-loaded@1280', 'dashboard'), 'dashboard');
+  assert.equal(productSurfaceBase('dashboard-loaded@1280'), 'dashboard-loaded');
 });
 
 test('chromePaths: a path hosted on >1 base and changed on every hosting base is chrome', () => {
@@ -60,6 +95,17 @@ test('chromePaths is width-blind: @1280 and @390 of one base count once', () => 
   ]);
   const changed = [{ path: 'nav', surfaces: ['home@1280', 'home@390', 'settings@1280'] }];
   assert.ok(chromePaths(changed, surfacePaths).has('nav'), 'both bases covered → chrome');
+});
+
+test('chromePaths groups live-state variants by metadata.surfaceKey', () => {
+  const surfacePaths = new Map([
+    ['dashboard@1280', new Set(['nav'])],
+    ['dashboard-loaded@1280', new Set(['nav'])],
+    ['settings@1280', new Set(['nav'])],
+  ]);
+  const changed = [{ path: 'nav', surfaces: ['dashboard-loaded@1280', 'settings@1280'] }];
+  const surfaceKeyOf = (key) => (key.startsWith('dashboard') ? 'dashboard' : undefined);
+  assert.ok(chromePaths(changed, surfacePaths, surfaceKeyOf).has('nav'));
 });
 
 test('classifyChrome promotes an all-chrome group, keeps a mixed group in rest', () => {

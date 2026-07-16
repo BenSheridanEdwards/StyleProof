@@ -15,6 +15,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   still run in the consumer at `--head`. Worktrees are always torn down on success
   and failure; invalid SHAs fail loudly before capture.
 
+### Fixed
+
+- **Report headline and global-chrome banners now count surface bases consistently.**
+  The summary line reports unique changed product surface bases and, when more
+  capture keys exist than bases, adds a labeled variant count. Product bases prefer
+  authoritative capture `metadata.surfaceKey` (live-state and popup expansions share
+  their declared base); older captures without metadata still strip only `@width`.
+  The global-chrome tier names **captured surface bases** (not raw variant keys). A
+  one-line glossary beside the headline explains `@width` and state/popup keys as
+  variants of a base.
+
 ## [4.5.2] - 2026-07-16
 
 ### Fixed

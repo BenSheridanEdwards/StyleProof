@@ -38,7 +38,7 @@ import {
   derivedLonghandCount,
   formatSurfaceList,
   classifyChrome,
-  surfaceBase,
+  countCapturedSurfaceBases,
 } from '../dist/change-groups.js';
 import {
   DEFAULT_MAP_STORE_BRANCH,
@@ -56,7 +56,7 @@ import {
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
-import { readInventories, readResidue, surfaceElementPaths } from '../dist/capture.js';
+import { readInventories, readResidue, surfaceElementPaths, mergeSurfaceKeyLookup } from '../dist/capture.js';
 import { auditRunInventory, readAckFile } from '../dist/inventory.js';
 import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
@@ -359,6 +359,7 @@ let coverageVerdict = null;
 let determinismVerdict = null;
 let residueAudit = null;
 let surfacePaths = new Map();
+let surfaceKeyOf = () => undefined;
 try {
   // v4: a side without a manifest is unsupported — the same-environment guard can't be
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
@@ -379,6 +380,8 @@ try {
   // Element-path sets per surface, for the shared-chrome tier — same "read while
   // the dirs exist" rule as the ledgers above.
   surfacePaths = surfaceElementPaths(dirA, dirB);
+  // dirA = before/base, dirB = after/head — same order as generateStyleMapReport.
+  surfaceKeyOf = mergeSurfaceKeyLookup(dirA, dirB);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -466,12 +469,12 @@ function printGroup(cg) {
 // gets one banner up top, then its detail — so the reviewer reads "the nav changed
 // everywhere" once, not once per surface entry. Presentational only.
 const grouped = groupBySignature(preparedForGrouping);
-const { chrome, rest } = classifyChrome(grouped, surfacePaths);
+const { chrome, rest } = classifyChrome(grouped, surfacePaths, surfaceKeyOf);
 if (chrome.length) {
   // Base count from the pre-cleanup surface set (dirB may be deleted by now).
-  const bases = new Set([...surfacePaths.keys()].map(surfaceBase)).size;
+  const bases = countCapturedSurfaceBases([...surfacePaths.keys()], surfaceKeyOf);
   console.log(
-    `\n🧱 Global chrome change(s) — across all ${bases} surface(s): ${chrome.length} change(s) rode the shared frame every view draws (a persistent nav, header, or footer).`,
+    `\n🧱 Global chrome change(s) — across all ${bases} captured surface base(s): ${chrome.length} change(s) rode the shared frame every view draws (a persistent nav, header, or footer).`,
   );
   for (const cg of chrome) printGroup(cg);
 }
