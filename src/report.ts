@@ -13,7 +13,12 @@ import {
   type Rect,
   type StyleMap,
 } from './capture.js';
-import { isMapFile } from './map-store.js';
+import {
+  isMapFile,
+  readMapManifest,
+  surfaceMissingMatchesBaselineFailure,
+  type SurfaceCaptureFailure,
+} from './map-store.js';
 import { fillRect, type RGB } from './png-util.js';
 import {
   diffStyleMapDirs,
@@ -655,6 +660,17 @@ function regionHeading(regionPaths: string[], findings: Finding[]): string {
 //                     Markdown; widen the fence to one more backtick than the
 //                     value's longest run, padding a space when it touches an edge
 //                     (GitHub's rule for a code span that starts/ends with a tick).
+/** Escape capture error text embedded in Markdown list prose (not inside code spans). */
+function escapeMarkdownFailureReason(reason: string): string {
+  const line = reason.split('\n')[0];
+  return line
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\\/g, '\\\\')
+    .replace(/[*_[`#|]/g, '\\$&');
+}
+
 function codeValue(v: string): string {
   const escaped = v.replace(/\|/g, '\\|');
   const longestRun = Math.max(0, ...(escaped.match(/`+/g) ?? []).map((r) => r.length));
@@ -1265,9 +1281,16 @@ function summaryLines(args: {
   shown: DiffCounts;
   changedScope: { bases: number; variants: number };
   contentCount: number;
+  baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
-  const { changeGroups, missing, shown, changedScope, contentCount } = args;
-  if (changeGroups.length === 0 && missing.length === 0) {
+  const { changeGroups, missing, shown, changedScope, contentCount, baselineSurfaceFailures } = args;
+  const greenfieldMissing = missing.filter(
+    (p) => !surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
+  );
+  const brokenBaseMissing = missing.filter((p) =>
+    surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
+  );
+  if (changeGroups.length === 0 && missing.length === 0 && baselineSurfaceFailures.length === 0) {
     return [
       contentCount > 0
         ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
@@ -1275,7 +1298,29 @@ function summaryLines(args: {
     ];
   }
   const md: string[] = [];
-  if (missing.length > 0) {
+  if (baselineSurfaceFailures.length > 0) {
+    md.push(
+      `⚠️ **${baselineSurfaceFailures.length} baseline capture failure(s)** — these surfaces failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely as if they were greenfield new surfaces.`,
+    );
+    for (const f of baselineSurfaceFailures.slice(0, 8))
+      md.push(`- \`${safeKey(f.key)}\`: ${escapeMarkdownFailureReason(f.reason)}`);
+    if (baselineSurfaceFailures.length > 8)
+      md.push(`- _…and ${baselineSurfaceFailures.length - 8} more (see manifest \`surfaceCaptureFailures\`)_`);
+    md.push('');
+  }
+  if (brokenBaseMissing.length > 0) {
+    md.push(
+      `⚠️ **${brokenBaseMissing.length} head surface(s)** have no base map because baseline capture failed (not first adoption): ${newSurfaceSummary(brokenBaseMissing)}.`,
+    );
+    md.push('');
+  }
+  if (greenfieldMissing.length > 0) {
+    md.push(
+      `🆕 **${greenfieldMissing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(greenfieldMissing)}. ` +
+        `Approve them before they become the baseline.`,
+    );
+  }
+  if (missing.length > 0 && greenfieldMissing.length === 0 && brokenBaseMissing.length === 0) {
     md.push(
       `🆕 **${missing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(missing)}. ` +
         `Approve them before they become the baseline.`,
@@ -1302,9 +1347,26 @@ function reportHeadline(args: {
   volatileCount: number;
   liveCandidateLabels: string[];
   contentCount: number;
+  baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
-  const { changeGroups, missing, shown, changedScope, volatileCount, liveCandidateLabels, contentCount } = args;
-  const md: string[] = summaryLines({ changeGroups, missing, shown, changedScope, contentCount });
+  const {
+    changeGroups,
+    missing,
+    shown,
+    changedScope,
+    volatileCount,
+    liveCandidateLabels,
+    contentCount,
+    baselineSurfaceFailures,
+  } = args;
+  const md: string[] = summaryLines({
+    changeGroups,
+    missing,
+    shown,
+    changedScope,
+    contentCount,
+    baselineSurfaceFailures,
+  });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
       ? ` Auto-detected live-state candidate(s): ${liveCandidateLabels.slice(0, 5).join('; ')}.`
@@ -1690,6 +1752,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // Surface bases (and variant keys when widths/states differ) carrying a reviewable
   // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
+  const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -1726,6 +1789,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       volatileCount,
       liveCandidateLabels,
       contentCount: contentSection.count,
+      baselineSurfaceFailures,
     }),
   );
 

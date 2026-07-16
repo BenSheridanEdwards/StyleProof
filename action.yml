@@ -16,7 +16,7 @@ inputs:
     description: 'Directory with restored or freshly captured PR-head maps to compare (.json.gz + .png).'
     required: true
   base-capture-failed:
-    description: 'Set true when the baseline capture failed and baseline-dir is intentionally bare. Produces a failing DEGRADED_BASELINE trust state.'
+    description: 'Set true when the baseline capture failed with zero maps and baseline-dir is intentionally bare. Partial baselines with tolerated per-surface failures keep this false. Produces DEGRADED_BASELINE when true.'
     default: 'false'
   report-branch:
     description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close.'
@@ -54,7 +54,7 @@ outputs:
       Machine-readable terminal classification: NO_VISUAL_CHANGES,
       VISUAL_APPROVAL_REQUIRED, DATA_RESIDUE_UNACKNOWLEDGED,
       INVENTORY_REMOVAL_UNACKNOWLEDGED, CERTIFICATION_FAILED,
-      DEGRADED_BASELINE, or REPORT_PUBLICATION_FAILED.
+      PARTIAL_BASELINE, DEGRADED_BASELINE, or REPORT_PUBLICATION_FAILED.
     value: ${{ steps.trust.outputs.state }}
   data-residue-keys:
     description: 'JSON array of unacknowledged <surface>·<endpoint> residue keys.'
@@ -161,10 +161,14 @@ runs:
           const certificationFailed =
             diff.coverage?.basis === 'incomplete' ||
             diff.determinism?.status === 'unproven';
+          const partialBaseline = (diff.partialBaseline === true) ||
+            (Array.isArray(diff.explainedMissingBaselineSurfaces) &&
+              diff.explainedMissingBaselineSurfaces.length > 0);
           let state = 'NO_VISUAL_CHANGES';
           if ((diff.dataResidue?.blocking ?? 0) > 0) state = 'DATA_RESIDUE_UNACKNOWLEDGED';
           else if (inventoryFailures > 0) state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED';
           else if (certificationFailed) state = 'CERTIFICATION_FAILED';
+          else if (partialBaseline) state = 'PARTIAL_BASELINE';
           else if ('${{ inputs.base-capture-failed }}' === 'true') state = 'DEGRADED_BASELINE';
           else if ('${{ steps.diff.outputs.changed }}' === 'true') state = 'VISUAL_APPROVAL_REQUIRED';
           core.setOutput('state', state);
@@ -351,6 +355,7 @@ runs:
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; visual approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; visual approval cannot clear this failure._',
             CERTIFICATION_FAILED: '_Coverage or determinism evidence is incomplete — repair the capture; visual approval cannot clear this failure._',
+            PARTIAL_BASELINE: '_Base capture is incomplete — repair baseline capture on the base branch; visual approval cannot clear missing baseline surfaces._',
             DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; visual approval cannot clear this failure._',
           }[trustState];
           const footer = [
@@ -395,6 +400,7 @@ runs:
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
             CERTIFICATION_FAILED: 'Coverage or determinism evidence is incomplete',
+            PARTIAL_BASELINE: 'Base capture incomplete — repair baseline on the base branch',
             DEGRADED_BASELINE: 'Base capture failed — head-only evidence cannot certify this change',
           };
           await github.rest.repos.createCommitStatus({
@@ -413,6 +419,15 @@ runs:
       shell: bash
       run: |
         echo 'StyleProof: base capture failed — the published report is head-only degraded evidence, not a base-vs-head certification. Repair the base capture and rerun.' >&2
+        exit 1
+
+    # Partial baseline bundles compare what they can, but ledger-explained missing
+    # base surfaces are repair debt — not NO_VISUAL_CHANGES and not approvable.
+    - name: Block on partial baseline
+      if: steps.verdict.outputs.state == 'PARTIAL_BASELINE'
+      shell: bash
+      run: |
+        echo 'StyleProof: base capture is incomplete — repair baseline capture on the base branch for the missing surfaces listed in the report (approval cannot clear this).' >&2
         exit 1
 
     # blocking (on by default; opt out with styleproof.config.json "blocking": false): on

@@ -20,7 +20,7 @@ import {
   type CoverageLedger,
   type DeterminismBasis,
 } from './coverage.js';
-import { writeBrowserBuildSidecar, writeCaptureManifest } from './map-store.js';
+import { writeBrowserBuildSidecar, writeCaptureManifest, recordSurfaceCaptureFailure } from './map-store.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
@@ -235,7 +235,30 @@ type Settings = Required<
   dir: string;
   replayFrom?: string;
   popups: ResolvedPopupCaptureOptions;
+  /** Baseline-only: record per-surface failures instead of failing the whole run (self-check still fails). */
+  tolerateSurfaceFailures: boolean;
 };
+
+/** Self-check / nondeterminism failures must never be tolerated (#276). */
+export function isSelfCheckCaptureFailure(message: string): boolean {
+  return /self-check failed|non-deterministic/i.test(message);
+}
+
+async function withSurfaceFailureTolerance(
+  settings: Settings,
+  captureKey: string,
+  run: () => Promise<void>,
+): Promise<void> {
+  try {
+    await run();
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    if (!settings.tolerateSurfaceFailures || isSelfCheckCaptureFailure(reason)) throw e;
+    const outDir = resolveOutputDir(settings.baseDir, settings.dir);
+    recordSurfaceCaptureFailure(outDir, { key: captureKey, reason, kind: 'capture' });
+    console.warn(`styleproof: tolerated capture failure for ${captureKey} — ${reason}`);
+  }
+}
 
 /** One-line description of the first drift finding, for the self-check error. */
 function driftDesc(f: Finding): string {
@@ -992,6 +1015,9 @@ function resolveSettings(c: CaptureConfig): Settings {
     captureComponent: c.captureComponent ?? false,
     popups: resolvePopupCaptureOptions(c.popups),
     inventory: c.inventory ?? false,
+    tolerateSurfaceFailures:
+      process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
+      process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true',
   };
 }
 
@@ -1131,7 +1157,9 @@ export function defineStyleMapCapture(options: DefineOptions): void {
         for (const width of surface.widths) {
           test(`${surface.key} @ ${width}`, ({ page }) => {
             test.setTimeout(180_000);
-            return captureSurface(page, surface, width, settings);
+            return withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
+              captureSurface(page, surface, width, settings),
+            );
           });
         }
       } else {
@@ -1141,7 +1169,10 @@ export function defineStyleMapCapture(options: DefineOptions): void {
           await surface.go(page);
           const widths = await detectViewportWidths(page);
           test.setTimeout(Math.max(180_000, widths.length * 60_000));
-          for (const width of widths) await captureSurface(page, surface, width, settings);
+          for (const width of widths)
+            await withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
+              captureSurface(page, surface, width, settings),
+            );
         });
       }
     }
@@ -1252,6 +1283,45 @@ async function discoverCrawlLinks(
   return links;
 }
 
+/** Record one crawl failure when baseline tolerance allows it; otherwise retain it
+ * for the aggregate failure thrown after the remaining independent surfaces run. */
+function handleCrawlCaptureFailure(
+  settings: Settings,
+  key: string,
+  reason: string,
+  failureLabel: string,
+  failures: string[],
+): void {
+  if (settings.tolerateSurfaceFailures && !isSelfCheckCaptureFailure(reason)) {
+    recordSurfaceCaptureFailure(resolveOutputDir(settings.baseDir, settings.dir), {
+      key,
+      reason,
+      kind: 'capture',
+    });
+    process.stderr.write(`styleproof: tolerated crawl capture failure for ${key}\n`);
+    return;
+  }
+  failures.push(`${failureLabel}: ${reason}`);
+}
+
+/** Resolve the explicit or auto-detected viewport sweep. A detection/navigation
+ * failure is recorded once as `<surface>@auto`, because no width sweep began. */
+async function crawlSweepWidths(
+  page: Page,
+  surface: ExpandedSurface,
+  settings: Settings,
+  failures: string[],
+): Promise<number[] | null> {
+  if (surface.widths?.length) return surface.widths;
+  try {
+    await surface.go(page);
+    return await detectViewportWidths(page);
+  } catch (e) {
+    handleCrawlCaptureFailure(settings, `${surface.key}@auto`, (e as Error).message, `${surface.key} @ auto`, failures);
+    return null;
+  }
+}
+
 /**
  * Capture every discovered surface, aggregating per-surface failures so one bad
  * surface reports without skipping the rest — they're an independent set, not a
@@ -1261,21 +1331,19 @@ async function discoverCrawlLinks(
 async function sweepCrawlSurfaces(page: Page, captureSurfaces: ExpandedSurface[], settings: Settings): Promise<void> {
   const failures: string[] = [];
   for (const surface of captureSurfaces) {
-    let sweep = surface.widths;
-    if (!sweep || sweep.length === 0) {
-      try {
-        await surface.go(page);
-        sweep = await detectViewportWidths(page);
-      } catch (e) {
-        failures.push(`${surface.key} @ auto: ${(e as Error).message}`);
-        continue;
-      }
-    }
+    const sweep = await crawlSweepWidths(page, surface, settings, failures);
+    if (!sweep) continue;
     for (const width of sweep) {
       try {
         await captureSurface(page, surface, width, settings);
       } catch (e) {
-        failures.push(`${surface.key} @ ${width}: ${(e as Error).message}`);
+        handleCrawlCaptureFailure(
+          settings,
+          `${surface.key}@${width}`,
+          (e as Error).message,
+          `${surface.key} @ ${width}`,
+          failures,
+        );
       }
     }
   }

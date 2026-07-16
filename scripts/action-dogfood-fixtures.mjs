@@ -105,6 +105,21 @@ writeCapture(path.join(root, 'new-base'), 'home@320', map(), png([240, 240, 240]
 writeCapture(path.join(root, 'new-head'), 'home@320', map(), png([240, 240, 240]));
 writeCapture(path.join(root, 'new-head'), 'pricing@320', map('rgb(0, 0, 255)'), png([230, 230, 255]));
 
+// Partial baseline: base captured home but tolerated about@auto failure; head adds about@320.
+// Diff exit 0 with explained gaps → PARTIAL_BASELINE (not visual approval).
+function writePartialBaseManifest(dir) {
+  const manifestPath = path.join(dir, 'styleproof-manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  manifest.surfaceCaptureFailures = [
+    { key: 'about@auto', reason: 'viewport detection failed on base', kind: 'capture' },
+  ];
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+writeCapture(path.join(root, 'partial-base'), 'home@320', map(), png([240, 240, 240]));
+writePartialBaseManifest(path.join(root, 'partial-base'));
+writeCapture(path.join(root, 'partial-head'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'partial-head'), 'about@320', map('rgb(0, 128, 0)'), png([230, 255, 230]));
+
 // A base capture fault is not first-adoption evidence: keep the base genuinely
 // bare and prove the Action labels the head-only receipt as degraded.
 fs.mkdirSync(path.join(root, 'degraded-base'), { recursive: true });

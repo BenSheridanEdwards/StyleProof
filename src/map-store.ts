@@ -12,6 +12,16 @@ export const DEFAULT_MAP_LABEL = 'current';
 export const DEFAULT_MAP_STORE_BRANCH = 'styleproof-maps';
 export const DEFAULT_REMOTE = 'origin';
 export const MAP_MANIFEST = 'styleproof-manifest.json';
+/** Per-surface capture failures recorded when baseline-only tolerate mode is on. */
+export const SURFACE_CAPTURE_FAILURES_DIR = 'styleproof-surface-capture-failures';
+
+export type SurfaceCaptureFailure = {
+  /** Capture key (`<surface>@<width>` or crawl label). */
+  key: string;
+  reason: string;
+  /** `self-check` failures are never tolerated and should not appear here. */
+  kind?: 'capture';
+};
 /** Sidecar written during a capture run (where a browser handle is in scope) recording
  *  the real browser build (`browser().version()`). `writeMapManifest` runs after Playwright
  *  has exited — no browser — so it reads the build back from here. Not a surface map. */
@@ -80,6 +90,8 @@ export interface MapManifest {
   har: boolean;
   compatibilityKey: string;
   createdAt: string;
+  /** Surfaces that failed during a tolerated baseline capture (partial bundle). */
+  surfaceCaptureFailures?: SurfaceCaptureFailure[];
 }
 
 export interface CachedCaptureDirs {
@@ -446,6 +458,67 @@ export function remoteExists(remote = DEFAULT_REMOTE, cwd = process.cwd()): bool
 /** Assemble a {@link MapManifest} from the compatibility inputs and the caller-resolved
  *  git fields. Shared by {@link writeMapManifest} (spec capture) and
  *  {@link writeCaptureManifest} (one-shot capture) so the object shape lives in one place. */
+function failureFileName(key: string): string {
+  return `${key.replace(/[^a-zA-Z0-9@._-]+/g, '_')}.json`;
+}
+
+/** Record one tolerated surface failure (safe under parallel Playwright workers). */
+export function recordSurfaceCaptureFailure(dir: string, failure: SurfaceCaptureFailure): void {
+  const sub = path.join(dir, SURFACE_CAPTURE_FAILURES_DIR);
+  fs.mkdirSync(sub, { recursive: true });
+  fs.writeFileSync(path.join(sub, failureFileName(failure.key)), JSON.stringify(failure));
+}
+
+/** Read tolerated failures written during capture (sorted by key). */
+export function readSurfaceCaptureFailures(dir: string): SurfaceCaptureFailure[] {
+  const sub = path.join(dir, SURFACE_CAPTURE_FAILURES_DIR);
+  if (!fs.existsSync(sub)) return [];
+  return fs
+    .readdirSync(sub)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => JSON.parse(fs.readFileSync(path.join(sub, name), 'utf8')) as SurfaceCaptureFailure)
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** Split a capture key at the last `@` (`home@1280` → `home` + `1280`). */
+export function captureKeyParts(key: string): { surface: string; width: string } {
+  const at = key.lastIndexOf('@');
+  if (at === -1) return { surface: key, width: '' };
+  return { surface: key.slice(0, at), width: key.slice(at + 1) };
+}
+
+/**
+ * Whether a baseline failure ledger entry accounts for a missing capture key on head.
+ * `surface@auto` (viewport detection failed before width sweep) matches any width for
+ * that exact surface key. Width-specific failures match only the same key.
+ */
+export function baselineFailureMatchesSurface(failureKey: string, surfaceKey: string): boolean {
+  if (failureKey === surfaceKey) return true;
+  const failure = captureKeyParts(failureKey);
+  const surface = captureKeyParts(surfaceKey);
+  if (failure.surface !== surface.surface) return false;
+  return failure.width === 'auto';
+}
+
+/** True when any ledger entry explains why `surfaceKey` is absent from the base bundle. */
+export function surfaceMissingMatchesBaselineFailure(
+  surfaceKey: string,
+  failures: readonly SurfaceCaptureFailure[],
+): boolean {
+  return failures.some((f) => baselineFailureMatchesSurface(f.key, surfaceKey));
+}
+
+/** Head capture keys missing on base that the baseline failure ledger explains (sorted). */
+export function explainedMissingBaselineSurfaces(
+  surfaces: readonly { surface: string; missing?: 'before' | 'after' }[],
+  failures: readonly SurfaceCaptureFailure[],
+): string[] {
+  return surfaces
+    .filter((s) => s.missing === 'before' && surfaceMissingMatchesBaselineFailure(s.surface, failures))
+    .map((s) => s.surface)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 function buildManifest(options: {
   dir: string;
   input: ReturnType<typeof compatibilityInput>;
@@ -453,6 +526,7 @@ function buildManifest(options: {
   dirty: boolean;
   dirtyAllow?: readonly string[];
   screenshots: boolean;
+  surfaceCaptureFailures?: SurfaceCaptureFailure[];
 }): MapManifest {
   const { dir, input } = options;
   const browserVersion = readBrowserBuildSidecar(dir);
@@ -476,6 +550,7 @@ function buildManifest(options: {
     har: hasHar(dir),
     compatibilityKey: hash(JSON.stringify(input)).slice(0, 16),
     createdAt: new Date().toISOString(),
+    ...(options.surfaceCaptureFailures?.length ? { surfaceCaptureFailures: options.surfaceCaptureFailures } : {}),
   };
 }
 
@@ -491,6 +566,7 @@ export function writeMapManifest(options: {
 }): MapManifest {
   const cwd = options.cwd ?? process.cwd();
   const input = compatibilityInput({ cwd, spec: options.spec, baseUrl: options.env?.BASE_URL ?? process.env.BASE_URL });
+  const surfaceCaptureFailures = readSurfaceCaptureFailures(options.dir);
   const manifest = buildManifest({
     dir: options.dir,
     input,
@@ -498,6 +574,7 @@ export function writeMapManifest(options: {
     dirty: options.dirty ?? workingTreeDirty(cwd),
     dirtyAllow: options.dirtyAllow,
     screenshots: options.screenshots,
+    surfaceCaptureFailures,
   });
   fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
   return manifest;
