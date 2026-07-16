@@ -238,6 +238,15 @@ export const safeKey = (s: string): string => s.replace(/[`[\]()<>|]/g, '-');
 export const surfaceBase = (s: string): string => s.replace(/@\d+$/, '');
 export const surfaceWidth = (s: string): number => Number(s.match(/@(\d+)$/)?.[1] ?? 0);
 
+/**
+ * Product surface base for counting: authoritative `metadata.surfaceKey` when the
+ * caller supplies it, otherwise strip a trailing `@width` from the capture key
+ * (older captures without metadata).
+ */
+export function productSurfaceBase(captureKey: string, authoringSurfaceKey?: string): string {
+  return authoringSurfaceKey ?? surfaceBase(captureKey);
+}
+
 export function pushSurfaceWidth(byBase: Map<string, number[]>, base: string, surface: string): void {
   const arr = byBase.get(base) ?? [];
   arr.push(surfaceWidth(surface));
@@ -258,6 +267,32 @@ export function formatSurfaceList(surfaces: string[]): string {
   const byBase = new Map<string, number[]>();
   for (const s of surfaces) pushSurfaceWidth(byBase, surfaceBase(s), s);
   return renderSurfaceGroups(byBase);
+}
+
+/** Unique product surface bases and capture keys among surfaces that carry a grouped change. */
+export function countChangedSurfaceScope(
+  groups: Array<{ surfaces: string[] }>,
+  surfaceKeyOf?: (captureKey: string) => string | undefined,
+): { bases: number; variants: number } {
+  const variants = new Set<string>();
+  for (const g of groups) for (const s of g.surfaces) variants.add(s);
+  const bases = new Set([...variants].map((s) => productSurfaceBase(s, surfaceKeyOf?.(s))));
+  return { bases: bases.size, variants: variants.size };
+}
+
+/** Unique product surface bases across a set of capture keys (e.g. every map in a dir). */
+export function countCapturedSurfaceBases(
+  captureKeys: Iterable<string>,
+  surfaceKeyOf?: (captureKey: string) => string | undefined,
+): number {
+  return new Set([...captureKeys].map((s) => productSurfaceBase(s, surfaceKeyOf?.(s)))).size;
+}
+
+/** Headline / summary phrasing for changed-surface counts (bases first; variants when wider). */
+export function formatChangedSurfaceScope(bases: number, variants: number): string {
+  const baseLabel = `${bases} changed surface base${bases === 1 ? '' : 's'}`;
+  if (variants > bases) return `${baseLabel} (${variants} variants)`;
+  return baseLabel;
 }
 
 // ── signature + grouping ─────────────────────────────────────────────────────
@@ -463,10 +498,12 @@ export function groupBySignature(prepared: SurfaceFindings[]): SignatureGroup[] 
 export function chromePaths(
   changedOnSurfaces: Array<{ path: string; surfaces: string[] }>,
   surfacePaths: Map<string, Set<string>>,
+  surfaceKeyOf?: (captureKey: string) => string | undefined,
 ): Set<string> {
+  const baseOf = (captureKey: string) => productSurfaceBase(captureKey, surfaceKeyOf?.(captureKey));
   const hosting = new Map<string, Set<string>>();
   for (const [surface, paths] of surfacePaths) {
-    const base = surfaceBase(surface);
+    const base = baseOf(surface);
     for (const p of paths) {
       const set = hosting.get(p) ?? new Set<string>();
       set.add(base);
@@ -476,7 +513,7 @@ export function chromePaths(
   const changed = new Map<string, Set<string>>();
   for (const f of changedOnSurfaces) {
     const set = changed.get(f.path) ?? new Set<string>();
-    for (const s of f.surfaces) set.add(surfaceBase(s));
+    for (const s of f.surfaces) set.add(baseOf(s));
     changed.set(f.path, set);
   }
   const chrome = new Set<string>();
@@ -497,12 +534,13 @@ export function chromePaths(
 export function classifyChrome<G extends { surfaces: string[]; findings: Finding[] }>(
   groups: G[],
   surfacePaths: Map<string, Set<string>>,
+  surfaceKeyOf?: (captureKey: string) => string | undefined,
 ): { chrome: G[]; rest: G[]; chromePaths: Set<string> } {
   // Findings tagged with the surfaces the group spans, so chromePaths sees which
   // bases each path changed on across ALL groups (a path bundled with content on
   // one view still counts as changed there).
   const tagged = groups.flatMap((g) => g.findings.map((f) => ({ path: f.path, surfaces: g.surfaces })));
-  const paths = chromePaths(tagged, surfacePaths);
+  const paths = chromePaths(tagged, surfacePaths, surfaceKeyOf);
 
   const chrome: G[] = [];
   const rest: G[] = [];

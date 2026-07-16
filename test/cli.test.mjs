@@ -1139,7 +1139,7 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
     assert.equal(r.status, 1, r.stderr);
     // The nav addition is chrome (every base that hosts the nav changed it), and
     // the pure-nav surfaces group under the callout.
-    assert.match(r.stdout, /🧱 Global chrome change\(s\) — across all 3 surface\(s\)/, r.stdout);
+    assert.match(r.stdout, /🧱 Global chrome change\(s\) — across all 3 captured surface base\(s\)/, r.stdout);
     assert.match(r.stdout, /1 change\(s\) rode the shared frame/, r.stdout);
     // home entangled the nav change with its OWN h1 restyle, so it renders in place
     // (never hidden under the chrome banner) — the view-specific change stays visible.

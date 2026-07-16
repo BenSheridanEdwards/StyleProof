@@ -354,6 +354,7 @@ test('an identical change across surfaces collapses into one grouped section', (
   }
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /1 changed surface base \(2 variants\) with an existing baseline/);
   assert.match(md, /Identical across 2 surfaces/);
   assert.equal(
     (md.match(/\*\*`div\.box`\*\* — /g) || []).length,
@@ -1954,6 +1955,64 @@ test('report promotes a frame-wide change to a chrome callout, leaves a one-view
   assert.match(md, /title/);
   // Counts and exit-relevant results are unchanged by the presentational tier.
   assert.equal(res.newSurfaces, 0);
+  rmTmp(root);
+});
+
+test('report headline and global chrome use surface-base counts with variant detail (#193)', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const nav = (extra) => ({
+    'html > body > nav': { tag: 'nav', cls: 'rail', style: { display: 'flex' } },
+    'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } },
+    ...extra,
+  });
+  const a2 = { 'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } } };
+  for (const base of ['home', 'settings']) {
+    for (const w of [1280, 390]) {
+      writeCapture(beforeDir, `${base}@${w}`, makeMap({ elements: nav({}) }), solidPng(w, 400));
+      writeCapture(afterDir, `${base}@${w}`, makeMap({ elements: nav(a2) }), solidPng(w, 400));
+    }
+  }
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const summary = md.slice(0, md.indexOf('\n### '));
+  assert.match(summary, /2 changed surface bases \(4 variants\) with an existing baseline/);
+  assert.match(summary, /Surface base.*@width/);
+  assert.match(md, /## 🧱 Global chrome change — across all 2 captured surface base\(s\)/);
+  rmTmp(root);
+});
+
+test('report headline counts live-state variants under metadata.surfaceKey product base', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const el = (color) => ({
+    body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+    'body > button:nth-child(1)': {
+      tag: 'button',
+      cls: 'cta',
+      rect: [10, 10, 120, 32],
+      style: { color },
+    },
+  });
+  const baseMap = (color) => makeMap({ elements: el(color) });
+  const loadedMeta = { surfaceKey: 'dashboard', variantKey: 'loaded', variantKind: 'live-state' };
+  writeCapture(beforeDir, 'dashboard@1280', baseMap('rgb(0, 0, 0)'), solidPng(1280, 800));
+  writeCapture(afterDir, 'dashboard@1280', baseMap('rgb(255, 0, 0)'), solidPng(1280, 800));
+  writeCapture(
+    beforeDir,
+    'dashboard-loaded@1280',
+    { ...baseMap('rgb(0, 0, 0)'), metadata: loadedMeta },
+    solidPng(1280, 800),
+  );
+  writeCapture(
+    afterDir,
+    'dashboard-loaded@1280',
+    { ...baseMap('rgb(255, 0, 0)'), metadata: loadedMeta },
+    solidPng(1280, 800),
+  );
+
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  const summary = md.slice(0, md.indexOf('\n### ') >= 0 ? md.indexOf('\n### ') : md.length);
+  assert.match(summary, /1 changed surface base \(2 variants\) with an existing baseline/);
   rmTmp(root);
 });
 

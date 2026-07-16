@@ -1227,3 +1227,43 @@ export function surfaceElementPaths(...dirs: string[]): Map<string, Set<string>>
   }
   return bySurface;
 }
+
+/** Capture key from a map filename (`home@1280.json.gz` → `home@1280`). */
+export function captureKeyFromMapFile(filename: string): string {
+  return filename.replace(/\.json(\.gz)?$/, '');
+}
+
+/** Every capture key present as a map file in `dir`. */
+export function captureKeysIn(dir: string): string[] {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter(isMapFile).map(captureKeyFromMapFile);
+}
+
+/** Per capture key, the authoring `metadata.surfaceKey` from that map (if any). */
+export function surfaceKeyByCaptureKey(dir: string): Map<string, string | undefined> {
+  const out = new Map<string, string | undefined>();
+  if (!fs.existsSync(dir)) return out;
+  for (const f of fs.readdirSync(dir).filter(isMapFile)) {
+    const key = captureKeyFromMapFile(f);
+    const map = loadStyleMap(path.join(dir, f));
+    out.set(key, map.metadata?.surfaceKey);
+  }
+  return out;
+}
+
+/**
+ * Lookup authoring `metadata.surfaceKey` across capture dirs in order (typically
+ * `beforeDir`, `afterDir`). For the same capture key, a **later** dir wins when it
+ * carries a defined `surfaceKey`; an undefined later entry does not clobber an
+ * earlier defined value (head/after authoritative, base/before fallback).
+ */
+export function mergeSurfaceKeyLookup(...dirs: string[]): (captureKey: string) => string | undefined {
+  const merged = new Map<string, string | undefined>();
+  for (const dir of dirs) {
+    for (const [k, v] of surfaceKeyByCaptureKey(dir)) {
+      if (v !== undefined) merged.set(k, v);
+      else if (!merged.has(k)) merged.set(k, undefined);
+    }
+  }
+  return (captureKey) => merged.get(captureKey);
+}
