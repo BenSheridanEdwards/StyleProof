@@ -6,6 +6,8 @@ import {
   readInventories,
   readResidue,
   surfaceElementPaths,
+  captureKeysIn,
+  mergeSurfaceKeyLookup,
   type ElementEntry,
   type LiveRegionCandidate,
   type Rect,
@@ -49,6 +51,9 @@ import {
   pushSurfaceWidth,
   renderSurfaceGroups,
   formatSurfaceList,
+  countChangedSurfaceScope,
+  formatChangedSurfaceScope,
+  countCapturedSurfaceBases,
   classifyChrome,
 } from './change-groups.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
@@ -1250,14 +1255,18 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
   return '`' + formatSurfaceList(shownSurfaces) + '`' + more;
 }
 
+/** One-line glossary so headline base vs variant counts read consistently with the chrome banner. */
+const SURFACE_SCOPE_GLOSSARY =
+  '_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._';
+
 function summaryLines(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
   shown: DiffCounts;
-  changedSurfaceCount: number;
+  changedScope: { bases: number; variants: number };
   contentCount: number;
 }): string[] {
-  const { changeGroups, missing, shown, changedSurfaceCount, contentCount } = args;
+  const { changeGroups, missing, shown, changedScope, contentCount } = args;
   if (changeGroups.length === 0 && missing.length === 0) {
     return [
       contentCount > 0
@@ -1275,8 +1284,9 @@ function summaryLines(args: {
   if (changeGroups.length > 0) {
     if (md.length > 0) md.push('');
     md.push(
-      `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${changedSurfaceCount} existing surface(s).`,
+      `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${formatChangedSurfaceScope(changedScope.bases, changedScope.variants)} with an existing baseline.`,
     );
+    md.push(SURFACE_SCOPE_GLOSSARY);
   }
   return md;
 }
@@ -1288,13 +1298,13 @@ function reportHeadline(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
   shown: DiffCounts;
-  changedSurfaceCount: number;
+  changedScope: { bases: number; variants: number };
   volatileCount: number;
   liveCandidateLabels: string[];
   contentCount: number;
 }): string[] {
-  const { changeGroups, missing, shown, changedSurfaceCount, volatileCount, liveCandidateLabels, contentCount } = args;
-  const md: string[] = summaryLines({ changeGroups, missing, shown, changedSurfaceCount, contentCount });
+  const { changeGroups, missing, shown, changedScope, volatileCount, liveCandidateLabels, contentCount } = args;
+  const md: string[] = summaryLines({ changeGroups, missing, shown, changedScope, contentCount });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
       ? ` Auto-detected live-state candidate(s): ${liveCandidateLabels.slice(0, 5).join('; ')}.`
@@ -1591,7 +1601,7 @@ function chromeCalloutLines(nChrome: number, nSurfaces: number): string[] {
     '',
     '---',
     '',
-    `## 🧱 Global chrome ${what} — across all ${nSurfaces} surface(s)`,
+    `## 🧱 Global chrome ${what} — across all ${nSurfaces} captured surface base(s)`,
     '',
     `_${nChrome} change(s) rode the shared frame every view draws (a persistent nav, header, or footer): ` +
       `each touched every surface that renders the affected element, so it reads as ONE global change, not a ` +
@@ -1648,6 +1658,9 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
 
   const includeNoise = opts.includeLayoutNoise ?? false;
   const includeContent = opts.includeContent ?? false;
+  // Base first, head second: current capture metadata is authoritative when a
+  // surface's product key changed between revisions.
+  const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
   const { surfaces, volatile: volatileCount } = diffStyleMapDirs(beforeDir, afterDir);
   const liveCandidateLabels = volatileCount > 0 ? collectLiveCandidateLabels(beforeDir, afterDir) : [];
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
@@ -1671,13 +1684,12 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // entries. Purely presentational — counts, groups, exit code, and report.json
   // are unchanged; only the render order and one heading differ. In the common
   // small-surface case (e.g. the demo) nothing qualifies and this is a no-op.
-  const { chrome, rest } = classifyChrome(changeGroups, surfaceElementPaths(beforeDir, afterDir));
+  const { chrome, rest } = classifyChrome(changeGroups, surfaceElementPaths(beforeDir, afterDir), surfaceKeyOf);
   const orderedGroups = [...chrome, ...rest];
   const shown = countShownChanges(changeGroups);
-  // Surfaces carrying a reviewable change — NOT the new (one-sided) ones, which
-  // have no baseline to compare and are summarised on their own line below so the
-  // headline never reads "0 changes" while warnings sit beneath it.
-  const changedSurfaceCount = changeGroups.reduce((acc, g) => acc + g.surfaces.length, 0);
+  // Surface bases (and variant keys when widths/states differ) carrying a reviewable
+  // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
+  const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -1710,7 +1722,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       changeGroups,
       missing,
       shown,
-      changedSurfaceCount,
+      changedScope,
       volatileCount,
       liveCandidateLabels,
       contentCount: contentSection.count,
@@ -1742,7 +1754,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // The captured-surface-base count (all surfaces, not just changed ones) so the
   // chrome callout can read "N of M surfaces". M is bases, matching the tier's
   // base-keyed coverage rule.
-  const totalSurfaceBases = new Set(surfaceKeysIn(afterDir).map(surfaceBase)).size;
+  const totalSurfaceBases = countCapturedSurfaceBases(captureKeysIn(afterDir), surfaceKeyOf);
   const chromeSet = new Set(chrome);
   let chromeHeaderEmitted = false;
   if (missing.length > 0) {
