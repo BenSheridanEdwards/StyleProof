@@ -282,7 +282,7 @@ test('styleproof-report escapes injected markdown in baseline failure reason', (
   writeManifest(B, 'head-sha', 'same-env-key');
   run(REPORT, [A, B, '--out', out]);
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
-  assert.doesNotMatch(md, /<script>/);
+  assert.doesNotMatch(md, /<script>/i);
   assert.match(md, /\\\*\\\*pwned\\\*\\\*/);
   rmTmp(root);
 });

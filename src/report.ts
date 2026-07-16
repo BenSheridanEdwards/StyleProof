@@ -1275,6 +1275,59 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
 const SURFACE_SCOPE_GLOSSARY =
   '_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._';
 
+function baselineFailureSummaryLines(failures: SurfaceCaptureFailure[]): string[] {
+  if (failures.length === 0) return [];
+  const md = [
+    `⚠️ **${failures.length} baseline capture failure(s)** — these surfaces failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely as if they were greenfield new surfaces.`,
+  ];
+  for (const failure of failures.slice(0, 8))
+    md.push(`- \`${safeKey(failure.key)}\`: ${escapeMarkdownFailureReason(failure.reason)}`);
+  if (failures.length > 8) md.push(`- _…and ${failures.length - 8} more (see manifest \`surfaceCaptureFailures\`)_`);
+  md.push('');
+  return md;
+}
+
+function missingSurfaceSummaryLines(
+  missing: PreparedSurface[],
+  greenfieldMissing: PreparedSurface[],
+  brokenBaseMissing: PreparedSurface[],
+): string[] {
+  const md: string[] = [];
+  if (brokenBaseMissing.length > 0) {
+    md.push(
+      `⚠️ **${brokenBaseMissing.length} head surface(s)** have no base map because baseline capture failed (not first adoption): ${newSurfaceSummary(brokenBaseMissing)}.`,
+      '',
+    );
+  }
+  if (greenfieldMissing.length > 0) {
+    md.push(
+      `🆕 **${greenfieldMissing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(greenfieldMissing)}. ` +
+        `Approve them before they become the baseline.`,
+    );
+  }
+  if (missing.length > 0 && greenfieldMissing.length === 0 && brokenBaseMissing.length === 0) {
+    md.push(
+      `🆕 **${missing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(missing)}. ` +
+        `Approve them before they become the baseline.`,
+    );
+  }
+  return md;
+}
+
+function changedSurfaceSummaryLines(
+  changeGroups: ChangeGroup[],
+  shown: DiffCounts,
+  changedScope: { bases: number; variants: number },
+  prependSeparator: boolean,
+): string[] {
+  if (changeGroups.length === 0) return [];
+  return [
+    ...(prependSeparator ? [''] : []),
+    `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${formatChangedSurfaceScope(changedScope.bases, changedScope.variants)} with an existing baseline.`,
+    SURFACE_SCOPE_GLOSSARY,
+  ];
+}
+
 function summaryLines(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
@@ -1297,42 +1350,11 @@ function summaryLines(args: {
         : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
     ];
   }
-  const md: string[] = [];
-  if (baselineSurfaceFailures.length > 0) {
-    md.push(
-      `⚠️ **${baselineSurfaceFailures.length} baseline capture failure(s)** — these surfaces failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely as if they were greenfield new surfaces.`,
-    );
-    for (const f of baselineSurfaceFailures.slice(0, 8))
-      md.push(`- \`${safeKey(f.key)}\`: ${escapeMarkdownFailureReason(f.reason)}`);
-    if (baselineSurfaceFailures.length > 8)
-      md.push(`- _…and ${baselineSurfaceFailures.length - 8} more (see manifest \`surfaceCaptureFailures\`)_`);
-    md.push('');
-  }
-  if (brokenBaseMissing.length > 0) {
-    md.push(
-      `⚠️ **${brokenBaseMissing.length} head surface(s)** have no base map because baseline capture failed (not first adoption): ${newSurfaceSummary(brokenBaseMissing)}.`,
-    );
-    md.push('');
-  }
-  if (greenfieldMissing.length > 0) {
-    md.push(
-      `🆕 **${greenfieldMissing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(greenfieldMissing)}. ` +
-        `Approve them before they become the baseline.`,
-    );
-  }
-  if (missing.length > 0 && greenfieldMissing.length === 0 && brokenBaseMissing.length === 0) {
-    md.push(
-      `🆕 **${missing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(missing)}. ` +
-        `Approve them before they become the baseline.`,
-    );
-  }
-  if (changeGroups.length > 0) {
-    if (md.length > 0) md.push('');
-    md.push(
-      `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${formatChangedSurfaceScope(changedScope.bases, changedScope.variants)} with an existing baseline.`,
-    );
-    md.push(SURFACE_SCOPE_GLOSSARY);
-  }
+  const md = [
+    ...baselineFailureSummaryLines(baselineSurfaceFailures),
+    ...missingSurfaceSummaryLines(missing, greenfieldMissing, brokenBaseMissing),
+  ];
+  md.push(...changedSurfaceSummaryLines(changeGroups, shown, changedScope, md.length > 0));
   return md;
 }
 
