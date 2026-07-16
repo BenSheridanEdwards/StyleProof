@@ -140,7 +140,7 @@ test('styleproof-ci: --spec-ref requires a non-empty value', () => {
 test('normalizeRepoRelativeSpec: rejects absolute and out-of-repo paths', () => {
   const root = mkTmp('styleproof-ci-spec-path-');
   try {
-    assert.throws(() => normalizeRepoRelativeSpec('/etc/passwd', root), /--spec must be a repo-relative path/);
+    assert.throws(() => normalizeRepoRelativeSpec('/etc/passwd', root), /--spec must be a relative path/);
     assert.throws(() => normalizeRepoRelativeSpec('../outside.spec.ts', root), /stay inside the repository/);
     assert.equal(normalizeRepoRelativeSpec('e2e/styleproof.spec.ts', root), 'e2e/styleproof.spec.ts');
   } finally {
@@ -424,6 +424,44 @@ test('applySpecRefOverlay: missing spec at ref is a usage error', () => {
       () => applySpecRefOverlay({ spec: 'missing.spec.ts', specRef: head, cwd: root }),
       /missing at --spec-ref/,
     );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('applySpecRefOverlay: resolves a cwd-relative spec when run from a repo subdirectory', () => {
+  // The consumer regression shape: `working-directory: hud` + `--spec tests/e2e/….spec.ts`.
+  // Bare `<rev>:<path>` resolves from the repo ROOT, so the overlay reported a
+  // spec that exists as "missing at --spec-ref". Every lookup must use git's
+  // cwd-relative `<rev>:./<path>` form instead.
+  const root = mkTmp('styleproof-ci-spec-ref-subdir-');
+  const git = (cwd, args) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    git(root, ['init', '-q', '-b', 'main']);
+    git(root, ['config', 'user.email', 'styleproof@example.test']);
+    git(root, ['config', 'user.name', 'StyleProof Test']);
+    const specAbs = path.join(root, 'hud', 'tests', 'e2e', 'styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(specAbs), { recursive: true });
+    fs.writeFileSync(specAbs, '// base spec\n');
+    git(root, ['add', '-A']);
+    git(root, ['commit', '-qm', 'base']);
+    fs.writeFileSync(specAbs, '// head spec\n');
+    git(root, ['add', '-A']);
+    git(root, ['commit', '-qm', 'head']);
+    const head = git(root, ['rev-parse', 'HEAD']);
+    git(root, ['checkout', '-q', 'HEAD~1']);
+
+    const subdir = path.join(root, 'hud');
+    const overlay = applySpecRefOverlay({ spec: 'tests/e2e/styleproof.spec.ts', specRef: head, cwd: subdir });
+    assert.equal(fs.readFileSync(specAbs, 'utf8'), '// head spec\n', 'overlays the head bytes');
+    overlay.restore();
+    assert.equal(fs.readFileSync(specAbs, 'utf8'), '// base spec\n', 'restore returns the base bytes');
+    const status = git(root, ['status', '--porcelain']);
+    assert.equal(status, '', 'no assume-unchanged residue after restore');
   } finally {
     rmTmp(root);
   }

@@ -19,14 +19,17 @@ function runGit(cwd: string, args: string[]) {
   return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
 }
 
-/** Repo-relative path only; rejects absolute paths and paths that escape the repo root. */
+/** Relative path only — resolved against the directory styleproof-ci runs in, like
+ *  every other `--spec` in the toolchain (a workflow may run the CLI from a
+ *  subdirectory, e.g. `working-directory: hud`). Rejects absolute paths and paths
+ *  that escape upward. */
 export function normalizeRepoRelativeSpec(spec: string, cwd: string): string {
   const trimmed = spec.trim();
   if (!trimmed) {
-    throw new CiSpecRefError('styleproof-ci: --spec must be a non-empty repo-relative path', 2);
+    throw new CiSpecRefError('styleproof-ci: --spec must be a non-empty relative path', 2);
   }
   if (path.isAbsolute(trimmed)) {
-    throw new CiSpecRefError(`styleproof-ci: --spec must be a repo-relative path, not absolute: ${spec}`, 2);
+    throw new CiSpecRefError(`styleproof-ci: --spec must be a relative path, not absolute: ${spec}`, 2);
   }
   const normalized = trimmed.replace(/\\/g, '/');
   if (normalized === '..' || normalized.startsWith('../') || normalized.split('/').includes('..')) {
@@ -50,8 +53,18 @@ export function assertResolvableSpecRef(specRef: string, cwd: string): void {
   }
 }
 
+/** The `<rev>:<path>` form for a CWD-RELATIVE spec. Bare `<rev>:<path>` resolves
+ *  the path from the REPO ROOT, so from a subdirectory (`working-directory: hud`,
+ *  spec `tests/e2e/styleproof.spec.ts`) the lookup missed a file that exists and
+ *  the overlay failed with a false "missing at --spec-ref". Git's `<rev>:./<path>`
+ *  syntax resolves relative to the command's cwd — matching how the same `spec`
+ *  string is used by every pathspec call and filesystem write in this module. */
+function specRevPath(specRef: string, spec: string): string {
+  return `${specRef}:./${spec}`;
+}
+
 export function assertSpecAtRef(spec: string, specRef: string, cwd: string): void {
-  const r = runGit(cwd, ['cat-file', '-e', `${specRef}:${spec}`]);
+  const r = runGit(cwd, ['cat-file', '-e', specRevPath(specRef, spec)]);
   if (r.status !== 0) {
     throw new CiSpecRefError(
       `styleproof-ci: --spec ${spec} is missing at --spec-ref ${specRef}\n${(r.stderr ?? r.stdout ?? '').trim()}`,
@@ -61,7 +74,7 @@ export function assertSpecAtRef(spec: string, specRef: string, cwd: string): voi
 }
 
 function readSpecBlobAtRef(spec: string, specRef: string, cwd: string): Buffer {
-  const r = spawnSync('git', ['show', `${specRef}:${spec}`], { cwd, encoding: 'buffer', maxBuffer: 1 << 28 });
+  const r = spawnSync('git', ['show', specRevPath(specRef, spec)], { cwd, encoding: 'buffer', maxBuffer: 1 << 28 });
   if (r.status !== 0 || !r.stdout?.length) {
     throw new CiSpecRefError(`styleproof-ci: could not read ${spec} at --spec-ref ${specRef}`, 1);
   }
