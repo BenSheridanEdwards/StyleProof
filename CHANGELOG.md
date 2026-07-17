@@ -14,6 +14,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   dir), so the consumer checkout is never checked out to `--base`. Head capture may
   still run in the consumer at `--head`. Worktrees are always torn down on success
   and failure; invalid SHAs fail loudly before capture.
+- **Canonical comparison truth (`assessComparisonTruth`).** Diff JSON, durable
+  report, PR comment, and trust state share one assessment of raw vs reviewable
+  findings so they cannot invent disagreeing verdicts.
 
 ### Fixed
 
@@ -25,6 +28,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The global-chrome tier names **captured surface bases** (not raw variant keys). A
   one-line glossary beside the headline explains `@width` and state/popup keys as
   variants of a base.
+- **Diff/report/verdict coherence for derived-only (reflow) deltas.**
+  `styleproof-diff` can report raw computed-style differences while
+  `generateStyleMapReport` strips size/position longhands and previously claimed
+  "all surfaces identical" with no crops. That pair must never become
+  `VISUAL_APPROVAL_REQUIRED` (no reviewable evidence). Both CLIs now emit
+  `reviewableCounts` + `reportConsistency`; raw-only noise fails closed as
+  `CERTIFICATION_FAILED` (action gate + status), the report headline names the
+  consistency failure instead of "identical", and approval UI stays off.
 
 ## [4.5.2] - 2026-07-16
 

@@ -9,6 +9,7 @@ import {
   countChangedSurfaceScope,
   formatChangedSurfaceScope,
   productSurfaceBase,
+  assessComparisonTruth,
 } from '../dist/change-groups.js';
 
 // change-groups.ts is the pure grouping/classification leaf shared by the report
@@ -145,4 +146,51 @@ test('derivedLonghandCount counts the reflow-casualty longhands the CLI folds', 
   const cleaned = cleanFindings(findings);
   const props = cleaned.flatMap((f) => f.props).map((p) => p.prop);
   assert.ok(!props.some((p) => ['width', 'height', 'transform-origin'].includes(p)));
+});
+
+test('assessComparisonTruth: raw-only derived longhands are not reviewable evidence', () => {
+  // Generic map-pair: only height/width (reflow casualties). Certification differ
+  // counts them; the visual report strips them — must fail closed, never approve.
+  const surfaces = [
+    {
+      surface: 'home@1280',
+      findings: [
+        styleFinding('body', [
+          { prop: 'height', before: '800px', after: '820px' },
+          { prop: 'width', before: '1280px', after: '1280px' },
+        ]),
+      ],
+    },
+  ];
+  // width before===after won't appear in real diffs, but height alone is enough.
+  surfaces[0].findings[0].props = [{ prop: 'height', before: '800px', after: '820px' }];
+  const truth = assessComparisonTruth(surfaces, { dom: 0, style: 1, state: 0 });
+  assert.equal(truth.rawCounts.style, 1);
+  assert.equal(truth.reviewableCounts.style, 0);
+  assert.equal(truth.hasReviewableEvidence, false);
+  assert.equal(truth.rawOnlyNoReviewable, true);
+});
+
+test('assessComparisonTruth: real style change is reviewable and aligned', () => {
+  const surfaces = [
+    {
+      surface: 'home@1280',
+      findings: [styleFinding('body > button', [{ prop: 'color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' }])],
+    },
+  ];
+  const truth = assessComparisonTruth(surfaces, { dom: 0, style: 1, state: 0 });
+  assert.equal(truth.rawOnlyNoReviewable, false);
+  assert.equal(truth.hasReviewableEvidence, true);
+  assert.equal(truth.reviewableCounts.style, 1);
+});
+
+test('assessComparisonTruth: new surfaces count as reviewable evidence without raw style counts', () => {
+  const truth = assessComparisonTruth([{ surface: 'about@1280', missing: 'before', findings: [] }], {
+    dom: 0,
+    style: 0,
+    state: 0,
+  });
+  assert.equal(truth.newSurfaces, 1);
+  assert.equal(truth.hasReviewableEvidence, true);
+  assert.equal(truth.rawOnlyNoReviewable, false);
 });

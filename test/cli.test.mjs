@@ -1266,3 +1266,79 @@ test('diff CLI warns when the forced-state layer was skipped on both sides', () 
   assert.equal(j.statesUncertified, 1);
   rmTmp(root);
 });
+
+// ── report / verdict consistency (raw derived-only vs reviewable report) ─────
+
+/** Map pair where only body height (a derived reflow longhand) differs. */
+function reflowOnlyPair() {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const mk = (h) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, h], style: { height: `${h}px` } },
+        'body > button:nth-child(1)': {
+          tag: 'button',
+          cls: 'cta',
+          rect: [10, 10, 100, 32],
+          style: { color: 'rgb(0, 0, 0)' },
+        },
+      },
+    });
+  writeCapture(A, 'home@1280', mk(800), null);
+  writeCapture(B, 'home@1280', mk(820), null);
+  writeCapture(A, 'about@1280', mk(800), null);
+  writeCapture(B, 'about@1280', mk(820), null);
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  return { root, A, B };
+}
+
+test('diff CLI: raw-only reflow exits 1, emits reportConsistency, never silent green', () => {
+  const { root, A, B } = reflowOnlyPair();
+  const jsonPath = path.join(root, 'out.json');
+  const r = run(DIFF, [A, B, '--json', jsonPath]);
+  assert.equal(r.status, 1, `expected exit 1, got ${r.status}: ${r.stderr}\n${r.stdout}`);
+  assert.match(r.stdout, /computed-style difference/);
+  assert.match(r.stdout, /report consistency|derived\/reflow/i);
+  const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.ok(j.counts.style > 0, 'raw certification counts include derived longhands');
+  assert.equal(j.reviewableCounts.style, 0);
+  assert.equal(j.reportConsistency.ok, false);
+  assert.equal(j.reportConsistency.reason, 'raw_only_no_reviewable');
+  rmTmp(root);
+});
+
+test('report CLI: raw-only reflow does not claim identical; exits 1 fail-closed', () => {
+  const { root, A, B } = reflowOnlyPair();
+  const out = path.join(root, 'report-out');
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, `expected exit 1, got ${r.status}: ${r.stderr}\n${r.stdout}`);
+  assert.match(r.stdout, /consistency|raw-only|derived/i);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  assert.doesNotMatch(md, /All surfaces identical/);
+  assert.match(md, /consistency failure|CERTIFICATION_FAILED/i);
+  const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.equal(reportJson.reportConsistency.ok, false);
+  const crops = fs.existsSync(path.join(out, 'crops')) ? fs.readdirSync(path.join(out, 'crops')) : [];
+  assert.equal(crops.length, 0);
+  rmTmp(root);
+});
+
+test('diff + report share one truth on a real style change (aligned reviewable)', () => {
+  const { root, A, B } = differingPair();
+  const jsonPath = path.join(root, 'out.json');
+  const dr = run(DIFF, [A, B, '--json', jsonPath]);
+  assert.equal(dr.status, 1);
+  const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(j.reportConsistency.ok, true);
+  assert.ok(j.reviewableCounts.style > 0);
+  const out = path.join(root, 'report-out');
+  const rr = run(REPORT, [A, B, '--out', out]);
+  assert.equal(rr.status, 1);
+  const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.equal(reportJson.reportConsistency.ok, true);
+  assert.ok(reportJson.surfaces.length > 0);
+  rmTmp(root);
+});

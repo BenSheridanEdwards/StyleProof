@@ -164,8 +164,30 @@ test('composite action hard-gates certification failures the approve box cannot 
   assert.match(gate[0], /coverage\?\.basis === 'incomplete'/);
   assert.match(gate[0], /determinism\?\.status === 'unproven'/);
   assert.match(gate[0], /dataResidue\?\.blocking/);
+  assert.match(gate[0], /reportConsistency/, 'raw-only report/diff contradiction hard-gates');
   assert.match(gate[0], /exit 1/);
   assert.doesNotMatch(gate[0], /require-approval/, 'the provenance gate must fire in BOTH modes');
+});
+
+test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILED not visual approval', () => {
+  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
+  assert.match(verdict[0], /reportConsistency/);
+  assert.match(verdict[0], /rawOnlyNoReviewable|raw_only_no_reviewable/);
+  // Assignment order: raw-only shares the CERTIFICATION_FAILED branch, which must
+  // appear before the VISUAL_APPROVAL_REQUIRED assignment (state = '…' only).
+  const certAssign = verdict[0].indexOf("state = 'CERTIFICATION_FAILED'");
+  const visualAssign = verdict[0].indexOf("state = 'VISUAL_APPROVAL_REQUIRED'");
+  assert.ok(
+    certAssign > 0 && visualAssign > certAssign,
+    'CERTIFICATION_FAILED assignment must outrank visual approval',
+  );
+  assert.match(verdict[0], /rawOnlyNoReviewable\) state = 'CERTIFICATION_FAILED'/);
+  // Approval checkbox only for VISUAL_APPROVAL_REQUIRED — never for consistency failure.
+  const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
+  assert.ok(commentStep, 'PR comment step present');
+  assert.match(commentStep[0], /trustState === 'VISUAL_APPROVAL_REQUIRED'/);
+  assert.match(commentStep[0], /report\/diff consistency|reflow source/i);
 });
 
 test('composite action blocks unapproved changes by default (opt out with "blocking": false)', () => {

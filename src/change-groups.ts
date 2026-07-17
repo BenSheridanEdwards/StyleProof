@@ -1,4 +1,4 @@
-import { type Finding, type PropChange } from './diff.js';
+import { type DiffCounts, type Finding, type PropChange } from './diff.js';
 import { trackCount } from './describe.js';
 
 /**
@@ -13,9 +13,11 @@ import { trackCount } from './describe.js';
  * What lives here: collapse logical→physical longhands and shorthand families
  * (`summarizeProps`), strip reflow-casualty/derived longhands (`cleanFindings`),
  * a canonical per-surface signature so surfaces that changed the SAME way group
- * once (`signatureOf` / `groupBySignature`), and the shared-chrome tier that
+ * once (`signatureOf` / `groupBySignature`), the shared-chrome tier that
  * promotes a change spanning every hosting surface to a single callout
- * (`classifyChrome`).
+ * (`classifyChrome`), and the canonical comparison-truth assessment that keeps
+ * the certification differ, durable report, PR comment, and trust state from
+ * disagreeing (`assessComparisonTruth`).
  */
 
 // ── property summarisation: dedupe logical longhands, collapse shorthand
@@ -550,4 +552,107 @@ export function classifyChrome<G extends { surfaces: string[]; findings: Finding
     (isChrome ? chrome : rest).push(g);
   }
   return { chrome, rest, chromePaths: paths };
+}
+
+// ── comparison truth (diff / report / trust coherence) ───────────────────────
+
+/** Tally DOM/style/state findings the same way the certification differ does. */
+export function countFindings(findings: Finding[]): DiffCounts {
+  const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
+  for (const f of findings) {
+    if (f.kind === 'dom') counts.dom++;
+    else if (f.kind === 'style') counts.style += f.props.length;
+    else counts.state += f.props.length;
+  }
+  return counts;
+}
+
+function addCounts(a: DiffCounts, b: DiffCounts): DiffCounts {
+  return { dom: a.dom + b.dom, style: a.style + b.style, state: a.state + b.state };
+}
+
+/** Empty tallies used when a side has no findings. */
+export const ZERO_COUNTS: DiffCounts = { dom: 0, style: 0, state: 0 };
+
+/**
+ * Canonical comparison truth shared by styleproof-diff, generateStyleMapReport,
+ * and the composite action trust verdict.
+ *
+ * The certification differ records every computed longhand (including reflow
+ * casualties). The visual report strips derived size/position longhands so crops
+ * stay on styling intent. Those two views must never independently invent a
+ * trust state: VISUAL_APPROVAL_REQUIRED requires reviewable evidence (cleaned
+ * findings, crops, or one-sided surfaces); raw-only derived noise fails closed
+ * as a certification/consistency failure rather than a blind approval gate.
+ */
+export type ComparisonTruth = {
+  rawCounts: DiffCounts;
+  reviewableCounts: DiffCounts;
+  newSurfaces: number;
+  removedSurfaces: number;
+  rawChangedSurfaces: number;
+  reviewableChangedSurfaces: number;
+  /** Cleaned findings, new surfaces, or removed surfaces a human can act on. */
+  hasReviewableEvidence: boolean;
+  /**
+   * Raw certification deltas that cleanFindings strips entirely — the report
+   * would show no change sections/crops. Never map this to VISUAL_APPROVAL_REQUIRED.
+   */
+  rawOnlyNoReviewable: boolean;
+};
+
+/** Surface shape both the differ and the report already produce. */
+export type ComparisonSurface = {
+  surface: string;
+  missing?: 'before' | 'after';
+  findings: Finding[];
+};
+
+/**
+ * Assess one map-pair comparison for report/verdict coherence.
+ *
+ * When `rawCounts` is provided (from `diffStyleMapDirs`), it is used as-is so
+ * JSON `counts` and the assessment share one tally. Otherwise counts are
+ * recomputed from the surface findings.
+ */
+export function assessComparisonTruth(surfaces: ComparisonSurface[], rawCounts?: DiffCounts): ComparisonTruth {
+  let raw = rawCounts ? { ...rawCounts } : { ...ZERO_COUNTS };
+  let reviewable = { ...ZERO_COUNTS };
+  let newSurfaces = 0;
+  let removedSurfaces = 0;
+  let rawChangedSurfaces = 0;
+  let reviewableChangedSurfaces = 0;
+
+  for (const sd of surfaces) {
+    if (sd.missing === 'before') {
+      newSurfaces++;
+      continue;
+    }
+    if (sd.missing === 'after') {
+      removedSurfaces++;
+      continue;
+    }
+    if (!rawCounts) raw = addCounts(raw, countFindings(sd.findings));
+    if (sd.findings.length > 0) rawChangedSurfaces++;
+    const cleaned = cleanFindings(sd.findings);
+    const rev = countFindings(cleaned);
+    reviewable = addCounts(reviewable, rev);
+    if (cleaned.length > 0) reviewableChangedSurfaces++;
+  }
+
+  const rawTotal = raw.dom + raw.style + raw.state;
+  const revTotal = reviewable.dom + reviewable.style + reviewable.state;
+  const hasReviewableEvidence = revTotal > 0 || newSurfaces > 0 || removedSurfaces > 0;
+  const rawOnlyNoReviewable = rawTotal > 0 && revTotal === 0 && newSurfaces === 0 && removedSurfaces === 0;
+
+  return {
+    rawCounts: raw,
+    reviewableCounts: reviewable,
+    newSurfaces,
+    removedSurfaces,
+    rawChangedSurfaces,
+    reviewableChangedSurfaces,
+    hasReviewableEvidence,
+    rawOnlyNoReviewable,
+  };
 }

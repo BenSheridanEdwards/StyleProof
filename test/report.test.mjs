@@ -1005,9 +1005,50 @@ test('end-to-end: includeLayoutNoise keeps the reflow-casualty element', () => {
   // Without noise: body-only height change is stripped -> no real change.
   const off = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(outDir, 'off') });
   assert.equal(off.changedSurfaces, 0);
+  // Consistency: raw certification deltas exist but no reviewable crops.
+  assert.equal(off.comparison.rawOnlyNoReviewable, true);
+  assert.ok(off.comparison.rawCounts.style > 0);
+  assert.equal(off.comparison.reviewableCounts.style, 0);
+  const mdOff = fs.readFileSync(off.reportMdPath, 'utf8');
+  assert.match(mdOff, /Report consistency failure|raw_only|derived\/reflow/i);
+  assert.doesNotMatch(mdOff, /All surfaces identical/);
+  const jsonOff = JSON.parse(fs.readFileSync(off.reportJsonPath, 'utf8'));
+  assert.equal(jsonOff.reportConsistency.ok, false);
+  assert.equal(jsonOff.reportConsistency.reason, 'raw_only_no_reviewable');
+  // No crops for a raw-only inconsistency (nothing reviewable to approve).
+  const cropsOff = fs.existsSync(path.join(outDir, 'off', 'crops'))
+    ? fs.readdirSync(path.join(outDir, 'off', 'crops'))
+    : [];
+  assert.equal(cropsOff.length, 0);
   // With noise: the height change surfaces.
   const on = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(outDir, 'on'), includeLayoutNoise: true });
   assert.equal(on.changedSurfaces, 1);
+  assert.equal(on.comparison.rawOnlyNoReviewable, false);
+  rmTmp(root);
+});
+
+test('end-to-end: multi-surface raw-only reflow cannot claim identical or produce crops', () => {
+  // Generic dogfood-shaped pair: several surfaces, only derived longhands differ.
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  const outDir = path.join(root, 'out');
+  for (const surface of ['home@1280', 'about@1280', 'pricing@390']) {
+    writeCapture(beforeDir, surface, sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), solidPng(400, 200));
+    writeCapture(afterDir, surface, sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 900 }), solidPng(400, 200));
+  }
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  assert.equal(res.changedSurfaces, 0);
+  assert.equal(res.newSurfaces, 0);
+  assert.equal(res.comparison.rawOnlyNoReviewable, true);
+  assert.ok(res.comparison.rawCounts.style >= 3, 'raw style diffs across surfaces');
+  assert.equal(res.comparison.reviewableCounts.style, 0);
+  assert.equal(res.comparison.hasReviewableEvidence, false);
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.doesNotMatch(md, /All surfaces identical/);
+  assert.match(md, /CERTIFICATION_FAILED|consistency failure/i);
+  const crops = fs.existsSync(path.join(outDir, 'crops')) ? fs.readdirSync(path.join(outDir, 'crops')) : [];
+  assert.equal(crops.length, 0, 'no crops when nothing is reviewable');
   rmTmp(root);
 });
 

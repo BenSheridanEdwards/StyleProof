@@ -55,13 +55,16 @@ import {
   formatChangedSurfaceScope,
   countCapturedSurfaceBases,
   classifyChrome,
+  assessComparisonTruth,
+  type ComparisonTruth,
 } from './change-groups.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
 // through the package's report module rather than a deep path.
 export { describeChange, colorName, tokenIndex, toHex } from './describe.js';
 // Re-export the grouping primitives historically exported from here so existing
 // imports (`from 'styleproof'` → report) keep resolving.
-export { summarizeProps, prettyLabel } from './change-groups.js';
+export { summarizeProps, prettyLabel, assessComparisonTruth } from './change-groups.js';
+export type { ComparisonTruth } from './change-groups.js';
 
 /**
  * Visual diff report: for every surface with findings, crop the before/after
@@ -139,6 +142,12 @@ export type ReportResult = {
   totalFindings: number;
   /** Advisory content-layer changes rendered (0 unless includeContent + captured text). Never gates. */
   contentChanges: number;
+  /**
+   * Canonical comparison truth vs the certification differ. When
+   * `rawOnlyNoReviewable` is true the report has no crops/sections but raw
+   * computed-style deltas exist — callers must fail closed, never approve.
+   */
+  comparison: ComparisonTruth;
   reportMdPath: string;
   reportJsonPath: string;
 };
@@ -1265,9 +1274,19 @@ function summaryLines(args: {
   shown: DiffCounts;
   changedScope: { bases: number; variants: number };
   contentCount: number;
+  /** Raw-only derived noise: must not claim "identical". */
+  rawOnlyNoReviewable?: boolean;
+  rawCounts?: DiffCounts;
 }): string[] {
-  const { changeGroups, missing, shown, changedScope, contentCount } = args;
+  const { changeGroups, missing, shown, changedScope, contentCount, rawOnlyNoReviewable, rawCounts } = args;
   if (changeGroups.length === 0 && missing.length === 0) {
+    if (rawOnlyNoReviewable && rawCounts) {
+      return [
+        `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.`,
+        '',
+        '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._',
+      ];
+    }
     return [
       contentCount > 0
         ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
@@ -1302,9 +1321,29 @@ function reportHeadline(args: {
   volatileCount: number;
   liveCandidateLabels: string[];
   contentCount: number;
+  rawOnlyNoReviewable?: boolean;
+  rawCounts?: DiffCounts;
 }): string[] {
-  const { changeGroups, missing, shown, changedScope, volatileCount, liveCandidateLabels, contentCount } = args;
-  const md: string[] = summaryLines({ changeGroups, missing, shown, changedScope, contentCount });
+  const {
+    changeGroups,
+    missing,
+    shown,
+    changedScope,
+    volatileCount,
+    liveCandidateLabels,
+    contentCount,
+    rawOnlyNoReviewable,
+    rawCounts,
+  } = args;
+  const md: string[] = summaryLines({
+    changeGroups,
+    missing,
+    shown,
+    changedScope,
+    contentCount,
+    rawOnlyNoReviewable,
+    rawCounts,
+  });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
       ? ` Auto-detected live-state candidate(s): ${liveCandidateLabels.slice(0, 5).join('; ')}.`
@@ -1661,7 +1700,11 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // Base first, head second: current capture metadata is authoritative when a
   // surface's product key changed between revisions.
   const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
-  const { surfaces, volatile: volatileCount } = diffStyleMapDirs(beforeDir, afterDir);
+  const { surfaces, volatile: volatileCount, counts: rawCounts } = diffStyleMapDirs(beforeDir, afterDir);
+  // Canonical truth shared with styleproof-diff / action trust: when raw
+  // certification deltas exist but cleanFindings leaves nothing reviewable,
+  // never claim "identical" and never enable visual approval.
+  const comparison = assessComparisonTruth(surfaces, rawCounts);
   const liveCandidateLabels = volatileCount > 0 ? collectLiveCandidateLabels(beforeDir, afterDir) : [];
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
@@ -1713,6 +1756,11 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     ? renderContentSection({ beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight })
     : { md: [], count: 0 };
 
+  // When includeLayoutNoise is on, prepared findings include derived longhands —
+  // rawOnlyNoReviewable is then false (or crops exist). When off and only derived
+  // deltas remain, surface the consistency failure instead of "identical".
+  const rawOnlyNoReviewable = !includeNoise && comparison.rawOnlyNoReviewable;
+
   md.push('## 🗺️ StyleProof report', '');
   // Lead with the source-of-truth gates (coverage / determinism / inventory) so a
   // reviewer reads "is this green trustworthy?" before the pixel details.
@@ -1726,6 +1774,8 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       volatileCount,
       liveCandidateLabels,
       contentCount: contentSection.count,
+      rawOnlyNoReviewable,
+      rawCounts: comparison.rawCounts,
     }),
   );
 
@@ -1787,12 +1837,33 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
   fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
-  fs.writeFileSync(reportJsonPath, JSON.stringify({ counts: shown, surfaces: json }, null, 2));
+  fs.writeFileSync(
+    reportJsonPath,
+    JSON.stringify(
+      {
+        counts: shown,
+        rawCounts: comparison.rawCounts,
+        reviewableCounts: comparison.reviewableCounts,
+        reportConsistency: rawOnlyNoReviewable
+          ? { ok: false, reason: 'raw_only_no_reviewable' }
+          : { ok: true, reason: 'aligned' },
+        surfaces: json,
+      },
+      null,
+      2,
+    ),
+  );
   return {
     changedSurfaces: prepared.length - missing.length,
     newSurfaces: missing.length,
     totalFindings,
     contentChanges: contentSection.count,
+    comparison: {
+      ...comparison,
+      // When layout noise is included, report findings match raw — not raw-only.
+      rawOnlyNoReviewable,
+      hasReviewableEvidence: comparison.hasReviewableEvidence || (includeNoise && prepared.length - missing.length > 0),
+    },
     reportMdPath,
     reportJsonPath,
   };

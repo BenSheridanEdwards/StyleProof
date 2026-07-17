@@ -64,7 +64,7 @@ export type {
 } from './variant-crawler.js';
 export { diffStyleMaps, diffStyleMapDirs, diffContentMaps, diffContentDirs, findingLabel } from './diff.js';
 export type { Finding, PropChange, SurfaceDiff, DiffCounts, ContentChange } from './diff.js';
-export { generateStyleMapReport, summarizeProps, prettyLabel } from './report.js';
-export type { ReportOptions, ReportResult } from './report.js';
+export { generateStyleMapReport, summarizeProps, prettyLabel, assessComparisonTruth } from './report.js';
+export type { ReportOptions, ReportResult, ComparisonTruth } from './report.js';
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';
