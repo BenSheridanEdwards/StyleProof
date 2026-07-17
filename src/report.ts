@@ -1760,6 +1760,65 @@ function compactChangeSummary(cg: ChangeGroup, json: Record<string, unknown>, im
   return `- \`${surface}\`${more} · ${cg.rep.findings.length} change(s)${link}`;
 }
 
+/**
+ * When includeLayoutNoise is on, prepared findings include derived longhands so
+ * raw-only is not a consistency failure. Otherwise preserve fail-closed truth.
+ */
+function comparisonForReport(
+  comparison: ComparisonTruth,
+  includeNoise: boolean,
+  reviewableChangedSurfaces: number,
+): ComparisonTruth {
+  const rawOnlyNoReviewable = !includeNoise && comparison.rawOnlyNoReviewable;
+  return {
+    ...comparison,
+    rawOnlyNoReviewable,
+    hasReviewableEvidence: comparison.hasReviewableEvidence || (includeNoise && reviewableChangedSurfaces > 0),
+  };
+}
+
+/** Focus each surface on styling intent unless layout noise is requested. */
+function prepareReportSurfaces(
+  surfaces: ReturnType<typeof diffStyleMapDirs>['surfaces'],
+  includeNoise: boolean,
+): PreparedSurface[] {
+  return surfaces
+    .map((sd) => ({
+      sd,
+      findings: sd.missing || includeNoise ? sd.findings : cleanFindings(sd.findings),
+    }))
+    .filter((p) => p.sd.missing || p.findings.length > 0);
+}
+
+function writeReportArtifacts(
+  outDir: string,
+  md: string[],
+  shown: DiffCounts,
+  comparison: ComparisonTruth,
+  surfacesJson: Array<Record<string, unknown>>,
+): { reportMdPath: string; reportJsonPath: string } {
+  const reportMdPath = path.join(outDir, 'report.md');
+  const reportJsonPath = path.join(outDir, 'report.json');
+  fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
+  fs.writeFileSync(
+    reportJsonPath,
+    JSON.stringify(
+      {
+        counts: shown,
+        rawCounts: comparison.rawCounts,
+        reviewableCounts: comparison.reviewableCounts,
+        reportConsistency: comparison.rawOnlyNoReviewable
+          ? { ok: false, reason: 'raw_only_no_reviewable' }
+          : { ok: true, reason: 'aligned' },
+        surfaces: surfacesJson,
+      },
+      null,
+      2,
+    ),
+  );
+  return { reportMdPath, reportJsonPath };
+}
+
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,
@@ -1780,8 +1839,8 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     maxReportBytes = 400_000,
   } = opts;
 
-  const includeNoise = opts.includeLayoutNoise ?? false;
-  const includeContent = opts.includeContent ?? false;
+  const includeNoise = opts.includeLayoutNoise === true;
+  const includeContent = opts.includeContent === true;
   // Base first, head second: current capture metadata is authoritative when a
   // surface's product key changed between revisions.
   const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
@@ -1789,20 +1848,15 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // Canonical truth shared with styleproof-diff / action trust: when raw
   // certification deltas exist but cleanFindings leaves nothing reviewable,
   // never claim "identical" and never enable visual approval.
-  const comparison = assessComparisonTruth(surfaces, rawCounts);
-  const liveCandidateLabels = volatileCount > 0 ? collectLiveCandidateLabels(beforeDir, afterDir) : [];
+  const rawComparison = assessComparisonTruth(surfaces, rawCounts);
+  const liveCandidateLabels = volatileCount === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
   // Focus each surface on styling intent: drop reflow-casualty props, suppress
   // forced-state echoes of base changes, and remove non-value noise (see
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
-  const prepared: PreparedSurface[] = surfaces
-    .map((sd) => ({
-      sd,
-      findings: sd.missing || includeNoise ? sd.findings : cleanFindings(sd.findings),
-    }))
-    .filter((p) => p.sd.missing || p.findings.length > 0);
+  const prepared = prepareReportSurfaces(surfaces, includeNoise);
 
   const missing = prepared.filter((p) => p.sd.missing);
   const changeGroups = groupBySignature(prepared, beforeDir, afterDir);
@@ -1819,6 +1873,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
   const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
+  const comparison = comparisonForReport(rawComparison, includeNoise, prepared.length - missing.length);
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -1842,11 +1897,6 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     ? renderContentSection({ beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight })
     : { md: [], count: 0 };
 
-  // When includeLayoutNoise is on, prepared findings include derived longhands —
-  // rawOnlyNoReviewable is then false (or crops exist). When off and only derived
-  // deltas remain, surface the consistency failure instead of "identical".
-  const rawOnlyNoReviewable = !includeNoise && comparison.rawOnlyNoReviewable;
-
   md.push('## 🗺️ StyleProof report', '');
   // Lead with the source-of-truth gates (coverage / determinism / inventory) so a
   // reviewer reads "is this green trustworthy?" before the pixel details.
@@ -1860,7 +1910,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       volatileCount,
       liveCandidateLabels,
       contentCount: contentSection.count,
-      rawOnlyNoReviewable,
+      rawOnlyNoReviewable: comparison.rawOnlyNoReviewable,
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
     }),
@@ -1921,36 +1971,13 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   }
   md.push(...contentSection.md);
 
-  const reportMdPath = path.join(outDir, 'report.md');
-  const reportJsonPath = path.join(outDir, 'report.json');
-  fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
-  fs.writeFileSync(
-    reportJsonPath,
-    JSON.stringify(
-      {
-        counts: shown,
-        rawCounts: comparison.rawCounts,
-        reviewableCounts: comparison.reviewableCounts,
-        reportConsistency: rawOnlyNoReviewable
-          ? { ok: false, reason: 'raw_only_no_reviewable' }
-          : { ok: true, reason: 'aligned' },
-        surfaces: json,
-      },
-      null,
-      2,
-    ),
-  );
+  const { reportMdPath, reportJsonPath } = writeReportArtifacts(outDir, md, shown, comparison, json);
   return {
     changedSurfaces: prepared.length - missing.length,
     newSurfaces: missing.length,
     totalFindings,
     contentChanges: contentSection.count,
-    comparison: {
-      ...comparison,
-      // When layout noise is included, report findings match raw — not raw-only.
-      rawOnlyNoReviewable,
-      hasReviewableEvidence: comparison.hasReviewableEvidence || (includeNoise && prepared.length - missing.length > 0),
-    },
+    comparison,
     reportMdPath,
     reportJsonPath,
   };

@@ -8,29 +8,37 @@ import { type PropChange } from './diff.js';
 
 // Logical longhand → its physical equivalent (LTR, horizontal-tb). Dropped when
 // the physical one changed identically, so each change appears once.
-const LOGICAL_TO_PHYSICAL: Record<string, string> = (() => {
-  const m: Record<string, string> = {};
-  const sides: Record<string, string> = {
-    'block-start': 'top',
-    'block-end': 'bottom',
-    'inline-start': 'left',
-    'inline-end': 'right',
-  };
-  for (const [l, p] of Object.entries(sides)) {
-    for (const k of ['color', 'width', 'style']) m[`border-${l}-${k}`] = `border-${p}-${k}`;
-    m[`margin-${l}`] = `margin-${p}`;
-    m[`padding-${l}`] = `padding-${p}`;
-    m[`inset-${l}`] = p;
-  }
-  const radius: Record<string, string> = {
-    'start-start': 'top-left',
-    'start-end': 'top-right',
-    'end-start': 'bottom-left',
-    'end-end': 'bottom-right',
-  };
-  for (const [l, p] of Object.entries(radius)) m[`border-${l}-radius`] = `border-${p}-radius`;
-  return m;
-})();
+// Static table (not a build-time loop) so complexity density stays reviewable.
+const LOGICAL_TO_PHYSICAL: Record<string, string> = {
+  'border-block-start-color': 'border-top-color',
+  'border-block-start-width': 'border-top-width',
+  'border-block-start-style': 'border-top-style',
+  'margin-block-start': 'margin-top',
+  'padding-block-start': 'padding-top',
+  'inset-block-start': 'top',
+  'border-block-end-color': 'border-bottom-color',
+  'border-block-end-width': 'border-bottom-width',
+  'border-block-end-style': 'border-bottom-style',
+  'margin-block-end': 'margin-bottom',
+  'padding-block-end': 'padding-bottom',
+  'inset-block-end': 'bottom',
+  'border-inline-start-color': 'border-left-color',
+  'border-inline-start-width': 'border-left-width',
+  'border-inline-start-style': 'border-left-style',
+  'margin-inline-start': 'margin-left',
+  'padding-inline-start': 'padding-left',
+  'inset-inline-start': 'left',
+  'border-inline-end-color': 'border-right-color',
+  'border-inline-end-width': 'border-right-width',
+  'border-inline-end-style': 'border-right-style',
+  'margin-inline-end': 'margin-right',
+  'padding-inline-end': 'padding-right',
+  'inset-inline-end': 'right',
+  'border-start-start-radius': 'border-top-left-radius',
+  'border-start-end-radius': 'border-top-right-radius',
+  'border-end-start-radius': 'border-bottom-left-radius',
+  'border-end-end-radius': 'border-bottom-right-radius',
+};
 
 // Length-valued 4-side families → CSS 1–4-value shorthand whenever all four
 // sides changed (e.g. `padding: 26px 24px → 28px`).
