@@ -174,6 +174,8 @@ then use the Action on those dirs:
     require-approval: true # review-gate mode (omit / use fail-on-diff: true to certify)
 ```
 
+A note on the base commit, because it surprises people: `github.event.pull_request.base.sha` is the base branch tip **as of the PR's last sync** (open/synchronize), not the base branch's current tip or the merge target. That is by design and it is the commit you want: it names the base your branch actually diverged from, so the restored base map matches the code your change is diffed against. A stale-but-consistent base beats a moving one — comparing against a base tip your branch has never seen would attribute other people's merged changes to your PR. Updating the branch (merge or rebase, which fires `synchronize`) refreshes it.
+
 Only for this hand-wired path: copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged). `styleproof-init` writes this file for you, so you can skip this step if you used it.
 
 **Prefer to always capture in CI?** For a repo with many outside contributors on different machines, StyleProof can capture **both** base and head in CI and diff them there. See **[Forks and Dependabot](#forks-and-dependabot)** for that flow (it's also the fork-safe split). The default cache-first flow is faster for same-repo teams because the pre-push hook builds the head map before CI starts.
