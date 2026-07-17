@@ -34,6 +34,7 @@ import {
   gitRepoRoot,
   worktreeRunCwd,
 } from '../dist/ci-worktree.js';
+import { isMapFile } from '../dist/map-store.js';
 
 const HELP = `styleproof-ci — restore or capture the base/head maps for a PR, cache-first
 
@@ -244,6 +245,11 @@ function tracked(file, cwd) {
   return spawnSync('git', ['ls-files', '--error-unmatch', file], { stdio: 'ignore', cwd, env }).status === 0;
 }
 
+function countMaps(dir) {
+  if (!fs.existsSync(dir)) return 0;
+  return fs.readdirSync(dir).filter(isMapFile).length;
+}
+
 function writeOutputs(baseCaptureFailed = false) {
   const outputs = ciOutputLines(baseHit, headHit, baseCaptureFailed);
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
@@ -302,7 +308,19 @@ try {
         let baseStatus;
         try {
           baseStatus = capture(
-            ['--spec', spec, '--dir', 'base', '--base-dir', root, '--keep-har', '--sha', base, '--upload'],
+            [
+              '--spec',
+              spec,
+              '--dir',
+              'base',
+              '--base-dir',
+              root,
+              '--keep-har',
+              '--sha',
+              base,
+              '--upload',
+              '--tolerate-surface-failures',
+            ],
             coldBaseCwd,
           );
         } finally {
@@ -315,10 +333,18 @@ try {
           }
         }
         if (baseStatus !== 0) {
-          log(`base capture failed (exit ${baseStatus}) — continuing with a bare baseline`);
-          fs.rmSync(path.join(root, 'base'), { recursive: true, force: true });
-          fs.mkdirSync(path.join(root, 'base'), { recursive: true });
-          baseCaptureFailed = true;
+          const baseDirPath = path.join(root, 'base');
+          const mapCount = countMaps(baseDirPath);
+          if (mapCount > 0) {
+            log(
+              `base capture exited ${baseStatus} but ${mapCount} surface map(s) remain — keeping partial baseline (tolerated surface failures)`,
+            );
+          } else {
+            log(`base capture failed (exit ${baseStatus}) — continuing with a bare baseline`);
+            fs.rmSync(baseDirPath, { recursive: true, force: true });
+            fs.mkdirSync(baseDirPath, { recursive: true });
+            baseCaptureFailed = true;
+          }
         }
       } else {
         // The base commit predates the spec (first adoption): an empty base dir means

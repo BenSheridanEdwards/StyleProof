@@ -29,7 +29,7 @@ export type {
   CapturedOverlay,
   Rect,
 } from './capture.js';
-export { defineStyleMapCapture, defineCrawlCapture } from './runner.js';
+export { defineStyleMapCapture, defineCrawlCapture, isSelfCheckCaptureFailure } from './runner.js';
 export type {
   Surface,
   SurfaceLiveState,

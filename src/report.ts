@@ -13,7 +13,12 @@ import {
   type Rect,
   type StyleMap,
 } from './capture.js';
-import { isMapFile } from './map-store.js';
+import {
+  isMapFile,
+  readMapManifest,
+  surfaceMissingMatchesBaselineFailure,
+  type SurfaceCaptureFailure,
+} from './map-store.js';
 import { fillRect, type RGB } from './png-util.js';
 import {
   diffStyleMapDirs,
@@ -664,6 +669,17 @@ function regionHeading(regionPaths: string[], findings: Finding[]): string {
 //                     Markdown; widen the fence to one more backtick than the
 //                     value's longest run, padding a space when it touches an edge
 //                     (GitHub's rule for a code span that starts/ends with a tick).
+/** Escape capture error text embedded in Markdown list prose (not inside code spans). */
+function escapeMarkdownFailureReason(reason: string): string {
+  const line = reason.split('\n')[0];
+  return line
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\\/g, '\\\\')
+    .replace(/[*_[`#|]/g, '\\$&');
+}
+
 function codeValue(v: string): string {
   const escaped = v.replace(/\|/g, '\\|');
   const longestRun = Math.max(0, ...(escaped.match(/`+/g) ?? []).map((r) => r.length));
@@ -1268,6 +1284,59 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
 const SURFACE_SCOPE_GLOSSARY =
   '_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._';
 
+function baselineFailureSummaryLines(failures: SurfaceCaptureFailure[]): string[] {
+  if (failures.length === 0) return [];
+  const md = [
+    `⚠️ **${failures.length} baseline capture failure(s)** — these surfaces failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely as if they were greenfield new surfaces.`,
+  ];
+  for (const failure of failures.slice(0, 8))
+    md.push(`- \`${safeKey(failure.key)}\`: ${escapeMarkdownFailureReason(failure.reason)}`);
+  if (failures.length > 8) md.push(`- _…and ${failures.length - 8} more (see manifest \`surfaceCaptureFailures\`)_`);
+  md.push('');
+  return md;
+}
+
+function missingSurfaceSummaryLines(
+  missing: PreparedSurface[],
+  greenfieldMissing: PreparedSurface[],
+  brokenBaseMissing: PreparedSurface[],
+): string[] {
+  const md: string[] = [];
+  if (brokenBaseMissing.length > 0) {
+    md.push(
+      `⚠️ **${brokenBaseMissing.length} head surface(s)** have no base map because baseline capture failed (not first adoption): ${newSurfaceSummary(brokenBaseMissing)}.`,
+      '',
+    );
+  }
+  if (greenfieldMissing.length > 0) {
+    md.push(
+      `🆕 **${greenfieldMissing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(greenfieldMissing)}. ` +
+        `Approve them before they become the baseline.`,
+    );
+  }
+  if (missing.length > 0 && greenfieldMissing.length === 0 && brokenBaseMissing.length === 0) {
+    md.push(
+      `🆕 **${missing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(missing)}. ` +
+        `Approve them before they become the baseline.`,
+    );
+  }
+  return md;
+}
+
+function changedSurfaceSummaryLines(
+  changeGroups: ChangeGroup[],
+  shown: DiffCounts,
+  changedScope: { bases: number; variants: number },
+  prependSeparator: boolean,
+): string[] {
+  if (changeGroups.length === 0) return [];
+  return [
+    ...(prependSeparator ? [''] : []),
+    `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${formatChangedSurfaceScope(changedScope.bases, changedScope.variants)} with an existing baseline.`,
+    SURFACE_SCOPE_GLOSSARY,
+  ];
+}
+
 function summaryLines(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
@@ -1277,36 +1346,49 @@ function summaryLines(args: {
   /** Raw-only derived noise: must not claim "identical". */
   rawOnlyNoReviewable?: boolean;
   rawCounts?: DiffCounts;
+  baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
-  const { changeGroups, missing, shown, changedScope, contentCount, rawOnlyNoReviewable, rawCounts } = args;
+  const {
+    changeGroups,
+    missing,
+    shown,
+    changedScope,
+    contentCount,
+    rawOnlyNoReviewable,
+    rawCounts,
+    baselineSurfaceFailures,
+  } = args;
+  const greenfieldMissing = missing.filter(
+    (p) => !surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
+  );
+  const brokenBaseMissing = missing.filter((p) =>
+    surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
+  );
   if (changeGroups.length === 0 && missing.length === 0) {
     if (rawOnlyNoReviewable && rawCounts) {
-      return [
+      const md = [
         `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.`,
         '',
         '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._',
       ];
+      if (baselineSurfaceFailures.length > 0) {
+        md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
+      }
+      return md;
     }
-    return [
-      contentCount > 0
-        ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
-        : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
-    ];
+    if (baselineSurfaceFailures.length === 0) {
+      return [
+        contentCount > 0
+          ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
+          : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
+      ];
+    }
   }
-  const md: string[] = [];
-  if (missing.length > 0) {
-    md.push(
-      `🆕 **${missing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(missing)}. ` +
-        `Approve them before they become the baseline.`,
-    );
-  }
-  if (changeGroups.length > 0) {
-    if (md.length > 0) md.push('');
-    md.push(
-      `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${formatChangedSurfaceScope(changedScope.bases, changedScope.variants)} with an existing baseline.`,
-    );
-    md.push(SURFACE_SCOPE_GLOSSARY);
-  }
+  const md = [
+    ...baselineFailureSummaryLines(baselineSurfaceFailures),
+    ...missingSurfaceSummaryLines(missing, greenfieldMissing, brokenBaseMissing),
+  ];
+  md.push(...changedSurfaceSummaryLines(changeGroups, shown, changedScope, md.length > 0));
   return md;
 }
 
@@ -1323,6 +1405,7 @@ function reportHeadline(args: {
   contentCount: number;
   rawOnlyNoReviewable?: boolean;
   rawCounts?: DiffCounts;
+  baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
   const {
     changeGroups,
@@ -1334,6 +1417,7 @@ function reportHeadline(args: {
     contentCount,
     rawOnlyNoReviewable,
     rawCounts,
+    baselineSurfaceFailures,
   } = args;
   const md: string[] = summaryLines({
     changeGroups,
@@ -1343,6 +1427,7 @@ function reportHeadline(args: {
     contentCount,
     rawOnlyNoReviewable,
     rawCounts,
+    baselineSurfaceFailures,
   });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
@@ -1733,6 +1818,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // Surface bases (and variant keys when widths/states differ) carrying a reviewable
   // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
+  const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -1776,6 +1862,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       contentCount: contentSection.count,
       rawOnlyNoReviewable,
       rawCounts: comparison.rawCounts,
+      baselineSurfaceFailures,
     }),
   );
 
