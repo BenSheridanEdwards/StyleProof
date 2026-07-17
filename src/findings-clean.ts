@@ -60,7 +60,14 @@ export function groupTitle(findings: Finding[]): string {
   if (removed.size) parts.push(`${n(removed.size, 'element')} removed`);
   if (retagged.size) parts.push(`${n(retagged.size, 'element')} retagged`);
   if (restyled.size) parts.push(`${n(restyled.size, 'element')} restyled`);
-  return parts.join(', ') || `${n(new Set(findings.map((f) => f.path)).size, 'element')} changed`;
+  const title = parts.join(', ') || `${n(new Set(findings.map((f) => f.path)).size, 'element')} changed`;
+  // No driving property anywhere in the group — the size/position values ARE the
+  // change. Usually rendered content grew or shrank (a timestamp, a counter),
+  // not a stylesheet edit; say so, or reviewers hunt for a CSS change that
+  // doesn't exist.
+  return isGeometryOnlyGroup(findings)
+    ? `${title} — size/position only, no styling property changed (often content-length drift; check the rendered text before suspecting CSS)`
+    : title;
 }
 
 // Computed values that follow from an element's box size or position rather than
@@ -155,6 +162,35 @@ export function cleanFindings(findings: Finding[]): Finding[] {
   return out;
 }
 
+/**
+ * {@link cleanFindings}, but a surface is never cleaned into silence while it
+ * still gates. The derived-longhand strip assumes those props are reflow
+ * CASUALTIES of a driving change shown elsewhere — when a surface's only changes
+ * ARE derived longhands (a content-length drift widening a text span, or a pure
+ * `width:`/`inset:` rule change), stripping them hid the entire change: the diff
+ * exited 1 and the Action demanded approval while the report said "identical".
+ * If cleaning leaves no findings but base/pseudo style findings existed, keep
+ * those originals so the verdict and the evidence describe the same run — and so
+ * `assessComparisonTruth` counts them as reviewable, keeping the raw-only
+ * CERTIFICATION_FAILED backstop for shapes that truly cannot render (e.g. a
+ * surface whose only raw deltas were suppressed state echoes).
+ */
+export function cleanFindingsForDisplay(findings: Finding[]): Finding[] {
+  const cleaned = cleanFindings(findings);
+  if (cleaned.length > 0) return cleaned;
+  return findings.filter((f) => f.kind === 'style' && f.props.length > 0);
+}
+
+/** True when every shown prop across the group's findings is a size/position
+ *  longhand — the "geometry only, no driving property" shape that usually means
+ *  content-length drift rather than a stylesheet change. Lets renderers label
+ *  it so reviewers chase the content, not a phantom CSS edit. */
+export function isGeometryOnlyGroup(findings: Finding[]): boolean {
+  const styleFindings = findings.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style');
+  if (styleFindings.length === 0) return false;
+  return styleFindings.every((f) => f.props.every((p) => DERIVED_PROPS.has(p.prop)));
+}
+
 // ── comparison truth (diff / report / trust coherence) ───────────────────────
 
 /** Tally DOM/style/state findings the same way the certification differ does. */
@@ -236,7 +272,10 @@ export function assessComparisonTruth(surfaces: ComparisonSurface[], rawCounts?:
     }
     if (!rawCounts) raw = addCounts(raw, countFindings(sd.findings));
     if (sd.findings.length > 0) rawChangedSurfaces++;
-    const cleaned = cleanFindings(sd.findings);
+    // Reviewable = what the report/CLI actually RENDER — including a surface's
+    // resurrected derived-only findings — so the truth contract, the evidence,
+    // and the verdict move together.
+    const cleaned = cleanFindingsForDisplay(sd.findings);
     const rev = countFindings(cleaned);
     reviewable = addCounts(reviewable, rev);
     if (cleaned.length > 0) reviewableChangedSurfaces++;

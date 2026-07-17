@@ -7,6 +7,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **A derived-only change now renders as reviewable evidence instead of failing
+  closed with none.** When a surface's only differences are size/position
+  longhands (`width`, `inline-size`, `transform-origin`, offsets…) — typically
+  content-length drift widening a text span, or a pure sizing rule change — the
+  noise-cleaning strip removed every finding, so 4.5.3's consistency guard
+  correctly refused to claim "identical" but classified the run
+  `CERTIFICATION_FAILED` with nothing for the reviewer to look at. Cleaning now
+  keeps a surface's findings when stripping would silence a gating change
+  (`cleanFindingsForDisplay`), titles them "size/position only, no styling
+  property changed (often content-length drift…)", and the truth contract counts
+  them reviewable — so the verdict is `VISUAL_APPROVAL_REQUIRED` **with rendered
+  evidence**. The raw-only `CERTIFICATION_FAILED` backstop remains for shapes
+  that truly cannot render (state-strip-only deltas). Reflow casualties next to
+  a real driver fold exactly as before; exit codes are unchanged.
+
 ## [4.5.3] - 2026-07-17
 
 ### Added

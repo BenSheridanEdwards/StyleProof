@@ -6,6 +6,8 @@ import {
   chromePaths,
   derivedLonghandCount,
   cleanFindings,
+  cleanFindingsForDisplay,
+  isGeometryOnlyGroup,
   countChangedSurfaceScope,
   formatChangedSurfaceScope,
   productSurfaceBase,
@@ -167,27 +169,77 @@ test('derivedLonghandCount counts the reflow-casualty longhands the CLI folds', 
   assert.ok(!props.some((p) => ['width', 'height', 'transform-origin'].includes(p)));
 });
 
-test('assessComparisonTruth: raw-only derived longhands are not reviewable evidence', () => {
-  // Generic map-pair: only height/width (reflow casualties). Certification differ
-  // counts them; the visual report strips them — must fail closed, never approve.
+test('assessComparisonTruth: derived-only findings are resurrected as reviewable evidence', () => {
+  // A surface whose ONLY change is a derived longhand (content-length drift, or
+  // a pure sizing rule): the differ gates on it, so the display keeps it
+  // (cleanFindingsForDisplay) and the truth contract counts it reviewable —
+  // VISUAL_APPROVAL_REQUIRED with rendered evidence, not CERTIFICATION_FAILED
+  // with none.
+  const surfaces = [
+    {
+      surface: 'home@1280',
+      findings: [styleFinding('body', [{ prop: 'height', before: '800px', after: '820px' }])],
+    },
+  ];
+  const truth = assessComparisonTruth(surfaces, { dom: 0, style: 1, state: 0 });
+  assert.equal(truth.rawCounts.style, 1);
+  assert.equal(truth.reviewableCounts.style, 1);
+  assert.equal(truth.hasReviewableEvidence, true);
+  assert.equal(truth.rawOnlyNoReviewable, false);
+});
+
+test('assessComparisonTruth: state-strip-only deltas remain the raw-only fail-closed backstop', () => {
+  // The one shape that still cannot render: a forced-state delta whose every
+  // prop is state-stripped (derived/grid in a :hover layer). Nothing resurrects
+  // it — CERTIFICATION_FAILED stays the honest verdict.
   const surfaces = [
     {
       surface: 'home@1280',
       findings: [
-        styleFinding('body', [
-          { prop: 'height', before: '800px', after: '820px' },
-          { prop: 'width', before: '1280px', after: '1280px' },
-        ]),
+        {
+          kind: 'state',
+          path: 'body > button',
+          cls: 'cta',
+          state: 'hover',
+          props: [{ prop: 'width', before: '160px', after: '180px' }],
+        },
       ],
     },
   ];
-  // width before===after won't appear in real diffs, but height alone is enough.
-  surfaces[0].findings[0].props = [{ prop: 'height', before: '800px', after: '820px' }];
-  const truth = assessComparisonTruth(surfaces, { dom: 0, style: 1, state: 0 });
-  assert.equal(truth.rawCounts.style, 1);
-  assert.equal(truth.reviewableCounts.style, 0);
+  const truth = assessComparisonTruth(surfaces, { dom: 0, style: 0, state: 1 });
+  assert.equal(truth.rawCounts.state, 1);
+  assert.equal(truth.reviewableCounts.state, 0);
   assert.equal(truth.hasReviewableEvidence, false);
   assert.equal(truth.rawOnlyNoReviewable, true);
+});
+
+test('cleanFindingsForDisplay: derived-only surfaces keep their findings; casualties beside a driver stay folded', () => {
+  const derivedOnly = [
+    styleFinding('body > span:nth-child(1)', [
+      { prop: 'width', before: '191px', after: '198px' },
+      { prop: 'transform-origin', before: '95px 13px', after: '99px 13px' },
+    ]),
+  ];
+  // No driver anywhere: the geometry IS the change — keep it (the diff gates on it).
+  assert.equal(cleanFindings(derivedOnly).length, 0, 'plain clean still strips (display-agnostic callers)');
+  const kept = cleanFindingsForDisplay(derivedOnly);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].props.length, 2);
+  assert.equal(isGeometryOnlyGroup(kept), true);
+  assert.match(groupTitle(kept), /size\/position only, no styling property changed/);
+
+  // A driver elsewhere on the surface: the casualty folds exactly as before.
+  const withDriver = [
+    ...derivedOnly,
+    styleFinding('body > button:nth-child(2)', [
+      { prop: 'background-color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' },
+    ]),
+  ];
+  const cleaned = cleanFindingsForDisplay(withDriver);
+  assert.equal(cleaned.length, 1);
+  assert.equal(cleaned[0].path, 'body > button:nth-child(2)');
+  assert.equal(isGeometryOnlyGroup(cleaned), false);
+  assert.doesNotMatch(groupTitle(cleaned), /size\/position only/);
 });
 
 test('assessComparisonTruth: real style change is reviewable and aligned', () => {
@@ -347,10 +399,12 @@ test('summarizeProps folds outline longhands; prettyLabel stays stable after spl
   );
   assert.equal(safeKeyDirect('a`b'), 'a-b');
   assert.equal(formatSurfaceListDirect(['home@1280']), 'home @ 1280');
+  // Derived-only findings are resurrected for display, so the truth contract
+  // counts them reviewable; plain cleanFindings (display-agnostic) still strips.
   assert.equal(
     assessTruthDirect([{ surface: 's', findings: [styleFinding('e', [{ prop: 'height', before: '1', after: '2' }])] }])
       .rawOnlyNoReviewable,
-    true,
+    false,
   );
   assert.equal(cleanFindingsDirect([styleFinding('e', [{ prop: 'height', before: '1', after: '2' }])]).length, 0);
 });
@@ -491,5 +545,7 @@ test('assessComparisonTruth: removed surfaces are reviewable; recomputes raw whe
     },
   ]);
   assert.equal(heightOnly.rawCounts.style, 1);
-  assert.equal(heightOnly.rawOnlyNoReviewable, true);
+  // Resurrected for display → reviewable, not the raw-only fail-closed shape.
+  assert.equal(heightOnly.reviewableCounts.style, 1);
+  assert.equal(heightOnly.rawOnlyNoReviewable, false);
 });

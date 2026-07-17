@@ -43,7 +43,7 @@ import { auditRunResidue, readResidueAckFile } from './data-residue.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 import {
-  cleanFindings,
+  cleanFindingsForDisplay,
   groupByPath,
   groupTitle,
   isNonValue,
@@ -1777,7 +1777,11 @@ function comparisonForReport(
   };
 }
 
-/** Focus each surface on styling intent unless layout noise is requested. */
+/** Focus each surface on styling intent unless layout noise is requested. A
+ *  surface whose ONLY changes are derived longhands keeps them
+ *  (cleanFindingsForDisplay): those findings still gate, and a report that
+ *  renders nothing for a gating change asks a reviewer to approve evidence
+ *  that doesn't exist. */
 function prepareReportSurfaces(
   surfaces: ReturnType<typeof diffStyleMapDirs>['surfaces'],
   includeNoise: boolean,
@@ -1785,7 +1789,7 @@ function prepareReportSurfaces(
   return surfaces
     .map((sd) => ({
       sd,
-      findings: sd.missing || includeNoise ? sd.findings : cleanFindings(sd.findings),
+      findings: sd.missing || includeNoise ? sd.findings : cleanFindingsForDisplay(sd.findings),
     }))
     .filter((p) => p.sd.missing || p.findings.length > 0);
 }
