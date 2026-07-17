@@ -9,6 +9,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`PARTIAL_BASELINE` trust state (#276).** When the diff JSON reports
+  `partialBaseline` / `explainedMissingBaselineSurfaces`, the Action classifies
+  ledger-explained missing baseline surfaces as repair debt — after residue,
+  inventory, and certification failures, before `DEGRADED_BASELINE` and visual
+  approval. `changed` stays false for baseline-only gaps; mixed greenfield runs
+  still exit `3` but `PARTIAL_BASELINE` outranks `VISUAL_APPROVAL_REQUIRED`
+  while explained gaps remain. Commit status and job block fail with repair-base
+  guidance; the approval box cannot clear this state.
+
 - **`styleproof-ci` ephemeral worktrees (#277).** Restore probes and cold base
   install/capture run in detached git worktrees under `RUNNER_TEMP` (or the OS temp
   dir), so the consumer checkout is never checked out to `--base`. Head capture may
@@ -16,6 +25,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and failure; invalid SHAs fail loudly before capture.
 
 ### Fixed
+
+- **Baseline `@auto` crawl failures match head capture widths in diff/report (#276).**
+  Viewport-detection failures recorded as `surface@auto` now classify head-only
+  surfaces as broken baseline capture (not greenfield new) for any width of that
+  exact surface key; width-specific ledger entries stay exact (`about@1280` does
+  not match `about@900`). Diff exit `3` applies only to genuinely new surfaces.
+  Report Markdown escapes inline injection in failure reasons; manifest JSON keeps
+  the original failure ledger keys.
+
+- **Partial baseline capture on the base branch (#276).** `styleproof-map
+--tolerate-surface-failures` (and `styleproof-ci` on cold base capture only)
+  records per-surface failures in the manifest, publishes a partial bundle when at
+  least one map succeeds, and leaves self-check / zero-map / head capture
+  fail-closed. Diff and report surface repair-base warnings instead of treating
+  ledger-explained surfaces as greenfield new.
 
 - **Report headline and global-chrome banners now count surface bases consistently.**
   The summary line reports unique changed product surface bases and, when more

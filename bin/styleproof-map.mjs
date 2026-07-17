@@ -36,6 +36,7 @@ import {
   isMapFile,
   publishMapBundle,
   restoreMapBundle,
+  readSurfaceCaptureFailures,
   workingTreeDirty,
   writeMapManifest,
 } from '../dist/map-store.js';
@@ -72,6 +73,11 @@ options:
                       tracked file or directory whose changes never mark the capture
                       dirty (a dev tool rewriting e.g. tsconfig.json); repeatable,
                       also via STYLEPROOF_DIRTY_ALLOW (comma-separated)
+  --tolerate-surface-failures
+                      baseline-only (manual cold base capture): record per-surface
+                      capture failures and continue when at least one map succeeds
+                      (self-check failures still fail). StyleProof CI enables this
+                      only on the cold base capture — never on head.
   -h, --help          show this help
 
 A styleproof.config.json at the repo root supplies project defaults — "spec",
@@ -115,6 +121,9 @@ let crawlMaxActions = process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ?? '';
 let crawlWidth = process.env.STYLEPROOF_CRAWL_WIDTH ?? '';
 let crawlHeight = process.env.STYLEPROOF_CRAWL_HEIGHT ?? '';
 let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1';
+let tolerateSurfaceFailures =
+  process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
+  process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true';
 // Allow paths accumulate across layers (config + env + flags) — they are all
 // "files my tooling rewrites", never mutually exclusive alternatives.
 const dirtyAllow = [
@@ -161,6 +170,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--crawl-strict') crawlStrict = true;
   else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
   else if (a.startsWith('--dirty-allow=')) dirtyAllow.push(a.slice(14));
+  else if (a === '--tolerate-surface-failures') tolerateSurfaceFailures = true;
   else if (a === '--cache-branch' || a === '--remote') {
     const value = argv[++i];
     if (a === '--cache-branch') cacheBranch = value;
@@ -351,6 +361,7 @@ const env = {
   STYLEMAP_DIR: dir,
   STYLEPROOF_BASEDIR: baseDir,
   STYLEPROOF_SCREENSHOTS: screenshots,
+  ...(tolerateSurfaceFailures ? { STYLEPROOF_TOLERATE_SURFACE_FAILURES: '1' } : {}),
 };
 runVariantCrawl(env);
 const result = spawnSync(command, ['test', '--grep', 'styleproof capture', ...configArgs, ...playwrightArgs], {
@@ -361,7 +372,15 @@ if (result.error) {
   console.error(playwrightMissingMessage(result.error.message));
   process.exit(2);
 }
-const status = result.status ?? 1;
+let status = result.status ?? 1;
+const captured = fs.existsSync(targetDir) ? fs.readdirSync(targetDir).filter(isMapFile).length : 0;
+const toleratedFailures = readSurfaceCaptureFailures(targetDir);
+if (status !== 0 && tolerateSurfaceFailures && captured > 0) {
+  console.error(
+    `styleproof-map: Playwright exited ${status} but ${captured} surface map(s) were captured — publishing partial baseline (${toleratedFailures.length} tolerated failure(s))`,
+  );
+  status = 0;
+}
 if (status === 0) {
   if (!keepHar) removeHarFiles(targetDir);
   // A run that produced ZERO surface maps must not stamp a manifest (or upload):
@@ -370,7 +389,6 @@ if (status === 0) {
   // dir instead means "no baseline yet" — on a first adoption, capturing the base
   // commit that predates the spec legitimately yields zero surfaces, and the diff
   // then takes the exit-3 new-surfaces review path.
-  const captured = fs.existsSync(targetDir) ? fs.readdirSync(targetDir).filter(isMapFile).length : 0;
   if (captured === 0) {
     console.error(
       'styleproof-map: 0 surfaces captured — no manifest written; if this is the base side of a first adoption, the diff will treat it as no-baseline',

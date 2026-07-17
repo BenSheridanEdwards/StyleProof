@@ -47,7 +47,10 @@ import {
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
+  readMapManifest,
   resolveCachedCaptureDirs,
+  surfaceMissingMatchesBaselineFailure,
+  explainedMissingBaselineSurfaces,
 } from '../dist/map-store.js';
 import {
   cachedMapsUnavailableMessage,
@@ -389,6 +392,20 @@ try {
   cleanupCachedCaptureDirs(cacheCapture);
 }
 const { surfaces, counts, compared, volatile, statesUncertified } = result;
+const baselineSurfaceFailures = readMapManifest(dirA)?.surfaceCaptureFailures ?? [];
+const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
+const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
+
+function printBaselineSurfaceFailureCallout() {
+  if (!baselineSurfaceFailures.length) return;
+  console.log(
+    `\n⚠ ${baselineSurfaceFailures.length} surface(s) failed during the BASELINE capture and were omitted from the base bundle — repair base capture on the base branch; do not treat these as greenfield new surfaces:`,
+  );
+  for (const f of baselineSurfaceFailures) console.log(`  ✗ ${f.key}: ${f.reason.split('\n')[0]}`);
+  console.log('  → Re-run styleproof-map on the base commit (or merge a fix) before approving indefinitely.');
+}
+
+printBaselineSurfaceFailureCallout();
 
 // ── grouped human output ─────────────────────────────────────────────────────
 // Reuse the report's dedup so one real change doesn't print once per surface with
@@ -497,6 +514,9 @@ if (jsonOut) {
           counts,
           surfaces,
           compared,
+          baselineSurfaceFailures,
+          explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
+          partialBaseline,
           // Subtrees excluded from every layer of the comparison because a side
           // auto-detected them as volatile (still mutating at capture settle).
           // Changes inside them are NOT certified by this diff.
@@ -548,6 +568,9 @@ if (jsonOut) {
 const total = counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
 const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;
+const greenfieldNewSurfaces = surfaces.filter(
+  (s) => s.missing === 'before' && !surfaceMissingMatchesBaselineFailure(s.surface, baselineSurfaceFailures),
+).length;
 // One SurfaceDiff per distinct surface across both sides (incl. missing-on-one-side).
 const surfaceCount = surfaces.length;
 if (volatile > 0)
@@ -560,7 +583,7 @@ if (statesUncertified > 0)
     `\n⚠ forced-state layer uncertified on ${statesUncertified} surface(s): BOTH captures skipped it, so\n` +
       '  :hover/:focus/:active differences there were never compared.',
   );
-const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
+const newNote = greenfieldNewSurfaces > 0 ? ` (+${greenfieldNewSurfaces} new surface(s) with no baseline)` : '';
 const removedNote = removedSurfaces ? ` + ${removedSurfaces} REMOVED surface(s)` : '';
 const invNote = invRemovals ? ` + ${invRemovals} inventory gate failure(s) (unacknowledged or stale)` : '';
 // residueFails counts unacknowledged failing endpoints AND stale acknowledgements (both gate).
@@ -578,7 +601,9 @@ console.log(
   clean
     ? newSurfaces === 0
       ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
-      : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
+      : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
+        ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
+        : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${covNote}${detNote}`,
 );
 // 0 = identical, 1 = reviewable differences (incl. a REMOVED surface, inventory/residue gate
@@ -587,7 +612,7 @@ console.log(
 process.exit(
   total > 0 || removedSurfaces > 0 || invRemovals > 0 || residueFails > 0 || coverageFails || determinismFails
     ? 1
-    : newSurfaces > 0
+    : greenfieldNewSurfaces > 0
       ? 3
       : 0,
 );

@@ -86,7 +86,7 @@ test('composite action marks certify-mode comments with their source head SHA', 
 
 test('dogfood workflow runs the local composite action against every trust-state class', () => {
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 6);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 7);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
@@ -99,6 +99,8 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /steps\.clean\.outputs\.trust-state }}' = 'NO_VISUAL_CHANGES'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'VISUAL_APPROVAL_REQUIRED'/);
   assert.match(dogfoodYml, /steps\.residue\.outputs\.trust-state }}' = 'DATA_RESIDUE_UNACKNOWLEDGED'/);
+  assert.match(dogfoodYml, /action-dogfood\/partial-base/);
+  assert.match(dogfoodYml, /steps\.partial-baseline\.outputs\.trust-state }}' = 'PARTIAL_BASELINE'/);
   assert.match(dogfoodYml, /steps\.degraded\.outputs\.trust-state }}' = 'DEGRADED_BASELINE'/);
   // The inventory removal must FAIL the action even with fail-on-diff off.
   assert.match(dogfoodYml, /steps\.removed\.outcome }}' = 'failure'/);
@@ -113,15 +115,30 @@ test('composite action exposes one precedence-ordered machine-readable trust ver
   const residue = verdict[0].indexOf('DATA_RESIDUE_UNACKNOWLEDGED');
   const inventory = verdict[0].indexOf('INVENTORY_REMOVAL_UNACKNOWLEDGED');
   const certification = verdict[0].indexOf('CERTIFICATION_FAILED');
+  const partial = verdict[0].indexOf('PARTIAL_BASELINE');
   const degraded = verdict[0].indexOf('DEGRADED_BASELINE');
   const visual = verdict[0].indexOf('VISUAL_APPROVAL_REQUIRED');
   assert.ok(
-    residue > 0 && inventory > residue && certification > inventory && degraded > certification && visual > degraded,
+    residue > 0 &&
+      inventory > residue &&
+      certification > inventory &&
+      partial > certification &&
+      degraded > partial &&
+      visual > degraded,
   );
   const terminal = actionYml.match(/- id: trust[\s\S]*$/);
   assert.ok(terminal, 'action.yml should always expose a terminal trust state');
   assert.match(terminal[0], /if: always\(\)/);
   assert.match(terminal[0], /REPORT_PUBLICATION_FAILED/);
+});
+
+test('composite action hard-gates partial baseline repair debt', () => {
+  assert.match(actionYml, /PARTIAL_BASELINE/);
+  const gate = actionYml.match(/- name: Block on partial baseline[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/);
+  assert.ok(gate, 'action.yml should fail rather than certify ledger-explained baseline gaps');
+  assert.match(gate[0], /verdict\.outputs\.state == 'PARTIAL_BASELINE'/);
+  assert.match(gate[0], /exit 1/);
+  assert.doesNotMatch(gate[0], /require-approval/, 'visual approval cannot clear partial baseline');
 });
 
 test('composite action exposes and hard-gates degraded head-only evidence', () => {
@@ -237,4 +254,14 @@ test('composite action self-verifies the published receipt before advertising th
   const verifiedIndex = publishStep[0].indexOf('[ -n "$verified" ]');
   const urlIndex = publishStep[0].indexOf('echo "url=');
   assert.ok(verifiedIndex > 0 && urlIndex > verifiedIndex, 'outputs are written only after the receipt verifies');
+});
+
+test('composite action retries transient GitHub API failures on networked github-script steps', () => {
+  const networkedSteps = [
+    /- id: context[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- id: gate[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- name: Upsert PR comment[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- name: Set review status[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+  ];
+  for (const pattern of networkedSteps) assert.match(actionYml, pattern);
 });
