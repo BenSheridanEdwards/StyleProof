@@ -255,3 +255,13 @@ test('composite action self-verifies the published receipt before advertising th
   const urlIndex = publishStep[0].indexOf('echo "url=');
   assert.ok(verifiedIndex > 0 && urlIndex > verifiedIndex, 'outputs are written only after the receipt verifies');
 });
+
+test('composite action retries transient GitHub API failures on networked github-script steps', () => {
+  const networkedSteps = [
+    /- id: context[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- id: gate[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- name: Upsert PR comment[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+    /- name: Set review status[\s\S]*?github-token:[^\n]+\n\s+retries: 3/,
+  ];
+  for (const pattern of networkedSteps) assert.match(actionYml, pattern);
+});
