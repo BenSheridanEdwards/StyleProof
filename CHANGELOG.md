@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.5.3] - 2026-07-17
+
 ### Added
 
 - **`PARTIAL_BASELINE` trust state (#276).** When the diff JSON reports
