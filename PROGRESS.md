@@ -44,7 +44,7 @@
 - Next: run focused and full Action dogfood verification, review the patch, and open a ready pull request.
 - Blockers: none.
 
-## In progress: enterprise README proof correction
+## Completed: enterprise README proof correction
 
 - Reframed the opening around enterprise evaluation: evidence, failure states,
   trust boundaries, adoption, and reviewer workflow.
@@ -53,7 +53,9 @@
 - Captured the deterministic demo twice in real Chromium with an explicit
   registry, self-checking, inventory, and data-residue gating; all 8 capture and
   coverage tests passed and the generated report is fully certified clean.
+- Replaced the misleading image with the GitHub-rendered certified report and
+  linked the screenshot to its committed generated Markdown source.
 - Reconciled the report example with the current deterministic demo output.
-- Next: render the certified report on GitHub, replace the misleading screenshot,
-  then rerun the complete docs-change gate matrix and update PR #294.
+- Verification: build, typecheck, lint, format, privacy, 543 unit tests, 114
+  browser E2E tests, demo freshness, dependency audit, and diff checks pass.
 - Blockers: none.

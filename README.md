@@ -30,7 +30,7 @@ design mockups.
 
 ### Certified clean
 
-**[Open the engine-generated certified-clean report](docs/readme/certified-clean-report.md).**
+[![A GitHub-rendered StyleProof report with complete coverage, proven determinism, unchanged inventory, no data residue, and identical computed styles](docs/readme/check-clean.png)](docs/readme/certified-clean-report.md)
 
 This report earns every green claim: the registered surface was captured, both
 base and head passed the self-check, the navigable set stayed intact, no failing
