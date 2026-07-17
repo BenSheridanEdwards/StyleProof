@@ -10,7 +10,26 @@ import {
   formatChangedSurfaceScope,
   productSurfaceBase,
   assessComparisonTruth,
+  summarizeProps,
+  prettyLabel,
+  isNonValue,
+  groupTitle,
+  signatureOf,
+  groupByPath,
+  safeKey,
+  formatSurfaceList,
+  countCapturedSurfaceBases,
 } from '../dist/change-groups.js';
+// Direct module imports so fallow's static coverage path reaches the split leaves
+// (re-exports alone do not create a test→src edge for CRAP / untested-risk targets).
+import { summarizeProps as summarizePropsDirect, prettyLabel as prettyLabelDirect } from '../dist/prop-summary.js';
+import {
+  cleanFindings as cleanFindingsDirect,
+  groupTitle as groupTitleDirect,
+  signatureOf as signatureOfDirect,
+  assessComparisonTruth as assessTruthDirect,
+} from '../dist/findings-clean.js';
+import { safeKey as safeKeyDirect, formatSurfaceList as formatSurfaceListDirect } from '../dist/surface-keys.js';
 
 // change-groups.ts is the pure grouping/classification leaf shared by the report
 // and the CLI. These unit-test the two behaviours the report's e2e tests only
@@ -193,4 +212,161 @@ test('assessComparisonTruth: new surfaces count as reviewable evidence without r
   assert.equal(truth.newSurfaces, 1);
   assert.equal(truth.hasReviewableEvidence, true);
   assert.equal(truth.rawOnlyNoReviewable, false);
+});
+
+// Direct coverage for logic extracted into prop-summary / findings-clean /
+// surface-keys / comparison-truth modules (previously only exercised via report e2e).
+
+test('groupTitle names added/removed/restyled elements', () => {
+  const findings = [
+    { kind: 'dom', path: 'a', cls: '', change: 'added' },
+    { kind: 'dom', path: 'b', cls: '', change: 'removed' },
+    { kind: 'style', path: 'c', cls: '', pseudo: null, props: [{ prop: 'color', before: 'a', after: 'b' }] },
+  ];
+  assert.equal(groupTitle(findings), '1 element added, 1 element removed, 1 element restyled');
+});
+
+test('groupTitle falls back to elements changed when only retagged', () => {
+  const findings = [{ kind: 'dom', path: 'a', cls: '', change: 'retagged' }];
+  assert.equal(groupTitle(findings), '1 element retagged');
+});
+
+test('signatureOf collapses grid-template track-count variants across widths', () => {
+  const narrow = [
+    styleFinding('main', [{ prop: 'grid-template-columns', before: '100px 100px', after: '200px 200px' }]),
+  ];
+  const wide = [styleFinding('main', [{ prop: 'grid-template-columns', before: '282px ×2', after: '400px ×2' }])];
+  // Both are 2→2 track counts after summarizeProps track-count keying — same sig.
+  // Raw before/after strings differ; signature must key by track count only.
+  assert.equal(signatureOf(narrow), signatureOf(wide));
+});
+
+test('groupByPath buckets findings per element path', () => {
+  const findings = [
+    styleFinding('a', [{ prop: 'color', before: 'x', after: 'y' }]),
+    styleFinding('b', [{ prop: 'color', before: 'x', after: 'y' }]),
+    styleFinding('a', [{ prop: 'margin-top', before: '1px', after: '2px' }]),
+  ];
+  const groups = groupByPath(findings);
+  assert.equal(groups.length, 2);
+  assert.equal(groups.find((g) => g[0].path === 'a')?.length, 2);
+});
+
+test('cleanFindings drops state echoes of a base style change', () => {
+  const findings = [
+    styleFinding('btn', [{ prop: 'color', before: 'black', after: 'red' }]),
+    {
+      kind: 'state',
+      path: 'btn',
+      cls: '',
+      state: 'hover',
+      props: [{ prop: 'color', before: 'black', after: 'red' }],
+    },
+  ];
+  const cleaned = cleanFindings(findings);
+  assert.equal(cleaned.length, 1);
+  assert.equal(cleaned[0].kind, 'style');
+});
+
+test('cleanFindings keeps state deltas on newly added elements', () => {
+  const findings = [
+    addFinding('btn'),
+    {
+      kind: 'state',
+      path: 'btn',
+      cls: '',
+      state: 'hover',
+      props: [{ prop: 'color', before: '(unset)', after: 'blue' }],
+    },
+  ];
+  const cleaned = cleanFindings(findings);
+  assert.ok(cleaned.some((f) => f.kind === 'state'));
+});
+
+test('safeKey strips Markdown/HTML control characters from surface keys', () => {
+  assert.equal(safeKey('home`[x](y)<z>|'), 'home--x--y--z--');
+});
+
+test('formatSurfaceList groups widths under each base', () => {
+  assert.equal(formatSurfaceList(['home@1280', 'home@390', 'pricing@1080']), 'home @ 1280, 390 · pricing @ 1080');
+});
+
+test('countFindings tallies via assessComparisonTruth reviewable/raw counts', () => {
+  const findings = [
+    addFinding('a'),
+    styleFinding('b', [
+      { prop: 'color', before: 'a', after: 'b' },
+      { prop: 'opacity', before: '1', after: '0.5' },
+    ]),
+    {
+      kind: 'state',
+      path: 'c',
+      cls: '',
+      state: 'hover',
+      props: [{ prop: 'outline', before: 'none', after: '1px solid red' }],
+    },
+  ];
+  const truth = assessComparisonTruth([{ surface: 'home@1280', findings }]);
+  assert.equal(truth.rawCounts.dom, 1);
+  assert.equal(truth.rawCounts.style, 2);
+  assert.equal(truth.rawCounts.state, 1);
+  assert.equal(truth.hasReviewableEvidence, true);
+});
+
+test('countCapturedSurfaceBases prefers metadata.surfaceKey when provided', () => {
+  const keys = ['dash@1280', 'dash-loaded@1280'];
+  assert.equal(countCapturedSurfaceBases(keys), 2);
+  assert.equal(
+    countCapturedSurfaceBases(keys, (k) => (k.startsWith('dash') ? 'dash' : undefined)),
+    1,
+  );
+});
+
+test('isNonValue recognises placeholder markers', () => {
+  assert.equal(isNonValue('(unset)'), true);
+  assert.equal(isNonValue('(gone)'), true);
+  assert.equal(isNonValue('1px'), false);
+});
+
+test('summarizeProps folds outline longhands; prettyLabel stays stable after split', () => {
+  const out = summarizeProps([
+    { prop: 'outline-width', before: '0px', after: '2px' },
+    { prop: 'outline-style', before: 'none', after: 'solid' },
+    { prop: 'outline-color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' },
+  ]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].prop, 'outline');
+  assert.equal(prettyLabel('body > a:nth-child(1)', 'nav-cta primary'), 'a.nav-cta');
+  // Same symbols via direct leaf imports (coverage path for fallow).
+  assert.equal(summarizePropsDirect([{ prop: 'color', before: 'a', after: 'b' }])[0].prop, 'color');
+  assert.equal(prettyLabelDirect('body > a:nth-child(1)', 'nav-cta primary'), 'a.nav-cta');
+  assert.equal(groupTitleDirect([{ kind: 'dom', path: 'x', cls: '', change: 'added' }]), '1 element added');
+  assert.equal(
+    signatureOfDirect([styleFinding('main', [{ prop: 'color', before: 'a', after: 'b' }])]),
+    signatureOf([styleFinding('main', [{ prop: 'color', before: 'a', after: 'b' }])]),
+  );
+  assert.equal(safeKeyDirect('a`b'), 'a-b');
+  assert.equal(formatSurfaceListDirect(['home@1280']), 'home @ 1280');
+  assert.equal(
+    assessTruthDirect([{ surface: 's', findings: [styleFinding('e', [{ prop: 'height', before: '1', after: '2' }])] }])
+      .rawOnlyNoReviewable,
+    true,
+  );
+  assert.equal(cleanFindingsDirect([styleFinding('e', [{ prop: 'height', before: '1', after: '2' }])]).length, 0);
+});
+
+test('assessComparisonTruth: removed surfaces are reviewable; recomputes raw when omitted', () => {
+  const removed = assessComparisonTruth([{ surface: 'old@1280', missing: 'after', findings: [] }]);
+  assert.equal(removed.removedSurfaces, 1);
+  assert.equal(removed.hasReviewableEvidence, true);
+  assert.equal(removed.rawOnlyNoReviewable, false);
+
+  const heightOnly = assessComparisonTruth([
+    {
+      surface: 'home@1280',
+      findings: [styleFinding('body', [{ prop: 'height', before: '1px', after: '2px' }])],
+    },
+  ]);
+  assert.equal(heightOnly.rawCounts.style, 1);
+  assert.equal(heightOnly.rawOnlyNoReviewable, true);
 });
