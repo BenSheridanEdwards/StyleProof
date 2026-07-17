@@ -43,3 +43,16 @@
 - Completed: added regressions requiring clean Action runs to publish an immutable report URL while certify mode continues to fail only on real differences.
 - Next: run focused and full Action dogfood verification, review the patch, and open a ready pull request.
 - Blockers: none.
+
+## Completed: enterprise README showcase
+
+- Reframed the opening around enterprise evaluation: evidence, failure states,
+  trust boundaries, adoption, and reviewer workflow.
+- Added four real screenshots from public StyleProof dogfood checks and the
+  current generated report under `docs/readme/`.
+- Reconciled the report example with the current deterministic demo output.
+- Verification: build, typecheck, lint, format, privacy, the full unit suite, demo
+  freshness, and high-severity dependency audit all pass.
+- E2E: not run because this change is documentation and proof assets only; no
+  capture, diff, report engine, Action, or runtime behaviour changed.
+- Blockers: none.
