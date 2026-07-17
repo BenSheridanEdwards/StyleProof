@@ -44,15 +44,16 @@
 - Next: run focused and full Action dogfood verification, review the patch, and open a ready pull request.
 - Blockers: none.
 
-## Completed: enterprise README showcase
+## In progress: enterprise README proof correction
 
 - Reframed the opening around enterprise evaluation: evidence, failure states,
   trust boundaries, adoption, and reviewer workflow.
-- Added four real screenshots from public StyleProof dogfood checks and the
-  current generated report under `docs/readme/`.
+- Rejected the previous "clean" dogfood screenshot because it showed unasserted
+  coverage, unknown determinism, and an unacknowledged inventory removal.
+- Captured the deterministic demo twice in real Chromium with an explicit
+  registry, self-checking, inventory, and data-residue gating; all 8 capture and
+  coverage tests passed and the generated report is fully certified clean.
 - Reconciled the report example with the current deterministic demo output.
-- Verification: build, typecheck, lint, format, privacy, the full unit suite, demo
-  freshness, and high-severity dependency audit all pass.
-- E2E: not run because this change is documentation and proof assets only; no
-  capture, diff, report engine, Action, or runtime behaviour changed.
+- Next: render the certified report on GitHub, replace the misleading screenshot,
+  then rerun the complete docs-change gate matrix and update PR #294.
 - Blockers: none.
