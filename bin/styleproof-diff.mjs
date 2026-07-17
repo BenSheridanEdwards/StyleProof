@@ -39,6 +39,7 @@ import {
   formatSurfaceList,
   classifyChrome,
   countCapturedSurfaceBases,
+  assessComparisonTruth,
 } from '../dist/change-groups.js';
 import {
   DEFAULT_MAP_STORE_BRANCH,
@@ -392,6 +393,10 @@ try {
   cleanupCachedCaptureDirs(cacheCapture);
 }
 const { surfaces, counts, compared, volatile, statesUncertified } = result;
+// Canonical comparison truth: raw certification counts vs reviewable (cleaned)
+// findings the report/crops can show. Prevents VISUAL_APPROVAL_REQUIRED without
+// evidence when only derived/reflow longhands differ.
+const truth = assessComparisonTruth(surfaces, counts);
 const baselineSurfaceFailures = readMapManifest(dirA)?.surfaceCaptureFailures ?? [];
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
 const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
@@ -512,6 +517,17 @@ if (jsonOut) {
       JSON.stringify(
         {
           counts,
+          // Reviewable tallies after cleanFindings (what the durable report shows).
+          // Trust/approval must use these + one-sided surfaces — not raw counts alone.
+          reviewableCounts: truth.reviewableCounts,
+          reportConsistency: truth.rawOnlyNoReviewable
+            ? {
+                ok: false,
+                reason: 'raw_only_no_reviewable',
+                detail:
+                  'certification differ found computed-style deltas that the visual report strips as derived/reflow longhands — no reviewable crops; fail closed as CERTIFICATION_FAILED, never VISUAL_APPROVAL_REQUIRED',
+              }
+            : { ok: true, reason: 'aligned' },
           surfaces,
           compared,
           baselineSurfaceFailures,
@@ -597,6 +613,14 @@ const clean =
   residueFails === 0 &&
   !coverageFails &&
   !determinismFails;
+if (truth.rawOnlyNoReviewable) {
+  console.log(
+    `\n⚠ report consistency: ${counts.style} computed-style difference(s) are derived/reflow longhands only — ` +
+      'the visual report has no reviewable crops. Failing closed as a certification inconsistency ' +
+      '(not VISUAL_APPROVAL_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect, ' +
+      'or fix the reflow source.',
+  );
+}
 console.log(
   clean
     ? newSurfaces === 0

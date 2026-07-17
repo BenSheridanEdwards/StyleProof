@@ -60,13 +60,16 @@ import {
   formatChangedSurfaceScope,
   countCapturedSurfaceBases,
   classifyChrome,
+  assessComparisonTruth,
+  type ComparisonTruth,
 } from './change-groups.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
 // through the package's report module rather than a deep path.
 export { describeChange, colorName, tokenIndex, toHex } from './describe.js';
 // Re-export the grouping primitives historically exported from here so existing
 // imports (`from 'styleproof'` → report) keep resolving.
-export { summarizeProps, prettyLabel } from './change-groups.js';
+export { summarizeProps, prettyLabel, assessComparisonTruth } from './change-groups.js';
+export type { ComparisonTruth } from './change-groups.js';
 
 /**
  * Visual diff report: for every surface with findings, crop the before/after
@@ -144,6 +147,12 @@ export type ReportResult = {
   totalFindings: number;
   /** Advisory content-layer changes rendered (0 unless includeContent + captured text). Never gates. */
   contentChanges: number;
+  /**
+   * Canonical comparison truth vs the certification differ. When
+   * `rawOnlyNoReviewable` is true the report has no crops/sections but raw
+   * computed-style deltas exist — callers must fail closed, never approve.
+   */
+  comparison: ComparisonTruth;
   reportMdPath: string;
   reportJsonPath: string;
 };
@@ -1334,21 +1343,46 @@ function summaryLines(args: {
   shown: DiffCounts;
   changedScope: { bases: number; variants: number };
   contentCount: number;
+  /** Raw-only derived noise: must not claim "identical". */
+  rawOnlyNoReviewable?: boolean;
+  rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
-  const { changeGroups, missing, shown, changedScope, contentCount, baselineSurfaceFailures } = args;
+  const {
+    changeGroups,
+    missing,
+    shown,
+    changedScope,
+    contentCount,
+    rawOnlyNoReviewable,
+    rawCounts,
+    baselineSurfaceFailures,
+  } = args;
   const greenfieldMissing = missing.filter(
     (p) => !surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
   const brokenBaseMissing = missing.filter((p) =>
     surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
-  if (changeGroups.length === 0 && missing.length === 0 && baselineSurfaceFailures.length === 0) {
-    return [
-      contentCount > 0
-        ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
-        : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
-    ];
+  if (changeGroups.length === 0 && missing.length === 0) {
+    if (rawOnlyNoReviewable && rawCounts) {
+      const md = [
+        `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.`,
+        '',
+        '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._',
+      ];
+      if (baselineSurfaceFailures.length > 0) {
+        md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
+      }
+      return md;
+    }
+    if (baselineSurfaceFailures.length === 0) {
+      return [
+        contentCount > 0
+          ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
+          : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
+      ];
+    }
   }
   const md = [
     ...baselineFailureSummaryLines(baselineSurfaceFailures),
@@ -1369,6 +1403,8 @@ function reportHeadline(args: {
   volatileCount: number;
   liveCandidateLabels: string[];
   contentCount: number;
+  rawOnlyNoReviewable?: boolean;
+  rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
   const {
@@ -1379,6 +1415,8 @@ function reportHeadline(args: {
     volatileCount,
     liveCandidateLabels,
     contentCount,
+    rawOnlyNoReviewable,
+    rawCounts,
     baselineSurfaceFailures,
   } = args;
   const md: string[] = summaryLines({
@@ -1387,6 +1425,8 @@ function reportHeadline(args: {
     shown,
     changedScope,
     contentCount,
+    rawOnlyNoReviewable,
+    rawCounts,
     baselineSurfaceFailures,
   });
   if (volatileCount > 0) {
@@ -1720,6 +1760,65 @@ function compactChangeSummary(cg: ChangeGroup, json: Record<string, unknown>, im
   return `- \`${surface}\`${more} · ${cg.rep.findings.length} change(s)${link}`;
 }
 
+/**
+ * When includeLayoutNoise is on, prepared findings include derived longhands so
+ * raw-only is not a consistency failure. Otherwise preserve fail-closed truth.
+ */
+function comparisonForReport(
+  comparison: ComparisonTruth,
+  includeNoise: boolean,
+  reviewableChangedSurfaces: number,
+): ComparisonTruth {
+  const rawOnlyNoReviewable = !includeNoise && comparison.rawOnlyNoReviewable;
+  return {
+    ...comparison,
+    rawOnlyNoReviewable,
+    hasReviewableEvidence: comparison.hasReviewableEvidence || (includeNoise && reviewableChangedSurfaces > 0),
+  };
+}
+
+/** Focus each surface on styling intent unless layout noise is requested. */
+function prepareReportSurfaces(
+  surfaces: ReturnType<typeof diffStyleMapDirs>['surfaces'],
+  includeNoise: boolean,
+): PreparedSurface[] {
+  return surfaces
+    .map((sd) => ({
+      sd,
+      findings: sd.missing || includeNoise ? sd.findings : cleanFindings(sd.findings),
+    }))
+    .filter((p) => p.sd.missing || p.findings.length > 0);
+}
+
+function writeReportArtifacts(
+  outDir: string,
+  md: string[],
+  shown: DiffCounts,
+  comparison: ComparisonTruth,
+  surfacesJson: Array<Record<string, unknown>>,
+): { reportMdPath: string; reportJsonPath: string } {
+  const reportMdPath = path.join(outDir, 'report.md');
+  const reportJsonPath = path.join(outDir, 'report.json');
+  fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
+  fs.writeFileSync(
+    reportJsonPath,
+    JSON.stringify(
+      {
+        counts: shown,
+        rawCounts: comparison.rawCounts,
+        reviewableCounts: comparison.reviewableCounts,
+        reportConsistency: comparison.rawOnlyNoReviewable
+          ? { ok: false, reason: 'raw_only_no_reviewable' }
+          : { ok: true, reason: 'aligned' },
+        surfaces: surfacesJson,
+      },
+      null,
+      2,
+    ),
+  );
+  return { reportMdPath, reportJsonPath };
+}
+
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,
@@ -1740,25 +1839,24 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     maxReportBytes = 400_000,
   } = opts;
 
-  const includeNoise = opts.includeLayoutNoise ?? false;
-  const includeContent = opts.includeContent ?? false;
+  const includeNoise = opts.includeLayoutNoise === true;
+  const includeContent = opts.includeContent === true;
   // Base first, head second: current capture metadata is authoritative when a
   // surface's product key changed between revisions.
   const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
-  const { surfaces, volatile: volatileCount } = diffStyleMapDirs(beforeDir, afterDir);
-  const liveCandidateLabels = volatileCount > 0 ? collectLiveCandidateLabels(beforeDir, afterDir) : [];
+  const { surfaces, volatile: volatileCount, counts: rawCounts } = diffStyleMapDirs(beforeDir, afterDir);
+  // Canonical truth shared with styleproof-diff / action trust: when raw
+  // certification deltas exist but cleanFindings leaves nothing reviewable,
+  // never claim "identical" and never enable visual approval.
+  const rawComparison = assessComparisonTruth(surfaces, rawCounts);
+  const liveCandidateLabels = volatileCount === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
   // Focus each surface on styling intent: drop reflow-casualty props, suppress
   // forced-state echoes of base changes, and remove non-value noise (see
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
-  const prepared: PreparedSurface[] = surfaces
-    .map((sd) => ({
-      sd,
-      findings: sd.missing || includeNoise ? sd.findings : cleanFindings(sd.findings),
-    }))
-    .filter((p) => p.sd.missing || p.findings.length > 0);
+  const prepared = prepareReportSurfaces(surfaces, includeNoise);
 
   const missing = prepared.filter((p) => p.sd.missing);
   const changeGroups = groupBySignature(prepared, beforeDir, afterDir);
@@ -1775,6 +1873,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
   const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
+  const comparison = comparisonForReport(rawComparison, includeNoise, prepared.length - missing.length);
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -1811,6 +1910,8 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       volatileCount,
       liveCandidateLabels,
       contentCount: contentSection.count,
+      rawOnlyNoReviewable: comparison.rawOnlyNoReviewable,
+      rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
     }),
   );
@@ -1870,15 +1971,13 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   }
   md.push(...contentSection.md);
 
-  const reportMdPath = path.join(outDir, 'report.md');
-  const reportJsonPath = path.join(outDir, 'report.json');
-  fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
-  fs.writeFileSync(reportJsonPath, JSON.stringify({ counts: shown, surfaces: json }, null, 2));
+  const { reportMdPath, reportJsonPath } = writeReportArtifacts(outDir, md, shown, comparison, json);
   return {
     changedSurfaces: prepared.length - missing.length,
     newSurfaces: missing.length,
     totalFindings,
     contentChanges: contentSection.count,
+    comparison,
     reportMdPath,
     reportJsonPath,
   };

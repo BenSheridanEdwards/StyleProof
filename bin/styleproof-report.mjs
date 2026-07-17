@@ -174,10 +174,17 @@ try {
 }
 
 const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';
+if (result.comparison?.rawOnlyNoReviewable) {
+  console.log(
+    `⚠ report consistency: raw certification deltas exist but no reviewable crops — not a clean no-change (fail closed)`,
+  );
+}
 console.log(
   result.changedSurfaces === 0
     ? result.newSurfaces === 0
-      ? '✓ no changes — empty report written'
+      ? result.comparison?.rawOnlyNoReviewable
+        ? '⚠ no reviewable changes — consistency failure written (raw-only derived longhands)'
+        : '✓ no changes — empty report written'
       : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
     : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );
@@ -185,4 +192,8 @@ console.log(`report: ${result.reportMdPath}`);
 if (includeContent && result.contentChanges > 0) {
   console.log(`📝 ${result.contentChanges} advisory content change(s) — does not affect the exit code`);
 }
-process.exit(result.changedSurfaces === 0 && result.newSurfaces === 0 ? 0 : 1);
+// Exit 1 when there is anything to review OR a raw-only consistency failure (never
+// exit 0 for "identical" when the certification differ saw deltas).
+process.exit(
+  result.changedSurfaces === 0 && result.newSurfaces === 0 && !result.comparison?.rawOnlyNoReviewable ? 0 : 1,
+);
