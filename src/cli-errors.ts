@@ -18,9 +18,9 @@ export function cliErrorMessage(error: unknown): string {
  * default layer (flag > env > file > built-in), or a loud usage-error exit —
  * config the user wrote must never be silently dropped.
  */
-export function projectConfigOrExit(cli: string): StyleProofConfig {
+export function projectConfigOrExit(cli: string, cwd = process.cwd()): StyleProofConfig {
   try {
-    return loadStyleProofConfig();
+    return loadStyleProofConfig(cwd);
   } catch (error) {
     process.stderr.write(`${cli}: ${cliErrorMessage(error)}\n`);
     process.exit(2);

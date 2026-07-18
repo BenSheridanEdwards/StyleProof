@@ -32,7 +32,7 @@ export function classifyRestoreExit(code: number | null | undefined): RestoreOut
 
 /** One package manager's commands, as argv arrays (never joined through a shell). */
 export type PackageManagerPlan = {
-  name: 'npm' | 'yarn' | 'pnpm' | 'bun';
+  name: 'npm' | 'yarn' | 'yarn-berry' | 'pnpm' | 'bun';
   /** Frozen-lockfile install of the checked-out commit's dependencies. */
   install: string[];
   /** Install the head's exact StyleProof release over the base's older one. */
@@ -41,6 +41,23 @@ export type PackageManagerPlan = {
    *  with `git checkout --` (npm's --no-save/--package-lock=false dirties none). */
   packageMetadataFiles: string[];
 };
+
+/** True when the checkout is a Yarn 2+ (Berry) repo: a `.yarnrc.yml`, or a
+ *  `packageManager` field pinning yarn at major ≥ 2. An unreadable/unparsable
+ *  package.json reads as "not Berry" — the yarn-1 fallback then fails with
+ *  yarn's own message rather than this detector guessing. */
+function isYarnBerry(root: string): boolean {
+  if (fs.existsSync(path.join(root, '.yarnrc.yml'))) return true;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+      packageManager?: unknown;
+    };
+    const pinned = typeof pkg.packageManager === 'string' ? /^yarn@(\d+)/.exec(pkg.packageManager) : null;
+    return pinned !== null && Number(pinned[1]) >= 2;
+  } catch {
+    return false;
+  }
+}
 
 /** Runtime twin of styleproof-init's lockfile detection: the workflow template no
  *  longer bakes package-manager commands in at scaffold time — the command reads
@@ -64,6 +81,23 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
     };
   }
   if (has('yarn.lock')) {
+    // Yarn Berry (2+): pinning yarn 1 either refuses outright (the repo's
+    // `packageManager` field) or cannot parse the Berry lockfile — every
+    // base-miss run would fail. Berry repos declare themselves via .yarnrc.yml
+    // or `packageManager: "yarn@<2+>"`; drive those through corepack, which
+    // reads that same field and provisions the pinned release.
+    if (isYarnBerry(root)) {
+      return {
+        name: 'yarn-berry',
+        install: ['corepack', 'yarn', 'install', '--immutable'],
+        installExactStyleProof: (version) => ['corepack', 'yarn', 'add', '--dev', '--exact', `styleproof@${version}`],
+        packageMetadataFiles: [
+          'package.json',
+          'yarn.lock',
+          ...['.pnp.cjs', '.pnp.loader.mjs', '.pnp.data.json'].filter(has),
+        ],
+      };
+    }
     return {
       name: 'yarn',
       install: ['npx', '-y', 'yarn@1.22.22', 'install', '--frozen-lockfile', '--non-interactive'],

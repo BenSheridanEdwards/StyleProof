@@ -105,6 +105,12 @@ export class CiWorktreeSession {
   constructor(repoRoot: string, scratchParent?: string) {
     this.repoRoot = path.resolve(repoRoot);
     this.scratchParent = scratchParent ?? fs.mkdtempSync(path.join(ciWorktreeScratchParent(), 'styleproof-ci-wt-'));
+    // A hard kill (SIGKILL, runner teardown) skips dispose() and leaves stale
+    // `git worktree` registrations pointing at deleted scratch dirs — on
+    // persistent self-hosted workspaces they accumulate forever. Pruning at
+    // session START makes each run clean up after any predecessor's crash;
+    // a prune failure must never block the run itself.
+    runGit(this.repoRoot, ['worktree', 'prune']);
   }
 
   scratchRoot(): string {

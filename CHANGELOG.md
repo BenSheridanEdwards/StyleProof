@@ -7,7 +7,50 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Yarn Berry support in the cold path.** `styleproof-ci` pinned yarn 1 for any
+  `yarn.lock`; on a Yarn 2+ repo that either refuses (the `packageManager`
+  field) or cannot parse the lockfile, so every base-miss run failed. A
+  `.yarnrc.yml` or a `packageManager: "yarn@2+"` pin now routes installs
+  through corepack (`corepack yarn install --immutable`), which provisions the
+  repo's own pinned release.
+- **`styleproof.config.json` warns on unknown keys.** A typo'd `dirtyallow` or
+  `cache_branch` was silently dropped — exactly the "config the user wrote must
+  never be silently dropped" failure the validator forbids. Unknown top-level
+  and `affected` keys now produce a loud stderr warning listing the known keys
+  (a warning, not an error, so a newer release's key doesn't brick older CLIs
+  during version skew). `styleproof-map --help` also now documents that
+  `dirtyAllow` accumulates across config + env + flags instead of being
+  overridden.
+
 ### Fixed
+
+- **`styleproof-ci` reads project config from the HEAD checkout, and each side
+  resolves its own spec.** Config was loaded before the flow pinned the
+  consumer to `--head` — in the generated workflow that pre-checkout tree is
+  the PR _merge commit_ — so a head that moved the spec via
+  `styleproof.config.json` ran with the stale path and failed exit 2 with the
+  cause invisible. Config now loads after the head checkout, and when `--spec`
+  is not explicit, base-side probes and captures resolve the spec from the
+  BASE checkout's own config while head-side ones use the head's — a
+  config-only spec move now works end to end.
+- **`styleproof-ci` failure taxonomy tightened.** A required upload's
+  map-store/network fault exited 2 — the code reserved for usage errors — so
+  exit-code triage retried the wrong thing; store faults now exit 5 (the same
+  retryable class as restore faults) while consumer-state preconditions (dirty
+  tree, missing manifest) keep 2, since retrying those can never succeed. A
+  failed `styleproof-map --restore` _spawn_ (ENOENT) now prints the underlying
+  error instead of "fault (exit null), re-run the job". Worktree residue from
+  hard kills is reclaimed: every session start runs `git worktree prune`, and
+  SIGINT/SIGTERM now dispose live worktrees before exiting.
+- **`styleproof-affected --root` works from a monorepo.** `git diff` prints
+  repo-root-relative paths, which the CLI resolved against `--root` and matched
+  against a package-relative graph — every changed file was unplaceable, so
+  every monorepo invocation degraded to `'all'`. The `--root` prefix is now
+  stripped when resolving git paths into the graph (files outside the package
+  still fail closed), and `styleproof.config.json`, `--graph`, and
+  `--surfaces` now load relative to `--root` instead of the invoking cwd.
 
 - **`REPORT_PUBLICATION_FAILED` now names its actual failure domain.** The
   Action's terminal trust step treated any non-`success` publish outcome —

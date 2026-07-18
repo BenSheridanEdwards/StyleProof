@@ -12,6 +12,7 @@ import {
   resolveSpecRefToSha,
   shouldApplySpecRefOverlay,
 } from '../dist/ci-spec-ref.js';
+import { CiWorktreeSession } from '../dist/ci-worktree.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 // styleproof-ci packages the workflow's restore → capture-on-miss → replay →
@@ -119,6 +120,32 @@ test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv
       'styleproof@1.2.3',
     ]);
     assert.deepEqual(pnpm.packageMetadataFiles, ['package.json', 'pnpm-lock.yaml']);
+
+    // Yarn Berry: a .yarnrc.yml (or packageManager yarn@2+) must NOT get the
+    // pinned yarn 1 — Berry repos refuse it / can't parse the lockfile. Corepack
+    // reads the repo's own pin and provisions the right release.
+    fs.rmSync(path.join(root, 'pnpm-lock.yaml'));
+    fs.writeFileSync(path.join(root, '.yarnrc.yml'), 'nodeLinker: node-modules\n');
+    const berry = detectPackageManagerPlan(root);
+    assert.equal(berry.name, 'yarn-berry');
+    assert.deepEqual(berry.install, ['corepack', 'yarn', 'install', '--immutable']);
+    assert.deepEqual(berry.installExactStyleProof('9.9.9'), [
+      'corepack',
+      'yarn',
+      'add',
+      '--dev',
+      '--exact',
+      'styleproof@9.9.9',
+    ]);
+    assert.deepEqual(berry.packageMetadataFiles, ['package.json', 'yarn.lock']);
+    fs.rmSync(path.join(root, '.yarnrc.yml'));
+
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ packageManager: 'yarn@4.5.0' }));
+    assert.equal(detectPackageManagerPlan(root).name, 'yarn-berry');
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ packageManager: 'yarn@1.22.22' }));
+    assert.equal(detectPackageManagerPlan(root).name, 'yarn', 'a yarn 1 pin keeps the classic plan');
+    fs.rmSync(path.join(root, 'package.json'));
+    fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), '');
 
     // bun outranks everything; only the bun lockfile that actually exists is restored.
     fs.writeFileSync(path.join(root, 'bun.lockb'), '');
@@ -434,6 +461,108 @@ printf 'consumer' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/resolved-from.txt"
     }
   },
 );
+
+test(
+  "styleproof-ci: the HEAD commit's styleproof.config.json governs the run, not the invoking checkout",
+  { timeout: 30_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-head-config-');
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'consumer');
+    const mapRoot = path.join(root, 'maps');
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    try {
+      fs.mkdirSync(repo);
+      git(root, ['init', '--bare', '-q', remote]);
+      git(repo, ['init', '-q', '-b', 'main']);
+      git(repo, ['config', 'user.email', 'styleproof@example.test']);
+      git(repo, ['config', 'user.name', 'StyleProof Test']);
+      git(repo, ['remote', 'add', 'origin', remote]);
+      fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+      fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
+      // Base: spec at old.spec.ts, config points there.
+      fs.writeFileSync(path.join(repo, 'old.spec.ts'), '// old spec\n');
+      fs.writeFileSync(path.join(repo, 'styleproof.config.json'), '{"spec":"old.spec.ts"}\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: base']);
+      const base = git(repo, ['rev-parse', 'HEAD']);
+      // Head: the spec MOVED via config alone — no --spec flag anywhere.
+      git(repo, ['mv', 'old.spec.ts', 'new.spec.ts']);
+      fs.writeFileSync(path.join(repo, 'styleproof.config.json'), '{"spec":"new.spec.ts"}\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: head moves the spec']);
+      const head = git(repo, ['rev-parse', 'HEAD']);
+      git(repo, ['push', '-q', '-u', 'origin', 'main']);
+      // The invoking checkout sits at BASE — the stand-in for the PR merge
+      // commit the workflow checks out, which is NOT the head.
+      git(repo, ['checkout', '-q', base]);
+
+      const bin = path.join(repo, 'node_modules', '.bin');
+      fs.mkdirSync(bin, { recursive: true });
+      fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\nexit 0\n');
+      fs.writeFileSync(
+        path.join(bin, 'playwright'),
+        `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+`,
+      );
+      fs.chmodSync(path.join(bin, 'npm'), 0o755);
+      fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+
+      const result = runCi(
+        ['--base', base, '--head', head, '--base-dir', mapRoot, '--force'],
+        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+        repo,
+      );
+      // Before the fix, config was read from the pre-checkout tree (base here):
+      // spec resolved to old.spec.ts, which the head no longer has — exit 2.
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      assert.equal(git(repo, ['rev-parse', 'HEAD']), head);
+      assert.ok(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')));
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
+
+test('CiWorktreeSession: construction prunes stale worktree registrations from a prior hard kill', () => {
+  const root = mkTmp('styleproof-ci-prune-');
+  try {
+    const repo = path.join(root, 'repo');
+    fs.mkdirSync(repo);
+    const git = (args) => {
+      const result = spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git(['init', '-q', '-b', 'main']);
+    git(['config', 'user.email', 'styleproof@example.test']);
+    git(['config', 'user.name', 'StyleProof Test']);
+    fs.writeFileSync(path.join(repo, 'a.txt'), 'a\n');
+    git(['add', '-A']);
+    git(['commit', '-qm', 'test: one']);
+    // A prior run's worktree whose scratch dir a SIGKILL left deleted but registered.
+    const stale = path.join(root, 'stale-wt');
+    git(['worktree', 'add', '--detach', stale, 'HEAD']);
+    fs.rmSync(stale, { recursive: true, force: true });
+    assert.match(git(['worktree', 'list']), /stale-wt/);
+
+    const session = new CiWorktreeSession(repo, path.join(root, 'scratch'));
+    try {
+      assert.doesNotMatch(git(['worktree', 'list']), /stale-wt/, 'session start reclaims the residue');
+    } finally {
+      session.dispose();
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
 
 test('resolveSpecRefToSha: resolves refs in the given checkout, rejects the unresolvable', () => {
   const root = mkTmp('styleproof-ci-resolve-ref-');

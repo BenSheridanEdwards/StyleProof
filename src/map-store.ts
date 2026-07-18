@@ -66,6 +66,13 @@ export class MapStoreError extends Error {}
  *  existing `instanceof MapStoreError` handlers still catch it. */
 export class MapStoreNotFoundError extends MapStoreError {}
 
+/** An upload refused because of the CONSUMER's own state (a dirty working tree,
+ *  a missing manifest) — a precondition the user must fix, never a transient
+ *  store/network fault. Kept distinct so the CLI can exit with the usage code
+ *  (2, "fix your invocation/tree") instead of the retryable fault code (5,
+ *  "re-run the job"): retrying a dirty tree can never succeed. */
+export class MapStorePreconditionError extends MapStoreError {}
+
 export interface MapManifest {
   version: 1;
   packageVersion: string;
@@ -911,9 +918,9 @@ export function publishMapBundle(options: {
   const branch = options.branch ?? DEFAULT_MAP_STORE_BRANCH;
   const remote = options.remote ?? DEFAULT_REMOTE;
   const manifest = readMapManifest(options.dir);
-  if (!manifest) throw new MapStoreError(`no ${MAP_MANIFEST} in ${options.dir}`);
+  if (!manifest) throw new MapStorePreconditionError(`no ${MAP_MANIFEST} in ${options.dir}`);
   if (manifest.dirty) {
-    throw new MapStoreError(
+    throw new MapStorePreconditionError(
       `not uploading ${options.dir}: working tree was dirty when the map was captured. Commit first, then rerun styleproof-map.`,
     );
   }
