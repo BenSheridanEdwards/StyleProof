@@ -12,7 +12,13 @@
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
 import { generateStyleMapReport } from '../dist/report.js';
-import { cachedMapsUnavailableMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import {
+  cachedMapsUnavailableMessage,
+  isHelpArg,
+  projectConfigOrExit,
+  showHelpAndExit,
+  unknownFlagMessage,
+} from '../dist/cli-errors.js';
 import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
@@ -66,9 +72,12 @@ let minWidth;
 let minHeight;
 let includeLayoutNoise = false;
 let includeContent = false;
-let spec = 'e2e/styleproof.spec.ts';
-let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? DEFAULT_MAP_STORE_BRANCH;
-let remote = process.env.STYLEPROOF_REMOTE ?? DEFAULT_REMOTE;
+// Repo config is the lowest-precedence default layer (flag > env > file > built-in),
+// matching every other CLI — see the identical block in styleproof-diff.
+const projectConfig = projectConfigOrExit('styleproof-report');
+let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
+let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
+let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);

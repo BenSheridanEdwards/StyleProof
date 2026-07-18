@@ -156,9 +156,16 @@ runs:
           const residueKeys = (diff.dataResidue?.unacknowledged || []).map((entry) =>
             typeof entry === 'string' ? entry : entry.key,
           );
-          const inventoryFailures =
-            (diff.inventory?.unacknowledged || []).length +
-            (diff.inventory?.staleAcknowledgements || []).length;
+          // "gateInventoryRemovals": false downgrades removals from the unapprovable
+          // inventory state to ordinary reviewable changes (the diff still exits 1,
+          // so they surface as approval-required and the box can clear them).
+          // Without this, the documented opt-out only skipped the job-fail step
+          // while the verdict + commit status stayed an unclearable red.
+          const gateInventoryRemovals = '${{ steps.config.outputs.gate-inventory-removals }}' !== 'false';
+          const inventoryFailures = gateInventoryRemovals
+            ? (diff.inventory?.unacknowledged || []).length +
+              (diff.inventory?.staleAcknowledgements || []).length
+            : 0;
           const certificationFailed =
             diff.coverage?.basis === 'incomplete' ||
             diff.determinism?.status === 'unproven';

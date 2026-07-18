@@ -287,3 +287,16 @@ test('composite action retries transient GitHub API failures on networked github
   ];
   for (const pattern of networkedSteps) assert.match(actionYml, pattern);
 });
+
+test('composite action verdict honors the gateInventoryRemovals opt-out end to end', () => {
+  const verdict = extractActionStep('- id: verdict', '\n\\s{4}- id:|\n\\s{4}- name:');
+  assert.ok(verdict, 'action.yml should include the verdict step');
+  // The opt-out must reach the CLASSIFICATION, not just the job-fail step:
+  // without it the commit status stayed an unclearable red (the approval box is
+  // only rendered for VISUAL_APPROVAL_REQUIRED).
+  assert.match(verdict[0], /steps\.config\.outputs\.gate-inventory-removals/);
+  assert.match(
+    verdict[0],
+    /gateInventoryRemovals\s*\n?\s*\? \(diff\.inventory|gateInventoryRemovals[\s\S]{0,120}inventory/,
+  );
+});
