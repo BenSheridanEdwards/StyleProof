@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.6.1] - 2026-07-18
+
 ### Fixed
 
 - **Captures declare `prefers-reduced-motion: reduce` before navigation.**
