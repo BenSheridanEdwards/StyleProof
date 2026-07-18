@@ -126,10 +126,23 @@ test('composite action exposes one precedence-ordered machine-readable trust ver
       degraded > partial &&
       visual > degraded,
   );
+  // The verdict's degraded-baseline check must accept the same values the
+  // GitHub-expression gate downstream accepts (case-insensitive 'true').
+  assert.match(verdict[0], /base-capture-failed[^\n]*\.toLowerCase\(\) === 'true'/);
   const terminal = actionYml.match(/- id: trust[\s\S]*$/);
   assert.ok(terminal, 'action.yml should always expose a terminal trust state');
   assert.match(terminal[0], /if: always\(\)/);
   assert.match(terminal[0], /REPORT_PUBLICATION_FAILED/);
+  // The trust step names failure DOMAINS, not just "publish wasn't success":
+  // publish failure and delivery (comment/status) failure both mean the reviewer
+  // may be looking at a stale or absent report; a merely-skipped publish must NOT
+  // masquerade as a publication failure.
+  assert.match(terminal[0], /publishOutcome === 'failure'/);
+  assert.match(terminal[0], /publishOutcome !== 'success'/);
+  assert.match(terminal[0], /steps\.comment\.outcome/);
+  assert.match(terminal[0], /steps\.status\.outcome/);
+  assert.match(actionYml, /- name: Upsert PR comment\n\s+id: comment/);
+  assert.match(actionYml, /- name: Set review status\n\s+id: status/);
 });
 
 test('composite action hard-gates partial baseline repair debt', () => {

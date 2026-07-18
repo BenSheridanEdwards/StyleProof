@@ -182,7 +182,10 @@ runs:
           else if (inventoryFailures > 0) state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED';
           else if (certificationFailed || rawOnlyNoReviewable) state = 'CERTIFICATION_FAILED';
           else if (partialBaseline) state = 'PARTIAL_BASELINE';
-          else if ('${{ inputs.base-capture-failed }}' === 'true') state = 'DEGRADED_BASELINE';
+          // Case-tolerant like the GitHub-expression `==` the block step uses, so a
+          // consumer passing 'True' can't get DEGRADED skipped here (a green status)
+          // while the block step still fails the job.
+          else if ('${{ inputs.base-capture-failed }}'.toLowerCase() === 'true') state = 'DEGRADED_BASELINE';
           else if ('${{ steps.diff.outputs.changed }}' === 'true') state = 'VISUAL_APPROVAL_REQUIRED';
           core.setOutput('state', state);
           core.setOutput('data-residue-keys', JSON.stringify(residueKeys));
@@ -319,6 +322,7 @@ runs:
         echo "raw-base=https://raw.githubusercontent.com/${REPO}/${REPORT_COMMIT}/${REPORT_PATH}" >> "$GITHUB_OUTPUT"
 
     - name: Upsert PR comment
+      id: comment
       if: steps.context.outputs.pr-number != ''
       uses: actions/github-script@v9
       with:
@@ -392,6 +396,7 @@ runs:
     # instead of failing the job. Green when nothing changed; red ("needs
     # sign-off") until a write-access reviewer ticks the box. PR events only.
     - name: Set review status
+      id: status
       if: steps.context.outputs.pr-number != '' && inputs.require-approval == 'true'
       uses: actions/github-script@v9
       with:
@@ -540,8 +545,21 @@ runs:
       uses: actions/github-script@v9
       with:
         script: |
-          const published = '${{ steps.publish.outcome }}' === 'success';
+          // Name the FAILURE DOMAIN precisely, so automation retries the right thing:
+          //   publish 'failure'            → the publish step itself broke → REPORT_PUBLICATION_FAILED;
+          //   publish 'skipped'/'cancelled' → an EARLIER step (capture/diff/config) failed —
+          //     not a publication fault; report the verdict if one exists, else the
+          //     capture/certification domain;
+          //   comment/status delivery failed after a successful publish → the consumer-
+          //     visible half of publication never landed → REPORT_PUBLICATION_FAILED,
+          //     never a green classification from a run that delivered nothing.
+          const publishOutcome = '${{ steps.publish.outcome }}';
           const diffState = '${{ steps.verdict.outputs.state }}';
-          const state = published ? (diffState || 'CERTIFICATION_FAILED') : 'REPORT_PUBLICATION_FAILED';
+          const deliveryFailed =
+            '${{ steps.comment.outcome }}' === 'failure' || '${{ steps.status.outcome }}' === 'failure';
+          let state;
+          if (publishOutcome === 'failure') state = 'REPORT_PUBLICATION_FAILED';
+          else if (publishOutcome !== 'success') state = diffState || 'CERTIFICATION_FAILED';
+          else state = deliveryFailed ? 'REPORT_PUBLICATION_FAILED' : (diffState || 'CERTIFICATION_FAILED');
           core.setOutput('state', state);
           core.info(`StyleProof terminal trust state: ${state}`);
