@@ -31,6 +31,7 @@ import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
   MapStoreError,
+  MapStorePreconditionError,
   MapStoreNotFoundError,
   currentGitSha,
   expectedCompatibilityKey,
@@ -82,7 +83,9 @@ options:
   -h, --help          show this help
 
 A styleproof.config.json at the repo root supplies project defaults — "spec",
-"dirtyAllow", "cacheBranch", "remote" — with flags and env overriding it.
+"dirtyAllow", "cacheBranch", "remote" — with flags and env overriding it,
+except "dirtyAllow", which ACCUMULATES: config entries, STYLEPROOF_DIRTY_ALLOW,
+and every --dirty-allow flag all apply together.
 
 If playwright.styleproof.config.ts exists, styleproof-map passes it to Playwright
 by default. Override with: styleproof-map -- --config playwright.config.ts
@@ -247,8 +250,12 @@ function upload(dirPath) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     if (uploadMode === 'required') {
+      // A precondition the user must fix (dirty tree, missing manifest) keeps
+      // the usage code 2 — retrying can never succeed. Everything else is the
+      // retryable map-store/network fault class the restore side reports as 5;
+      // triage keys on this split (2 = fix the job, 5 = re-run the job).
       console.error(`styleproof-map: upload failed\n${message}`);
-      process.exit(2);
+      process.exit(e instanceof MapStorePreconditionError ? 2 : 5);
     }
     if (e instanceof MapStoreError) {
       console.error(`styleproof-map: map captured locally; upload skipped (${message})`);

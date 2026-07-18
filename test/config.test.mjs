@@ -94,29 +94,72 @@ test('loadStyleProofConfig: written-but-broken config fails LOUDLY, never silent
 });
 
 test('styleproof-affected: a fully configured repo runs with no input flags at all', () => {
-  withConfig(
-    {
-      affected: {
-        graph: path.join(FIXTURE, 'graph.depcruise.json'),
-        surfaces: {
-          home: 'src/pages/Home.tsx',
-          pricing: 'src/pages/Pricing.tsx',
-          dashboard: 'src/pages/Dashboard.tsx',
+  // The config lives in the package the verdict is about: at cwd for a plain
+  // repo, at --root for a monorepo subpackage. Both invocations below read the
+  // SAME config from the package root — the second must not silently fall back
+  // to whatever sits at the invoking cwd.
+  const pkg = mkTmp('styleproof-config-pkg-');
+  const elsewhere = mkTmp('styleproof-config-cwd-');
+  try {
+    fs.cpSync(FIXTURE, pkg, { recursive: true });
+    fs.writeFileSync(
+      path.join(pkg, STYLEPROOF_CONFIG_FILE),
+      JSON.stringify(
+        {
+          affected: {
+            graph: 'graph.depcruise.json',
+            surfaces: {
+              home: 'src/pages/Home.tsx',
+              pricing: 'src/pages/Pricing.tsx',
+              dashboard: 'src/pages/Dashboard.tsx',
+            },
+          },
         },
-      },
-    },
-    (dir) => {
-      const res = spawnSync(
-        process.execPath,
-        [AFFECTED, '--changed', 'src/components/Chart.module.css', '--root', FIXTURE, '--json'],
-        { cwd: dir, encoding: 'utf8' },
-      );
-      assert.equal(res.status, 0, res.stderr);
-      const verdict = JSON.parse(res.stdout);
-      assert.deepEqual(verdict.recapture, ['dashboard']);
-      assert.deepEqual(verdict.reuse, ['home', 'pricing']);
-    },
-  );
+        null,
+        2,
+      ),
+    );
+    const bare = spawnSync(process.execPath, [AFFECTED, '--changed', 'src/components/Chart.module.css', '--json'], {
+      cwd: pkg,
+      encoding: 'utf8',
+    });
+    assert.equal(bare.status, 0, bare.stderr);
+    const verdict = JSON.parse(bare.stdout);
+    assert.deepEqual(verdict.recapture, ['dashboard']);
+    assert.deepEqual(verdict.reuse, ['home', 'pricing']);
+
+    // From an unrelated cwd, --root carries BOTH the source resolution and the
+    // config (the subpackage's affected block, not the invoker's).
+    const viaRoot = spawnSync(
+      process.execPath,
+      [AFFECTED, '--changed', 'src/components/Chart.module.css', '--root', pkg, '--json'],
+      { cwd: elsewhere, encoding: 'utf8' },
+    );
+    assert.equal(viaRoot.status, 0, viaRoot.stderr);
+    assert.deepEqual(JSON.parse(viaRoot.stdout).recapture, ['dashboard']);
+  } finally {
+    rmTmp(pkg);
+    rmTmp(elsewhere);
+  }
+});
+
+test('loadStyleProofConfig: unknown keys warn loudly instead of silently dropping', () => {
+  // A typo'd key silently reverting to defaults is the exact failure the
+  // loader's contract forbids — but it must stay a WARNING so a config written
+  // for a newer release doesn't brick every CLI during version skew.
+  withConfig({ dirtyallow: ['tsconfig.json'], spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.match(map.stderr, /unknown key\(s\) ignored: dirtyallow/);
+    assert.match(map.stderr, /known: .*dirtyAllow/);
+  });
+  withConfig({ affected: { graph: 'dc.json', bsae: 'origin/main' } }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.match(map.stderr, /unknown "affected" key\(s\) ignored: bsae/);
+  });
+  withConfig({ spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.doesNotMatch(map.stderr, /unknown key/);
+  });
 });
 
 test('styleproof-map / styleproof-prepush: a malformed config is a usage error before any work', () => {

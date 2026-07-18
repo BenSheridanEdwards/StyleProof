@@ -22,6 +22,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { loadStyleProofConfig } from '../dist/config.js';
 import { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from '../dist/ci.js';
 import {
   applySpecRefOverlay,
@@ -86,12 +87,11 @@ exit codes:
 `;
 
 const argv = process.argv.slice(2);
-// Loaded from the CURRENT checkout — by the time captures run, the flow has
-// checked out the commit whose config should govern it anyway.
-const projectConfig = projectConfigOrExit('styleproof-ci');
 let base = '';
 let head = '';
-let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
+// '' = not set explicitly; resolved from project config AFTER the consumer is
+// checked out to --head (see below).
+let spec = '';
 let specRef = '';
 let specRefProvided = false;
 let baseDir = process.env.RUNNER_TEMP ? path.join(process.env.RUNNER_TEMP, 'styleproof-maps') : '.styleproof/ci-maps';
@@ -154,6 +154,39 @@ try {
   worktrees = new CiWorktreeSession(repoRoot);
 } catch (error) {
   exitWorktreeError(error);
+}
+
+// dispose() otherwise runs only via the main `finally`: a cancelled runner sends
+// SIGTERM (Ctrl-C locally sends SIGINT) and would leave live worktree
+// registrations plus scratch dirs behind. SIGKILL is uncatchable — that residue
+// is reclaimed by the `git worktree prune` each session runs at start.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    worktrees.dispose();
+    process.exit(130);
+  });
+}
+
+// Project config is read AFTER ensureConsumerAtHead pins the checkout to --head:
+// at invocation time the generated workflow's tree is the PR *merge commit*, and
+// a head commit that moves the spec via styleproof.config.json must govern this
+// run — children (styleproof-map) re-read config per-cwd and would otherwise
+// disagree with this driver inside one run.
+const specExplicit = Boolean(spec);
+if (!spec) spec = projectConfigOrExit('styleproof-ci').spec ?? 'e2e/styleproof.spec.ts';
+
+/** The spec governing one specific checkout: an explicit --spec everywhere,
+ *  otherwise that checkout's OWN styleproof.config.json — after a config-only
+ *  spec move, base-side probes and captures must use the base's path and
+ *  head-side ones the head's, or the moved side fails "no StyleProof spec". */
+function specFor(cwd) {
+  if (specExplicit) return spec;
+  try {
+    return loadStyleProofConfig(cwd).spec ?? 'e2e/styleproof.spec.ts';
+  } catch (error) {
+    console.error(`styleproof-ci: ${error instanceof Error ? error.message : String(error)}`);
+    bail(2);
+  }
 }
 
 // Resolve a symbolic --spec-ref to a SHA HERE, in the consumer checkout, before
@@ -224,9 +257,15 @@ function runOrDie(command, what, options = {}) {
 function restore(sha, dir, cwd) {
   const r = spawnSync(
     process.execPath,
-    [MAP, '--restore', '--sha', sha, '--dir', dir, '--base-dir', root, '--spec', spec],
+    [MAP, '--restore', '--sha', sha, '--dir', dir, '--base-dir', root, '--spec', specFor(cwd)],
     { stdio: 'inherit', cwd, env },
   );
+  if (r.error) {
+    // The spawn itself failed (ENOENT, EACCES…): surface the real cause instead
+    // of classifying a null status as a map-store fault with "re-run" advice.
+    console.error(`styleproof-ci: could not run styleproof-map --restore for ${dir}\n${r.error.message}`);
+    bail(1);
+  }
   const outcome = classifyRestoreExit(r.status);
   if (outcome === 'fault') {
     // Neither a hit nor a genuine miss: a PERSISTENT map-store/network fault
@@ -326,13 +365,14 @@ try {
           runOrDie(['git', 'checkout', '--', file], `restore ${file}`, { cwd: coldBaseCwd });
       }
       playwrightInstall(coldBaseCwd);
-      const specPath = path.join(coldBaseCwd, spec);
+      const baseSpec = specFor(coldBaseCwd);
+      const specPath = path.join(coldBaseCwd, baseSpec);
       if (fs.existsSync(specPath)) {
         let overlay;
         if (shouldApplySpecRefOverlay(true, specRef)) {
           try {
-            overlay = applySpecRefOverlay({ spec, specRef, cwd: coldBaseCwd });
-            log(`overlaying ${spec} from ${specRef} for base capture`);
+            overlay = applySpecRefOverlay({ spec: baseSpec, specRef, cwd: coldBaseCwd });
+            log(`overlaying ${baseSpec} from ${specRef} for base capture`);
           } catch (error) {
             exitSpecRefError(error);
           }
@@ -342,7 +382,7 @@ try {
           baseStatus = capture(
             [
               '--spec',
-              spec,
+              baseSpec,
               '--dir',
               'base',
               '--base-dir',

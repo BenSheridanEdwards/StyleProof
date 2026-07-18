@@ -191,6 +191,50 @@ test('styleproof-map --upload warns on a non-Linux capture and honours suppressi
   }
 });
 
+test('styleproof-map --upload exit codes: store fault is 5 (retryable), dirty tree is 2 (fix the tree)', () => {
+  const root = mkTmp();
+  const binDir = mkTmp('styleproof-fakebin-');
+  try {
+    gitInit(root);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+    writeSpec(root);
+    const originDir = addBareOrigin(root);
+    const headSha = commitAll(root, 'base');
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const env = cliEnv({ PATH: `${binDir}${path.delimiter}${process.env.PATH}` });
+
+    // Store/network fault (origin gone): the retryable class — 5, like the
+    // restore side, NEVER the usage code 2 (retry-on-2 would re-run misconfigured jobs).
+    fs.rmSync(originDir, { recursive: true, force: true });
+    const fault = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env,
+    });
+    assert.equal(fault.status, 5, fault.stderr);
+    assert.match(fault.stderr, /upload failed/);
+
+    // Consumer-state precondition (dirty tree): retrying can never succeed — 2.
+    fs.appendFileSync(path.join(root, 'e2e/styleproof.spec.ts'), '\n// dirty edit\n');
+    const dirty = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env,
+    });
+    assert.equal(dirty.status, 2, dirty.stderr);
+    assert.match(dirty.stderr, /dirty/);
+  } finally {
+    rmTmp(root);
+    rmTmp(binDir);
+  }
+});
+
 test('styleproof-map runs configured variant crawl before Playwright capture', () => {
   const root = mkTmp();
   try {
