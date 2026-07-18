@@ -7,6 +7,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Captures declare `prefers-reduced-motion: reduce` before navigation.**
+  `FREEZE_CSS` only reaches CSS-declared motion; JS animation libraries
+  (framer-motion, react-spring…) write inline styles from rAF loops that no
+  stylesheet can override — but they all honour reduced motion, and they read
+  it at mount. A short entrance animation (blur/opacity/transform) racing the
+  settle produced the "surface is non-deterministic — N computed-style
+  difference(s) between two captures of the same commit" self-check failure on
+  real consumer apps. `captureSurface` and `captureUrlToDir` now emulate
+  reduced motion before the first `go()`/`goto` (persisting across every later
+  navigation in the flow), and `captureStyleMap` declares it defensively for
+  direct library users. Consumers whose components branch on reduced motion
+  will see a one-time baseline shift to the motionless final state — the
+  deterministic state a style gate should certify.
+
 ## [4.6.0] - 2026-07-18
 
 ### Added

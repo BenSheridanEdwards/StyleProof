@@ -74,6 +74,49 @@ test('captures a real page and reports an identical map as unchanged', async ({ 
   expect(diffStyleMaps(a, b)).toEqual([]);
 });
 
+test('capture declares prefers-reduced-motion so JS animation libraries render final states', async ({ page }) => {
+  // FREEZE_CSS only reaches CSS-declared motion; framer-motion et al. write
+  // inline styles from rAF loops and gate them on prefers-reduced-motion. The
+  // capture must DECLARE reduced motion, or a short entrance animation races
+  // the settle and two same-commit captures read different mid-flight frames
+  // (the self-check's "non-deterministic" failure). The fixture pins the
+  // declared media state the way those libraries read it, deterministically in
+  // both directions: green iff reduce is declared at capture time.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    .card { padding: 20px; background: rgb(10, 20, 30); color: rgb(255, 255, 255); }
+  </style></head><body>
+    <main><div class="card" id="card">Reveal</div></main>
+    <script>
+      document.getElementById('card').style.color = window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches
+        ? 'rgb(0, 128, 0)'
+        : 'rgb(255, 0, 0)';
+    </script>
+  </body></html>`;
+  const file = path.join(os.tmpdir(), `styleproof-rm-${Math.random().toString(36).slice(2)}.html`);
+  const out = path.join(os.tmpdir(), `styleproof-rm-out-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(file, html);
+  try {
+    await captureUrlToDir(page, {
+      url: 'file://' + file,
+      key: 'reveal',
+      widths: [800],
+      out,
+      ignore: [],
+      height: 600,
+      screenshots: false,
+    });
+    const map = loadStyleMap(path.join(out, 'reveal@800.json.gz'));
+    const card = Object.values(map.elements).find((e) => e.cls === 'card');
+    expect(card?.style?.color, 'the mount-time media read saw reduce').toBe('rgb(0, 128, 0)');
+  } finally {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
 test('layout-equivalent centered wrappers do not produce phantom diffs', async ({ page }) => {
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     * { box-sizing: border-box; }
