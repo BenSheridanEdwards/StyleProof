@@ -9,6 +9,7 @@ import {
   applySpecRefOverlay,
   assertSpecAtRef,
   normalizeRepoRelativeSpec,
+  resolveSpecRefToSha,
   shouldApplySpecRefOverlay,
 } from '../dist/ci-spec-ref.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
@@ -323,6 +324,140 @@ git status --porcelain > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || t
     }
   },
 );
+
+test(
+  'styleproof-ci: symbolic --spec-ref resolves in the consumer; base spawns prefer the worktree install',
+  { timeout: 30_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-symbolic-ref-');
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'consumer');
+    const mapRoot = path.join(root, 'maps');
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    try {
+      fs.mkdirSync(repo);
+      git(root, ['init', '--bare', '-q', remote]);
+      git(repo, ['init', '-q', '-b', 'main']);
+      git(repo, ['config', 'user.email', 'styleproof@example.test']);
+      git(repo, ['config', 'user.name', 'StyleProof Test']);
+      git(repo, ['remote', 'add', 'origin', remote]);
+      fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'SPEC_BYTES=BASE\n');
+      fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: base']);
+      const base = git(repo, ['rev-parse', 'HEAD']);
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'SPEC_BYTES=HEAD\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: head']);
+      const head = git(repo, ['rev-parse', 'HEAD']);
+      git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+      const bin = path.join(repo, 'node_modules', '.bin');
+      fs.mkdirSync(bin, { recursive: true });
+      // The base-side install (cwd = the cold-base worktree) plants the worktree's
+      // OWN playwright, marking captures "worktree". It must never clobber the
+      // consumer's install, which marks captures "consumer".
+      fs.writeFileSync(
+        path.join(bin, 'npm'),
+        `#!/bin/sh
+if [ ! -f node_modules/.bin/playwright ]; then
+  mkdir -p node_modules/.bin
+  cat > node_modules/.bin/playwright <<'EOF'
+#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+cp styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"
+printf 'worktree' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/resolved-from.txt"
+EOF
+  chmod +x node_modules/.bin/playwright
+fi
+exit 0
+`,
+      );
+      fs.writeFileSync(
+        path.join(bin, 'playwright'),
+        `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+cp styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"
+printf 'consumer' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/resolved-from.txt"
+`,
+      );
+      fs.chmodSync(path.join(bin, 'npm'), 0o755);
+      fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+
+      // Symbolic HEAD: in the detached base worktree HEAD *is* --base, so before
+      // the fix this silently overlaid the base's own spec (SPEC_BYTES=BASE).
+      const result = runCi(
+        [
+          '--base',
+          base,
+          '--head',
+          head,
+          '--spec',
+          'styleproof.spec.ts',
+          '--spec-ref',
+          'HEAD',
+          '--base-dir',
+          mapRoot,
+          '--force',
+        ],
+        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+        repo,
+      );
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      assert.match(result.stderr, new RegExp(`--spec-ref HEAD resolved to ${head}`));
+      assert.equal(
+        fs.readFileSync(path.join(mapRoot, 'base', 'captured-spec.ts'), 'utf8'),
+        'SPEC_BYTES=HEAD\n',
+        'symbolic HEAD means the CONSUMER head, not the base worktree HEAD',
+      );
+      assert.equal(
+        fs.readFileSync(path.join(mapRoot, 'base', 'resolved-from.txt'), 'utf8'),
+        'worktree',
+        'base capture resolves playwright from the worktree install first',
+      );
+      assert.equal(
+        fs.readFileSync(path.join(mapRoot, 'head', 'resolved-from.txt'), 'utf8'),
+        'consumer',
+        'head capture keeps resolving from the consumer install',
+      );
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
+
+test('resolveSpecRefToSha: resolves refs in the given checkout, rejects the unresolvable', () => {
+  const root = mkTmp('styleproof-ci-resolve-ref-');
+  try {
+    const git = (args) => {
+      const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git(['init', '-q', '-b', 'main']);
+    git(['config', 'user.email', 'styleproof@example.test']);
+    git(['config', 'user.name', 'StyleProof Test']);
+    fs.writeFileSync(path.join(root, 'a.txt'), 'a\n');
+    git(['add', '-A']);
+    git(['commit', '-qm', 'test: one']);
+    const sha = git(['rev-parse', 'HEAD']);
+    assert.equal(resolveSpecRefToSha('HEAD', root), sha);
+    assert.equal(resolveSpecRefToSha('main', root), sha);
+    assert.equal(resolveSpecRefToSha(sha, root), sha, 'an explicit SHA resolves to itself');
+    assert.throws(() => resolveSpecRefToSha('no-such-ref', root), /could not resolve --spec-ref no-such-ref/);
+  } finally {
+    rmTmp(root);
+  }
+});
 
 test(
   'styleproof-ci: base capture failure still restores spec-ref overlay before head capture',

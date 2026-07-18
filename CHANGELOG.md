@@ -43,6 +43,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the spec at run time (flag > env > `styleproof.config.json` > built-in) — so
   moving the spec via config alone can't strand a stale baked `--spec`. A
   non-default `--dir` is still baked explicitly.
+- **Cold-base captures resolve Playwright from the base worktree's own install.**
+  `styleproof-ci` built PATH once from the consumer head's `node_modules/.bin`,
+  so the base capture ran the head's Playwright CLI against the worktree's
+  `@playwright/test` library — a version-mixing failure ("did not expect test()
+  to be called here") on exactly the PRs that bump rendering dependencies,
+  silently degrading them to a bare baseline. Base-side spawns now prepend the
+  cold-base worktree's own `node_modules/.bin`; head-side spawns keep the
+  consumer's.
+- **Symbolic `--spec-ref` values resolve in the consumer checkout.** Inside the
+  detached base worktree `HEAD` _is_ `--base` (so `--spec-ref HEAD` silently
+  overlaid the base's own spec — a no-op defeating the flag) and
+  `FETCH_HEAD`/`MERGE_HEAD` are per-worktree pseudo-refs that don't resolve
+  there at all. The ref is now resolved to a commit SHA in the consumer
+  checkout before any worktree is entered, and an unresolvable ref fails loudly
+  up front even when the base restore would have hit.
 
 - **A derived-only change now renders as reviewable evidence instead of failing
   closed with none.** When a surface's only differences are size/position
