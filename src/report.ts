@@ -1302,6 +1302,16 @@ function missingSurfaceSummaryLines(
   brokenBaseMissing: PreparedSurface[],
 ): string[] {
   const md: string[] = [];
+  // A surface captured only on BASE is a REMOVAL — a feature going invisible —
+  // never a "new surface" for the approval box to welcome in.
+  const removed = missing.filter((p) => p.sd.missing === 'after');
+  if (removed.length > 0) {
+    md.push(
+      `🗑️ **${removed.length} REMOVED surface(s)** — present in the baseline, not captured on head: ${newSurfaceSummary(removed)}. ` +
+        `Review as removals; approving accepts the disappearance.`,
+      '',
+    );
+  }
   if (brokenBaseMissing.length > 0) {
     md.push(
       `⚠️ **${brokenBaseMissing.length} head surface(s)** have no base map because baseline capture failed (not first adoption): ${newSurfaceSummary(brokenBaseMissing)}.`,
@@ -1311,12 +1321,6 @@ function missingSurfaceSummaryLines(
   if (greenfieldMissing.length > 0) {
     md.push(
       `🆕 **${greenfieldMissing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(greenfieldMissing)}. ` +
-        `Approve them before they become the baseline.`,
-    );
-  }
-  if (missing.length > 0 && greenfieldMissing.length === 0 && brokenBaseMissing.length === 0) {
-    md.push(
-      `🆕 **${missing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(missing)}. ` +
         `Approve them before they become the baseline.`,
     );
   }
@@ -1358,10 +1362,13 @@ function summaryLines(args: {
     rawCounts,
     baselineSurfaceFailures,
   } = args;
-  const greenfieldMissing = missing.filter(
+  // Greenfield/broken-base classification applies to surfaces missing a BASE map
+  // (missing 'before'); a surface missing on HEAD is a removal, handled separately.
+  const missingOnBase = missing.filter((p) => p.sd.missing === 'before');
+  const greenfieldMissing = missingOnBase.filter(
     (p) => !surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
-  const brokenBaseMissing = missing.filter((p) =>
+  const brokenBaseMissing = missingOnBase.filter((p) =>
     surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
   if (changeGroups.length === 0 && missing.length === 0) {
@@ -1681,13 +1688,20 @@ function renderNewSurface(
   const srcDir = side === 'after' ? ctx.afterDir : ctx.beforeDir;
   const map = loadStyleMap(findCapture(srcDir, p.sd.surface));
   const png = readPng(path.join(srcDir, `${p.sd.surface}.png`));
+  // missing 'before' = captured only on head (a NEW surface); missing 'after' =
+  // captured only on base (a REMOVED surface). Rendering a removal under a "new
+  // surface 🆕" heading invited reviewers to approve a feature going invisible
+  // believing it was an addition.
+  const isRemoved = p.sd.missing === 'after';
   const md: string[] = [
     '',
-    `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`,
+    isRemoved
+      ? `### \`${safeKey(p.sd.surface)}\` · REMOVED surface 🗑️`
+      : `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`,
     '',
     `_${formatSurfaceWithContext(p.sd.surface, map)}_`,
   ];
-  const json: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: true };
+  const json: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: !isRemoved, isRemoved };
   if (png) {
     cropSeq++;
     const h = Math.min(maxHeight, png.height, map.viewport?.height ?? png.height);
@@ -1696,7 +1710,7 @@ function renderNewSurface(
     writePng(path.join(outDir, `${stem}.png`), crop);
     md.push(
       '',
-      `![new surface — ${side}](${img(`${stem}.png`)})`,
+      `![${isRemoved ? 'removed surface' : 'new surface'} — ${side}](${img(`${stem}.png`)})`,
       '',
       `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top viewport of page)' : ''}</sub>`,
     );
@@ -1709,7 +1723,9 @@ function renderNewSurface(
   }
   md.push(
     '',
-    `_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._`,
+    isRemoved
+      ? `_Present in the baseline but not captured on head — the surface stopped rendering (or its capture key changed). This is a **removal** to review, not an addition; approving accepts the disappearance._`
+      : `_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._`,
   );
   return { md, json, cropSeq };
 }

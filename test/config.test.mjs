@@ -147,3 +147,15 @@ test('styleproof-map: config spec/cacheBranch are defaults, flags and env overri
     assert.match(fromFlag.stderr, /from-flag\.spec\.ts/);
   });
 });
+
+test('styleproof-diff / styleproof-report: a malformed config is a usage error (config-aware like every CLI)', () => {
+  withConfig('{ nope', (dir) => {
+    const DIFF = path.join(here, '..', 'bin', 'styleproof-diff.mjs');
+    const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
+    for (const bin of [DIFF, REPORT]) {
+      const res = spawnSync(process.execPath, [bin, 'a-dir', 'b-dir'], { cwd: dir, encoding: 'utf8' });
+      assert.equal(res.status, 2, res.stderr);
+      assert.match(res.stderr, /styleproof\.config\.json: invalid JSON/);
+    }
+  });
+});

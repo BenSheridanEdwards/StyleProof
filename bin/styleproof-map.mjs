@@ -25,6 +25,7 @@ import {
 } from '../dist/cli-errors.js';
 import {
   BROWSER_BUILD_SIDECAR,
+  SURFACE_CAPTURE_FAILURES_DIR,
   DEFAULT_MAP_DIR,
   DEFAULT_MAP_LABEL,
   DEFAULT_MAP_STORE_BRANCH,
@@ -350,6 +351,12 @@ if (restore) {
 // handle unavailable), a stale sidecar would otherwise be read into the manifest and
 // stamp a WRONG browser build that the compatibility guard then trusts as a fingerprint.
 fs.rmSync(path.join(targetDir, BROWSER_BUILD_SIDECAR), { force: true });
+// Same reuse hazard for the surface-capture-failures ledger: writeMapManifest reads
+// back whatever is on disk, so a failure recorded by a PRIOR run into this reused dir
+// (or restored from the store) would be stamped into THIS run's manifest — a healthy
+// recapture would publish a phantom "partial baseline" that every later diff then
+// blocks on with repair-base guidance no repair can satisfy.
+fs.rmSync(path.join(targetDir, SURFACE_CAPTURE_FAILURES_DIR), { recursive: true, force: true });
 
 const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const configArgs =

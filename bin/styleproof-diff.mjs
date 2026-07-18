@@ -56,6 +56,7 @@ import {
 import {
   cachedMapsUnavailableMessage,
   isHelpArg,
+  projectConfigOrExit,
   missingManualCaptureMessage,
   showHelpAndExit,
   unknownFlagMessage,
@@ -298,9 +299,14 @@ const argv = process.argv.slice(2);
 const args = [];
 let MAX = 40;
 let jsonOut = null;
-let spec = 'e2e/styleproof.spec.ts';
-let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? DEFAULT_MAP_STORE_BRANCH;
-let remote = process.env.STYLEPROOF_REMOTE ?? DEFAULT_REMOTE;
+// Repo config is the lowest-precedence default layer (flag > env > file > built-in),
+// matching styleproof-map/-prepush/-ci — without it, a repo whose config moves the
+// spec or store branch computed a different compatibility key here than the capture
+// side did, and the no-arg diff (incl. the pre-push advisory diff) always missed.
+const projectConfig = projectConfigOrExit(COMMAND);
+let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
+let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
+let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
 for (let i = 0; i < argv.length; i++) {
   if (isHelpArg(argv[i])) showHelpAndExit(HELP);
   else if (argv[i] === '--max') MAX = Number(argv[++i]);
@@ -364,6 +370,7 @@ let determinismVerdict = null;
 let residueAudit = null;
 let surfacePaths = new Map();
 let surfaceKeyOf = () => undefined;
+let baselineSurfaceFailures = [];
 try {
   // v4: a side without a manifest is unsupported — the same-environment guard can't be
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
@@ -386,6 +393,11 @@ try {
   surfacePaths = surfaceElementPaths(dirA, dirB);
   // dirA = before/base, dirB = after/head — same order as generateStyleMapReport.
   surfaceKeyOf = mergeSurfaceKeyLookup(dirA, dirB);
+  // The baseline's tolerated-failure ledger — same "read while the dirs exist"
+  // rule: reading it after the finally deleted a cached/restored dirA always
+  // yielded [], so a PARTIAL_BASELINE run silently degraded into approvable
+  // greenfield "new surfaces" (exit 3) in cached-map mode.
+  baselineSurfaceFailures = readMapManifest(dirA)?.surfaceCaptureFailures ?? [];
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -397,7 +409,6 @@ const { surfaces, counts, compared, volatile, statesUncertified } = result;
 // findings the report/crops can show. Prevents VISUAL_APPROVAL_REQUIRED without
 // evidence when only derived/reflow longhands differ.
 const truth = assessComparisonTruth(surfaces, counts);
-const baselineSurfaceFailures = readMapManifest(dirA)?.surfaceCaptureFailures ?? [];
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
 const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
 

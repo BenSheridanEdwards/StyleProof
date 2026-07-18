@@ -7,6 +7,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Cached-map diffs now see the baseline's tolerated-failure ledger.** The
+  no-arg/`<baseRef>` forms read the base manifest AFTER cached-restore cleanup
+  had deleted the directory, so `surfaceCaptureFailures` always read empty and a
+  `PARTIAL_BASELINE` run silently degraded into approvable greenfield "new
+  surfaces" (exit 3). The manifest is now read while the restored dirs exist,
+  matching every other ledger read.
+- **A surface captured only on base renders as `REMOVED surface 🗑️`, not "new
+  surface 🆕".** The report/summary previously framed a disappearing surface as
+  an addition with approve-forward guidance; removals now get their own heading,
+  summary line ("approving accepts the disappearance"), and `isRemoved` in
+  report.json.
+- **A fresh capture clears any stale surface-capture-failures ledger** in the
+  reused output dir (same hazard class as the browser-build sidecar): a failure
+  recorded by a prior run no longer stamps a phantom "partial baseline" into a
+  healthy recapture's manifest.
+- **`"gateInventoryRemovals": false` now reaches the verdict.** The opt-out
+  previously only skipped the job-fail step while the classification and commit
+  status stayed an unclearable red; removals now downgrade to ordinary
+  approval-required changes when opted out.
+- **`styleproof-diff` and `styleproof-report` read `styleproof.config.json`**
+  (`spec`, `cacheBranch`, `remote`) like every other CLI — without it, a repo
+  whose config moved the spec or store branch computed a different compatibility
+  key on the compare side than the capture side, and the no-arg diff (including
+  the pre-push advisory diff) always missed.
+
 ## [4.5.3] - 2026-07-17
 
 ### Added
