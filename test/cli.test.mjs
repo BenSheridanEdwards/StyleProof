@@ -940,9 +940,11 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.equal(r.status, 0, r.stderr);
 
     const hook = fs.readFileSync(path.join(dir, '.githooks', 'pre-push'), 'utf8');
+    // Default spec path → no baked --spec: styleproof-prepush resolves the spec
+    // at run time (flag > env > styleproof.config.json > built-in).
     assert.match(
       hook,
-      /exec \.\/node_modules\/\.bin\/styleproof-prepush --spec/,
+      /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
       'hook delegates to the installed packaged pre-push command',
     );
     assert.doesNotMatch(hook, /styleproof-map --/, 'no inlined capture invocation to drift');
