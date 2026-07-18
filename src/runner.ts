@@ -880,6 +880,12 @@ async function capturePopupSurfaces(
  *  The caller owns the test timeout (one-per-test for explicit surfaces, one budget for
  *  the whole crawl) so a multi-surface crawl can't reset its own deadline mid-loop. */
 async function captureSurface(page: Page, surface: ExpandedSurface, width: number, s: Settings): Promise<void> {
+  // Declared BEFORE go(): JS animation libraries (framer-motion, react-spring…)
+  // read prefers-reduced-motion at mount, and their rAF-driven inline styles are
+  // beyond FREEZE_CSS's reach — an entrance caught mid-flight is exactly the
+  // "non-deterministic between two same-commit captures" self-check failure.
+  // emulateMedia persists on the page across every later go()/reset in this flow.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await pinInputs(page, `${surface.key}@${width}.har`, s);
   const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
   await page.setViewportSize({ width, height });

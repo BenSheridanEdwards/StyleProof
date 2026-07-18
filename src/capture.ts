@@ -1084,6 +1084,14 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // Freeze motion BEFORE settling: animating elements would otherwise read as
   // perpetual churn during the settle, and any content that mounts during the
   // settle must be frozen by the time we read it below.
+  //
+  // FREEZE_CSS only reaches CSS-declared motion. JS-driven animation libraries
+  // (framer-motion, react-spring…) write inline styles from rAF loops that no
+  // stylesheet can override — but they all honour prefers-reduced-motion, so
+  // declare it: an entrance animation caught mid-flight (blur/opacity/transform
+  // between two same-commit captures) is exactly the nondeterminism the
+  // self-check would otherwise fail on.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const freezeTag = await page.addStyleTag({ content: FREEZE_CSS });
 
   // Settle: wait for async content to finish painting so base and head capture
