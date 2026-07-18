@@ -43,3 +43,34 @@
 - Completed: added regressions requiring clean Action runs to publish an immutable report URL while certify mode continues to fail only on real differences.
 - Next: run focused and full Action dogfood verification, review the patch, and open a ready pull request.
 - Blockers: none.
+
+## Completed: enterprise README proof correction
+
+- Reframed the opening around enterprise evaluation: evidence, failure states,
+  trust boundaries, adoption, and reviewer workflow.
+- Rejected the previous "clean" dogfood screenshot because it showed unasserted
+  coverage, unknown determinism, and an unacknowledged inventory removal.
+- Captured the deterministic demo twice in real Chromium with an explicit
+  registry, self-checking, inventory, and data-residue gating; all 8 capture and
+  coverage tests passed and the generated report is fully certified clean.
+- Replaced the misleading image with the GitHub-rendered certified report and
+  linked the screenshot to its committed generated Markdown source.
+- Reconciled the report example with the current deterministic demo output.
+- Verification: build, typecheck, lint, format, privacy, 543 unit tests, 114
+  browser E2E tests, demo freshness, dependency audit, and diff checks pass.
+- Blockers: none.
+
+## Completed: persistent evidence-quality standard
+
+- Added a repository-wide semantic evidence audit that requires every visible
+  warning, caveat, label, caption, badge, and status detail to agree with the
+  claim made about it.
+- Made final rendered inspection and live exact-head PR verification explicit
+  completion requirements.
+- Required misleading evidence to be replaced or the claim to be qualified or
+  removed; cropping or omitting contradictions is now an explicit failure.
+- Verification: build, typecheck, lint, format, privacy, 543 unit tests, demo
+  freshness, dependency audit, and diff checks pass. Browser E2E is not
+  applicable because runtime, capture, report, and Action behaviour are
+  unchanged.
+- Blockers: none.

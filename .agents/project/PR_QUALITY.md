@@ -32,6 +32,22 @@ order, and none may be placeholder-only:
 - Behaviour/CLI/guard changes paste real command or test output.
 - Every bug fix ships its regression test in the same change.
 
+### Semantic evidence audit
+
+Proof must be true in substance, not merely present:
+
+- Read every visible warning, caveat, label, caption, badge, and status detail.
+- Compare the summary claim with the underlying report, command output, or
+  source artifact; the underlying artifact wins when they conflict.
+- Name the state precisely: certified, complete, partial, advisory,
+  passing-only, stale, or unknown.
+- Inspect the final rendered PR and evidence at the size a reviewer will see,
+  checking crop, context, legibility, links, and asset freshness.
+- After the last change, verify the live exact head: body, committed assets,
+  hosted checks, and merge state.
+- If the evidence undermines the claim, replace the evidence or weaken/remove
+  the claim. Cropping or omitting the contradiction is a failure.
+
 ## Verification
 
 After creating or editing the PR, confirm the body with
