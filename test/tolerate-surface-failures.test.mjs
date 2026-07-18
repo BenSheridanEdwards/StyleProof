@@ -87,6 +87,20 @@ test('recordSurfaceCaptureFailures merge into writeMapManifest', () => {
   rmTmp(root);
 });
 
+test('recordSurfaceCaptureFailure: keys that sanitize identically do not clobber each other', () => {
+  const root = mkTmp();
+  const dir = path.join(root, 'maps');
+  fs.mkdirSync(dir, { recursive: true });
+  // Both keys collapse to "about_x@900" under the filename sanitizer — the digest
+  // suffix must keep them as two distinct ledger entries.
+  recordSurfaceCaptureFailure(dir, { key: 'about?x@900', reason: 'first', kind: 'capture' });
+  recordSurfaceCaptureFailure(dir, { key: 'about#x@900', reason: 'second', kind: 'capture' });
+  const failures = readSurfaceCaptureFailures(dir);
+  assert.equal(failures.length, 2);
+  assert.deepEqual(new Set(failures.map((f) => f.key)), new Set(['about?x@900', 'about#x@900']));
+  rmTmp(root);
+});
+
 test('styleproof-map: tolerate flag publishes partial baseline when Playwright exits non-zero', () => {
   const root = mkTmp();
   try {
@@ -121,6 +135,45 @@ exit 1
     const manifest = JSON.parse(fs.readFileSync(path.join(maps, 'base', MAP_MANIFEST), 'utf8'));
     assert.equal(manifest.surfaceCaptureFailures?.length, 1);
     assert.match(r.stderr, /partial baseline/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: tolerate flag does NOT promote a failure with no ledger entry', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    spawnSync('git', ['config', 'user.email', 't@test'], { cwd: root });
+    spawnSync('git', ['config', 'user.name', 't'], { cwd: root });
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    // Maps captured, exit 1, but NOTHING in the failure ledger — the failure class
+    // (self-check, nondeterminism, harness crash) was never recorded as tolerable,
+    // so promotion here would publish a lying "partial baseline".
+    fs.writeFileSync(
+      fakePlaywright,
+      `#!/bin/sh
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+exit 1
+`,
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const maps = path.join(root, 'maps');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', 'base', '--base-dir', maps, '--tolerate-surface-failures', '--no-upload'],
+      { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+      root,
+    );
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.match(r.stderr, /NO ledgered surface failure/);
+    assert.equal(fs.existsSync(path.join(maps, 'base', MAP_MANIFEST)), false);
   } finally {
     rmTmp(root);
   }

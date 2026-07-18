@@ -382,11 +382,21 @@ if (result.error) {
 let status = result.status ?? 1;
 const captured = fs.existsSync(targetDir) ? fs.readdirSync(targetDir).filter(isMapFile).length : 0;
 const toleratedFailures = readSurfaceCaptureFailures(targetDir);
-if (status !== 0 && tolerateSurfaceFailures && captured > 0) {
+// Promote to a publishable partial baseline ONLY when the failures are actually
+// LEDGERED. Self-check/nondeterminism failures are deliberately never recorded —
+// promoting a run that failed for an unrecorded reason would publish a "partial
+// baseline (0 tolerated failures)" whose missing surfaces later read as approvable
+// greenfield-new: exactly the laundering the ledger exists to prevent.
+if (status !== 0 && tolerateSurfaceFailures && captured > 0 && toleratedFailures.length > 0) {
   console.error(
     `styleproof-map: Playwright exited ${status} but ${captured} surface map(s) were captured — publishing partial baseline (${toleratedFailures.length} tolerated failure(s))`,
   );
   status = 0;
+} else if (status !== 0 && tolerateSurfaceFailures && captured > 0) {
+  console.error(
+    `styleproof-map: Playwright exited ${status} with ${captured} surface map(s) but NO ledgered surface failure — ` +
+      'an unrecorded failure class (e.g. a self-check/nondeterminism failure) is not tolerable; failing the capture.',
+  );
 }
 if (status === 0) {
   if (!keepHar) removeHarFiles(targetDir);

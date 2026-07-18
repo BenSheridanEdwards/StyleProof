@@ -459,7 +459,11 @@ export function remoteExists(remote = DEFAULT_REMOTE, cwd = process.cwd()): bool
  *  git fields. Shared by {@link writeMapManifest} (spec capture) and
  *  {@link writeCaptureManifest} (one-shot capture) so the object shape lives in one place. */
 function failureFileName(key: string): string {
-  return `${key.replace(/[^a-zA-Z0-9@._-]+/g, '_')}.json`;
+  // Sanitization can collide distinct keys (`a/b@1280` vs `a_b@1280`); suffix a
+  // short hash of the RAW key so a later write can never erase another surface's
+  // ledger entry (which would resurface its missing surface as greenfield-new).
+  const digest = createHash('sha256').update(key).digest('hex').slice(0, 8);
+  return `${key.replace(/[^a-zA-Z0-9@._-]+/g, '_')}-${digest}.json`;
 }
 
 /** Record one tolerated surface failure (safe under parallel Playwright workers). */
