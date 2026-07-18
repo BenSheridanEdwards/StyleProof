@@ -9,6 +9,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`REPORT_PUBLICATION_FAILED` now names its actual failure domain.** The
+  Action's terminal trust step treated any non-`success` publish outcome —
+  including a merely skipped step — as a publication failure, and conversely a
+  failed PR-comment or commit-status delivery after a successful publish
+  reported the diff verdict as if the reviewer had seen it. The trust state now
+  distinguishes publish `failure` (→ `REPORT_PUBLICATION_FAILED`), publish
+  skipped/cancelled (→ the diff verdict, `CERTIFICATION_FAILED` when absent),
+  and delivery failure after a successful publish (→
+  `REPORT_PUBLICATION_FAILED`). The verdict's `DEGRADED_BASELINE` check also
+  accepts `base-capture-failed` case-insensitively, matching the downstream
+  GitHub-expression gate.
+- **`--tolerate-surface-failures` no longer promotes unledgered failures.** A
+  nonzero Playwright exit with maps on disk but NOTHING in the surface-failure
+  ledger (a self-check, nondeterminism, or harness failure) used to publish as
+  a "partial baseline"; promotion now requires at least one ledgered surface
+  failure, and anything else keeps the failing exit. Ledger filenames also
+  gained a content digest so two surface keys that sanitize to the same
+  filename can no longer clobber each other's entries.
+- **`styleproof-ci` discards base-capture debris instead of keeping it as a
+  baseline.** With ledgered failures now exiting 0, a nonzero base capture
+  exit means an UNtolerated failure — any maps left on disk have no
+  publishable manifest, and keeping them reported real regressions as
+  approvable "new surfaces". The base dir is cleared and the run proceeds as a
+  bare baseline with `base-capture-failed=true` (`DEGRADED_BASELINE`).
+- **`styleproof-init --check`/`--upgrade` now treat both generated workflows as
+  marker-owned.** The CI and approval workflow templates carry an ownership
+  marker (like the pre-push hook already did), so a consumer-authored
+  workflow at the same path reports `unmanaged` and is never overwritten by
+  `--upgrade`, instead of being flagged stale and clobbered.
+- **The generated pre-push hook no longer bakes the default spec path.** With
+  the default spec, the hook execs bare `styleproof-prepush`, which resolves
+  the spec at run time (flag > env > `styleproof.config.json` > built-in) — so
+  moving the spec via config alone can't strand a stale baked `--spec`. A
+  non-default `--dir` is still baked explicitly.
+
 - **A derived-only change now renders as reviewable evidence instead of failing
   closed with none.** When a surface's only differences are size/position
   longhands (`width`, `inline-size`, `transform-origin`, offsets…) — typically
