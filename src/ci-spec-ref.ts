@@ -43,6 +43,24 @@ export function normalizeRepoRelativeSpec(spec: string, cwd: string): string {
   return normalized;
 }
 
+/** Resolve a possibly-symbolic `--spec-ref` to a commit SHA in the CONSUMER
+ *  checkout. Inside the detached base worktree `HEAD` IS `--base` (so
+ *  `--spec-ref HEAD` silently overlays the base's own spec — a no-op defeating
+ *  the flag) and `FETCH_HEAD`/`MERGE_HEAD` are per-worktree pseudo-refs that
+ *  don't exist there at all. Resolving to a SHA before entering the worktree
+ *  makes the ref mean what it meant where the user typed it; the SHA itself
+ *  resolves everywhere since worktrees share one object store. */
+export function resolveSpecRefToSha(specRef: string, cwd: string): string {
+  const r = runGit(cwd, ['rev-parse', '--verify', `${specRef}^{commit}`]);
+  if (r.status !== 0) {
+    throw new CiSpecRefError(
+      `styleproof-ci: could not resolve --spec-ref ${specRef} to a commit\n${(r.stderr ?? r.stdout ?? '').trim()}`,
+      2,
+    );
+  }
+  return r.stdout.trim();
+}
+
 export function assertResolvableSpecRef(specRef: string, cwd: string): void {
   const r = runGit(cwd, ['rev-parse', '--verify', `${specRef}^{commit}`]);
   if (r.status !== 0) {

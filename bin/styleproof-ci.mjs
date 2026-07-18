@@ -23,7 +23,12 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from '../dist/ci.js';
-import { applySpecRefOverlay, CiSpecRefError, shouldApplySpecRefOverlay } from '../dist/ci-spec-ref.js';
+import {
+  applySpecRefOverlay,
+  CiSpecRefError,
+  resolveSpecRefToSha,
+  shouldApplySpecRefOverlay,
+} from '../dist/ci-spec-ref.js';
 import {
   CiProcessExit,
   CiWorktreeError,
@@ -151,10 +156,34 @@ try {
   exitWorktreeError(error);
 }
 
+// Resolve a symbolic --spec-ref to a SHA HERE, in the consumer checkout, before
+// any worktree exists. Inside the detached base worktree HEAD is --base (so
+// `--spec-ref HEAD` would silently overlay the base's own spec) and
+// FETCH_HEAD/MERGE_HEAD are per-worktree pseudo-refs that don't resolve at all.
+if (specRefProvided) {
+  try {
+    const resolved = resolveSpecRefToSha(specRef, consumerCwd);
+    if (resolved !== specRef) log(`--spec-ref ${specRef} resolved to ${resolved} in the consumer checkout`);
+    specRef = resolved;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(error instanceof CiSpecRefError ? error.exitCode : 1);
+  }
+}
+
 // Children spawn the `playwright` binary by name; make sure the consumer's
 // node_modules/.bin is on PATH even when this command was invoked bare.
 const binDirs = [path.join(consumerCwd, 'node_modules', '.bin'), path.resolve(here, '..', '..', '.bin')];
 const env = { ...process.env, PATH: `${binDirs.join(path.delimiter)}${path.delimiter}${process.env.PATH ?? ''}` };
+
+/** PATH with `cwd`'s own node_modules/.bin FIRST. Base-side spawns run in the
+ *  cold-base worktree, which just installed its OWN dependencies — resolving
+ *  `playwright` from the consumer head's install instead mixes CLI and library
+ *  versions (head's 1.48 CLI loading the worktree's 1.44 `test()`), failing the
+ *  base capture on exactly the PRs that bump rendering dependencies. */
+function binFirstPath(cwd) {
+  return `${path.join(cwd, 'node_modules', '.bin')}${path.delimiter}${env.PATH}`;
+}
 
 function log(message) {
   console.error(`styleproof-ci: ${message}`);
@@ -214,7 +243,10 @@ function restore(sha, dir, cwd) {
 
 function playwrightInstall(cwd = consumerCwd) {
   const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
-  runOrDie([command, 'install', '--with-deps', 'chromium'], 'playwright install', { cwd });
+  runOrDie([command, 'install', '--with-deps', 'chromium'], 'playwright install', {
+    cwd,
+    extraEnv: { PATH: binFirstPath(cwd) },
+  });
 }
 
 function capture(args, cwd, extraEnv = {}) {
@@ -322,6 +354,7 @@ try {
               '--tolerate-surface-failures',
             ],
             coldBaseCwd,
+            { PATH: binFirstPath(coldBaseCwd) },
           );
         } finally {
           if (overlay) {
