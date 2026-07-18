@@ -536,7 +536,13 @@ test(
         path.join(bin, 'playwright'),
         `#!/bin/sh
 if [ "$1" = "install" ]; then exit 0; fi
-if [ "$(git rev-parse HEAD)" = "$BASE_FAIL_SHA" ]; then exit 1; fi
+if [ "$(git rev-parse HEAD)" = "$BASE_FAIL_SHA" ]; then
+  # Leave map debris behind the failure: an untolerated failure with maps on
+  # disk must be discarded, never kept as a lying "partial baseline".
+  mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+  printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+  exit 1
+fi
 if [ -n "$HEAD_FAIL_SHA" ] && [ "$(git rev-parse HEAD)" = "$HEAD_FAIL_SHA" ]; then exit 1; fi
 mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
 printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
@@ -571,6 +577,7 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
       assert.match(outputs, /head-hit=false/);
       assert.match(outputs, /capture-needed=true/);
       assert.match(outputs, /base-capture-failed=true/);
+      assert.match(result.stderr, /surface map\(s\) on disk but no publishable manifest — discarding the debris/);
       assert.match(result.stderr, /base capture failed .* continuing with a bare baseline/);
       const installedAt = fs.readFileSync(pmLog, 'utf8').trim().split('\n');
       assert.ok(installedAt.includes(base), 'the base commit uses its pnpm lockfile');

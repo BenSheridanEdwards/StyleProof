@@ -333,18 +333,21 @@ try {
           }
         }
         if (baseStatus !== 0) {
+          // Tolerated surface failures already exit 0 with a partial baseline
+          // (styleproof-map promotes only ledgered failures), so a nonzero exit
+          // here is an UNtolerated failure — any maps on disk are debris from a
+          // run that never produced a publishable manifest. Keeping them would
+          // report real regressions as approvable "new surfaces".
           const baseDirPath = path.join(root, 'base');
           const mapCount = countMaps(baseDirPath);
-          if (mapCount > 0) {
+          if (mapCount > 0)
             log(
-              `base capture exited ${baseStatus} but ${mapCount} surface map(s) remain — keeping partial baseline (tolerated surface failures)`,
+              `base capture exited ${baseStatus} with ${mapCount} surface map(s) on disk but no publishable manifest — discarding the debris`,
             );
-          } else {
-            log(`base capture failed (exit ${baseStatus}) — continuing with a bare baseline`);
-            fs.rmSync(baseDirPath, { recursive: true, force: true });
-            fs.mkdirSync(baseDirPath, { recursive: true });
-            baseCaptureFailed = true;
-          }
+          log(`base capture failed (exit ${baseStatus}) — continuing with a bare baseline`);
+          fs.rmSync(baseDirPath, { recursive: true, force: true });
+          fs.mkdirSync(baseDirPath, { recursive: true });
+          baseCaptureFailed = true;
         }
       } else {
         // The base commit predates the spec (first adoption): an empty base dir means
