@@ -59,3 +59,18 @@
 - Verification: build, typecheck, lint, format, privacy, 543 unit tests, 114
   browser E2E tests, demo freshness, dependency audit, and diff checks pass.
 - Blockers: none.
+
+## Completed: persistent evidence-quality standard
+
+- Added a repository-wide semantic evidence audit that requires every visible
+  warning, caveat, label, caption, badge, and status detail to agree with the
+  claim made about it.
+- Made final rendered inspection and live exact-head PR verification explicit
+  completion requirements.
+- Required misleading evidence to be replaced or the claim to be qualified or
+  removed; cropping or omitting contradictions is now an explicit failure.
+- Verification: build, typecheck, lint, format, privacy, 543 unit tests, demo
+  freshness, dependency audit, and diff checks pass. Browser E2E is not
+  applicable because runtime, capture, report, and Action behaviour are
+  unchanged.
+- Blockers: none.

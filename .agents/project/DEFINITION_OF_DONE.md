@@ -50,6 +50,10 @@ demo-report freshness, action dogfood).
   it — the test fails on the unfixed code and asserts the user-visible symptom.
 - Missing visual proof is allowed only with a technical reason and a stated
   replacement verification method.
+- Proof is semantically audited: every visible warning, caveat, badge, caption,
+  label, and status detail agrees with the claim made about it.
+- The final rendered evidence is inspected at reviewer size for crop, context,
+  legibility, link validity, and freshness.
 
 ## Public surface
 
@@ -70,6 +74,9 @@ demo-report freshness, action dogfood).
   or states `Not applicable` with the technical reason.
 - Test command names and pass/fail results are listed. Skipped checks include the
   reason, risk, and owner.
+- After the final change, the live exact head is checked for the PR body,
+  committed proof assets, hosted checks, and merge state. Local success alone
+  is not completion.
 
 ## Privacy and safety
 
