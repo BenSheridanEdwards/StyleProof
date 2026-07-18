@@ -806,18 +806,22 @@ test('end-to-end: no differences yields the all-identical report and zero surfac
   rmTmp(root);
 });
 
-test('end-to-end: a surface missing on one side is reported as a new surface, not crashed on', () => {
+test('end-to-end: a surface missing on one side renders by DIRECTION — head-only is new, base-only is removed', () => {
   const { root, beforeDir, afterDir, outDir } = tmpDirs();
   writeCapture(beforeDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
   writeCapture(afterDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
-  writeCapture(beforeDir, 'about@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  writeCapture(beforeDir, 'about@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null); // base only
+  writeCapture(afterDir, 'launch@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null); // head only
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  // Framed as a new surface, carrying the marker the PR comment uses for approval
-  // policy — never the misleading "0 changes".
-  assert.match(md, /### `about@1280` · new surface <!-- styleproof-new -->/);
+  // Head-only: a NEW surface, carrying the marker + approve-forward guidance.
+  assert.match(md, /### `launch@1280` · new surface <!-- styleproof-new -->/);
   assert.match(md, /🆕 \*\*1 new surface\(s\)\*\*/);
-  assert.match(md, /Approve them before they become the baseline/);
+  // Base-only: a REMOVAL — previously mislabelled "new", inviting reviewers to
+  // approve a disappearing feature as an addition.
+  assert.match(md, /### `about@1280` · REMOVED surface 🗑️/);
+  assert.match(md, /1 REMOVED surface\(s\)/);
+  assert.doesNotMatch(md, /about@1280` · new surface/);
   assert.doesNotMatch(md, /0 DOM change\(s\)/); // no contradictory "0 changes" headline
   rmTmp(root);
 });
@@ -2173,5 +2177,37 @@ test('end-to-end: a removal and an identical addition in different containers bo
   const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
   assert.equal(report.counts.dom, 2, 'both structural findings remain in the audit');
   assert.ok(annotatedPaths.length > 0, 'independent changes in different containers keep visual proof');
+  rmTmp(root);
+});
+
+test('end-to-end: a surface captured only on base renders as REMOVED, never as a new surface', () => {
+  // missing:'after' = present in the baseline, absent on head — a feature going
+  // invisible. It previously rendered under "new surface 🆕" with approve-the-
+  // addition guidance, inviting reviewers to sign off a disappearance as growth.
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  const outDir = path.join(root, 'out');
+  const box = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': { tag: 'div', cls: 'box', rect: [0, 0, 200, 100], style: { color } },
+      },
+    });
+  writeCapture(beforeDir, 'home@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  writeCapture(afterDir, 'home@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  writeCapture(beforeDir, 'pricing@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800)); // base only
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /REMOVED surface 🗑️/);
+  assert.match(md, /REMOVED surface\(s\)/);
+  assert.match(md, /approving accepts the disappearance/i);
+  assert.doesNotMatch(md, /pricing.*new surface 🆕/s);
+  assert.doesNotMatch(md, /new surface\(s\)\*\* captured with no baseline/);
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const removedEntry = json.surfaces.find((s) => s.surface === 'pricing@1280');
+  assert.equal(removedEntry.isRemoved, true);
+  assert.equal(removedEntry.isNew, false);
   rmTmp(root);
 });
