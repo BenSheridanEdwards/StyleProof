@@ -30,7 +30,7 @@ import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
 // dedupes the report: group identical change-sets across surfaces and fold derived
 // longhands. Used for the HUMAN output only; --json stays the raw machine contract.
 import {
-  cleanFindings,
+  cleanFindingsForDisplay,
   groupBySignature,
   groupByPath,
   groupTitle,
@@ -481,12 +481,14 @@ const preparedForGrouping = surfaces
   .filter((sd) => !sd.missing)
   // Carry the RAW findings too, so we can report how many derived longhands the
   // grouped view folded (the cleaned findings have them already removed).
-  .map((sd) => ({ surface: sd.surface, findings: cleanFindings(sd.findings), raw: sd.findings }))
+  .map((sd) => ({ surface: sd.surface, findings: cleanFindingsForDisplay(sd.findings), raw: sd.findings }))
   .filter((p) => p.findings.length > 0);
 
 function printGroup(cg) {
   const lines = elementLines(cg.findings);
-  const derived = derivedLonghandCount(cg.rep.raw);
+  // Advertise only what was actually FOLDED: a geometry-only group displays its
+  // derived longhands instead of folding them, so they must not be counted here.
+  const derived = derivedLonghandCount(cg.rep.raw) - derivedLonghandCount(cg.findings);
   const foldNote = derived > 0 ? ` (+${derived} derived longhand${derived === 1 ? '' : 's'})` : '';
   const others = cg.surfaces.length - 1;
   const scope =
@@ -625,11 +627,13 @@ const clean =
   !coverageFails &&
   !determinismFails;
 if (truth.rawOnlyNoReviewable) {
+  // Derived-only style findings now render (cleanFindingsForDisplay), so the one
+  // shape left here is a delta with no displayable form at all — e.g. a forced-
+  // state layer whose every prop is state-stripped.
   console.log(
-    `\n⚠ report consistency: ${counts.style} computed-style difference(s) are derived/reflow longhands only — ` +
-      'the visual report has no reviewable crops. Failing closed as a certification inconsistency ' +
-      '(not VISUAL_APPROVAL_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect, ' +
-      'or fix the reflow source.',
+    '\n⚠ report consistency: raw certification delta(s) have no reviewable rendering — the visual ' +
+      'report would show nothing for a gating change. Failing closed as a certification inconsistency ' +
+      '(not VISUAL_APPROVAL_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect.',
   );
 }
 console.log(

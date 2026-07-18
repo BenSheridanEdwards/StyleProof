@@ -1295,34 +1295,32 @@ function reflowOnlyPair() {
   return { root, A, B };
 }
 
-test('diff CLI: raw-only reflow exits 1, emits reportConsistency, never silent green', () => {
+test('diff CLI: a derived-only change exits 1 WITH rendered, labelled findings (never invisible)', () => {
   const { root, A, B } = reflowOnlyPair();
   const jsonPath = path.join(root, 'out.json');
   const r = run(DIFF, [A, B, '--json', jsonPath]);
   assert.equal(r.status, 1, `expected exit 1, got ${r.status}: ${r.stderr}\n${r.stdout}`);
   assert.match(r.stdout, /computed-style difference/);
-  assert.match(r.stdout, /report consistency|derived\/reflow/i);
+  // The change RENDERS — a reviewer sees what gates — with the content-drift hint.
+  assert.match(r.stdout, /size\/position only, no styling property changed/);
+  assert.doesNotMatch(r.stdout, /report consistency/i);
   const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
   assert.ok(j.counts.style > 0, 'raw certification counts include derived longhands');
-  assert.equal(j.reviewableCounts.style, 0);
-  assert.equal(j.reportConsistency.ok, false);
-  assert.equal(j.reportConsistency.reason, 'raw_only_no_reviewable');
+  assert.ok(j.reviewableCounts.style > 0, 'the same findings are reviewable evidence');
+  assert.equal(j.reportConsistency.ok, true);
   rmTmp(root);
 });
 
-test('report CLI: raw-only reflow does not claim identical; exits 1 fail-closed', () => {
+test('report CLI: a derived-only change renders labelled groups and crops; exits 1', () => {
   const { root, A, B } = reflowOnlyPair();
   const out = path.join(root, 'report-out');
   const r = run(REPORT, [A, B, '--out', out]);
   assert.equal(r.status, 1, `expected exit 1, got ${r.status}: ${r.stderr}\n${r.stdout}`);
-  assert.match(r.stdout, /consistency|raw-only|derived/i);
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   assert.doesNotMatch(md, /All surfaces identical/);
-  assert.match(md, /consistency failure|CERTIFICATION_FAILED/i);
+  assert.match(md, /size\/position only, no styling property changed/);
   const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
-  assert.equal(reportJson.reportConsistency.ok, false);
-  const crops = fs.existsSync(path.join(out, 'crops')) ? fs.readdirSync(path.join(out, 'crops')) : [];
-  assert.equal(crops.length, 0);
+  assert.equal(reportJson.reportConsistency.ok, true);
   rmTmp(root);
 });
 

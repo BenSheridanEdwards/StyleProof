@@ -1000,39 +1000,30 @@ test('end-to-end: forced-state echoes are suppressed and the change reads in pla
   rmTmp(root);
 });
 
-test('end-to-end: includeLayoutNoise keeps the reflow-casualty element', () => {
+test('end-to-end: includeLayoutNoise keeps the reflow-casualty element beside its driver', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
+    // Driver on the button (background-color) + casualty on body (height only):
+    // the casualty folds by default and is kept only under includeLayoutNoise.
     before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
-    after: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 820 }), // only body height differs
+    after: sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 820 }),
   });
-  // Without noise: body-only height change is stripped -> no real change.
   const off = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(outDir, 'off') });
-  assert.equal(off.changedSurfaces, 0);
-  // Consistency: raw certification deltas exist but no reviewable crops.
-  assert.equal(off.comparison.rawOnlyNoReviewable, true);
-  assert.ok(off.comparison.rawCounts.style > 0);
-  assert.equal(off.comparison.reviewableCounts.style, 0);
-  const mdOff = fs.readFileSync(off.reportMdPath, 'utf8');
-  assert.match(mdOff, /Report consistency failure|raw_only|derived\/reflow/i);
-  assert.doesNotMatch(mdOff, /All surfaces identical/);
-  const jsonOff = JSON.parse(fs.readFileSync(off.reportJsonPath, 'utf8'));
-  assert.equal(jsonOff.reportConsistency.ok, false);
-  assert.equal(jsonOff.reportConsistency.reason, 'raw_only_no_reviewable');
-  // No crops for a raw-only inconsistency (nothing reviewable to approve).
-  const cropsOff = fs.existsSync(path.join(outDir, 'off', 'crops'))
-    ? fs.readdirSync(path.join(outDir, 'off', 'crops'))
-    : [];
-  assert.equal(cropsOff.length, 0);
-  // With noise: the height change surfaces.
+  assert.equal(off.changedSurfaces, 1);
+  const offJson = JSON.parse(fs.readFileSync(off.reportJsonPath, 'utf8'));
+  assert.equal(offJson.counts.style, 1, 'casualty height folded behind the driver');
   const on = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(outDir, 'on'), includeLayoutNoise: true });
-  assert.equal(on.changedSurfaces, 1);
-  assert.equal(on.comparison.rawOnlyNoReviewable, false);
+  const onJson = JSON.parse(fs.readFileSync(on.reportJsonPath, 'utf8'));
+  assert.ok(onJson.counts.style > 1, 'noise mode keeps the casualty height row');
   rmTmp(root);
 });
 
-test('end-to-end: multi-surface raw-only reflow cannot claim identical or produce crops', () => {
-  // Generic dogfood-shaped pair: several surfaces, only derived longhands differ.
+test('end-to-end: a derived-only change renders as reviewable evidence — verdict and report agree', () => {
+  // Generic consumer-shaped pair: several surfaces, only derived longhands
+  // differ (content-length drift). The differ gates on these, so the report must
+  // RENDER them — labelled — instead of failing closed with no evidence; the
+  // raw-only CERTIFICATION_FAILED backstop is reserved for shapes that truly
+  // cannot render (state-strip-only deltas).
   const root = mkTmp();
   const beforeDir = path.join(root, 'before');
   const afterDir = path.join(root, 'after');
@@ -1042,17 +1033,18 @@ test('end-to-end: multi-surface raw-only reflow cannot claim identical or produc
     writeCapture(afterDir, surface, sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 900 }), solidPng(400, 200));
   }
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  assert.equal(res.changedSurfaces, 0);
+  assert.equal(res.changedSurfaces, 3);
   assert.equal(res.newSurfaces, 0);
-  assert.equal(res.comparison.rawOnlyNoReviewable, true);
+  assert.equal(res.comparison.rawOnlyNoReviewable, false);
   assert.ok(res.comparison.rawCounts.style >= 3, 'raw style diffs across surfaces');
-  assert.equal(res.comparison.reviewableCounts.style, 0);
-  assert.equal(res.comparison.hasReviewableEvidence, false);
+  assert.ok(res.comparison.reviewableCounts.style >= 3, 'the same diffs are reviewable evidence');
+  assert.equal(res.comparison.hasReviewableEvidence, true);
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.doesNotMatch(md, /All surfaces identical/);
-  assert.match(md, /CERTIFICATION_FAILED|consistency failure/i);
-  const crops = fs.existsSync(path.join(outDir, 'crops')) ? fs.readdirSync(path.join(outDir, 'crops')) : [];
-  assert.equal(crops.length, 0, 'no crops when nothing is reviewable');
+  assert.match(md, /size\/position only, no styling property changed/);
+  assert.match(md, /content-length drift/);
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.equal(json.reportConsistency.ok, true);
   rmTmp(root);
 });
 

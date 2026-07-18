@@ -36,6 +36,8 @@ export {
   groupTitle,
   derivedLonghandCount,
   cleanFindings,
+  cleanFindingsForDisplay,
+  isGeometryOnlyGroup,
   assessComparisonTruth,
 } from './findings-clean.js';
 export type { ComparisonTruth, ComparisonSurface } from './findings-clean.js';
