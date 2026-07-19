@@ -372,7 +372,7 @@ try {
         if (shouldApplySpecRefOverlay(true, specRef)) {
           try {
             overlay = applySpecRefOverlay({ spec: baseSpec, specRef, cwd: coldBaseCwd });
-            log(`overlaying ${baseSpec} from ${specRef} for base capture`);
+            log(`overlaying ${overlay.paths.length} spec-harness file(s) from ${specRef} for base capture`);
           } catch (error) {
             exitSpecRefError(error);
           }
@@ -392,6 +392,7 @@ try {
               base,
               '--upload',
               '--tolerate-surface-failures',
+              ...(overlay?.dirtyAllow ?? []).flatMap((allowedPath) => ['--dirty-allow', allowedPath]),
             ],
             coldBaseCwd,
             { PATH: binFirstPath(coldBaseCwd) },

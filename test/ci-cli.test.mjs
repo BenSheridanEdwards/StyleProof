@@ -13,6 +13,7 @@ import {
   shouldApplySpecRefOverlay,
 } from '../dist/ci-spec-ref.js';
 import { CiWorktreeSession } from '../dist/ci-worktree.js';
+import { workingTreeDirty } from '../dist/map-store.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 // styleproof-ci packages the workflow's restore → capture-on-miss → replay →
@@ -283,13 +284,18 @@ test(
       git(repo, ['config', 'user.name', 'StyleProof Test']);
       git(repo, ['remote', 'add', 'origin', remote]);
       fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
-      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'SPEC_BYTES=BASE\n');
+      fs.mkdirSync(path.join(repo, 'tests', 'e2e'), { recursive: true });
+      fs.writeFileSync(path.join(repo, 'tests', 'e2e', 'styleproof.spec.ts'), 'SPEC_BYTES=BASE\n');
       fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
       fs.writeFileSync(path.join(repo, 'app.txt'), 'base-app\n');
       git(repo, ['add', '-A']);
       git(repo, ['commit', '-qm', 'test: base']);
       const base = git(repo, ['rev-parse', 'HEAD']);
-      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'SPEC_BYTES=HEAD\n');
+      fs.writeFileSync(
+        path.join(repo, 'tests', 'e2e', 'styleproof.spec.ts'),
+        "import './head-only-fixture';\nSPEC_BYTES=HEAD\n",
+      );
+      fs.writeFileSync(path.join(repo, 'tests', 'e2e', 'head-only-fixture.ts'), 'HEAD_ONLY_FIXTURE=true\n');
       fs.writeFileSync(path.join(repo, 'app.txt'), 'head-app\n');
       git(repo, ['add', '-A']);
       git(repo, ['commit', '-qm', 'test: head']);
@@ -306,7 +312,8 @@ if [ "$1" = "install" ]; then exit 0; fi
 if [ "$(git rev-parse HEAD)" = "$BASE_FAIL_SHA" ]; then exit 1; fi
 mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
 printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
-if [ -f styleproof.spec.ts ]; then cp styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"; fi
+if [ -f tests/e2e/styleproof.spec.ts ]; then cp tests/e2e/styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"; fi
+if [ -f tests/e2e/head-only-fixture.ts ]; then cp tests/e2e/head-only-fixture.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-fixture.ts"; fi
 if [ -f app.txt ]; then cp app.txt "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-app.txt"; fi
 git status --porcelain > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || true
 `,
@@ -321,7 +328,7 @@ git status --porcelain > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || t
           '--head',
           head,
           '--spec',
-          'styleproof.spec.ts',
+          'tests/e2e/styleproof.spec.ts',
           '--spec-ref',
           head,
           '--base-dir',
@@ -338,14 +345,29 @@ git status --porcelain > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || t
       );
       assert.equal(result.status, 0, result.stderr + result.stdout);
       assert.equal(git(repo, ['rev-parse', 'HEAD']), head);
-      assert.equal(fs.readFileSync(path.join(repo, 'styleproof.spec.ts'), 'utf8'), 'SPEC_BYTES=HEAD\n');
-      assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'captured-spec.ts'), 'utf8'), 'SPEC_BYTES=HEAD\n');
+      assert.equal(
+        fs.readFileSync(path.join(repo, 'tests', 'e2e', 'styleproof.spec.ts'), 'utf8'),
+        "import './head-only-fixture';\nSPEC_BYTES=HEAD\n",
+      );
+      assert.equal(
+        fs.readFileSync(path.join(mapRoot, 'base', 'captured-spec.ts'), 'utf8'),
+        "import './head-only-fixture';\nSPEC_BYTES=HEAD\n",
+      );
+      assert.equal(
+        fs.readFileSync(path.join(mapRoot, 'base', 'captured-fixture.ts'), 'utf8'),
+        'HEAD_ONLY_FIXTURE=true\n',
+        'cold base capture receives the head-only harness dependency',
+      );
       assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'captured-app.txt'), 'utf8'), 'base-app\n');
-      assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'git-status.txt'), 'utf8').trim(), '');
+      assert.match(
+        fs.readFileSync(path.join(mapRoot, 'base', 'git-status.txt'), 'utf8'),
+        /tests\/e2e\/head-only-fixture\.ts/,
+        'the head-only file is physically present while dirtyAllow keeps the map publishable',
+      );
       const installedAt = fs.readFileSync(pmLog, 'utf8').trim().split('\n');
       assert.equal(installedAt[0], base, 'base install runs at the base commit');
       assert.equal(installedAt.at(-1), head, 'head install runs at the head commit');
-      assert.match(result.stderr, /overlaying styleproof\.spec\.ts from/);
+      assert.match(result.stderr, /overlaying 2 spec-harness file\(s\) from/);
     } finally {
       rmTmp(root);
     }
@@ -749,6 +771,60 @@ test('applySpecRefOverlay: resolves a cwd-relative spec when run from a repo sub
     assert.equal(fs.readFileSync(specAbs, 'utf8'), '// base spec\n', 'restore returns the base bytes');
     const status = git(root, ['status', '--porcelain']);
     assert.equal(status, '', 'no assume-unchanged residue after restore');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('applySpecRefOverlay: includes head-only files beside the spec and restores the base harness', () => {
+  const root = mkTmp('styleproof-ci-spec-ref-harness-');
+  const git = (cwd, args) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    git(root, ['init', '-q', '-b', 'main']);
+    git(root, ['config', 'user.email', 'styleproof@example.test']);
+    git(root, ['config', 'user.name', 'StyleProof Test']);
+    const harnessDirectory = path.join(root, 'tests', 'e2e');
+    const spec = path.join(harnessDirectory, 'styleproof.spec.ts');
+    const existingFixture = path.join(harnessDirectory, 'existing-fixture.ts');
+    const headOnlyFixture = path.join(harnessDirectory, 'head-only-fixture.ts');
+    const baseApplication = path.join(root, 'src', 'application.ts');
+    fs.mkdirSync(harnessDirectory, { recursive: true });
+    fs.mkdirSync(path.dirname(baseApplication), { recursive: true });
+    fs.writeFileSync(spec, "import './existing-fixture';\n");
+    fs.writeFileSync(existingFixture, 'export const fixture = "base";\n');
+    fs.writeFileSync(baseApplication, 'export const application = "base";\n');
+    git(root, ['add', '-A']);
+    git(root, ['commit', '-qm', 'test: base']);
+    const base = git(root, ['rev-parse', 'HEAD']);
+    fs.writeFileSync(spec, "import './existing-fixture';\nimport './head-only-fixture';\n");
+    fs.writeFileSync(existingFixture, 'export const fixture = "head";\n');
+    fs.writeFileSync(headOnlyFixture, 'export const headOnlyFixture = true;\n');
+    fs.writeFileSync(baseApplication, 'export const application = "head";\n');
+    git(root, ['add', '-A']);
+    git(root, ['commit', '-qm', 'test: head']);
+    const head = git(root, ['rev-parse', 'HEAD']);
+    git(root, ['checkout', '-q', base]);
+
+    const overlay = applySpecRefOverlay({ spec: 'tests/e2e/styleproof.spec.ts', specRef: head, cwd: root });
+    assert.equal(fs.readFileSync(existingFixture, 'utf8'), 'export const fixture = "head";\n');
+    assert.equal(fs.readFileSync(headOnlyFixture, 'utf8'), 'export const headOnlyFixture = true;\n');
+    assert.equal(
+      fs.readFileSync(baseApplication, 'utf8'),
+      'export const application = "base";\n',
+      'application code stays pinned to the base commit',
+    );
+    assert.deepEqual(overlay.dirtyAllow, ['tests/e2e']);
+    assert.equal(workingTreeDirty(root, overlay.dirtyAllow), false, 'the deliberate harness overlay stays publishable');
+
+    overlay.restore();
+    assert.equal(fs.readFileSync(spec, 'utf8'), "import './existing-fixture';\n");
+    assert.equal(fs.readFileSync(existingFixture, 'utf8'), 'export const fixture = "base";\n');
+    assert.equal(fs.existsSync(headOnlyFixture), false, 'head-only harness files are removed');
+    assert.equal(git(root, ['status', '--porcelain']), '', 'restore leaves no index or worktree residue');
   } finally {
     rmTmp(root);
   }

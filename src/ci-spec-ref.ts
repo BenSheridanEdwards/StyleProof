@@ -101,6 +101,8 @@ function readSpecBlobAtRef(spec: string, specRef: string, cwd: string): Buffer {
 
 export type SpecRefOverlay = {
   spec: string;
+  paths: string[];
+  dirtyAllow: string[];
   restore: () => void;
 };
 
@@ -110,44 +112,76 @@ export function shouldApplySpecRefOverlay(specExistsAtBase: boolean, specRef: st
 }
 
 /**
- * Overlay `spec` with the blob at `specRef:spec`, mark it assume-unchanged for the
- * dirty-tree gate, and return a restore handle that must run before leaving the base checkout.
+ * Overlay `spec` and its colocated test harness with blobs from `specRef`, while
+ * leaving application code and package metadata pinned to the base checkout.
+ * Tracked base files are marked assume-unchanged; head-only harness files are
+ * covered by `dirtyAllow`. The returned restore handle must run before leaving
+ * the base checkout.
  */
 export function applySpecRefOverlay(options: { spec: string; specRef: string; cwd: string }): SpecRefOverlay {
   const spec = normalizeRepoRelativeSpec(options.spec, options.cwd);
   assertResolvableSpecRef(options.specRef, options.cwd);
   assertSpecAtRef(spec, options.specRef, options.cwd);
-  const bytes = readSpecBlobAtRef(spec, options.specRef, options.cwd);
-  const abs = path.join(options.cwd, spec);
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, bytes);
+  const harnessDirectory = path.posix.dirname(spec);
+  const listed =
+    harnessDirectory === '.'
+      ? [spec]
+      : runGit(options.cwd, ['ls-tree', '-r', '-z', '--name-only', options.specRef, '--', `./${harnessDirectory}`])
+          .stdout.split('\0')
+          .filter(Boolean)
+          .map((entry) => entry.replace(/\\/g, '/'));
+  const paths = [...new Set([spec, ...listed])].sort();
+  const trackedPaths: string[] = [];
+  const headOnlyPaths: string[] = [];
 
-  const assume = runGit(options.cwd, ['update-index', '--assume-unchanged', '--', spec]);
-  if (assume.status !== 0) {
-    runGit(options.cwd, ['checkout', '--', spec]);
-    throw new CiSpecRefError(
-      `styleproof-ci: could not mark ${spec} assume-unchanged for the spec-ref overlay\n${(assume.stderr ?? assume.stdout ?? '').trim()}`,
-      1,
-    );
+  const restore = () => {
+    for (const overlayPath of [...trackedPaths].reverse()) {
+      const noAssume = runGit(options.cwd, ['update-index', '--no-assume-unchanged', '--', overlayPath]);
+      if (noAssume.status !== 0) {
+        throw new CiSpecRefError(
+          `styleproof-ci: could not clear assume-unchanged for ${overlayPath} after the spec-ref overlay\n${(noAssume.stderr ?? noAssume.stdout ?? '').trim()}`,
+          1,
+        );
+      }
+      const checkout = runGit(options.cwd, ['checkout', '--', overlayPath]);
+      if (checkout.status !== 0) {
+        throw new CiSpecRefError(
+          `styleproof-ci: could not restore ${overlayPath} after the spec-ref overlay\n${(checkout.stderr ?? checkout.stdout ?? '').trim()}`,
+          1,
+        );
+      }
+    }
+    for (const overlayPath of [...headOnlyPaths].reverse()) {
+      fs.rmSync(path.join(options.cwd, overlayPath), { force: true });
+    }
+  };
+
+  try {
+    for (const overlayPath of paths) {
+      const bytes = readSpecBlobAtRef(overlayPath, options.specRef, options.cwd);
+      const absoluteOverlayPath = path.join(options.cwd, overlayPath);
+      const trackedAtBase = runGit(options.cwd, ['ls-files', '--error-unmatch', '--', overlayPath]).status === 0;
+      (trackedAtBase ? trackedPaths : headOnlyPaths).push(overlayPath);
+      fs.mkdirSync(path.dirname(absoluteOverlayPath), { recursive: true });
+      fs.writeFileSync(absoluteOverlayPath, bytes);
+      if (!trackedAtBase) continue;
+      const assume = runGit(options.cwd, ['update-index', '--assume-unchanged', '--', overlayPath]);
+      if (assume.status !== 0) {
+        throw new CiSpecRefError(
+          `styleproof-ci: could not mark ${overlayPath} assume-unchanged for the spec-ref overlay\n${(assume.stderr ?? assume.stdout ?? '').trim()}`,
+          1,
+        );
+      }
+    }
+  } catch (error) {
+    restore();
+    throw error;
   }
 
   return {
     spec,
-    restore: () => {
-      const noAssume = runGit(options.cwd, ['update-index', '--no-assume-unchanged', '--', spec]);
-      if (noAssume.status !== 0) {
-        throw new CiSpecRefError(
-          `styleproof-ci: could not clear assume-unchanged for ${spec} after the spec-ref overlay\n${(noAssume.stderr ?? noAssume.stdout ?? '').trim()}`,
-          1,
-        );
-      }
-      const checkout = runGit(options.cwd, ['checkout', '--', spec]);
-      if (checkout.status !== 0) {
-        throw new CiSpecRefError(
-          `styleproof-ci: could not restore ${spec} after the spec-ref overlay\n${(checkout.stderr ?? checkout.stdout ?? '').trim()}`,
-          1,
-        );
-      }
-    },
+    paths,
+    dirtyAllow: harnessDirectory === '.' ? [spec] : [harnessDirectory],
+    restore,
   };
 }

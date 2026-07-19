@@ -1,5 +1,15 @@
 # Progress
 
+## In progress: spec-ref local harness overlay
+
+- Completed: reproduced the cold-base `Cannot find module` failure when a head
+  spec imports a head-only colocated fixture.
+- Completed: implemented a bounded harness overlay that keeps application code
+  pinned to base and restores tracked and head-only files.
+- Next: run focused and full package gates, inspect the packed artifact, and
+  publish a ready pull request for issue #318.
+- Blockers: none.
+
 ## Completed: parallel spec captures + absolute STYLEMAP_DIR (4.4.0)
 
 ## Completed
