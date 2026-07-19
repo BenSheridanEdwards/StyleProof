@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "packageVersion": "4.6.1",
+  "sha": "c3bf57316fdd049b5f64587af36c0ed45d828196",
+  "dirty": false,
+  "spec": "example/styleproof.spec.ts",
+  "specHash": "3b6633ff041a74344d0a9bcc5132371dc2b426f0333d613af3f5a8df6df232fc",
+  "lockfile": "package-lock.json",
+  "lockfileHash": "7e56cf350f938247898c6af43726a77163dc536cf2412ecdfbf8f597c14e37cd",
+  "playwrightVersion": "1.61.1",
+  "browserVersion": "149.0.7827.55",
+  "platform": "darwin",
+  "arch": "arm64",
+  "nodeMajor": "26",
+  "screenshots": true,
+  "har": false,
+  "compatibilityKey": "da5cfdb5f337b750",
+  "createdAt": "2026-07-19T21:05:58.714Z"
+}
