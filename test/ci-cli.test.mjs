@@ -754,11 +754,13 @@ test('applySpecRefOverlay: resolves a cwd-relative spec when run from a repo sub
     git(root, ['config', 'user.email', 'styleproof@example.test']);
     git(root, ['config', 'user.name', 'StyleProof Test']);
     const specAbs = path.join(root, 'hud', 'tests', 'e2e', 'styleproof.spec.ts');
+    const headOnlyFixture = path.join(root, 'hud', 'tests', 'e2e', 'head-only-fixture.ts');
     fs.mkdirSync(path.dirname(specAbs), { recursive: true });
     fs.writeFileSync(specAbs, '// base spec\n');
     git(root, ['add', '-A']);
     git(root, ['commit', '-qm', 'base']);
-    fs.writeFileSync(specAbs, '// head spec\n');
+    fs.writeFileSync(specAbs, "import './head-only-fixture';\n// head spec\n");
+    fs.writeFileSync(headOnlyFixture, 'export const headOnlyFixture = true;\n');
     git(root, ['add', '-A']);
     git(root, ['commit', '-qm', 'head']);
     const head = git(root, ['rev-parse', 'HEAD']);
@@ -766,9 +768,21 @@ test('applySpecRefOverlay: resolves a cwd-relative spec when run from a repo sub
 
     const subdir = path.join(root, 'hud');
     const overlay = applySpecRefOverlay({ spec: 'tests/e2e/styleproof.spec.ts', specRef: head, cwd: subdir });
-    assert.equal(fs.readFileSync(specAbs, 'utf8'), '// head spec\n', 'overlays the head bytes');
+    assert.equal(
+      fs.readFileSync(specAbs, 'utf8'),
+      "import './head-only-fixture';\n// head spec\n",
+      'overlays the head bytes',
+    );
+    assert.equal(fs.readFileSync(headOnlyFixture, 'utf8'), 'export const headOnlyFixture = true;\n');
+    assert.deepEqual(overlay.dirtyAllow, ['hud/tests/e2e']);
+    assert.equal(
+      workingTreeDirty(subdir, overlay.dirtyAllow),
+      false,
+      'cwd-relative dirty allowances cover head-only harness files when the CLI runs from a repo subdirectory',
+    );
     overlay.restore();
     assert.equal(fs.readFileSync(specAbs, 'utf8'), '// base spec\n', 'restore returns the base bytes');
+    assert.equal(fs.existsSync(headOnlyFixture), false, 'restore removes head-only harness files');
     const status = git(root, ['status', '--porcelain']);
     assert.equal(status, '', 'no assume-unchanged residue after restore');
   } finally {
