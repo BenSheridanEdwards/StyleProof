@@ -178,7 +178,17 @@ export function cleanFindings(findings: Finding[]): Finding[] {
 export function cleanFindingsForDisplay(findings: Finding[]): Finding[] {
   const cleaned = cleanFindings(findings);
   if (cleaned.length > 0) return cleaned;
-  return findings.filter((f) => f.kind === 'style' && f.props.length > 0);
+  const displayable = findings.filter(
+    (f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style' && f.props.length > 0,
+  );
+  // A geometry-only change paired with changed own-text length is content-driven
+  // reflow, not CSS review evidence. Do not resurrect it into an approval
+  // checkbox. Leaving it raw-only makes the existing comparison-consistency
+  // contract fail closed as CERTIFICATION_FAILED until the consumer freezes or
+  // ignores the nondeterministic content. A pure CSS width/inset change has no
+  // text-length signal and remains reviewable.
+  if (isGeometryOnlyGroup(displayable) && displayable.some((f) => f.contentLengthChanged)) return [];
+  return displayable;
 }
 
 /** True when every shown prop across the group's findings is a size/position

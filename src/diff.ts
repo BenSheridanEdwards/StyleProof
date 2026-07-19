@@ -64,7 +64,15 @@ export type Finding =
       detail?: string;
       component?: { name: string; props?: Record<string, string> };
     }
-  | { kind: 'style'; path: string; cls: string; pseudo: string | null; props: PropChange[] }
+  | {
+      kind: 'style';
+      path: string;
+      cls: string;
+      pseudo: string | null;
+      props: PropChange[];
+      /** True when this element's normalized own-text length changed too. */
+      contentLengthChanged?: boolean;
+    }
   | { kind: 'state'; path: string; cls: string; state: string; sub: string; props: PropChange[] };
 
 export type SurfaceDiff = {
@@ -251,7 +259,21 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
       const pdefsB = pseudo ? (b.defaults[eb.tag + pseudo] ?? defsB) : defsB;
       const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
       const props = dropSubpixelOriginProps(pseudo ? rawProps : dropLayoutEquivalentMarginProps(rawProps, ea, eb));
-      if (props.length) findings.push({ kind: 'style', path: p, cls: ea.cls, pseudo, props });
+      if (props.length) {
+        const contentLengthChanged =
+          pseudo === null &&
+          ea.ownTextLength !== undefined &&
+          eb.ownTextLength !== undefined &&
+          ea.ownTextLength !== eb.ownTextLength;
+        findings.push({
+          kind: 'style',
+          path: p,
+          cls: ea.cls,
+          pseudo,
+          props,
+          ...(contentLengthChanged ? { contentLengthChanged: true } : {}),
+        });
+      }
     }
   }
 

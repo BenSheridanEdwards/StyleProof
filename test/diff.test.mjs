@@ -110,6 +110,33 @@ test('an added element carries its React component on the dom finding (advisory 
   assert.deepEqual(dom.component, { name: 'Button', props: { variant: 'primary' } });
 });
 
+test('geometry findings carry a privacy-safe changed-text-length signal', () => {
+  const path = 'body > span:nth-child(1)';
+  const a = makeMap({
+    elements: { [path]: { tag: 'span', ownTextLength: 18, style: { width: '120px' } } },
+  });
+  const b = makeMap({
+    elements: { [path]: { tag: 'span', ownTextLength: 19, style: { width: '128px' } } },
+  });
+  const finding = diffStyleMaps(a, b).find((item) => item.kind === 'style');
+  assert.ok(finding);
+  assert.equal(finding.contentLengthChanged, true);
+  assert.equal('text' in a.elements[path], false, 'default map stores no rendered copy');
+});
+
+test('same-length geometry findings stay ordinary CSS review evidence', () => {
+  const path = 'body > span:nth-child(1)';
+  const a = makeMap({
+    elements: { [path]: { tag: 'span', ownTextLength: 18, style: { width: '120px' } } },
+  });
+  const b = makeMap({
+    elements: { [path]: { tag: 'span', ownTextLength: 18, style: { width: '128px' } } },
+  });
+  const finding = diffStyleMaps(a, b).find((item) => item.kind === 'style');
+  assert.ok(finding);
+  assert.equal(finding.contentLengthChanged, undefined);
+});
+
 test('reports a DOM-removed element (present only in before)', () => {
   const a = makeMap({
     elements: { body: { tag: 'body' }, 'body > p:nth-child(1)': { tag: 'p', cls: 'lede' } },
