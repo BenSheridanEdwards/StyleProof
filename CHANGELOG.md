@@ -14,7 +14,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `Cannot find module`, producing a degraded head-only receipt. The base render
   now receives the head harness while application code and package metadata stay
   pinned to the base commit, and every overlaid path is restored before head
-  capture.
+  capture. When the consumer command runs from a repository subdirectory, the
+  temporary harness allowance is normalized to repository-root coordinates so
+  `git status --porcelain` does not misclassify the intentional overlay as a
+  dirty base tree.
 
 ## [4.6.1] - 2026-07-18
 

@@ -123,13 +123,15 @@ export function applySpecRefOverlay(options: { spec: string; specRef: string; cw
   assertResolvableSpecRef(options.specRef, options.cwd);
   assertSpecAtRef(spec, options.specRef, options.cwd);
   const harnessDirectory = path.posix.dirname(spec);
+  const cwdPrefix = runGit(options.cwd, ['rev-parse', '--show-prefix']).stdout.trim().replace(/\\/g, '/');
   const listed =
     harnessDirectory === '.'
       ? [spec]
       : runGit(options.cwd, ['ls-tree', '-r', '-z', '--name-only', options.specRef, '--', `./${harnessDirectory}`])
           .stdout.split('\0')
           .filter(Boolean)
-          .map((entry) => entry.replace(/\\/g, '/'));
+          .map((entry) => entry.replace(/\\/g, '/'))
+          .map((entry) => (cwdPrefix && entry.startsWith(cwdPrefix) ? entry.slice(cwdPrefix.length) : entry));
   const paths = [...new Set([spec, ...listed])].sort();
   const trackedPaths: string[] = [];
   const headOnlyPaths: string[] = [];
@@ -181,7 +183,10 @@ export function applySpecRefOverlay(options: { spec: string; specRef: string; cw
   return {
     spec,
     paths,
-    dirtyAllow: harnessDirectory === '.' ? [spec] : [harnessDirectory],
+    // `git status --porcelain` reports repository-root-relative paths even when
+    // styleproof-map runs from a consumer subdirectory. Keep the overlay's
+    // publication allowance in that same coordinate system.
+    dirtyAllow: [`${cwdPrefix}${harnessDirectory === '.' ? spec : harnessDirectory}`.replace(/\/$/, '')],
     restore,
   };
 }
