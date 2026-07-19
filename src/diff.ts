@@ -70,8 +70,11 @@ export type Finding =
       cls: string;
       pseudo: string | null;
       props: PropChange[];
-      /** True when this element's normalized own-text length changed too. */
-      contentLengthChanged?: boolean;
+      /**
+       * Whether normalized own-text length changed, or could not be compared
+       * because at least one legacy map omitted the signal.
+       */
+      contentLengthSignal?: 'changed' | 'unknown';
     }
   | { kind: 'state'; path: string; cls: string; state: string; sub: string; props: PropChange[] };
 
@@ -260,18 +263,21 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
       const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
       const props = dropSubpixelOriginProps(pseudo ? rawProps : dropLayoutEquivalentMarginProps(rawProps, ea, eb));
       if (props.length) {
-        const contentLengthChanged =
-          pseudo === null &&
-          ea.ownTextLength !== undefined &&
-          eb.ownTextLength !== undefined &&
-          ea.ownTextLength !== eb.ownTextLength;
+        const contentLengthSignal =
+          pseudo !== null
+            ? undefined
+            : ea.ownTextLength === undefined || eb.ownTextLength === undefined
+              ? 'unknown'
+              : ea.ownTextLength !== eb.ownTextLength
+                ? 'changed'
+                : undefined;
         findings.push({
           kind: 'style',
           path: p,
           cls: ea.cls,
           pseudo,
           props,
-          ...(contentLengthChanged ? { contentLengthChanged: true } : {}),
+          ...(contentLengthSignal ? { contentLengthSignal } : {}),
         });
       }
     }

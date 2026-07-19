@@ -120,7 +120,7 @@ test('geometry findings carry a privacy-safe changed-text-length signal', () => 
   });
   const finding = diffStyleMaps(a, b).find((item) => item.kind === 'style');
   assert.ok(finding);
-  assert.equal(finding.contentLengthChanged, true);
+  assert.equal(finding.contentLengthSignal, 'changed');
   assert.equal('text' in a.elements[path], false, 'default map stores no rendered copy');
 });
 
@@ -134,7 +134,36 @@ test('same-length geometry findings stay ordinary CSS review evidence', () => {
   });
   const finding = diffStyleMaps(a, b).find((item) => item.kind === 'style');
   assert.ok(finding);
-  assert.equal(finding.contentLengthChanged, undefined);
+  assert.equal(finding.contentLengthSignal, undefined);
+});
+
+test('zero-length own text is explicit and non-empty transitions are classified', () => {
+  const path = 'body > span:nth-child(1)';
+  const a = makeMap({ elements: { [path]: { tag: 'span', ownTextLength: 0, style: { width: '0px' } } } });
+  const b = makeMap({ elements: { [path]: { tag: 'span', ownTextLength: 4, style: { width: '40px' } } } });
+  const finding = diffStyleMaps(a, b).find((item) => item.kind === 'style');
+  assert.equal(finding.contentLengthSignal, 'changed');
+});
+
+test('legacy text-length gaps are unknown and pseudo findings do not inherit host text', () => {
+  const path = 'body > span:nth-child(1)';
+  const legacy = makeMap({
+    elements: { [path]: { tag: 'span', style: { width: '20px' }, pseudo: { '::before': { width: '2px' } } } },
+  });
+  const otherLegacy = makeMap({
+    elements: { [path]: { tag: 'span', style: { width: '25px' }, pseudo: { '::before': { width: '2.5px' } } } },
+  });
+  const current = makeMap({
+    elements: {
+      [path]: { tag: 'span', ownTextLength: 3, style: { width: '30px' }, pseudo: { '::before': { width: '3px' } } },
+    },
+  });
+  const legacyFindings = diffStyleMaps(legacy, otherLegacy).filter((item) => item.kind === 'style');
+  const findings = diffStyleMaps(legacy, current).filter((item) => item.kind === 'style');
+  assert.equal(legacyFindings.find((item) => item.pseudo === null).contentLengthSignal, 'unknown');
+  assert.equal(legacyFindings.find((item) => item.pseudo === '::before').contentLengthSignal, undefined);
+  assert.equal(findings.find((item) => item.pseudo === null).contentLengthSignal, 'unknown');
+  assert.equal(findings.find((item) => item.pseudo === '::before').contentLengthSignal, undefined);
 });
 
 test('reports a DOM-removed element (present only in before)', () => {

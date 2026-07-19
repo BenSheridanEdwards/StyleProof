@@ -10,11 +10,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - **Content-length reflow no longer produces a blind visual-approval gate.**
-  Captures now persist only each element's normalized own-text length (never its
-  text) so the diff can distinguish content-driven geometry drift from a real
-  sizing-rule change. Geometry-only deltas paired with a changed text length now
-  fail closed as `CERTIFICATION_FAILED` instead of asking reviewers to approve
-  an empty or misleading CSS report; same-length geometry remains reviewable.
+  Captures now persist only each element's normalized own-text length, including
+  explicit zeroes (never its text), so the diff can distinguish content-driven
+  geometry drift from a real sizing-rule change. Geometry deltas paired with a
+  changed text length, or with a legacy map where length is unknown, now fail
+  closed as `CERTIFICATION_FAILED` instead of asking reviewers to approve an
+  empty or misleading CSS report; known same-length geometry remains reviewable.
 
 - **`styleproof-ci --spec-ref` now overlays the spec's colocated test harness.**
   A head spec that imported a head-only fixture failed cold base capture with

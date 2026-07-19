@@ -515,10 +515,8 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
         if (node.nodeType === 3 /* TEXT_NODE */) ownText += node.textContent ?? '';
       }
       ownText = ownText.replace(/\s+/g, ' ').trim();
-      if (ownText) {
-        entry.ownTextLength = ownText.length;
-        if (captureText) entry.text = ownText;
-      }
+      entry.ownTextLength = ownText.length;
+      if (captureText && ownText) entry.text = ownText;
       if (captureComponent) {
         try {
           const comp = reactComponent(el);
