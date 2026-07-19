@@ -375,6 +375,12 @@ const env = {
   STYLEMAP_DIR: dir,
   STYLEPROOF_BASEDIR: baseDir,
   STYLEPROOF_SCREENSHOTS: screenshots,
+  // Freeze the SPEC PROCESS clock alongside the browser clock (the freezeClock
+  // contract): importing styleproof under this env pins Node's Date before the
+  // spec's module-level fixture constants evaluate, so a `new Date()` stamp is
+  // identical across base and head captures instead of leaking each run's wall
+  // clock into the render. Explicit STYLEPROOF_FREEZE_SPEC_CLOCK=0 opts out.
+  STYLEPROOF_FREEZE_SPEC_CLOCK: process.env.STYLEPROOF_FREEZE_SPEC_CLOCK ?? '1',
   ...(tolerateSurfaceFailures ? { STYLEPROOF_TOLERATE_SURFACE_FAILURES: '1' } : {}),
 };
 runVariantCrawl(env);

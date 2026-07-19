@@ -1,3 +1,16 @@
+// Side effect first: under STYLEPROOF_FREEZE_SPEC_CLOCK=1 (set by styleproof-map)
+// this pins the spec process's Date before the importing spec evaluates its own
+// module-level fixture constants — see src/spec-clock.ts for why.
+import './spec-clock.js';
+
+export {
+  DEFAULT_CLOCK_TIME,
+  realNow,
+  resolveSpecClockFreeze,
+  installFrozenSpecClock,
+  restoreRealSpecClock,
+  frozenSpecClockInstant,
+} from './spec-clock.js';
 export {
   captureStyleMap,
   saveStyleMap,

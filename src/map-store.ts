@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { inferBaseRef } from './gitref.js';
+import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
 
 export const DEFAULT_MAP_DIR = '.styleproof/maps';
@@ -560,7 +561,9 @@ function buildManifest(options: {
     screenshots: options.screenshots,
     har: hasHar(dir),
     compatibilityKey: hash(JSON.stringify(input)).slice(0, 16),
-    createdAt: new Date().toISOString(),
+    // Real wall clock even when the spec-process clock is frozen — a manifest
+    // stamped with the frozen instant would misreport when the capture ran.
+    createdAt: new Date(realNow()).toISOString(),
     ...(options.surfaceCaptureFailures?.length ? { surfaceCaptureFailures: options.surfaceCaptureFailures } : {}),
   };
 }
