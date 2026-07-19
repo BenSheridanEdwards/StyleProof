@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
+import { realNow } from './spec-clock.js';
 import { endpointOf, residueKey, type DataResidueEntry } from './data-residue.js';
 import { isMapFile } from './map-store.js';
 
@@ -801,17 +802,19 @@ async function stabilizePage(
   // settling and is excluded as a live region, exactly as style churn already is.
   const snap = async (): Promise<Elements> =>
     (await page.evaluate(capturePage, { ignore, motionOnly: false, captureText })).elements as Elements;
-  const start = Date.now();
+  // realNow, not Date.now: under STYLEPROOF_FREEZE_SPEC_CLOCK the process Date is
+  // frozen, and a frozen elapsed-time read would never advance these windows.
+  const start = realNow();
   let prev = await snap();
   let lastChangeAt = start;
   let recent: string[] = [];
-  while (Date.now() - start < timeout) {
+  while (realNow() - start < timeout) {
     await page.waitForTimeout(interval);
     const cur = await snap();
     const changed = changedElementPaths(prev, cur);
     prev = cur;
     if (changed.length) {
-      lastChangeAt = Date.now();
+      lastChangeAt = realNow();
       recent = changed;
     } else if (pending() > 0) {
       // The DOM is momentarily quiet, but data requests are still in flight — this
@@ -819,8 +822,8 @@ async function stabilizePage(
       // window so we wait for the content to ARRIVE (no live-region path to record;
       // network activity isn't a mutating element). Long-lived streams are excluded
       // by the caller, so this can't hang on an SSE that never finishes.
-      lastChangeAt = Date.now();
-    } else if (Date.now() - lastChangeAt >= quietFor) {
+      lastChangeAt = realNow();
+    } else if (realNow() - lastChangeAt >= quietFor) {
       return []; // DOM unchanged AND network idle for the full quiet window → settled
     }
   }
