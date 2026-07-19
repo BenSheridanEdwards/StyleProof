@@ -9,6 +9,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`freezeClock` now pins the spec process's clock, not just the browser's.**
+  A capture spec that computed a fixture at module level —
+  `const GENERATED_AT = new Date().toISOString()` — ran on the live Node clock,
+  outside the browser freeze, so each capture run baked its own wall clock into
+  the data it served. Any surface rendering that stamp as text drifted in width
+  between the base and head runs and was reported as computed-style changes on
+  PRs that never touched those surfaces. The in-run self-check cannot catch this
+  class: both of its captures share one spec process and therefore one stamp.
+  `styleproof-map` now sets `STYLEPROOF_FREEZE_SPEC_CLOCK=1` for the Playwright
+  run it spawns, and importing `styleproof` under that env swaps `globalThis.Date`
+  for a frozen twin (zero-argument construction, `Date.now()`, and bare `Date()`
+  report the fixed instant; explicit-argument construction, `Date.parse`/`Date.UTC`,
+  and instance methods stay real) before the spec's own constants evaluate.
+  The instant follows `STYLEPROOF_CLOCK_TIME` (default `2025-01-01T00:00:00Z`,
+  matching the browser freeze); `STYLEPROOF_FREEZE_SPEC_CLOCK=0` or
+  `freezeClock: false` opts out, and a `clockTime` that disagrees with the
+  frozen instant is warned about rather than silently ignored. StyleProof's own
+  elapsed-time bookkeeping (settle windows, popup deadlines, `createdAt`
+  manifest stamps) reads the real clock throughout.
+
 - **`styleproof-ci --spec-ref` now overlays the spec's colocated test harness.**
   A head spec that imported a head-only fixture failed cold base capture with
   `Cannot find module`, producing a degraded head-only receipt. The base render

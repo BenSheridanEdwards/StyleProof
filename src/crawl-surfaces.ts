@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
+import { realNow } from './spec-clock.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { DANGER_SOURCE } from './danger.js';
 
@@ -449,8 +450,9 @@ async function fingerprint(page: Page): Promise<{ sig: string; elements: number;
  *  settle that also covers content painted by a click-triggered fetch. */
 async function settleDom(page: Page, maxMs = 1200): Promise<void> {
   let prev = -1;
-  const deadline = Date.now() + maxMs;
-  while (Date.now() < deadline) {
+  // realNow, not Date.now: a frozen spec-process clock would never pass this deadline.
+  const deadline = realNow() + maxMs;
+  while (realNow() < deadline) {
     const n = await page.evaluate(() => document.body.getElementsByTagName('*').length);
     if (n === prev) return;
     prev = n;
