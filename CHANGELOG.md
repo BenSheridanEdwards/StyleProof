@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **`styleproof-ci --spec-ref` now overlays the spec's colocated test harness.**
+  A head spec that imported a head-only fixture failed cold base capture with
+  `Cannot find module`, producing a degraded head-only receipt. The base render
+  now receives the head harness while application code and package metadata stay
+  pinned to the base commit, and every overlaid path is restored before head
+  capture.
+
 ## [4.6.1] - 2026-07-18
 
 ### Fixed
