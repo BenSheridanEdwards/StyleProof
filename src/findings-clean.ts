@@ -162,9 +162,18 @@ export function cleanFindings(findings: Finding[]): Finding[] {
   return out;
 }
 
-function hasUncertainContentGeometry(findings: Finding[]): boolean {
-  return findings.some(
-    (f) => f.kind === 'style' && f.contentLengthSignal !== undefined && f.props.some((p) => DERIVED_PROPS.has(p.prop)),
+/** Style findings whose geometry moved WITH the element's own text length — the
+ *  content itself changed, so the geometry is a real visible change, never a
+ *  reflow casualty of CSS shown elsewhere. `'unknown'` (legacy maps without the
+ *  text-length stamp) deliberately does NOT qualify: it falls back to the
+ *  ordinary casualty/resurrection rules instead of inventing a verdict. */
+function contentDrivenGeometry(findings: Finding[]): Extract<Finding, { kind: 'style' }>[] {
+  return findings.filter(
+    (f): f is Extract<Finding, { kind: 'style' }> =>
+      f.kind === 'style' &&
+      f.contentLengthSignal === 'changed' &&
+      f.props.length > 0 &&
+      f.props.some((p) => DERIVED_PROPS.has(p.prop)),
   );
 }
 
@@ -183,18 +192,23 @@ function hasUncertainContentGeometry(findings: Finding[]): boolean {
  */
 export function cleanFindingsForDisplay(findings: Finding[]): Finding[] {
   const cleaned = cleanFindings(findings);
-  const displayable = findings.filter(
-    (f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style' && f.props.length > 0,
-  );
-  // A geometry-only change paired with changed own-text length is content-driven
-  // reflow, not CSS review evidence. Do not resurrect it into an approval
-  // checkbox. Leaving it raw-only makes the existing comparison-consistency
-  // contract fail closed as CERTIFICATION_FAILED until the consumer freezes or
-  // ignores the nondeterministic content. A pure CSS width/inset change has no
-  // text-length signal and remains reviewable.
-  if (hasUncertainContentGeometry(displayable)) return cleaned;
+  // Content-driven geometry (the element's OWN text length changed) is a real
+  // visible change — a copy edit is one of the most common PR shapes — so it is
+  // never treated as a casualty of CSS shown elsewhere: it stays in the display
+  // set alongside the cleaned findings, renders with the geometry-only framing,
+  // and counts as reviewable. Mapping it to an unapprovable state instead made
+  // every text-changing PR an unclearable CERTIFICATION_FAILED (4.6.2).
+  const contentDriven = contentDrivenGeometry(findings);
+  if (contentDriven.length > 0) {
+    const kept = new Set(contentDriven);
+    // cleanFindings rebuilds finding objects, so dedupe by element identity:
+    // a cleaned finding for the same element/pseudo already shows its change.
+    const shown = new Set(cleaned.filter((f) => f.kind === 'style').map((f) => `${f.path}|${f.pseudo ?? ''}`));
+    const extras = [...kept].filter((f) => !shown.has(`${f.path}|${f.pseudo ?? ''}`));
+    return [...cleaned, ...extras];
+  }
   if (cleaned.length > 0) return cleaned;
-  return displayable;
+  return findings.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style' && f.props.length > 0);
 }
 
 /** True when every shown prop across the group's findings is a size/position
@@ -253,7 +267,10 @@ export type ComparisonTruth = {
    * would show no change sections/crops. Never map this to VISUAL_APPROVAL_REQUIRED.
    */
   rawOnlyNoReviewable: boolean;
-  /** Content-driven or legacy-unknown geometry existed and cannot be approved. */
+  /** Geometry drift paired with a changed own-text length existed somewhere —
+   *  informational: renderers use it to point reviewers at the content change.
+   *  It is reviewable evidence (approval clears it), never a certification
+   *  failure on its own. */
   contentGeometryUncertain: boolean;
 };
 
@@ -278,7 +295,7 @@ export function assessComparisonTruth(surfaces: ComparisonSurface[], rawCounts?:
   let removedSurfaces = 0;
   let rawChangedSurfaces = 0;
   let reviewableChangedSurfaces = 0;
-  const contentGeometryUncertain = surfaces.some((sd) => hasUncertainContentGeometry(sd.findings));
+  const contentGeometryUncertain = surfaces.some((sd) => contentDrivenGeometry(sd.findings).length > 0);
 
   for (const sd of surfaces) {
     if (sd.missing === 'before') {
@@ -303,8 +320,10 @@ export function assessComparisonTruth(surfaces: ComparisonSurface[], rawCounts?:
   const rawTotal = raw.dom + raw.style + raw.state;
   const revTotal = reviewable.dom + reviewable.style + reviewable.state;
   const hasReviewableEvidence = revTotal > 0 || newSurfaces > 0 || removedSurfaces > 0;
-  const rawOnlyNoReviewable =
-    contentGeometryUncertain || (rawTotal > 0 && revTotal === 0 && newSurfaces === 0 && removedSurfaces === 0);
+  // Content-driven geometry is counted in `reviewable` above (it always renders),
+  // so it can never force this backstop: only shapes that truly cannot render —
+  // e.g. state-strip-only deltas — reach the CERTIFICATION_FAILED path.
+  const rawOnlyNoReviewable = rawTotal > 0 && revTotal === 0 && newSurfaces === 0 && removedSurfaces === 0;
 
   return {
     rawCounts: raw,
