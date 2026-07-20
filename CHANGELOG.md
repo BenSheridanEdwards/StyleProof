@@ -43,6 +43,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   bare `Date()` stay exactly pinned, keeping fixture constants byte-identical
   across runs. An empty `STYLEPROOF_CLOCK_TIME` now means "default" instead of
   crashing every capture at import.
+- **Durable report publication now retries transient report-branch clone failures.**
+  A failed `git clone` no longer escapes the existing five-attempt publication
+  loop under `set -e`. Each failed attempt removes its partial checkout, waits
+  with bounded backoff, and retries from a fresh directory before failing closed
+  as `REPORT_PUBLICATION_FAILED`.
 
 ## [4.6.2] - 2026-07-20
 
