@@ -113,11 +113,32 @@ function parseAffected(value: unknown): AffectedConfig | undefined {
   };
 }
 
+const KNOWN_KEYS = ['blocking', 'gateInventoryRemovals', 'spec', 'dirtyAllow', 'cacheBranch', 'remote', 'affected'];
+const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
+
+/** Unknown keys are a LOUD stderr warning, not an error: a typo'd `dirtyallow`
+ *  silently reverting to defaults is exactly the failure this file's contract
+ *  forbids, but hard-failing would brick every CLI in a repo whose config
+ *  carries a key from a newer styleproof release during a version skew. */
+function warnUnknownKeys(record: Record<string, unknown>, known: string[], prefix: string): void {
+  const unknown = Object.keys(record).filter((k) => !known.includes(k));
+  if (unknown.length === 0) return;
+  process.stderr.write(
+    `styleproof: ${STYLEPROOF_CONFIG_FILE}: unknown ${prefix}key(s) ignored: ${unknown.join(', ')} ` +
+      `(known: ${known.join(', ')}) — fix the spelling or remove them\n`,
+  );
+}
+
 /** Load and validate the repo's styleproof.config.json. Missing file → `{}`;
- *  unreadable/malformed file or a wrongly-typed known key → {@link StyleProofConfigError}. */
+ *  unreadable/malformed file or a wrongly-typed known key → {@link StyleProofConfigError};
+ *  unknown keys → a loud stderr warning (never silently dropped). */
 export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
   const record = readConfigObject(cwd);
   if (!record) return {};
+  warnUnknownKeys(record, KNOWN_KEYS, '');
+  if (record.affected && typeof record.affected === 'object' && !Array.isArray(record.affected)) {
+    warnUnknownKeys(record.affected as Record<string, unknown>, KNOWN_AFFECTED_KEYS, '"affected" ');
+  }
   return {
     blocking: optionalBoolean(record.blocking, 'blocking'),
     gateInventoryRemovals: optionalBoolean(record.gateInventoryRemovals, 'gateInventoryRemovals'),

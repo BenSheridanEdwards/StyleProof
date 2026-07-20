@@ -191,6 +191,50 @@ test('styleproof-map --upload warns on a non-Linux capture and honours suppressi
   }
 });
 
+test('styleproof-map --upload exit codes: store fault is 5 (retryable), dirty tree is 2 (fix the tree)', () => {
+  const root = mkTmp();
+  const binDir = mkTmp('styleproof-fakebin-');
+  try {
+    gitInit(root);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+    writeSpec(root);
+    const originDir = addBareOrigin(root);
+    const headSha = commitAll(root, 'base');
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const env = cliEnv({ PATH: `${binDir}${path.delimiter}${process.env.PATH}` });
+
+    // Store/network fault (origin gone): the retryable class — 5, like the
+    // restore side, NEVER the usage code 2 (retry-on-2 would re-run misconfigured jobs).
+    fs.rmSync(originDir, { recursive: true, force: true });
+    const fault = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env,
+    });
+    assert.equal(fault.status, 5, fault.stderr);
+    assert.match(fault.stderr, /upload failed/);
+
+    // Consumer-state precondition (dirty tree): retrying can never succeed — 2.
+    fs.appendFileSync(path.join(root, 'e2e/styleproof.spec.ts'), '\n// dirty edit\n');
+    const dirty = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env,
+    });
+    assert.equal(dirty.status, 2, dirty.stderr);
+    assert.match(dirty.stderr, /dirty/);
+  } finally {
+    rmTmp(root);
+    rmTmp(binDir);
+  }
+});
+
 test('styleproof-map runs configured variant crawl before Playwright capture', () => {
   const root = mkTmp();
   try {
@@ -940,9 +984,11 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.equal(r.status, 0, r.stderr);
 
     const hook = fs.readFileSync(path.join(dir, '.githooks', 'pre-push'), 'utf8');
+    // Default spec path → no baked --spec: styleproof-prepush resolves the spec
+    // at run time (flag > env > styleproof.config.json > built-in).
     assert.match(
       hook,
-      /exec \.\/node_modules\/\.bin\/styleproof-prepush --spec/,
+      /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
       'hook delegates to the installed packaged pre-push command',
     );
     assert.doesNotMatch(hook, /styleproof-map --/, 'no inlined capture invocation to drift');
@@ -1139,7 +1185,7 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
     assert.equal(r.status, 1, r.stderr);
     // The nav addition is chrome (every base that hosts the nav changed it), and
     // the pure-nav surfaces group under the callout.
-    assert.match(r.stdout, /🧱 Global chrome change\(s\) — across all 3 surface\(s\)/, r.stdout);
+    assert.match(r.stdout, /🧱 Global chrome change\(s\) — across all 3 captured surface base\(s\)/, r.stdout);
     assert.match(r.stdout, /1 change\(s\) rode the shared frame/, r.stdout);
     // home entangled the nav change with its OWN h1 restyle, so it renders in place
     // (never hidden under the chrome banner) — the view-specific change stays visible.
@@ -1264,5 +1310,79 @@ test('diff CLI warns when the forced-state layer was skipped on both sides', () 
   assert.match(r.stdout, /forced-state layer uncertified on 1 surface/);
   const j = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
   assert.equal(j.statesUncertified, 1);
+  rmTmp(root);
+});
+
+// ── report / verdict consistency (raw derived-only vs reviewable report) ─────
+
+/** Map pair where only body height (a derived reflow longhand) differs. */
+function reflowOnlyPair() {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const mk = (h) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, h], ownTextLength: 0, style: { height: `${h}px` } },
+        'body > button:nth-child(1)': {
+          tag: 'button',
+          cls: 'cta',
+          rect: [10, 10, 100, 32],
+          style: { color: 'rgb(0, 0, 0)' },
+        },
+      },
+    });
+  writeCapture(A, 'home@1280', mk(800), null);
+  writeCapture(B, 'home@1280', mk(820), null);
+  writeCapture(A, 'about@1280', mk(800), null);
+  writeCapture(B, 'about@1280', mk(820), null);
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  return { root, A, B };
+}
+
+test('diff CLI: a derived-only change exits 1 WITH rendered, labelled findings (never invisible)', () => {
+  const { root, A, B } = reflowOnlyPair();
+  const jsonPath = path.join(root, 'out.json');
+  const r = run(DIFF, [A, B, '--json', jsonPath]);
+  assert.equal(r.status, 1, `expected exit 1, got ${r.status}: ${r.stderr}\n${r.stdout}`);
+  assert.match(r.stdout, /computed-style difference/);
+  // The change RENDERS — a reviewer sees what gates — with the content-drift hint.
+  assert.match(r.stdout, /size\/position only, no styling property changed/);
+  assert.doesNotMatch(r.stdout, /report consistency/i);
+  const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.ok(j.counts.style > 0, 'raw certification counts include derived longhands');
+  assert.ok(j.reviewableCounts.style > 0, 'the same findings are reviewable evidence');
+  assert.equal(j.reportConsistency.ok, true);
+  rmTmp(root);
+});
+
+test('report CLI: a derived-only change renders labelled groups and crops; exits 1', () => {
+  const { root, A, B } = reflowOnlyPair();
+  const out = path.join(root, 'report-out');
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, `expected exit 1, got ${r.status}: ${r.stderr}\n${r.stdout}`);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  assert.doesNotMatch(md, /All surfaces identical/);
+  assert.match(md, /size\/position only, no styling property changed/);
+  const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.equal(reportJson.reportConsistency.ok, true);
+  rmTmp(root);
+});
+
+test('diff + report share one truth on a real style change (aligned reviewable)', () => {
+  const { root, A, B } = differingPair();
+  const jsonPath = path.join(root, 'out.json');
+  const dr = run(DIFF, [A, B, '--json', jsonPath]);
+  assert.equal(dr.status, 1);
+  const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(j.reportConsistency.ok, true);
+  assert.ok(j.reviewableCounts.style > 0);
+  const out = path.join(root, 'report-out');
+  const rr = run(REPORT, [A, B, '--out', out]);
+  assert.equal(rr.status, 1);
+  const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.equal(reportJson.reportConsistency.ok, true);
+  assert.ok(reportJson.surfaces.length > 0);
   rmTmp(root);
 });

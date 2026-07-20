@@ -223,6 +223,10 @@ export type CaptureUrlResult = { width: number; map: string; screenshot?: string
  */
 export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Promise<CaptureUrlResult[]> {
   fs.mkdirSync(opts.out, { recursive: true });
+  // Before the first goto: JS animation libraries read prefers-reduced-motion at
+  // mount, and their rAF-driven inline styles are beyond FREEZE_CSS's reach.
+  // Persists on the page for every navigation below.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
 
   let widths = opts.widths;
   if (widths.length === 0) {

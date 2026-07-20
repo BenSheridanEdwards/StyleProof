@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
+import { realNow } from './spec-clock.js';
 import { endpointOf, residueKey, type DataResidueEntry } from './data-residue.js';
 import { isMapFile } from './map-store.js';
 
@@ -41,6 +42,13 @@ export type ElementEntry = {
   rect?: Rect;
   style: Props;
   pseudo?: Record<string, Props>;
+  /**
+   * Length of the element's own rendered text after whitespace normalization.
+   * Always captured, but never the text itself: this privacy-safe signal lets
+   * the differ distinguish content-length reflow from a genuine sizing-rule
+   * change without enabling the opt-in content layer.
+   */
+  ownTextLength?: number;
   /**
    * The element's OWN rendered text (direct text-node children only, whitespace
    * collapsed) — present only when capture ran with `captureText: true` (the
@@ -409,6 +417,7 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
     rect?: [number, number, number, number];
     style: Props;
     pseudo?: Record<string, Props>;
+    ownTextLength?: number;
     text?: string;
     component?: { name: string; props?: Record<string, string> };
   };
@@ -498,17 +507,17 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
         Math.round(r.width),
         Math.round(r.height),
       ];
-      if (captureText) {
-        // Own text only (direct text-node children, whitespace collapsed), so a
-        // parent and child never both report the same string — each change is
-        // attributed to the element that actually owns the text.
-        let t = '';
-        for (const node of Array.prototype.slice.call(el.childNodes)) {
-          if (node.nodeType === 3 /* TEXT_NODE */) t += node.textContent ?? '';
-        }
-        t = t.replace(/\s+/g, ' ').trim();
-        if (t) entry.text = t;
+      // Own text only (direct text-node children, whitespace collapsed), so a
+      // parent and child never both report the same string. The length is a
+      // privacy-safe default signal for content-driven reflow; the actual text
+      // remains opt-in through captureText.
+      let ownText = '';
+      for (const node of Array.prototype.slice.call(el.childNodes)) {
+        if (node.nodeType === 3 /* TEXT_NODE */) ownText += node.textContent ?? '';
       }
+      ownText = ownText.replace(/\s+/g, ' ').trim();
+      entry.ownTextLength = ownText.length;
+      if (captureText && ownText) entry.text = ownText;
       if (captureComponent) {
         try {
           const comp = reactComponent(el);
@@ -793,17 +802,19 @@ async function stabilizePage(
   // settling and is excluded as a live region, exactly as style churn already is.
   const snap = async (): Promise<Elements> =>
     (await page.evaluate(capturePage, { ignore, motionOnly: false, captureText })).elements as Elements;
-  const start = Date.now();
+  // realNow, not Date.now: under STYLEPROOF_FREEZE_SPEC_CLOCK the process Date is
+  // frozen, and a frozen elapsed-time read would never advance these windows.
+  const start = realNow();
   let prev = await snap();
   let lastChangeAt = start;
   let recent: string[] = [];
-  while (Date.now() - start < timeout) {
+  while (realNow() - start < timeout) {
     await page.waitForTimeout(interval);
     const cur = await snap();
     const changed = changedElementPaths(prev, cur);
     prev = cur;
     if (changed.length) {
-      lastChangeAt = Date.now();
+      lastChangeAt = realNow();
       recent = changed;
     } else if (pending() > 0) {
       // The DOM is momentarily quiet, but data requests are still in flight — this
@@ -811,8 +822,8 @@ async function stabilizePage(
       // window so we wait for the content to ARRIVE (no live-region path to record;
       // network activity isn't a mutating element). Long-lived streams are excluded
       // by the caller, so this can't hang on an SSE that never finishes.
-      lastChangeAt = Date.now();
-    } else if (Date.now() - lastChangeAt >= quietFor) {
+      lastChangeAt = realNow();
+    } else if (realNow() - lastChangeAt >= quietFor) {
       return []; // DOM unchanged AND network idle for the full quiet window → settled
     }
   }
@@ -1084,6 +1095,14 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // Freeze motion BEFORE settling: animating elements would otherwise read as
   // perpetual churn during the settle, and any content that mounts during the
   // settle must be frozen by the time we read it below.
+  //
+  // FREEZE_CSS only reaches CSS-declared motion. JS-driven animation libraries
+  // (framer-motion, react-spring…) write inline styles from rAF loops that no
+  // stylesheet can override — but they all honour prefers-reduced-motion, so
+  // declare it: an entrance animation caught mid-flight (blur/opacity/transform
+  // between two same-commit captures) is exactly the nondeterminism the
+  // self-check would otherwise fail on.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const freezeTag = await page.addStyleTag({ content: FREEZE_CSS });
 
   // Settle: wait for async content to finish painting so base and head capture
@@ -1226,4 +1245,44 @@ export function surfaceElementPaths(...dirs: string[]): Map<string, Set<string>>
     }
   }
   return bySurface;
+}
+
+/** Capture key from a map filename (`home@1280.json.gz` → `home@1280`). */
+export function captureKeyFromMapFile(filename: string): string {
+  return filename.replace(/\.json(\.gz)?$/, '');
+}
+
+/** Every capture key present as a map file in `dir`. */
+export function captureKeysIn(dir: string): string[] {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter(isMapFile).map(captureKeyFromMapFile);
+}
+
+/** Per capture key, the authoring `metadata.surfaceKey` from that map (if any). */
+export function surfaceKeyByCaptureKey(dir: string): Map<string, string | undefined> {
+  const out = new Map<string, string | undefined>();
+  if (!fs.existsSync(dir)) return out;
+  for (const f of fs.readdirSync(dir).filter(isMapFile)) {
+    const key = captureKeyFromMapFile(f);
+    const map = loadStyleMap(path.join(dir, f));
+    out.set(key, map.metadata?.surfaceKey);
+  }
+  return out;
+}
+
+/**
+ * Lookup authoring `metadata.surfaceKey` across capture dirs in order (typically
+ * `beforeDir`, `afterDir`). For the same capture key, a **later** dir wins when it
+ * carries a defined `surfaceKey`; an undefined later entry does not clobber an
+ * earlier defined value (head/after authoritative, base/before fallback).
+ */
+export function mergeSurfaceKeyLookup(...dirs: string[]): (captureKey: string) => string | undefined {
+  const merged = new Map<string, string | undefined>();
+  for (const dir of dirs) {
+    for (const [k, v] of surfaceKeyByCaptureKey(dir)) {
+      if (v !== undefined) merged.set(k, v);
+      else if (!merged.has(k)) merged.set(k, undefined);
+    }
+  }
+  return (captureKey) => merged.get(captureKey);
 }

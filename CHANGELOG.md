@@ -7,6 +7,283 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.6.2] - 2026-07-20
+
+### Fixed
+
+- **Content-length reflow no longer produces a blind visual-approval gate.**
+  Captures now persist only each element's normalized own-text length, including
+  explicit zeroes (never its text), so the diff can distinguish content-driven
+  geometry drift from a real sizing-rule change. Geometry deltas paired with a
+  changed text length, or with a legacy map where length is unknown, now fail
+  closed as `CERTIFICATION_FAILED` instead of asking reviewers to approve an
+  empty or misleading CSS report; known same-length geometry remains reviewable.
+- **`freezeClock` now pins the spec process's clock, not just the browser's.**
+  A capture spec that computed a fixture at module level —
+  `const GENERATED_AT = new Date().toISOString()` — ran on the live Node clock,
+  outside the browser freeze, so each capture run baked its own wall clock into
+  the data it served. Any surface rendering that stamp as text drifted in width
+  between the base and head runs and was reported as computed-style changes on
+  PRs that never touched those surfaces. The in-run self-check cannot catch this
+  class: both of its captures share one spec process and therefore one stamp.
+  `styleproof-map` now sets `STYLEPROOF_FREEZE_SPEC_CLOCK=1` for the Playwright
+  run it spawns, and importing `styleproof` under that env swaps `globalThis.Date`
+  for a frozen twin (zero-argument construction, `Date.now()`, and bare `Date()`
+  report the fixed instant; explicit-argument construction, `Date.parse`/`Date.UTC`,
+  and instance methods stay real) before the spec's own constants evaluate.
+  The instant follows `STYLEPROOF_CLOCK_TIME` (default `2025-01-01T00:00:00Z`,
+  matching the browser freeze); `STYLEPROOF_FREEZE_SPEC_CLOCK=0` or
+  `freezeClock: false` opts out, and a `clockTime` that disagrees with the
+  frozen instant is warned about rather than silently ignored. StyleProof's own
+  elapsed-time bookkeeping (settle windows, popup deadlines, `createdAt`
+  manifest stamps) reads the real clock throughout.
+
+- **`styleproof-ci --spec-ref` now overlays the spec's colocated test harness.**
+  A head spec that imported a head-only fixture failed cold base capture with
+  `Cannot find module`, producing a degraded head-only receipt. The base render
+  now receives the head harness while application code and package metadata stay
+  pinned to the base commit, and every overlaid path is restored before head
+  capture. When the consumer command runs from a repository subdirectory, the
+  temporary harness allowance is normalized to repository-root coordinates so
+  `git status --porcelain` does not misclassify the intentional overlay as a
+  dirty base tree.
+
+## [4.6.1] - 2026-07-18
+
+### Fixed
+
+- **Captures declare `prefers-reduced-motion: reduce` before navigation.**
+  `FREEZE_CSS` only reaches CSS-declared motion; JS animation libraries
+  (framer-motion, react-spring…) write inline styles from rAF loops that no
+  stylesheet can override — but they all honour reduced motion, and they read
+  it at mount. A short entrance animation (blur/opacity/transform) racing the
+  settle produced the "surface is non-deterministic — N computed-style
+  difference(s) between two captures of the same commit" self-check failure on
+  real consumer apps. `captureSurface` and `captureUrlToDir` now emulate
+  reduced motion before the first `go()`/`goto` (persisting across every later
+  navigation in the flow), and `captureStyleMap` declares it defensively for
+  direct library users. Consumers whose components branch on reduced motion
+  will see a one-time baseline shift to the motionless final state — the
+  deterministic state a style gate should certify.
+
+## [4.6.0] - 2026-07-18
+
+### Added
+
+- **Yarn Berry support in the cold path.** `styleproof-ci` pinned yarn 1 for any
+  `yarn.lock`; on a Yarn 2+ repo that either refuses (the `packageManager`
+  field) or cannot parse the lockfile, so every base-miss run failed. A
+  `.yarnrc.yml` or a `packageManager: "yarn@2+"` pin now routes installs
+  through corepack (`corepack yarn install --immutable`), which provisions the
+  repo's own pinned release.
+- **`styleproof.config.json` warns on unknown keys.** A typo'd `dirtyallow` or
+  `cache_branch` was silently dropped — exactly the "config the user wrote must
+  never be silently dropped" failure the validator forbids. Unknown top-level
+  and `affected` keys now produce a loud stderr warning listing the known keys
+  (a warning, not an error, so a newer release's key doesn't brick older CLIs
+  during version skew). `styleproof-map --help` also now documents that
+  `dirtyAllow` accumulates across config + env + flags instead of being
+  overridden.
+
+### Fixed
+
+- **`styleproof-ci` reads project config from the HEAD checkout, and each side
+  resolves its own spec.** Config was loaded before the flow pinned the
+  consumer to `--head` — in the generated workflow that pre-checkout tree is
+  the PR _merge commit_ — so a head that moved the spec via
+  `styleproof.config.json` ran with the stale path and failed exit 2 with the
+  cause invisible. Config now loads after the head checkout, and when `--spec`
+  is not explicit, base-side probes and captures resolve the spec from the
+  BASE checkout's own config while head-side ones use the head's — a
+  config-only spec move now works end to end.
+- **`styleproof-ci` failure taxonomy tightened.** A required upload's
+  map-store/network fault exited 2 — the code reserved for usage errors — so
+  exit-code triage retried the wrong thing; store faults now exit 5 (the same
+  retryable class as restore faults) while consumer-state preconditions (dirty
+  tree, missing manifest) keep 2, since retrying those can never succeed. A
+  failed `styleproof-map --restore` _spawn_ (ENOENT) now prints the underlying
+  error instead of "fault (exit null), re-run the job". Worktree residue from
+  hard kills is reclaimed: every session start runs `git worktree prune`, and
+  SIGINT/SIGTERM now dispose live worktrees before exiting.
+- **`styleproof-affected --root` works from a monorepo.** `git diff` prints
+  repo-root-relative paths, which the CLI resolved against `--root` and matched
+  against a package-relative graph — every changed file was unplaceable, so
+  every monorepo invocation degraded to `'all'`. The `--root` prefix is now
+  stripped when resolving git paths into the graph (files outside the package
+  still fail closed), and `styleproof.config.json`, `--graph`, and
+  `--surfaces` now load relative to `--root` instead of the invoking cwd.
+
+- **`REPORT_PUBLICATION_FAILED` now names its actual failure domain.** The
+  Action's terminal trust step treated any non-`success` publish outcome —
+  including a merely skipped step — as a publication failure, and conversely a
+  failed PR-comment or commit-status delivery after a successful publish
+  reported the diff verdict as if the reviewer had seen it. The trust state now
+  distinguishes publish `failure` (→ `REPORT_PUBLICATION_FAILED`), publish
+  skipped/cancelled (→ the diff verdict, `CERTIFICATION_FAILED` when absent),
+  and delivery failure after a successful publish (→
+  `REPORT_PUBLICATION_FAILED`). The verdict's `DEGRADED_BASELINE` check also
+  accepts `base-capture-failed` case-insensitively, matching the downstream
+  GitHub-expression gate.
+- **`--tolerate-surface-failures` no longer promotes unledgered failures.** A
+  nonzero Playwright exit with maps on disk but NOTHING in the surface-failure
+  ledger (a self-check, nondeterminism, or harness failure) used to publish as
+  a "partial baseline"; promotion now requires at least one ledgered surface
+  failure, and anything else keeps the failing exit. Ledger filenames also
+  gained a content digest so two surface keys that sanitize to the same
+  filename can no longer clobber each other's entries.
+- **`styleproof-ci` discards base-capture debris instead of keeping it as a
+  baseline.** With ledgered failures now exiting 0, a nonzero base capture
+  exit means an UNtolerated failure — any maps left on disk have no
+  publishable manifest, and keeping them reported real regressions as
+  approvable "new surfaces". The base dir is cleared and the run proceeds as a
+  bare baseline with `base-capture-failed=true` (`DEGRADED_BASELINE`).
+- **`styleproof-init --check`/`--upgrade` now treat both generated workflows as
+  marker-owned.** The CI and approval workflow templates carry an ownership
+  marker (like the pre-push hook already did), so a consumer-authored
+  workflow at the same path reports `unmanaged` and is never overwritten by
+  `--upgrade`, instead of being flagged stale and clobbered.
+- **The generated pre-push hook no longer bakes the default spec path.** With
+  the default spec, the hook execs bare `styleproof-prepush`, which resolves
+  the spec at run time (flag > env > `styleproof.config.json` > built-in) — so
+  moving the spec via config alone can't strand a stale baked `--spec`. A
+  non-default `--dir` is still baked explicitly.
+- **Cold-base captures resolve Playwright from the base worktree's own install.**
+  `styleproof-ci` built PATH once from the consumer head's `node_modules/.bin`,
+  so the base capture ran the head's Playwright CLI against the worktree's
+  `@playwright/test` library — a version-mixing failure ("did not expect test()
+  to be called here") on exactly the PRs that bump rendering dependencies,
+  silently degrading them to a bare baseline. Base-side spawns now prepend the
+  cold-base worktree's own `node_modules/.bin`; head-side spawns keep the
+  consumer's.
+- **Symbolic `--spec-ref` values resolve in the consumer checkout.** Inside the
+  detached base worktree `HEAD` _is_ `--base` (so `--spec-ref HEAD` silently
+  overlaid the base's own spec — a no-op defeating the flag) and
+  `FETCH_HEAD`/`MERGE_HEAD` are per-worktree pseudo-refs that don't resolve
+  there at all. The ref is now resolved to a commit SHA in the consumer
+  checkout before any worktree is entered, and an unresolvable ref fails loudly
+  up front even when the base restore would have hit.
+
+- **A derived-only change now renders as reviewable evidence instead of failing
+  closed with none.** When a surface's only differences are size/position
+  longhands (`width`, `inline-size`, `transform-origin`, offsets…) — typically
+  content-length drift widening a text span, or a pure sizing rule change — the
+  noise-cleaning strip removed every finding, so 4.5.3's consistency guard
+  correctly refused to claim "identical" but classified the run
+  `CERTIFICATION_FAILED` with nothing for the reviewer to look at. Cleaning now
+  keeps a surface's findings when stripping would silence a gating change
+  (`cleanFindingsForDisplay`), titles them "size/position only, no styling
+  property changed (often content-length drift…)", and the truth contract counts
+  them reviewable — so the verdict is `VISUAL_APPROVAL_REQUIRED` **with rendered
+  evidence**. The raw-only `CERTIFICATION_FAILED` backstop remains for shapes
+  that truly cannot render (state-strip-only deltas). Reflow casualties next to
+  a real driver fold exactly as before; exit codes are unchanged.
+- **Cached-map diffs now see the baseline's tolerated-failure ledger.** The
+  no-arg/`<baseRef>` forms read the base manifest AFTER cached-restore cleanup
+  had deleted the directory, so `surfaceCaptureFailures` always read empty and a
+  `PARTIAL_BASELINE` run silently degraded into approvable greenfield "new
+  surfaces" (exit 3). The manifest is now read while the restored dirs exist,
+  matching every other ledger read.
+- **A surface captured only on base renders as `REMOVED surface 🗑️`, not "new
+  surface 🆕".** The report/summary previously framed a disappearing surface as
+  an addition with approve-forward guidance; removals now get their own heading,
+  summary line ("approving accepts the disappearance"), and `isRemoved` in
+  report.json.
+- **A fresh capture clears any stale surface-capture-failures ledger** in the
+  reused output dir (same hazard class as the browser-build sidecar): a failure
+  recorded by a prior run no longer stamps a phantom "partial baseline" into a
+  healthy recapture's manifest.
+- **`"gateInventoryRemovals": false` now reaches the verdict.** The opt-out
+  previously only skipped the job-fail step while the classification and commit
+  status stayed an unclearable red; removals now downgrade to ordinary
+  approval-required changes when opted out.
+- **`styleproof-diff` and `styleproof-report` read `styleproof.config.json`**
+  (`spec`, `cacheBranch`, `remote`) like every other CLI — without it, a repo
+  whose config moved the spec or store branch computed a different compatibility
+  key on the compare side than the capture side, and the no-arg diff (including
+  the pre-push advisory diff) always missed.
+
+## [4.5.3] - 2026-07-17
+
+### Added
+
+- **`PARTIAL_BASELINE` trust state (#276).** When the diff JSON reports
+  `partialBaseline` / `explainedMissingBaselineSurfaces`, the Action classifies
+  ledger-explained missing baseline surfaces as repair debt — after residue,
+  inventory, and certification failures, before `DEGRADED_BASELINE` and visual
+  approval. `changed` stays false for baseline-only gaps; mixed greenfield runs
+  still exit `3` but `PARTIAL_BASELINE` outranks `VISUAL_APPROVAL_REQUIRED`
+  while explained gaps remain. Commit status and job block fail with repair-base
+  guidance; the approval box cannot clear this state.
+
+- **`styleproof-ci` ephemeral worktrees (#277).** Restore probes and cold base
+  install/capture run in detached git worktrees under `RUNNER_TEMP` (or the OS temp
+  dir), so the consumer checkout is never checked out to `--base`. Head capture may
+  still run in the consumer at `--head`. Worktrees are always torn down on success
+  and failure; invalid SHAs fail loudly before capture.
+- **Canonical comparison truth (`assessComparisonTruth`).** Diff JSON, durable
+  report, PR comment, and trust state share one assessment of raw vs reviewable
+  findings so they cannot invent disagreeing verdicts.
+
+### Fixed
+
+- **Baseline `@auto` crawl failures match head capture widths in diff/report (#276).**
+  Viewport-detection failures recorded as `surface@auto` now classify head-only
+  surfaces as broken baseline capture (not greenfield new) for any width of that
+  exact surface key; width-specific ledger entries stay exact (`about@1280` does
+  not match `about@900`). Diff exit `3` applies only to genuinely new surfaces.
+  Report Markdown escapes inline injection in failure reasons; manifest JSON keeps
+  the original failure ledger keys.
+
+- **Partial baseline capture on the base branch (#276).** `styleproof-map
+--tolerate-surface-failures` (and `styleproof-ci` on cold base capture only)
+  records per-surface failures in the manifest, publishes a partial bundle when at
+  least one map succeeds, and leaves self-check / zero-map / head capture
+  fail-closed. Diff and report surface repair-base warnings instead of treating
+  ledger-explained surfaces as greenfield new.
+
+- **Report headline and global-chrome banners now count surface bases consistently.**
+  The summary line reports unique changed product surface bases and, when more
+  capture keys exist than bases, adds a labeled variant count. Product bases prefer
+  authoritative capture `metadata.surfaceKey` (live-state and popup expansions share
+  their declared base); older captures without metadata still strip only `@width`.
+  The global-chrome tier names **captured surface bases** (not raw variant keys). A
+  one-line glossary beside the headline explains `@width` and state/popup keys as
+  variants of a base.
+- **Diff/report/verdict coherence for derived-only (reflow) deltas.**
+  `styleproof-diff` can report raw computed-style differences while
+  `generateStyleMapReport` strips size/position longhands and previously claimed
+  "all surfaces identical" with no crops. That pair must never become
+  `VISUAL_APPROVAL_REQUIRED` (no reviewable evidence). Both CLIs now emit
+  `reviewableCounts` + `reportConsistency`; raw-only noise fails closed as
+  `CERTIFICATION_FAILED` (action gate + status), the report headline names the
+  consistency failure instead of "identical", and approval UI stays off.
+
+## [4.5.2] - 2026-07-16
+
+### Fixed
+
+- **`styleproof-ci --spec-ref` now works from a repo subdirectory.** The overlay's
+  `<rev>:<path>` lookups resolved the spec from the repo root, so a workflow
+  running the CLI with `working-directory: hud` and `--spec tests/e2e/….spec.ts`
+  failed with a false "missing at --spec-ref" even though the file exists (hit by
+  a consumer's 4.5.1 migration on its first cold capture). The lookups now use git's
+  cwd-relative `<rev>:./<path>` form, matching how the same spec path is used by
+  every pathspec call and filesystem write in the overlay.
+
+## [4.5.1] - 2026-07-15
+
+### Added
+
+- **`styleproof-ci --spec-ref <ref>`**: on a cold base capture, when the base commit
+  already contains the configured `--spec` path, overlay that file's bytes from
+  `<ref>:<spec>` for the base render only (app source and lockfile stay at `--base`).
+  The overlay is hidden from the dirty-tree gate with a narrowly scoped
+  `assume-unchanged` index flag and is always cleared before the head checkout,
+  including after a failed base capture. Omitted `--spec-ref` preserves 4.5.0 behavior.
+  Invalid refs, missing specs at the ref, or absolute/out-of-repo spec paths fail loudly.
+
+## [4.5.0] - 2026-07-15
+
 ### Added
 
 - **`styleproof.config.json` is now the single project-config surface.** Every

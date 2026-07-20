@@ -2,7 +2,8 @@
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.
 
-**5 DOM change(s) · 8 computed-style difference(s)** across 3 distinct change(s) in 3 existing surface(s).
+**5 DOM change(s) · 8 computed-style difference(s)** across 3 distinct change(s) in 3 changed surface bases with an existing baseline.
+_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
 ## 🆕 New pages, states, or surfaces — review first
 

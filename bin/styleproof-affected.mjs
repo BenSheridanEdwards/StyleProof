@@ -38,8 +38,11 @@ configured repo can run a bare \`styleproof-affected\`):
                       (config: affected.base)
   --changed <path>    a changed file (repo-relative, as it appears in the graph);
                       repeatable, replaces the git derivation
-  --root <dir>        directory the graph's relative paths resolve against, for
-                      reading source files during classification (default: cwd)
+  --root <dir>        the package the verdict is about (default: cwd). Its
+                      styleproof.config.json supplies the config, source files
+                      resolve against it during classification, --graph/--surfaces
+                      paths resolve against it, and repo-root-relative git paths
+                      are remapped onto it in a monorepo
   --json              print the machine verdict to stdout (explain lines go to stderr)
   -h, --help          show this help
 
@@ -101,7 +104,9 @@ function readJson(file, what) {
 
 // The "affected" block of styleproof.config.json is the lowest-precedence layer,
 // so a configured repo runs a bare `styleproof-affected` with no flags at all.
-const affectedConfig = projectConfigOrExit('styleproof-affected').affected ?? {};
+// Loaded from --root: in a monorepo the SUBPACKAGE's config governs its own
+// graph/surfaces, not whatever happens to sit at the invoking cwd.
+const affectedConfig = projectConfigOrExit('styleproof-affected', root).affected ?? {};
 if (!graphPath && affectedConfig.graph) graphPath = affectedConfig.graph;
 if (!baseRef && changedArgs.length === 0 && affectedConfig.base) baseRef = affectedConfig.base;
 
@@ -114,7 +119,11 @@ if (!baseRef && changedArgs.length === 0)
   usageError('provide --base <ref>, at least one --changed <path>, or affected.base in styleproof.config.json');
 
 // --surfaces replaces the config map wholesale; inline --surface entries merge on top.
-const surfaces = surfacesPath ? readJson(surfacesPath, 'the surfaces map') : { ...(affectedConfig.surfaces ?? {}) };
+// File inputs resolve against --root (default cwd), matching the config's own
+// location — a monorepo wrapper names subpackage-relative paths, not cwd ones.
+const surfaces = surfacesPath
+  ? readJson(path.resolve(root, surfacesPath), 'the surfaces map')
+  : { ...(affectedConfig.surfaces ?? {}) };
 for (const entry of inlineSurfaces) {
   const eq = entry.indexOf('=');
   if (eq <= 0) usageError(`--surface expects key=path, got '${entry}'`);
@@ -126,7 +135,7 @@ for (const [key, value] of Object.entries(surfaces)) {
 if (Object.keys(surfaces).length === 0) usageError('the surfaces map is empty — nothing to prove');
 
 // dependency-cruiser's modules[].dependencies[] maps directly onto ModuleEdge.
-const cruise = readJson(graphPath, 'the dependency-cruiser graph');
+const cruise = readJson(path.resolve(root, graphPath), 'the dependency-cruiser graph');
 if (!Array.isArray(cruise?.modules)) {
   usageError(`${graphPath} has no modules[] — expected dependency-cruiser --output-type json`);
 }
@@ -142,6 +151,28 @@ if (changedFiles.length === 0) {
     usageError(`git diff --name-only ${baseRef}...HEAD failed\n${(diff.stderr || '').trim()}`);
   }
   changedFiles = diff.stdout.split(/\r?\n/).filter(Boolean);
+  // `git diff --name-only` prints REPO-ROOT-relative paths regardless of cwd,
+  // while the graph and readFile below are --root-relative. Strip the --root
+  // prefix so subpackage files resolve into the graph; a changed file OUTSIDE
+  // --root keeps its repo path, is unreadable here, and classifies unbounded —
+  // fail closed, since this package's graph cannot prove it local.
+  const toplevel = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' });
+  if (toplevel.status === 0) {
+    // realpath both sides: git prints the physical toplevel while --root may be
+    // a symlinked spelling of the same directory (macOS temp dirs), which would
+    // corrupt the computed prefix.
+    const realpath = (p) => {
+      try {
+        return fs.realpathSync(p);
+      } catch {
+        return path.resolve(p);
+      }
+    };
+    const prefix = path.relative(realpath(toplevel.stdout.trim()), realpath(root)).split(path.sep).join('/');
+    if (prefix) {
+      changedFiles = changedFiles.map((f) => (f.startsWith(`${prefix}/`) ? f.slice(prefix.length + 1) : f));
+    }
+  }
 }
 
 const readFile = (p) => fs.readFileSync(path.resolve(root, p), 'utf8');

@@ -1,3 +1,16 @@
+// Side effect first: under STYLEPROOF_FREEZE_SPEC_CLOCK=1 (set by styleproof-map)
+// this pins the spec process's Date before the importing spec evaluates its own
+// module-level fixture constants — see src/spec-clock.ts for why.
+import './spec-clock.js';
+
+export {
+  DEFAULT_CLOCK_TIME,
+  realNow,
+  resolveSpecClockFreeze,
+  installFrozenSpecClock,
+  restoreRealSpecClock,
+  frozenSpecClockInstant,
+} from './spec-clock.js';
 export {
   captureStyleMap,
   saveStyleMap,
@@ -29,7 +42,7 @@ export type {
   CapturedOverlay,
   Rect,
 } from './capture.js';
-export { defineStyleMapCapture, defineCrawlCapture } from './runner.js';
+export { defineStyleMapCapture, defineCrawlCapture, isSelfCheckCaptureFailure } from './runner.js';
 export type {
   Surface,
   SurfaceLiveState,
@@ -64,7 +77,7 @@ export type {
 } from './variant-crawler.js';
 export { diffStyleMaps, diffStyleMapDirs, diffContentMaps, diffContentDirs, findingLabel } from './diff.js';
 export type { Finding, PropChange, SurfaceDiff, DiffCounts, ContentChange } from './diff.js';
-export { generateStyleMapReport, summarizeProps, prettyLabel } from './report.js';
-export type { ReportOptions, ReportResult } from './report.js';
+export { generateStyleMapReport, summarizeProps, prettyLabel, assessComparisonTruth } from './report.js';
+export type { ReportOptions, ReportResult, ComparisonTruth } from './report.js';
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';

@@ -20,7 +20,8 @@ import {
   type CoverageLedger,
   type DeterminismBasis,
 } from './coverage.js';
-import { writeBrowserBuildSidecar, writeCaptureManifest } from './map-store.js';
+import { writeBrowserBuildSidecar, writeCaptureManifest, recordSurfaceCaptureFailure } from './map-store.js';
+import { DEFAULT_CLOCK_TIME, frozenSpecClockInstant, realNow, restoreRealSpecClock } from './spec-clock.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
@@ -160,6 +161,16 @@ export type DefineOptions = {
    * Freeze `Date.now()`/`new Date()` to a fixed instant so time-derived styling
    * (relative-age classes, "stale > 1h" flags) can't drift between runs. Timers
    * keep running, so settling/polling still works. Default true.
+   *
+   * Two clocks are covered: the BROWSER clock (pinned here per page), and the
+   * SPEC PROCESS clock — `styleproof-map` sets `STYLEPROOF_FREEZE_SPEC_CLOCK=1`
+   * so that importing `styleproof` pins Node's `Date` before the spec's own
+   * module body runs. A fixture stamped `new Date().toISOString()` at module
+   * level is therefore identical on the base and head captures instead of
+   * leaking each run's wall clock into the rendered page (which surfaces as
+   * phantom text-width diffs the in-run self-check cannot see — both of its
+   * captures share one process and therefore one stamp). `freezeClock: false`
+   * restores the real spec-process clock at define time.
    */
   freezeClock?: boolean;
   /** Fixed instant for the frozen clock (default `2025-01-01T00:00:00Z`). */
@@ -235,7 +246,30 @@ type Settings = Required<
   dir: string;
   replayFrom?: string;
   popups: ResolvedPopupCaptureOptions;
+  /** Baseline-only: record per-surface failures instead of failing the whole run (self-check still fails). */
+  tolerateSurfaceFailures: boolean;
 };
+
+/** Self-check / nondeterminism failures must never be tolerated (#276). */
+export function isSelfCheckCaptureFailure(message: string): boolean {
+  return /self-check failed|non-deterministic/i.test(message);
+}
+
+async function withSurfaceFailureTolerance(
+  settings: Settings,
+  captureKey: string,
+  run: () => Promise<void>,
+): Promise<void> {
+  try {
+    await run();
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    if (!settings.tolerateSurfaceFailures || isSelfCheckCaptureFailure(reason)) throw e;
+    const outDir = resolveOutputDir(settings.baseDir, settings.dir);
+    recordSurfaceCaptureFailure(outDir, { key: captureKey, reason, kind: 'capture' });
+    console.warn(`styleproof: tolerated capture failure for ${captureKey} — ${reason}`);
+  }
+}
 
 /** One-line description of the first drift finding, for the self-check error. */
 function driftDesc(f: Finding): string {
@@ -684,12 +718,12 @@ async function openPopupCandidate(
     .click({ timeout: Math.max(500, options.timeoutMs), noWaitAfter: true })
     .catch(() => undefined);
 
-  const deadline = Date.now() + options.timeoutMs;
+  const deadline = realNow() + options.timeoutMs;
   do {
     const opened = (await visiblePopupKeys(page, options.overlays)).find((key) => !before.has(key));
     if (opened) return { status: 'opened', key: opened };
     await page.waitForTimeout(50);
-  } while (Date.now() < deadline);
+  } while (realNow() < deadline);
   return { status: 'none' };
 }
 
@@ -857,6 +891,12 @@ async function capturePopupSurfaces(
  *  The caller owns the test timeout (one-per-test for explicit surfaces, one budget for
  *  the whole crawl) so a multi-surface crawl can't reset its own deadline mid-loop. */
 async function captureSurface(page: Page, surface: ExpandedSurface, width: number, s: Settings): Promise<void> {
+  // Declared BEFORE go(): JS animation libraries (framer-motion, react-spring…)
+  // read prefers-reduced-motion at mount, and their rAF-driven inline styles are
+  // beyond FREEZE_CSS's reach — an entrance caught mid-flight is exactly the
+  // "non-deterministic between two same-commit captures" self-check failure.
+  // emulateMedia persists on the page across every later go()/reset in this flow.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await pinInputs(page, `${surface.key}@${width}.har`, s);
   const height = typeof surface.height === 'function' ? surface.height(width) : (surface.height ?? 800);
   await page.setViewportSize({ width, height });
@@ -971,6 +1011,33 @@ export function resolveDataResidue(mode: 'warn' | 'gate' | undefined): 'warn' | 
 type CaptureConfig = Omit<DefineOptions, 'surfaces' | 'expected' | 'exclude'>;
 
 /**
+ * Square the spec-process clock freeze (installed at import time from
+ * STYLEPROOF_FREEZE_SPEC_CLOCK, before the spec's constants ran) with the
+ * options the spec actually declared. `freezeClock: false` restores the real
+ * clock; a `clockTime` differing from the frozen instant is named loudly —
+ * fixture constants evaluated under the import-time instant, so the two clocks
+ * would disagree for the rest of the run (align them with
+ * STYLEPROOF_CLOCK_TIME on the capture command).
+ */
+function reconcileSpecClock(freezeClock: boolean, clockTime: string | number | Date): void {
+  const installed = frozenSpecClockInstant();
+  if (installed === undefined) return;
+  if (!freezeClock) {
+    restoreRealSpecClock();
+    return;
+  }
+  const declared = new Date(clockTime).getTime();
+  if (declared !== installed) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `styleproof: clockTime (${new Date(clockTime).toISOString()}) differs from the spec-process ` +
+        `frozen instant (${new Date(installed).toISOString()}); module-level fixtures used the latter. ` +
+        `Set STYLEPROOF_CLOCK_TIME to match clockTime on the capture command.`,
+    );
+  }
+}
+
+/**
  * Apply the capture defaults once, so explicit-surface and crawl capture can't
  * drift — the replay boundary, frozen clock and self-check policy resolve to the
  * same thing whichever entry point you use. Env fallbacks (`STYLEPROOF_REPLAY_*`)
@@ -978,6 +1045,9 @@ type CaptureConfig = Omit<DefineOptions, 'surfaces' | 'expected' | 'exclude'>;
  */
 function resolveSettings(c: CaptureConfig): Settings {
   const replayFrom = c.replayFrom ?? process.env.STYLEPROOF_REPLAY_FROM;
+  const freezeClock = c.freezeClock ?? true;
+  const clockTime = c.clockTime ?? DEFAULT_CLOCK_TIME;
+  reconcileSpecClock(freezeClock, clockTime);
   return {
     dir: c.dir as string,
     baseDir: resolveBaseDir(c.baseDir),
@@ -985,13 +1055,16 @@ function resolveSettings(c: CaptureConfig): Settings {
     replayFrom,
     replayUrl: c.replayUrl ?? process.env.STYLEPROOF_REPLAY_URL ?? '**/api/**',
     dataResidue: resolveDataResidue(c.dataResidue),
-    freezeClock: c.freezeClock ?? true,
-    clockTime: c.clockTime ?? '2025-01-01T00:00:00Z',
+    freezeClock,
+    clockTime,
     selfCheck: c.selfCheck ?? defaultSelfCheck(replayFrom),
     captureText: c.captureText ?? false,
     captureComponent: c.captureComponent ?? false,
     popups: resolvePopupCaptureOptions(c.popups),
     inventory: c.inventory ?? false,
+    tolerateSurfaceFailures:
+      process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
+      process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true',
   };
 }
 
@@ -1131,7 +1204,9 @@ export function defineStyleMapCapture(options: DefineOptions): void {
         for (const width of surface.widths) {
           test(`${surface.key} @ ${width}`, ({ page }) => {
             test.setTimeout(180_000);
-            return captureSurface(page, surface, width, settings);
+            return withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
+              captureSurface(page, surface, width, settings),
+            );
           });
         }
       } else {
@@ -1141,7 +1216,10 @@ export function defineStyleMapCapture(options: DefineOptions): void {
           await surface.go(page);
           const widths = await detectViewportWidths(page);
           test.setTimeout(Math.max(180_000, widths.length * 60_000));
-          for (const width of widths) await captureSurface(page, surface, width, settings);
+          for (const width of widths)
+            await withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
+              captureSurface(page, surface, width, settings),
+            );
         });
       }
     }
@@ -1252,6 +1330,45 @@ async function discoverCrawlLinks(
   return links;
 }
 
+/** Record one crawl failure when baseline tolerance allows it; otherwise retain it
+ * for the aggregate failure thrown after the remaining independent surfaces run. */
+function handleCrawlCaptureFailure(
+  settings: Settings,
+  key: string,
+  reason: string,
+  failureLabel: string,
+  failures: string[],
+): void {
+  if (settings.tolerateSurfaceFailures && !isSelfCheckCaptureFailure(reason)) {
+    recordSurfaceCaptureFailure(resolveOutputDir(settings.baseDir, settings.dir), {
+      key,
+      reason,
+      kind: 'capture',
+    });
+    process.stderr.write(`styleproof: tolerated crawl capture failure for ${key}\n`);
+    return;
+  }
+  failures.push(`${failureLabel}: ${reason}`);
+}
+
+/** Resolve the explicit or auto-detected viewport sweep. A detection/navigation
+ * failure is recorded once as `<surface>@auto`, because no width sweep began. */
+async function crawlSweepWidths(
+  page: Page,
+  surface: ExpandedSurface,
+  settings: Settings,
+  failures: string[],
+): Promise<number[] | null> {
+  if (surface.widths?.length) return surface.widths;
+  try {
+    await surface.go(page);
+    return await detectViewportWidths(page);
+  } catch (e) {
+    handleCrawlCaptureFailure(settings, `${surface.key}@auto`, (e as Error).message, `${surface.key} @ auto`, failures);
+    return null;
+  }
+}
+
 /**
  * Capture every discovered surface, aggregating per-surface failures so one bad
  * surface reports without skipping the rest — they're an independent set, not a
@@ -1261,21 +1378,19 @@ async function discoverCrawlLinks(
 async function sweepCrawlSurfaces(page: Page, captureSurfaces: ExpandedSurface[], settings: Settings): Promise<void> {
   const failures: string[] = [];
   for (const surface of captureSurfaces) {
-    let sweep = surface.widths;
-    if (!sweep || sweep.length === 0) {
-      try {
-        await surface.go(page);
-        sweep = await detectViewportWidths(page);
-      } catch (e) {
-        failures.push(`${surface.key} @ auto: ${(e as Error).message}`);
-        continue;
-      }
-    }
+    const sweep = await crawlSweepWidths(page, surface, settings, failures);
+    if (!sweep) continue;
     for (const width of sweep) {
       try {
         await captureSurface(page, surface, width, settings);
       } catch (e) {
-        failures.push(`${surface.key} @ ${width}: ${(e as Error).message}`);
+        handleCrawlCaptureFailure(
+          settings,
+          `${surface.key}@${width}`,
+          (e as Error).message,
+          `${surface.key} @ ${width}`,
+          failures,
+        );
       }
     }
   }

@@ -20,16 +20,27 @@ const MAP = path.join(root, 'bin/styleproof-map.mjs');
 const DIFF = path.join(root, 'bin/styleproof-diff.mjs');
 const PLAYWRIGHT_BIN = path.join(root, 'node_modules/.bin');
 
+// Ports are handed to child processes/servers only AFTER this returns, so the
+// obvious "bind :0, close, reuse the number" probe races the other workers under
+// `workers: '100%'` — a sibling can grab the port inside the close→rebind window
+// (a rare, unreproducible e2e flake). Instead each worker owns a DISJOINT range
+// keyed by Playwright's TEST_PARALLEL_INDEX and hands out sequential candidates,
+// binding each once only to skip ports held by unrelated processes. No two
+// workers ever probe the same port, so the close→rebind window cannot race.
+const PORTS_PER_WORKER = 200;
+const WORKER_PORT_BASE = 41000 + Number(process.env.TEST_PARALLEL_INDEX ?? 0) * PORTS_PER_WORKER;
+let nextPortOffset = 0;
 async function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      const port = typeof address === 'object' && address ? address.port : 0;
-      server.close(() => resolve(port));
+  for (let attempts = 0; attempts < PORTS_PER_WORKER; attempts++) {
+    const candidate = WORKER_PORT_BASE + (nextPortOffset++ % PORTS_PER_WORKER);
+    const usable = await new Promise<boolean>((resolve) => {
+      const server = net.createServer();
+      server.once('error', () => resolve(false));
+      server.listen(candidate, '127.0.0.1', () => server.close(() => resolve(true)));
     });
-  });
+    if (usable) return candidate;
+  }
+  throw new Error(`no free port in this worker's range ${WORKER_PORT_BASE}-${WORKER_PORT_BASE + PORTS_PER_WORKER - 1}`);
 }
 
 function commandEnv(env: NodeJS.ProcessEnv = {}) {
