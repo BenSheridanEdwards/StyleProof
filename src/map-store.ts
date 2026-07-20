@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { inferBaseRef } from './gitref.js';
+import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
 
 export const DEFAULT_MAP_DIR = '.styleproof/maps';
@@ -12,6 +13,16 @@ export const DEFAULT_MAP_LABEL = 'current';
 export const DEFAULT_MAP_STORE_BRANCH = 'styleproof-maps';
 export const DEFAULT_REMOTE = 'origin';
 export const MAP_MANIFEST = 'styleproof-manifest.json';
+/** Per-surface capture failures recorded when baseline-only tolerate mode is on. */
+export const SURFACE_CAPTURE_FAILURES_DIR = 'styleproof-surface-capture-failures';
+
+export type SurfaceCaptureFailure = {
+  /** Capture key (`<surface>@<width>` or crawl label). */
+  key: string;
+  reason: string;
+  /** `self-check` failures are never tolerated and should not appear here. */
+  kind?: 'capture';
+};
 /** Sidecar written during a capture run (where a browser handle is in scope) recording
  *  the real browser build (`browser().version()`). `writeMapManifest` runs after Playwright
  *  has exited — no browser — so it reads the build back from here. Not a surface map. */
@@ -56,6 +67,13 @@ export class MapStoreError extends Error {}
  *  existing `instanceof MapStoreError` handlers still catch it. */
 export class MapStoreNotFoundError extends MapStoreError {}
 
+/** An upload refused because of the CONSUMER's own state (a dirty working tree,
+ *  a missing manifest) — a precondition the user must fix, never a transient
+ *  store/network fault. Kept distinct so the CLI can exit with the usage code
+ *  (2, "fix your invocation/tree") instead of the retryable fault code (5,
+ *  "re-run the job"): retrying a dirty tree can never succeed. */
+export class MapStorePreconditionError extends MapStoreError {}
+
 export interface MapManifest {
   version: 1;
   packageVersion: string;
@@ -80,6 +98,8 @@ export interface MapManifest {
   har: boolean;
   compatibilityKey: string;
   createdAt: string;
+  /** Surfaces that failed during a tolerated baseline capture (partial bundle). */
+  surfaceCaptureFailures?: SurfaceCaptureFailure[];
 }
 
 export interface CachedCaptureDirs {
@@ -100,6 +120,31 @@ function gitProcessEnvironment(): NodeJS.ProcessEnv {
 
 function runGit(cwd: string, args: string[], maxBuffer = 1 << 28) {
   return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer, env: gitProcessEnvironment() });
+}
+
+/** Node's recursive `rmSync` can spuriously throw ENOTEMPTY (also EBUSY/EPERM) on macOS and
+ *  Windows when a directory is unlinked while the OS — or a lingering Git helper — still holds
+ *  a handle to one of its children. It surfaces most on a busy CI runner where several
+ *  StyleProof runs churn TMPDIR at once. Node retries exactly this class of transient error
+ *  when given `maxRetries`/`retryDelay`, so route every recursive removal through here rather
+ *  than the bare `{ recursive: true, force: true }` (which retries nothing). */
+function removeDirRecursive(dir: string): void {
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+}
+
+/** Best-effort removal of a THROWAWAY temp workspace (an `fs.mkdtemp` dir under `os.tmpdir()`).
+ *  Retries the transient race like {@link removeDirRecursive}, but a residual failure is
+ *  swallowed instead of thrown: the temp dir is disposable (the OS reclaims `/var/folders`,
+ *  and CI reaps leftovers), so a fully successful capture/publish must never be reported as
+ *  failed just because its scratch dir would not unlink — an ENOTEMPTY from cleanup is not an
+ *  upload failure. */
+function removeTempWorkspace(dir: string | undefined): void {
+  if (!dir) return;
+  try {
+    removeDirRecursive(dir);
+  } catch {
+    // Disposable scratch dir — leave it for the OS / CI reaper rather than fail the run.
+  }
 }
 
 const DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS = 30_000;
@@ -421,6 +466,71 @@ export function remoteExists(remote = DEFAULT_REMOTE, cwd = process.cwd()): bool
 /** Assemble a {@link MapManifest} from the compatibility inputs and the caller-resolved
  *  git fields. Shared by {@link writeMapManifest} (spec capture) and
  *  {@link writeCaptureManifest} (one-shot capture) so the object shape lives in one place. */
+function failureFileName(key: string): string {
+  // Sanitization can collide distinct keys (`a/b@1280` vs `a_b@1280`); suffix a
+  // short hash of the RAW key so a later write can never erase another surface's
+  // ledger entry (which would resurface its missing surface as greenfield-new).
+  const digest = createHash('sha256').update(key).digest('hex').slice(0, 8);
+  return `${key.replace(/[^a-zA-Z0-9@._-]+/g, '_')}-${digest}.json`;
+}
+
+/** Record one tolerated surface failure (safe under parallel Playwright workers). */
+export function recordSurfaceCaptureFailure(dir: string, failure: SurfaceCaptureFailure): void {
+  const sub = path.join(dir, SURFACE_CAPTURE_FAILURES_DIR);
+  fs.mkdirSync(sub, { recursive: true });
+  fs.writeFileSync(path.join(sub, failureFileName(failure.key)), JSON.stringify(failure));
+}
+
+/** Read tolerated failures written during capture (sorted by key). */
+export function readSurfaceCaptureFailures(dir: string): SurfaceCaptureFailure[] {
+  const sub = path.join(dir, SURFACE_CAPTURE_FAILURES_DIR);
+  if (!fs.existsSync(sub)) return [];
+  return fs
+    .readdirSync(sub)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => JSON.parse(fs.readFileSync(path.join(sub, name), 'utf8')) as SurfaceCaptureFailure)
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** Split a capture key at the last `@` (`home@1280` → `home` + `1280`). */
+export function captureKeyParts(key: string): { surface: string; width: string } {
+  const at = key.lastIndexOf('@');
+  if (at === -1) return { surface: key, width: '' };
+  return { surface: key.slice(0, at), width: key.slice(at + 1) };
+}
+
+/**
+ * Whether a baseline failure ledger entry accounts for a missing capture key on head.
+ * `surface@auto` (viewport detection failed before width sweep) matches any width for
+ * that exact surface key. Width-specific failures match only the same key.
+ */
+export function baselineFailureMatchesSurface(failureKey: string, surfaceKey: string): boolean {
+  if (failureKey === surfaceKey) return true;
+  const failure = captureKeyParts(failureKey);
+  const surface = captureKeyParts(surfaceKey);
+  if (failure.surface !== surface.surface) return false;
+  return failure.width === 'auto';
+}
+
+/** True when any ledger entry explains why `surfaceKey` is absent from the base bundle. */
+export function surfaceMissingMatchesBaselineFailure(
+  surfaceKey: string,
+  failures: readonly SurfaceCaptureFailure[],
+): boolean {
+  return failures.some((f) => baselineFailureMatchesSurface(f.key, surfaceKey));
+}
+
+/** Head capture keys missing on base that the baseline failure ledger explains (sorted). */
+export function explainedMissingBaselineSurfaces(
+  surfaces: readonly { surface: string; missing?: 'before' | 'after' }[],
+  failures: readonly SurfaceCaptureFailure[],
+): string[] {
+  return surfaces
+    .filter((s) => s.missing === 'before' && surfaceMissingMatchesBaselineFailure(s.surface, failures))
+    .map((s) => s.surface)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 function buildManifest(options: {
   dir: string;
   input: ReturnType<typeof compatibilityInput>;
@@ -428,6 +538,7 @@ function buildManifest(options: {
   dirty: boolean;
   dirtyAllow?: readonly string[];
   screenshots: boolean;
+  surfaceCaptureFailures?: SurfaceCaptureFailure[];
 }): MapManifest {
   const { dir, input } = options;
   const browserVersion = readBrowserBuildSidecar(dir);
@@ -450,7 +561,10 @@ function buildManifest(options: {
     screenshots: options.screenshots,
     har: hasHar(dir),
     compatibilityKey: hash(JSON.stringify(input)).slice(0, 16),
-    createdAt: new Date().toISOString(),
+    // Real wall clock even when the spec-process clock is frozen — a manifest
+    // stamped with the frozen instant would misreport when the capture ran.
+    createdAt: new Date(realNow()).toISOString(),
+    ...(options.surfaceCaptureFailures?.length ? { surfaceCaptureFailures: options.surfaceCaptureFailures } : {}),
   };
 }
 
@@ -466,6 +580,7 @@ export function writeMapManifest(options: {
 }): MapManifest {
   const cwd = options.cwd ?? process.cwd();
   const input = compatibilityInput({ cwd, spec: options.spec, baseUrl: options.env?.BASE_URL ?? process.env.BASE_URL });
+  const surfaceCaptureFailures = readSurfaceCaptureFailures(options.dir);
   const manifest = buildManifest({
     dir: options.dir,
     input,
@@ -473,6 +588,7 @@ export function writeMapManifest(options: {
     dirty: options.dirty ?? workingTreeDirty(cwd),
     dirtyAllow: options.dirtyAllow,
     screenshots: options.screenshots,
+    surfaceCaptureFailures,
   });
   fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
   return manifest;
@@ -617,7 +733,7 @@ function checkoutSparseSegment(tmp: string, branch: string, segment: string): vo
   const sparseCheckout = runGit(tmp, ['sparse-checkout', 'set', segment], 1 << 20);
   const checkout = sparseCheckout.status === 0 ? runGit(tmp, ['checkout', '-q', branch], 1 << 20) : sparseCheckout;
   if (checkout.status !== 0) {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    removeTempWorkspace(tmp);
     throw new MapStoreError(checkout.stderr.trim() || `could not check out ${segment} from map store`);
   }
 }
@@ -630,7 +746,7 @@ function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSeg
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-'));
   const branchLookup = runMapStoreNetworkGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20);
   if (branchLookup.status !== 0 && branchLookup.status !== 2) {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    removeTempWorkspace(tmp);
     throw new MapStoreError(gitFailureMessage(branchLookup, 'could not query map store branch'));
   }
   const branchExists = branchLookup.status === 0;
@@ -640,7 +756,7 @@ function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSeg
       : ['clone', '-q', '--depth', '1', '--branch', branch];
     const clone = runMapStoreNetworkGit(cwd, [...authenticationArguments, ...cloneArguments, remoteUrl, tmp]);
     if (clone.status !== 0) {
-      fs.rmSync(tmp, { recursive: true, force: true });
+      removeTempWorkspace(tmp);
       throw new MapStoreError(gitFailureMessage(clone, 'could not clone map store branch'));
     }
   } else {
@@ -737,7 +853,7 @@ function pushMapStoreCommit(
 }
 
 function removeTemporaryMapStoreCheckout(temporaryCheckout: string | undefined): void {
-  if (temporaryCheckout) fs.rmSync(temporaryCheckout, { recursive: true, force: true });
+  removeTempWorkspace(temporaryCheckout);
 }
 
 function errorMessage(error: unknown): string {
@@ -765,7 +881,7 @@ function publishMapStoreAttempt(options: {
       path.join(temporaryCheckout, 'README.md'),
       '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n',
     );
-    fs.rmSync(path.join(temporaryCheckout, options.target), { recursive: true, force: true });
+    removeDirRecursive(path.join(temporaryCheckout, options.target));
     copyDir(options.dir, path.join(temporaryCheckout, options.target), options.includeHar);
     if (!options.includeHar) {
       fs.writeFileSync(
@@ -805,9 +921,9 @@ export function publishMapBundle(options: {
   const branch = options.branch ?? DEFAULT_MAP_STORE_BRANCH;
   const remote = options.remote ?? DEFAULT_REMOTE;
   const manifest = readMapManifest(options.dir);
-  if (!manifest) throw new MapStoreError(`no ${MAP_MANIFEST} in ${options.dir}`);
+  if (!manifest) throw new MapStorePreconditionError(`no ${MAP_MANIFEST} in ${options.dir}`);
   if (manifest.dirty) {
-    throw new MapStoreError(
+    throw new MapStorePreconditionError(
       `not uploading ${options.dir}: working tree was dirty when the map was captured. Commit first, then rerun styleproof-map.`,
     );
   }
@@ -899,13 +1015,13 @@ function restoreMapStoreAttempt(options: {
           : `no cached map bundle under ${sha} on ${branch}`,
       };
     }
-    fs.rmSync(outDir, { recursive: true, force: true });
+    removeDirRecursive(outDir);
     copyDir(path.join(shaDir, candidates[0]), outDir, true);
     const manifest = readMapManifest(outDir);
     if (!manifest) return { status: 'miss', message: `cached map for ${sha} is missing ${MAP_MANIFEST}` };
     return { status: 'hit', manifest };
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    removeTempWorkspace(tmp);
   }
 }
 
@@ -984,11 +1100,11 @@ export function resolveCachedCaptureDirs(options: {
     });
     return { beforeDir, afterDir, baseRef, baseSha, headSha, compatibilityKey, tmpRoot };
   } catch (e) {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    removeTempWorkspace(tmpRoot);
     throw e;
   }
 }
 
 export function cleanupCachedCaptureDirs(captureDirs: CachedCaptureDirs | null): void {
-  if (captureDirs) fs.rmSync(captureDirs.tmpRoot, { recursive: true, force: true });
+  if (captureDirs) removeTempWorkspace(captureDirs.tmpRoot);
 }

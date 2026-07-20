@@ -30,7 +30,7 @@ import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
 // dedupes the report: group identical change-sets across surfaces and fold derived
 // longhands. Used for the HUMAN output only; --json stays the raw machine contract.
 import {
-  cleanFindings,
+  cleanFindingsForDisplay,
   groupBySignature,
   groupByPath,
   groupTitle,
@@ -38,7 +38,8 @@ import {
   derivedLonghandCount,
   formatSurfaceList,
   classifyChrome,
-  surfaceBase,
+  countCapturedSurfaceBases,
+  assessComparisonTruth,
 } from '../dist/change-groups.js';
 import {
   DEFAULT_MAP_STORE_BRANCH,
@@ -47,16 +48,20 @@ import {
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
+  readMapManifest,
   resolveCachedCaptureDirs,
+  surfaceMissingMatchesBaselineFailure,
+  explainedMissingBaselineSurfaces,
 } from '../dist/map-store.js';
 import {
   cachedMapsUnavailableMessage,
   isHelpArg,
+  projectConfigOrExit,
   missingManualCaptureMessage,
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
-import { readInventories, readResidue, surfaceElementPaths } from '../dist/capture.js';
+import { readInventories, readResidue, surfaceElementPaths, mergeSurfaceKeyLookup } from '../dist/capture.js';
 import { auditRunInventory, readAckFile } from '../dist/inventory.js';
 import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
@@ -294,9 +299,14 @@ const argv = process.argv.slice(2);
 const args = [];
 let MAX = 40;
 let jsonOut = null;
-let spec = 'e2e/styleproof.spec.ts';
-let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? DEFAULT_MAP_STORE_BRANCH;
-let remote = process.env.STYLEPROOF_REMOTE ?? DEFAULT_REMOTE;
+// Repo config is the lowest-precedence default layer (flag > env > file > built-in),
+// matching styleproof-map/-prepush/-ci — without it, a repo whose config moves the
+// spec or store branch computed a different compatibility key here than the capture
+// side did, and the no-arg diff (incl. the pre-push advisory diff) always missed.
+const projectConfig = projectConfigOrExit(COMMAND);
+let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
+let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
+let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
 for (let i = 0; i < argv.length; i++) {
   if (isHelpArg(argv[i])) showHelpAndExit(HELP);
   else if (argv[i] === '--max') MAX = Number(argv[++i]);
@@ -359,6 +369,8 @@ let coverageVerdict = null;
 let determinismVerdict = null;
 let residueAudit = null;
 let surfacePaths = new Map();
+let surfaceKeyOf = () => undefined;
+let baselineSurfaceFailures = [];
 try {
   // v4: a side without a manifest is unsupported — the same-environment guard can't be
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
@@ -379,6 +391,13 @@ try {
   // Element-path sets per surface, for the shared-chrome tier — same "read while
   // the dirs exist" rule as the ledgers above.
   surfacePaths = surfaceElementPaths(dirA, dirB);
+  // dirA = before/base, dirB = after/head — same order as generateStyleMapReport.
+  surfaceKeyOf = mergeSurfaceKeyLookup(dirA, dirB);
+  // The baseline's tolerated-failure ledger — same "read while the dirs exist"
+  // rule: reading it after the finally deleted a cached/restored dirA always
+  // yielded [], so a PARTIAL_BASELINE run silently degraded into approvable
+  // greenfield "new surfaces" (exit 3) in cached-map mode.
+  baselineSurfaceFailures = readMapManifest(dirA)?.surfaceCaptureFailures ?? [];
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -386,6 +405,23 @@ try {
   cleanupCachedCaptureDirs(cacheCapture);
 }
 const { surfaces, counts, compared, volatile, statesUncertified } = result;
+// Canonical comparison truth: raw certification counts vs reviewable (cleaned)
+// findings the report/crops can show. Prevents VISUAL_APPROVAL_REQUIRED without
+// evidence when only derived/reflow longhands differ.
+const truth = assessComparisonTruth(surfaces, counts);
+const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
+const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
+
+function printBaselineSurfaceFailureCallout() {
+  if (!baselineSurfaceFailures.length) return;
+  console.log(
+    `\n⚠ ${baselineSurfaceFailures.length} surface(s) failed during the BASELINE capture and were omitted from the base bundle — repair base capture on the base branch; do not treat these as greenfield new surfaces:`,
+  );
+  for (const f of baselineSurfaceFailures) console.log(`  ✗ ${f.key}: ${f.reason.split('\n')[0]}`);
+  console.log('  → Re-run styleproof-map on the base commit (or merge a fix) before approving indefinitely.');
+}
+
+printBaselineSurfaceFailureCallout();
 
 // ── grouped human output ─────────────────────────────────────────────────────
 // Reuse the report's dedup so one real change doesn't print once per surface with
@@ -445,12 +481,14 @@ const preparedForGrouping = surfaces
   .filter((sd) => !sd.missing)
   // Carry the RAW findings too, so we can report how many derived longhands the
   // grouped view folded (the cleaned findings have them already removed).
-  .map((sd) => ({ surface: sd.surface, findings: cleanFindings(sd.findings), raw: sd.findings }))
+  .map((sd) => ({ surface: sd.surface, findings: cleanFindingsForDisplay(sd.findings), raw: sd.findings }))
   .filter((p) => p.findings.length > 0);
 
 function printGroup(cg) {
   const lines = elementLines(cg.findings);
-  const derived = derivedLonghandCount(cg.rep.raw);
+  // Advertise only what was actually FOLDED: a geometry-only group displays its
+  // derived longhands instead of folding them, so they must not be counted here.
+  const derived = derivedLonghandCount(cg.rep.raw) - derivedLonghandCount(cg.findings);
   const foldNote = derived > 0 ? ` (+${derived} derived longhand${derived === 1 ? '' : 's'})` : '';
   const others = cg.surfaces.length - 1;
   const scope =
@@ -466,12 +504,12 @@ function printGroup(cg) {
 // gets one banner up top, then its detail — so the reviewer reads "the nav changed
 // everywhere" once, not once per surface entry. Presentational only.
 const grouped = groupBySignature(preparedForGrouping);
-const { chrome, rest } = classifyChrome(grouped, surfacePaths);
+const { chrome, rest } = classifyChrome(grouped, surfacePaths, surfaceKeyOf);
 if (chrome.length) {
   // Base count from the pre-cleanup surface set (dirB may be deleted by now).
-  const bases = new Set([...surfacePaths.keys()].map(surfaceBase)).size;
+  const bases = countCapturedSurfaceBases([...surfacePaths.keys()], surfaceKeyOf);
   console.log(
-    `\n🧱 Global chrome change(s) — across all ${bases} surface(s): ${chrome.length} change(s) rode the shared frame every view draws (a persistent nav, header, or footer).`,
+    `\n🧱 Global chrome change(s) — across all ${bases} captured surface base(s): ${chrome.length} change(s) rode the shared frame every view draws (a persistent nav, header, or footer).`,
   );
   for (const cg of chrome) printGroup(cg);
 }
@@ -492,8 +530,22 @@ if (jsonOut) {
       JSON.stringify(
         {
           counts,
+          // Reviewable tallies after cleanFindings (what the durable report shows).
+          // Trust/approval must use these + one-sided surfaces — not raw counts alone.
+          reviewableCounts: truth.reviewableCounts,
+          reportConsistency: truth.rawOnlyNoReviewable
+            ? {
+                ok: false,
+                reason: 'raw_only_no_reviewable',
+                detail:
+                  'certification differ found computed-style deltas that the visual report strips as derived/reflow longhands — no reviewable crops; fail closed as CERTIFICATION_FAILED, never VISUAL_APPROVAL_REQUIRED',
+              }
+            : { ok: true, reason: 'aligned' },
           surfaces,
           compared,
+          baselineSurfaceFailures,
+          explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
+          partialBaseline,
           // Subtrees excluded from every layer of the comparison because a side
           // auto-detected them as volatile (still mutating at capture settle).
           // Changes inside them are NOT certified by this diff.
@@ -545,6 +597,9 @@ if (jsonOut) {
 const total = counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
 const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;
+const greenfieldNewSurfaces = surfaces.filter(
+  (s) => s.missing === 'before' && !surfaceMissingMatchesBaselineFailure(s.surface, baselineSurfaceFailures),
+).length;
 // One SurfaceDiff per distinct surface across both sides (incl. missing-on-one-side).
 const surfaceCount = surfaces.length;
 if (volatile > 0)
@@ -557,7 +612,7 @@ if (statesUncertified > 0)
     `\n⚠ forced-state layer uncertified on ${statesUncertified} surface(s): BOTH captures skipped it, so\n` +
       '  :hover/:focus/:active differences there were never compared.',
   );
-const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
+const newNote = greenfieldNewSurfaces > 0 ? ` (+${greenfieldNewSurfaces} new surface(s) with no baseline)` : '';
 const removedNote = removedSurfaces ? ` + ${removedSurfaces} REMOVED surface(s)` : '';
 const invNote = invRemovals ? ` + ${invRemovals} inventory gate failure(s) (unacknowledged or stale)` : '';
 // residueFails counts unacknowledged failing endpoints AND stale acknowledgements (both gate).
@@ -571,11 +626,23 @@ const clean =
   residueFails === 0 &&
   !coverageFails &&
   !determinismFails;
+if (truth.rawOnlyNoReviewable) {
+  // Derived-only style findings now render (cleanFindingsForDisplay), so the one
+  // shape left here is a delta with no displayable form at all — e.g. a forced-
+  // state layer whose every prop is state-stripped.
+  console.log(
+    '\n⚠ report consistency: raw certification delta(s) have no reviewable rendering — the visual ' +
+      'report would show nothing for a gating change. Failing closed as a certification inconsistency ' +
+      '(not VISUAL_APPROVAL_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect.',
+  );
+}
 console.log(
   clean
     ? newSurfaces === 0
       ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
-      : `\nℹ ${newSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
+      : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
+        ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
+        : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${covNote}${detNote}`,
 );
 // 0 = identical, 1 = reviewable differences (incl. a REMOVED surface, inventory/residue gate
@@ -584,7 +651,7 @@ console.log(
 process.exit(
   total > 0 || removedSurfaces > 0 || invRemovals > 0 || residueFails > 0 || coverageFails || determinismFails
     ? 1
-    : newSurfaces > 0
+    : greenfieldNewSurfaces > 0
       ? 3
       : 0,
 );

@@ -113,6 +113,39 @@ test('styleproof-affected: --base derives the changed files from git (merge-base
   }
 });
 
+test('styleproof-affected: monorepo --root remaps repo-root-relative git paths onto the package', () => {
+  const repo = mkTmp('styleproof-affected-monorepo-');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    // The package lives in a SUBDIRECTORY of the git repo — git prints
+    // 'packages/web/src/…' while the graph knows only 'src/…'.
+    const pkg = path.join(repo, 'packages', 'web');
+    fs.mkdirSync(pkg, { recursive: true });
+    fs.cpSync(FIXTURE, pkg, { recursive: true });
+    fs.writeFileSync(path.join(pkg, 'surfaces.json'), JSON.stringify(SURFACES));
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'base');
+    fs.appendFileSync(path.join(pkg, 'src/components/Chart.module.css'), '.chart{margin:1px}\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'restyle chart');
+
+    const res = run(
+      ['--graph', 'graph.depcruise.json', '--surfaces', 'surfaces.json', '--base', 'main~1', '--root', pkg, '--json'],
+      repo,
+    );
+    assert.equal(res.status, 0, res.stderr);
+    const verdict = JSON.parse(res.stdout);
+    assert.deepEqual(verdict.changed, ['src/components/Chart.module.css'], 'the --root prefix is stripped');
+    assert.deepEqual(verdict.recapture, ['dashboard'], 'the scoped verdict survives — not a blanket all');
+    assert.deepEqual(verdict.reuse, ['home', 'pricing']);
+  } finally {
+    rmTmp(repo);
+  }
+});
+
 test('styleproof-affected: usage errors exit 2 and never fake a verdict', () => {
   assert.equal(run([]).status, 2);
   assert.equal(run(['--graph', GRAPH, '--changed', 'src/tokens.css']).status, 2, 'no surfaces');

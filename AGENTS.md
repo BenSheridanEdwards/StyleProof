@@ -35,6 +35,26 @@ adapters (e.g. `CLAUDE.md`) defer here and add only vendor-specific content.
 
 Full text: [`.agents/AGENT_OPERATING_RULES.md`](.agents/AGENT_OPERATING_RULES.md).
 
+## Evidence quality standard
+
+Before presenting, committing, pushing, or calling work complete:
+
+- Read every visible word in the evidence, including warnings, caveats, badges,
+  captions, labels, and status details.
+- Test the claim against the source artifact. A green headline, passing check,
+  or screenshot is not proof when the underlying content narrows or contradicts
+  it.
+- Classify evidence honestly as certified, complete, partial, advisory,
+  passing-only, stale, or unknown. Never promote a weaker state into a stronger
+  claim.
+- Inspect the final rendered artifact in the surface and size that users and
+  reviewers will actually see. Verify crops, legibility, links, and surrounding
+  context.
+- After the final change, rerun the applicable gates and verify the live exact
+  head: PR body, committed proof assets, hosted checks, and merge state.
+- If evidence weakens a claim, fix the evidence or qualify/remove the claim.
+  Never hide a warning through cropping, omission, or selective description.
+
 ## Commands
 
 | Task             | Command                                                          |

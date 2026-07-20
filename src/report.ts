@@ -6,12 +6,19 @@ import {
   readInventories,
   readResidue,
   surfaceElementPaths,
+  captureKeysIn,
+  mergeSurfaceKeyLookup,
   type ElementEntry,
   type LiveRegionCandidate,
   type Rect,
   type StyleMap,
 } from './capture.js';
-import { isMapFile } from './map-store.js';
+import {
+  isMapFile,
+  readMapManifest,
+  surfaceMissingMatchesBaselineFailure,
+  type SurfaceCaptureFailure,
+} from './map-store.js';
 import { fillRect, type RGB } from './png-util.js';
 import {
   diffStyleMapDirs,
@@ -36,7 +43,7 @@ import { auditRunResidue, readResidueAckFile } from './data-residue.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 import {
-  cleanFindings,
+  cleanFindingsForDisplay,
   groupByPath,
   groupTitle,
   isNonValue,
@@ -49,14 +56,20 @@ import {
   pushSurfaceWidth,
   renderSurfaceGroups,
   formatSurfaceList,
+  countChangedSurfaceScope,
+  formatChangedSurfaceScope,
+  countCapturedSurfaceBases,
   classifyChrome,
+  assessComparisonTruth,
+  type ComparisonTruth,
 } from './change-groups.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
 // through the package's report module rather than a deep path.
 export { describeChange, colorName, tokenIndex, toHex } from './describe.js';
 // Re-export the grouping primitives historically exported from here so existing
 // imports (`from 'styleproof'` → report) keep resolving.
-export { summarizeProps, prettyLabel } from './change-groups.js';
+export { summarizeProps, prettyLabel, assessComparisonTruth } from './change-groups.js';
+export type { ComparisonTruth } from './change-groups.js';
 
 /**
  * Visual diff report: for every surface with findings, crop the before/after
@@ -134,6 +147,12 @@ export type ReportResult = {
   totalFindings: number;
   /** Advisory content-layer changes rendered (0 unless includeContent + captured text). Never gates. */
   contentChanges: number;
+  /**
+   * Canonical comparison truth vs the certification differ. When
+   * `rawOnlyNoReviewable` is true the report has no crops/sections but raw
+   * computed-style deltas exist — callers must fail closed, never approve.
+   */
+  comparison: ComparisonTruth;
   reportMdPath: string;
   reportJsonPath: string;
 };
@@ -650,6 +669,17 @@ function regionHeading(regionPaths: string[], findings: Finding[]): string {
 //                     Markdown; widen the fence to one more backtick than the
 //                     value's longest run, padding a space when it touches an edge
 //                     (GitHub's rule for a code span that starts/ends with a tick).
+/** Escape capture error text embedded in Markdown list prose (not inside code spans). */
+function escapeMarkdownFailureReason(reason: string): string {
+  const line = reason.split('\n')[0];
+  return line
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\\/g, '\\\\')
+    .replace(/[*_[`#|]/g, '\\$&');
+}
+
 function codeValue(v: string): string {
   const escaped = v.replace(/\|/g, '\\|');
   const longestRun = Math.max(0, ...(escaped.match(/`+/g) ?? []).map((r) => r.length));
@@ -1250,34 +1280,122 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
   return '`' + formatSurfaceList(shownSurfaces) + '`' + more;
 }
 
+/** One-line glossary so headline base vs variant counts read consistently with the chrome banner. */
+const SURFACE_SCOPE_GLOSSARY =
+  '_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._';
+
+function baselineFailureSummaryLines(failures: SurfaceCaptureFailure[]): string[] {
+  if (failures.length === 0) return [];
+  const md = [
+    `⚠️ **${failures.length} baseline capture failure(s)** — these surfaces failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely as if they were greenfield new surfaces.`,
+  ];
+  for (const failure of failures.slice(0, 8))
+    md.push(`- \`${safeKey(failure.key)}\`: ${escapeMarkdownFailureReason(failure.reason)}`);
+  if (failures.length > 8) md.push(`- _…and ${failures.length - 8} more (see manifest \`surfaceCaptureFailures\`)_`);
+  md.push('');
+  return md;
+}
+
+function missingSurfaceSummaryLines(
+  missing: PreparedSurface[],
+  greenfieldMissing: PreparedSurface[],
+  brokenBaseMissing: PreparedSurface[],
+): string[] {
+  const md: string[] = [];
+  // A surface captured only on BASE is a REMOVAL — a feature going invisible —
+  // never a "new surface" for the approval box to welcome in.
+  const removed = missing.filter((p) => p.sd.missing === 'after');
+  if (removed.length > 0) {
+    md.push(
+      `🗑️ **${removed.length} REMOVED surface(s)** — present in the baseline, not captured on head: ${newSurfaceSummary(removed)}. ` +
+        `Review as removals; approving accepts the disappearance.`,
+      '',
+    );
+  }
+  if (brokenBaseMissing.length > 0) {
+    md.push(
+      `⚠️ **${brokenBaseMissing.length} head surface(s)** have no base map because baseline capture failed (not first adoption): ${newSurfaceSummary(brokenBaseMissing)}.`,
+      '',
+    );
+  }
+  if (greenfieldMissing.length > 0) {
+    md.push(
+      `🆕 **${greenfieldMissing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(greenfieldMissing)}. ` +
+        `Approve them before they become the baseline.`,
+    );
+  }
+  return md;
+}
+
+function changedSurfaceSummaryLines(
+  changeGroups: ChangeGroup[],
+  shown: DiffCounts,
+  changedScope: { bases: number; variants: number },
+  prependSeparator: boolean,
+): string[] {
+  if (changeGroups.length === 0) return [];
+  return [
+    ...(prependSeparator ? [''] : []),
+    `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${formatChangedSurfaceScope(changedScope.bases, changedScope.variants)} with an existing baseline.`,
+    SURFACE_SCOPE_GLOSSARY,
+  ];
+}
+
 function summaryLines(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
   shown: DiffCounts;
-  changedSurfaceCount: number;
+  changedScope: { bases: number; variants: number };
   contentCount: number;
+  /** Raw-only derived noise: must not claim "identical". */
+  rawOnlyNoReviewable?: boolean;
+  rawCounts?: DiffCounts;
+  baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
-  const { changeGroups, missing, shown, changedSurfaceCount, contentCount } = args;
+  const {
+    changeGroups,
+    missing,
+    shown,
+    changedScope,
+    contentCount,
+    rawOnlyNoReviewable,
+    rawCounts,
+    baselineSurfaceFailures,
+  } = args;
+  // Greenfield/broken-base classification applies to surfaces missing a BASE map
+  // (missing 'before'); a surface missing on HEAD is a removal, handled separately.
+  const missingOnBase = missing.filter((p) => p.sd.missing === 'before');
+  const greenfieldMissing = missingOnBase.filter(
+    (p) => !surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
+  );
+  const brokenBaseMissing = missingOnBase.filter((p) =>
+    surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
+  );
   if (changeGroups.length === 0 && missing.length === 0) {
-    return [
-      contentCount > 0
-        ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
-        : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
-    ];
+    if (rawOnlyNoReviewable && rawCounts) {
+      const md = [
+        `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.`,
+        '',
+        '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._',
+      ];
+      if (baselineSurfaceFailures.length > 0) {
+        md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
+      }
+      return md;
+    }
+    if (baselineSurfaceFailures.length === 0) {
+      return [
+        contentCount > 0
+          ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
+          : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
+      ];
+    }
   }
-  const md: string[] = [];
-  if (missing.length > 0) {
-    md.push(
-      `🆕 **${missing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(missing)}. ` +
-        `Approve them before they become the baseline.`,
-    );
-  }
-  if (changeGroups.length > 0) {
-    if (md.length > 0) md.push('');
-    md.push(
-      `**${changeCountLabel(shown)}** across ${changeGroups.length} distinct change(s) in ${changedSurfaceCount} existing surface(s).`,
-    );
-  }
+  const md = [
+    ...baselineFailureSummaryLines(baselineSurfaceFailures),
+    ...missingSurfaceSummaryLines(missing, greenfieldMissing, brokenBaseMissing),
+  ];
+  md.push(...changedSurfaceSummaryLines(changeGroups, shown, changedScope, md.length > 0));
   return md;
 }
 
@@ -1288,13 +1406,36 @@ function reportHeadline(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
   shown: DiffCounts;
-  changedSurfaceCount: number;
+  changedScope: { bases: number; variants: number };
   volatileCount: number;
   liveCandidateLabels: string[];
   contentCount: number;
+  rawOnlyNoReviewable?: boolean;
+  rawCounts?: DiffCounts;
+  baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
-  const { changeGroups, missing, shown, changedSurfaceCount, volatileCount, liveCandidateLabels, contentCount } = args;
-  const md: string[] = summaryLines({ changeGroups, missing, shown, changedSurfaceCount, contentCount });
+  const {
+    changeGroups,
+    missing,
+    shown,
+    changedScope,
+    volatileCount,
+    liveCandidateLabels,
+    contentCount,
+    rawOnlyNoReviewable,
+    rawCounts,
+    baselineSurfaceFailures,
+  } = args;
+  const md: string[] = summaryLines({
+    changeGroups,
+    missing,
+    shown,
+    changedScope,
+    contentCount,
+    rawOnlyNoReviewable,
+    rawCounts,
+    baselineSurfaceFailures,
+  });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
       ? ` Auto-detected live-state candidate(s): ${liveCandidateLabels.slice(0, 5).join('; ')}.`
@@ -1547,13 +1688,20 @@ function renderNewSurface(
   const srcDir = side === 'after' ? ctx.afterDir : ctx.beforeDir;
   const map = loadStyleMap(findCapture(srcDir, p.sd.surface));
   const png = readPng(path.join(srcDir, `${p.sd.surface}.png`));
+  // missing 'before' = captured only on head (a NEW surface); missing 'after' =
+  // captured only on base (a REMOVED surface). Rendering a removal under a "new
+  // surface 🆕" heading invited reviewers to approve a feature going invisible
+  // believing it was an addition.
+  const isRemoved = p.sd.missing === 'after';
   const md: string[] = [
     '',
-    `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`,
+    isRemoved
+      ? `### \`${safeKey(p.sd.surface)}\` · REMOVED surface 🗑️`
+      : `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`,
     '',
     `_${formatSurfaceWithContext(p.sd.surface, map)}_`,
   ];
-  const json: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: true };
+  const json: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: !isRemoved, isRemoved };
   if (png) {
     cropSeq++;
     const h = Math.min(maxHeight, png.height, map.viewport?.height ?? png.height);
@@ -1562,7 +1710,7 @@ function renderNewSurface(
     writePng(path.join(outDir, `${stem}.png`), crop);
     md.push(
       '',
-      `![new surface — ${side}](${img(`${stem}.png`)})`,
+      `![${isRemoved ? 'removed surface' : 'new surface'} — ${side}](${img(`${stem}.png`)})`,
       '',
       `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top viewport of page)' : ''}</sub>`,
     );
@@ -1575,7 +1723,9 @@ function renderNewSurface(
   }
   md.push(
     '',
-    `_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._`,
+    isRemoved
+      ? `_Present in the baseline but not captured on head — the surface stopped rendering (or its capture key changed). This is a **removal** to review, not an addition; approving accepts the disappearance._`
+      : `_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._`,
   );
   return { md, json, cropSeq };
 }
@@ -1591,7 +1741,7 @@ function chromeCalloutLines(nChrome: number, nSurfaces: number): string[] {
     '',
     '---',
     '',
-    `## 🧱 Global chrome ${what} — across all ${nSurfaces} surface(s)`,
+    `## 🧱 Global chrome ${what} — across all ${nSurfaces} captured surface base(s)`,
     '',
     `_${nChrome} change(s) rode the shared frame every view draws (a persistent nav, header, or footer): ` +
       `each touched every surface that renders the affected element, so it reads as ONE global change, not a ` +
@@ -1626,6 +1776,69 @@ function compactChangeSummary(cg: ChangeGroup, json: Record<string, unknown>, im
   return `- \`${surface}\`${more} · ${cg.rep.findings.length} change(s)${link}`;
 }
 
+/**
+ * When includeLayoutNoise is on, prepared findings include derived longhands so
+ * raw-only is not a consistency failure. Otherwise preserve fail-closed truth.
+ */
+function comparisonForReport(
+  comparison: ComparisonTruth,
+  includeNoise: boolean,
+  reviewableChangedSurfaces: number,
+): ComparisonTruth {
+  const rawOnlyNoReviewable = !includeNoise && comparison.rawOnlyNoReviewable;
+  return {
+    ...comparison,
+    rawOnlyNoReviewable,
+    hasReviewableEvidence: comparison.hasReviewableEvidence || (includeNoise && reviewableChangedSurfaces > 0),
+  };
+}
+
+/** Focus each surface on styling intent unless layout noise is requested. A
+ *  surface whose ONLY changes are derived longhands keeps them
+ *  (cleanFindingsForDisplay): those findings still gate, and a report that
+ *  renders nothing for a gating change asks a reviewer to approve evidence
+ *  that doesn't exist. */
+function prepareReportSurfaces(
+  surfaces: ReturnType<typeof diffStyleMapDirs>['surfaces'],
+  includeNoise: boolean,
+): PreparedSurface[] {
+  return surfaces
+    .map((sd) => ({
+      sd,
+      findings: sd.missing || includeNoise ? sd.findings : cleanFindingsForDisplay(sd.findings),
+    }))
+    .filter((p) => p.sd.missing || p.findings.length > 0);
+}
+
+function writeReportArtifacts(
+  outDir: string,
+  md: string[],
+  shown: DiffCounts,
+  comparison: ComparisonTruth,
+  surfacesJson: Array<Record<string, unknown>>,
+): { reportMdPath: string; reportJsonPath: string } {
+  const reportMdPath = path.join(outDir, 'report.md');
+  const reportJsonPath = path.join(outDir, 'report.json');
+  fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
+  fs.writeFileSync(
+    reportJsonPath,
+    JSON.stringify(
+      {
+        counts: shown,
+        rawCounts: comparison.rawCounts,
+        reviewableCounts: comparison.reviewableCounts,
+        reportConsistency: comparison.rawOnlyNoReviewable
+          ? { ok: false, reason: 'raw_only_no_reviewable' }
+          : { ok: true, reason: 'aligned' },
+        surfaces: surfacesJson,
+      },
+      null,
+      2,
+    ),
+  );
+  return { reportMdPath, reportJsonPath };
+}
+
 export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,
@@ -1646,22 +1859,24 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     maxReportBytes = 400_000,
   } = opts;
 
-  const includeNoise = opts.includeLayoutNoise ?? false;
-  const includeContent = opts.includeContent ?? false;
-  const { surfaces, volatile: volatileCount } = diffStyleMapDirs(beforeDir, afterDir);
-  const liveCandidateLabels = volatileCount > 0 ? collectLiveCandidateLabels(beforeDir, afterDir) : [];
+  const includeNoise = opts.includeLayoutNoise === true;
+  const includeContent = opts.includeContent === true;
+  // Base first, head second: current capture metadata is authoritative when a
+  // surface's product key changed between revisions.
+  const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
+  const { surfaces, volatile: volatileCount, counts: rawCounts } = diffStyleMapDirs(beforeDir, afterDir);
+  // Canonical truth shared with styleproof-diff / action trust: when raw
+  // certification deltas exist but cleanFindings leaves nothing reviewable,
+  // never claim "identical" and never enable visual approval.
+  const rawComparison = assessComparisonTruth(surfaces, rawCounts);
+  const liveCandidateLabels = volatileCount === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
   // Focus each surface on styling intent: drop reflow-casualty props, suppress
   // forced-state echoes of base changes, and remove non-value noise (see
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
-  const prepared: PreparedSurface[] = surfaces
-    .map((sd) => ({
-      sd,
-      findings: sd.missing || includeNoise ? sd.findings : cleanFindings(sd.findings),
-    }))
-    .filter((p) => p.sd.missing || p.findings.length > 0);
+  const prepared = prepareReportSurfaces(surfaces, includeNoise);
 
   const missing = prepared.filter((p) => p.sd.missing);
   const changeGroups = groupBySignature(prepared, beforeDir, afterDir);
@@ -1671,13 +1886,14 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // entries. Purely presentational — counts, groups, exit code, and report.json
   // are unchanged; only the render order and one heading differ. In the common
   // small-surface case (e.g. the demo) nothing qualifies and this is a no-op.
-  const { chrome, rest } = classifyChrome(changeGroups, surfaceElementPaths(beforeDir, afterDir));
+  const { chrome, rest } = classifyChrome(changeGroups, surfaceElementPaths(beforeDir, afterDir), surfaceKeyOf);
   const orderedGroups = [...chrome, ...rest];
   const shown = countShownChanges(changeGroups);
-  // Surfaces carrying a reviewable change — NOT the new (one-sided) ones, which
-  // have no baseline to compare and are summarised on their own line below so the
-  // headline never reads "0 changes" while warnings sit beneath it.
-  const changedSurfaceCount = changeGroups.reduce((acc, g) => acc + g.surfaces.length, 0);
+  // Surface bases (and variant keys when widths/states differ) carrying a reviewable
+  // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
+  const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
+  const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
+  const comparison = comparisonForReport(rawComparison, includeNoise, prepared.length - missing.length);
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -1710,10 +1926,13 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       changeGroups,
       missing,
       shown,
-      changedSurfaceCount,
+      changedScope,
       volatileCount,
       liveCandidateLabels,
       contentCount: contentSection.count,
+      rawOnlyNoReviewable: comparison.rawOnlyNoReviewable,
+      rawCounts: comparison.rawCounts,
+      baselineSurfaceFailures,
     }),
   );
 
@@ -1742,7 +1961,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // The captured-surface-base count (all surfaces, not just changed ones) so the
   // chrome callout can read "N of M surfaces". M is bases, matching the tier's
   // base-keyed coverage rule.
-  const totalSurfaceBases = new Set(surfaceKeysIn(afterDir).map(surfaceBase)).size;
+  const totalSurfaceBases = countCapturedSurfaceBases(captureKeysIn(afterDir), surfaceKeyOf);
   const chromeSet = new Set(chrome);
   let chromeHeaderEmitted = false;
   if (missing.length > 0) {
@@ -1772,15 +1991,13 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   }
   md.push(...contentSection.md);
 
-  const reportMdPath = path.join(outDir, 'report.md');
-  const reportJsonPath = path.join(outDir, 'report.json');
-  fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
-  fs.writeFileSync(reportJsonPath, JSON.stringify({ counts: shown, surfaces: json }, null, 2));
+  const { reportMdPath, reportJsonPath } = writeReportArtifacts(outDir, md, shown, comparison, json);
   return {
     changedSurfaces: prepared.length - missing.length,
     newSurfaces: missing.length,
     totalFindings,
     contentChanges: contentSection.count,
+    comparison,
     reportMdPath,
     reportJsonPath,
   };

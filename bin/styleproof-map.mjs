@@ -25,17 +25,20 @@ import {
 } from '../dist/cli-errors.js';
 import {
   BROWSER_BUILD_SIDECAR,
+  SURFACE_CAPTURE_FAILURES_DIR,
   DEFAULT_MAP_DIR,
   DEFAULT_MAP_LABEL,
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
   MapStoreError,
+  MapStorePreconditionError,
   MapStoreNotFoundError,
   currentGitSha,
   expectedCompatibilityKey,
   isMapFile,
   publishMapBundle,
   restoreMapBundle,
+  readSurfaceCaptureFailures,
   workingTreeDirty,
   writeMapManifest,
 } from '../dist/map-store.js';
@@ -72,10 +75,17 @@ options:
                       tracked file or directory whose changes never mark the capture
                       dirty (a dev tool rewriting e.g. tsconfig.json); repeatable,
                       also via STYLEPROOF_DIRTY_ALLOW (comma-separated)
+  --tolerate-surface-failures
+                      baseline-only (manual cold base capture): record per-surface
+                      capture failures and continue when at least one map succeeds
+                      (self-check failures still fail). StyleProof CI enables this
+                      only on the cold base capture — never on head.
   -h, --help          show this help
 
 A styleproof.config.json at the repo root supplies project defaults — "spec",
-"dirtyAllow", "cacheBranch", "remote" — with flags and env overriding it.
+"dirtyAllow", "cacheBranch", "remote" — with flags and env overriding it,
+except "dirtyAllow", which ACCUMULATES: config entries, STYLEPROOF_DIRTY_ALLOW,
+and every --dirty-allow flag all apply together.
 
 If playwright.styleproof.config.ts exists, styleproof-map passes it to Playwright
 by default. Override with: styleproof-map -- --config playwright.config.ts
@@ -115,6 +125,9 @@ let crawlMaxActions = process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ?? '';
 let crawlWidth = process.env.STYLEPROOF_CRAWL_WIDTH ?? '';
 let crawlHeight = process.env.STYLEPROOF_CRAWL_HEIGHT ?? '';
 let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1';
+let tolerateSurfaceFailures =
+  process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
+  process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true';
 // Allow paths accumulate across layers (config + env + flags) — they are all
 // "files my tooling rewrites", never mutually exclusive alternatives.
 const dirtyAllow = [
@@ -161,6 +174,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--crawl-strict') crawlStrict = true;
   else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
   else if (a.startsWith('--dirty-allow=')) dirtyAllow.push(a.slice(14));
+  else if (a === '--tolerate-surface-failures') tolerateSurfaceFailures = true;
   else if (a === '--cache-branch' || a === '--remote') {
     const value = argv[++i];
     if (a === '--cache-branch') cacheBranch = value;
@@ -236,8 +250,12 @@ function upload(dirPath) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     if (uploadMode === 'required') {
+      // A precondition the user must fix (dirty tree, missing manifest) keeps
+      // the usage code 2 — retrying can never succeed. Everything else is the
+      // retryable map-store/network fault class the restore side reports as 5;
+      // triage keys on this split (2 = fix the job, 5 = re-run the job).
       console.error(`styleproof-map: upload failed\n${message}`);
-      process.exit(2);
+      process.exit(e instanceof MapStorePreconditionError ? 2 : 5);
     }
     if (e instanceof MapStoreError) {
       console.error(`styleproof-map: map captured locally; upload skipped (${message})`);
@@ -340,6 +358,12 @@ if (restore) {
 // handle unavailable), a stale sidecar would otherwise be read into the manifest and
 // stamp a WRONG browser build that the compatibility guard then trusts as a fingerprint.
 fs.rmSync(path.join(targetDir, BROWSER_BUILD_SIDECAR), { force: true });
+// Same reuse hazard for the surface-capture-failures ledger: writeMapManifest reads
+// back whatever is on disk, so a failure recorded by a PRIOR run into this reused dir
+// (or restored from the store) would be stamped into THIS run's manifest — a healthy
+// recapture would publish a phantom "partial baseline" that every later diff then
+// blocks on with repair-base guidance no repair can satisfy.
+fs.rmSync(path.join(targetDir, SURFACE_CAPTURE_FAILURES_DIR), { recursive: true, force: true });
 
 const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const configArgs =
@@ -351,6 +375,13 @@ const env = {
   STYLEMAP_DIR: dir,
   STYLEPROOF_BASEDIR: baseDir,
   STYLEPROOF_SCREENSHOTS: screenshots,
+  // Freeze the SPEC PROCESS clock alongside the browser clock (the freezeClock
+  // contract): importing styleproof under this env pins Node's Date before the
+  // spec's module-level fixture constants evaluate, so a `new Date()` stamp is
+  // identical across base and head captures instead of leaking each run's wall
+  // clock into the render. Explicit STYLEPROOF_FREEZE_SPEC_CLOCK=0 opts out.
+  STYLEPROOF_FREEZE_SPEC_CLOCK: process.env.STYLEPROOF_FREEZE_SPEC_CLOCK ?? '1',
+  ...(tolerateSurfaceFailures ? { STYLEPROOF_TOLERATE_SURFACE_FAILURES: '1' } : {}),
 };
 runVariantCrawl(env);
 const result = spawnSync(command, ['test', '--grep', 'styleproof capture', ...configArgs, ...playwrightArgs], {
@@ -361,7 +392,25 @@ if (result.error) {
   console.error(playwrightMissingMessage(result.error.message));
   process.exit(2);
 }
-const status = result.status ?? 1;
+let status = result.status ?? 1;
+const captured = fs.existsSync(targetDir) ? fs.readdirSync(targetDir).filter(isMapFile).length : 0;
+const toleratedFailures = readSurfaceCaptureFailures(targetDir);
+// Promote to a publishable partial baseline ONLY when the failures are actually
+// LEDGERED. Self-check/nondeterminism failures are deliberately never recorded —
+// promoting a run that failed for an unrecorded reason would publish a "partial
+// baseline (0 tolerated failures)" whose missing surfaces later read as approvable
+// greenfield-new: exactly the laundering the ledger exists to prevent.
+if (status !== 0 && tolerateSurfaceFailures && captured > 0 && toleratedFailures.length > 0) {
+  console.error(
+    `styleproof-map: Playwright exited ${status} but ${captured} surface map(s) were captured — publishing partial baseline (${toleratedFailures.length} tolerated failure(s))`,
+  );
+  status = 0;
+} else if (status !== 0 && tolerateSurfaceFailures && captured > 0) {
+  console.error(
+    `styleproof-map: Playwright exited ${status} with ${captured} surface map(s) but NO ledgered surface failure — ` +
+      'an unrecorded failure class (e.g. a self-check/nondeterminism failure) is not tolerable; failing the capture.',
+  );
+}
 if (status === 0) {
   if (!keepHar) removeHarFiles(targetDir);
   // A run that produced ZERO surface maps must not stamp a manifest (or upload):
@@ -370,7 +419,6 @@ if (status === 0) {
   // dir instead means "no baseline yet" — on a first adoption, capturing the base
   // commit that predates the spec legitimately yields zero surfaces, and the diff
   // then takes the exit-3 new-surfaces review path.
-  const captured = fs.existsSync(targetDir) ? fs.readdirSync(targetDir).filter(isMapFile).length : 0;
   if (captured === 0) {
     console.error(
       'styleproof-map: 0 surfaces captured — no manifest written; if this is the base side of a first adoption, the diff will treat it as no-baseline',

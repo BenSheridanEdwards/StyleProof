@@ -69,6 +69,22 @@ jobs:
           test '${{ steps.new-surface.outputs.trust-state }}' = 'VISUAL_APPROVAL_REQUIRED'
           test -n '${{ steps.new-surface.outputs.report-url }}'
 
+      - id: partial-baseline
+        continue-on-error: true
+        uses: ./
+        with:
+          baseline-dir: action-dogfood/partial-base
+          fresh-dir: action-dogfood/partial-head
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert partial baseline is repair debt, not visual approval
+        run: |
+          test '${{ steps.partial-baseline.outcome }}' = 'failure'
+          test '${{ steps.partial-baseline.outputs.changed }}' = 'false'
+          test '${{ steps.partial-baseline.outputs.trust-state }}' = 'PARTIAL_BASELINE'
+          test -n '${{ steps.partial-baseline.outputs.report-url }}'
+
       - id: degraded
         continue-on-error: true
         uses: ./

@@ -16,7 +16,7 @@ inputs:
     description: 'Directory with restored or freshly captured PR-head maps to compare (.json.gz + .png).'
     required: true
   base-capture-failed:
-    description: 'Set true when the baseline capture failed and baseline-dir is intentionally bare. Produces a failing DEGRADED_BASELINE trust state.'
+    description: 'Set true when the baseline capture failed with zero maps and baseline-dir is intentionally bare. Partial baselines with tolerated per-surface failures keep this false. Produces DEGRADED_BASELINE when true.'
     default: 'false'
   report-branch:
     description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close.'
@@ -54,7 +54,7 @@ outputs:
       Machine-readable terminal classification: NO_VISUAL_CHANGES,
       VISUAL_APPROVAL_REQUIRED, DATA_RESIDUE_UNACKNOWLEDGED,
       INVENTORY_REMOVAL_UNACKNOWLEDGED, CERTIFICATION_FAILED,
-      DEGRADED_BASELINE, or REPORT_PUBLICATION_FAILED.
+      PARTIAL_BASELINE, DEGRADED_BASELINE, or REPORT_PUBLICATION_FAILED.
     value: ${{ steps.trust.outputs.state }}
   data-residue-keys:
     description: 'JSON array of unacknowledged <surface>·<endpoint> residue keys.'
@@ -88,6 +88,7 @@ runs:
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}
+        retries: 3
         script: |
           const { resolveActionContext } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/action-context.js`);
           const { prNumber, headSha } = await resolveActionContext({
@@ -155,17 +156,36 @@ runs:
           const residueKeys = (diff.dataResidue?.unacknowledged || []).map((entry) =>
             typeof entry === 'string' ? entry : entry.key,
           );
-          const inventoryFailures =
-            (diff.inventory?.unacknowledged || []).length +
-            (diff.inventory?.staleAcknowledgements || []).length;
+          // "gateInventoryRemovals": false downgrades removals from the unapprovable
+          // inventory state to ordinary reviewable changes (the diff still exits 1,
+          // so they surface as approval-required and the box can clear them).
+          // Without this, the documented opt-out only skipped the job-fail step
+          // while the verdict + commit status stayed an unclearable red.
+          const gateInventoryRemovals = '${{ steps.config.outputs.gate-inventory-removals }}' !== 'false';
+          const inventoryFailures = gateInventoryRemovals
+            ? (diff.inventory?.unacknowledged || []).length +
+              (diff.inventory?.staleAcknowledgements || []).length
+            : 0;
           const certificationFailed =
             diff.coverage?.basis === 'incomplete' ||
             diff.determinism?.status === 'unproven';
+          // Raw certification deltas that cleanFindings strips entirely: the durable
+          // report has no crops/sections. Never map this to visual approval.
+          const rawOnlyNoReviewable =
+            diff.reportConsistency?.ok === false ||
+            diff.reportConsistency?.reason === 'raw_only_no_reviewable';
+          const partialBaseline = (diff.partialBaseline === true) ||
+            (Array.isArray(diff.explainedMissingBaselineSurfaces) &&
+              diff.explainedMissingBaselineSurfaces.length > 0);
           let state = 'NO_VISUAL_CHANGES';
           if ((diff.dataResidue?.blocking ?? 0) > 0) state = 'DATA_RESIDUE_UNACKNOWLEDGED';
           else if (inventoryFailures > 0) state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED';
-          else if (certificationFailed) state = 'CERTIFICATION_FAILED';
-          else if ('${{ inputs.base-capture-failed }}' === 'true') state = 'DEGRADED_BASELINE';
+          else if (certificationFailed || rawOnlyNoReviewable) state = 'CERTIFICATION_FAILED';
+          else if (partialBaseline) state = 'PARTIAL_BASELINE';
+          // Case-tolerant like the GitHub-expression `==` the block step uses, so a
+          // consumer passing 'True' can't get DEGRADED skipped here (a green status)
+          // while the block step still fails the job.
+          else if ('${{ inputs.base-capture-failed }}'.toLowerCase() === 'true') state = 'DEGRADED_BASELINE';
           else if ('${{ steps.diff.outputs.changed }}' === 'true') state = 'VISUAL_APPROVAL_REQUIRED';
           core.setOutput('state', state);
           core.setOutput('data-residue-keys', JSON.stringify(residueKeys));
@@ -179,6 +199,7 @@ runs:
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}
+        retries: 3
         script: |
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const sha = '${{ steps.context.outputs.head-sha }}';
@@ -301,10 +322,12 @@ runs:
         echo "raw-base=https://raw.githubusercontent.com/${REPO}/${REPORT_COMMIT}/${REPORT_PATH}" >> "$GITHUB_OUTPUT"
 
     - name: Upsert PR comment
+      id: comment
       if: steps.context.outputs.pr-number != ''
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}
+        retries: 3
         script: |
           const fs = require('fs');
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
@@ -350,7 +373,8 @@ runs:
           const trustGuidance = {
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; visual approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; visual approval cannot clear this failure._',
-            CERTIFICATION_FAILED: '_Coverage or determinism evidence is incomplete — repair the capture; visual approval cannot clear this failure._',
+            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — repair the capture or reflow source; visual approval cannot clear this failure._',
+            PARTIAL_BASELINE: '_Base capture is incomplete — repair baseline capture on the base branch; visual approval cannot clear missing baseline surfaces._',
             DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; visual approval cannot clear this failure._',
           }[trustState];
           const footer = [
@@ -372,10 +396,12 @@ runs:
     # instead of failing the job. Green when nothing changed; red ("needs
     # sign-off") until a write-access reviewer ticks the box. PR events only.
     - name: Set review status
+      id: status
       if: steps.context.outputs.pr-number != '' && inputs.require-approval == 'true'
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}
+        retries: 3
         script: |
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
@@ -394,7 +420,8 @@ runs:
               : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
-            CERTIFICATION_FAILED: 'Coverage or determinism evidence is incomplete',
+            CERTIFICATION_FAILED: 'Coverage, determinism, or report/diff consistency evidence is incomplete',
+            PARTIAL_BASELINE: 'Base capture incomplete — repair baseline on the base branch',
             DEGRADED_BASELINE: 'Base capture failed — head-only evidence cannot certify this change',
           };
           await github.rest.repos.createCommitStatus({
@@ -413,6 +440,15 @@ runs:
       shell: bash
       run: |
         echo 'StyleProof: base capture failed — the published report is head-only degraded evidence, not a base-vs-head certification. Repair the base capture and rerun.' >&2
+        exit 1
+
+    # Partial baseline bundles compare what they can, but ledger-explained missing
+    # base surfaces are repair debt — not NO_VISUAL_CHANGES and not approvable.
+    - name: Block on partial baseline
+      if: steps.verdict.outputs.state == 'PARTIAL_BASELINE'
+      shell: bash
+      run: |
+        echo 'StyleProof: base capture is incomplete — repair baseline capture on the base branch for the missing surfaces listed in the report (approval cannot clear this).' >&2
         exit 1
 
     # blocking (on by default; opt out with styleproof.config.json "blocking": false): on
@@ -489,14 +525,17 @@ runs:
           if (j.coverage?.basis === 'incomplete') out.push('coverage incomplete: ' + (j.coverage.uncovered || []).join(', '));
           if (j.determinism?.status === 'unproven') out.push('determinism unproven (base ' + j.determinism.base + ', head ' + j.determinism.head + ')');
           if ((j.dataResidue?.blocking ?? 0) > 0) out.push('data-residue gate: ' + j.dataResidue.blocking + ' blocking failure(s)');
-          process.stdout.write(out.join('\n'));
+          if (j.reportConsistency && j.reportConsistency.ok === false) {
+            out.push('report/diff consistency: ' + (j.reportConsistency.reason || 'raw_only_no_reviewable') + ' — certification deltas without reviewable report crops (not visual-approval)');
+          }
+          process.stdout.write(out.join('\\n'));
         ")"
         if [ -n "$fails" ]; then
           echo "::error::StyleProof: certification failure(s) that approval cannot wave through:"
           echo "$fails"
           exit 1
         fi
-        echo "✓ certification: coverage, determinism, and data-residue verdicts are approvable or clean"
+        echo "✓ certification: coverage, determinism, data-residue, and report consistency verdicts are approvable or clean"
 
     # Always expose a terminal trust classification, even when a later gate fails.
     # Publication failure outranks every diff verdict because reviewers have no
@@ -506,8 +545,21 @@ runs:
       uses: actions/github-script@v9
       with:
         script: |
-          const published = '${{ steps.publish.outcome }}' === 'success';
+          // Name the FAILURE DOMAIN precisely, so automation retries the right thing:
+          //   publish 'failure'            → the publish step itself broke → REPORT_PUBLICATION_FAILED;
+          //   publish 'skipped'/'cancelled' → an EARLIER step (capture/diff/config) failed —
+          //     not a publication fault; report the verdict if one exists, else the
+          //     capture/certification domain;
+          //   comment/status delivery failed after a successful publish → the consumer-
+          //     visible half of publication never landed → REPORT_PUBLICATION_FAILED,
+          //     never a green classification from a run that delivered nothing.
+          const publishOutcome = '${{ steps.publish.outcome }}';
           const diffState = '${{ steps.verdict.outputs.state }}';
-          const state = published ? (diffState || 'CERTIFICATION_FAILED') : 'REPORT_PUBLICATION_FAILED';
+          const deliveryFailed =
+            '${{ steps.comment.outcome }}' === 'failure' || '${{ steps.status.outcome }}' === 'failure';
+          let state;
+          if (publishOutcome === 'failure') state = 'REPORT_PUBLICATION_FAILED';
+          else if (publishOutcome !== 'success') state = diffState || 'CERTIFICATION_FAILED';
+          else state = deliveryFailed ? 'REPORT_PUBLICATION_FAILED' : (diffState || 'CERTIFICATION_FAILED');
           core.setOutput('state', state);
           core.info(`StyleProof terminal trust state: ${state}`);

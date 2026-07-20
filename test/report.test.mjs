@@ -171,12 +171,25 @@ function sceneMap({ buttonColor, bodyHeight }) {
   return makeMap({
     defaults: {},
     elements: {
-      body: { tag: 'body', cls: '', rect: [0, 0, 1280, bodyHeight], style: { height: `${bodyHeight}px` } },
-      'body > div:nth-child(1)': { tag: 'div', cls: 'wrap', rect: [20, 20, 1240, 300], style: { display: 'block' } },
+      body: {
+        tag: 'body',
+        cls: '',
+        rect: [0, 0, 1280, bodyHeight],
+        ownTextLength: 0,
+        style: { height: `${bodyHeight}px` },
+      },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'wrap',
+        rect: [20, 20, 1240, 300],
+        ownTextLength: 0,
+        style: { display: 'block' },
+      },
       'body > div:nth-child(1) > button:nth-child(1)': {
         tag: 'button',
         cls: 'cta primary',
         rect: [100, 100, 160, 48],
+        ownTextLength: 0,
         style: { 'background-color': buttonColor },
       },
     },
@@ -354,6 +367,7 @@ test('an identical change across surfaces collapses into one grouped section', (
   }
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /1 changed surface base \(2 variants\) with an existing baseline/);
   assert.match(md, /Identical across 2 surfaces/);
   assert.equal(
     (md.match(/\*\*`div\.box`\*\* — /g) || []).length,
@@ -805,18 +819,22 @@ test('end-to-end: no differences yields the all-identical report and zero surfac
   rmTmp(root);
 });
 
-test('end-to-end: a surface missing on one side is reported as a new surface, not crashed on', () => {
+test('end-to-end: a surface missing on one side renders by DIRECTION — head-only is new, base-only is removed', () => {
   const { root, beforeDir, afterDir, outDir } = tmpDirs();
   writeCapture(beforeDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
   writeCapture(afterDir, 'home@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
-  writeCapture(beforeDir, 'about@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null);
+  writeCapture(beforeDir, 'about@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null); // base only
+  writeCapture(afterDir, 'launch@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null); // head only
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  // Framed as a new surface, carrying the marker the PR comment uses for approval
-  // policy — never the misleading "0 changes".
-  assert.match(md, /### `about@1280` · new surface <!-- styleproof-new -->/);
+  // Head-only: a NEW surface, carrying the marker + approve-forward guidance.
+  assert.match(md, /### `launch@1280` · new surface <!-- styleproof-new -->/);
   assert.match(md, /🆕 \*\*1 new surface\(s\)\*\*/);
-  assert.match(md, /Approve them before they become the baseline/);
+  // Base-only: a REMOVAL — previously mislabelled "new", inviting reviewers to
+  // approve a disappearing feature as an addition.
+  assert.match(md, /### `about@1280` · REMOVED surface 🗑️/);
+  assert.match(md, /1 REMOVED surface\(s\)/);
+  assert.doesNotMatch(md, /about@1280` · new surface/);
   assert.doesNotMatch(md, /0 DOM change\(s\)/); // no contradictory "0 changes" headline
   rmTmp(root);
 });
@@ -995,18 +1013,51 @@ test('end-to-end: forced-state echoes are suppressed and the change reads in pla
   rmTmp(root);
 });
 
-test('end-to-end: includeLayoutNoise keeps the reflow-casualty element', () => {
+test('end-to-end: includeLayoutNoise keeps the reflow-casualty element beside its driver', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
+    // Driver on the button (background-color) + casualty on body (height only):
+    // the casualty folds by default and is kept only under includeLayoutNoise.
     before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
-    after: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 820 }), // only body height differs
+    after: sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 820 }),
   });
-  // Without noise: body-only height change is stripped -> no real change.
   const off = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(outDir, 'off') });
-  assert.equal(off.changedSurfaces, 0);
-  // With noise: the height change surfaces.
+  assert.equal(off.changedSurfaces, 1);
+  const offJson = JSON.parse(fs.readFileSync(off.reportJsonPath, 'utf8'));
+  assert.equal(offJson.counts.style, 1, 'casualty height folded behind the driver');
   const on = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(outDir, 'on'), includeLayoutNoise: true });
-  assert.equal(on.changedSurfaces, 1);
+  const onJson = JSON.parse(fs.readFileSync(on.reportJsonPath, 'utf8'));
+  assert.ok(onJson.counts.style > 1, 'noise mode keeps the casualty height row');
+  rmTmp(root);
+});
+
+test('end-to-end: a derived-only change renders as reviewable evidence — verdict and report agree', () => {
+  // Generic consumer-shaped pair: several surfaces, only derived longhands
+  // differ (content-length drift). The differ gates on these, so the report must
+  // RENDER them — labelled — instead of failing closed with no evidence; the
+  // raw-only CERTIFICATION_FAILED backstop is reserved for shapes that truly
+  // cannot render (state-strip-only deltas).
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  const outDir = path.join(root, 'out');
+  for (const surface of ['home@1280', 'about@1280', 'pricing@390']) {
+    writeCapture(beforeDir, surface, sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), solidPng(400, 200));
+    writeCapture(afterDir, surface, sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 900 }), solidPng(400, 200));
+  }
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  assert.equal(res.changedSurfaces, 3);
+  assert.equal(res.newSurfaces, 0);
+  assert.equal(res.comparison.rawOnlyNoReviewable, false);
+  assert.ok(res.comparison.rawCounts.style >= 3, 'raw style diffs across surfaces');
+  assert.ok(res.comparison.reviewableCounts.style >= 3, 'the same diffs are reviewable evidence');
+  assert.equal(res.comparison.hasReviewableEvidence, true);
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.doesNotMatch(md, /All surfaces identical/);
+  assert.match(md, /size\/position only, no styling property changed/);
+  assert.match(md, /content-length drift/);
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.equal(json.reportConsistency.ok, true);
   rmTmp(root);
 });
 
@@ -1957,6 +2008,64 @@ test('report promotes a frame-wide change to a chrome callout, leaves a one-view
   rmTmp(root);
 });
 
+test('report headline and global chrome use surface-base counts with variant detail (#193)', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const nav = (extra) => ({
+    'html > body > nav': { tag: 'nav', cls: 'rail', style: { display: 'flex' } },
+    'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } },
+    ...extra,
+  });
+  const a2 = { 'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } } };
+  for (const base of ['home', 'settings']) {
+    for (const w of [1280, 390]) {
+      writeCapture(beforeDir, `${base}@${w}`, makeMap({ elements: nav({}) }), solidPng(w, 400));
+      writeCapture(afterDir, `${base}@${w}`, makeMap({ elements: nav(a2) }), solidPng(w, 400));
+    }
+  }
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const summary = md.slice(0, md.indexOf('\n### '));
+  assert.match(summary, /2 changed surface bases \(4 variants\) with an existing baseline/);
+  assert.match(summary, /Surface base.*@width/);
+  assert.match(md, /## 🧱 Global chrome change — across all 2 captured surface base\(s\)/);
+  rmTmp(root);
+});
+
+test('report headline counts live-state variants under metadata.surfaceKey product base', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const el = (color) => ({
+    body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+    'body > button:nth-child(1)': {
+      tag: 'button',
+      cls: 'cta',
+      rect: [10, 10, 120, 32],
+      style: { color },
+    },
+  });
+  const baseMap = (color) => makeMap({ elements: el(color) });
+  const loadedMeta = { surfaceKey: 'dashboard', variantKey: 'loaded', variantKind: 'live-state' };
+  writeCapture(beforeDir, 'dashboard@1280', baseMap('rgb(0, 0, 0)'), solidPng(1280, 800));
+  writeCapture(afterDir, 'dashboard@1280', baseMap('rgb(255, 0, 0)'), solidPng(1280, 800));
+  writeCapture(
+    beforeDir,
+    'dashboard-loaded@1280',
+    { ...baseMap('rgb(0, 0, 0)'), metadata: loadedMeta },
+    solidPng(1280, 800),
+  );
+  writeCapture(
+    afterDir,
+    'dashboard-loaded@1280',
+    { ...baseMap('rgb(255, 0, 0)'), metadata: loadedMeta },
+    solidPng(1280, 800),
+  );
+
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  const summary = md.slice(0, md.indexOf('\n### ') >= 0 ? md.indexOf('\n### ') : md.length);
+  assert.match(summary, /1 changed surface base \(2 variants\) with an existing baseline/);
+  rmTmp(root);
+});
+
 test('report does NOT promote a change that hit only some hosting surfaces (#193)', () => {
   const { beforeDir, afterDir, outDir, root } = tmpDirs();
   const nav = (color) => ({
@@ -2081,5 +2190,37 @@ test('end-to-end: a removal and an identical addition in different containers bo
   const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
   assert.equal(report.counts.dom, 2, 'both structural findings remain in the audit');
   assert.ok(annotatedPaths.length > 0, 'independent changes in different containers keep visual proof');
+  rmTmp(root);
+});
+
+test('end-to-end: a surface captured only on base renders as REMOVED, never as a new surface', () => {
+  // missing:'after' = present in the baseline, absent on head — a feature going
+  // invisible. It previously rendered under "new surface 🆕" with approve-the-
+  // addition guidance, inviting reviewers to sign off a disappearance as growth.
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  const outDir = path.join(root, 'out');
+  const box = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': { tag: 'div', cls: 'box', rect: [0, 0, 200, 100], style: { color } },
+      },
+    });
+  writeCapture(beforeDir, 'home@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  writeCapture(afterDir, 'home@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  writeCapture(beforeDir, 'pricing@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800)); // base only
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  assert.match(md, /REMOVED surface 🗑️/);
+  assert.match(md, /REMOVED surface\(s\)/);
+  assert.match(md, /approving accepts the disappearance/i);
+  assert.doesNotMatch(md, /pricing.*new surface 🆕/s);
+  assert.doesNotMatch(md, /new surface\(s\)\*\* captured with no baseline/);
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const removedEntry = json.surfaces.find((s) => s.surface === 'pricing@1280');
+  assert.equal(removedEntry.isRemoved, true);
+  assert.equal(removedEntry.isNew, false);
   rmTmp(root);
 });
