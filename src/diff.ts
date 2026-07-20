@@ -64,7 +64,18 @@ export type Finding =
       detail?: string;
       component?: { name: string; props?: Record<string, string> };
     }
-  | { kind: 'style'; path: string; cls: string; pseudo: string | null; props: PropChange[] }
+  | {
+      kind: 'style';
+      path: string;
+      cls: string;
+      pseudo: string | null;
+      props: PropChange[];
+      /**
+       * Whether normalized own-text length changed, or could not be compared
+       * because at least one legacy map omitted the signal.
+       */
+      contentLengthSignal?: 'changed' | 'unknown';
+    }
   | { kind: 'state'; path: string; cls: string; state: string; sub: string; props: PropChange[] };
 
 export type SurfaceDiff = {
@@ -251,7 +262,24 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
       const pdefsB = pseudo ? (b.defaults[eb.tag + pseudo] ?? defsB) : defsB;
       const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
       const props = dropSubpixelOriginProps(pseudo ? rawProps : dropLayoutEquivalentMarginProps(rawProps, ea, eb));
-      if (props.length) findings.push({ kind: 'style', path: p, cls: ea.cls, pseudo, props });
+      if (props.length) {
+        const contentLengthSignal =
+          pseudo !== null
+            ? undefined
+            : ea.ownTextLength === undefined || eb.ownTextLength === undefined
+              ? 'unknown'
+              : ea.ownTextLength !== eb.ownTextLength
+                ? 'changed'
+                : undefined;
+        findings.push({
+          kind: 'style',
+          path: p,
+          cls: ea.cls,
+          pseudo,
+          props,
+          ...(contentLengthSignal ? { contentLengthSignal } : {}),
+        });
+      }
     }
   }
 

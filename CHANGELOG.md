@@ -9,6 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Content-length reflow no longer produces a blind visual-approval gate.**
+  Captures now persist only each element's normalized own-text length, including
+  explicit zeroes (never its text), so the diff can distinguish content-driven
+  geometry drift from a real sizing-rule change. Geometry deltas paired with a
+  changed text length, or with a legacy map where length is unknown, now fail
+  closed as `CERTIFICATION_FAILED` instead of asking reviewers to approve an
+  empty or misleading CSS report; known same-length geometry remains reviewable.
 - **`freezeClock` now pins the spec process's clock, not just the browser's.**
   A capture spec that computed a fixture at module level —
   `const GENERATED_AT = new Date().toISOString()` — ran on the live Node clock,

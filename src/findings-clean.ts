@@ -162,6 +162,12 @@ export function cleanFindings(findings: Finding[]): Finding[] {
   return out;
 }
 
+function hasUncertainContentGeometry(findings: Finding[]): boolean {
+  return findings.some(
+    (f) => f.kind === 'style' && f.contentLengthSignal !== undefined && f.props.some((p) => DERIVED_PROPS.has(p.prop)),
+  );
+}
+
 /**
  * {@link cleanFindings}, but a surface is never cleaned into silence while it
  * still gates. The derived-longhand strip assumes those props are reflow
@@ -177,8 +183,18 @@ export function cleanFindings(findings: Finding[]): Finding[] {
  */
 export function cleanFindingsForDisplay(findings: Finding[]): Finding[] {
   const cleaned = cleanFindings(findings);
+  const displayable = findings.filter(
+    (f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style' && f.props.length > 0,
+  );
+  // A geometry-only change paired with changed own-text length is content-driven
+  // reflow, not CSS review evidence. Do not resurrect it into an approval
+  // checkbox. Leaving it raw-only makes the existing comparison-consistency
+  // contract fail closed as CERTIFICATION_FAILED until the consumer freezes or
+  // ignores the nondeterministic content. A pure CSS width/inset change has no
+  // text-length signal and remains reviewable.
+  if (hasUncertainContentGeometry(displayable)) return cleaned;
   if (cleaned.length > 0) return cleaned;
-  return findings.filter((f) => f.kind === 'style' && f.props.length > 0);
+  return displayable;
 }
 
 /** True when every shown prop across the group's findings is a size/position
@@ -237,6 +253,8 @@ export type ComparisonTruth = {
    * would show no change sections/crops. Never map this to VISUAL_APPROVAL_REQUIRED.
    */
   rawOnlyNoReviewable: boolean;
+  /** Content-driven or legacy-unknown geometry existed and cannot be approved. */
+  contentGeometryUncertain: boolean;
 };
 
 /** Surface shape both the differ and the report already produce. */
@@ -260,6 +278,7 @@ export function assessComparisonTruth(surfaces: ComparisonSurface[], rawCounts?:
   let removedSurfaces = 0;
   let rawChangedSurfaces = 0;
   let reviewableChangedSurfaces = 0;
+  const contentGeometryUncertain = surfaces.some((sd) => hasUncertainContentGeometry(sd.findings));
 
   for (const sd of surfaces) {
     if (sd.missing === 'before') {
@@ -284,7 +303,8 @@ export function assessComparisonTruth(surfaces: ComparisonSurface[], rawCounts?:
   const rawTotal = raw.dom + raw.style + raw.state;
   const revTotal = reviewable.dom + reviewable.style + reviewable.state;
   const hasReviewableEvidence = revTotal > 0 || newSurfaces > 0 || removedSurfaces > 0;
-  const rawOnlyNoReviewable = rawTotal > 0 && revTotal === 0 && newSurfaces === 0 && removedSurfaces === 0;
+  const rawOnlyNoReviewable =
+    contentGeometryUncertain || (rawTotal > 0 && revTotal === 0 && newSurfaces === 0 && removedSurfaces === 0);
 
   return {
     rawCounts: raw,
@@ -295,5 +315,6 @@ export function assessComparisonTruth(surfaces: ComparisonSurface[], rawCounts?:
     reviewableChangedSurfaces,
     hasReviewableEvidence,
     rawOnlyNoReviewable,
+    contentGeometryUncertain,
   };
 }

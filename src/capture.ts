@@ -43,6 +43,13 @@ export type ElementEntry = {
   style: Props;
   pseudo?: Record<string, Props>;
   /**
+   * Length of the element's own rendered text after whitespace normalization.
+   * Always captured, but never the text itself: this privacy-safe signal lets
+   * the differ distinguish content-length reflow from a genuine sizing-rule
+   * change without enabling the opt-in content layer.
+   */
+  ownTextLength?: number;
+  /**
    * The element's OWN rendered text (direct text-node children only, whitespace
    * collapsed) — present only when capture ran with `captureText: true` (the
    * opt-in content layer, off by default). Own-text, not subtree text, so each
@@ -410,6 +417,7 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
     rect?: [number, number, number, number];
     style: Props;
     pseudo?: Record<string, Props>;
+    ownTextLength?: number;
     text?: string;
     component?: { name: string; props?: Record<string, string> };
   };
@@ -499,17 +507,17 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
         Math.round(r.width),
         Math.round(r.height),
       ];
-      if (captureText) {
-        // Own text only (direct text-node children, whitespace collapsed), so a
-        // parent and child never both report the same string — each change is
-        // attributed to the element that actually owns the text.
-        let t = '';
-        for (const node of Array.prototype.slice.call(el.childNodes)) {
-          if (node.nodeType === 3 /* TEXT_NODE */) t += node.textContent ?? '';
-        }
-        t = t.replace(/\s+/g, ' ').trim();
-        if (t) entry.text = t;
+      // Own text only (direct text-node children, whitespace collapsed), so a
+      // parent and child never both report the same string. The length is a
+      // privacy-safe default signal for content-driven reflow; the actual text
+      // remains opt-in through captureText.
+      let ownText = '';
+      for (const node of Array.prototype.slice.call(el.childNodes)) {
+        if (node.nodeType === 3 /* TEXT_NODE */) ownText += node.textContent ?? '';
       }
+      ownText = ownText.replace(/\s+/g, ' ').trim();
+      entry.ownTextLength = ownText.length;
+      if (captureText && ownText) entry.text = ownText;
       if (captureComponent) {
         try {
           const comp = reactComponent(el);

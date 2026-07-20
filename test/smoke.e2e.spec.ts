@@ -74,6 +74,17 @@ test('captures a real page and reports an identical map as unchanged', async ({ 
   expect(diffStyleMaps(a, b)).toEqual([]);
 });
 
+test('capture persists zero own-text length without persisting rendered copy', async ({ page }) => {
+  const html = '<!doctype html><html><body><span class="empty"></span><span class="filled">test</span></body></html>';
+  const map = await captureFixture(page, html);
+  const empty = Object.values(map.elements).find((entry) => entry.cls === 'empty');
+  const filled = Object.values(map.elements).find((entry) => entry.cls === 'filled');
+  expect(empty?.ownTextLength).toBe(0);
+  expect(filled?.ownTextLength).toBe(4);
+  expect(empty?.text).toBeUndefined();
+  expect(filled?.text).toBeUndefined();
+});
+
 test('capture declares prefers-reduced-motion so JS animation libraries render final states', async ({ page }) => {
   // FREEZE_CSS only reaches CSS-declared motion; framer-motion et al. write
   // inline styles from rAF loops and gate them on prefers-reduced-motion. The

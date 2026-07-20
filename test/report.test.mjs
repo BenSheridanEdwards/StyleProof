@@ -171,12 +171,25 @@ function sceneMap({ buttonColor, bodyHeight }) {
   return makeMap({
     defaults: {},
     elements: {
-      body: { tag: 'body', cls: '', rect: [0, 0, 1280, bodyHeight], style: { height: `${bodyHeight}px` } },
-      'body > div:nth-child(1)': { tag: 'div', cls: 'wrap', rect: [20, 20, 1240, 300], style: { display: 'block' } },
+      body: {
+        tag: 'body',
+        cls: '',
+        rect: [0, 0, 1280, bodyHeight],
+        ownTextLength: 0,
+        style: { height: `${bodyHeight}px` },
+      },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'wrap',
+        rect: [20, 20, 1240, 300],
+        ownTextLength: 0,
+        style: { display: 'block' },
+      },
       'body > div:nth-child(1) > button:nth-child(1)': {
         tag: 'button',
         cls: 'cta primary',
         rect: [100, 100, 160, 48],
+        ownTextLength: 0,
         style: { 'background-color': buttonColor },
       },
     },

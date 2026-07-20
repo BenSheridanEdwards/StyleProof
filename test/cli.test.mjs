@@ -1323,7 +1323,7 @@ function reflowOnlyPair() {
   const mk = (h) =>
     makeMap({
       elements: {
-        body: { tag: 'body', rect: [0, 0, 1280, h], style: { height: `${h}px` } },
+        body: { tag: 'body', rect: [0, 0, 1280, h], ownTextLength: 0, style: { height: `${h}px` } },
         'body > button:nth-child(1)': {
           tag: 'button',
           cls: 'cta',

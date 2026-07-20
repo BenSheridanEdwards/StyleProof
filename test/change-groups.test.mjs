@@ -188,6 +188,28 @@ test('assessComparisonTruth: derived-only findings are resurrected as reviewable
   assert.equal(truth.rawOnlyNoReviewable, false);
 });
 
+test('assessComparisonTruth: content-length geometry drift fails closed instead of requesting CSS approval', () => {
+  const surfaces = [
+    {
+      surface: 'dashboard@1280',
+      findings: [
+        {
+          ...styleFinding('body > span:nth-child(1)', [
+            { prop: 'width', before: '191px', after: '198px' },
+            { prop: 'transform-origin', before: '95px 13px', after: '99px 13px' },
+          ]),
+          contentLengthSignal: 'changed',
+        },
+      ],
+    },
+  ];
+  const truth = assessComparisonTruth(surfaces, { dom: 0, style: 2, state: 0 });
+  assert.equal(truth.rawCounts.style, 2);
+  assert.equal(truth.reviewableCounts.style, 0);
+  assert.equal(truth.hasReviewableEvidence, false);
+  assert.equal(truth.rawOnlyNoReviewable, true);
+});
+
 test('assessComparisonTruth: state-strip-only deltas remain the raw-only fail-closed backstop', () => {
   // The one shape that still cannot render: a forced-state delta whose every
   // prop is state-stripped (derived/grid in a :hover layer). Nothing resurrects
@@ -240,6 +262,59 @@ test('cleanFindingsForDisplay: derived-only surfaces keep their findings; casual
   assert.equal(cleaned[0].path, 'body > button:nth-child(2)');
   assert.equal(isGeometryOnlyGroup(cleaned), false);
   assert.doesNotMatch(groupTitle(cleaned), /size\/position only/);
+});
+
+test('cleanFindingsForDisplay: same-length geometry remains reviewable while changed or unknown length does not', () => {
+  const geometry = styleFinding('body > span:nth-child(1)', [{ prop: 'inline-size', before: '70px', after: '77px' }]);
+  assert.equal(cleanFindingsForDisplay([geometry]).length, 1);
+  assert.equal(cleanFindingsForDisplay([{ ...geometry, contentLengthSignal: 'changed' }]).length, 0);
+  assert.equal(cleanFindingsForDisplay([{ ...geometry, contentLengthSignal: 'unknown' }]).length, 0);
+});
+
+test('assessComparisonTruth: mixed reviewable styling cannot clear uncertain content geometry', () => {
+  const surfaces = [
+    {
+      surface: 'dashboard@1280',
+      findings: [
+        {
+          ...styleFinding('body > span:nth-child(1)', [{ prop: 'width', before: '70px', after: '77px' }]),
+          contentLengthSignal: 'unknown',
+        },
+        styleFinding('body > button', [{ prop: 'color', before: 'red', after: 'blue' }]),
+      ],
+    },
+  ];
+  const truth = assessComparisonTruth(surfaces, { dom: 0, style: 2, state: 0 });
+  assert.equal(truth.reviewableCounts.style, 1);
+  assert.equal(truth.hasReviewableEvidence, true);
+  assert.equal(truth.contentGeometryUncertain, true);
+  assert.equal(truth.rawOnlyNoReviewable, true, 'Action must fail certification even with another reviewable driver');
+});
+
+test('assessComparisonTruth: mixed props on one element retain styling evidence but fail uncertain geometry closed', () => {
+  const surfaces = [
+    {
+      surface: 'dashboard@1280',
+      findings: [
+        {
+          ...styleFinding('body > span:nth-child(1)', [
+            { prop: 'width', before: '70px', after: '77px' },
+            { prop: 'color', before: 'red', after: 'blue' },
+          ]),
+          contentLengthSignal: 'changed',
+        },
+      ],
+    },
+  ];
+  const truth = assessComparisonTruth(surfaces, { dom: 0, style: 2, state: 0 });
+  assert.equal(truth.reviewableCounts.style, 1, 'the independent color change remains reviewable');
+  assert.equal(truth.hasReviewableEvidence, true);
+  assert.equal(truth.contentGeometryUncertain, true);
+  assert.equal(
+    truth.rawOnlyNoReviewable,
+    true,
+    'uncertain geometry outranks visual approval even in one mixed finding',
+  );
 });
 
 test('assessComparisonTruth: real style change is reviewable and aligned', () => {
