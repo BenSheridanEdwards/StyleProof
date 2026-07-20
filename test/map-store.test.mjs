@@ -151,6 +151,36 @@ test('workingTreeDirty: ignorePrefix skips the map output dir but still catches 
   }
 });
 
+test('workingTreeDirty: porcelain-quoted paths and renames match allowances correctly', () => {
+  const repo = mkTmp('styleproof-dirty-quoting-');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'test');
+    fs.mkdirSync(path.join(repo, 'allowed dir'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'allowed dir', 'with space.txt'), 'v1');
+    fs.writeFileSync(path.join(repo, 'plain.txt'), 'v1');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+
+    // Porcelain quotes paths containing spaces ("allowed dir/with space.txt");
+    // an allowance for that directory must still match the quoted line.
+    fs.writeFileSync(path.join(repo, 'allowed dir', 'with space.txt'), 'v2');
+    assert.equal(workingTreeDirty(repo), true, 'the edit is real dirt');
+    assert.equal(workingTreeDirty(repo, 'allowed dir'), false, 'quoted paths match directory allowances');
+
+    // A staged rename shows as `old -> new`: allowed only when BOTH sides are.
+    git('checkout', '-q', '--', '.');
+    git('mv', path.join('allowed dir', 'with space.txt'), path.join('allowed dir', 'renamed.txt'));
+    assert.equal(workingTreeDirty(repo, 'allowed dir'), false, 'a rename inside the allowance is covered');
+    git('mv', path.join('allowed dir', 'renamed.txt'), 'escaped.txt');
+    assert.equal(workingTreeDirty(repo, 'allowed dir'), true, 'a rename LEAVING the allowance is dirt');
+  } finally {
+    rmTmp(repo);
+  }
+});
+
 test('workingTreeDirty: multiple allow paths cover files a dev tool rewrites, without masking real edits', () => {
   const repo = mkTmp('styleproof-dirty-allow-');
   const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
