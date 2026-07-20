@@ -451,11 +451,27 @@ export function workingTreeDirty(cwd = process.cwd(), ignore?: string | readonly
   const prefixes = (typeof ignore === 'string' ? [ignore] : (ignore ?? []))
     .filter(Boolean)
     .map((p) => `${p.replace(/\/+$/, '')}/`);
+  // Porcelain quotes paths with special characters ("with space.ts", \t, …) and
+  // renders renames as `old -> new`; both must be normalized or `ignore`
+  // prefixes silently fail to match and a legitimately-allowed rewrite reads as
+  // dirt (a spurious publish refusal — never a false green).
+  const unquote = (p: string): string => {
+    if (!p.startsWith('"') || !p.endsWith('"')) return p;
+    try {
+      return JSON.parse(p) as string;
+    } catch {
+      return p;
+    }
+  };
+  const allowed = (file: string): boolean =>
+    GENERATED_DIRTY_ALLOWLIST.has(file) ||
+    prefixes.some((prefix) => file === prefix.slice(0, -1) || file.startsWith(prefix));
   return status.split(/\r?\n/).some((line) => {
-    const file = line.slice(3).trim();
-    if (!file || GENERATED_DIRTY_ALLOWLIST.has(file)) return false;
-    if (prefixes.some((prefix) => file === prefix.slice(0, -1) || file.startsWith(prefix))) return false;
-    return true;
+    const raw = line.slice(3).trim();
+    if (!raw) return false;
+    // A rename dirties the tree unless BOTH sides are allowed.
+    const files = raw.includes(' -> ') ? raw.split(' -> ').map((side) => unquote(side.trim())) : [unquote(raw)];
+    return !files.every(allowed);
   });
 }
 

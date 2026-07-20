@@ -9,6 +9,40 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Content-driven geometry is reviewable evidence, not an unapprovable
+  state.** 4.6.2 mapped any geometry drift whose element's own text length
+  changed to `CERTIFICATION_FAILED` — the state the approval box cannot clear —
+  so every copy-editing PR became an unclearable red, one such finding poisoned
+  runs that also carried clean reviewable changes, and the report claimed "no
+  reviewable crops" while crops rendered. Content-driven geometry now stays in
+  the display set, counts as reviewable, and gates as
+  `VISUAL_APPROVAL_REQUIRED`; the legacy `'unknown'` signal falls back to
+  ordinary casualty/resurrection semantics so compares against pre-4.6.2
+  bundles stay usable.
+- **`--spec-ref` overlay bundles are restorable.** The published base bundle's
+  spec hash is the head spec's bytes, but restore probes hashed the base's own
+  spec — the bundle could never restore (every push silently repaid the full
+  cold rebuild), while a hit on a non-overlay bundle skipped the overlay
+  entirely, comparing base-spec renders against head-spec renders. The base
+  restore probe now applies the same overlay before hashing.
+- **A config-only spec move plus `--spec-ref` no longer exits 2.** The overlay
+  skips with a log line when the spec path differs between base and head.
+- **Harness overlay paths are listed in root-relative coordinates
+  (`--full-tree`),** fixing a mis-strip when a harness path's first segment
+  matched the working directory's own name (aborted capture, or a silently
+  wrong overlaid blob).
+- **Overlay publish allowances are per-file, and porcelain parsing handles
+  quoting/renames.** The whole-harness-directory allowance could publish a
+  bundle stamped `dirty: false` over unrelated mid-capture dirt; quoted paths
+  (spaces) never matched allowances, and renames were one opaque token.
+- **`Date.now()` advances monotonically from the frozen origin.** A fully
+  frozen clock turned every elapsed-time budget into an infinite spin —
+  consumer `--setup` deadline loops never expired (surfaces failed by the tool
+  itself, then ledgered as a partial baseline) and Playwright's bundled
+  graceful-fs retry could spin forever on Windows. Zero-arg `new Date()` and
+  bare `Date()` stay exactly pinned, keeping fixture constants byte-identical
+  across runs. An empty `STYLEPROOF_CLOCK_TIME` now means "default" instead of
+  crashing every capture at import.
 - **Durable report publication now retries transient report-branch clone failures.**
   A failed `git clone` no longer escapes the existing five-attempt publication
   loop under `set -e`. Each failed attempt removes its partial checkout, waits

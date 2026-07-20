@@ -188,7 +188,12 @@ test('assessComparisonTruth: derived-only findings are resurrected as reviewable
   assert.equal(truth.rawOnlyNoReviewable, false);
 });
 
-test('assessComparisonTruth: content-length geometry drift fails closed instead of requesting CSS approval', () => {
+test('assessComparisonTruth: content-driven geometry drift is reviewable approval evidence, never unapprovable', () => {
+  // A deliberate copy edit ("Save" → "Save changes") widens the span: the
+  // element's own text length changed WITH its geometry. That is a real visible
+  // change a reviewer must approve — mapping it to CERTIFICATION_FAILED (which
+  // the approval box cannot clear) made every text-changing PR an unclearable
+  // red (4.6.2 regression).
   const surfaces = [
     {
       surface: 'dashboard@1280',
@@ -205,9 +210,10 @@ test('assessComparisonTruth: content-length geometry drift fails closed instead 
   ];
   const truth = assessComparisonTruth(surfaces, { dom: 0, style: 2, state: 0 });
   assert.equal(truth.rawCounts.style, 2);
-  assert.equal(truth.reviewableCounts.style, 0);
-  assert.equal(truth.hasReviewableEvidence, false);
-  assert.equal(truth.rawOnlyNoReviewable, true);
+  assert.equal(truth.reviewableCounts.style, 2, 'the content-driven finding renders and counts');
+  assert.equal(truth.hasReviewableEvidence, true);
+  assert.equal(truth.contentGeometryUncertain, true, 'renderers still flag the content-change framing');
+  assert.equal(truth.rawOnlyNoReviewable, false, 'approval clears it — never an unclearable state');
 });
 
 test('assessComparisonTruth: state-strip-only deltas remain the raw-only fail-closed backstop', () => {
@@ -264,14 +270,17 @@ test('cleanFindingsForDisplay: derived-only surfaces keep their findings; casual
   assert.doesNotMatch(groupTitle(cleaned), /size\/position only/);
 });
 
-test('cleanFindingsForDisplay: same-length geometry remains reviewable while changed or unknown length does not', () => {
+test('cleanFindingsForDisplay: geometry-only findings render in every content-signal shape', () => {
+  // The one invariant that must never regress: a gating geometry change always
+  // produces something the reviewer can SEE. Same-length and legacy-'unknown'
+  // resurrect via the derived-only rule; 'changed' is kept as content-driven.
   const geometry = styleFinding('body > span:nth-child(1)', [{ prop: 'inline-size', before: '70px', after: '77px' }]);
   assert.equal(cleanFindingsForDisplay([geometry]).length, 1);
-  assert.equal(cleanFindingsForDisplay([{ ...geometry, contentLengthSignal: 'changed' }]).length, 0);
-  assert.equal(cleanFindingsForDisplay([{ ...geometry, contentLengthSignal: 'unknown' }]).length, 0);
+  assert.equal(cleanFindingsForDisplay([{ ...geometry, contentLengthSignal: 'changed' }]).length, 1);
+  assert.equal(cleanFindingsForDisplay([{ ...geometry, contentLengthSignal: 'unknown' }]).length, 1);
 });
 
-test('assessComparisonTruth: mixed reviewable styling cannot clear uncertain content geometry', () => {
+test('assessComparisonTruth: legacy-unknown geometry falls back to casualty semantics beside a driver', () => {
   const surfaces = [
     {
       surface: 'dashboard@1280',
@@ -285,13 +294,16 @@ test('assessComparisonTruth: mixed reviewable styling cannot clear uncertain con
     },
   ];
   const truth = assessComparisonTruth(surfaces, { dom: 0, style: 2, state: 0 });
+  // Legacy-'unknown' (a pre-text-length map) falls back to ordinary casualty
+  // semantics: the color driver renders, the width strips, nothing hard-fails —
+  // a two-directory compare against an older bundle must stay usable.
   assert.equal(truth.reviewableCounts.style, 1);
   assert.equal(truth.hasReviewableEvidence, true);
-  assert.equal(truth.contentGeometryUncertain, true);
-  assert.equal(truth.rawOnlyNoReviewable, true, 'Action must fail certification even with another reviewable driver');
+  assert.equal(truth.contentGeometryUncertain, false, "'unknown' never invents a content verdict");
+  assert.equal(truth.rawOnlyNoReviewable, false);
 });
 
-test('assessComparisonTruth: mixed props on one element retain styling evidence but fail uncertain geometry closed', () => {
+test('assessComparisonTruth: mixed props on one element show the driver; content flag stays informational', () => {
   const surfaces = [
     {
       surface: 'dashboard@1280',
@@ -309,12 +321,8 @@ test('assessComparisonTruth: mixed props on one element retain styling evidence 
   const truth = assessComparisonTruth(surfaces, { dom: 0, style: 2, state: 0 });
   assert.equal(truth.reviewableCounts.style, 1, 'the independent color change remains reviewable');
   assert.equal(truth.hasReviewableEvidence, true);
-  assert.equal(truth.contentGeometryUncertain, true);
-  assert.equal(
-    truth.rawOnlyNoReviewable,
-    true,
-    'uncertain geometry outranks visual approval even in one mixed finding',
-  );
+  assert.equal(truth.contentGeometryUncertain, true, 'the content-change framing survives for renderers');
+  assert.equal(truth.rawOnlyNoReviewable, false, 'a reviewable driver means approval can clear the run');
 });
 
 test('assessComparisonTruth: real style change is reviewable and aligned', () => {

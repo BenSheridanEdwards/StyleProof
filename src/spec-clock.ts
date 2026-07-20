@@ -46,7 +46,9 @@ let installedInstant: number | undefined;
  */
 export function resolveSpecClockFreeze(env: NodeJS.ProcessEnv = process.env): number | undefined {
   if (env.STYLEPROOF_FREEZE_SPEC_CLOCK !== '1') return undefined;
-  const configured = env.STYLEPROOF_CLOCK_TIME ?? DEFAULT_CLOCK_TIME;
+  // `||`, not `??`: an EMPTY value (a workflow interpolating an unset variable
+  // into `STYLEPROOF_CLOCK_TIME=`) means "default", not "crash every capture".
+  const configured = env.STYLEPROOF_CLOCK_TIME || DEFAULT_CLOCK_TIME;
   const instant = /^-?\d+$/.test(configured) ? Number(configured) : RealDate.parse(configured);
   if (Number.isNaN(instant)) {
     throw new Error(
@@ -58,12 +60,25 @@ export function resolveSpecClockFreeze(env: NodeJS.ProcessEnv = process.env): nu
 }
 
 /**
- * Swap `globalThis.Date` for a frozen twin pinned to `fixedMilliseconds`. A Proxy
- * over the real constructor, so `Date.parse`/`Date.UTC`, the prototype, and
- * `instanceof` all keep working; only zero-argument construction, `now()`, and
- * bare `Date()` calls are redirected to the fixed instant.
+ * Swap `globalThis.Date` for a pinned twin. A Proxy over the real constructor,
+ * so `Date.parse`/`Date.UTC`, the prototype, and `instanceof` all keep working.
+ *
+ * Two deliberately different behaviours:
+ * - **Identity values stay frozen**: zero-argument `new Date()` and bare
+ *   `Date()` report exactly `fixedMilliseconds` — module-level fixture
+ *   constants (`new Date().toISOString()`) are byte-identical across runs,
+ *   which is the phantom-diff class this freeze exists to kill.
+ * - **`Date.now()` advances monotonically from the frozen origin**
+ *   (`fixedMilliseconds + elapsed real ms`). `now()` is the universal idiom for
+ *   deadlines and elapsed-time budgets — in consumer `--setup` helpers and in
+ *   Playwright's own bundled retry loops — and a `now()` that never moves turns
+ *   every such bound into an infinite spin (a surface "timeout" the tool itself
+ *   caused, or a hung capture). Values derived from `now()` are still pinned to
+ *   the frozen EPOCH, so date/hour-level rendering stays stable across runs.
  */
 export function installFrozenSpecClock(fixedMilliseconds: number): void {
+  const installedAtReal = RealDate.now();
+  const pinnedNow = () => fixedMilliseconds + Math.max(0, RealDate.now() - installedAtReal);
   const frozen = new Proxy(RealDate, {
     construct(target, argumentsList: unknown[], newTarget) {
       const effective = argumentsList.length === 0 ? [fixedMilliseconds] : argumentsList;
@@ -74,7 +89,7 @@ export function installFrozenSpecClock(fixedMilliseconds: number): void {
       return new RealDate(fixedMilliseconds).toString();
     },
     get(target, property, receiver) {
-      if (property === 'now') return () => fixedMilliseconds;
+      if (property === 'now') return pinnedNow;
       return Reflect.get(target, property, receiver) as unknown;
     },
   });

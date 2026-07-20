@@ -327,6 +327,47 @@ function writeOutputs(baseCaptureFailed = false) {
   log(outputs.join(' '));
 }
 
+/** True when the spec-ref overlay applies in `cwd`: --spec-ref was given, the
+ *  spec exists there, and the spec path did NOT move between base and head — a
+ *  config-only spec move means the overlay concept doesn't apply (each side
+ *  renders its own spec) and must never hard-fail the run. */
+function overlayApplies(cwd, cwdSpec) {
+  if (!shouldApplySpecRefOverlay(fs.existsSync(path.join(cwd, cwdSpec)), specRef)) return false;
+  if (cwdSpec !== spec) {
+    log(
+      `--spec-ref: spec path moved between base (${cwdSpec}) and head (${spec}) — skipping the overlay; the base side renders its own spec`,
+    );
+    return false;
+  }
+  return true;
+}
+
+/** Base restore, probed under the SAME spec-ref overlay the cold path publishes
+ *  with. An overlay-published bundle's spec hash is the HEAD spec's bytes; a
+ *  probe hashing the base's own spec could never hit it (every push repaid the
+ *  full cold rebuild, silently), while a hit on a non-overlay bundle would skip
+ *  the overlay entirely and compare base-spec renders against head-spec renders
+ *  — the exact phantom-diff class --spec-ref exists to eliminate. */
+function restoreBase(cwd) {
+  const probeSpec = specFor(cwd);
+  if (!overlayApplies(cwd, probeSpec)) return restore(base, 'base', cwd);
+  let overlay;
+  try {
+    overlay = applySpecRefOverlay({ spec: probeSpec, specRef, cwd });
+  } catch (error) {
+    exitSpecRefError(error);
+  }
+  try {
+    return restore(base, 'base', cwd);
+  } finally {
+    try {
+      overlay.restore();
+    } catch (error) {
+      exitSpecRefError(error);
+    }
+  }
+}
+
 let baseHit;
 let headHit;
 let exitCode = 0;
@@ -336,7 +377,7 @@ try {
   fs.rmSync(root, { recursive: true, force: true });
   const baseWorktree = worktrees.addDetached(base, 'probe-base');
   const baseRunCwd = worktreeRunCwd(baseWorktree, consumerRel);
-  baseHit = restore(base, 'base', baseRunCwd);
+  baseHit = restoreBase(baseRunCwd);
 
   const headWorktree = worktrees.addDetached(head, 'probe-head');
   const headRunCwd = worktreeRunCwd(headWorktree, consumerRel);
@@ -369,7 +410,7 @@ try {
       const specPath = path.join(coldBaseCwd, baseSpec);
       if (fs.existsSync(specPath)) {
         let overlay;
-        if (shouldApplySpecRefOverlay(true, specRef)) {
+        if (overlayApplies(coldBaseCwd, baseSpec)) {
           try {
             overlay = applySpecRefOverlay({ spec: baseSpec, specRef, cwd: coldBaseCwd });
             log(`overlaying ${overlay.paths.length} spec-harness file(s) from ${specRef} for base capture`);
