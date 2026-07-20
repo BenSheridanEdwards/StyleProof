@@ -42,6 +42,17 @@ test('composite action publishes a durable no-change report on a clean first run
   );
 });
 
+test('composite action retries transient report-branch clone failures', () => {
+  const publishStep = extractActionStep('- id: publish', '\\n\\s{4}- name: Upsert PR comment');
+
+  assert.ok(publishStep, 'action.yml should include a report publish step');
+  assert.match(
+    publishStep[0],
+    /if ! git clone -q --depth 1 --branch "\$BRANCH" "\$REMOTE" "\$TMP"; then[\s\S]*?rm -rf "\$TMP"[\s\S]*?sleep \$\(\(i \* 2\)\)[\s\S]*?continue[\s\S]*?fi/,
+    'a transient clone failure must stay inside the bounded publish retry loop',
+  );
+});
+
 test('certify mode fails only when the difference verdict changed', () => {
   const failOnDifferenceStep = actionYml.match(/- name: Fail on diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
 

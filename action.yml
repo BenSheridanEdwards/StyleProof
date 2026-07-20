@@ -256,7 +256,12 @@ runs:
         for i in 1 2 3 4 5; do
           TMP="$(mktemp -d)"
           if git ls-remote --exit-code --heads "$REMOTE" "$BRANCH" >/dev/null 2>&1; then
-            git clone -q --depth 1 --branch "$BRANCH" "$REMOTE" "$TMP"
+            if ! git clone -q --depth 1 --branch "$BRANCH" "$REMOTE" "$TMP"; then
+              echo "report branch clone failed on attempt $i; retrying from a fresh checkout" >&2
+              rm -rf "$TMP"
+              sleep $((i * 2))
+              continue
+            fi
           else
             git -C "$TMP" init -q -b "$BRANCH"           # first run: a clean orphan
             git -C "$TMP" remote add origin "$REMOTE"
