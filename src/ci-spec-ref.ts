@@ -124,10 +124,24 @@ export function applySpecRefOverlay(options: { spec: string; specRef: string; cw
   assertSpecAtRef(spec, options.specRef, options.cwd);
   const harnessDirectory = path.posix.dirname(spec);
   const cwdPrefix = runGit(options.cwd, ['rev-parse', '--show-prefix']).stdout.trim().replace(/\\/g, '/');
+  // `--full-tree` pins ls-tree output to REPO-ROOT-relative paths regardless of
+  // the cwd (plain `./dir` pathspecs emit cwd-relative entries, which made the
+  // prefix strip a no-op normally and a mis-strip when a harness path's first
+  // segment matched the working directory's own name). With root-relative
+  // output, stripping the exact `--show-prefix` is always correct.
   const listed =
     harnessDirectory === '.'
       ? [spec]
-      : runGit(options.cwd, ['ls-tree', '-r', '-z', '--name-only', options.specRef, '--', `./${harnessDirectory}`])
+      : runGit(options.cwd, [
+          'ls-tree',
+          '-r',
+          '-z',
+          '--name-only',
+          '--full-tree',
+          options.specRef,
+          '--',
+          `${cwdPrefix}${harnessDirectory}`,
+        ])
           .stdout.split('\0')
           .filter(Boolean)
           .map((entry) => entry.replace(/\\/g, '/'))
@@ -185,8 +199,11 @@ export function applySpecRefOverlay(options: { spec: string; specRef: string; cw
     paths,
     // `git status --porcelain` reports repository-root-relative paths even when
     // styleproof-map runs from a consumer subdirectory. Keep the overlay's
-    // publication allowance in that same coordinate system.
-    dirtyAllow: [`${cwdPrefix}${harnessDirectory === '.' ? spec : harnessDirectory}`.replace(/\/$/, '')],
+    // publication allowance in that same coordinate system — and scope it to
+    // the EXACT overlaid files, never the whole harness directory: a codegen
+    // step dirtying an unrelated tracked fixture there mid-capture must still
+    // refuse to publish (`dirty: true`), or the bundle lies about its SHA.
+    dirtyAllow: paths.map((overlayPath) => `${cwdPrefix}${overlayPath}`),
     restore,
   };
 }

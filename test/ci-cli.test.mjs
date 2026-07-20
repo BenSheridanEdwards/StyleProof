@@ -368,6 +368,41 @@ git status --porcelain > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || t
       assert.equal(installedAt[0], base, 'base install runs at the base commit');
       assert.equal(installedAt.at(-1), head, 'head install runs at the head commit');
       assert.match(result.stderr, /overlaying 2 spec-harness file\(s\) from/);
+
+      // The bundle the overlay run just published must be RESTORABLE: its spec
+      // hash is the head spec's bytes, so the probe must apply the same overlay
+      // before hashing — a probe hashing the base's own spec can never hit, and
+      // every subsequent push silently repays the full cold rebuild.
+      fs.rmSync(mapRoot, { recursive: true, force: true });
+      const secondOutput = path.join(root, 'github-output-second');
+      const second = runCi(
+        [
+          '--base',
+          base,
+          '--head',
+          head,
+          '--spec',
+          'tests/e2e/styleproof.spec.ts',
+          '--spec-ref',
+          head,
+          '--base-dir',
+          mapRoot,
+          '--force',
+        ],
+        {
+          CI: '1',
+          PM_LOG: pmLog,
+          GITHUB_OUTPUT: secondOutput,
+          STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        },
+        repo,
+      );
+      assert.equal(second.status, 0, second.stderr + second.stdout);
+      const secondOutputs = fs.readFileSync(secondOutput, 'utf8');
+      assert.match(secondOutputs, /base-hit=true/, 'the overlay-published base bundle restores on the next run');
+      assert.match(secondOutputs, /head-hit=true/);
+      assert.match(secondOutputs, /capture-needed=false/);
+      assert.doesNotMatch(second.stderr, /rebuilding the pair cold/, 'no silent repeat of the cold rebuild');
     } finally {
       rmTmp(root);
     }
@@ -547,6 +582,18 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
       assert.equal(result.status, 0, result.stderr + result.stdout);
       assert.equal(git(repo, ['rev-parse', 'HEAD']), head);
       assert.ok(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')));
+
+      // A spec MOVE plus --spec-ref must skip the overlay with a log line, not
+      // die exit 2 ("--spec is missing at --spec-ref"): the overlay concept
+      // doesn't apply when each side renders its own spec path.
+      fs.rmSync(mapRoot, { recursive: true, force: true });
+      const withRef = runCi(
+        ['--base', base, '--head', head, '--spec-ref', head, '--base-dir', mapRoot, '--force'],
+        { CI: '1', STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1' },
+        repo,
+      );
+      assert.equal(withRef.status, 0, withRef.stderr + withRef.stdout);
+      assert.match(withRef.stderr, /spec path moved between base .* skipping the overlay/);
     } finally {
       rmTmp(root);
     }
@@ -774,7 +821,9 @@ test('applySpecRefOverlay: resolves a cwd-relative spec when run from a repo sub
       'overlays the head bytes',
     );
     assert.equal(fs.readFileSync(headOnlyFixture, 'utf8'), 'export const headOnlyFixture = true;\n');
-    assert.deepEqual(overlay.dirtyAllow, ['hud/tests/e2e']);
+    // Per-FILE allowances (root-relative), never the whole harness directory:
+    // unrelated dirt there must still refuse to publish.
+    assert.deepEqual(overlay.dirtyAllow, ['hud/tests/e2e/head-only-fixture.ts', 'hud/tests/e2e/styleproof.spec.ts']);
     assert.equal(
       workingTreeDirty(subdir, overlay.dirtyAllow),
       false,
@@ -785,6 +834,52 @@ test('applySpecRefOverlay: resolves a cwd-relative spec when run from a repo sub
     assert.equal(fs.existsSync(headOnlyFixture), false, 'restore removes head-only harness files');
     const status = git(root, ['status', '--porcelain']);
     assert.equal(status, '', 'no assume-unchanged residue after restore');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('applySpecRefOverlay: a harness path sharing the working directory name never mis-strips', () => {
+  // Adversarial coordinates: cwd is `hud/`, and the spec's own repo path is
+  // `hud/hud/tests/…` — a cwd-relative listing whose entries START with `hud/`
+  // used to get the prefix stripped out of them, aborting the overlay (or, with
+  // a colliding sibling, silently overlaying the wrong blob). `--full-tree`
+  // makes the listing root-relative so the strip is exact.
+  const root = mkTmp('styleproof-ci-spec-ref-nested-');
+  const git = (cwd, args) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    git(root, ['init', '-q', '-b', 'main']);
+    git(root, ['config', 'user.email', 'styleproof@example.test']);
+    git(root, ['config', 'user.name', 'StyleProof Test']);
+    const specAbs = path.join(root, 'hud', 'hud', 'tests', 'styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(specAbs), { recursive: true });
+    fs.writeFileSync(specAbs, '// base spec\n');
+    git(root, ['add', '-A']);
+    git(root, ['commit', '-qm', 'base']);
+    fs.writeFileSync(specAbs, '// head spec\n');
+    fs.writeFileSync(path.join(root, 'hud', 'hud', 'tests', 'helper.ts'), 'export const helper = true;\n');
+    git(root, ['add', '-A']);
+    git(root, ['commit', '-qm', 'head']);
+    const head = git(root, ['rev-parse', 'HEAD']);
+    git(root, ['checkout', '-q', 'HEAD~1']);
+
+    const overlay = applySpecRefOverlay({
+      spec: 'hud/tests/styleproof.spec.ts',
+      specRef: head,
+      cwd: path.join(root, 'hud'),
+    });
+    assert.equal(fs.readFileSync(specAbs, 'utf8'), '// head spec\n');
+    assert.equal(
+      fs.readFileSync(path.join(root, 'hud', 'hud', 'tests', 'helper.ts'), 'utf8'),
+      'export const helper = true;\n',
+    );
+    overlay.restore();
+    assert.equal(fs.readFileSync(specAbs, 'utf8'), '// base spec\n');
+    assert.equal(git(root, ['status', '--porcelain']), '', 'no residue after restore');
   } finally {
     rmTmp(root);
   }
@@ -831,8 +926,17 @@ test('applySpecRefOverlay: includes head-only files beside the spec and restores
       'export const application = "base";\n',
       'application code stays pinned to the base commit',
     );
-    assert.deepEqual(overlay.dirtyAllow, ['tests/e2e']);
+    assert.deepEqual(overlay.dirtyAllow, [
+      'tests/e2e/existing-fixture.ts',
+      'tests/e2e/head-only-fixture.ts',
+      'tests/e2e/styleproof.spec.ts',
+    ]);
     assert.equal(workingTreeDirty(root, overlay.dirtyAllow), false, 'the deliberate harness overlay stays publishable');
+    // The allowance is scoped: OTHER dirt in the harness directory still blocks publish.
+    const strayFixture = path.join(harnessDirectory, 'stray-codegen.ts');
+    fs.writeFileSync(strayFixture, 'export const stray = true;\n');
+    assert.equal(workingTreeDirty(root, overlay.dirtyAllow), true, 'unrelated harness dirt is NOT covered');
+    fs.rmSync(strayFixture);
 
     overlay.restore();
     assert.equal(fs.readFileSync(spec, 'utf8'), "import './existing-fixture';\n");
