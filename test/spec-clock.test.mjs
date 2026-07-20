@@ -31,6 +31,12 @@ test('resolveSpecClockFreeze is off unless STYLEPROOF_FREEZE_SPEC_CLOCK=1', () =
   assert.equal(resolveSpecClockFreeze({}), undefined);
   assert.equal(resolveSpecClockFreeze({ STYLEPROOF_FREEZE_SPEC_CLOCK: '0' }), undefined);
   assert.equal(resolveSpecClockFreeze({ STYLEPROOF_FREEZE_SPEC_CLOCK: '1' }), RealDate.parse(DEFAULT_CLOCK_TIME));
+  // An EMPTY value (a workflow interpolating an unset variable) means default,
+  // never a throw that crashes every capture at import time.
+  assert.equal(
+    resolveSpecClockFreeze({ STYLEPROOF_FREEZE_SPEC_CLOCK: '1', STYLEPROOF_CLOCK_TIME: '' }),
+    RealDate.parse(DEFAULT_CLOCK_TIME),
+  );
 });
 
 test('resolveSpecClockFreeze honours STYLEPROOF_CLOCK_TIME as ISO or epoch milliseconds', () => {
@@ -56,7 +62,15 @@ test('the frozen twin pins zero-argument reads and leaves everything else real',
   assert.equal(frozenSpecClockInstant(), FIXED);
   assert.equal(new Date().getTime(), FIXED);
   assert.equal(new Date().toISOString(), '2030-06-15T12:00:00.000Z');
-  assert.equal(Date.now(), FIXED);
+  // Date.now() is pinned to the frozen ORIGIN but advances monotonically —
+  // a now() that never moves turns every consumer deadline loop (and
+  // Playwright's own bundled retry bounds) into an infinite spin.
+  const firstNow = Date.now();
+  assert.ok(firstNow >= FIXED && firstNow < FIXED + 60_000, 'now() starts at the frozen origin');
+  const spinStart = RealDate.now();
+  let advanced = Date.now();
+  while (advanced === firstNow && RealDate.now() - spinStart < 1000) advanced = Date.now();
+  assert.ok(advanced > firstNow, 'now() advances, so elapsed-time budgets still expire');
   assert.equal(Date(), new RealDate(FIXED).toString());
   // Explicit-argument construction, parsing, and identity stay real.
   assert.equal(new Date('2026-01-05T00:00:00Z').toISOString(), '2026-01-05T00:00:00.000Z');
@@ -101,8 +115,16 @@ test('two separate frozen processes stamp the identical instant via the package 
   const environment = { STYLEPROOF_FREEZE_SPEC_CLOCK: '1', STYLEPROOF_CLOCK_TIME: '2030-06-15T12:00:00Z' };
   const first = stampFromFreshProcess(environment);
   const second = stampFromFreshProcess(environment);
-  assert.equal(first, second);
-  assert.equal(first, `2030-06-15T12:00:00.000Z ${FIXED}`);
+  // The IDENTITY value (zero-arg new Date()) is byte-identical across separate
+  // processes — the phantom-diff class the freeze kills. now() carries a small
+  // monotonic offset from the same frozen origin, so it need not match exactly.
+  const [firstIso, firstNow] = first.split(' ');
+  const [secondIso, secondNow] = second.split(' ');
+  assert.equal(firstIso, secondIso);
+  assert.equal(firstIso, '2030-06-15T12:00:00.000Z');
+  for (const stamped of [Number(firstNow), Number(secondNow)]) {
+    assert.ok(stamped >= FIXED && stamped < FIXED + 60_000, 'now() stays pinned to the frozen origin');
+  }
 });
 
 test('without the env the package import leaves the process clock live', () => {
