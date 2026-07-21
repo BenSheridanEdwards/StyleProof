@@ -37,7 +37,7 @@ jobs:
           fetch-depth: 0 # need the tags to detect an existing release and to push a new one
 
       # registry-url makes setup-node write an .npmrc that reads NODE_AUTH_TOKEN.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
