@@ -1,7 +1,7 @@
 {
   "name": "styleproof",
   "version": "4.6.3",
-  "description": "Catch every CSS change before it ships — review PRs and certify refactors by the browser's computed styles, not pixels. Works with any styling system.",
+  "description": "Catch every CSS change before it ships \u2014 review PRs and certify refactors by the browser's computed styles, not pixels. Works with any styling system.",
   "keywords": [
     "playwright",
     "css",
@@ -44,7 +44,8 @@
     "styleproof-variants": "./bin/styleproof-variants.mjs",
     "styleproof-prepush": "./bin/styleproof-prepush.mjs",
     "styleproof-affected": "./bin/styleproof-affected.mjs",
-    "styleproof-ci": "./bin/styleproof-ci.mjs"
+    "styleproof-ci": "./bin/styleproof-ci.mjs",
+    "styleproof-publish-report": "./bin/styleproof-publish-report.mjs"
   },
   "files": [
     "dist",

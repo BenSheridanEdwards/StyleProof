@@ -7,6 +7,8 @@ import test from 'node:test';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
 const dogfoodYml = fs.readFileSync(path.join(here, '..', '.github/workflows/action-dogfood.yml'), 'utf8');
+const publishBin = fs.readFileSync(path.join(here, '..', 'bin', 'styleproof-publish-report.mjs'), 'utf8');
+const publishModule = fs.readFileSync(path.join(here, '..', 'src', 'report-publish.ts'), 'utf8');
 
 function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
@@ -33,7 +35,9 @@ test('composite action publishes a durable no-change report on a clean first run
   assert.doesNotMatch(publishStep[0], /styleproof-report\.mjs[^\n]*\|\| true/);
   assert.match(publishStep[0], /report_exit_code=\$\?/);
   assert.match(publishStep[0], /"\$report_exit_code" -ne 0.*"\$report_exit_code" -ne 1/);
-  assert.match(publishStep[0], /styleproof-receipt head-sha:%s run-id:%s run-attempt:%s/);
+  // The run receipt is embedded by the API publisher before upload.
+  assert.match(publishStep[0], /styleproof-publish-report\.mjs/);
+  assert.match(publishBin, /styleproof-receipt head-sha:\$\{options\['head-sha'\]\} run-id:\$\{options\['run-id'\]\} run-attempt:\$\{options\['run-attempt'\]\}/);
   assert.match(commentStep[0], /const url =/);
   assert.doesNotMatch(commentStep[0], /if \(!report\)/);
   assert.doesNotMatch(
@@ -42,15 +46,18 @@ test('composite action publishes a durable no-change report on a clean first run
   );
 });
 
-test('composite action retries transient report-branch clone failures', () => {
+test('composite action never clones the report branch to publish', () => {
   const publishStep = extractActionStep('- id: publish', '\\n\\s{4}- name: Upsert PR comment');
 
   assert.ok(publishStep, 'action.yml should include a report publish step');
-  assert.match(
-    publishStep[0],
-    /if ! git clone -q --depth 1 --branch "\$BRANCH" "\$REMOTE" "\$TMP"; then[\s\S]*?rm -rf "\$TMP"[\s\S]*?sleep \$\(\(i \* 2\)\)[\s\S]*?continue[\s\S]*?fi/,
-    'a transient clone failure must stay inside the bounded publish retry loop',
-  );
+  // Cloning makes publish cost the size of the whole branch and dies once the
+  // branch reaches a few GB; the API publisher costs the size of this report.
+  assert.doesNotMatch(publishStep[0], /git clone/);
+  assert.doesNotMatch(publishStep[0], /git push/);
+  // Transient API failures and the fast-forward race stay inside a bounded
+  // retry loop in the publisher module.
+  assert.match(publishModule, /maximumAttempts \?\? 5/);
+  assert.match(publishModule, /force: false/);
 });
 
 test('certify mode fails only when the difference verdict changed', () => {
@@ -73,8 +80,10 @@ test('composite action publishes every generated report crop', () => {
   const publishStep = extractActionStep('- id: publish', '\\n\\s{4}- name: Upsert PR comment');
 
   assert.ok(publishStep, 'action.yml should include a report publish step');
-  assert.match(publishStep[0], /cp styleproof-report\/crops\/\*\.png "\$TMP\/\$REPORT_PATH\/crops\/"/);
-  assert.doesNotMatch(publishStep[0], /\*-composite\.png.*\*-annotated\.png.*\*-new\.png/);
+  // collectReportFiles takes every crops/*.png, not a hardcoded suffix list.
+  assert.match(publishBin, /collectReportFiles/);
+  assert.match(publishModule, /cropFileName\.endsWith\('\.png'\)/);
+  assert.doesNotMatch(publishModule, /-composite\.png|-annotated\.png|-new\.png/);
 });
 
 test('composite action binds report commits and links to the exact report revision', () => {
@@ -82,10 +91,11 @@ test('composite action binds report commits and links to the exact report revisi
 
   assert.ok(publishStep, 'action.yml should include a report publish step');
   assert.match(publishStep[0], /REPORT_SHA='\$\{\{ steps\.context\.outputs\.head-sha \}\}'/);
-  assert.match(publishStep[0], /REPORT_MSG="StyleProof report \$\{REPORT_PATH\} @ \$\{REPORT_SHA\}"/);
-  assert.match(publishStep[0], /git -C "\$TMP" log -1 --format=%B \| grep -Fqx "\$REPORT_MSG"/);
-  assert.match(publishStep[0], /REPORT_COMMIT="\$\(git -C "\$TMP" rev-parse HEAD\)"/);
-  assert.match(publishStep[0], /blob\/\$\{REPORT_COMMIT\}\/\$\{REPORT_PATH\}\/report\.md/);
+  // The commit message binds the folder to the exact head SHA, and the
+  // advertised links pin the exact published commit.
+  assert.match(publishBin, /StyleProof report \$\{options\['report-path'\]\} @ \$\{options\['head-sha'\]\}/);
+  assert.match(publishBin, /blob\/\$\{commitSha\}\/\$\{options\['report-path'\]\}\/report\.md/);
+  assert.match(publishBin, /raw\.githubusercontent\.com\/\$\{options\.repository\}\/\$\{commitSha\}/);
 });
 
 test('composite action marks certify-mode comments with their source head SHA', () => {
@@ -293,18 +303,14 @@ test('composite action self-verifies the published receipt before advertising th
   assert.ok(publishStep, 'action.yml should include a report publish step');
   // The read-back: fetch the report at the EXACT commit being advertised and
   // require the receipt embedded for this run (head SHA + run id + attempt).
-  assert.match(
-    publishStep[0],
-    /EXPECTED_RECEIPT="styleproof-receipt head-sha:\$\{REPORT_SHA\} run-id:\$\{\{ github\.run_id \}\} run-attempt:\$\{\{ github\.run_attempt \}\}"/,
-  );
-  assert.match(publishStep[0], /Accept: application\/vnd\.github\.raw/);
-  assert.match(publishStep[0], /contents\/\$\{REPORT_PATH\}\/report\.md\?ref=\$\{REPORT_COMMIT\}/);
-  assert.match(publishStep[0], /grep -Fq "\$EXPECTED_RECEIPT"/);
+  assert.match(publishModule, /application\/vnd\.github\.raw/);
+  assert.match(publishModule, /report\.md\?ref=\$\{options\.commitSha\}/);
+  assert.match(publishModule, /published\.includes\(options\.expectedReceipt\)/);
   // Fail CLOSED on a dead or mismatched report — never a green run with a bad URL.
-  assert.match(publishStep[0], /\[ -n "\$verified" \] \|\| \{[\s\S]*?exit 1/);
+  assert.match(publishModule, /do not trust this run's report/);
   // The url/raw-base outputs exist ONLY once verification passed.
-  const verifiedIndex = publishStep[0].indexOf('[ -n "$verified" ]');
-  const urlIndex = publishStep[0].indexOf('echo "url=');
+  const verifiedIndex = publishBin.indexOf('await verifyPublishedReceipt(');
+  const urlIndex = publishBin.indexOf('url=https://github.com/');
   assert.ok(verifiedIndex > 0 && urlIndex > verifiedIndex, 'outputs are written only after the receipt verifies');
 });
 
