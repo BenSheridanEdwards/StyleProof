@@ -267,6 +267,7 @@ async function withSurfaceFailureTolerance(
     if (!settings.tolerateSurfaceFailures || isSelfCheckCaptureFailure(reason)) throw e;
     const outDir = resolveOutputDir(settings.baseDir, settings.dir);
     recordSurfaceCaptureFailure(outDir, { key: captureKey, reason, kind: 'capture' });
+    // eslint-disable-next-line no-console
     console.warn(`styleproof: tolerated capture failure for ${captureKey} — ${reason}`);
   }
 }

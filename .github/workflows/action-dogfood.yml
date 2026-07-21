@@ -136,6 +136,25 @@ jobs:
           test '${{ steps.removed.outputs.changed }}' = 'true'
           test '${{ steps.removed.outputs.trust-state }}' = 'INVENTORY_REMOVAL_UNACKNOWLEDGED'
 
+      - id: certfail
+        continue-on-error: true
+        uses: ./
+        with:
+          baseline-dir: action-dogfood/certfail-base
+          fresh-dir: action-dogfood/certfail-head
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert unproven provenance certifies nothing and cannot be approved away
+        run: |
+          # Identical maps, but a side's determinism is unproven. This must NOT read as
+          # NO_VISUAL_CHANGES: the run certifies nothing, and CERTIFICATION_FAILED is the
+          # one state the approval box cannot clear. This is the exact state 4.6.2's
+          # content-geometry bug hid in — undetected precisely because it was never
+          # dogfooded here.
+          test '${{ steps.certfail.outcome }}' = 'failure'
+          test '${{ steps.certfail.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
+
       - name: Assert PR report was published
         if: github.event_name == 'pull_request'
         env:
