@@ -37,7 +37,10 @@ test('composite action publishes a durable no-change report on a clean first run
   assert.match(publishStep[0], /"\$report_exit_code" -ne 0.*"\$report_exit_code" -ne 1/);
   // The run receipt is embedded by the API publisher before upload.
   assert.match(publishStep[0], /styleproof-publish-report\.mjs/);
-  assert.match(publishBin, /styleproof-receipt head-sha:\$\{options\['head-sha'\]\} run-id:\$\{options\['run-id'\]\} run-attempt:\$\{options\['run-attempt'\]\}/);
+  assert.match(
+    publishBin,
+    /styleproof-receipt head-sha:\$\{options\['head-sha'\]\} run-id:\$\{options\['run-id'\]\} run-attempt:\$\{options\['run-attempt'\]\}/,
+  );
   assert.match(commentStep[0], /const url =/);
   assert.doesNotMatch(commentStep[0], /if \(!report\)/);
   assert.doesNotMatch(
