@@ -396,6 +396,9 @@ const CI_WORKFLOW = `name: StyleProof
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
+  schedule:
+    # Daily report-branch sweep: retention window plus a hard size budget.
+    - cron: '47 4 * * *'
 
 permissions:
   contents: write
@@ -405,8 +408,8 @@ permissions:
 
 jobs:
   styleproof:
-    # Report on open/update; the prune job below handles close.
-    if: github.event.action != 'closed'
+    # Report on open/update; the prune jobs below handle close and the sweep.
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -437,38 +440,27 @@ ${PM.setup}
 
   prune:
     # PR closed: drop its pr-<n>/ folder from the report branch so the branch
-    # never grows without bound. Keep BRANCH in sync with the report-branch
-    # input above (default: styleproof-reports).
-    if: github.event.action == 'closed'
+    # never grows without bound. Keep --branch in sync with the report-branch
+    # input above (default: styleproof-reports). Deletion goes through the
+    # git-data API: deleting gigabytes of reports must not require downloading
+    # them first, and even a blobless clone re-fetches the kept blobs at push.
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+${PM.setup}
+      - run: ${PM.install}
       - name: Prune this PR's report folder
         shell: bash
         env:
           GH_TOKEN: \${{ github.token }}
-          BRANCH: styleproof-reports
-          PR: \${{ github.event.pull_request.number }}
         run: |
-          set -euo pipefail
-          REMOTE="https://x-access-token:\${GH_TOKEN}@github.com/\${{ github.repository }}.git"
-          if ! git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
-            echo "No $BRANCH branch yet — nothing to prune."; exit 0
-          fi
-          TMP="$(mktemp -d)"
-          # Blobless clone keeps this fast; a very large report branch may prefer
-          # a --no-checkout plumbing rewrite instead.
-          git clone --filter=blob:none --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
-          cd "$TMP"
-          if [ ! -d "pr-$PR" ]; then
-            echo "No pr-$PR/ folder — nothing to prune."; exit 0
-          fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -r --quiet "pr-$PR"
-          git commit -m "chore(styleproof): prune report for closed PR #$PR"
-          git push origin "$BRANCH"
+          node node_modules/styleproof/bin/styleproof-prune-reports.mjs \\
+            --repository '\${{ github.repository }}' \\
+            --branch styleproof-reports \\
+            --pull-request '\${{ github.event.pull_request.number }}'
       - name: Prune this PR's head map from the map store
         shell: bash
         env:
@@ -509,6 +501,34 @@ ${PM.setup}
           git rm -r --quiet "$HEAD_SHA"
           git commit -m "chore(styleproof): prune map for closed PR #\${{ github.event.pull_request.number }} ($HEAD_SHA)"
           git push origin "$BRANCH"
+
+  report-sweep:
+    # Daily backstop for the report branch. Close-triggered pruning alone
+    # cannot bound it: a missed close event leaks a folder forever, and one PR
+    # can publish hundreds of megabytes of crops, so the folders that blow the
+    # budget are often younger than any reasonable retention window. The sweep
+    # deletes reports whose PR closed more than the retention window ago, then,
+    # if the branch is still over the size budget, keeps deleting oldest-closed
+    # first until it fits. Reports for open PRs are never touched.
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+${PM.setup}
+      - run: ${PM.install}
+      - name: Sweep the report branch by retention and size budget
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          node node_modules/styleproof/bin/styleproof-prune-reports.mjs \\
+            --repository '\${{ github.repository }}' \\
+            --branch styleproof-reports \\
+            --retention-days 14 \\
+            --budget-bytes 1500000000
 `;
 
 function writeFileSafe(file, contents, { force: f } = {}) {

@@ -163,10 +163,25 @@ for (const manager of [
 
       // Report branch self-prunes on PR close (out of the box) — manager-independent.
       assert.match(workflow, /types: \[opened, synchronize, reopened, closed\]/);
-      assert.match(workflow, /if: github\.event\.action != 'closed'/); // report skips close
+      // The report job must not fire on the scheduled sweep event.
+      assert.match(workflow, /if: github\.event_name == 'pull_request' && github\.event\.action != 'closed'/);
       assert.match(workflow, /^\s{2}prune:/m);
-      assert.match(workflow, /if: github\.event\.action == 'closed'/);
-      assert.match(workflow, /git rm -r --quiet "pr-\$PR"/);
+      assert.match(workflow, /if: github\.event_name == 'pull_request' && github\.event\.action == 'closed'/);
+      // Report pruning goes through the git-data API; it must never clone the
+      // report branch (even bloblessly, push re-fetches the kept blobs).
+      assert.match(workflow, /styleproof-prune-reports\.mjs/);
+      assert.match(workflow, /--pull-request '\$\{\{ github\.event\.pull_request\.number \}\}'/);
+      assert.doesNotMatch(workflow, /git rm -r --quiet "pr-\$PR"/);
+
+      // Daily sweep: retention window plus a hard size budget, oldest-closed
+      // first, open PRs never touched. Close-triggered pruning alone cannot
+      // bound the branch (missed close events leak; big recent folders blow
+      // the budget inside any retention window).
+      assert.match(workflow, /schedule:/);
+      assert.match(workflow, /^\s{2}report-sweep:/m);
+      assert.match(workflow, /if: github\.event_name == 'schedule'/);
+      assert.match(workflow, /--retention-days 14/);
+      assert.match(workflow, /--budget-bytes 1500000000/);
 
       // The map store also self-prunes the closed PR's head-SHA folder, but only when
       // that SHA is NOT on the default branch (a ff/rebase merge keeps its base-tip map).
