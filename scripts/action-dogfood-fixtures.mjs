@@ -93,6 +93,18 @@ function armResidueGate(dir) {
   );
 }
 
+// A side whose capture was neither self-checked nor replayed: the styles could
+// have drifted and no one checked. assessDeterminism() turns that into
+// status: 'unproven', which the Action must escalate to CERTIFICATION_FAILED —
+// the state the approval box cannot clear (and the exact state 4.6.2's
+// content-geometry bug hid in, undetected because it was never dogfooded).
+function armUnprovenDeterminism(dir) {
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-coverage.json'),
+    JSON.stringify({ version: 1, expected: null, exclude: {}, determinism: 'unproven', dataResidue: 'off' }, null, 2),
+  );
+}
+
 fs.rmSync(root, { recursive: true, force: true });
 
 writeCapture(path.join(root, 'clean-base'), 'home@320', map(), png([240, 240, 240]));
@@ -133,3 +145,12 @@ armResidueGate(path.join(root, 'residue-head'));
 // Inventory removal: base offers routes /a + /b; head drops /b → unacknowledged removal.
 writeCapture(path.join(root, 'removed-base'), 'home@320', mapNav(['/a', '/b']), png([240, 240, 240]));
 writeCapture(path.join(root, 'removed-head'), 'home@320', mapNav(['/a']), png([240, 240, 240]));
+
+// Certification failure: identical maps, but a side's determinism is unproven —
+// the Action must NOT report NO_VISUAL_CHANGES; it certifies nothing and the
+// approval box cannot clear it. Maps match so the ONLY thing under test is that
+// unproven provenance escalates to CERTIFICATION_FAILED.
+writeCapture(path.join(root, 'certfail-base'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'certfail-head'), 'home@320', map(), png([240, 240, 240]));
+armUnprovenDeterminism(path.join(root, 'certfail-base'));
+armUnprovenDeterminism(path.join(root, 'certfail-head'));

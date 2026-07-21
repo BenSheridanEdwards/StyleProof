@@ -97,7 +97,7 @@ test('composite action marks certify-mode comments with their source head SHA', 
 
 test('dogfood workflow runs the local composite action against every trust-state class', () => {
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 7);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 8);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
@@ -116,6 +116,12 @@ test('dogfood workflow runs the local composite action against every trust-state
   // The inventory removal must FAIL the action even with fail-on-diff off.
   assert.match(dogfoodYml, /steps\.removed\.outcome }}' = 'failure'/);
   assert.match(dogfoodYml, /steps\.removed\.outputs\.trust-state }}' = 'INVENTORY_REMOVAL_UNACKNOWLEDGED'/);
+  // Unproven provenance is dogfooded end-to-end as CERTIFICATION_FAILED — the
+  // state 4.6.2's content-geometry bug hid in, undetected because it was never
+  // exercised here.
+  assert.match(dogfoodYml, /action-dogfood\/certfail-base/);
+  assert.match(dogfoodYml, /steps\.certfail\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
+  assert.match(dogfoodYml, /steps\.certfail\.outcome }}' = 'failure'/);
 });
 
 test('composite action exposes one precedence-ordered machine-readable trust verdict', () => {

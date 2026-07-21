@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`CERTIFICATION_FAILED` is now dogfooded end-to-end.** The action-dogfood
+  workflow exercised six of the eight trust states; `CERTIFICATION_FAILED` was
+  not one of them — which is precisely why 4.6.2's content-geometry regression
+  (it wrongly routed copy-editing PRs into that state) shipped undetected. A new
+  `certfail` fixture pair with unproven determinism now drives the Action to
+  `CERTIFICATION_FAILED` and asserts it hard-fails, so a regression in that
+  branch can never merge silently again.
+
 ## [4.6.3] - 2026-07-20
 
 ### Fixed
