@@ -45,7 +45,8 @@
     "styleproof-prepush": "./bin/styleproof-prepush.mjs",
     "styleproof-affected": "./bin/styleproof-affected.mjs",
     "styleproof-ci": "./bin/styleproof-ci.mjs",
-    "styleproof-publish-report": "./bin/styleproof-publish-report.mjs"
+    "styleproof-publish-report": "./bin/styleproof-publish-report.mjs",
+    "styleproof-prune-reports": "./bin/styleproof-prune-reports.mjs"
   },
   "files": [
     "dist",
