@@ -7,8 +7,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-07-22
+
 ### Added
 
+- **Reports publish through the git-data API.** The Action now writes each
+  report to the report branch through GitHub's git-data API — upload the blobs,
+  build a tree on the branch tip, advance the branch with a single fast-forward
+  — instead of a working-tree commit. Publication no longer checks out the
+  report branch, and the publish path is factored into small helpers that are
+  covered on their own.
+- **`styleproof-init` prunes reports by API with a retention and size-budget
+  sweep.** Report branches grew without bound. A new prune pass removes reports
+  older than a retention window and then trims the branch back under a size
+  budget through the same git-data API, so the report store stays cheap to
+  fetch and hold. The prune feature is self-contained and independently tested.
 - **`CERTIFICATION_FAILED` is now dogfooded end-to-end.** The action-dogfood
   workflow exercised six of the eight trust states; `CERTIFICATION_FAILED` was
   not one of them — which is precisely why 4.6.2's content-geometry regression
@@ -16,6 +29,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `certfail` fixture pair with unproven determinism now drives the Action to
   `CERTIFICATION_FAILED` and asserts it hard-fails, so a regression in that
   branch can never merge silently again.
+
+### Security
+
+- **Cleared two high-severity transitive advisories.** `brace-expansion`
+  5.0.6 → 5.0.7 and `fast-uri` 3.1.3 → 3.1.4 (GHSA-v2hh-gcrm-f6hx, host
+  confusion via a literal backslash authority delimiter). Both were
+  lockfile-only bumps with no code or manifest change; `npm audit
+--audit-level=high` is back to zero vulnerabilities.
 
 ## [4.6.3] - 2026-07-20
 
