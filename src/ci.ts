@@ -35,10 +35,15 @@ export type PackageManagerPlan = {
   name: 'npm' | 'yarn' | 'yarn-berry' | 'pnpm' | 'bun';
   /** Frozen-lockfile install of the checked-out commit's dependencies. */
   install: string[];
-  /** Install the head's exact StyleProof release over the base's older one. */
+  /** Install the head's exact StyleProof release over the base's older one.
+   *  Must resolve ONLY that release against the checked-out lockfile: an
+   *  install that ignores the lockfile re-resolves every ranged dependency in
+   *  package.json to its newest satisfying release, on the base side only, and
+   *  any package that changed its rendered output in between then reds the
+   *  visual diff as a phantom change no PR made. */
   installExactStyleProof: (version: string) => string[];
   /** Tracked files that exact install may have dirtied; the driver restores each
-   *  with `git checkout --` (npm's --no-save/--package-lock=false dirties none). */
+   *  with `git checkout --`. */
   packageMetadataFiles: string[];
 };
 
@@ -116,14 +121,14 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
   return {
     name: 'npm',
     install: ['npm', 'ci'],
-    installExactStyleProof: (version) => [
-      'npm',
-      'install',
-      '--no-save',
-      '--package-lock=false',
-      `styleproof@${version}`,
-    ],
-    packageMetadataFiles: [],
+    // No --package-lock=false: that flag made npm IGNORE the lockfile for the
+    // whole tree reconciliation, so this install silently upgraded every
+    // ranged dependency of the base commit. With the lockfile honored, npm
+    // resolves just the requested release and leaves the rest of the tree
+    // where the base commit locked it; any lockfile write is restored below,
+    // the same way the other package managers' saves are.
+    installExactStyleProof: (version) => ['npm', 'install', '--no-save', `styleproof@${version}`],
+    packageMetadataFiles: ['package.json', 'package-lock.json'],
   };
 }
 

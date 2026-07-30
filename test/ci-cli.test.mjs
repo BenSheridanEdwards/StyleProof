@@ -89,18 +89,20 @@ test('ciOutputLines: the exact steps.maps.outputs.* contract the workflow bash e
 test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv (no shell)', () => {
   const root = mkTmp('styleproof-ci-pm-');
   try {
-    // npm by default; its --no-save/--package-lock=false exact install dirties nothing.
+    // npm by default. The exact install must NOT pass --package-lock=false:
+    // that flag makes npm ignore the lockfile for the whole tree
+    // reconciliation, so every ranged dependency in the base's package.json
+    // re-resolves to its newest satisfying release — on the base side only.
+    // Any package that changed its rendered output between the locked and the
+    // newest release then reds the visual diff as a phantom change no PR made.
+    // With the lockfile honored, installing one exact release leaves every
+    // other locked dependency where the base commit locked it, and any
+    // metadata write is restored like the other package managers'.
     const npm = detectPackageManagerPlan(root);
     assert.equal(npm.name, 'npm');
     assert.deepEqual(npm.install, ['npm', 'ci']);
-    assert.deepEqual(npm.installExactStyleProof('9.9.9'), [
-      'npm',
-      'install',
-      '--no-save',
-      '--package-lock=false',
-      'styleproof@9.9.9',
-    ]);
-    assert.deepEqual(npm.packageMetadataFiles, []);
+    assert.deepEqual(npm.installExactStyleProof('9.9.9'), ['npm', 'install', '--no-save', 'styleproof@9.9.9']);
+    assert.deepEqual(npm.packageMetadataFiles, ['package.json', 'package-lock.json']);
 
     fs.writeFileSync(path.join(root, 'yarn.lock'), '');
     const yarn = detectPackageManagerPlan(root);
