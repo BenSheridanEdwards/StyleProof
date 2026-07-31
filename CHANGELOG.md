@@ -18,6 +18,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Demo font settling no longer deadlocks its map-store dogfood capture.**
   Font readiness now has an external five-second bound instead of consuming
   the full capture timeout when Chromium leaves its readiness promise pending.
+- **Generated scroll settling no longer awaits page-owned timers.** The helper
+  now advances scrolling from the Playwright process with a fixed traversal
+  bound, preventing a stalled page clock from deadlocking crawl capture.
 
 ## [4.7.0] - 2026-07-22
 

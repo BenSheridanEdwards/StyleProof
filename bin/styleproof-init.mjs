@@ -129,13 +129,15 @@ async function settle(page: Page) {
       visibility: visible !important;
     }\`,
   });
-  await page.evaluate(async () => {
-    for (let y = 0; y < document.body.scrollHeight; y += window.innerHeight) {
-      window.scrollTo(0, y);
-      await new Promise((r) => setTimeout(r, 60));
-    }
-    window.scrollTo(0, 0);
-  });
+  const dimensions = await page.evaluate(() => ({
+    scrollHeight: document.body.scrollHeight,
+    viewportHeight: Math.max(window.innerHeight, 1),
+  }));
+  for (let y = 0; y < dimensions.scrollHeight; y += dimensions.viewportHeight) {
+    await page.evaluate((scrollY) => window.scrollTo(0, scrollY), y);
+    await page.waitForTimeout(60);
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
 }`;
 
 const HEADER = `/**
