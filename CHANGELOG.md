@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.7.1] - 2026-07-31
+
 ### Fixed
 
 - **Cold npm base captures no longer re-resolve unrelated application dependencies.**
