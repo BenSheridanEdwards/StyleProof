@@ -15,6 +15,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   worktree. The adopter's dependency tree remains exactly as produced by
   `npm ci`, so a ranged dependency cannot drift on the base side and be
   misreported as a pull-request visual change.
+- **Demo font settling no longer deadlocks its map-store dogfood capture.**
+  Font readiness now has an external five-second bound instead of consuming
+  the full capture timeout when Chromium leaves its readiness promise pending.
 
 ## [4.7.0] - 2026-07-22
 
