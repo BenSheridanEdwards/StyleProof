@@ -36,6 +36,28 @@ function realGitPath() {
   return which.stdout.trim();
 }
 
+function npmShim(body = 'exit 0') {
+  return `#!/bin/sh
+case " $* " in
+  *" styleproof@"*)
+    prefix=""
+    previous=""
+    for argument do
+      if [ "$previous" = "--prefix" ]; then prefix="$argument"; fi
+      case "$argument" in --prefix=*) prefix="\${argument#--prefix=}" ;; esac
+      previous="$argument"
+    done
+    if [ -n "$prefix" ]; then
+      mkdir -p "$prefix/node_modules/styleproof"
+      printf '{"name":"styleproof","type":"module"}\\n' > "$prefix/node_modules/styleproof/package.json"
+      exit 0
+    fi
+    ;;
+esac
+${body}
+`;
+}
+
 /** Prepend a git wrapper on PATH for styleproof-ci subprocesses (setup still uses real git). */
 function ciEnvWithGitWrapper(root, wrapperBody, env = {}) {
   const bin = path.join(root, 'git-bin');
@@ -89,33 +111,38 @@ test('ciOutputLines: the exact steps.maps.outputs.* contract the workflow bash e
 test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv (no shell)', () => {
   const root = mkTmp('styleproof-ci-pm-');
   try {
-    // npm by default. The exact install must NOT pass --package-lock=false:
-    // that flag makes npm ignore the lockfile for the whole tree
-    // reconciliation, so every ranged dependency in the base's package.json
-    // re-resolves to its newest satisfying release — on the base side only.
-    // Any package that changed its rendered output between the locked and the
-    // newest release then reds the visual diff as a phantom change no PR made.
-    // With the lockfile honored, installing one exact release leaves every
-    // other locked dependency where the base commit locked it, and any
-    // metadata write is restored like the other package managers'.
+    // npm by default. Its exact runtime install is isolated from the adopter.
     const npm = detectPackageManagerPlan(root);
     assert.equal(npm.name, 'npm');
     assert.deepEqual(npm.install, ['npm', 'ci']);
-    assert.deepEqual(npm.installExactStyleProof('9.9.9'), ['npm', 'install', '--no-save', 'styleproof@9.9.9']);
-    assert.deepEqual(npm.packageMetadataFiles, ['package.json', 'package-lock.json']);
+    assert.deepEqual(npm.installExactStyleProof('9.9.9', '/tmp/styleproof-runtime'), [
+      'npm',
+      'install',
+      '--prefix',
+      '/tmp/styleproof-runtime',
+      '--no-save',
+      '--package-lock=false',
+      'styleproof@9.9.9',
+    ]);
+    assert.equal(
+      npm.isolatedStyleProofPackage('/tmp/styleproof-runtime'),
+      '/tmp/styleproof-runtime/node_modules/styleproof',
+    );
+    assert.deepEqual(npm.packageMetadataFiles, []);
 
     fs.writeFileSync(path.join(root, 'yarn.lock'), '');
     const yarn = detectPackageManagerPlan(root);
     assert.equal(yarn.name, 'yarn');
     assert.deepEqual(yarn.install, ['npx', '-y', 'yarn@1.22.22', 'install', '--frozen-lockfile', '--non-interactive']);
-    assert.ok(yarn.installExactStyleProof('9.9.9').includes('styleproof@9.9.9'));
+    assert.ok(yarn.installExactStyleProof('9.9.9', '/unused').includes('styleproof@9.9.9'));
+    assert.equal(yarn.isolatedStyleProofPackage('/unused'), null);
     assert.deepEqual(yarn.packageMetadataFiles, ['package.json', 'yarn.lock']);
 
     // pnpm outranks yarn when both lockfiles exist.
     fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), '');
     const pnpm = detectPackageManagerPlan(root);
     assert.equal(pnpm.name, 'pnpm');
-    assert.deepEqual(pnpm.installExactStyleProof('1.2.3'), [
+    assert.deepEqual(pnpm.installExactStyleProof('1.2.3', '/unused'), [
       'pnpm',
       'add',
       '--save-dev',
@@ -132,7 +159,7 @@ test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv
     const berry = detectPackageManagerPlan(root);
     assert.equal(berry.name, 'yarn-berry');
     assert.deepEqual(berry.install, ['corepack', 'yarn', 'install', '--immutable']);
-    assert.deepEqual(berry.installExactStyleProof('9.9.9'), [
+    assert.deepEqual(berry.installExactStyleProof('9.9.9', '/unused'), [
       'corepack',
       'yarn',
       'add',
@@ -160,6 +187,110 @@ test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv
     rmTmp(root);
   }
 });
+
+test(
+  'styleproof-ci: installing its exact npm runtime cannot re-resolve locked application dependencies',
+  { timeout: 30_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-npm-isolation-');
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'consumer');
+    const mapRoot = path.join(root, 'maps');
+    const playwrightFixture = path.join(root, 'playwright-fixture');
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    try {
+      fs.mkdirSync(repo);
+      git(root, ['init', '--bare', '-q', remote]);
+      git(repo, ['init', '-q', '-b', 'main']);
+      git(repo, ['config', 'user.email', 'styleproof@example.test']);
+      git(repo, ['config', 'user.name', 'StyleProof Test']);
+      git(repo, ['remote', 'add', 'origin', remote]);
+      fs.writeFileSync(
+        path.join(repo, 'package.json'),
+        JSON.stringify({ private: true, dependencies: { 'rendering-library': '^1.0.0' } }),
+      );
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"lockfileVersion":3}\n');
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture fixture\n');
+      fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
+      fs.writeFileSync(path.join(repo, 'app.txt'), 'base\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: base']);
+      const base = git(repo, ['rev-parse', 'HEAD']);
+      fs.writeFileSync(path.join(repo, 'app.txt'), 'head\n');
+      git(repo, ['add', 'app.txt']);
+      git(repo, ['commit', '-qm', 'test: head']);
+      const head = git(repo, ['rev-parse', 'HEAD']);
+      git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+      fs.writeFileSync(
+        playwrightFixture,
+        `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+cat node_modules/rendering-library/version > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/rendering-version.txt"
+`,
+      );
+      fs.chmodSync(playwrightFixture, 0o755);
+
+      const bin = path.join(repo, 'node_modules', '.bin');
+      fs.mkdirSync(bin, { recursive: true });
+      fs.writeFileSync(
+        path.join(bin, 'npm'),
+        `#!/bin/sh
+case " $* " in
+  *" styleproof@"*)
+    prefix=""
+    previous=""
+    for argument do
+      if [ "$previous" = "--prefix" ]; then prefix="$argument"; fi
+      case "$argument" in --prefix=*) prefix="\${argument#--prefix=}" ;; esac
+      previous="$argument"
+    done
+    if [ -n "$prefix" ]; then
+      mkdir -p "$prefix/node_modules/styleproof"
+      printf '{"name":"styleproof","type":"module"}\\n' > "$prefix/node_modules/styleproof/package.json"
+    else
+      printf 'range-resolved' > node_modules/rendering-library/version
+    fi
+    exit 0
+    ;;
+esac
+mkdir -p node_modules/.bin node_modules/rendering-library node_modules/styleproof
+printf 'locked' > node_modules/rendering-library/version
+printf '{"name":"styleproof","type":"module"}\\n' > node_modules/styleproof/package.json
+cp "$PLAYWRIGHT_FIXTURE" node_modules/.bin/playwright
+chmod +x node_modules/.bin/playwright
+`,
+      );
+      fs.writeFileSync(path.join(bin, 'playwright'), fs.readFileSync(playwrightFixture));
+      fs.chmodSync(path.join(bin, 'npm'), 0o755);
+      fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+
+      const result = runCi(
+        ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot, '--force'],
+        {
+          CI: '1',
+          PLAYWRIGHT_FIXTURE: playwrightFixture,
+          STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        },
+        repo,
+      );
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      assert.equal(
+        fs.readFileSync(path.join(mapRoot, 'base', 'rendering-version.txt'), 'utf8'),
+        fs.readFileSync(path.join(mapRoot, 'head', 'rendering-version.txt'), 'utf8'),
+        'base and head captures use the same locked application dependency version',
+      );
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
 
 test('styleproof-ci: refuses to run outside CI without --force (it force-checkouts commits)', () => {
   const res = runCi(['--base', 'a'.repeat(40), '--head', 'b'.repeat(40)]);
@@ -232,7 +363,7 @@ test('styleproof-ci: invalid --spec-ref fails loudly before capture', () => {
 
     const bin = path.join(repo, 'node_modules', '.bin');
     fs.mkdirSync(bin, { recursive: true });
-    fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\nexit 0\n');
+    fs.writeFileSync(path.join(bin, 'npm'), npmShim());
     fs.writeFileSync(path.join(bin, 'playwright'), '#!/bin/sh\nif [ "$1" = "install" ]; then exit 0; fi\nexit 0\n');
     fs.chmodSync(path.join(bin, 'npm'), 0o755);
     fs.chmodSync(path.join(bin, 'playwright'), 0o755);
@@ -306,7 +437,7 @@ test(
 
       const bin = path.join(repo, 'node_modules', '.bin');
       fs.mkdirSync(bin, { recursive: true });
-      fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\ngit rev-parse HEAD >> "$PM_LOG"\nexit 0\n');
+      fs.writeFileSync(path.join(bin, 'npm'), npmShim('git rev-parse HEAD >> "$PM_LOG"\nexit 0'));
       fs.writeFileSync(
         path.join(bin, 'playwright'),
         `#!/bin/sh
@@ -450,7 +581,7 @@ test(
       // consumer's install, which marks captures "consumer".
       fs.writeFileSync(
         path.join(bin, 'npm'),
-        `#!/bin/sh
+        npmShim(`
 if [ ! -f node_modules/.bin/playwright ]; then
   mkdir -p node_modules/.bin
   cat > node_modules/.bin/playwright <<'EOF'
@@ -464,7 +595,7 @@ EOF
   chmod +x node_modules/.bin/playwright
 fi
 exit 0
-`,
+`),
       );
       fs.writeFileSync(
         path.join(bin, 'playwright'),
@@ -562,7 +693,7 @@ test(
 
       const bin = path.join(repo, 'node_modules', '.bin');
       fs.mkdirSync(bin, { recursive: true });
-      fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\nexit 0\n');
+      fs.writeFileSync(path.join(bin, 'npm'), npmShim());
       fs.writeFileSync(
         path.join(bin, 'playwright'),
         `#!/bin/sh
@@ -694,7 +825,7 @@ test(
 
       const bin = path.join(repo, 'node_modules', '.bin');
       fs.mkdirSync(bin, { recursive: true });
-      fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\nexit 0\n');
+      fs.writeFileSync(path.join(bin, 'npm'), npmShim());
       fs.writeFileSync(
         path.join(bin, 'playwright'),
         `#!/bin/sh
@@ -991,7 +1122,7 @@ test(
       const bin = path.join(repo, 'node_modules', '.bin');
       fs.mkdirSync(bin, { recursive: true });
       fs.writeFileSync(path.join(bin, 'pnpm'), '#!/bin/sh\ngit rev-parse HEAD >> "$PM_LOG"\nexit 0\n');
-      fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\ngit rev-parse HEAD >> "$PM_LOG"\nexit 0\n');
+      fs.writeFileSync(path.join(bin, 'npm'), npmShim('git rev-parse HEAD >> "$PM_LOG"\nexit 0'));
       fs.writeFileSync(
         path.join(bin, 'playwright'),
         `#!/bin/sh
@@ -1103,7 +1234,7 @@ test(
 
       const bin = path.join(repo, 'node_modules', '.bin');
       fs.mkdirSync(bin, { recursive: true });
-      fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\nexit 0\n');
+      fs.writeFileSync(path.join(bin, 'npm'), npmShim());
       fs.writeFileSync(
         path.join(bin, 'playwright'),
         `#!/bin/sh

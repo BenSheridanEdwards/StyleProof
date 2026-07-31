@@ -36,12 +36,12 @@ export type PackageManagerPlan = {
   /** Frozen-lockfile install of the checked-out commit's dependencies. */
   install: string[];
   /** Install the head's exact StyleProof release over the base's older one.
-   *  Must resolve ONLY that release against the checked-out lockfile: an
-   *  install that ignores the lockfile re-resolves every ranged dependency in
-   *  package.json to its newest satisfying release, on the base side only, and
-   *  any package that changed its rendered output in between then reds the
-   *  visual diff as a phantom change no PR made. */
-  installExactStyleProof: (version: string) => string[];
+   *  npm uses `runtimeRoot` as an isolated prefix so its lock-disabled install
+   *  cannot re-resolve unrelated application dependency ranges. */
+  installExactStyleProof: (version: string, runtimeRoot: string) => string[];
+  /** Isolated package to link over the base checkout's StyleProof installation.
+   *  Other package managers install in-place and return null. */
+  isolatedStyleProofPackage: (runtimeRoot: string) => string | null;
   /** Tracked files that exact install may have dirtied; the driver restores each
    *  with `git checkout --`. */
   packageMetadataFiles: string[];
@@ -74,6 +74,7 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
       name: 'bun',
       install: ['bun', 'install', '--frozen-lockfile'],
       installExactStyleProof: (version) => ['bun', 'add', '--dev', '--exact', `styleproof@${version}`],
+      isolatedStyleProofPackage: () => null,
       packageMetadataFiles: ['package.json', ...['bun.lock', 'bun.lockb'].filter(has)],
     };
   }
@@ -82,6 +83,7 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
       name: 'pnpm',
       install: ['pnpm', 'install', '--frozen-lockfile'],
       installExactStyleProof: (version) => ['pnpm', 'add', '--save-dev', '--save-exact', `styleproof@${version}`],
+      isolatedStyleProofPackage: () => null,
       packageMetadataFiles: ['package.json', 'pnpm-lock.yaml'],
     };
   }
@@ -96,6 +98,7 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
         name: 'yarn-berry',
         install: ['corepack', 'yarn', 'install', '--immutable'],
         installExactStyleProof: (version) => ['corepack', 'yarn', 'add', '--dev', '--exact', `styleproof@${version}`],
+        isolatedStyleProofPackage: () => null,
         packageMetadataFiles: [
           'package.json',
           'yarn.lock',
@@ -115,20 +118,24 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
         '--exact',
         `styleproof@${version}`,
       ],
+      isolatedStyleProofPackage: () => null,
       packageMetadataFiles: ['package.json', 'yarn.lock'],
     };
   }
   return {
     name: 'npm',
     install: ['npm', 'ci'],
-    // No --package-lock=false: that flag made npm IGNORE the lockfile for the
-    // whole tree reconciliation, so this install silently upgraded every
-    // ranged dependency of the base commit. With the lockfile honored, npm
-    // resolves just the requested release and leaves the rest of the tree
-    // where the base commit locked it; any lockfile write is restored below,
-    // the same way the other package managers' saves are.
-    installExactStyleProof: (version) => ['npm', 'install', '--no-save', `styleproof@${version}`],
-    packageMetadataFiles: ['package.json', 'package-lock.json'],
+    installExactStyleProof: (version, runtimeRoot) => [
+      'npm',
+      'install',
+      '--prefix',
+      runtimeRoot,
+      '--no-save',
+      '--package-lock=false',
+      `styleproof@${version}`,
+    ],
+    isolatedStyleProofPackage: (runtimeRoot) => path.join(runtimeRoot, 'node_modules', 'styleproof'),
+    packageMetadataFiles: [],
   };
 }
 

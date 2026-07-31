@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Cold npm base captures no longer re-resolve unrelated application dependencies.**
+  `styleproof-ci` now installs its exact capture runtime under the ephemeral
+  session directory and links only the `styleproof` package into the base
+  worktree. The adopter's dependency tree remains exactly as produced by
+  `npm ci`, so a ranged dependency cannot drift on the base side and be
+  misreported as a pull-request visual change.
+
 ## [4.7.0] - 2026-07-22
 
 ### Added

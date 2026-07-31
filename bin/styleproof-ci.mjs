@@ -398,9 +398,25 @@ try {
       log(`base miss — rebuilding the pair cold (${basePm.name})`);
       runOrDie(basePm.install, `${basePm.name} install at base`, { cwd: coldBaseCwd });
       // The base may depend on an older StyleProof. Install the head's exact release,
-      // then restore the tracked metadata that temporary install dirtied: node_modules
-      // must keep the exact release while the capture tree stays clean.
-      runOrDie(basePm.installExactStyleProof(OWN_VERSION), `install styleproof@${OWN_VERSION}`, { cwd: coldBaseCwd });
+      // then restore the tracked metadata that temporary install dirtied. npm's
+      // lock-disabled overlay runs under the session scratch root; running it in
+      // the adopter checkout can re-resolve unrelated dependency ranges after
+      // `npm ci`, making base and head render different package versions.
+      const exactRuntimeRoot = path.join(worktrees.scratchRoot(), 'exact-styleproof-runtime');
+      runOrDie(basePm.installExactStyleProof(OWN_VERSION, exactRuntimeRoot), `install styleproof@${OWN_VERSION}`, {
+        cwd: coldBaseCwd,
+      });
+      const isolatedStyleProofPackage = basePm.isolatedStyleProofPackage(exactRuntimeRoot);
+      if (isolatedStyleProofPackage) {
+        if (!fs.existsSync(isolatedStyleProofPackage)) {
+          console.error(`styleproof-ci: isolated StyleProof install is missing ${isolatedStyleProofPackage}`);
+          bail(1);
+        }
+        const checkoutStyleProofPackage = path.join(coldBaseCwd, 'node_modules', 'styleproof');
+        fs.mkdirSync(path.dirname(checkoutStyleProofPackage), { recursive: true });
+        fs.rmSync(checkoutStyleProofPackage, { recursive: true, force: true });
+        fs.symlinkSync(isolatedStyleProofPackage, checkoutStyleProofPackage, 'junction');
+      }
       for (const file of basePm.packageMetadataFiles) {
         if (tracked(file, coldBaseCwd))
           runOrDie(['git', 'checkout', '--', file], `restore ${file}`, { cwd: coldBaseCwd });
