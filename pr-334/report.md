@@ -1,10 +1,5 @@
 ## 🗺️ StyleProof report
 
-**Certification**
-- **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)
-- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
-- **Inventory** — ✓ navigable set unchanged
-
 ✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.
 
-<!-- styleproof-receipt head-sha:85fedc0a3c14803115c2f1fa78be46f0c9be555e run-id:30613099846 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:bec0b3aedc245dc4c4bf8f9e56d21fba3f8e7ea6 run-id:30613591985 run-attempt:1 -->
