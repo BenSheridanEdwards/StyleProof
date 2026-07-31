@@ -35,10 +35,15 @@ export type PackageManagerPlan = {
   name: 'npm' | 'yarn' | 'yarn-berry' | 'pnpm' | 'bun';
   /** Frozen-lockfile install of the checked-out commit's dependencies. */
   install: string[];
-  /** Install the head's exact StyleProof release over the base's older one. */
-  installExactStyleProof: (version: string) => string[];
+  /** Install the head's exact StyleProof release over the base's older one.
+   *  npm uses `runtimeRoot` as an isolated prefix so its lock-disabled install
+   *  cannot re-resolve unrelated application dependency ranges. */
+  installExactStyleProof: (version: string, runtimeRoot: string) => string[];
+  /** Isolated package to link over the base checkout's StyleProof installation.
+   *  Other package managers install in-place and return null. */
+  isolatedStyleProofPackage: (runtimeRoot: string) => string | null;
   /** Tracked files that exact install may have dirtied; the driver restores each
-   *  with `git checkout --` (npm's --no-save/--package-lock=false dirties none). */
+   *  with `git checkout --`. */
   packageMetadataFiles: string[];
 };
 
@@ -69,6 +74,7 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
       name: 'bun',
       install: ['bun', 'install', '--frozen-lockfile'],
       installExactStyleProof: (version) => ['bun', 'add', '--dev', '--exact', `styleproof@${version}`],
+      isolatedStyleProofPackage: () => null,
       packageMetadataFiles: ['package.json', ...['bun.lock', 'bun.lockb'].filter(has)],
     };
   }
@@ -77,6 +83,7 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
       name: 'pnpm',
       install: ['pnpm', 'install', '--frozen-lockfile'],
       installExactStyleProof: (version) => ['pnpm', 'add', '--save-dev', '--save-exact', `styleproof@${version}`],
+      isolatedStyleProofPackage: () => null,
       packageMetadataFiles: ['package.json', 'pnpm-lock.yaml'],
     };
   }
@@ -91,6 +98,7 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
         name: 'yarn-berry',
         install: ['corepack', 'yarn', 'install', '--immutable'],
         installExactStyleProof: (version) => ['corepack', 'yarn', 'add', '--dev', '--exact', `styleproof@${version}`],
+        isolatedStyleProofPackage: () => null,
         packageMetadataFiles: [
           'package.json',
           'yarn.lock',
@@ -110,19 +118,23 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
         '--exact',
         `styleproof@${version}`,
       ],
+      isolatedStyleProofPackage: () => null,
       packageMetadataFiles: ['package.json', 'yarn.lock'],
     };
   }
   return {
     name: 'npm',
     install: ['npm', 'ci'],
-    installExactStyleProof: (version) => [
+    installExactStyleProof: (version, runtimeRoot) => [
       'npm',
       'install',
+      '--prefix',
+      runtimeRoot,
       '--no-save',
       '--package-lock=false',
       `styleproof@${version}`,
     ],
+    isolatedStyleProofPackage: (runtimeRoot) => path.join(runtimeRoot, 'node_modules', 'styleproof'),
     packageMetadataFiles: [],
   };
 }

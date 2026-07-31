@@ -7,6 +7,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.7.1] - 2026-07-31
+
+### Fixed
+
+- **Cold npm base captures no longer re-resolve unrelated application dependencies.**
+  `styleproof-ci` now installs its exact capture runtime under the ephemeral
+  session directory and links only the `styleproof` package into the base
+  worktree. The adopter's dependency tree remains exactly as produced by
+  `npm ci`, so a ranged dependency cannot drift on the base side and be
+  misreported as a pull-request visual change.
+- **Demo font settling no longer deadlocks its map-store dogfood capture.**
+  Font readiness now has an external five-second bound instead of consuming
+  the full capture timeout when Chromium leaves its readiness promise pending.
+- **Generated scroll settling no longer awaits page-owned timers.** The helper
+  now advances scrolling from the Playwright process with a fixed traversal
+  bound, preventing a stalled page clock from deadlocking crawl capture.
+
 ## [4.7.0] - 2026-07-22
 
 ### Added

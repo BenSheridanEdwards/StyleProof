@@ -17,14 +17,17 @@ import { defineStyleMapCapture, type Surface } from 'styleproof';
 // alternatively inject CSS that forces your reveal classes to their final
 // values (e.g. `.reveal{opacity:1!important;transform:none!important}`).
 async function settle(page: Page) {
-  await page.evaluate(async () => {
-    await document.fonts.ready;
-    for (let y = 0; y < document.body.scrollHeight; y += window.innerHeight) {
-      window.scrollTo(0, y);
-      await new Promise((r) => setTimeout(r, 60));
-    }
-    window.scrollTo(0, 0);
-  });
+  // A browser/font subsystem fault must not deadlock the dogfood capture.
+  await page.waitForFunction(() => document.fonts.status === 'loaded', undefined, { timeout: 5_000 }).catch(() => {});
+  const dimensions = await page.evaluate(() => ({
+    scrollHeight: document.body.scrollHeight,
+    viewportHeight: Math.max(window.innerHeight, 1),
+  }));
+  for (let y = 0; y < dimensions.scrollHeight; y += dimensions.viewportHeight) {
+    await page.evaluate((scrollY) => window.scrollTo(0, scrollY), y);
+    await page.waitForTimeout(60);
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(900);
 }
 

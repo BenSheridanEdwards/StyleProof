@@ -60,6 +60,8 @@ test('styleproof-init: non-Next project → crawl-by-default spec (nothing to ha
     assert.match(spec, /defineCrawlCapture\(\{/);
     assert.match(spec, /from: '\/'/); // crawl the whole nav from the root
     assert.match(spec, /settle,/); // scroll-reveal hook wired
+    assert.match(spec, /viewportHeight: Math\.max\(window\.innerHeight, 1\)/);
+    assert.match(spec, /await page\.waitForTimeout\(60\)/); // browser timers cannot deadlock settling
     assert.match(spec, /inventory: true/); // the removal guard is on by default
     assert.match(spec, /dir: process\.env\.STYLEMAP_DIR/);
     assert.doesNotMatch(spec, /key: 'home'/); // no hand-listed surface to maintain
