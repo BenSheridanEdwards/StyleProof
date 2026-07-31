@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.7.2] - 2026-07-31
+
+### Fixed
+
+- **Cold npm base captures use one Playwright module instance.** The isolated
+  exact StyleProof runtime now shares the adopter base worktree's locked
+  `@playwright/test` package. The Playwright CLI, adopter config/spec, and
+  StyleProof runner therefore cannot load two package instances and collapse a
+  valid baseline into an all-new-surface report.
+
 ## [4.7.1] - 2026-07-31
 
 ### Fixed
