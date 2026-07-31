@@ -412,6 +412,23 @@ try {
           console.error(`styleproof-ci: isolated StyleProof install is missing ${isolatedStyleProofPackage}`);
           bail(1);
         }
+        // Playwright forbids loading @playwright/test twice in one process.
+        // The adopter's config/spec resolve their locked copy from this cold
+        // worktree, while StyleProof's isolated package would otherwise resolve
+        // the copy npm installed beside it. Point the isolated runtime at the
+        // adopter's package so the CLI, config, spec, and StyleProof runner all
+        // share one Playwright module instance without changing any other
+        // adopter dependency.
+        const isolatedPlaywrightTest = path.join(exactRuntimeRoot, 'node_modules', '@playwright', 'test');
+        const adopterPlaywrightTest = path.join(coldBaseCwd, 'node_modules', '@playwright', 'test');
+        // A custom/global Playwright CLI need not install this package in the
+        // adopter. In that supported case the isolated runtime remains
+        // self-contained; there is no adopter module instance to unify with.
+        if (fs.existsSync(adopterPlaywrightTest)) {
+          fs.rmSync(isolatedPlaywrightTest, { recursive: true, force: true });
+          fs.mkdirSync(path.dirname(isolatedPlaywrightTest), { recursive: true });
+          fs.symlinkSync(adopterPlaywrightTest, isolatedPlaywrightTest, 'junction');
+        }
         const checkoutStyleProofPackage = path.join(coldBaseCwd, 'node_modules', 'styleproof');
         fs.mkdirSync(path.dirname(checkoutStyleProofPackage), { recursive: true });
         fs.rmSync(checkoutStyleProofPackage, { recursive: true, force: true });

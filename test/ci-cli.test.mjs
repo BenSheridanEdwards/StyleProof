@@ -189,13 +189,14 @@ test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv
 });
 
 test(
-  'styleproof-ci: installing its exact npm runtime cannot re-resolve locked application dependencies',
+  'styleproof-ci: exact npm runtime preserves locked dependencies and a valid Playwright baseline',
   { timeout: 30_000 },
   () => {
     const root = mkTmp('styleproof-ci-npm-isolation-');
     const remote = path.join(root, 'remote.git');
     const repo = path.join(root, 'consumer');
     const mapRoot = path.join(root, 'maps');
+    const githubOutput = path.join(root, 'github-output');
     const playwrightFixture = path.join(root, 'playwright-fixture');
     const git = (cwd, args) => {
       const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
@@ -230,6 +231,12 @@ test(
         playwrightFixture,
         `#!/bin/sh
 if [ "$1" = "install" ]; then exit 0; fi
+runtime_styleproof=$(realpath node_modules/styleproof)
+runtime_node_modules=$(dirname "$runtime_styleproof")
+if [ "$(realpath "$runtime_node_modules/@playwright/test")" != "$(realpath node_modules/@playwright/test)" ]; then
+  echo "StyleProof runner and adopter config would load different @playwright/test packages" >&2
+  exit 42
+fi
 mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
 printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
 cat node_modules/rendering-library/version > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/rendering-version.txt"
@@ -252,17 +259,19 @@ case " $* " in
       previous="$argument"
     done
     if [ -n "$prefix" ]; then
-      mkdir -p "$prefix/node_modules/styleproof"
+      mkdir -p "$prefix/node_modules/styleproof" "$prefix/node_modules/@playwright/test"
       printf '{"name":"styleproof","type":"module"}\\n' > "$prefix/node_modules/styleproof/package.json"
+      printf '{"name":"@playwright/test"}\\n' > "$prefix/node_modules/@playwright/test/package.json"
     else
       printf 'range-resolved' > node_modules/rendering-library/version
     fi
     exit 0
     ;;
 esac
-mkdir -p node_modules/.bin node_modules/rendering-library node_modules/styleproof
+mkdir -p node_modules/.bin node_modules/rendering-library node_modules/styleproof node_modules/@playwright/test
 printf 'locked' > node_modules/rendering-library/version
 printf '{"name":"styleproof","type":"module"}\\n' > node_modules/styleproof/package.json
+printf '{"name":"@playwright/test"}\\n' > node_modules/@playwright/test/package.json
 cp "$PLAYWRIGHT_FIXTURE" node_modules/.bin/playwright
 chmod +x node_modules/.bin/playwright
 `,
@@ -277,6 +286,7 @@ chmod +x node_modules/.bin/playwright
           CI: '1',
           PLAYWRIGHT_FIXTURE: playwrightFixture,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          GITHUB_OUTPUT: githubOutput,
         },
         repo,
       );
@@ -285,6 +295,11 @@ chmod +x node_modules/.bin/playwright
         fs.readFileSync(path.join(mapRoot, 'base', 'rendering-version.txt'), 'utf8'),
         fs.readFileSync(path.join(mapRoot, 'head', 'rendering-version.txt'), 'utf8'),
         'base and head captures use the same locked application dependency version',
+      );
+      assert.match(
+        fs.readFileSync(githubOutput, 'utf8'),
+        /base-capture-failed=false/,
+        'the baseline remains valid instead of degrading every head map into a fake new surface',
       );
     } finally {
       rmTmp(root);
