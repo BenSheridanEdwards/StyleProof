@@ -81,10 +81,12 @@ test('waits for every forced pseudo-state transition before reading computed sty
     button:active { border-color: rgb(7, 8, 9); }
   </style></head><body>${Array.from({ length: 24 }, (_, i) => `<button>Action ${i}</button>`).join('')}</body></html>`;
 
-  const first = await captureFixture(page, html);
-  const second = await captureFixture(page, html);
+  const captures = [];
+  for (let i = 0; i < 8; i++) captures.push(await captureFixture(page, html));
+  const [first, ...replays] = captures;
 
-  expect(diffStyleMaps(first, second), 'independent forced-state sweeps are byte-equivalent').toEqual([]);
+  for (const replay of replays)
+    expect(diffStyleMaps(first, replay), 'independent forced-state sweeps are byte-equivalent').toEqual([]);
   for (const [path] of Object.entries(first.elements).filter(([, entry]) => entry.tag === 'button')) {
     expect(first.states[path]?.hover, `${path} captured :hover`).toBeTruthy();
     expect(first.states[path]?.focus, `${path} captured :focus-visible`).toBeTruthy();

@@ -721,6 +721,15 @@ async function settleForcedState(client: CDPSession, selector: string): Promise<
   return result.value === true;
 }
 
+async function snapSubtreeInSession(client: CDPSession, args: SubtreeArgs): Promise<Snap> {
+  const { result, exceptionDetails } = await client.send('Runtime.evaluate', {
+    expression: `(${snapSubtree.toString()})(${JSON.stringify(args)})`,
+    returnByValue: true,
+  });
+  if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
+  return (result.value ?? {}) as Snap;
+}
+
 // Forced pseudo-class states on interactive elements, via CDP so no real
 // mouse or focus is involved and parent-state descendant rules still apply.
 async function captureForcedStates(
@@ -758,7 +767,7 @@ async function captureForcedStates(
         console.warn(`styleproof: interactive element ${id} detached before forced-state capture; skipping it.`);
         continue;
       }
-      const baseSnap: Snap = await page.evaluate(snapSubtree, { selector, index: 0 });
+      const baseSnap = await snapSubtreeInSession(client, { selector, index: 0 });
       for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
         await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses });
         if (!(await settleForcedState(client, selector))) {
@@ -767,7 +776,7 @@ async function captureForcedStates(
           console.warn(`styleproof: interactive element ${id} detached during forced-state capture; skipping it.`);
           break;
         }
-        const forcedSnap: Snap = await page.evaluate(snapSubtree, { selector, index: 0 });
+        const forcedSnap = await snapSubtreeInSession(client, { selector, index: 0 });
         await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
         await settleForcedState(client, selector);
         const delta = deltaBetween(baseSnap, forcedSnap);
