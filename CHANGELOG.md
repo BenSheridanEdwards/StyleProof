@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.7.4] - 2026-08-01
+
+### Fixed
+
+- **Forced interaction states are sampled in the CDP session that applies them.**
+  The computed-style subtree read no longer crosses into Playwright's separate
+  protocol session after forcing `:hover`, `:focus`, or `:active`. This removes
+  intermittent phantom state deltas on unchanged controls in hydrated apps.
+
 ## [4.7.3] - 2026-08-01
 
 ### Fixed
