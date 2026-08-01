@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.7.3] - 2026-08-01
+
+### Fixed
+
+- **Forced interaction states settle before their computed styles are read.**
+  Capture now flushes each `:hover`, `:focus`, and `:active` transition through
+  the same CDP session that applied it before reading the page. Independent
+  base and head processes can no longer disagree about unchanged interaction
+  styles because a CDP state transition was still pending.
+
 ## [4.7.2] - 2026-07-31
 
 ### Fixed

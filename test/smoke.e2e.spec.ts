@@ -74,6 +74,24 @@ test('captures a real page and reports an identical map as unchanged', async ({ 
   expect(diffStyleMaps(a, b)).toEqual([]);
 });
 
+test('waits for every forced pseudo-state transition before reading computed styles', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    button:hover { color: rgb(1, 2, 3); }
+    button:focus-visible { outline-color: rgb(4, 5, 6); }
+    button:active { border-color: rgb(7, 8, 9); }
+  </style></head><body>${Array.from({ length: 24 }, (_, i) => `<button>Action ${i}</button>`).join('')}</body></html>`;
+
+  const first = await captureFixture(page, html);
+  const second = await captureFixture(page, html);
+
+  expect(diffStyleMaps(first, second), 'independent forced-state sweeps are byte-equivalent').toEqual([]);
+  for (const [path] of Object.entries(first.elements).filter(([, entry]) => entry.tag === 'button')) {
+    expect(first.states[path]?.hover, `${path} captured :hover`).toBeTruthy();
+    expect(first.states[path]?.focus, `${path} captured :focus-visible`).toBeTruthy();
+    expect(first.states[path]?.active, `${path} captured :active`).toBeTruthy();
+  }
+});
+
 test('capture persists zero own-text length without persisting rendered copy', async ({ page }) => {
   const html = '<!doctype html><html><body><span class="empty"></span><span class="filled">test</span></body></html>';
   const map = await captureFixture(page, html);

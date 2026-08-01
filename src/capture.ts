@@ -1,4 +1,4 @@
-import type { Page, Request, Response } from '@playwright/test';
+import type { CDPSession, Page, Request, Response } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
@@ -713,6 +713,14 @@ function clearInteractiveMarks(attr: string): void {
   for (const el of document.querySelectorAll(`[${attr}]`)) el.removeAttribute(attr);
 }
 
+async function settleForcedState(client: CDPSession, selector: string): Promise<boolean> {
+  const { result } = await client.send('Runtime.evaluate', {
+    expression: `(() => { const element = document.querySelector(${JSON.stringify(selector)}); if (!element) return false; getComputedStyle(element).display; return true; })()`,
+    returnByValue: true,
+  });
+  return result.value === true;
+}
+
 // Forced pseudo-class states on interactive elements, via CDP so no real
 // mouse or focus is involved and parent-state descendant rules still apply.
 async function captureForcedStates(
@@ -753,8 +761,15 @@ async function captureForcedStates(
       const baseSnap: Snap = await page.evaluate(snapSubtree, { selector, index: 0 });
       for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
         await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses });
+        if (!(await settleForcedState(client, selector))) {
+          await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+          // eslint-disable-next-line no-console
+          console.warn(`styleproof: interactive element ${id} detached during forced-state capture; skipping it.`);
+          break;
+        }
         const forcedSnap: Snap = await page.evaluate(snapSubtree, { selector, index: 0 });
         await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+        await settleForcedState(client, selector);
         const delta = deltaBetween(baseSnap, forcedSnap);
         if (Object.keys(delta).length) (states[p] ??= {})[stateName] = delta;
       }
