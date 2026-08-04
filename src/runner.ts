@@ -1149,6 +1149,36 @@ function writeBrowserBuildTest(settings: Settings, dir: string): void {
   });
 }
 
+/**
+ * The `--grep` `styleproof-map` selects the capture tests with.
+ *
+ * A REGEX LITERAL, deliberately, not the bare phrase. Playwright compiles a plain
+ * `--grep` string as `new RegExp(pattern, 'gi')` — **case-insensitive** — and matches
+ * it against the whole grep title path: file path, every enclosing describe, the test
+ * title, and any tags. A bare `styleproof capture` therefore selects any consumer test
+ * whose title merely MENTIONS StyleProof capture in prose.
+ *
+ * That is not hypothetical. A consumer spec titled
+ * `"ci runners: the StyleProof capture fixture actually contains the lane panel"`
+ * was swept into the capture run. Because `styleproof-ci --spec-ref` overlays the head
+ * harness onto the BASE checkout, it then ran against the base application, asserted
+ * head-only UI, failed, and took the entire base capture down with it — leaving 230
+ * surfaces with no baseline to diff against while the head capture reported success.
+ * A gate that certifies nothing while looking green is the worst failure this tool has.
+ *
+ * The `/.../` form makes Playwright honour it as a regex with no flags, so matching is
+ * case-SENSITIVE, and the `(?:^|\s)` / `(?:\s|$)` boundaries stop it matching a longer
+ * word. It still matches both capture blocks below, including the nested
+ * `styleproof browser build` test, because the describe title is part of every
+ * descendant's grep title.
+ *
+ * Kept here, beside the `test.describe` titles it has to agree with, because the
+ * selector and the titles were two independent string literals and nothing held them
+ * together. Not exported from `index.ts`: this is an internal contract between the
+ * runner and `bin/styleproof-map.mjs`, not public API.
+ */
+export const CAPTURE_TEST_GREP = '/(?:^|\\s)styleproof capture(?:\\s|$)/';
+
 export function defineStyleMapCapture(options: DefineOptions): void {
   const { surfaces, expected, exclude = {}, dir } = options;
   const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
@@ -1421,8 +1451,9 @@ export function defineCrawlCapture(options: CrawlOptions): void {
 
   const settings = resolveSettings(options);
 
-  // Title contains "styleproof capture" so the same `--grep 'styleproof capture'`
-  // that styleproof-map uses to select capture tests picks up crawl specs too.
+  // Title opens with "styleproof capture" so {@link CAPTURE_TEST_GREP}, which
+  // styleproof-map selects capture tests with, picks up crawl specs too. The trailing
+  // " (crawl)" keeps the space the selector's closing boundary needs.
   test.describe('styleproof capture (crawl)', () => {
     // Record the completeness basis. Without `expected` a crawl has no registry to
     // check against, so it records `expected: null` (honestly "not asserted": it

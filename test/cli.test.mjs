@@ -84,7 +84,10 @@ test('styleproof-map runs Playwright with local cache defaults', () => {
       env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
     });
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /current\|\.styleproof\/maps\|1\|test --grep styleproof capture/);
+    assert.match(
+      r.stdout,
+      /current\|\.styleproof\/maps\|1\|test --grep \/\(\?:\^\|\\s\)styleproof capture\(\?:\\s\|\$\)\//,
+    );
     assert.equal(fs.existsSync(path.join(root, '.styleproof/maps/current/home@1280.har')), false);
     assert.ok(fs.existsSync(path.join(root, '.styleproof/maps/current', MAP_MANIFEST)));
   } finally {
@@ -276,7 +279,7 @@ test('styleproof-map runs configured variant crawl before Playwright capture', (
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [
       'crawl:--base-url http://127.0.0.1:3000 --out styleproof.variants.generated.json --route / --route settings=/settings --strict',
-      'map:test --grep styleproof capture',
+      'map:test --grep /(?:^|\\s)styleproof capture(?:\\s|$)/',
     ]);
   } finally {
     rmTmp(root);

@@ -42,6 +42,9 @@ import {
   workingTreeDirty,
   writeMapManifest,
 } from '../dist/map-store.js';
+// The capture selector lives beside the `test.describe` titles it must agree with.
+// Importing it keeps one source of truth instead of two string literals that drift.
+import { CAPTURE_TEST_GREP } from '../dist/runner.js';
 
 const STYLEPROOF_PLAYWRIGHT_CONFIG = 'playwright.styleproof.config.ts';
 const STYLEPROOF_VARIANTS_SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'styleproof-variants.mjs');
@@ -384,7 +387,7 @@ const env = {
   ...(tolerateSurfaceFailures ? { STYLEPROOF_TOLERATE_SURFACE_FAILURES: '1' } : {}),
 };
 runVariantCrawl(env);
-const result = spawnSync(command, ['test', '--grep', 'styleproof capture', ...configArgs, ...playwrightArgs], {
+const result = spawnSync(command, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs], {
   stdio: 'inherit',
   env,
 });
