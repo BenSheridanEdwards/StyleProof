@@ -7,6 +7,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **`styleproof-map` no longer selects consumer tests that merely mention "styleproof
+  capture".** Playwright compiles a plain `--grep` string as `new RegExp(pattern, 'gi')`
+  — case-insensitive — and matches it against the whole title path, so the bare
+  `styleproof capture` selector swept in any spec whose title mentioned StyleProof
+  capture in prose. Combined with `styleproof-ci --spec-ref`, which overlays the head
+  harness onto the base checkout, such a spec then ran against the base application,
+  failed, and took the entire base capture down with it — leaving every surface without
+  a baseline while the head capture reported success. The selector is now a
+  case-sensitive, word-bounded regex literal, and it lives beside the `test.describe`
+  titles it has to agree with rather than being a second independent string literal.
+
 ## [4.7.4] - 2026-08-01
 
 ### Fixed
