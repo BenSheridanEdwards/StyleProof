@@ -62,6 +62,52 @@ function identicalPair({ bare = false } = {}) {
   return { root, A, B };
 }
 
+function correspondenceCollapsedPair() {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const button = {
+    tag: 'button',
+    rect: [10, 10, 80, 24],
+    ownTextLength: 3,
+    style: { color: 'rgb(0, 0, 0)' },
+  };
+  const label = {
+    tag: 'span',
+    rect: [10, 50, 80, 20],
+    ownTextLength: 4,
+    style: { color: 'rgb(0, 0, 0)' },
+  };
+  const shell = { tag: 'div', rect: [0, 0, 200, 100], ownTextLength: 0, style: {} };
+  writeCapture(
+    A,
+    'home@400',
+    makeMap({
+      elements: {
+        'body > div:nth-child(1)': shell,
+        'body > div:nth-child(1) > button:nth-child(1)': button,
+        'body > div:nth-child(1) > span:nth-child(2)': label,
+      },
+    }),
+    null,
+  );
+  writeCapture(
+    B,
+    'home@400',
+    makeMap({
+      elements: {
+        'body > div:nth-child(1)': shell,
+        'body > div:nth-child(1) > span:nth-child(1)': label,
+        'body > div:nth-child(1) > button:nth-child(2)': button,
+      },
+    }),
+    null,
+  );
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  return { root, A, B };
+}
+
 // ---------------------------------------------------------------- styleproof-map
 
 test('styleproof-map runs Playwright with local cache defaults', () => {
@@ -833,6 +879,21 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
   assert.equal(r.status, 1);
   assert.match(r.stdout, /changed surface\(s\)/);
   assert.ok(fs.existsSync(path.join(out, 'report.json')));
+  rmTmp(root);
+});
+
+test('report CLI exits 1 when correspondence collapses every presentation finding', () => {
+  const { root, A, B } = correspondenceCollapsedPair();
+  const out = path.join(root, 'out');
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /presentation_collapsed_while_raw_reviewable/);
+  assert.doesNotMatch(r.stdout, /✓ no changes/);
+  const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.deepEqual(json.reportConsistency, {
+    ok: false,
+    reason: 'presentation_collapsed_while_raw_reviewable',
+  });
   rmTmp(root);
 });
 

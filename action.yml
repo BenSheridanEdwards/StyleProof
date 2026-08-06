@@ -145,6 +145,34 @@ runs:
         # Both need human review in approval mode. Every defined verdict publishes a receipt.
         if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
 
+    # Generate the human report before trust classification. Report-only structural
+    # correspondence can discover a presentation/certification contradiction that the
+    # raw differ cannot know about; merge that one coherence verdict back into the
+    # machine payload so approval can never clear hidden raw review evidence.
+    - id: report
+      shell: bash
+      run: |
+        set -euo pipefail
+        rm -rf styleproof-report
+        set +e
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report
+        report_exit_code=$?
+        set -e
+        if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
+          echo "styleproof-report exited with code $report_exit_code — no trustworthy report was generated" >&2
+          exit "$report_exit_code"
+        fi
+        node <<'NODE'
+        const fs = require('fs');
+        const diff = JSON.parse(fs.readFileSync('styleproof-diff.json', 'utf8'));
+        const generated = JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'));
+        if (!generated.reportConsistency || typeof generated.reportConsistency.ok !== 'boolean') {
+          throw new Error('styleproof-report/report.json has no valid reportConsistency verdict');
+        }
+        diff.reportConsistency = generated.reportConsistency;
+        fs.writeFileSync('styleproof-diff.json', `${JSON.stringify(diff, null, 2)}\n`);
+        NODE
+
     # One machine-readable verdict for every defined diff. Consumers should not
     # re-parse styleproof-diff.json or guess whether approval can clear the run.
     - id: verdict
@@ -227,16 +255,6 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
         set -euo pipefail
-        rm -rf styleproof-report
-        set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report
-        report_exit_code=$?
-        set -e
-        if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
-          echo "styleproof-report exited with code $report_exit_code — no trustworthy report was generated" >&2
-          exit "$report_exit_code"
-        fi
-
         PR='${{ steps.context.outputs.pr-number }}'
         REPORT_PATH="pr-${PR:-${{ github.run_id }}}"
         REPORT_SHA='${{ steps.context.outputs.head-sha }}'

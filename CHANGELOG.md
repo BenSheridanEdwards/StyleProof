@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Report-only correspondence can no longer erase reviewable certification
+  evidence and render a false “all surfaces identical” result.** If unique path
+  pairing collapses every presentation finding while the raw differ still has
+  reviewable DOM/style/state evidence, `reportConsistency` now fails closed as
+  `presentation_collapsed_while_raw_reviewable`. The report explains the
+  contradiction and the Action maps it to `CERTIFICATION_FAILED`, which visual
+  approval cannot clear.
+
 ## [4.7.5] - 2026-08-06
 
 ### Fixed
