@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.7.6] - 2026-08-06
+
 ### Fixed
 
 - **Report-only correspondence can no longer erase reviewable certification
