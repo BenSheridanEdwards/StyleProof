@@ -18,6 +18,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   / path-churn inserts read as DOM adds and removals — never as a pile of
   restyles. `report.json` `counts` follows the presentation taxonomy;
   `rawCounts` / `reviewableCounts` keep the full certification tallies.
+- **Dependency audit is green again.** Updated the transitive `fast-uri` development
+  dependency from 3.1.4 to 3.1.5, closing GHSA-7p8r-x3mc-p8w7 without changing
+  the shipped runtime package.
 
 - **`styleproof-map` no longer selects consumer tests that merely mention "styleproof
   capture".** Playwright compiles a plain `--grep` string as `new RegExp(pattern, 'gi')`
