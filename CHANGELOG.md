@@ -13,6 +13,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The report branch previously received only `report.md` and crop PNGs even when
   a byte-capped Markdown report directed reviewers to `report.json`. Publication
   now includes the generated JSON alongside the Markdown and crops.
+- **Report-only path correspondence surfaces real before→after deltas across path
+  churn.** When a DOM-removed base path and a DOM-added head path share a unique
+  privacy-safe signature (tag + rect x/y/width + ownTextLength) under a meaningful
+  shared structural prefix, presentation rewrites the before path onto the head
+  path and re-runs the existing differ for the report only. Unchanged wrapper
+  moves collapse; true paired property deltas (e.g. font-size, height geometry)
+  show as restyles; ambiguous duplicate signatures stay unpaired. Raw findings,
+  `rawCounts` / `reviewableCounts`, exit codes, and approval gates stay on the
+  concrete-path certification differ.
+
 - **Report taxonomy no longer bills added-node style inventories as restyles.** A
   brand-new element still emits its full resting/state inventory (raw findings and
   exit codes unchanged), but presentation counts and copy reserve
