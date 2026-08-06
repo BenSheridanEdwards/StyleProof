@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [4.7.5] - 2026-08-06
+
 ### Fixed
 
 - **Durable reports now publish their exhaustive `report.json` source of truth.**
