@@ -154,6 +154,8 @@ export type ReportResult = {
    * computed-style deltas exist — callers must fail closed, never approve.
    */
   comparison: ComparisonTruth;
+  /** Presentation-vs-certification coherence. Any false value must fail closed. */
+  reportConsistency: ReportConsistency;
   reportMdPath: string;
   reportJsonPath: string;
 };
@@ -1383,8 +1385,8 @@ function summaryLines(args: {
   shown: DiffCounts;
   changedScope: { bases: number; variants: number };
   contentCount: number;
-  /** Raw-only derived noise: must not claim "identical". */
-  rawOnlyNoReviewable?: boolean;
+  /** Any raw-vs-presentation contradiction: must not claim "identical". */
+  reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
@@ -1394,7 +1396,7 @@ function summaryLines(args: {
     shown,
     changedScope,
     contentCount,
-    rawOnlyNoReviewable,
+    reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
   } = args;
@@ -1408,11 +1410,26 @@ function summaryLines(args: {
     surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
   if (changeGroups.length === 0 && missing.length === 0) {
-    if (rawOnlyNoReviewable && rawCounts) {
+    if (!reportConsistency.ok && reportConsistency.reason === 'raw_only_no_reviewable' && rawCounts) {
       const md = [
         `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.`,
         '',
         '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._',
+      ];
+      if (baselineSurfaceFailures.length > 0) {
+        md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
+      }
+      return md;
+    }
+    if (
+      !reportConsistency.ok &&
+      reportConsistency.reason === 'presentation_collapsed_while_raw_reviewable' &&
+      rawCounts
+    ) {
+      const md = [
+        `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but report-only path correspondence collapsed every presentation finding — **no reviewable crops or change sections remain**.`,
+        '',
+        '_This is **not** a clean no-change and cannot be approved visually. Fail closed (`CERTIFICATION_FAILED`): inspect the raw path churn or tighten the correspondence signal before trusting this comparison._',
       ];
       if (baselineSurfaceFailures.length > 0) {
         md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
@@ -1446,7 +1463,7 @@ function reportHeadline(args: {
   volatileCount: number;
   liveCandidateLabels: string[];
   contentCount: number;
-  rawOnlyNoReviewable?: boolean;
+  reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
 }): string[] {
@@ -1458,7 +1475,7 @@ function reportHeadline(args: {
     volatileCount,
     liveCandidateLabels,
     contentCount,
-    rawOnlyNoReviewable,
+    reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
   } = args;
@@ -1468,7 +1485,7 @@ function reportHeadline(args: {
     shown,
     changedScope,
     contentCount,
-    rawOnlyNoReviewable,
+    reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
   });
@@ -1866,11 +1883,31 @@ function prepareReportSurfaces(
     .filter((p) => p.sd.missing || p.findings.length > 0);
 }
 
+type ReportConsistency =
+  | { ok: true; reason: 'aligned' }
+  | {
+      ok: false;
+      reason: 'raw_only_no_reviewable' | 'presentation_collapsed_while_raw_reviewable';
+    };
+
+/**
+ * The presentation may simplify raw evidence, but it may never erase every
+ * reviewable finding and then claim the surfaces are identical.
+ */
+function assessReportConsistency(comparison: ComparisonTruth, hasPresentationEvidence: boolean): ReportConsistency {
+  if (comparison.rawOnlyNoReviewable) return { ok: false, reason: 'raw_only_no_reviewable' };
+  if (comparison.hasReviewableEvidence && !hasPresentationEvidence) {
+    return { ok: false, reason: 'presentation_collapsed_while_raw_reviewable' };
+  }
+  return { ok: true, reason: 'aligned' };
+}
+
 function writeReportArtifacts(
   outDir: string,
   md: string[],
   shown: DiffCounts,
   comparison: ComparisonTruth,
+  reportConsistency: ReportConsistency,
   surfacesJson: Array<Record<string, unknown>>,
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
@@ -1883,9 +1920,7 @@ function writeReportArtifacts(
         counts: shown,
         rawCounts: comparison.rawCounts,
         reviewableCounts: comparison.reviewableCounts,
-        reportConsistency: comparison.rawOnlyNoReviewable
-          ? { ok: false, reason: 'raw_only_no_reviewable' }
-          : { ok: true, reason: 'aligned' },
+        reportConsistency,
         surfaces: surfacesJson,
       },
       null,
@@ -1950,6 +1985,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
   const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
   const comparison = comparisonForReport(rawComparison, includeNoise, prepared.length - missing.length);
+  const reportConsistency = assessReportConsistency(comparison, changeGroups.length > 0 || missing.length > 0);
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -1986,7 +2022,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
       volatileCount,
       liveCandidateLabels,
       contentCount: contentSection.count,
-      rawOnlyNoReviewable: comparison.rawOnlyNoReviewable,
+      reportConsistency,
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
     }),
@@ -2047,13 +2083,14 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   }
   md.push(...contentSection.md);
 
-  const { reportMdPath, reportJsonPath } = writeReportArtifacts(outDir, md, shown, comparison, json);
+  const { reportMdPath, reportJsonPath } = writeReportArtifacts(outDir, md, shown, comparison, reportConsistency, json);
   return {
     changedSurfaces: prepared.length - missing.length,
     newSurfaces: missing.length,
     totalFindings,
     contentChanges: contentSection.count,
     comparison,
+    reportConsistency,
     reportMdPath,
     reportJsonPath,
   };

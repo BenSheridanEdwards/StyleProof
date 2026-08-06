@@ -1021,6 +1021,106 @@ test('correspondence: ambiguous duplicates stay unpaired; raw/reviewable gate co
   rmTmp(root);
 });
 
+test('correspondence: sibling reorder never reports identical while raw reviewable evidence remains', () => {
+  const button = {
+    tag: 'button',
+    cls: 'action',
+    rect: [10, 10, 80, 24],
+    ownTextLength: 3,
+    style: { color: 'rgb(0, 0, 0)' },
+  };
+  const label = {
+    tag: 'span',
+    cls: 'label',
+    rect: [10, 50, 80, 20],
+    ownTextLength: 4,
+    style: { color: 'rgb(0, 0, 0)' },
+  };
+  const shell = { tag: 'div', cls: 'shell', rect: [0, 0, 200, 100], ownTextLength: 0, style: {} };
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: {} },
+      'body > div:nth-child(1)': shell,
+      'body > div:nth-child(1) > button:nth-child(1)': button,
+      'body > div:nth-child(1) > span:nth-child(2)': label,
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: {} },
+      'body > div:nth-child(1)': shell,
+      'body > div:nth-child(1) > span:nth-child(1)': label,
+      'body > div:nth-child(1) > button:nth-child(2)': button,
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@400',
+    before,
+    after,
+    beforePng: solidPng(400, 200),
+    afterPng: solidPng(400, 200),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.deepEqual(json.counts, { dom: 0, style: 0, state: 0 });
+  assert.equal(res.comparison.hasReviewableEvidence, true);
+  assert.deepEqual(json.reportConsistency, {
+    ok: false,
+    reason: 'presentation_collapsed_while_raw_reviewable',
+  });
+  assert.deepEqual(res.reportConsistency, json.reportConsistency);
+  assert.match(md, /Report consistency failure/);
+  assert.match(md, /path correspondence collapsed every presentation finding/);
+  assert.doesNotMatch(md, /✓ All surfaces identical/);
+  rmTmp(root);
+});
+
+test('correspondence: nesting bijection never reports identical while raw reviewable evidence remains', () => {
+  const outer = { tag: 'div', cls: 'outer', rect: [0, 0, 200, 100], ownTextLength: 0, style: {} };
+  const inner = {
+    tag: 'span',
+    cls: 'inner',
+    rect: [10, 10, 100, 20],
+    ownTextLength: 4,
+    style: { color: 'rgb(0, 0, 0)' },
+  };
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: {} },
+      'body > div:nth-child(1)': outer,
+      'body > div:nth-child(1) > span:nth-child(1)': inner,
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: {} },
+      'body > span:nth-child(1)': inner,
+      'body > span:nth-child(1) > div:nth-child(1)': outer,
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@400',
+    before,
+    after,
+    beforePng: solidPng(400, 200),
+    afterPng: solidPng(400, 200),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.deepEqual(json.counts, { dom: 0, style: 0, state: 0 });
+  assert.equal(res.comparison.hasReviewableEvidence, true);
+  assert.deepEqual(json.reportConsistency, {
+    ok: false,
+    reason: 'presentation_collapsed_while_raw_reviewable',
+  });
+  assert.deepEqual(res.reportConsistency, json.reportConsistency);
+  assert.match(md, /Report consistency failure/);
+  assert.doesNotMatch(md, /✓ All surfaces identical/);
+  rmTmp(root);
+});
+
 // Regression, seen in a downstream report: a gradient diff rendered as the same
 // "representative" rgba in BOTH cells — the real change (a dropped `0px` stop)
 // was invisible. Long values must excerpt around the differing substring.
