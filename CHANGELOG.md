@@ -13,6 +13,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The report branch previously received only `report.md` and crop PNGs even when
   a byte-capped Markdown report directed reviewers to `report.json`. Publication
   now includes the generated JSON alongside the Markdown and crops.
+- **Report taxonomy no longer bills added-node style inventories as restyles.** A
+  brand-new element still emits its full resting/state inventory (raw findings and
+  exit codes unchanged), but presentation counts and copy reserve
+  "computed-style difference(s)" / "state-delta difference(s)" / "restyled" for
+  matched-path before→after changes. Added-node tables are labelled
+  **Style inventory (head-side — no baseline)** with value-only rows, so wrapper
+  / path-churn inserts read as DOM adds and removals — never as a pile of
+  restyles. `report.json` `counts` follows the presentation taxonomy;
+  `rawCounts` / `reviewableCounts` keep the full certification tallies.
 - **Dependency audit is green again.** Updated the transitive `fast-uri` development
   dependency from 3.1.4 to 3.1.5, closing GHSA-7p8r-x3mc-p8w7 without changing
   the shipped runtime package.

@@ -284,6 +284,13 @@ New pages, states, and surfaces appear before element-level changes. Existing
 surfaces render one distinct change per section, with aligned crops, truthful
 annotations, a one-line summary, and exact properties under a toggle.
 
+Headline counts distinguish **matched-path restyles** ("N computed-style
+difference(s)") from **one-sided DOM adds/removes**. A brand-new node's full
+resting and interaction-state inventory still appears under the element (value-only
+tables labelled _Style inventory (head-side — no baseline)_), but those rows are
+not billed as before→after restyles — so a wrapper insert or path churn reads as
+DOM structure, not a cascade of restyles.
+
 Tiny changes also receive a magnified crop. Structural matching avoids painting
 an unchanged shifted subtree as changed, while ambiguous duplicate elements stay
 explicit rather than receiving invented provenance.
