@@ -861,6 +861,166 @@ test('wrapper path-churn: inventory copy, not restyle differences', () => {
   rmTmp(root);
 });
 
+// Report-only path correspondence: when a removed base path and an added head path
+// share a unique privacy-safe geometry signature (tag + x/y/width + ownTextLength)
+// under a shared structural prefix, presentation pairs them. Certification raw
+// findings / counts stay on concrete paths.
+test('correspondence: wrapper insert with unchanged descendant collapses path move', () => {
+  const button = {
+    tag: 'button',
+    cls: 'cta',
+    rect: [10, 10, 120, 40],
+    ownTextLength: 3,
+    style: { 'background-color': 'rgb(0, 90, 252)', color: 'rgb(255, 255, 255)' },
+  };
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], ownTextLength: 0, style: {} },
+      'body > button:nth-child(1)': button,
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], ownTextLength: 0, style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'wrap',
+        rect: [0, 0, 200, 80],
+        ownTextLength: 0,
+        style: { padding: '8px' },
+      },
+      'body > div:nth-child(1) > button:nth-child(1)': { ...button },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@1280',
+    before,
+    after,
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  // Presentation: only the new wrapper (and its inventory) — not a button remove/add restyle.
+  assert.equal(json.counts.style, 0, 'unchanged corresponded leaf is not a restyle');
+  assert.equal(json.counts.state, 0);
+  assert.ok(json.counts.dom >= 1, 'wrapper remains a DOM add');
+  assert.doesNotMatch(md, /element(?:s)? removed/, 'corresponded removal collapses in presentation');
+  assert.doesNotMatch(md, /1 element restyled|elements restyled/);
+  assert.match(md, /element(?:s)? added/);
+  // Raw certification still sees full path churn.
+  assert.ok(json.rawCounts.dom >= 2, 'raw DOM still counts remove + adds');
+  assert.ok(json.rawCounts.style > 0 || json.reviewableCounts.style > 0, 'raw still inventories one-sided paths');
+  rmTmp(root);
+});
+
+test('correspondence: wrapper insert with true font-size delta shows paired before→after', () => {
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], ownTextLength: 0, style: {} },
+      'body > span:nth-child(1)': {
+        tag: 'span',
+        cls: 'label',
+        rect: [40, 40, 80, 14],
+        ownTextLength: 4,
+        style: { 'font-size': '12px', height: '14px' },
+      },
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], ownTextLength: 0, style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'wrap',
+        rect: [30, 30, 100, 40],
+        ownTextLength: 0,
+        style: {},
+      },
+      'body > div:nth-child(1) > span:nth-child(1)': {
+        tag: 'span',
+        cls: 'label',
+        rect: [40, 40, 80, 15],
+        ownTextLength: 4,
+        style: { 'font-size': '13.3333px', height: '15px' },
+      },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@1280',
+    before,
+    after,
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, includeLayoutNoise: true });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.ok(json.counts.style >= 1, 'paired leaf contributes computed-style differences');
+  assert.match(md, /computed-style difference/);
+  assert.match(md, /\| Property \| Before \| After \|/);
+  assert.match(md, /`font-size` \| `12px` \| `13\.3333px`/);
+  assert.match(md, /`height` \| `14px` \| `15px`/);
+  assert.doesNotMatch(md, /Style inventory \(head-side — no baseline\).*font-size/s);
+  // Gate tallies stay on the concrete-path certification differ.
+  assert.ok(json.rawCounts.dom >= 2, 'raw still sees structural path churn');
+  assert.deepEqual(Object.keys(json.rawCounts).sort(), ['dom', 'state', 'style']);
+  assert.deepEqual(Object.keys(json.reviewableCounts).sort(), ['dom', 'state', 'style']);
+  rmTmp(root);
+});
+
+test('correspondence: ambiguous duplicates stay unpaired; raw/reviewable gate counts intact', () => {
+  const twin = {
+    tag: 'button',
+    cls: 'chip',
+    rect: [0, 0, 64, 24],
+    ownTextLength: 1,
+    style: { color: 'rgb(0, 0, 0)' },
+  };
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: {} },
+      'body > button:nth-child(1)': twin,
+      'body > button:nth-child(2)': { ...twin },
+    },
+  });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 400, 200], ownTextLength: 0, style: {} },
+      'body > section:nth-child(1)': {
+        tag: 'section',
+        cls: 'row',
+        rect: [0, 0, 400, 80],
+        ownTextLength: 0,
+        style: {},
+      },
+      'body > section:nth-child(1) > button:nth-child(1)': { ...twin },
+      'body > section:nth-child(1) > button:nth-child(2)': { ...twin },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@400',
+    before,
+    after,
+    beforePng: solidPng(400, 200),
+    afterPng: solidPng(400, 200),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.equal(json.counts.style, 0, 'duplicates never invent paired restyles');
+  assert.ok(json.counts.dom >= 3, 'unpaired removes + adds stay DOM');
+  assert.match(md, /element(?:s)? removed/);
+  assert.match(md, /element(?:s)? added/);
+  assert.doesNotMatch(md, /1 element restyled|elements restyled/);
+  // Certification truth is independent of presentation correspondence.
+  assert.ok(json.rawCounts.dom >= 3);
+  assert.equal(typeof json.reviewableCounts.dom, 'number');
+  assert.equal(json.reportConsistency.ok, true);
+  rmTmp(root);
+});
+
 // Regression, seen in a downstream report: a gradient diff rendered as the same
 // "representative" rgba in BOTH cells — the real change (a dropped `0px` stop)
 // was invisible. Long values must excerpt around the differing substring.

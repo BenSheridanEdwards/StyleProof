@@ -29,6 +29,7 @@ import {
   type PropChange,
   type SurfaceDiff,
 } from './diff.js';
+import { presentationBeforeMap, presentationDiffStyleMaps } from './path-correspondence.js';
 import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
 import {
   auditCoverage,
@@ -1238,8 +1239,11 @@ type RepresentativeScore = { hasExposedChange: boolean; hasActiveModal: boolean;
  * ordinary page over a popup state that can leave shared chrome in the background,
  * then the widest width. */
 function representativeScore(candidate: PreparedSurface, beforeDir: string, afterDir: string): RepresentativeScore {
-  const beforeMap = loadStyleMap(findCapture(beforeDir, candidate.sd.surface));
+  const rawBefore = loadStyleMap(findCapture(beforeDir, candidate.sd.surface));
   const afterMap = loadStyleMap(findCapture(afterDir, candidate.sd.surface));
+  // Presentation findings may sit on corresponded head paths — score against the
+  // remapped before map so those paths resolve on both sides.
+  const beforeMap = presentationBeforeMap(rawBefore, afterMap);
   const changedPaths = [...new Set(candidate.findings.map((finding) => finding.path))];
   const hasExposedChange = hasExposedChangedEntry(beforeMap, afterMap, changedPaths);
   const hasActiveModal = [...(beforeMap.overlays ?? []), ...(afterMap.overlays ?? [])].some(
@@ -1661,8 +1665,11 @@ function renderChangeGroup(
   cropSeq: number,
 ): { md: string[]; json: Record<string, unknown>; findingCount: number; cropSeq: number } {
   const { sd, findings: surfaceFindings } = cg.rep;
-  const mapA = loadStyleMap(findCapture(ctx.beforeDir, sd.surface));
+  const rawBefore = loadStyleMap(findCapture(ctx.beforeDir, sd.surface));
   const mapB = loadStyleMap(findCapture(ctx.afterDir, sd.surface));
+  // Same correspondence rewrite as prepareReportSurfaces so crops/annotations
+  // resolve corresponded head paths on the before side too.
+  const mapA = presentationBeforeMap(rawBefore, mapB);
   // Theme-token reverse-indexes so colour changes can name `red-200` per side.
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
   const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
@@ -1825,20 +1832,37 @@ function comparisonForReport(
   };
 }
 
-/** Focus each surface on styling intent unless layout noise is requested. A
- *  surface whose ONLY changes are derived longhands keeps them
- *  (cleanFindingsForDisplay): those findings still gate, and a report that
- *  renders nothing for a gating change asks a reviewer to approve evidence
- *  that doesn't exist. */
+/**
+ * Focus each surface on styling intent unless layout noise is requested.
+ *
+ * Presentation findings run through report-only path correspondence first:
+ * uniquely paired removed→added elements are rewritten onto the head path so
+ * `diffStyleMaps` can emit real before→after property deltas (or collapse a
+ * pure path move). Raw `sd.findings`, `rawCounts`, exit codes, and approval
+ * gates stay on the concrete-path certification differ.
+ *
+ * A surface whose ONLY changes are derived longhands keeps them
+ * (cleanFindingsForDisplay): those findings still gate, and a report that
+ * renders nothing for a gating change asks a reviewer to approve evidence
+ * that doesn't exist.
+ */
 function prepareReportSurfaces(
   surfaces: ReturnType<typeof diffStyleMapDirs>['surfaces'],
   includeNoise: boolean,
+  beforeDir: string,
+  afterDir: string,
 ): PreparedSurface[] {
   return surfaces
-    .map((sd) => ({
-      sd,
-      findings: sd.missing || includeNoise ? sd.findings : cleanFindingsForDisplay(sd.findings),
-    }))
+    .map((sd) => {
+      if (sd.missing) return { sd, findings: sd.findings };
+      const beforeMap = loadStyleMap(findCapture(beforeDir, sd.surface));
+      const afterMap = loadStyleMap(findCapture(afterDir, sd.surface));
+      const corresponded = presentationDiffStyleMaps(beforeMap, afterMap);
+      return {
+        sd,
+        findings: includeNoise ? corresponded : cleanFindingsForDisplay(corresponded),
+      };
+    })
     .filter((p) => p.sd.missing || p.findings.length > 0);
 }
 
@@ -1908,7 +1932,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // forced-state echoes of base changes, and remove non-value noise (see
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
-  const prepared = prepareReportSurfaces(surfaces, includeNoise);
+  const prepared = prepareReportSurfaces(surfaces, includeNoise, beforeDir, afterDir);
 
   const missing = prepared.filter((p) => p.sd.missing);
   const changeGroups = groupBySignature(prepared, beforeDir, afterDir);

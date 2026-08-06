@@ -291,6 +291,14 @@ tables labelled _Style inventory (head-side — no baseline)_), but those rows a
 not billed as before→after restyles — so a wrapper insert or path churn reads as
 DOM structure, not a cascade of restyles.
 
+When a removed base path and an added head path share a **unique** privacy-safe
+signature (tag + box x/y/width + own-text length) under a shared structural
+prefix, the report **corresponds** them for presentation only: pure path moves
+with unchanged styles collapse, and real paired property deltas (font-size,
+height geometry, …) render as ordinary before→after restyles on the head path.
+Ambiguous duplicates stay unpaired — no invented provenance. Certification still
+diffs concrete paths; raw counts, exit codes, and approval gates are unchanged.
+
 Tiny changes also receive a magnified crop. Structural matching avoids painting
 an unchanged shifted subtree as changed, while ambiguous duplicate elements stay
 explicit rather than receiving invented provenance.

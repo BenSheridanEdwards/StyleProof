@@ -18,6 +18,7 @@ On every **captured surface**, base vs head:
 | A `:hover` / `:focus` / `:active` variant dropped or changed | `state` finding                     | pr-surfacing ✓ |
 | A `::before` / `::after` style differs                       | `style` finding, pseudo tagged      | pr-surfacing ✓ |
 | An element is added or removed                               | `dom` finding (added / removed); report shows head-side style **inventory** (value-only, no baseline) — not a restyle | pr-surfacing ✓ |
+| Path churn with unique stable geometry (wrapper insert, …)   | report-only correspondence: pure moves collapse; true property deltas pair as restyles — raw path diff/gates unchanged | unit + report tests |
 | An element is retagged (`button` → `a`)                      | removed + added at that position    | pr-surfacing ✓ |
 | A nav item / route disappears                                | inventory guard, named, **gates**   | pr-surfacing ✓ |
 | A surface exists on only one side                            | reported as a new / removed surface | pr-surfacing ✓ |
