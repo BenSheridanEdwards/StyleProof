@@ -1379,6 +1379,32 @@ function changedSurfaceSummaryLines(
   ];
 }
 
+function reportConsistencyFailureSummaryLines(
+  reportConsistency: ReportConsistency,
+  rawCounts: DiffCounts | undefined,
+  baselineSurfaceFailures: SurfaceCaptureFailure[],
+): string[] | undefined {
+  if (reportConsistency.ok || !rawCounts) return undefined;
+
+  const explanation =
+    reportConsistency.reason === 'raw_only_no_reviewable'
+      ? 'every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.'
+      : 'report-only path correspondence collapsed every presentation finding — **no reviewable crops or change sections remain**.';
+  const remediation =
+    reportConsistency.reason === 'raw_only_no_reviewable'
+      ? '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._'
+      : '_This is **not** a clean no-change and cannot be approved visually. Fail closed (`CERTIFICATION_FAILED`): inspect the raw path churn or tighten the correspondence signal before trusting this comparison._';
+  const md = [
+    `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but ${explanation}`,
+    '',
+    remediation,
+  ];
+  if (baselineSurfaceFailures.length > 0) {
+    md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
+  }
+  return md;
+}
+
 function summaryLines(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
@@ -1410,32 +1436,8 @@ function summaryLines(args: {
     surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
   if (changeGroups.length === 0 && missing.length === 0) {
-    if (!reportConsistency.ok && reportConsistency.reason === 'raw_only_no_reviewable' && rawCounts) {
-      const md = [
-        `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.`,
-        '',
-        '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._',
-      ];
-      if (baselineSurfaceFailures.length > 0) {
-        md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
-      }
-      return md;
-    }
-    if (
-      !reportConsistency.ok &&
-      reportConsistency.reason === 'presentation_collapsed_while_raw_reviewable' &&
-      rawCounts
-    ) {
-      const md = [
-        `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but report-only path correspondence collapsed every presentation finding — **no reviewable crops or change sections remain**.`,
-        '',
-        '_This is **not** a clean no-change and cannot be approved visually. Fail closed (`CERTIFICATION_FAILED`): inspect the raw path churn or tighten the correspondence signal before trusting this comparison._',
-      ];
-      if (baselineSurfaceFailures.length > 0) {
-        md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
-      }
-      return md;
-    }
+    const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineSurfaceFailures);
+    if (failureSummary) return failureSummary;
     if (baselineSurfaceFailures.length === 0) {
       return [
         contentCount > 0
