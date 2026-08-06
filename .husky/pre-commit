@@ -18,9 +18,18 @@ else
 fi
 
 # fallow — block the commit on new findings in the changes you're staging.
-# --health-baseline grandfathers the same known-complex functions CI does
-# (.github/workflows/fallow.yml), so editing a file that merely CONTAINS a
-# pre-existing god-function doesn't false-RED; genuinely new complexity (not in
-# the baseline) still blocks. Keeps local === CI.
+# Keep both commands aligned with .github/workflows/fallow.yml: audit catches
+# dead code/duplication and the dedicated production health pass enforces the
+# same complexity threshold that gates pull requests. The staged diff keeps
+# unrelated working-tree edits out of the line-level verdict.
 echo "› fallow"
-npx fallow audit --base HEAD --health-baseline .fallow/health-baseline.json
+FALLOW_STAGED_DIFF="$(mktemp)"
+trap 'rm -f "$FALLOW_STAGED_DIFF"' EXIT HUP INT TERM
+git diff --cached --unified=0 -- . > "$FALLOW_STAGED_DIFF"
+npx --no-install fallow audit --base HEAD --health-baseline .fallow/health-baseline.json
+npx --no-install fallow health \
+  --production \
+  --baseline .fallow/health-baseline.json \
+  --changed-since HEAD \
+  --diff-file "$FALLOW_STAGED_DIFF" \
+  --fail-on-issues
