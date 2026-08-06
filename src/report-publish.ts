@@ -306,13 +306,18 @@ export async function verifyPublishedReceipt(options: {
   );
 }
 
-/** Collect exactly what the report step publishes: `report.md` plus every
- *  generated crop it references. Nothing else in the report directory travels. */
+/** Collect exactly what the report step publishes: `report.md`, the exhaustive
+ *  `report.json`, plus every generated crop the Markdown references. Nothing
+ *  else in the report directory travels. */
 export function collectReportFiles(reportDirectory: string): ReportPublishFile[] {
   const files: ReportPublishFile[] = [
     {
       relativePath: 'report.md',
       content: fs.readFileSync(path.join(reportDirectory, 'report.md')),
+    },
+    {
+      relativePath: 'report.json',
+      content: fs.readFileSync(path.join(reportDirectory, 'report.json')),
     },
   ];
   const cropsDirectory = path.join(reportDirectory, 'crops');

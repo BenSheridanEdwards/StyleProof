@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Durable reports now publish their exhaustive `report.json` source of truth.**
+  The report branch previously received only `report.md` and crop PNGs even when
+  a byte-capped Markdown report directed reviewers to `report.json`. Publication
+  now includes the generated JSON alongside the Markdown and crops.
 - **Report taxonomy no longer bills added-node style inventories as restyles.** A
   brand-new element still emits its full resting/state inventory (raw findings and
   exit codes unchanged), but presentation counts and copy reserve

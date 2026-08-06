@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import {
+  collectReportFiles,
   REPORT_BRANCH_SIZE_WARNING_BYTES,
   publishReportFolder,
   verifyPublishedReceipt,
@@ -93,6 +97,23 @@ const reportFiles = [
   { relativePath: 'report.md', content: Buffer.from('# report') },
   { relativePath: 'crops/hero.png', content: Buffer.from([1, 2, 3]) },
 ];
+
+test('collectReportFiles publishes report.json with markdown and crops', (t) => {
+  const reportDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-report-publish-'));
+  t.after(() => fs.rmSync(reportDirectory, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(reportDirectory, 'crops'));
+  fs.writeFileSync(path.join(reportDirectory, 'report.md'), '# report');
+  fs.writeFileSync(path.join(reportDirectory, 'report.json'), '{"surfaces":[]}');
+  fs.writeFileSync(path.join(reportDirectory, 'crops', 'hero.png'), Buffer.from([1, 2, 3]));
+
+  const files = collectReportFiles(reportDirectory);
+
+  assert.deepEqual(
+    files.map((file) => file.relativePath),
+    ['report.md', 'report.json', 'crops/hero.png'],
+  );
+  assert.equal(files[1].content.toString('utf8'), '{"surfaces":[]}');
+});
 
 test('publishes onto an existing branch without downloading any report bytes', async () => {
   const fake = buildFakeGitHub({
