@@ -431,8 +431,9 @@ printBaselineSurfaceFailureCallout();
 
 // One finding's lines: a heading, then its summarised property deltas (the same
 // dedupe the report shows). Returns [] for a DOM finding (handled separately) or a
-// finding whose props all summarised away.
-function findingLines(f) {
+// finding whose props all summarised away. `inventory` = one-sided added path —
+// head-side values with no baseline, never printed as before → after restyles.
+function findingLines(f, inventory = false) {
   if (f.kind === 'dom') return [];
   const rows = summarizeProps(f.props);
   if (!rows.length) return [];
@@ -440,7 +441,11 @@ function findingLines(f) {
     f.kind === 'state'
       ? `  [:${f.state}] ${findingLabel(f.path, f.cls)}${f.sub !== f.path ? ` ⇒ ${f.sub}` : ''}`
       : `  ${findingLabel(f.path, f.cls)}${f.pseudo || ''}`;
-  return [head, ...rows.map((p) => `    ${p.prop}: ${p.before} → ${p.after}`)];
+  const note = inventory ? '  (head-side inventory — no baseline)' : '';
+  return [
+    head + note,
+    ...rows.map((p) => (inventory ? `    ${p.prop}: ${p.after}` : `    ${p.prop}: ${p.before} → ${p.after}`)),
+  ];
 }
 
 // A DOM finding's one-line heading (added/removed/retagged).
@@ -457,7 +462,8 @@ function elementLines(findings) {
   for (const group of groupByPath(findings)) {
     const dom = group.find((f) => f.kind === 'dom');
     if (dom) lines.push(domLine(dom));
-    for (const f of group) lines.push(...findingLines(f));
+    const inventory = dom?.change === 'added';
+    for (const f of group) lines.push(...findingLines(f, inventory));
   }
   return lines;
 }

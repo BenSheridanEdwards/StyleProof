@@ -715,11 +715,149 @@ test('an added element reports its full resting computed style, value-only', () 
   });
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   assert.match(md, /\*\*Added\*\* `button\.btn`/);
-  assert.match(md, /Style:/);
+  assert.match(md, /Style inventory \(head-side — no baseline\)/);
   assert.match(md, /\| Property \| Value \|/); // value-only, no bogus Before column
+  assert.doesNotMatch(md, /\| Property \| Before \| After \|/, 'added-node inventory is never a before→after table');
   assert.match(md, /`background-color` \| `#005afc`/);
   assert.match(md, /`padding` \| `6px 12px`/);
   assert.match(md, /`border-radius` \| `4px`/);
+  rmTmp(root);
+});
+
+// Taxonomy: a brand-new node's full resting/state inventory must not be billed as
+// matched-path computed-style / state-delta *differences*. Headline counts and copy
+// must reserve those words for paths present on both sides.
+test('add-only: headline counts DOM only — head-side inventory is not a restyle difference', () => {
+  const before = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'btn',
+        rect: [0, 0, 90, 32],
+        style: {
+          'background-color': 'rgb(0, 90, 252)',
+          color: 'rgb(255, 255, 255)',
+          padding: '6px 12px',
+        },
+      },
+    },
+    states: {
+      'body > button:nth-child(1)': {
+        hover: { 'body > button:nth-child(1)': { 'background-color': 'rgb(0, 60, 200)' } },
+      },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@1280',
+    before,
+    after,
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  // Presentation counts: DOM add only. Style/state rows are inventory on the new node.
+  assert.deepEqual(json.counts, { dom: 1, style: 0, state: 0 });
+  assert.match(md, /\*\*1 DOM change\(s\)\*\* across/);
+  assert.doesNotMatch(md, /computed-style difference/);
+  assert.doesNotMatch(md, /state-delta difference/);
+  assert.match(md, /Style inventory \(head-side — no baseline\)/);
+  assert.match(md, /Interactive states:/);
+  assert.doesNotMatch(md, /Interactive-state changes:/);
+  assert.doesNotMatch(md, /Before → After/);
+  // Raw certification findings still carry the full inventory (backward compatible).
+  assert.equal(json.rawCounts.dom, 1);
+  assert.ok(json.rawCounts.style > 0 || json.reviewableCounts.style > 0, 'raw findings still inventory the added node');
+  rmTmp(root);
+});
+
+test('matched-path restyle still counts as a computed-style difference (not inventory)', () => {
+  const panel = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'panel',
+          rect: [0, 0, 400, 300],
+          style: { 'background-color': color },
+        },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@1280',
+    before: panel('rgb(0, 0, 0)'),
+    after: panel('rgb(255, 0, 0)'),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
+  assert.match(md, /\*\*1 computed-style difference\(s\)\*\* across/);
+  assert.match(md, /1 element restyled/);
+  assert.match(md, /\| Property \| Before \| After \|/);
+  assert.doesNotMatch(md, /Style inventory \(head-side/);
+  assert.doesNotMatch(md, /no baseline/);
+  rmTmp(root);
+});
+
+// Wrapper / nth-child path churn: insert a parent around existing content. Paths
+// become one-sided adds/removes with full inventories — never matched-path restyles.
+test('wrapper path-churn: inventory copy, not restyle differences', () => {
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'cta',
+        rect: [10, 10, 120, 40],
+        style: { 'background-color': 'rgb(0, 90, 252)', color: 'rgb(255, 255, 255)' },
+      },
+    },
+  });
+  // Wrap the button: old path removed, wrapper + button-at-new-path added.
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'wrap',
+        rect: [0, 0, 200, 80],
+        style: { padding: '8px' },
+      },
+      'body > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'cta',
+        rect: [18, 18, 120, 40],
+        style: { 'background-color': 'rgb(0, 90, 252)', color: 'rgb(255, 255, 255)' },
+      },
+    },
+  });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 's@1280',
+    before,
+    after,
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.equal(json.counts.style, 0, 'wrapper path-churn inventories are not style differences');
+  assert.equal(json.counts.state, 0);
+  assert.ok(json.counts.dom >= 2, 'adds + remove are DOM changes');
+  assert.match(md, /DOM change/);
+  assert.doesNotMatch(md, /computed-style difference/);
+  assert.doesNotMatch(md, /1 element restyled|elements restyled/);
+  assert.match(md, /element(?:s)? added/);
+  assert.match(md, /element(?:s)? removed/);
+  assert.match(md, /Style inventory \(head-side — no baseline\)/);
+  assert.doesNotMatch(md, /\| Property \| Before \| After \|/);
   rmTmp(root);
 });
 
@@ -1136,6 +1274,24 @@ test('describeChange reports added/removed counts', () => {
   ]);
   assert.ok(out.some((l) => /\*\*2\*\* elements added/.test(l)));
   assert.ok(out.some((l) => /\*\*1\*\* element removed/.test(l)));
+});
+
+test('describeChange never bills added-node inventory as a restyle or state change', () => {
+  const out = describeChange([
+    {
+      label: 'button.btn',
+      added: true,
+      props: [
+        { prop: 'background-color', before: '(unset)', after: 'rgb(0, 90, 252)' },
+        { prop: 'color', before: '(unset)', after: 'rgb(255, 255, 255)' },
+      ],
+      states: ['hover'],
+    },
+  ]);
+  assert.ok(out.some((l) => /\*\*1\*\* element added/.test(l)));
+  assert.ok(!out.some((l) => /button\.btn/.test(l) && /—/.test(l)), 'no restyle phrase for an added node');
+  assert.ok(!out.some((l) => /interaction states/.test(l)), 'added-node states are inventory, not changes');
+  assert.ok(!out.some((l) => /restyled/.test(l)));
 });
 
 // ------------------------------------------------ colour tokens / hex / folding
@@ -1642,7 +1798,13 @@ test('end-to-end: unchanged forced-state movement is suppressed as path churn', 
     report.surfaces[0].regions.every((region) => !region.images.annotated),
     'path churn has no annotation',
   );
-  assert.equal(report.counts.state, 2, 'state findings remain in the audit data');
+  // Presentation counts reserve style/state for matched-path restyles; one-sided
+  // inventories stay in raw/reviewable audit tallies.
+  assert.equal(report.counts.state, 0, 'path-churn state inventory is not a matched-path state-delta');
+  assert.ok(
+    report.rawCounts.state >= 2 || report.reviewableCounts.state >= 2,
+    'state findings remain in the audit data',
+  );
   rmTmp(root);
 });
 
@@ -1679,7 +1841,11 @@ test('end-to-end: moved forced-state changes stay annotated', () => {
     });
   assert.ok(highlights.before > 0, 'the changed before state remains visible in proof');
   assert.ok(highlights.after > 0, 'the changed after state remains visible in proof');
-  assert.equal(report.counts.state, 2, 'state findings remain in the audit data');
+  assert.equal(report.counts.state, 0, 'one-sided path inventories are not matched-path state-deltas');
+  assert.ok(
+    report.rawCounts.state >= 2 || report.reviewableCounts.state >= 2,
+    'state findings remain in the audit data',
+  );
   rmTmp(root);
 });
 
@@ -1725,7 +1891,11 @@ test('end-to-end: owner pseudo-element state movement is suppressed as path chur
     report.surfaces[0].regions.every((region) => !region.images.annotated),
     'owner pseudo-element path churn has no annotation',
   );
-  assert.equal(report.counts.state, 2, 'pseudo-element state findings remain in the audit data');
+  assert.equal(report.counts.state, 0, 'path-churn pseudo state inventory is not a matched-path state-delta');
+  assert.ok(
+    report.rawCounts.state >= 2 || report.reviewableCounts.state >= 2,
+    'pseudo-element state findings remain in the audit data',
+  );
   rmTmp(root);
 });
 
@@ -1776,7 +1946,11 @@ test('end-to-end: moved owner pseudo-element state changes stay annotated', () =
     });
   assert.ok(highlights.before > 0, 'the changed before pseudo-state remains visible in proof');
   assert.ok(highlights.after > 0, 'the changed after pseudo-state remains visible in proof');
-  assert.equal(report.counts.state, 2, 'pseudo-element state findings remain in the audit data');
+  assert.equal(report.counts.state, 0, 'one-sided path inventories are not matched-path state-deltas');
+  assert.ok(
+    report.rawCounts.state >= 2 || report.reviewableCounts.state >= 2,
+    'pseudo-element state findings remain in the audit data',
+  );
   rmTmp(root);
 });
 

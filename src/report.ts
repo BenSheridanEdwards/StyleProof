@@ -435,13 +435,25 @@ function annotationPaths(
   return { before: innermost([...beforePaths]), after: innermost([...afterPaths]) };
 }
 
-/** Headline counts with the zeros dropped — `0 state-delta difference(s)` is noise. */
+/** Headline counts with the zeros dropped — `0 state-delta difference(s)` is noise.
+ *  `style`/`state` here are matched-path restyles only (see {@link countShownChanges});
+ *  one-sided added-node inventories are billed under DOM, never as differences. */
 function changeCountLabel(shown: DiffCounts): string {
   const parts: string[] = [];
   if (shown.dom) parts.push(`${shown.dom} DOM change(s)`);
   if (shown.style) parts.push(`${shown.style} computed-style difference(s)`);
   if (shown.state) parts.push(`${shown.state} state-delta difference(s)`);
   return parts.join(' · ');
+}
+
+/** Paths that are one-sided DOM adds/removes — their style/state rows are full
+ *  head- or base-side inventories, not before→after restyles on a matched path. */
+function oneSidedDomPaths(findings: Finding[]): Set<string> {
+  const paths = new Set<string>();
+  for (const f of findings) {
+    if (f.kind === 'dom' && (f.change === 'added' || f.change === 'removed')) paths.add(f.path);
+  }
+  return paths;
 }
 
 type Group = { paths: string[]; before: Box | null; after: Box | null };
@@ -740,6 +752,13 @@ function valueTable(rows: PropChange[]): string[] {
   return ['| Property | Value |', '| --- | --- |', ...rows.map((r) => `| ${codeValue(r.prop)} | ${cell(r.after)} |`)];
 }
 
+/** Heading for an added node's style block — inventory, never a before→after restyle. */
+function addedStyleHeading(pseudo: string | null): string {
+  return pseudo
+    ? `On \`${pseudo}\` (head-side inventory — no baseline):`
+    : 'Style inventory (head-side — no baseline):';
+}
+
 /** `Button (variant=primary, size=sm)` — the React component + sanitized props
  *  the element captured (advisory; present only with captureComponent). */
 function renderComponent(c: { name: string; props?: Record<string, string> }): string {
@@ -749,7 +768,7 @@ function renderComponent(c: { name: string; props?: Record<string, string> }): s
 }
 
 /** One element's heading + body lines (no leading blank, no ×N suffix). */
-// Base/pseudo style rows. Added elements render value-only (no meaningful before).
+// Base/pseudo style rows. Added elements render value-only inventory (no baseline).
 function styleSection(styles: Extract<Finding, { kind: 'style' }>[], added: boolean): string[] {
   const out: string[] = [];
   for (const s of styles) {
@@ -757,7 +776,7 @@ function styleSection(styles: Extract<Finding, { kind: 'style' }>[], added: bool
     if (rows.length)
       out.push(
         '',
-        s.pseudo ? `On \`${s.pseudo}\`:` : 'Style:',
+        added ? addedStyleHeading(s.pseudo) : s.pseudo ? `On \`${s.pseudo}\`:` : 'Style:',
         '',
         ...(added ? valueTable(rows) : beforeAfterTable(rows)),
       );
@@ -857,10 +876,17 @@ function renderElements(findings: Finding[], maxElements = 40): string[] {
 }
 
 /** Plain-text `<summary>` affordance — GitHub renders markdown inside `<summary>`
- *  literally, so no backticks or bold here. */
+ *  literally, so no backticks or bold here. Added-node-only inventories say
+ *  "inventory", not "property change", so reviewers don't read them as restyles. */
 function foldSummary(findings: Finding[]): string {
-  const n = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
+  const oneSided = oneSidedDomPaths(findings);
+  const propFindings = findings.filter((f) => f.kind !== 'dom');
+  const n = propFindings.flatMap((f) => summarizeProps(f.props)).length;
   if (!n) return 'Show details';
+  const allInventory = propFindings.length > 0 && propFindings.every((f) => oneSided.has(f.path));
+  if (allInventory) {
+    return n === 1 ? 'Show the head-side style inventory' : `Show all ${n} head-side inventory properties`;
+  }
   return n === 1 ? 'Show the property change' : `Show all ${n} property changes`;
 }
 
@@ -1258,15 +1284,21 @@ function groupBySignature(prepared: PreparedSurface[], beforeDir: string, afterD
 }
 
 // Counts reflect the GROUPED view: each distinct change counts once, not once per
-// surface it appears on (after shorthand/dedupe collapsing).
+// surface it appears on (after shorthand/dedupe collapsing). Style/state tallies
+// are matched-path restyles only — props on a one-sided added/removed path are
+// head- or base-side inventories and already covered by the DOM count; billing
+// them as "computed-style difference(s)" mislabels path churn as restyles.
 function countShownChanges(changeGroups: ChangeGroup[]): DiffCounts {
   const shown: DiffCounts = { dom: 0, style: 0, state: 0 };
-  for (const cg of changeGroups)
+  for (const cg of changeGroups) {
+    const oneSided = oneSidedDomPaths(cg.findings);
     for (const f of cg.findings) {
       if (f.kind === 'dom') shown.dom++;
+      else if (oneSided.has(f.path)) continue;
       else if (f.kind === 'style') shown.style += summarizeProps(f.props).length;
       else shown.state += summarizeProps(f.props).length;
     }
+  }
   return shown;
 }
 
