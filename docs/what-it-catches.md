@@ -14,10 +14,10 @@ On every **captured surface**, base vs head:
 
 | Change                                                       | Surfaced as                         | Pinned by      |
 | ------------------------------------------------------------ | ----------------------------------- | -------------- |
-| A computed style differs (resting)                           | `style` finding, property named     | pr-surfacing ✓ |
+| A computed style differs on a matched path (resting)         | `style` finding; headline "computed-style difference(s)" — not used for added-node inventory | pr-surfacing ✓ |
 | A `:hover` / `:focus` / `:active` variant dropped or changed | `state` finding                     | pr-surfacing ✓ |
 | A `::before` / `::after` style differs                       | `style` finding, pseudo tagged      | pr-surfacing ✓ |
-| An element is added or removed                               | `dom` finding (added / removed)     | pr-surfacing ✓ |
+| An element is added or removed                               | `dom` finding (added / removed); report shows head-side style **inventory** (value-only, no baseline) — not a restyle | pr-surfacing ✓ |
 | An element is retagged (`button` → `a`)                      | removed + added at that position    | pr-surfacing ✓ |
 | A nav item / route disappears                                | inventory guard, named, **gates**   | pr-surfacing ✓ |
 | A surface exists on only one side                            | reported as a new / removed surface | pr-surfacing ✓ |

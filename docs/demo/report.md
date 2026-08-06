@@ -2,7 +2,7 @@
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.
 
-**5 DOM change(s) · 8 computed-style difference(s)** across 3 distinct change(s) in 3 changed surface bases with an existing baseline.
+**5 DOM change(s) · 4 computed-style difference(s)** across 3 distinct change(s) in 3 changed surface bases with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
 ## 🆕 New pages, states, or surfaces — review first
@@ -34,11 +34,11 @@ _duplicate-insertion @ 900_
 - **1** element added
 
 <details>
-<summary>Show the property change</summary>
+<summary>Show the head-side style inventory</summary>
 
 **Added** `button.duplicate-control`
 
-Style:
+Style inventory (head-side — no baseline):
 
 | Property | Value |
 | --- | --- |
@@ -144,7 +144,7 @@ Style:
 
 **Added** `button.filter`
 
-Style:
+Style inventory (head-side — no baseline):
 
 | Property | Value |
 | --- | --- |
@@ -152,7 +152,7 @@ Style:
 
 **Added** `div.grid`
 
-Style:
+Style inventory (head-side — no baseline):
 
 | Property | Value |
 | --- | --- |
@@ -160,7 +160,7 @@ Style:
 
 **Added** `article.card`
 
-Style:
+Style inventory (head-side — no baseline):
 
 | Property | Value |
 | --- | --- |

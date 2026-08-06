@@ -9,6 +9,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Report taxonomy no longer bills added-node style inventories as restyles.** A
+  brand-new element still emits its full resting/state inventory (raw findings and
+  exit codes unchanged), but presentation counts and copy reserve
+  "computed-style difference(s)" / "state-delta difference(s)" / "restyled" for
+  matched-path before→after changes. Added-node tables are labelled
+  **Style inventory (head-side — no baseline)** with value-only rows, so wrapper
+  / path-churn inserts read as DOM adds and removals — never as a pile of
+  restyles. `report.json` `counts` follows the presentation taxonomy;
+  `rawCounts` / `reviewableCounts` keep the full certification tallies.
+
 - **`styleproof-map` no longer selects consumer tests that merely mention "styleproof
   capture".** Playwright compiles a plain `--grep` string as `new RegExp(pattern, 'gi')`
   — case-insensitive — and matches it against the whole title path, so the bare
