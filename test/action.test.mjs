@@ -24,17 +24,19 @@ test('composite action builds its checkout before running local bins', () => {
 });
 
 test('composite action publishes a durable no-change report on a clean first run', () => {
+  const reportStep = extractActionStep('- id: report', '\\n\\s{4}#|\\n\\s{4}- id:');
   const publishStep = extractActionStep('- id: publish', '\\n\\s{4}- name: Upsert PR comment');
   const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
 
+  assert.ok(reportStep, 'action.yml should include a local report generation step');
   assert.ok(publishStep, 'action.yml should include a report publish step');
   assert.ok(commentStep, 'action.yml should include a PR comment step');
-  assert.doesNotMatch(publishStep[0], /if: steps\.diff\.outputs/);
-  assert.match(publishStep[0], /rm -rf styleproof-report/);
-  assert.match(publishStep[0], /styleproof-report\.mjs/);
-  assert.doesNotMatch(publishStep[0], /styleproof-report\.mjs[^\n]*\|\| true/);
-  assert.match(publishStep[0], /report_exit_code=\$\?/);
-  assert.match(publishStep[0], /"\$report_exit_code" -ne 0.*"\$report_exit_code" -ne 1/);
+  assert.doesNotMatch(reportStep[0], /if: steps\.diff\.outputs/);
+  assert.match(reportStep[0], /rm -rf styleproof-report/);
+  assert.match(reportStep[0], /styleproof-report\.mjs/);
+  assert.doesNotMatch(reportStep[0], /styleproof-report\.mjs[^\n]*\|\| true/);
+  assert.match(reportStep[0], /report_exit_code=\$\?/);
+  assert.match(reportStep[0], /"\$report_exit_code" -ne 0.*"\$report_exit_code" -ne 1/);
   // The run receipt is embedded by the API publisher before upload.
   assert.match(publishStep[0], /styleproof-publish-report\.mjs/);
   assert.match(
@@ -248,6 +250,30 @@ test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILE
   assert.ok(commentStep, 'PR comment step present');
   assert.match(commentStep[0], /trustState === 'VISUAL_APPROVAL_REQUIRED'/);
   assert.match(commentStep[0], /report\/diff consistency|reflow source/i);
+});
+
+test('composite action classifies report-time correspondence collapse before approval or publication', () => {
+  const report = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(report, 'action.yml should generate the report before classifying trust');
+  assert.match(report[0], /styleproof-report\.mjs/);
+  assert.match(report[0], /styleproof-report\/report\.json/);
+  assert.match(report[0], /diff\.reportConsistency\s*=\s*generated\.reportConsistency/);
+  assert.match(report[0], /writeFileSync\('styleproof-diff\.json'/);
+
+  const reportIndex = actionYml.indexOf('- id: report');
+  const verdictIndex = actionYml.indexOf('- id: verdict');
+  const gateIndex = actionYml.indexOf('- id: gate');
+  const publishIndex = actionYml.indexOf('- id: publish');
+  assert.ok(
+    reportIndex > 0 && verdictIndex > reportIndex,
+    'report consistency must exist before verdict classification',
+  );
+  assert.ok(gateIndex > verdictIndex, 'approval lookup must consume the final trust verdict ordering');
+  assert.ok(publishIndex > gateIndex, 'network publication follows local report generation and classification');
+
+  const publish = actionYml.match(/- id: publish[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(publish);
+  assert.doesNotMatch(publish[0], /styleproof-report\.mjs/, 'publication must not regenerate a second report');
 });
 
 test('composite action blocks unapproved changes by default (opt out with "blocking": false)', () => {
