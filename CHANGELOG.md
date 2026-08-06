@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Durable reports now publish their exhaustive `report.json` source of truth.**
+  The report branch previously received only `report.md` and crop PNGs even when
+  a byte-capped Markdown report directed reviewers to `report.json`. Publication
+  now includes the generated JSON alongside the Markdown and crops.
+
 - **`styleproof-map` no longer selects consumer tests that merely mention "styleproof
   capture".** Playwright compiles a plain `--grep` string as `new RegExp(pattern, 'gi')`
   — case-insensitive — and matches it against the whole title path, so the bare
