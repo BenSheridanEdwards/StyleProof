@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [5.0.2] - 2026-08-08
+
+### Fixed
+
+- **Content correspondence now preserves semantic identity across the whole
+  path.** Report-time sibling-shift pairing normalizes only numeric
+  `nth-child` positions and retains every privacy-safe semantic hash. A
+  developer-authored account summary can therefore never be paired back to an
+  ordinary credential row merely because its tag, class, and text length happen
+  to match. Genuine sibling insertions still align, while semantic replacements
+  stay in the advisory structure layer.
+
 ## [5.0.1] - 2026-08-08
 
 ### Fixed

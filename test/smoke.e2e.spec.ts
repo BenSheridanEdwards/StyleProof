@@ -7,6 +7,7 @@ import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests, captureUrlToDir } from '../dist/index.js';
 import {
   diffContentMaps,
+  diffStyleMapDirs,
   diffStyleMaps,
   selectCrawlLinks,
   detectViewportWidths,
@@ -140,6 +141,40 @@ test('a semantic row replacement is advisory content, not a positional restyle',
       expect.objectContaining({ kind: 'structure', change: 'added' }),
     ]),
   );
+});
+
+test('content correspondence cannot pair different semantic row identities', async ({ page }) => {
+  const rowWith = (rowAttribute: string, rowRule: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
+    tr { color: rgb(0, 0, 0); cursor: auto; }
+    tr[data-style="account-summary"] { color: rgb(0, 90, 180); cursor: pointer; }
+  </style></head><body><table><tbody><tr${rowAttribute}><td>${rowRule}</td></tr></tbody></table></body></html>`;
+  const before = await withPage(page, rowWith(' data-style="account-summary"', 'credential'), () =>
+    captureStyleMap(page, { captureText: true, captureStates: false }),
+  );
+  const after = await withPage(page, rowWith('', 'credential'), () =>
+    captureStyleMap(page, { captureText: true, captureStates: false }),
+  );
+  const temporaryCaptureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-semantic-correspondence-'));
+
+  try {
+    saveStyleMap(path.join(temporaryCaptureRoot, 'before', 'table@800.json.gz'), before);
+    saveStyleMap(path.join(temporaryCaptureRoot, 'after', 'table@800.json.gz'), after);
+    expect(
+      diffStyleMapDirs(path.join(temporaryCaptureRoot, 'before'), path.join(temporaryCaptureRoot, 'after')).counts,
+    ).toEqual({
+      dom: 0,
+      style: 0,
+      state: 0,
+    });
+    expect(diffContentMaps(before, after)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'structure', change: 'removed' }),
+        expect.objectContaining({ kind: 'structure', change: 'added' }),
+      ]),
+    );
+  } finally {
+    fs.rmSync(temporaryCaptureRoot, { recursive: true, force: true });
+  }
 });
 
 test('dynamic data-style suffixes keep one identity so real state restyles still gate', async ({ page }) => {

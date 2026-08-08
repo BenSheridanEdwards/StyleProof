@@ -396,23 +396,27 @@ function indexDir(dir: string): Record<string, string> {
 }
 
 /**
- * Privacy-safe identity for correspondence across an nth-child shift. A class
- * is capture metadata already present in every map; own-text length and React
- * component name disambiguate repeated semantic classes without storing copy.
- * Empty anonymous elements stay unmatched rather than receiving invented
+ * Privacy-safe identity for correspondence across an nth-child shift. Positional
+ * indexes are normalized, while hashed semantic path segments remain exact: a
+ * sibling insertion can move the same element, but a developer-authored identity
+ * replacement must stay structural instead of being paired back into a restyle.
+ * A class is capture metadata already present in every map; own-text length and
+ * React component name disambiguate repeated semantic classes without storing
+ * copy. Empty anonymous elements stay unmatched rather than receiving invented
  * provenance.
  */
-function contentCorrespondenceSignature(element: StyleMap['elements'][string]): string | null {
+function contentCorrespondenceSignature(elementPath: string, element: StyleMap['elements'][string]): string | null {
   const className = element.cls.trim();
   const componentName = element.component?.name ?? '';
   if (!className && !componentName && element.ownTextLength === undefined) return null;
-  return JSON.stringify([element.tag, className, element.ownTextLength ?? null, componentName]);
+  const semanticPathPattern = elementPath.replace(/:nth-child\(\d+\)/g, ':nth-child(*)');
+  return JSON.stringify([semanticPathPattern, element.tag, className, element.ownTextLength ?? null, componentName]);
 }
 
 function uniquePathsByContentSignature(map: StyleMap): Map<string, string> {
   const pathsBySignature = new Map<string, string[]>();
   for (const [elementPath, element] of Object.entries(map.elements)) {
-    const signature = contentCorrespondenceSignature(element);
+    const signature = contentCorrespondenceSignature(elementPath, element);
     if (!signature) continue;
     pathsBySignature.set(signature, [...(pathsBySignature.get(signature) ?? []), elementPath]);
   }
