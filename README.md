@@ -928,6 +928,10 @@ from being compared as though it were the displaced element; the replacement
 remains visible in this advisory section when content reporting is enabled.
 Later tokens remain free for dynamic state (`status ok` → `status warn`) without
 changing identity, so their real computed-style differences still gate.
+When StyleProof aligns elements shifted by a sibling insertion, it normalizes
+only numeric `nth-child` positions and preserves every one of those hashed
+semantic segments in the ancestry. Correspondence therefore cannot undo the
+identity boundary and compare two different semantic roles as a restyle.
 
 Notes: only an element's _own_ text is recorded (so a parent and child never double-report the same string); text churn in a live region is auto-excluded by the same settle pass that guards styles; and the certification CLI (`styleproof-diff`) is deliberately left content-blind.
 
