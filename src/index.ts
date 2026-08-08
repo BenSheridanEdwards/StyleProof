@@ -76,7 +76,7 @@ export type {
   VariantHarvestOptions,
 } from './variant-crawler.js';
 export { diffStyleMaps, diffStyleMapDirs, diffContentMaps, diffContentDirs, findingLabel } from './diff.js';
-export type { Finding, PropChange, SurfaceDiff, DiffCounts, ContentChange } from './diff.js';
+export type { Finding, PropChange, SurfaceDiff, DiffCounts, ContentChange, DiffStyleOptions } from './diff.js';
 export { generateStyleMapReport, summarizeProps, prettyLabel, assessComparisonTruth } from './report.js';
 export type { ReportOptions, ReportResult, ComparisonTruth } from './report.js';
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';

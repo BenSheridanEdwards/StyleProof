@@ -105,6 +105,42 @@ test('capture persists zero own-text length without persisting rendered copy', a
   expect(filled?.text).toBeUndefined();
 });
 
+test('capture distinguishes layout-used reflow from a genuine computed-value change', async ({ page }) => {
+  const fixtureWith = (
+    extraItem: string,
+    trailingMargin: string,
+  ) => `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    .row { display: flex; width: 600px; }
+    .item { width: 100px; }
+    .trailing { margin-left: ${trailingMargin}; color: rgb(0, 0, 0); }
+  </style></head><body><main><div class="row"><span class="item">one</span>${extraItem}<span id="trailing" class="trailing">label</span></div></main></body></html>`;
+
+  const before = await withPage(page, fixtureWith('', 'auto'), () =>
+    captureStyleMap(page, { stabilize: false, captureStates: false }),
+  );
+  const contentReflow = await withPage(page, fixtureWith('<span class="item">two</span>', 'auto'), () =>
+    captureStyleMap(page, { stabilize: false, captureStates: false }),
+  );
+  const genuineRestyle = await withPage(page, fixtureWith('<span class="item">two</span>', '24px'), () =>
+    captureStyleMap(page, { stabilize: false, captureStates: false }),
+  );
+  const trailingPath = Object.keys(before.elements).find(
+    (elementPath) => before.elements[elementPath]?.cls === 'trailing',
+  );
+  expect(trailingPath).toBeTruthy();
+  expect(before.elements[trailingPath!]?.computedValueStyle?.['margin-left']).toBe('auto');
+  expect(contentReflow.elements[trailingPath!]?.computedValueStyle?.['margin-left']).toBe('auto');
+
+  expect(diffStyleMaps(before, contentReflow, { includeStructure: false })).toEqual([]);
+  const genuineFinding = diffStyleMaps(before, genuineRestyle, { includeStructure: false }).find(
+    (finding) => finding.kind === 'style' && finding.path === trailingPath,
+  );
+  expect(genuineFinding && genuineFinding.kind === 'style' ? genuineFinding.props : []).toContainEqual(
+    expect.objectContaining({ prop: 'margin-left', after: '24px' }),
+  );
+});
+
 test('capture declares prefers-reduced-motion so JS animation libraries render final states', async ({ page }) => {
   // FREEZE_CSS only reaches CSS-declared motion; framer-motion et al. write
   // inline styles from rAF loops and gate them on prefers-reduced-motion. The
@@ -463,11 +499,11 @@ test('auto-excludes a perpetual live region', async ({ page }) => {
   expect(buttonCaptured, 'the static button is still captured').toBe(true);
 });
 
-test('ignored live regions can still reveal root layout drift', async ({ page }) => {
-  // Ignoring the live subtree removes that element from the diff, but it does not
-  // freeze the document flow it participates in. If the live state should be
-  // certified, capture both states as surface variants instead of expecting
-  // `ignore` to hide the ancestor geometry.
+test('ignored live-region reflow does not leak into unchanged ancestor styles', async ({ page }) => {
+  // Ignoring the live subtree removes that content from the diff. Its size can
+  // still move ancestor CSSOM used pixels, but CSS Typed OM proves those
+  // ancestors kept the same computed value (`auto`), so content reflow must not
+  // escape the ignored boundary as a phantom style regression.
   const html = (height: number) => `<!doctype html><html><head><meta charset="utf-8"><style>
     html, body { margin: 0; }
     .live { display: block; width: 100%; height: ${height}px; background: rgb(1,2,3); }
@@ -487,14 +523,7 @@ test('ignored live regions can still reveal root layout drift', async ({ page })
     'ignored live subtree is not captured directly',
   ).toBe(false);
 
-  const findings = diffStyleMaps(short, tall);
-  const rootLayout = findings.find(
-    (f) =>
-      f.kind === 'style' &&
-      (f.path === 'html' || f.path === 'body') &&
-      f.props.some((p) => p.prop === 'block-size' || p.prop === 'height'),
-  );
-  expect(rootLayout, 'ancestor/root layout still changes when ignored live content changes size').toBeTruthy();
+  expect(diffStyleMaps(short, tall, { includeStructure: false })).toEqual([]);
 });
 
 test('auto-detects semantic live-state candidates without excluding stable product UI', async ({ page }) => {

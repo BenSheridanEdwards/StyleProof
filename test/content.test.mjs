@@ -17,6 +17,7 @@ test('diffContentMaps reports an element whose own text changed', () => {
   });
   const changes = diffContentMaps(a, b);
   assert.equal(changes.length, 1);
+  assert.equal(changes[0].kind, 'text');
   assert.equal(changes[0].path, 'body > p:nth-child(1)');
   assert.equal(changes[0].before, 'Original demo copy');
   assert.equal(changes[0].after, 'Updated demo copy');
@@ -28,10 +29,17 @@ test('diffContentMaps is a no-op when neither side captured text (feature off)',
   assert.equal(diffContentMaps(a, b).length, 0);
 });
 
-test('diffContentMaps ignores add/remove (owned by the style DOM diff)', () => {
+test('diffContentMaps reports add/remove as advisory structure', () => {
   const a = makeMap({ elements: {} });
   const b = makeMap({ elements: { 'body > p:nth-child(1)': { tag: 'p', text: 'new paragraph' } } });
-  assert.equal(diffContentMaps(a, b).length, 0);
+  assert.deepEqual(diffContentMaps(a, b), [
+    {
+      kind: 'structure',
+      path: 'body > p:nth-child(1)',
+      cls: '',
+      change: 'added',
+    },
+  ]);
 });
 
 test('diffContentMaps skips text churn in a volatile (live) region', () => {
@@ -103,7 +111,7 @@ test('generateStyleMapReport renders the content section only when includeConten
   });
   const md = fs.readFileSync(on.reportMdPath, 'utf8');
   assert.equal(on.contentChanges, 1);
-  assert.ok(md.includes('## 📝 Content changes (advisory)'));
+  assert.ok(md.includes('## 📝 Content and structure changes (advisory)'));
   assert.ok(md.includes('Original demo copy'));
   assert.ok(md.includes('Updated demo copy'));
   assert.ok(fs.existsSync(path.join(dirs.root, 'on', 'crops', 'landing-1280-content-1-composite.png')));
