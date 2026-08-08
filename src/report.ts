@@ -997,7 +997,7 @@ function contentCropLines(
   ];
 }
 
-/** One surface's content block: heading, then per change the before/after text
+/** One surface's content block: heading, then per content/structure change
  *  and its crop. Returns the markdown plus the advanced crop counter. */
 function renderContentSurface(
   ctx: ContentCtx,
@@ -1009,15 +1009,18 @@ function renderContentSurface(
   const mapB = loadStyleMap(findCapture(ctx.afterDir, surface));
   const pngA = readPng(path.join(ctx.beforeDir, `${surface}.png`));
   const pngB = readPng(path.join(ctx.afterDir, `${surface}.png`));
-  const md: string[] = ['', `### \`${safeKey(surface)}\` · ${changes.length} content change(s)`];
+  const md: string[] = ['', `### \`${safeKey(surface)}\` · ${changes.length} content/structure change(s)`];
   for (const c of changes) {
     seq++;
+    const changeLines =
+      c.kind === 'text'
+        ? [`- before: \`${clipText(c.before) || '(empty)'}\``, `- after: \`${clipText(c.after) || '(empty)'}\``]
+        : [`- ${c.change === 'retagged' ? `element retagged: \`${c.detail}\`` : `element ${c.change}`}`];
     md.push(
       '',
       `**\`${prettyLabel(c.path, c.cls)}\`**`,
       '',
-      `- before: \`${clipText(c.before) || '(empty)'}\``,
-      `- after: \`${clipText(c.after) || '(empty)'}\``,
+      ...changeLines,
       ...contentCropLines(ctx, surface, c, mapA, mapB, pngA, pngB, seq),
     );
   }
@@ -1039,11 +1042,11 @@ function renderContentSection(ctx: ContentCtx): { md: string[]; count: number } 
     '',
     '---',
     '',
-    '## 📝 Content changes (advisory)',
+    '## 📝 Content and structure changes (advisory)',
     '',
-    `_${count} element(s) changed their own text. **Advisory only** — content is not part of the computed-style ` +
-      `certification and does not affect the check. Surfaced so a copy change the style diff can't see (and any ` +
-      `overflow or clipping it causes) is visible in review._`,
+    `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
+      `computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are ` +
+      `visible when content comparison is enabled._`,
   ];
   let seq = 0;
   for (const { surface, changes } of surfaces) {
@@ -1868,6 +1871,7 @@ function comparisonForReport(
 function prepareReportSurfaces(
   surfaces: ReturnType<typeof diffStyleMapDirs>['surfaces'],
   includeNoise: boolean,
+  includeStructure: boolean,
   beforeDir: string,
   afterDir: string,
 ): PreparedSurface[] {
@@ -1876,7 +1880,7 @@ function prepareReportSurfaces(
       if (sd.missing) return { sd, findings: sd.findings };
       const beforeMap = loadStyleMap(findCapture(beforeDir, sd.surface));
       const afterMap = loadStyleMap(findCapture(afterDir, sd.surface));
-      const corresponded = presentationDiffStyleMaps(beforeMap, afterMap);
+      const corresponded = presentationDiffStyleMaps(beforeMap, afterMap, { includeStructure });
       return {
         sd,
         findings: includeNoise ? corresponded : cleanFindingsForDisplay(corresponded),
@@ -1932,7 +1936,7 @@ function writeReportArtifacts(
   return { reportMdPath, reportJsonPath };
 }
 
-export function generateStyleMapReport(opts: ReportOptions): ReportResult {
+function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: boolean): ReportResult {
   const {
     beforeDir,
     afterDir,
@@ -1957,7 +1961,11 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // Base first, head second: current capture metadata is authoritative when a
   // surface's product key changed between revisions.
   const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
-  const { surfaces, volatile: volatileCount, counts: rawCounts } = diffStyleMapDirs(beforeDir, afterDir);
+  const {
+    surfaces,
+    volatile: volatileCount,
+    counts: rawCounts,
+  } = diffStyleMapDirs(beforeDir, afterDir, { includeStructure });
   // Canonical truth shared with styleproof-diff / action trust: when raw
   // certification deltas exist but cleanFindings leaves nothing reviewable,
   // never claim "identical" and never enable visual approval.
@@ -1969,7 +1977,7 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   // forced-state echoes of base changes, and remove non-value noise (see
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
-  const prepared = prepareReportSurfaces(surfaces, includeNoise, beforeDir, afterDir);
+  const prepared = prepareReportSurfaces(surfaces, includeNoise, includeStructure, beforeDir, afterDir);
 
   const missing = prepared.filter((p) => p.sd.missing);
   const changeGroups = groupBySignature(prepared, beforeDir, afterDir);
@@ -2096,6 +2104,16 @@ export function generateStyleMapReport(opts: ReportOptions): ReportResult {
     reportMdPath,
     reportJsonPath,
   };
+}
+
+/** Generate the public report. DOM structure is never part of certification. */
+export function generateStyleMapReport(opts: ReportOptions): ReportResult {
+  return generateStyleMapReportInternal(opts, false);
+}
+
+/** @internal Retains direct coverage of the low-level structural renderer. */
+export function generateStructuralStyleMapReportForTesting(opts: ReportOptions): ReportResult {
+  return generateStyleMapReportInternal(opts, true);
 }
 
 function findCapture(dir: string, surface: string): string {

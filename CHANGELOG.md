@@ -7,6 +7,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-08-08
+
+### Changed
+
+- **DOM structure is now part of the opt-in advisory content layer, not the
+  default style-certification gate.** Element additions, removals, retags, and
+  their one-sided style/state inventories no longer fail `styleproof-diff` or
+  create highlighted style-report findings while content comparison is off.
+  `--include-content` renders those changes in the separate advisory content and
+  structure section. Surface additions/removals, coverage, determinism,
+  navigable-inventory removals, and data-residue controls remain fail-closed.
+- **Captures now retain a compact CSS Typed OM computed-value signal.** When
+  CSSOM's used pixels move but the computed value remains unchanged (`auto`, a
+  percentage, or fractional grid tracks), StyleProof classifies the delta as
+  layout reflow rather than a stylesheet change. A real computed-value change
+  still gates. Legacy maps without the signal remain fail-closed; adopters must
+  regenerate both baselines after upgrading to receive the new behavior.
+
+### Fixed
+
+- **Content-only structural reflow no longer produces unrelated magenta boxes.**
+  Labels pushed by `margin-left: auto`, percentage-sized descendants, and other
+  layout-used values stay out of the default report when their CSS computed
+  value did not change.
+
+### Security
+
+- Updated the transitive development dependency `js-yaml` from 4.3.0 to 4.3.1,
+  resolving CVE-2026-59870. `npm audit --audit-level=high` reports zero
+  vulnerabilities.
+
 ## [4.7.6] - 2026-08-06
 
 ### Fixed

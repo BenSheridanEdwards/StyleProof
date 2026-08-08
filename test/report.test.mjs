@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import {
-  generateStyleMapReport,
+  generateStructuralStyleMapReportForTesting as generateStyleMapReport,
   summarizeProps,
   prettyLabel,
   describeChange,

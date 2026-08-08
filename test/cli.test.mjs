@@ -882,18 +882,15 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
   rmTmp(root);
 });
 
-test('report CLI exits 1 when correspondence collapses every presentation finding', () => {
+test('report CLI exits 0 for structural-only path churn when content comparison is off', () => {
   const { root, A, B } = correspondenceCollapsedPair();
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
-  assert.equal(r.status, 1, r.stderr);
-  assert.match(r.stdout, /presentation_collapsed_while_raw_reviewable/);
-  assert.doesNotMatch(r.stdout, /✓ no changes/);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /✓ no changes/);
   const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
-  assert.deepEqual(json.reportConsistency, {
-    ok: false,
-    reason: 'presentation_collapsed_while_raw_reviewable',
-  });
+  assert.deepEqual(json.rawCounts, { dom: 0, style: 0, state: 0 });
+  assert.deepEqual(json.reportConsistency, { ok: true, reason: 'aligned' });
   rmTmp(root);
 });
 
@@ -1209,34 +1206,29 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
   try {
-    // A persistent nav item is added on EVERY view (the shared frame). One view
+    // A persistent nav item is recoloured on EVERY view (the shared frame). One view
     // (`home`) also has a real content restyle nothing else shares.
-    const nav = (extra) => ({
+    const nav = (color) => ({
       'html > body > nav': { tag: 'nav', cls: 'rail', style: { display: 'flex' } },
-      'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } },
-      ...extra,
+      'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color } },
     });
     const views = ['home', 'settings', 'reports'];
     for (const v of views) {
-      // base: nav has one link; head: nav gains a second link → an added element on every view.
-      const before = makeMap({ elements: nav({}) });
-      const afterExtra = {
-        'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } },
-      };
-      const after = makeMap({ elements: nav(afterExtra) });
+      const before = makeMap({ elements: nav('rgb(0, 0, 0)') });
+      const after = makeMap({ elements: nav('rgb(0, 0, 255)') });
       writeCapture(A, `${v}@1280`, before, null);
       writeCapture(B, `${v}@1280`, after, null);
     }
     // home ALSO restyles its own content element (present only on home).
     const homeBefore = makeMap({
       elements: {
-        ...nav({}),
+        ...nav('rgb(0, 0, 0)'),
         'html > body > main > h1': { tag: 'h1', cls: 'title', style: { color: 'rgb(0, 0, 0)' } },
       },
     });
     const homeAfter = makeMap({
       elements: {
-        ...nav({ 'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } } }),
+        ...nav('rgb(0, 0, 255)'),
         'html > body > main > h1': { tag: 'h1', cls: 'title', style: { color: 'rgb(255, 0, 0)' } },
       },
     });
@@ -1247,13 +1239,13 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
 
     const r = run(DIFF, [A, B]);
     assert.equal(r.status, 1, r.stderr);
-    // The nav addition is chrome (every base that hosts the nav changed it), and
+    // The nav recolour is chrome (every base that hosts the nav changed it), and
     // the pure-nav surfaces group under the callout.
     assert.match(r.stdout, /🧱 Global chrome change\(s\) — across all 3 captured surface base\(s\)/, r.stdout);
     assert.match(r.stdout, /1 change\(s\) rode the shared frame/, r.stdout);
     // home entangled the nav change with its OWN h1 restyle, so it renders in place
     // (never hidden under the chrome banner) — the view-specific change stays visible.
-    assert.match(r.stdout, /home@1280: 1 element added, 1 element restyled/, 'the view-specific change stays visible');
+    assert.match(r.stdout, /home@1280: 2 elements restyled/, 'the view-specific change stays visible');
     assert.match(r.stdout, /color: rgb\(0, 0, 0\) → rgb\(255, 0, 0\)/, 'home h1 restyle shown');
   } finally {
     rmTmp(root);

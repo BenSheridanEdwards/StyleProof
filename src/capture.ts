@@ -41,6 +41,15 @@ export type ElementEntry = {
   cls: string;
   rect?: Rect;
   style: Props;
+  /**
+   * CSS Typed OM computed values only where they differ from the legacy CSSOM
+   * used value in `style` (for example `auto` versus a layout-resolved pixel
+   * margin, `20%` versus a used pixel width, or `1fr` versus grid track pixels).
+   * This compact signal lets the differ discard layout reflow while preserving
+   * a real declaration/computed-value change. Absent on legacy captures, which
+   * deliberately remain fail-closed.
+   */
+  computedValueStyle?: Props;
   pseudo?: Record<string, Props>;
   /**
    * Length of the element's own rendered text after whitespace normalization.
@@ -416,6 +425,7 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
     cls: string;
     rect?: [number, number, number, number];
     style: Props;
+    computedValueStyle?: Props;
     pseudo?: Record<string, Props>;
     ownTextLength?: number;
     text?: string;
@@ -492,12 +502,24 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
         // cross-origin: genuinely untraversable, not counted
       }
     }
+    const usedStyle = getComputedStyle(el);
     const entry: Entry = {
       tag,
       cls: el.getAttribute('class') || '',
-      style: snap(getComputedStyle(el), defaultFor(tag)),
+      style: snap(usedStyle, defaultFor(tag)),
     };
     if (!motionOnly) {
+      const typedComputedStyle = el.computedStyleMap?.();
+      if (typedComputedStyle) {
+        const computedValueStyle: Props = {};
+        for (let propertyIndex = 0; propertyIndex < usedStyle.length; propertyIndex++) {
+          const propertyName = usedStyle.item(propertyIndex);
+          const usedValue = usedStyle.getPropertyValue(propertyName);
+          const computedValue = typedComputedStyle.get(propertyName)?.toString();
+          if (computedValue && computedValue !== usedValue) computedValueStyle[propertyName] = computedValue;
+        }
+        if (Object.keys(computedValueStyle).length > 0) entry.computedValueStyle = computedValueStyle;
+      }
       // Document-space box so report crops can locate the element in a
       // full-page screenshot regardless of scroll position at capture time.
       const r = el.getBoundingClientRect();

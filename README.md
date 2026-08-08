@@ -273,10 +273,10 @@ full report. The report groups each distinct visual change with:
 In review-gate mode, one **Approve all changes** checkbox turns the `StyleProof`
 status green for that commit. Clean runs still leave a receipt: `No visual
 changes detected.` New surfaces are shown as new baselines and require approval;
-coverage gaps are handled by `expected`. When a PR **adds** an element, the
-report shows its **full resting computed style** (background, padding, font,
-radius, …), value-only, in addition to any interaction-state deltas — so a new
-element's whole look is reviewable, not just its `:hover` changes.
+coverage gaps are handled by `expected`. Element additions, removals, and
+retags inside an existing surface are content/structure changes: they stay out
+of style certification by default and appear only in the opt-in advisory
+content section.
 
 ### What a report looks like
 
@@ -284,28 +284,26 @@ New pages, states, and surfaces appear before element-level changes. Existing
 surfaces render one distinct change per section, with aligned crops, truthful
 annotations, a one-line summary, and exact properties under a toggle.
 
-Headline counts distinguish **matched-path restyles** ("N computed-style
-difference(s)") from **one-sided DOM adds/removes**. A brand-new node's full
-resting and interaction-state inventory still appears under the element (value-only
-tables labelled _Style inventory (head-side — no baseline)_), but those rows are
-not billed as before→after restyles — so a wrapper insert or path churn reads as
-DOM structure, not a cascade of restyles.
+Headline counts cover **matched-element restyles** ("N computed-style
+difference(s)") and interaction-state differences. One-sided DOM structure has
+no like-for-like style baseline, so it cannot certify a style change. Turn on
+`--include-content` when copy and element structure belong in the review; that
+section stays advisory and never changes the style verdict.
 
-When a removed base path and an added head path share a **unique** privacy-safe
-signature (tag + box x/y/width + own-text length) under a shared structural
-prefix, the report **corresponds** them for presentation only: pure path moves
-with unchanged styles collapse, and real paired property deltas (font-size,
-height geometry, …) render as ordinary before→after restyles on the head path.
-Ambiguous duplicates stay unpaired — no invented provenance. Certification still
-diffs concrete paths; raw counts, exit codes, and approval gates are unchanged.
+CSSOM resolves layout-dependent values to pixels. StyleProof also records the
+browser's CSS Typed OM computed value, so an `auto` margin or percentage width
+can move with surrounding content without being mistaken for a stylesheet
+change. If the computed value itself changes — including a deliberate `width`,
+`margin`, colour, font, grid, or state change — it remains a blocking finding.
 
 Tiny changes also receive a magnified crop. Structural matching avoids painting
 an unchanged shifted subtree as changed, while ambiguous duplicate elements stay
 explicit rather than receiving invented provenance.
 
-**[Open the full generated report](docs/demo/report.md).** It includes a new
-surface, an added element, a normal-size restyle, a magnified small change, and a
-structural insertion. `npm run demo:check` verifies that it matches current code.
+**[Open the full generated report](docs/demo/report.md).** The fixture includes a
+new surface, two real restyles, an added element, and a structural insertion.
+With content comparison off, only the new surface and real restyles appear;
+`npm run demo:check` verifies that this default report matches current code.
 
 The report shown at the top of this README renders this exact entry:
 
@@ -896,7 +894,13 @@ Copy both `capture` and `report` files to `.github/workflows/` (the `report` one
 
 ## Optional: content layer (advisory)
 
-StyleProof is **computed-styles first**, and stays that way: a CSS-only refactor that also rewrites text is still certified identical, and live text (a clock, "2m ago") never reads as a change. But a pure-style diff is blind to copy, and copy isn't always cosmetic: **new or longer text can overflow or clip its box, silently breaking the layout.** A visual-confidence tool that can't see that isn't quite complete. So the content layer exists as an explicit **opt-in**, off by default, and **advisory** — it never feeds the certification or the gate.
+StyleProof is **computed-styles first**, and stays that way: copy and DOM
+structure can change while the stylesheet remains identical, and live text (a
+clock, "2m ago") must not read as a style regression. But content changes are
+still important review evidence: new or longer text can overflow, and inserted
+or removed elements can reflow the page. The content layer is therefore an
+explicit **opt-in**, off by default, and **advisory** — it never feeds style
+certification or the gate.
 
 Turn it on in two places:
 
@@ -910,7 +914,12 @@ defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captu
 styleproof-report before after --out report --include-content
 ```
 
-The report then carries a separate **📝 Content changes (advisory)** section: every element whose own text changed, with the before/after strings and a side-by-side crop, so a silent copy edit (and any overflow it causes) is visible in review. It does **not** affect `changed`, the `StyleProof` status, or the diff exit code, by design. With capture left at its default (`captureText` off), there's no text in the maps and the section is always empty, so existing setups are completely unaffected.
+The report then carries a separate **📝 Content and structure changes
+(advisory)** section. Element additions, removals, and retags are available from
+every capture; set `captureText: true` to add before/after copy. Each entry gets
+a side-by-side crop. The section does **not** affect `changed`, the `StyleProof`
+status, or the diff exit code, by design. With `captureText` off, structural
+evidence still renders but text values are never stored.
 
 Notes: only an element's _own_ text is recorded (so a parent and child never double-report the same string); text churn in a live region is auto-excluded by the same settle pass that guards styles; and the certification CLI (`styleproof-diff`) is deliberately left content-blind.
 
@@ -1086,8 +1095,8 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 - `styleproof-init` — scaffold the gate: the capture spec (inventory guard on; Next.js repos get route discovery + the coverage guard, others a crawl-by-default spec), a dedicated `playwright.styleproof.config.ts` (production-build `webServer`, parallel capture), `.gitignore` cache entries, the restore-first report workflow, the approval workflow, and the restore-or-publish pre-push hook. One command. The CI hot path restores exact-SHA maps and runs no browser; a compatible base hit plus head miss captures only the head; a base miss captures the pair; every fallback is published for reuse. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default), respect pnpm/Corepack version pins, and detect Vite/Next production preview commands instead of assuming every repo has `start`. Generated files carrying StyleProof's ownership marker are **machine-owned** thin wrappers over packaged commands: after upgrading styleproof, `styleproof-init --check` reports whether they drifted from the release's templates (exit 1 — wire it into CI), and `styleproof-init --upgrade` refreshes them in place without touching your spec, playwright config, or a repository-owned Husky hook. Use the explicit `--hook` command only when you intend to replace that hook.
 - `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote exists. Pass `--crawl-base-url` plus repeated `--crawl-route` to run `styleproof-variants` before capture, `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, `--no-screenshots`, or repeated `--dirty-allow <path>` (a tracked file a dev tool rewrites on every run — e.g. `next dev` regenerating a `tsconfig.json` — that must not mark the capture dirty) for custom flows.
-- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical); `1` on a reviewable diff — computed-style/DOM/state differences, and equally an unacknowledged inventory removal, an unacknowledged failing data endpoint under an armed `dataResidue: 'gate'`, an incomplete coverage registry, or an unproven-determinism capture; `2` on a usage/capture error (including a **manifest-less side** — since **v4**, a two-directory compare where a side ships maps but no `styleproof-manifest.json` is refused loudly, naming the bare side(s), because the same-environment guard can't be enforced without one; re-capture with current StyleProof; **and** a **missing map** — a bundle that claims to exist yet holds zero captures, i.e. a `styleproof-manifest.json` present with no maps, on either side, or a head capture that produced nothing; refused loudly rather than mislabelled as all-new — **and** the no-args case where the cached base map can't be restored at all: no map-store remote, no cached bundle, nothing to compare. A "nothing was compared" outcome always exits `2`, never a soft `0` that would read as certified; the error names the two ways forward — run in CI where the base is restorable, or use the two-directory form); `3` when only new surfaces are present — surfaces captured only on the **head** side (a surface present only on the **base** side is a **removed** surface, a reviewable change: exit `1`) — (no baseline for _those_ surfaces to diff against — new surfaces against an existing baseline, or a base dir with no maps at all (and hence no manifest), meaning no baseline was ever captured: the first-adoption review path; approval policy decides whether to gate). A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`. The human output **groups the same way the report does**: surfaces that changed identically collapse into one finding (with the per-surface count on its header), longhands fold into shorthands, and size/position-derived longhands fold behind a `(+N derived longhands)` count — so one real change reads as one entry, not dozens of raw lines. A change that rode the shared frame every view draws (a persistent nav/header/footer) is promoted to a "🧱 Global chrome change" callout up top. `--json` stays the complete, unchanged machine contract — every surface and every raw longhand — regardless of the human grouping.
-- `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content section (see above). Shares the same comparison truth as `styleproof-diff` (`reviewableCounts` / `reportConsistency` in `report.json`): raw-only derived reflow noise never claims “all surfaces identical,” and neither does report-only path correspondence when it collapses every presentation finding while raw reviewable evidence remains. Both contradictions fail closed instead of producing a green report with no crops.
+- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical); `1` on a reviewable diff — matched-element computed-style/state differences, and equally an unacknowledged inventory removal, an unacknowledged failing data endpoint under an armed `dataResidue: 'gate'`, an incomplete coverage registry, or an unproven-determinism capture; `2` on a usage/capture error (including a **manifest-less side** — since **v4**, a two-directory compare where a side ships maps but no `styleproof-manifest.json` is refused loudly, naming the bare side(s), because the same-environment guard can't be enforced without one; re-capture with current StyleProof; **and** a **missing map** — a bundle that claims to exist yet holds zero captures, i.e. a `styleproof-manifest.json` present with no maps, on either side, or a head capture that produced nothing; refused loudly rather than mislabelled as all-new — **and** the no-args case where the cached base map can't be restored at all: no map-store remote, no cached bundle, nothing to compare. A "nothing was compared" outcome always exits `2`, never a soft `0` that would read as certified; the error names the two ways forward — run in CI where the base is restorable, or use the two-directory form); `3` when only new surfaces are present — surfaces captured only on the **head** side (a surface present only on the **base** side is a **removed** surface, a reviewable change: exit `1`) — (no baseline for _those_ surfaces to diff against — new surfaces against an existing baseline, or a base dir with no maps at all (and hence no manifest), meaning no baseline was ever captured: the first-adoption review path; approval policy decides whether to gate). Element additions, removals, and retags inside a paired surface belong to the advisory content layer and do not affect these exits. A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`. The human output **groups the same way the report does**: surfaces that changed identically collapse into one finding (with the per-surface count on its header), longhands fold into shorthands, and size/position-derived longhands fold behind a `(+N derived longhands)` count — so one real change reads as one entry, not dozens of raw lines. A change that rode the shared frame every view draws (a persistent nav/header/footer) is promoted to a "🧱 Global chrome change" callout up top. `--json` stays the complete, unchanged machine contract — every surface and every raw longhand — regardless of the human grouping.
+- `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content and structure section (see above). Shares the same comparison truth as `styleproof-diff` (`reviewableCounts` / `reportConsistency` in `report.json`): raw-only style evidence never claims “all surfaces identical.” Content/structure evidence remains separate and never affects the verdict.
 - `styleproof-capture` — one-shot capture of any URL (no spec): `styleproof-capture <url> --key <name> --out <dir>`, with `--widths` (omit to auto-detect `@media` bands), `--wait <selector>`, `--ignore <selector>`, `--no-screenshots`, and the crawler flags (`--crawl`, `--setup <file>`, `--require-full-coverage` → exit 4 on residue, `--until-covered`, `--workers <n>`, `--no-data-states`) described in [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel).
 - `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
 - `styleproof-prepush` — the canonical pre-push flow, packaged: reads git's refspecs from stdin, captures the pushed commit only when its tip is the checked-out tree, skips docs-only pushes, restores an already-published exact-SHA map or captures and publishes once, then runs the advisory diff. The hook `styleproof-init` writes is a two-line shim that execs the installed local binary directly, so the rules update with each release instead of drifting in a copied hook file and a missing install fails instead of falling through to a package-registry download — refresh an old hook with `styleproof-init --hook`.

@@ -28,6 +28,7 @@ export function makeMap({ elements = {}, defaults = {}, states = {} } = {}) {
       cls: e.cls ?? '',
       ...(e.rect ? { rect: e.rect } : {}),
       style: e.style ?? {},
+      ...(e.computedValueStyle ? { computedValueStyle: e.computedValueStyle } : {}),
       ...(e.pseudo ? { pseudo: e.pseudo } : {}),
       ...(e.ownTextLength !== undefined ? { ownTextLength: e.ownTextLength } : {}),
       ...(e.text !== undefined ? { text: e.text } : {}),

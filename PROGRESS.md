@@ -1,5 +1,23 @@
 # Progress
 
+## Completed: content-disabled structural diffs (5.0.0)
+
+- Completed: reproduced that one added element emits blocking DOM and head-side
+  style-inventory findings even when content comparison is disabled.
+- Completed: confirmed the optional text-content layer is advisory and separate
+  from the certification exit code.
+- Completed: moved DOM additions/removals/retags into the opt-in advisory
+  content layer while preserving fail-closed surface, inventory, coverage,
+  determinism, and data-residue controls.
+- Completed: added CSS Typed OM computed-value evidence so layout-used pixel
+  reflow is ignored only when the browser proves the CSS computed value stayed
+  unchanged; legacy captures remain fail-closed.
+- Verification: 665 unit, contract, CLI, package-smoke, and report tests pass;
+  118 Playwright browser tests pass; build, typecheck, lint, formatting, privacy,
+  demo freshness, package dry-run, and dependency audit pass. Consumer dogfood
+  remains before the downstream release bump/merge.
+- Blockers: none.
+
 ## In progress: spec-ref local harness overlay
 
 - Completed: reproduced the cold-base `Cannot find module` failure when a head
