@@ -921,6 +921,14 @@ a side-by-side crop. The section does **not** affect `changed`, the `StyleProof`
 status, or the diff exit code, by design. With `captureText` off, structural
 evidence still renders but text values are never stored.
 
+The first token of a developer-authored `data-style` value participates in the
+capture's hashed semantic path when it uniquely identifies a sibling. This
+prevents a new row, card, or control variant at the same `nth-child` position
+from being compared as though it were the displaced element; the replacement
+remains visible in this advisory section when content reporting is enabled.
+Later tokens remain free for dynamic state (`status ok` → `status warn`) without
+changing identity, so their real computed-style differences still gate.
+
 Notes: only an element's _own_ text is recorded (so a parent and child never double-report the same string); text churn in a live region is auto-excluded by the same settle pass that guards styles; and the certification CLI (`styleproof-diff`) is deliberately left content-blind.
 
 ## Optional: React component layer (advisory)
