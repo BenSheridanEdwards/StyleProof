@@ -329,6 +329,11 @@ function injectPathOf(): void {
         ['id', element.getAttribute('id')],
         ['testid', element.getAttribute('data-testid')],
         ['test', element.getAttribute('data-test')],
+        // `data-style` is a developer-authored semantic styling hook. Its first
+        // token is the stable identity; later tokens commonly carry dynamic
+        // state (`status ok` → `status warn`) and must not churn the path or a
+        // real restyle would disappear. The token is hashed before capture.
+        ['style', element.getAttribute('data-style')?.trim().split(/\s+/)[0] ?? null],
         ...(tag === 'a' ? ([['href', element.getAttribute('href')]] as Array<[string, string | null]>) : []),
         ...(['input', 'select', 'textarea'].includes(tag)
           ? ([['name', element.getAttribute('name')]] as Array<[string, string | null]>)

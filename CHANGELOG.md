@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [5.0.1] - 2026-08-08
+
+### Fixed
+
+- **Semantic element replacements no longer masquerade as restyles.** The first
+  token of a unique developer-authored `data-style` value now contributes to
+  the privacy-safe, hashed capture path. Replacing a positional row, card, or control with a
+  different semantic variant is therefore structural advisory evidence instead
+  of a before-to-after computed-style comparison against the displaced node.
+  Later state tokens do not affect identity, so `status ok` → `status warn`
+  remains a matched-element style comparison and still gates.
+
 ## [5.0.0] - 2026-08-08
 
 ### Changed

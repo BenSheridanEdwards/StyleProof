@@ -5,7 +5,13 @@ import path from 'node:path';
 import http from 'node:http';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests, captureUrlToDir } from '../dist/index.js';
-import { diffStyleMaps, selectCrawlLinks, detectViewportWidths, crawlAndCapture } from '../dist/index.js';
+import {
+  diffContentMaps,
+  diffStyleMaps,
+  selectCrawlLinks,
+  detectViewportWidths,
+  crawlAndCapture,
+} from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
 // Every test here builds its own fixture (mkdtemp / own page); none reads another
@@ -103,6 +109,61 @@ test('capture persists zero own-text length without persisting rendered copy', a
   expect(filled?.ownTextLength).toBe(4);
   expect(empty?.text).toBeUndefined();
   expect(filled?.text).toBeUndefined();
+});
+
+test('a semantic row replacement is advisory content, not a positional restyle', async ({ page }) => {
+  const tableWithRows = (rows: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
+    tr { color: rgb(0, 0, 0); }
+    tr[data-style="account-summary"] { color: rgb(0, 90, 180); cursor: pointer; }
+  </style></head><body><table><tbody>${rows}</tbody></table></body></html>`;
+  const before = await withPage(
+    page,
+    tableWithRows('<tr><td>first credential</td></tr><tr><td>second credential</td></tr>'),
+    () => captureStyleMap(page, { captureText: true, captureStates: false }),
+  );
+  const after = await withPage(
+    page,
+    tableWithRows('<tr data-style="account-summary"><td>two credentials</td></tr>'),
+    () => captureStyleMap(page, { captureText: true, captureStates: false }),
+  );
+
+  const beforeRowPaths = Object.entries(before.elements)
+    .filter(([, element]) => element.tag === 'tr')
+    .map(([elementPath]) => elementPath);
+  const afterRowPath = Object.entries(after.elements).find(([, element]) => element.tag === 'tr')?.[0];
+  expect(afterRowPath).toContain(':sp-key(');
+  expect(beforeRowPaths).not.toContain(afterRowPath);
+  expect(diffStyleMaps(before, after, { includeStructure: false })).toEqual([]);
+  expect(diffContentMaps(before, after)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ kind: 'structure', change: 'removed' }),
+      expect.objectContaining({ kind: 'structure', change: 'added' }),
+    ]),
+  );
+});
+
+test('dynamic data-style suffixes keep one identity so real state restyles still gate', async ({ page }) => {
+  const statusWith = (state: string, color: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
+    [data-style~="${state}"] { color: ${color}; }
+  </style></head><body><span data-style="status ${state}">state</span></body></html>`;
+  const before = await withPage(page, statusWith('ok', 'rgb(0, 120, 60)'), () =>
+    captureStyleMap(page, { captureStates: false }),
+  );
+  const after = await withPage(page, statusWith('warn', 'rgb(180, 90, 0)'), () =>
+    captureStyleMap(page, { captureStates: false }),
+  );
+  const beforeStatusPath = Object.entries(before.elements).find(([, element]) => element.tag === 'span')?.[0];
+  const afterStatusPath = Object.entries(after.elements).find(([, element]) => element.tag === 'span')?.[0];
+
+  expect(beforeStatusPath).toBe(afterStatusPath);
+  expect(beforeStatusPath).toContain(':sp-key(');
+  expect(diffStyleMaps(before, after, { includeStructure: false })).toEqual([
+    expect.objectContaining({
+      kind: 'style',
+      path: beforeStatusPath,
+      props: expect.arrayContaining([expect.objectContaining({ prop: 'color' })]),
+    }),
+  ]);
 });
 
 test('capture distinguishes layout-used reflow from a genuine computed-value change', async ({ page }) => {
