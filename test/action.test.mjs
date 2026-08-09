@@ -348,6 +348,9 @@ test('dogfood workflow asserts the PR report comment and branch artifact', () =>
   assert.match(dogfoodYml, /blob\/\[0-9a-f\]\{40\}\/\$\{report_path\}/);
   assert.ok(dogfoodYml.includes('/issues/${PR_NUMBER}/comments'));
   assert.ok(dogfoodYml.includes('/contents/${report_path}?ref=${REPORT_BRANCH}'));
+  assert.ok(dogfoodYml.includes('Label published report as synthetic dogfood evidence'));
+  assert.ok(dogfoodYml.includes('Synthetic action dogfood receipt'));
+  assert.ok(dogfoodYml.includes('does not certify this pull request'));
 });
 
 test('composite action self-verifies the published receipt before advertising the report URL', () => {

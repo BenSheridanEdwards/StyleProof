@@ -193,3 +193,30 @@ jobs:
           done
           echo "StyleProof report file missing at ${REPORT_BRANCH}/${report_path}" >&2
           exit 1
+
+      - name: Label published report as synthetic dogfood evidence
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ github.token }}
+          retries: 3
+          script: |
+            const marker = '<!-- styleproof-report -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const comment = [...comments].reverse().find(({ body }) => body?.includes(marker));
+            if (!comment) throw new Error('Action dogfood report comment was not found');
+
+            const notice = [
+              '> [!NOTE]',
+              '> **Synthetic action dogfood receipt.** This report is the final deliberately failing fixture in the action contract suite. It proves that unproven evidence is rejected; it does not certify this pull request.',
+            ].join('\n');
+            const body = comment.body ?? '';
+            await github.rest.issues.updateComment({
+              ...context.repo,
+              comment_id: comment.id,
+              body: body.startsWith(notice) ? body : `${notice}\n\n${body}`,
+            });
