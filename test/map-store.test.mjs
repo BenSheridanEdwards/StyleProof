@@ -1270,12 +1270,45 @@ test('restoreMapBundle retries an infrastructure fault and fails as a plain MapS
   }
 });
 
-// A relative cwd made createRequire throw inside playwrightVersion, silently
-// dropping the field from the compatibility key — publish (hook, relative cwd)
-// and restore (CLI, absolute cwd) then stamped DIFFERENT keys for the same
-// environment, so every cache lookup missed and CI paid a full recapture.
+// A relative cwd changes the resolved spec and lockfile paths unless it is
+// normalized first, which would stamp different keys for the same checkout.
 test('expectedCompatibilityKey is identical for relative and absolute cwd', () => {
   const relative = expectedCompatibilityKey({ cwd: '.', spec: 'e2e/styleproof.spec.ts' });
   const absolute = expectedCompatibilityKey({ cwd: process.cwd(), spec: 'e2e/styleproof.spec.ts' });
   assert.equal(relative, absolute);
+});
+
+test('expectedCompatibilityKey is stable when a detached restore probe has no node_modules', () => {
+  const consumer = mkTmp('styleproof-detached-probe-');
+  const capture = path.join(consumer, 'maps');
+  const spec = path.join(consumer, 'e2e/styleproof.spec.ts');
+  try {
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(consumer, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(consumer, 'package-lock.json'), '{"lockfileVersion":3}\n');
+    fs.writeFileSync(spec, 'export default {};\n');
+
+    const detachedProbeKey = expectedCompatibilityKey({ cwd: consumer, spec: 'e2e/styleproof.spec.ts' });
+
+    const installedPlaywrightPackage = path.join(consumer, 'node_modules/@playwright/test/package.json');
+    fs.mkdirSync(path.dirname(installedPlaywrightPackage), { recursive: true });
+    fs.writeFileSync(installedPlaywrightPackage, '{"name":"@playwright/test","version":"1.52.0"}\n');
+
+    const captureKey = expectedCompatibilityKey({ cwd: consumer, spec: 'e2e/styleproof.spec.ts' });
+    const manifest = writeMapManifest({
+      dir: capture,
+      spec: 'e2e/styleproof.spec.ts',
+      sha: 'a'.repeat(40),
+      screenshots: false,
+      dirty: false,
+      cwd: consumer,
+    });
+
+    assert.equal(captureKey, detachedProbeKey, 'an install must not change the cache lookup key');
+    assert.equal(manifest.compatibilityKey, detachedProbeKey, 'capture and detached restore use the same key');
+    assert.equal(manifest.playwrightVersion, '1.52.0', 'runtime evidence still records the installed version');
+  } finally {
+    rmTmp(consumer);
+  }
 });

@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.0.1] - 2026-08-09
+
+### Fixed
+
+- **Exact-SHA map restores no longer miss solely because detached probe
+  worktrees omit `node_modules`.** Cache keys now use the lockfile hash as the
+  stable dependency-graph fingerprint while manifests continue to record the
+  installed Playwright version as runtime evidence. A successful cold capture
+  is therefore reusable on the next CI run instead of silently paying another
+  full base-and-head browser capture.
+
 ## [6.0.0] - 2026-08-09
 
 ### Changed
@@ -2924,7 +2935,9 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.2.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.1...HEAD
+[6.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.0...v6.0.1
+[6.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v5.0.2...v6.0.0
 [3.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.5...v3.2.0
 [3.1.5]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.4...v3.1.5
 [3.1.4]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.3...v3.1.4
