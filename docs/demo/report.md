@@ -2,7 +2,7 @@
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.
 
-**2 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+**3 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
 ## 🆕 New pages, states, or surfaces — review first
@@ -74,5 +74,26 @@ Style:
 | Property | Before | After |
 | --- | --- | --- |
 | `background-color` | `#2563eb` | `#dc2626` |
+
+</details>
+
+### `aside.off-canvas-status` · 1 element restyled
+
+_home @ 900_
+
+_The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading._
+
+- **`aside.off-canvas-status`** — opacity 0.85 → 1
+
+<details>
+<summary>Show the property change</summary>
+
+**`aside.off-canvas-status`**
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `opacity` | `0.85` | `1` |
 
 </details>

@@ -1209,11 +1209,14 @@ type RenderCtx = {
   foldDetailsAt: number;
 };
 
-/** A changed element can anchor useful visual proof only when the browser paints it. */
-function isPaintedEntry(entry: ElementEntry | undefined): boolean {
+/** A changed element can anchor useful visual proof only when the captured page can show it. */
+function isPaintedEntry(map: StyleMap, entry: ElementEntry | undefined): boolean {
   if (!entry?.rect || !visible(rectToBox(entry.rect))) return false;
   if (entry.style.display === 'none' || entry.style.visibility === 'hidden') return false;
-  return Number(entry.style.opacity ?? '1') > 0;
+  if (Number(entry.style.opacity ?? '1') <= 0) return false;
+  const [x, y, width, height] = entry.rect;
+  if (x + width <= 0 || y + height <= 0) return false;
+  return map.viewport?.width === undefined || x < map.viewport.width;
 }
 
 function isSameOrDescendantPath(candidatePath: string, ancestorPath: string): boolean {
@@ -1229,7 +1232,7 @@ function isBackgroundBehindActiveModal(map: StyleMap, changedPath: string): bool
 }
 
 function isExposedChangedEntry(map: StyleMap, changedPath: string): boolean {
-  return isPaintedEntry(map.elements[changedPath]) && !isBackgroundBehindActiveModal(map, changedPath);
+  return isPaintedEntry(map, map.elements[changedPath]) && !isBackgroundBehindActiveModal(map, changedPath);
 }
 
 function hasExposedChangedEntry(mapA: StyleMap, mapB: StyleMap, changedPaths: string[]): boolean {
@@ -1239,6 +1242,9 @@ function hasExposedChangedEntry(mapA: StyleMap, mapB: StyleMap, changedPaths: st
 }
 
 type RepresentativeScore = { hasExposedChange: boolean; hasActiveModal: boolean; isPopup: boolean; width: number };
+
+const MISLEADING_CROP_REASON =
+  'The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading.';
 
 /** Prefer proof a reviewer can see: an exposed changed element, then a non-modal
  * ordinary page over a popup state that can leave shared chrome in the background,
@@ -1666,10 +1672,16 @@ function renderRegion(args: {
 
   const region = visible(g.after) ? g.after : g.before;
   let images: { composite?: string; annotated?: string; zoom?: string } = {};
-  if (region && pngA && pngB) {
+  let visualEvidence: 'not-rendered' | undefined;
+  let reason: string | undefined;
+  if (region && pngA && pngB && hasExposedChangedEntry(mapA, mapB, g.paths)) {
     const built = buildRegionImages({ g, region, regionFindings, sd, mapA, mapB, pngA, pngB, ctx, cropSeq });
     md.push(...built.md);
     images = built.images;
+  } else if (region && pngA && pngB) {
+    visualEvidence = 'not-rendered';
+    reason = MISLEADING_CROP_REASON;
+    md.push('', `_${reason}_`);
   } else if (!region) {
     md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
   } else {
@@ -1682,7 +1694,16 @@ function renderRegion(args: {
   // What this crop changed: plain-English bullets, then the property tables — folded
   // under a toggle once they'd be a wall (foldDetailsAt).
   md.push(...renderCropChanges(regionFindings, ctx.foldDetailsAt, describeCtx));
-  return { md, regionJson: { paths: g.paths, before: g.before, after: g.after, images } };
+  return {
+    md,
+    regionJson: {
+      paths: g.paths,
+      before: g.before,
+      after: g.after,
+      images,
+      ...(visualEvidence ? { visualEvidence, reason } : {}),
+    },
+  };
 }
 
 // Render one change group: load its representative maps/screenshots, split it into
@@ -1703,8 +1724,7 @@ function renderChangeGroup(
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
   const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
   if (!hasExposedChangedEntry(mapA, mapB, changedPaths)) {
-    const reason =
-      'The changed element is not visibly painted in this representative state (it is hidden at this breakpoint or is background content behind an active modal), so a before/after crop would be misleading.';
+    const reason = MISLEADING_CROP_REASON;
     return {
       md: ['', `_${reason}_`, '', ...renderCropChanges(surfaceFindings, ctx.foldDetailsAt, describeCtx)],
       json: {

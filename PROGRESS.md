@@ -51,3 +51,31 @@
 - `npm audit --audit-level=high` — 0 vulnerabilities.
 - `npm pack --dry-run --json` — package `styleproof@6.0.0`, 93 entries, expected runtime and demo artifacts present.
 - GitNexus final change detection — high fan-out because `generateStyleMapReport` is the entry point for ten report-generation flows; no capture/storage/matching flows are affected. Full unit and browser coverage above is green.
+
+---
+
+# Off-canvas report proof
+
+## Completed
+
+- Audited recent adopter dogfood runs, bot comments, report Markdown/JSON, maps, action logs, and rendered crops.
+- Reproduced a report that embedded unrelated visible pixels for a fully off-canvas changed element.
+- Added regression coverage for representative selection and mixed visible/off-canvas regions.
+- Fixed report rendering so off-canvas findings retain property audits but emit no misleading crop.
+- Regenerated the privacy-clean demo report with the corrected limitation notice.
+
+## Next
+
+- Capture the rendered report and open the merge-ready pull request.
+
+## Blockers
+
+- None.
+
+## Verification
+
+- `npm run build && node --test test/report.test.mjs` — 95 passed, 0 failed.
+- `npm run build`, `npm run typecheck`, `npm run lint`, `npm run format:check` — passed.
+- `npm run privacy:check`, `npm run demo:check`, `npm audit --audit-level=high`, and `npm pack --dry-run --json` — passed.
+- `npm test` — 670 passed, 0 failed.
+- `npm run test:e2e` — 121 passed, 0 failed.

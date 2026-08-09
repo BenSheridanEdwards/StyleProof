@@ -421,6 +421,45 @@ test('an added shared element prefers a visible page over a wider popup represen
   rmTmp(root);
 });
 
+test('an added shared element prefers an on-canvas page over a wider off-canvas representative', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const itemPath = 'body > nav:nth-child(1) > a:nth-child(2)';
+  const before = (width) =>
+    makeMap({
+      viewport: { width, height: 800 },
+      elements: {
+        body: { tag: 'body', rect: [0, 0, width, 800], style: {} },
+      },
+    });
+  const after = (width, x) =>
+    makeMap({
+      viewport: { width, height: 800 },
+      elements: {
+        body: { tag: 'body', rect: [0, 0, width, 800], style: {} },
+        [itemPath]: {
+          tag: 'a',
+          cls: 'nav-item',
+          rect: [x, 180, 120, 32],
+          style: { display: 'flex', visibility: 'visible' },
+        },
+      },
+    });
+
+  writeCapture(beforeDir, 'page@1024', before(1024), solidPng(1024, 800));
+  writeCapture(afterDir, 'page@1024', after(1024, 24), solidPng(1024, 800));
+  writeCapture(beforeDir, 'drawer@1440', before(1440), solidPng(1440, 800));
+  writeCapture(afterDir, 'drawer@1440', after(1440, -241), solidPng(1440, 800));
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.equal(
+    report.surfaces[0].representative,
+    'page@1024',
+    'the report should show the narrower on-canvas element, not unrelated pixels from the wider surface',
+  );
+  rmTmp(root);
+});
+
 test('an added shared element avoids a wider active-modal background representative', () => {
   const { beforeDir, afterDir, outDir, root } = tmpDirs();
   const navItemPath = 'body > nav:nth-child(1) > a:nth-child(2)';
@@ -503,6 +542,44 @@ test('a group without an exposed changed element keeps audit details but omits m
     fs.readdirSync(path.join(outDir, 'crops')).filter((fileName) => fileName.endsWith('.png')).length,
     0,
     'no duplicate crop files are emitted',
+  );
+  rmTmp(root);
+});
+
+test('a mixed group omits only the off-canvas region crop and keeps its audit details', () => {
+  const visiblePath = 'body > div:nth-child(1)';
+  const offCanvasPath = 'body > div:nth-child(2)';
+  const map = (color) =>
+    makeMap({
+      viewport: { width: 1024, height: 800 },
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1024, 900], style: {} },
+        [visiblePath]: { tag: 'div', cls: 'visible-card', rect: [100, 100, 200, 80], style: { color } },
+        [offCanvasPath]: { tag: 'div', cls: 'off-canvas-card', rect: [-241, 600, 76, 37], style: { color } },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'page@1024',
+    before: map('rgb(0, 0, 0)'),
+    after: map('rgb(255, 0, 0)'),
+    beforePng: solidPng(1024, 900),
+    afterPng: solidPng(1024, 900),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const [visibleRegion, offCanvasRegion] = report.surfaces[0].regions;
+  assert.ok(visibleRegion.images.composite, 'the visible finding keeps its screenshot proof');
+  assert.deepEqual(offCanvasRegion.images, {});
+  assert.equal(offCanvasRegion.visualEvidence, 'not-rendered');
+  assert.match(offCanvasRegion.reason, /outside the screenshot canvas/);
+  assert.match(markdown, /outside the screenshot canvas/);
+  assert.match(markdown, /div\.off-canvas-card/);
+  assert.equal(
+    fs.readdirSync(path.join(outDir, 'crops')).filter((fileName) => fileName.endsWith('-composite.png')).length,
+    1,
+    'the off-canvas finding must not produce a crop of unrelated on-screen pixels',
   );
   rmTmp(root);
 });
