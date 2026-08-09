@@ -375,16 +375,25 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
   };
 }
 
+/** Hash only inputs available both during capture and in a detached restore probe.
+ *  The installed Playwright package remains manifest evidence, but detached probe
+ *  worktrees intentionally have no node_modules. The lockfile hash already binds
+ *  the resolved dependency graph, so hashing the installed lookup made every
+ *  capture key differ from its later restore key. */
+function compatibilityKeyForInput(input: ReturnType<typeof compatibilityInput>): string {
+  const { playwrightVersion: recordedPlaywrightVersion, ...stableCompatibilityInput } = input;
+  void recordedPlaywrightVersion;
+  return hash(JSON.stringify(stableCompatibilityInput)).slice(0, 16);
+}
+
 export function expectedCompatibilityKey(options: { cwd?: string; spec?: string; baseUrl?: string } = {}): string {
-  return hash(
-    JSON.stringify(
-      compatibilityInput({
-        cwd: options.cwd ?? process.cwd(),
-        spec: options.spec ?? 'e2e/styleproof.spec.ts',
-        baseUrl: options.baseUrl,
-      }),
-    ),
-  ).slice(0, 16);
+  return compatibilityKeyForInput(
+    compatibilityInput({
+      cwd: options.cwd ?? process.cwd(),
+      spec: options.spec ?? 'e2e/styleproof.spec.ts',
+      baseUrl: options.baseUrl,
+    }),
+  );
 }
 
 export function currentGitSha(cwd = process.cwd(), env: NodeJS.ProcessEnv = process.env): string {
@@ -576,7 +585,7 @@ function buildManifest(options: {
     ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
     screenshots: options.screenshots,
     har: hasHar(dir),
-    compatibilityKey: hash(JSON.stringify(input)).slice(0, 16),
+    compatibilityKey: compatibilityKeyForInput(input),
     // Real wall clock even when the spec-process clock is frozen — a manifest
     // stamped with the frozen instant would misreport when the capture ran.
     createdAt: new Date(realNow()).toISOString(),

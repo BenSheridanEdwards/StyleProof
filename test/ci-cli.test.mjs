@@ -466,6 +466,9 @@ if [ -f app.txt ]; then cp app.txt "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-a
 git status --porcelain > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || true
 `,
       );
+      const installedPlaywrightPackage = path.join(repo, 'node_modules', '@playwright', 'test', 'package.json');
+      fs.mkdirSync(path.dirname(installedPlaywrightPackage), { recursive: true });
+      fs.writeFileSync(installedPlaywrightPackage, '{"name":"@playwright/test","version":"1.52.0"}\n');
       fs.chmodSync(path.join(bin, 'npm'), 0o755);
       fs.chmodSync(path.join(bin, 'playwright'), 0o755);
 
