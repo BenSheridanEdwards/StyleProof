@@ -63,6 +63,8 @@
 - Added regression coverage for representative selection and mixed visible/off-canvas regions.
 - Fixed report rendering so off-canvas findings retain property audits but emit no misleading crop.
 - Regenerated the privacy-clean demo report with the corrected limitation notice.
+- Fixed the action dogfood comment so its final synthetic failure fixture cannot
+  be mistaken for a certification result about the triggering pull request.
 
 ## Next
 

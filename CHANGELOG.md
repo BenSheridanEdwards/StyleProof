@@ -12,6 +12,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Reports no longer present unrelated on-screen pixels as proof for a changed
   element that sits fully outside the captured page. Off-canvas findings keep
   their property audit and are explicitly marked as having no visual evidence.
+- The action dogfood workflow now labels its deliberately failing fixture as
+  synthetic evidence, so a green contract test cannot look like a certification
+  failure for the pull request that triggered it.
 
 ## [6.0.2] - 2026-08-09
 
