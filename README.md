@@ -30,12 +30,13 @@ design mockups.
 
 ### Certified clean
 
-[![A GitHub-rendered StyleProof report with complete coverage, proven determinism, unchanged inventory, no data residue, and identical computed styles](docs/readme/check-clean.png)](docs/readme/certified-clean-report.md)
+[![A GitHub-rendered StyleProof report with complete coverage, proven determinism, unchanged inventory, no data residue, and no reviewable computed-style changes](docs/readme/check-clean.png)](docs/readme/certified-clean-report.md)
 
 This report earns every green claim: the registered surface was captured, both
 base and head passed the self-check, the navigable set stayed intact, no failing
-data boundary was captured, and every computed style and forced interaction
-state matched.
+data boundary was captured, and no reviewable computed-style or forced-state
+change was detected among semantically matched elements. Content and structure
+were not evaluated in this style-only receipt.
 
 ### A safety policy blocks
 
@@ -227,7 +228,7 @@ then use the Action on those dirs:
 # (cold base rebuild under the head's exact release, HAR replay for the head).
 - id: maps
   run: npx styleproof-ci --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --base-dir __stylemaps__
-- uses: BenSheridanEdwards/StyleProof@v4
+- uses: BenSheridanEdwards/StyleProof@v6
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
@@ -902,7 +903,9 @@ or removed elements can reflow the page. The content layer is therefore an
 explicit **opt-in**, off by default, and **advisory** — it never feeds style
 certification or the gate.
 
-Turn it on in two places:
+Turn it on in the report renderer. Enable text capture as well when copy changes
+belong in the evidence; structural additions, removals, and retags are available
+without storing text:
 
 ```ts
 // styleproof.spec.ts — record each element's own text alongside its computed style
@@ -912,6 +915,16 @@ defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captu
 ```bash
 # render the advisory content section (each change with a before/after crop)
 styleproof-report before after --out report --include-content
+```
+
+For the GitHub Action, set the equivalent explicit input:
+
+```yaml
+- uses: BenSheridanEdwards/StyleProof@v6
+  with:
+    baseline-dir: __stylemaps__/base
+    fresh-dir: __stylemaps__/head
+    include-content: true
 ```
 
 The report then carries a separate **📝 Content and structure changes
@@ -1025,18 +1038,19 @@ The capture-the-subset step stays yours (it depends on your map layout), but the
 
 ## Reference
 
-**Action `BenSheridanEdwards/StyleProof@v4`** — key inputs:
+**Action `BenSheridanEdwards/StyleProof@v6`** — key inputs:
 
 | Input                 | Default      | Purpose                                                                                                    |
 | --------------------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
 | `fresh-dir`           | _required_   | PR-head captures restored from `styleproof-maps` or freshly captured in CI.                                |
 | `baseline-dir`        | _required_   | Base-branch captures dir restored from `styleproof-maps` or freshly captured in CI.                        |
 | `base-capture-failed` | `false`      | Mark a bare baseline caused by a capture failure; publishes head-only evidence but hard-fails as degraded. |
+| `include-content`     | `false`      | Render advisory content and DOM-structure evidence in the durable report; never changes the style verdict. |
 | `require-approval`    | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.                                          |
 | `fail-on-diff`        | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                                   |
 | `status-context`      | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.                                 |
 
-Outputs include `changed`, `report-url`, `trust-state`, and `data-residue-keys`. `trust-state` distinguishes a clean comparison (`NO_VISUAL_CHANGES`), visual review (`VISUAL_APPROVAL_REQUIRED`), unapprovable evidence failures, `PARTIAL_BASELINE` (ledger-explained missing baseline surfaces — repair base capture; approval cannot clear), `DEGRADED_BASELINE` (the base capture failed with zero maps, so the receipt is head-only evidence rather than a comparison), and publication failure. `styleproof-diff --json` carries `explainedMissingBaselineSurfaces` and `partialBaseline` so consumers need not reimplement `@auto` width matching. The action **self-verifies** the publish before exposing `report-url`: it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
+Outputs include `changed`, `content-changes`, `report-url`, `trust-state`, and `data-residue-keys`. `trust-state` distinguishes a clean style comparison (`NO_REVIEWABLE_STYLE_CHANGES`), style review (`STYLE_REVIEW_REQUIRED`), unapprovable evidence failures, `PARTIAL_BASELINE` (ledger-explained missing baseline surfaces — repair base capture; approval cannot clear), `DEGRADED_BASELINE` (the base capture failed with zero maps, so the receipt is head-only evidence rather than a comparison), and publication failure. `content-changes` is the advisory count rendered when `include-content` is enabled; it never changes `changed` or the gate status. `styleproof-diff --json` carries `explainedMissingBaselineSurfaces` and `partialBaseline` so consumers need not reimplement `@auto` width matching. The action **self-verifies** the publish before exposing `report-url`: it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
 **Config file `styleproof.config.json`** (optional, at the repo root) — the one place a project declares its facts. The Action reads the gate-policy keys; every CLI reads the project-default keys as its lowest-precedence layer (explicit flag > environment variable > this file > built-in default). A malformed file or wrongly-typed key fails loudly — config you wrote is never silently dropped:
 

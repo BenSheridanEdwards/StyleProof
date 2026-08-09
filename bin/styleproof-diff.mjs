@@ -406,7 +406,7 @@ try {
 }
 const { surfaces, counts, compared, volatile, statesUncertified } = result;
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned)
-// findings the report/crops can show. Prevents VISUAL_APPROVAL_REQUIRED without
+// findings the report/crops can show. Prevents STYLE_REVIEW_REQUIRED without
 // evidence when only derived/reflow longhands differ.
 const truth = assessComparisonTruth(surfaces, counts);
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
@@ -544,7 +544,7 @@ if (jsonOut) {
                 ok: false,
                 reason: 'raw_only_no_reviewable',
                 detail:
-                  'certification differ found computed-style deltas that the visual report strips as derived/reflow longhands — no reviewable crops; fail closed as CERTIFICATION_FAILED, never VISUAL_APPROVAL_REQUIRED',
+                  'certification differ found computed-style deltas that the visual report strips as derived/reflow longhands — no reviewable crops; fail closed as CERTIFICATION_FAILED, never STYLE_REVIEW_REQUIRED',
               }
             : { ok: true, reason: 'aligned' },
           surfaces,
@@ -639,13 +639,13 @@ if (truth.rawOnlyNoReviewable) {
   console.log(
     '\n⚠ report consistency: raw certification delta(s) have no reviewable rendering — the visual ' +
       'report would show nothing for a gating change. Failing closed as a certification inconsistency ' +
-      '(not VISUAL_APPROVAL_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect.',
+      '(not STYLE_REVIEW_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect.',
   );
 }
 console.log(
   clean
     ? newSurfaces === 0
-      ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
+      ? `\n✓ 0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
       : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
         ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
         : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`

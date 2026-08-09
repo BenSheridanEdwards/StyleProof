@@ -249,7 +249,7 @@ const ZERO_COUNTS: DiffCounts = { dom: 0, style: 0, state: 0 };
  * The certification differ records every computed longhand (including reflow
  * casualties). The visual report strips derived size/position longhands so crops
  * stay on styling intent. Those two views must never independently invent a
- * trust state: VISUAL_APPROVAL_REQUIRED requires reviewable evidence (cleaned
+ * trust state: STYLE_REVIEW_REQUIRED requires reviewable evidence (cleaned
  * findings, crops, or one-sided surfaces); raw-only derived noise fails closed
  * as a certification/consistency failure rather than a blind approval gate.
  */
@@ -264,7 +264,7 @@ export type ComparisonTruth = {
   hasReviewableEvidence: boolean;
   /**
    * Raw certification deltas that cleanFindings strips entirely — the report
-   * would show no change sections/crops. Never map this to VISUAL_APPROVAL_REQUIRED.
+   * would show no change sections/crops. Never map this to STYLE_REVIEW_REQUIRED.
    */
   rawOnlyNoReviewable: boolean;
   /** Geometry drift paired with a changed own-text length existed somewhere —

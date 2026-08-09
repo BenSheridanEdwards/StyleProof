@@ -358,7 +358,8 @@ test('diff CLI exits 0 when captures are identical', () => {
   const { root, A, B } = identicalPair();
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
+  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
+  assert.match(r.stdout, /content\/structure not evaluated/);
   rmTmp(root);
 });
 
@@ -726,7 +727,7 @@ test('diff defaults to cached maps against the inferred main branch', () => {
   const { repo } = setupCachedComparison();
   const r = runIn(repo, DIFF, []);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
+  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
   rmTmp(repo);
 });
 
@@ -741,7 +742,7 @@ test('diff defaults to the GitHub PR base for stacked local branches when gh is 
     env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}`, GITHUB_BASE_REF: '' },
   });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
+  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
   rmTmp(repo);
 });
 
@@ -867,7 +868,8 @@ test('report CLI exits 0 and writes an empty report when nothing changed', () =>
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /no changes/);
+  assert.match(r.stdout, /no reviewable computed-style changes/);
+  assert.match(r.stdout, /content\/structure not evaluated/);
   assert.ok(fs.existsSync(path.join(out, 'report.md')));
   rmTmp(root);
 });
@@ -887,7 +889,8 @@ test('report CLI exits 0 for structural-only path churn when content comparison 
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /✓ no changes/);
+  assert.match(r.stdout, /✓ no reviewable computed-style changes/);
+  assert.match(r.stdout, /content\/structure not evaluated/);
   const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
   assert.deepEqual(json.rawCounts, { dom: 0, style: 0, state: 0 });
   assert.deepEqual(json.reportConsistency, { ok: true, reason: 'aligned' });
@@ -1072,7 +1075,7 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
       /"styleproof@\$STYLEPROOF_VERSION"/,
       'the exact-release pin lives inside styleproof-ci now',
     );
-    assert.match(ci, /BenSheridanEdwards\/StyleProof@v4/, 'workflow uses the current report action');
+    assert.match(ci, /BenSheridanEdwards\/StyleProof@v6/, 'workflow uses the current report action');
     assert.match(ci, /require-approval: true/, 'workflow enables the approval report gate');
     assert.doesNotMatch(ci, /git add stylemaps/);
     assert.doesNotMatch(ci, /core\.hooksPath/);

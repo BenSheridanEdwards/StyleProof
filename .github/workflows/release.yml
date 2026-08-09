@@ -171,8 +171,8 @@ jobs:
           tag_name: v${{ steps.check.outputs.version }}
           generate_release_notes: true
 
-      # Move the major alias (e.g. v3) to this release, so consumers pinning
-      # `uses: BenSheridanEdwards/StyleProof@v3` always get the latest 3.x. A
+      # Move the major alias (e.g. v6) to this release, so consumers pinning
+      # `uses: BenSheridanEdwards/StyleProof@v6` always get the latest 6.x. A
       # GITHUB_TOKEN push does not retrigger workflows, so this never loops.
       - name: Move the major tag
         if: steps.check.outputs.released == 'true'
