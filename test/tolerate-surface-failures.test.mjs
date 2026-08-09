@@ -179,6 +179,46 @@ exit 1
   }
 });
 
+test('styleproof-map: fatal self-check failure cannot be laundered by a tolerated failure', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    spawnSync('git', ['config', 'user.email', 't@test'], { cwd: root });
+    spawnSync('git', ['config', 'user.name', 't'], { cwd: root });
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      `#!/bin/sh
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures"
+printf '%s\\n' '{"key":"about@900","reason":"boom","kind":"capture"}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures/about@900.json"
+printf '%s\\n' 'styleproof self-check failed: home is non-deterministic' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-fatal-capture.flag"
+exit 1
+`,
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const maps = path.join(root, 'maps');
+    const targetDir = path.join(maps, 'base');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', 'base', '--base-dir', maps, '--tolerate-surface-failures', '--no-upload'],
+      { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+      root,
+    );
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.match(r.stderr, /fatal self-check failure/i);
+    assert.equal(fs.existsSync(targetDir), false, 'fatal capture output must be discarded');
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-map: tolerate off keeps non-zero exit when Playwright fails', () => {
   const root = mkTmp();
   try {

@@ -20,7 +20,12 @@ import {
   type CoverageLedger,
   type DeterminismBasis,
 } from './coverage.js';
-import { writeBrowserBuildSidecar, writeCaptureManifest, recordSurfaceCaptureFailure } from './map-store.js';
+import {
+  markFatalCaptureFailure,
+  writeBrowserBuildSidecar,
+  writeCaptureManifest,
+  recordSurfaceCaptureFailure,
+} from './map-store.js';
 import { DEFAULT_CLOCK_TIME, frozenSpecClockInstant, realNow, restoreRealSpecClock } from './spec-clock.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
@@ -264,8 +269,12 @@ async function withSurfaceFailureTolerance(
     await run();
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
-    if (!settings.tolerateSurfaceFailures || isSelfCheckCaptureFailure(reason)) throw e;
     const outDir = resolveOutputDir(settings.baseDir, settings.dir);
+    if (isSelfCheckCaptureFailure(reason)) {
+      markFatalCaptureFailure(outDir, reason);
+      throw e;
+    }
+    if (!settings.tolerateSurfaceFailures) throw e;
     recordSurfaceCaptureFailure(outDir, { key: captureKey, reason, kind: 'capture' });
     // eslint-disable-next-line no-console
     console.warn(`styleproof: tolerated capture failure for ${captureKey} — ${reason}`);
@@ -1370,7 +1379,12 @@ function handleCrawlCaptureFailure(
   failureLabel: string,
   failures: string[],
 ): void {
-  if (settings.tolerateSurfaceFailures && !isSelfCheckCaptureFailure(reason)) {
+  if (isSelfCheckCaptureFailure(reason)) {
+    markFatalCaptureFailure(resolveOutputDir(settings.baseDir, settings.dir), reason);
+    failures.push(`${failureLabel}: ${reason}`);
+    return;
+  }
+  if (settings.tolerateSurfaceFailures) {
     recordSurfaceCaptureFailure(resolveOutputDir(settings.baseDir, settings.dir), {
       key,
       reason,
