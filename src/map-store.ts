@@ -15,6 +15,8 @@ export const DEFAULT_REMOTE = 'origin';
 export const MAP_MANIFEST = 'styleproof-manifest.json';
 /** Per-surface capture failures recorded when baseline-only tolerate mode is on. */
 export const SURFACE_CAPTURE_FAILURES_DIR = 'styleproof-surface-capture-failures';
+/** Run-level marker proving that capture hit a fatal determinism/self-check failure. */
+export const FATAL_CAPTURE_MARKER = 'styleproof-fatal-capture.flag';
 
 export type SurfaceCaptureFailure = {
   /** Capture key (`<surface>@<width>` or crawl label). */
@@ -515,6 +517,21 @@ export function readSurfaceCaptureFailures(dir: string): SurfaceCaptureFailure[]
     .filter((name) => name.endsWith('.json'))
     .map((name) => JSON.parse(fs.readFileSync(path.join(sub, name), 'utf8')) as SurfaceCaptureFailure)
     .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** Record a run-level capture failure that must never be tolerated or published. */
+export function markFatalCaptureFailure(dir: string, reason: string): void {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, FATAL_CAPTURE_MARKER), reason);
+}
+
+/** Read the fatal marker written by a capture worker, if one exists. */
+export function readFatalCaptureFailure(dir: string): string | undefined {
+  try {
+    return fs.readFileSync(path.join(dir, FATAL_CAPTURE_MARKER), 'utf8').trim() || 'unknown fatal capture failure';
+  } catch {
+    return undefined;
+  }
 }
 
 /** Split a capture key at the last `@` (`home@1280` → `home` + `1280`). */

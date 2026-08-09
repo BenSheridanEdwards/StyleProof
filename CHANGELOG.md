@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.0.2] - 2026-08-09
+
+### Fixed
+
+- **A nondeterministic baseline can no longer be published as a tolerated partial
+  capture.** Self-check failures now leave a separate fatal run marker, so an
+  unrelated per-surface failure cannot launder the failed determinism check.
+  StyleProof discards every map from that run and refuses cache publication.
+
 ## [6.0.1] - 2026-08-09
 
 ### Fixed
