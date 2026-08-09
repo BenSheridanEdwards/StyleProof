@@ -66,7 +66,7 @@
 
 ## Next
 
-- Capture the rendered report and open the merge-ready pull request.
+- Open the pull request and verify its hosted checks and merge state.
 
 ## Blockers
 
@@ -79,3 +79,4 @@
 - `npm run privacy:check`, `npm run demo:check`, `npm audit --audit-level=high`, and `npm pack --dry-run --json` — passed.
 - `npm test` — 670 passed, 0 failed.
 - `npm run test:e2e` — 121 passed, 0 failed.
+- GitHub-rendered demo report inspected at the exact branch; committed proof shows the off-canvas audit without an unrelated crop.
