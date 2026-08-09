@@ -15,6 +15,9 @@ inputs:
   fresh-dir:
     description: 'Directory with restored or freshly captured PR-head maps to compare (.json.gz + .png).'
     required: true
+  include-content:
+    description: 'Render advisory content and DOM-structure evidence in the durable report. This evidence never changes the style gate verdict.'
+    default: 'false'
   base-capture-failed:
     description: 'Set true when the baseline capture failed with zero maps and baseline-dir is intentionally bare. Partial baselines with tolerated per-surface failures keep this false. Produces DEGRADED_BASELINE when true.'
     default: 'false'
@@ -31,7 +34,7 @@ inputs:
     description: >-
       Review-gate mode. Instead of failing the job, set a `StyleProof` commit
       status (red until a write-access reviewer ticks the approval box in the
-      report comment, green when there are no visual changes). Pair with the
+      report comment, green when there are no reviewable style changes). Pair with the
       styleproof-approve workflow (see README) and a branch-protection rule that
       requires the `StyleProof` status.
     default: 'false'
@@ -42,20 +45,23 @@ inputs:
 outputs:
   changed:
     description: >-
-      "true" when review is required: an existing surface changed (computed style,
-      pseudo-element, DOM, or state), or a brand-new surface was captured with no
-      baseline and must be approved before becoming part of the baseline.
+      "true" when style review is required: a semantically matched element changed
+      computed style, pseudo-element, or forced state; or a surface was added or
+      removed and must be reviewed before changing the baseline.
     value: ${{ steps.diff.outputs.changed }}
   report-url:
     description: 'Blob URL of the durable report receipt for this run.'
     value: ${{ steps.publish.outputs.url }}
   trust-state:
     description: >-
-      Machine-readable terminal classification: NO_VISUAL_CHANGES,
-      VISUAL_APPROVAL_REQUIRED, DATA_RESIDUE_UNACKNOWLEDGED,
+      Machine-readable terminal classification: NO_REVIEWABLE_STYLE_CHANGES,
+      STYLE_REVIEW_REQUIRED, DATA_RESIDUE_UNACKNOWLEDGED,
       INVENTORY_REMOVAL_UNACKNOWLEDGED, CERTIFICATION_FAILED,
       PARTIAL_BASELINE, DEGRADED_BASELINE, or REPORT_PUBLICATION_FAILED.
     value: ${{ steps.trust.outputs.state }}
+  content-changes:
+    description: 'Number of advisory content/structure changes rendered; 0 when none were found or content evaluation was disabled.'
+    value: ${{ steps.report.outputs.content-changes }}
   data-residue-keys:
     description: 'JSON array of unacknowledged <surface>·<endpoint> residue keys.'
     value: ${{ steps.verdict.outputs.data-residue-keys }}
@@ -65,8 +71,8 @@ runs:
   steps:
     # Composite actions run from a checked-out action ref, but bare `npx
     # styleproof-*` resolves from the consumer workspace or npm latest. Install and
-    # build this action checkout, then run the checked-out bins so `uses: ...@v3`
-    # truly executes v3 code even though `dist/` is not committed to git.
+    # build this action checkout, then run the checked-out bins so `uses: ...@v6`
+    # truly executes v6 code even though `dist/` is not committed to git.
     - name: Install StyleProof action runtime
       shell: bash
       run: |
@@ -136,7 +142,7 @@ runs:
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
         # Fail CLOSED on anything the contract doesn't define (a node crash, OOM kill,
         # SIGTERM, missing dist → 127/137/143/…): an undefined exit must never read as
-        # "no visual changes" and set a green status.
+        # "no reviewable style changes" and set a green status.
         if [ "$code" -ne 0 ] && [ "$code" -ne 1 ] && [ "$code" -ne 3 ]; then
           echo "styleproof-diff exited with unexpected code $code — failing closed (this is a crash, not a verdict)" >&2
           exit "$code"
@@ -151,11 +157,19 @@ runs:
     # machine payload so approval can never clear hidden raw review evidence.
     - id: report
       shell: bash
+      env:
+        STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
       run: |
         set -euo pipefail
         rm -rf styleproof-report
+        report_content_arguments=()
+        case "$STYLEPROOF_INCLUDE_CONTENT" in
+          true) report_content_arguments+=(--include-content) ;;
+          false) ;;
+          *) echo "include-content must be true or false" >&2; exit 2 ;;
+        esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report "${report_content_arguments[@]}"
         report_exit_code=$?
         set -e
         if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
@@ -169,8 +183,14 @@ runs:
         if (!generated.reportConsistency || typeof generated.reportConsistency.ok !== 'boolean') {
           throw new Error('styleproof-report/report.json has no valid reportConsistency verdict');
         }
+        const contentEvaluationExpected = process.env.STYLEPROOF_INCLUDE_CONTENT === 'true';
+        if (!generated.content || generated.content.evaluated !== contentEvaluationExpected ||
+            !Number.isInteger(generated.content.changes) || generated.content.changes < 0) {
+          throw new Error('styleproof-report/report.json has no valid content-evaluation receipt');
+        }
         diff.reportConsistency = generated.reportConsistency;
         fs.writeFileSync('styleproof-diff.json', `${JSON.stringify(diff, null, 2)}\n`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `content-changes=${generated.content.changes}\n`);
         NODE
 
     # One machine-readable verdict for every defined diff. Consumers should not
@@ -198,14 +218,14 @@ runs:
             diff.coverage?.basis === 'incomplete' ||
             diff.determinism?.status === 'unproven';
           // Raw certification deltas that cleanFindings strips entirely: the durable
-          // report has no crops/sections. Never map this to visual approval.
+          // report has no crops/sections. Never map this to style review.
           const rawOnlyNoReviewable =
             diff.reportConsistency?.ok === false ||
             diff.reportConsistency?.reason === 'raw_only_no_reviewable';
           const partialBaseline = (diff.partialBaseline === true) ||
             (Array.isArray(diff.explainedMissingBaselineSurfaces) &&
               diff.explainedMissingBaselineSurfaces.length > 0);
-          let state = 'NO_VISUAL_CHANGES';
+          let state = 'NO_REVIEWABLE_STYLE_CHANGES';
           if ((diff.dataResidue?.blocking ?? 0) > 0) state = 'DATA_RESIDUE_UNACKNOWLEDGED';
           else if (inventoryFailures > 0) state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED';
           else if (certificationFailed || rawOnlyNoReviewable) state = 'CERTIFICATION_FAILED';
@@ -214,7 +234,7 @@ runs:
           // consumer passing 'True' can't get DEGRADED skipped here (a green status)
           // while the block step still fails the job.
           else if ('${{ inputs.base-capture-failed }}'.toLowerCase() === 'true') state = 'DEGRADED_BASELINE';
-          else if ('${{ steps.diff.outputs.changed }}' === 'true') state = 'VISUAL_APPROVAL_REQUIRED';
+          else if ('${{ steps.diff.outputs.changed }}' === 'true') state = 'STYLE_REVIEW_REQUIRED';
           core.setOutput('state', state);
           core.setOutput('data-residue-keys', JSON.stringify(residueKeys));
           core.info(`StyleProof trust state: ${state}`);
@@ -322,21 +342,28 @@ runs:
           // pre-ticked and carries "approved by @x" (reconstructed from the commit
           // status), so the comment matches the green status without re-running approval.
           const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
-          const box = requireApproval && trustState === 'VISUAL_APPROVAL_REQUIRED'
+          const box = requireApproval && trustState === 'STYLE_REVIEW_REQUIRED'
             ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
             : [];
           const trustGuidance = {
-            DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; visual approval cannot clear this failure._',
-            INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; visual approval cannot clear this failure._',
-            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — repair the capture or reflow source; visual approval cannot clear this failure._',
-            PARTIAL_BASELINE: '_Base capture is incomplete — repair baseline capture on the base branch; visual approval cannot clear missing baseline surfaces._',
-            DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; visual approval cannot clear this failure._',
+            DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
+            INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
+            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — repair the capture or reflow source; reviewer approval cannot clear this failure._',
+            PARTIAL_BASELINE: '_Base capture is incomplete — repair baseline capture on the base branch; reviewer approval cannot clear missing baseline surfaces._',
+            DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; reviewer approval cannot clear this failure._',
           }[trustState];
+          const contentEvaluated = '${{ inputs.include-content }}' === 'true';
+          const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
+          const cleanGuidance = contentEvaluated
+            ? contentChanges > 0
+              ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
+              : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
+            : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
           const footer = [
             '---',
             trustGuidance || (requireApproval
               ? !changed
-                ? `_No visual changes detected — the **${statusContext}** check is green._`
+                ? cleanGuidance
                 : approved
                   ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
                   : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
@@ -366,11 +393,11 @@ runs:
           // Green when no review is needed OR a prior sign-off already approved this commit
           // (so re-running the report can't clobber an approval the approve workflow set).
           const green =
-            trustState === 'NO_VISUAL_CHANGES' ||
-            (trustState === 'VISUAL_APPROVAL_REQUIRED' && approved);
+            trustState === 'NO_REVIEWABLE_STYLE_CHANGES' ||
+            (trustState === 'STYLE_REVIEW_REQUIRED' && approved);
           const descriptions = {
-            NO_VISUAL_CHANGES: 'No visual changes',
-            VISUAL_APPROVAL_REQUIRED: approved
+            NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
+            STYLE_REVIEW_REQUIRED: approved
               ? 'StyleProof changes approved'
               : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
@@ -389,7 +416,7 @@ runs:
           });
 
     # A failed base capture still publishes useful head evidence, but that receipt
-    # is not a comparison and must never become green through visual approval.
+    # is not a comparison and must never become green through reviewer approval.
     - name: Block on degraded baseline
       if: inputs.base-capture-failed == 'true'
       shell: bash
@@ -398,7 +425,7 @@ runs:
         exit 1
 
     # Partial baseline bundles compare what they can, but ledger-explained missing
-    # base surfaces are repair debt — not NO_VISUAL_CHANGES and not approvable.
+    # base surfaces are repair debt — not NO_REVIEWABLE_STYLE_CHANGES and not approvable.
     - name: Block on partial baseline
       if: steps.verdict.outputs.state == 'PARTIAL_BASELINE'
       shell: bash
@@ -416,11 +443,11 @@ runs:
         steps.context.outputs.pr-number != '' &&
         inputs.require-approval == 'true' &&
         steps.config.outputs.blocking == 'true' &&
-        steps.verdict.outputs.state == 'VISUAL_APPROVAL_REQUIRED' &&
+        steps.verdict.outputs.state == 'STYLE_REVIEW_REQUIRED' &&
         steps.gate.outputs.approved != 'true'
       shell: bash
       run: |
-        echo "StyleProof: unapproved visual changes or new surfaces — tick 'Approve all changes' in the report comment, then re-run this job to clear the check." >&2
+        echo "StyleProof: unapproved style changes or new surfaces — tick 'Approve all changes' in the report comment, then re-run this job to clear the check." >&2
         exit 1
 
     # Certify mode: fail the job on any diff (default). Skipped

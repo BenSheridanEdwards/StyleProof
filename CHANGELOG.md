@@ -7,6 +7,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-08-09
+
+### Changed
+
+- **Clean style certification no longer claims visual or DOM identity.** The
+  report and CLIs now say that no reviewable computed-style changes were found
+  among semantically matched elements, and explicitly disclose when
+  content/structure was not evaluated. This keeps a style-only green verdict
+  honest when screenshots, element counts, copy, or content-driven geometry
+  differ.
+- **Action trust states now name the evidence they represent.** Replace
+  `NO_VISUAL_CHANGES` with `NO_REVIEWABLE_STYLE_CHANGES` and
+  `VISUAL_APPROVAL_REQUIRED` with `STYLE_REVIEW_REQUIRED` in consumers of the
+  `trust-state` output. Generated workflows and public examples now pin the
+  `v6` Action alias.
+
+### Added
+
+- **The Action can persist advisory content/structure evidence.** Set
+  `include-content: true` to pass the existing opt-in content layer through the
+  composite Action into its exact-run durable report. The new
+  `content-changes` output exposes the rendered advisory count without changing
+  `changed`, the style gate, or the process exit code.
+- **`report.json` records whether content was evaluated.** Its new `content`
+  receipt contains `evaluated`, `changes`, and `advisory`, so a report consumer
+  can distinguish zero content changes from content analysis being disabled.
+
 ## [5.0.2] - 2026-08-08
 
 ### Fixed

@@ -433,7 +433,7 @@ ${PM.setup}
           # steps that branch on steps.maps.outputs.*, and it invokes the installed
           # release directly.
           PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "\${{ github.event.pull_request.base.sha }}" --head "\${{ github.event.pull_request.head.sha }}" --spec ${specPath} --base-dir "\${{ runner.temp }}/styleproof-maps"
-      - uses: BenSheridanEdwards/StyleProof@v4
+      - uses: BenSheridanEdwards/StyleProof@v6
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head

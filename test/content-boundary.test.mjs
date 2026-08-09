@@ -303,9 +303,12 @@ test('structural changes render only in the opt-in advisory content section and 
   assert.equal(contentOff.totalFindings, 0);
   assert.equal(contentOff.contentChanges, 0);
   assert.ok(!contentOffMarkdown.includes('Content and structure changes'));
+  assert.match(contentOffMarkdown, /Content\/structure was not evaluated/);
   assert.equal(contentOn.changedSurfaces, 0);
   assert.equal(contentOn.totalFindings, 0);
   assert.equal(contentOn.contentChanges, 1);
+  assert.match(contentOnMarkdown, /No reviewable computed-style changes among semantically matched elements/);
+  assert.match(contentOnMarkdown, /1 advisory content\/structure change/);
   assert.ok(contentOnMarkdown.includes('Content and structure changes (advisory)'));
   assert.ok(contentOnMarkdown.includes('element added'));
 

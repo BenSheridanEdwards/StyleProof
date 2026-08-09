@@ -192,7 +192,11 @@ console.log(
     ? result.newSurfaces === 0
       ? consistencyFailed
         ? '⚠ no presentation changes — report consistency failure written'
-        : '✓ no changes — empty report written'
+        : includeContent
+          ? result.contentChanges > 0
+            ? `✓ no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
+            : '✓ no reviewable computed-style or advisory content/structure changes'
+          : '✓ no reviewable computed-style changes — content/structure not evaluated'
       : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
     : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );

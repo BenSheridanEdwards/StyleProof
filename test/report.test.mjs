@@ -1207,13 +1207,15 @@ test('end-to-end: a valid composite PNG of the expected size is written', () => 
   rmTmp(root);
 });
 
-test('end-to-end: no differences yields the all-identical report and zero surfaces', () => {
+test('end-to-end: no differences certifies matched computed styles without claiming visual identity', () => {
   const same = sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 });
   const { beforeDir, afterDir, outDir, root } = pairFixture({ surface: 'home@1280', before: same, after: same });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   assert.equal(res.changedSurfaces, 0);
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /✓ All surfaces identical/);
+  assert.match(md, /✓ No reviewable computed-style changes among semantically matched elements/);
+  assert.match(md, /Content\/structure was not evaluated/);
+  assert.doesNotMatch(md, /All surfaces identical|every computed style|visual changes/i);
   rmTmp(root);
 });
 
@@ -1349,7 +1351,7 @@ test('end-to-end: a live region is auto-excluded and noted, not reported as a ch
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   assert.equal(res.changedSurfaces, 0); // the only delta was on a live region
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /✓ All surfaces identical/);
+  assert.match(md, /✓ No reviewable computed-style changes among semantically matched elements/);
   assert.match(md, /1 live region\(s\) auto-excluded/);
   assert.match(md, /Auto-detected live-state candidate\(s\): button\.cta \(role=status\)/);
   rmTmp(root);

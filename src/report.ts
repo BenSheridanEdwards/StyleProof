@@ -1414,6 +1414,7 @@ function summaryLines(args: {
   shown: DiffCounts;
   changedScope: { bases: number; variants: number };
   contentCount: number;
+  contentEvaluated: boolean;
   /** Any raw-vs-presentation contradiction: must not claim "identical". */
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
@@ -1425,6 +1426,7 @@ function summaryLines(args: {
     shown,
     changedScope,
     contentCount,
+    contentEvaluated,
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
@@ -1443,9 +1445,11 @@ function summaryLines(args: {
     if (failureSummary) return failureSummary;
     if (baselineSurfaceFailures.length === 0) {
       return [
-        contentCount > 0
-          ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
-          : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
+        contentEvaluated
+          ? contentCount > 0
+            ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
+            : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
+          : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.',
       ];
     }
   }
@@ -1468,6 +1472,7 @@ function reportHeadline(args: {
   volatileCount: number;
   liveCandidateLabels: string[];
   contentCount: number;
+  contentEvaluated: boolean;
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
@@ -1480,6 +1485,7 @@ function reportHeadline(args: {
     volatileCount,
     liveCandidateLabels,
     contentCount,
+    contentEvaluated,
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
@@ -1490,6 +1496,7 @@ function reportHeadline(args: {
     shown,
     changedScope,
     contentCount,
+    contentEvaluated,
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
@@ -1914,6 +1921,7 @@ function writeReportArtifacts(
   shown: DiffCounts,
   comparison: ComparisonTruth,
   reportConsistency: ReportConsistency,
+  content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
@@ -1927,6 +1935,7 @@ function writeReportArtifacts(
         rawCounts: comparison.rawCounts,
         reviewableCounts: comparison.reviewableCounts,
         reportConsistency,
+        content,
         surfaces: surfacesJson,
       },
       null,
@@ -2032,6 +2041,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       volatileCount,
       liveCandidateLabels,
       contentCount: contentSection.count,
+      contentEvaluated: includeContent,
       reportConsistency,
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
@@ -2093,7 +2103,15 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   }
   md.push(...contentSection.md);
 
-  const { reportMdPath, reportJsonPath } = writeReportArtifacts(outDir, md, shown, comparison, reportConsistency, json);
+  const { reportMdPath, reportJsonPath } = writeReportArtifacts(
+    outDir,
+    md,
+    shown,
+    comparison,
+    reportConsistency,
+    { evaluated: includeContent, changes: contentSection.count, advisory: true },
+    json,
+  );
   return {
     changedSurfaces: prepared.length - missing.length,
     newSurfaces: missing.length,

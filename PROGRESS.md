@@ -1,104 +1,53 @@
-# Progress
+# Report truth and major release
 
-## Completed: content-disabled structural diffs (5.0.0)
+## Success
 
-- Completed: reproduced that one added element emits blocking DOM and head-side
-  style-inventory findings even when content comparison is disabled.
-- Completed: confirmed the optional text-content layer is advisory and separate
-  from the certification exit code.
-- Completed: moved DOM additions/removals/retags into the opt-in advisory
-  content layer while preserving fail-closed surface, inventory, coverage,
-  determinism, and data-residue controls.
-- Completed: added CSS Typed OM computed-value evidence so layout-used pixel
-  reflow is ignored only when the browser proves the CSS computed value stayed
-  unchanged; legacy captures remain fail-closed.
-- Verification: 665 unit, contract, CLI, package-smoke, and report tests pass;
-  118 Playwright browser tests pass; build, typecheck, lint, formatting, privacy,
-  demo freshness, package dry-run, and dependency audit pass. Consumer dogfood
-  remains before the downstream release bump/merge.
-- Blockers: none.
-
-## In progress: spec-ref local harness overlay
-
-- Completed: reproduced the cold-base `Cannot find module` failure when a head
-  spec imports a head-only colocated fixture.
-- Completed: implemented a bounded harness overlay that keeps application code
-  pinned to base and restores tracked and head-only files.
-- Next: run focused and full package gates, inspect the packed artifact, and
-  publish a ready pull request for issue #318.
-- Blockers: none.
-
-## Completed: parallel spec captures + absolute STYLEMAP_DIR (4.4.0)
+- A clean style comparison never claims that rendered screenshots or content are identical.
+- The Action can opt into advisory content/structure reporting and publishes that evidence durably.
+- The public trust state names style certification, not visual identity.
+- Regression tests cover clean style plus changed content/structure.
+- A breaking major release is published and Fleet pins its exact npm package and Action commit.
+- Fleet dogfood proves the final report at the exact pull-request head.
 
 ## Completed
 
-- Declared the spec-driven capture describe `parallel`, with a documented
-  `parallel: false` opt-out for spec files whose sibling tests read the maps in
-  file order (both in-repo ordered suites now opt out explicitly).
-- Benchmarked on a real 150-capture consumer workload: 24.5 minutes serial to
-  6.0 minutes at 4 workers, byte-complete bundle, all self-checks passing.
-- Respected an absolute STYLEMAP_DIR/--dir in the runner and styleproof-map
-  instead of nesting it under baseDir.
+- Reconciled Fleet PR 1218 against its exact base/head captures and identified the overbroad report semantics.
+- Created isolated branch `codex/fix-report-truth` from StyleProof `origin/main` at `a812264` (v5.0.2).
+- Read repository operating, architecture, quality, PR, and Definition of Done contracts.
+- Ran GitNexus impact analysis: report wording and content rendering are low-risk, report-generator-local changes.
+- Added failing regression coverage for clean style evidence with changed content/structure, then implemented the v6 contract.
+- Renamed the clean trust state to `NO_REVIEWABLE_STYLE_CHANGES` and the review gate to `STYLE_REVIEW_REQUIRED`.
+- Added the Action's opt-in `include-content` input and durable `content-changes` output/report receipt.
+- Replaced every active `No visual changes` claim with wording limited to reviewable computed styles on semantically matched elements.
+- Bumped the package, generated Action examples, and release documentation to `6.0.0` / `v6`.
+- Generated a privacy-clean content-only report under `docs/proof/report-truth/`.
 
-## Findings
+## Current contract
 
-- The runner already generated one independent test per surface×width, but a
-  consumer config with `fullyParallel: false` ran all of them serially in one
-  worker — the whole 25-minute capture step was a scheduling artifact.
-- Two in-repo e2e suites depended on in-file capture-then-assert ordering; the
-  parallel default surfaced them immediately (0ms ENOENT failures), hence the
-  explicit opt-out knob rather than a silent heuristic.
+- Computed-style certification and content/structure evidence are explicitly separate.
+- Content/structure comparison is advisory and opt-in; it never changes the style verdict.
+- Both disabled and enabled content states are named in the CLI, report, Action comment, and JSON receipt.
+- The Action dogfood workflow asserts the content-only case end to end.
 
-## Verification Status
+## Next
 
-- 441 unit tests, 113 Playwright e2e (including the new fan-out pin), all
-  static gates, demo byte-identical, privacy scan clean.
+- Run the final gate chain on the finished tree.
+- Commit, push, and open a merge-ready StyleProof pull request with direct report proof.
+- Merge and verify the `6.0.0` npm/GitHub release.
+- Pin Fleet to the immutable v6 Action commit and package, then dogfood the report on Fleet's exact pull-request head.
 
-## In progress: selective map-store restore
+## Blockers
 
-- Completed: reproduced full-branch checkout through the public restore seam
-  and added a regression test that requires partial, sparse retrieval while
-  preserving full-tree publishing.
-- Completed: restore now checks out only the requested SHA bundle; the focused
-  regression test passes.
-- Next: run the complete quality gates, verify against a large remote store,
-  review the diff, and publish the ready pull request.
-- Blockers: none.
+- None.
 
-## In progress: durable no-change Action reports
+## Verification
 
-- Completed: proved the report generator already emits a privacy-clean no-change report.
-- Completed: added regressions requiring clean Action runs to publish an immutable report URL while certify mode continues to fail only on real differences.
-- Next: run focused and full Action dogfood verification, review the patch, and open a ready pull request.
-- Blockers: none.
-
-## Completed: enterprise README proof correction
-
-- Reframed the opening around enterprise evaluation: evidence, failure states,
-  trust boundaries, adoption, and reviewer workflow.
-- Rejected the previous "clean" dogfood screenshot because it showed unasserted
-  coverage, unknown determinism, and an unacknowledged inventory removal.
-- Captured the deterministic demo twice in real Chromium with an explicit
-  registry, self-checking, inventory, and data-residue gating; all 8 capture and
-  coverage tests passed and the generated report is fully certified clean.
-- Replaced the misleading image with the GitHub-rendered certified report and
-  linked the screenshot to its committed generated Markdown source.
-- Reconciled the report example with the current deterministic demo output.
-- Verification: build, typecheck, lint, format, privacy, 543 unit tests, 114
-  browser E2E tests, demo freshness, dependency audit, and diff checks pass.
-- Blockers: none.
-
-## Completed: persistent evidence-quality standard
-
-- Added a repository-wide semantic evidence audit that requires every visible
-  warning, caveat, label, caption, badge, and status detail to agree with the
-  claim made about it.
-- Made final rendered inspection and live exact-head PR verification explicit
-  completion requirements.
-- Required misleading evidence to be replaced or the claim to be qualified or
-  removed; cropping or omitting contradictions is now an explicit failure.
-- Verification: build, typecheck, lint, format, privacy, 543 unit tests, demo
-  freshness, dependency audit, and diff checks pass. Browser E2E is not
-  applicable because runtime, capture, report, and Action behaviour are
-  unchanged.
-- Blockers: none.
+- `npm test` — 666 passed, 0 failed.
+- `npm run test:e2e` — 121 passed, 0 failed.
+- Focused content/report/Action suite — 125 passed, 0 failed.
+- `npm run build`, `npm run typecheck`, `npm run lint`, `npm run format:check` — passed on the final code tree.
+- `npm run privacy:check` — passed across 190 public text files.
+- `npm run demo:check` — passed; committed demo artifacts are current.
+- `npm audit --audit-level=high` — 0 vulnerabilities.
+- `npm pack --dry-run --json` — package `styleproof@6.0.0`, 93 entries, expected runtime and demo artifacts present.
+- GitNexus final change detection — high fan-out because `generateStyleMapReport` is the entry point for ten report-generation flows; no capture/storage/matching flows are affected. Full unit and browser coverage above is green.

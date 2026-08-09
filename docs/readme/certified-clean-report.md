@@ -6,4 +6,4 @@
 - **Inventory** — ✓ navigable set unchanged
 - **Data residue** — ✓ no failing data-boundary request during capture
 
-✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.
+✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.

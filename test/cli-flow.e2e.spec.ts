@@ -157,7 +157,8 @@ test('styleproof-init → styleproof-map → styleproof-diff works in a generate
 
     const diff = run(app, process.execPath, [DIFF]);
     expect(diff.status, diff.stderr + diff.stdout).toBe(0);
-    expect(diff.stdout).toContain('0 changed surfaces across 1 captured surface(s)');
+    expect(diff.stdout).toContain('0 reviewable computed-style changes across 1 paired capture(s)');
+    expect(diff.stdout).toContain('content/structure not evaluated');
   } finally {
     fs.rmSync(app, { recursive: true, force: true });
   }
@@ -868,7 +869,7 @@ test('pre-push hook dogfood: capture→publish→docs-skip→fresh-clone restore
       path.join(mapRoot, 'head'),
     ]);
     expect(diff.status, diff.stderr + diff.stdout).toBe(0);
-    expect(diff.stdout).toContain('0 changed surfaces');
+    expect(diff.stdout).toContain('0 reviewable computed-style changes');
   } finally {
     fs.rmSync(app, { recursive: true, force: true });
     fs.rmSync(remote, { recursive: true, force: true });

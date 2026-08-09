@@ -173,7 +173,7 @@ test('assessComparisonTruth: derived-only findings are resurrected as reviewable
   // A surface whose ONLY change is a derived longhand (content-length drift, or
   // a pure sizing rule): the differ gates on it, so the display keeps it
   // (cleanFindingsForDisplay) and the truth contract counts it reviewable —
-  // VISUAL_APPROVAL_REQUIRED with rendered evidence, not CERTIFICATION_FAILED
+  // STYLE_REVIEW_REQUIRED with rendered evidence, not CERTIFICATION_FAILED
   // with none.
   const surfaces = [
     {
