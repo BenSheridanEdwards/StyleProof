@@ -780,7 +780,13 @@ function checkoutSparseSegment(tmp: string, branch: string, segment: string): vo
   }
 }
 
-function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSegment?: string): string {
+function checkoutMapStore(
+  cwd: string,
+  remote: string,
+  branch: string,
+  sparseSegment?: string,
+  sparseFilter = 'blob:none',
+): string {
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
   const remoteUrl = gitOutput(cwd, ['remote', 'get-url', remote]);
   const httpExtraHeaders = effectiveGitHttpExtraHeaders(cwd);
@@ -794,7 +800,17 @@ function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSeg
   const branchExists = branchLookup.status === 0;
   if (branchExists) {
     const cloneArguments = sparseSegment
-      ? ['clone', '-q', '--filter=blob:none', '--no-checkout', '--depth', '1', '--single-branch', '--branch', branch]
+      ? [
+          'clone',
+          '-q',
+          `--filter=${sparseFilter}`,
+          '--no-checkout',
+          '--depth',
+          '1',
+          '--single-branch',
+          '--branch',
+          branch,
+        ]
       : ['clone', '-q', '--depth', '1', '--branch', branch];
     const clone = runMapStoreNetworkGit(cwd, [...authenticationArguments, ...cloneArguments, remoteUrl, tmp]);
     if (clone.status !== 0) {
@@ -1035,7 +1051,9 @@ function restoreMapStoreAttempt(options: {
   try {
     // checkoutMapStore throws only on infra (clone/checkout/network) — a bundle simply
     // being absent surfaces below as an empty tree, not an exception.
-    tmp = checkoutMapStore(cwd, remote, branch, sha);
+    // Restore needs one exact-SHA subtree. Avoid downloading every tree on a
+    // long-lived map-store branch before sparse checkout narrows the request.
+    tmp = checkoutMapStore(cwd, remote, branch, sha, 'tree:0');
   } catch (error) {
     return { status: 'infra', message: errorMessage(error) };
   }
