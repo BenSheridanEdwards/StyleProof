@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Advisory-mode PR comments now describe clean reports as clean and changed
+  reports as advisory instead of incorrectly telling reviewers to rebuild maps.
 - Complete coverage reports now distinguish surfaces that were captured from
   surfaces that were explicitly excluded instead of claiming every registered
   surface was captured.

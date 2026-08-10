@@ -69,6 +69,8 @@ test('composite action names style certification precisely and can publish advis
   assert.match(actionYml, /STYLE_REVIEW_REQUIRED/);
   assert.match(commentStep[0], /Content\/structure was not evaluated/);
   assert.match(commentStep[0], /advisory content\/structure change/);
+  assert.match(commentStep[0], /StyleProof is advisory/);
+  assert.doesNotMatch(commentStep[0], /To accept: rebuild the map/);
   assert.match(statusStep[0], /No reviewable computed-style changes/);
   assert.doesNotMatch(actionYml, /NO_VISUAL_CHANGES|VISUAL_APPROVAL_REQUIRED|No visual changes/);
 });
