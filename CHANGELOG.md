@@ -9,6 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Complete coverage reports now distinguish surfaces that were captured from
+  surfaces that were explicitly excluded instead of claiming every registered
+  surface was captured.
 - Reports no longer present unrelated on-screen pixels as proof for a changed
   element that sits fully outside the captured page. Off-canvas findings keep
   their property audit and are explicitly marked as having no visual evidence.

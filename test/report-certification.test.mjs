@@ -16,7 +16,7 @@ const mapWith = (inventory) =>
 // Build a base/head bundle. `home` carries the nav inventory; ledgers carry the
 // coverage registry + determinism basis. Style diff stays empty (inventory ≠ style),
 // so only the certification block is under test.
-function bundle({ captured, baseNav, headNav, expected, baseDet, headDet }) {
+function bundle({ captured, baseNav, headNav, expected, exclude = {}, baseDet, headDet }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-cert-'));
   const base = path.join(root, 'base');
   const head = path.join(root, 'head');
@@ -33,7 +33,7 @@ function bundle({ captured, baseNav, headNav, expected, baseDet, headDet }) {
   );
   fs.writeFileSync(
     path.join(head, COVERAGE_LEDGER),
-    JSON.stringify({ version: 1, expected, exclude: {}, determinism: headDet }),
+    JSON.stringify({ version: 1, expected, exclude, determinism: headDet }),
   );
   return { root, base, head, out };
 }
@@ -54,6 +54,23 @@ test('a healthy bundle leads with all-green certification', () => {
   assert.match(md, /Coverage.*✓ complete/);
   assert.match(md, /Determinism.*✓ proven/);
   assert.match(md, /Inventory.*✓ navigable set unchanged/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('complete coverage distinguishes captures from explicit exclusions', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['home', 'pricing'],
+    baseNav: ['home', 'pricing'],
+    headNav: ['home', 'pricing'],
+    expected: ['home', 'pricing', 'account'],
+    exclude: { account: 'Authentication fixture is not available.' },
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(md, /Coverage.*✓ complete \(2 of 3 registered surface\(s\) captured; 1 explicitly excluded\)/);
+  assert.doesNotMatch(md, /all 3 registered surface\(s\) captured/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
