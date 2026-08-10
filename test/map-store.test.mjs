@@ -931,8 +931,8 @@ test('restoreMapBundle retrieves only the requested SHA from a large map store',
     const invocations = fs.readFileSync(invocationLog, 'utf8');
     assert.match(
       invocations,
-      /clone -q --filter=blob:none --no-checkout --depth 1 --single-branch --branch styleproof-maps/,
-      'restore clones tree metadata without checking out every cached bundle',
+      /clone -q --filter=tree:0 --no-checkout --depth 1 --single-branch --branch styleproof-maps/,
+      'restore fetches only the sparse target tree instead of every cached bundle tree',
     );
     assert.match(invocations, new RegExp(`sparse-checkout set ${requestedSha}`));
     assert.match(invocations, /checkout -q styleproof-maps/);
