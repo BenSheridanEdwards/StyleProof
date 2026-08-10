@@ -960,31 +960,53 @@ export function trackInflightRequests(page: Page): { pending: () => number; disp
  *
  * ONLY failures are recorded — never a 2xx that merely wasn't fixtured: in recording mode
  * every live 2xx is legitimately recorded, so a blanket "uncontrolled" flag would fire on
- * every healthy record run (issue #205, "deliberately out of scope").
+ * every healthy record run (issue #205, "deliberately out of scope"). EventSource's HTTP
+ * 204 is also a protocol-level terminal success, even when Chromium follows its response
+ * event with `requestfailed(ERR_ABORTED)`; real aborts without that response remain residue.
  */
 export function trackDataResidue(
   page: Page,
   url: string,
   surface: string,
 ): { residue: () => DataResidueEntry[]; dispose: () => void } {
-  const byKey = new Map<string, DataResidueEntry>();
+  // Keep observations per request until readout. Chromium can emit
+  // `response(204)` and then `requestfailed(ERR_ABORTED)` for EventSource's
+  // protocol-level terminal response. Request identity lets the later event
+  // cancel only that false failure without hiding another failed attempt to the
+  // same surface endpoint.
+  const byRequest = new Map<Request, DataResidueEntry>();
+  const terminalEventSources = new WeakSet<Request>();
   const inBoundary = urlMatcher(url);
   const record = (request: Request, reason: string): void => {
     if (!inBoundary(request.url())) return;
     const endpoint = endpointOf(request.url());
     const key = residueKey(surface, endpoint);
-    if (!byKey.has(key)) byKey.set(key, { key, surface, endpoint, reason });
+    if (!byRequest.has(request)) byRequest.set(request, { key, surface, endpoint, reason });
   };
-  const onFailed = (r: Request): void => record(r, r.failure()?.errorText ?? 'request failed');
+  const onFailed = (request: Request): void => {
+    if (terminalEventSources.has(request)) return;
+    record(request, request.failure()?.errorText ?? 'request failed');
+  };
   // A completed response's status is synchronous here, so a 4xx/5xx is recorded before
   // capture reads the residue. A >=400 is a fallback-branch trigger just like a net failure.
   const onResponse = (resp: Response): void => {
-    if (resp.status() >= 400) record(resp.request(), `HTTP ${resp.status()}`);
+    const request = resp.request();
+    if (resp.status() === 204 && request.resourceType() === 'eventsource') {
+      terminalEventSources.add(request);
+      // Be independent of Playwright's response/requestfailed event order.
+      byRequest.delete(request);
+      return;
+    }
+    if (resp.status() >= 400) record(request, `HTTP ${resp.status()}`);
   };
   page.on('requestfailed', onFailed);
   page.on('response', onResponse);
   return {
-    residue: (): DataResidueEntry[] => Array.from(byKey.values()).sort((a, b) => a.key.localeCompare(b.key)),
+    residue: (): DataResidueEntry[] => {
+      const byKey = new Map<string, DataResidueEntry>();
+      for (const entry of byRequest.values()) if (!byKey.has(entry.key)) byKey.set(entry.key, entry);
+      return Array.from(byKey.values()).sort((a, b) => a.key.localeCompare(b.key));
+    },
     dispose: (): void => {
       page.off('requestfailed', onFailed);
       page.off('response', onResponse);

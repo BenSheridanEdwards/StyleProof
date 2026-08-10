@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- EventSource's protocol-level HTTP 204 shutdown no longer becomes false data
+  residue when Chromium follows the successful response with
+  `requestfailed(ERR_ABORTED)`. Aborts without that terminal response and
+  interrupted HTTP 200 streams remain fail-closed.
 - Reports no longer present unrelated on-screen pixels as proof for a changed
   element that sits fully outside the captured page. Off-canvas findings keep
   their property audit and are explicitly marked as having no visual evidence.
