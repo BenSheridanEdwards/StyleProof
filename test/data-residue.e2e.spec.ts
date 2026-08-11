@@ -103,3 +103,28 @@ test('a fixtured /api endpoint captures CLEAN — no residue', async ({ page }) 
     stop();
   }
 });
+
+test('an EventSource terminal HTTP 204 captures CLEAN — no false stream residue', async ({ page }) => {
+  const { url, stop } = await serveIncidentPage();
+  try {
+    await page.route('**/api/probe**', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true }) }),
+    );
+    await page.route('**/api/stream', (route) => route.fulfill({ status: 204 }));
+    const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+    await page.goto(url, { waitUntil: 'load' });
+    const response = page.waitForResponse(
+      (candidate) => new URL(candidate.url()).pathname === '/api/stream' && candidate.status() === 204,
+    );
+    await page.evaluate(() => {
+      new EventSource('/api/stream');
+    });
+    await response;
+    await page.waitForTimeout(100);
+
+    expect(residue.residue()).toEqual([]);
+    residue.dispose();
+  } finally {
+    stop();
+  }
+});
