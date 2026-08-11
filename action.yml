@@ -359,6 +359,9 @@ runs:
               ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
               : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
             : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
+          const advisoryGuidance = changed
+            ? `_StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
+            : cleanGuidance;
           const footer = [
             '---',
             trustGuidance || (requireApproval
@@ -367,7 +370,7 @@ runs:
                 : approved
                   ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
                   : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
-              : '_To accept: rebuild the map with `styleproof-map`, then rerun the report._'),
+              : advisoryGuidance),
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
           ];
 

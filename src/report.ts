@@ -1086,12 +1086,23 @@ function surfaceKeysIn(dir: string): string[] {
 // verdict functions so certificationLines stays a thin orchestrator (and each stays
 // well under the complexity gate).
 
-function coverageLine(cov: CoverageVerdict): string {
-  if (cov.basis === 'complete')
+function coverageLine(cov: CoverageVerdict, exclusionCount = 0): string {
+  if (cov.basis === 'complete') {
+    if (exclusionCount > 0) {
+      const capturedCount = Math.max(0, (cov.registrySize ?? 0) - exclusionCount);
+      return `- **Coverage** — ✓ complete (${capturedCount} of ${cov.registrySize} registered surface(s) captured; ${exclusionCount} explicitly excluded)`;
+    }
     return `- **Coverage** — ✓ complete (all ${cov.registrySize} registered surface(s) captured)`;
+  }
   if (cov.basis === 'incomplete')
     return `- **Coverage** — ✗ INCOMPLETE (${cov.uncovered.length} registered surface(s) not captured: ${cov.uncovered.map(safeKey).join(', ')})`;
   return '- **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)';
+}
+
+function explicitExclusionCount(ledger: CoverageLedger | null): number {
+  if (ledger?.expected == null) return 0;
+  const expected = new Set(ledger.expected);
+  return new Set(Object.keys(ledger.exclude).filter((key) => expected.has(key))).size;
 }
 
 function determinismLine(det: DeterminismVerdict): string {
@@ -1180,7 +1191,7 @@ function certificationLines(beforeDir: string, afterDir: string): string[] {
 
   return [
     '**Certification**',
-    coverageLine(auditCoverage(surfaceKeysIn(afterDir), headLedger)),
+    coverageLine(auditCoverage(surfaceKeysIn(afterDir), headLedger), explicitExclusionCount(headLedger)),
     determinismLine(auditDeterminism(baseLedger, headLedger)),
     inventoryLine(inv),
     // Only add the residue line when there's residue or the gate was armed — an ordinary
