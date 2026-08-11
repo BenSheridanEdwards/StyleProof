@@ -413,33 +413,37 @@ function contentCorrespondenceSignature(elementPath: string, element: StyleMap['
   return JSON.stringify([semanticPathPattern, element.tag, className, element.ownTextLength ?? null, componentName]);
 }
 
-function uniquePathsByContentSignature(map: StyleMap): Map<string, string> {
+function pathsByContentSignature(map: StyleMap): Map<string, string[]> {
   const pathsBySignature = new Map<string, string[]>();
   for (const [elementPath, element] of Object.entries(map.elements)) {
     const signature = contentCorrespondenceSignature(elementPath, element);
     if (!signature) continue;
     pathsBySignature.set(signature, [...(pathsBySignature.get(signature) ?? []), elementPath]);
   }
-  return new Map(
-    [...pathsBySignature.entries()]
-      .filter(([, elementPaths]) => elementPaths.length === 1)
-      .map(([signature, [elementPath]]) => [signature, elementPath!]),
-  );
+  return pathsBySignature;
 }
 
 /**
- * Re-key uniquely identifiable base elements onto their head paths before a
- * content-disabled comparison. This prevents a sibling insertion from making
- * unchanged elements at shifted nth-child paths compare against the wrong
- * siblings. Ambiguous identities remain concrete and therefore fail closed.
+ * Re-key identifiable base elements onto their head paths before a
+ * content-disabled comparison. This prevents a sibling insertion or removal from
+ * making unchanged elements at shifted nth-child paths compare against the wrong
+ * siblings. A signature shared by several elements (repeated same-shaped rows)
+ * pairs k-th to k-th in document order — map insertion order is capture's DOM
+ * walk — but only while the group's size is identical on both sides: pairing a
+ * count-preserving group can at worst re-label a visually-equivalent remove+add
+ * as a matched pair, whereas a size change means a real add/remove somewhere in
+ * the group, so those groups stay concrete and therefore fail closed.
  */
 function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
-  const uniqueBefore = uniquePathsByContentSignature(before);
-  const uniqueAfter = uniquePathsByContentSignature(after);
+  const bySignatureBefore = pathsByContentSignature(before);
+  const bySignatureAfter = pathsByContentSignature(after);
   const beforeToAfter = new Map<string, string>();
-  for (const [signature, beforePath] of uniqueBefore) {
-    const afterPath = uniqueAfter.get(signature);
-    if (afterPath && afterPath !== beforePath) beforeToAfter.set(beforePath, afterPath);
+  for (const [signature, beforePaths] of bySignatureBefore) {
+    const afterPaths = bySignatureAfter.get(signature);
+    if (!afterPaths || afterPaths.length !== beforePaths.length) continue;
+    for (let k = 0; k < beforePaths.length; k++) {
+      if (afterPaths[k] !== beforePaths[k]) beforeToAfter.set(beforePaths[k]!, afterPaths[k]!);
+    }
   }
   if (beforeToAfter.size === 0) return before;
 
