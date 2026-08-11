@@ -16,6 +16,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Only one release may inspect and publish a version at a time. Queued runs
+# re-check the tag after the active release finishes and become clean no-ops.
+concurrency:
+  group: styleproof-release
+  cancel-in-progress: false
+
 # contents: write -> tag + GitHub Release + move the major alias.
 # id-token: write -> npm publish --provenance (OIDC -> Sigstore).
 # packages: write -> the GitHub Packages mirror job.

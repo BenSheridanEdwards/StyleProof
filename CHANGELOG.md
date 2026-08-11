@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Release runs now serialize without cancellation, so rapid main pushes cannot
+  race the same npm version and leave tagging or release publication partially
+  failed.
+
 ## [6.0.3] - 2026-08-11
 
 ### Fixed

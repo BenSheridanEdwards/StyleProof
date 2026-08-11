@@ -6,6 +6,7 @@ import test from 'node:test';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ci = fs.readFileSync(path.join(here, '..', '.github/workflows/ci.yml'), 'utf8');
+const release = fs.readFileSync(path.join(here, '..', '.github/workflows/release.yml'), 'utf8');
 
 test('CI runs a small non-Linux CLI smoke without the browser suite', () => {
   assert.match(ci, /cli-smoke:/);
@@ -13,4 +14,12 @@ test('CI runs a small non-Linux CLI smoke without the browser suite', () => {
   assert.match(ci, /node-version: '22'/);
   assert.match(ci, /node --test test\/package-smoke\.test\.mjs/);
   assert.doesNotMatch(ci.match(/cli-smoke:[\s\S]*$/)?.[0] ?? '', /npm run test:e2e/);
+});
+
+test('release runs serialize without cancelling an in-flight publish', () => {
+  assert.match(
+    release,
+    /concurrency:\n {2}group: styleproof-release\n {2}cancel-in-progress: false/,
+    'main pushes must queue behind an active release so one version cannot publish and tag concurrently',
+  );
 });
