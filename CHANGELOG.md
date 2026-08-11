@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.0.3] - 2026-08-11
+
 ### Fixed
 
 - Advisory-mode PR comments now describe clean reports as clean and changed
@@ -14,19 +16,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Complete coverage reports now distinguish surfaces that were captured from
   surfaces that were explicitly excluded instead of claiming every registered
   surface was captured.
-
 - EventSource's protocol-level HTTP 204 shutdown no longer becomes false data
   residue when Chromium follows the successful response with
   `requestfailed(ERR_ABORTED)`. Aborts without that terminal response and
   interrupted HTTP 200 streams remain fail-closed.
-
 - Reports no longer present unrelated on-screen pixels as proof for a changed
   element that sits fully outside the captured page. Off-canvas findings keep
   their property audit and are explicitly marked as having no visual evidence.
-
 - The action dogfood workflow now labels its deliberately failing fixture as
   synthetic evidence, so a green contract test cannot look like a certification
   failure for the pull request that triggered it.
+- Map-store restores now apply Git's `tree:0` partial-clone filter to the
+  restore-only sparse checkout, so fetching one exact-SHA bundle from a
+  long-lived store branch no longer downloads every tree at the branch tip and
+  no longer exhausts the bounded network timeout as a false infrastructure
+  failure.
 
 ## [6.0.2] - 2026-08-09
 
@@ -2965,7 +2969,9 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.1...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.3...HEAD
+[6.0.3]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.2...v6.0.3
+[6.0.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.1...v6.0.2
 [6.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.0...v6.0.1
 [6.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v5.0.2...v6.0.0
 [3.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v3.1.5...v3.2.0
