@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { endpointOf, residueKey, unionResidue, auditResidue, auditRunResidue } from '../dist/data-residue.js';
-import { urlMatcher } from '../dist/capture.js';
+import { trackDataResidue, urlMatcher } from '../dist/capture.js';
 
 test('urlMatcher reproduces Playwright URL-glob semantics for the data boundary', () => {
   const m = urlMatcher('**/api/**');
@@ -89,4 +90,94 @@ test('a 4xx/5xx completion is residue just like a network failure (reason carrie
   const head = [mapWith(entry('dashboard', '/api/probe', 'HTTP 503'))];
   const audit = auditResidue(head, {});
   assert.equal(audit.unacknowledged[0].reason, 'HTTP 503');
+});
+
+test('an EventSource HTTP 204 terminal response is clean when Chromium later reports ERR_ABORTED', () => {
+  const page = new EventEmitter();
+  const request = {
+    url: () => 'https://app.test/api/stream',
+    resourceType: () => 'eventsource',
+    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
+  };
+  const response = { request: () => request, status: () => 204 };
+  const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+
+  // Chromium can report the protocol-level EventSource shutdown as a successful
+  // 204 response followed by requestfailed(ERR_ABORTED). The 204 is terminal by
+  // design; it does not render a data-fallback branch and must not gate capture.
+  page.emit('response', response);
+  page.emit('requestfailed', request);
+
+  assert.deepEqual(residue.residue(), []);
+  residue.dispose();
+});
+
+test('an EventSource HTTP 204 terminal response clears an earlier ERR_ABORTED observation', () => {
+  const page = new EventEmitter();
+  const request = {
+    url: () => 'https://app.test/api/stream',
+    resourceType: () => 'eventsource',
+    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
+  };
+  const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+
+  page.emit('requestfailed', request);
+  page.emit('response', { request: () => request, status: () => 204 });
+
+  assert.deepEqual(residue.residue(), []);
+  residue.dispose();
+});
+
+test('a stream abort without a terminal HTTP 204 response remains fail-closed residue', () => {
+  const page = new EventEmitter();
+  const request = {
+    url: () => 'https://app.test/api/stream',
+    resourceType: () => 'eventsource',
+    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
+  };
+  const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+
+  page.emit('requestfailed', request);
+
+  assert.deepEqual(residue.residue(), [
+    {
+      endpoint: '/api/stream',
+      key: 'dashboard·/api/stream',
+      reason: 'net::ERR_ABORTED',
+      surface: 'dashboard',
+    },
+  ]);
+  residue.dispose();
+});
+
+test('an EventSource HTTP 200 followed by an abort remains fail-closed residue', () => {
+  const page = new EventEmitter();
+  const request = {
+    url: () => 'https://app.test/api/stream',
+    resourceType: () => 'eventsource',
+    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
+  };
+  const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+
+  page.emit('response', { request: () => request, status: () => 200 });
+  page.emit('requestfailed', request);
+
+  assert.equal(residue.residue()[0]?.reason, 'net::ERR_ABORTED');
+  residue.dispose();
+});
+
+test('a non-EventSource HTTP 204 followed by an abort remains fail-closed residue', () => {
+  const page = new EventEmitter();
+  const request = {
+    url: () => 'https://app.test/api/job',
+    resourceType: () => 'fetch',
+    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
+  };
+  const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+
+  page.emit('response', { request: () => request, status: () => 204 });
+  page.emit('requestfailed', request);
+
+  assert.equal(residue.residue()[0]?.reason, 'net::ERR_ABORTED');
+  residue.dispose();
 });
