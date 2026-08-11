@@ -9,14 +9,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Release runs now serialize without cancellation, so rapid main pushes cannot
-  race the same npm version and leave tagging or release publication partially
-  failed.
-
-## [6.0.3] - 2026-08-11
-
-### Fixed
-
 - A sibling removal or insertion above repeated same-shaped elements no longer
   reports every shifted row's subtree as phantom removed+added content changes:
   count-preserving signature groups now pair in document order, so only the
@@ -25,12 +17,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Content-change crops whose location renders identically on both sides (an
   element inside a collapsed `<details>`, for example) now say so instead of
   presenting the same pixels twice as before/after proof.
+- Release runs now serialize without cancellation, so rapid main pushes cannot
+  race the same npm version and leave tagging or release publication partially
+  failed.
+
+## [6.0.3] - 2026-08-11
+
+### Fixed
+
 - Advisory-mode PR comments now describe clean reports as clean and changed
   reports as advisory instead of incorrectly telling reviewers to rebuild maps.
 - Complete coverage reports now distinguish surfaces that were captured from
   surfaces that were explicitly excluded instead of claiming every registered
   surface was captured.
-
 - EventSource's protocol-level HTTP 204 shutdown no longer becomes false data
   residue when Chromium follows the successful response with
   `requestfailed(ERR_ABORTED)`. Aborts without that terminal response and
@@ -38,11 +37,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Reports no longer present unrelated on-screen pixels as proof for a changed
   element that sits fully outside the captured page. Off-canvas findings keep
   their property audit and are explicitly marked as having no visual evidence.
-
-- Reports no longer present unrelated on-screen pixels as proof for a changed
-  element that sits fully outside the captured page. Off-canvas findings keep
-  their property audit and are explicitly marked as having no visual evidence.
-
 - The action dogfood workflow now labels its deliberately failing fixture as
   synthetic evidence, so a green contract test cannot look like a certification
   failure for the pull request that triggered it.

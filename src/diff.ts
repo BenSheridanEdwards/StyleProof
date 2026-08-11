@@ -424,27 +424,37 @@ function pathsByContentSignature(map: StyleMap): Map<string, string[]> {
 }
 
 /**
+ * base path -> head path for every element whose identity is recognisable on both
+ * sides but whose concrete path moved. A signature shared by several elements
+ * (repeated same-shaped rows) pairs k-th to k-th in document order — map
+ * insertion order is capture's DOM walk — but only while the group's size is
+ * identical on both sides: pairing a count-preserving group can at worst re-label
+ * a visually-equivalent remove+add as a matched pair, whereas a size change means
+ * a real add/remove somewhere in the group, so those groups stay concrete and
+ * therefore fail closed.
+ */
+function correspondingPathsByContentSignature(before: StyleMap, after: StyleMap): Map<string, string> {
+  const bySignatureAfter = pathsByContentSignature(after);
+  const beforeToAfter = new Map<string, string>();
+  for (const [signature, beforePaths] of pathsByContentSignature(before)) {
+    const afterPaths = bySignatureAfter.get(signature) ?? [];
+    if (afterPaths.length !== beforePaths.length) continue;
+    beforePaths.forEach((beforePath, groupIndex) => {
+      const afterPath = afterPaths[groupIndex]!;
+      if (afterPath !== beforePath) beforeToAfter.set(beforePath, afterPath);
+    });
+  }
+  return beforeToAfter;
+}
+
+/**
  * Re-key identifiable base elements onto their head paths before a
  * content-disabled comparison. This prevents a sibling insertion or removal from
  * making unchanged elements at shifted nth-child paths compare against the wrong
- * siblings. A signature shared by several elements (repeated same-shaped rows)
- * pairs k-th to k-th in document order — map insertion order is capture's DOM
- * walk — but only while the group's size is identical on both sides: pairing a
- * count-preserving group can at worst re-label a visually-equivalent remove+add
- * as a matched pair, whereas a size change means a real add/remove somewhere in
- * the group, so those groups stay concrete and therefore fail closed.
+ * siblings.
  */
 function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
-  const bySignatureBefore = pathsByContentSignature(before);
-  const bySignatureAfter = pathsByContentSignature(after);
-  const beforeToAfter = new Map<string, string>();
-  for (const [signature, beforePaths] of bySignatureBefore) {
-    const afterPaths = bySignatureAfter.get(signature);
-    if (!afterPaths || afterPaths.length !== beforePaths.length) continue;
-    for (let k = 0; k < beforePaths.length; k++) {
-      if (afterPaths[k] !== beforePaths[k]) beforeToAfter.set(beforePaths[k]!, afterPaths[k]!);
-    }
-  }
+  const beforeToAfter = correspondingPathsByContentSignature(before, after);
   if (beforeToAfter.size === 0) return before;
 
   // A matched element can move onto a path occupied by an ambiguous element in
