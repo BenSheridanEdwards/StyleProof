@@ -1,4 +1,4 @@
-import type { CDPSession, Page, Request, Response } from '@playwright/test';
+import type { CDPSession, Frame, Page, Request, Response } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
@@ -963,6 +963,19 @@ export function trackInflightRequests(page: Page): { pending: () => number; disp
  * every healthy record run (issue #205, "deliberately out of scope"). EventSource's HTTP
  * 204 is also a protocol-level terminal success, even when Chromium follows its response
  * event with `requestfailed(ERR_ABORTED)`; real aborts without that response remain residue.
+ *
+ * ATTRIBUTION (issue #364): the walk shares ONE page across surfaces, so a request
+ * started by surface N can still be in flight when the walk hands off to surface N+1 —
+ * the handoff navigation aborts it, and Chromium reports the failure while N+1's watcher
+ * is armed. Which surface caught the event was a timing lottery. A failure is charged to
+ * THIS surface only when the request was INITIATED inside this surface's window: its
+ * `request` event fired while this watcher was armed (the watcher stamps it with the
+ * current document epoch), and no cross-document main-frame commit has replaced that
+ * document since (each commit advances the epoch). A leftover from a previous surface
+ * (never stamped) or from a torn-down document (stale epoch) is a handoff artifact and
+ * is excluded — never residue for the successor. Same-document navigations (pushState)
+ * fire `framenavigated` too but issue no document request, so the epoch holds and an
+ * SPA surface's own failing fetches still count.
  */
 export function trackDataResidue(
   page: Page,
@@ -977,7 +990,30 @@ export function trackDataResidue(
   const byRequest = new Map<Request, DataResidueEntry>();
   const terminalEventSources = new WeakSet<Request>();
   const inBoundary = urlMatcher(url);
+  // Ownership ledger: which document epoch each observed request was initiated in.
+  // Requests already in flight when the watcher armed have no entry and never match.
+  let documentEpoch = 0;
+  let mainFrameDocumentRequestSeen = false;
+  const epochByRequest = new Map<Request, number>();
+  const onRequest = (request: Request): void => {
+    epochByRequest.set(request, documentEpoch);
+    // A main-frame document request is the tell of a coming CROSS-document commit;
+    // `frame()` is only safe to read on navigation requests (service-worker requests
+    // have no frame), and only navigation requests matter here.
+    if (request.isNavigationRequest() && !request.frame().parentFrame()) mainFrameDocumentRequestSeen = true;
+  };
+  const onFrameNavigated = (frame: Frame): void => {
+    // Only a main-frame CROSS-document commit orphans the in-flight requests of the
+    // outgoing document. `framenavigated` also fires for same-document navigations
+    // (pushState/hash), which load no document request — the epoch must hold there.
+    if (frame.parentFrame() || !mainFrameDocumentRequestSeen) return;
+    mainFrameDocumentRequestSeen = false;
+    documentEpoch += 1;
+  };
   const record = (request: Request, reason: string): void => {
+    // Failures already recorded stay recorded: the epoch gates NEW attributions only,
+    // so a genuine pre-handoff failure is not erased by a later commit.
+    if (epochByRequest.get(request) !== documentEpoch) return;
     if (!inBoundary(request.url())) return;
     const endpoint = endpointOf(request.url());
     const key = residueKey(surface, endpoint);
@@ -999,6 +1035,8 @@ export function trackDataResidue(
     }
     if (resp.status() >= 400) record(request, `HTTP ${resp.status()}`);
   };
+  page.on('request', onRequest);
+  page.on('framenavigated', onFrameNavigated);
   page.on('requestfailed', onFailed);
   page.on('response', onResponse);
   return {
@@ -1008,6 +1046,8 @@ export function trackDataResidue(
       return Array.from(byKey.values()).sort((a, b) => a.key.localeCompare(b.key));
     },
     dispose: (): void => {
+      page.off('request', onRequest);
+      page.off('framenavigated', onFrameNavigated);
       page.off('requestfailed', onFailed);
       page.off('response', onResponse);
     },

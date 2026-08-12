@@ -12,6 +12,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Release runs now serialize without cancellation, so rapid main pushes cannot
   race the same npm version and leave tagging or release publication partially
   failed.
+- Data residue is now attributed to the surface that initiated the request. A
+  request still in flight when the shared-page walk hands off to the next
+  surface (for example a long-lived EventSource) is aborted by the handoff
+  navigation, and the abort was previously charged to whichever surface's
+  watcher happened to be armed — a timing lottery that produced random
+  `DATA_RESIDUE_UNACKNOWLEDGED` failures. The watcher now only records failures
+  for requests initiated inside the current surface's own window (after the
+  watcher armed, and not orphaned by a later cross-document commit); leftovers
+  from a previous surface or a torn-down document are excluded as handoff
+  artifacts. Genuine failures initiated by the current surface — including
+  single-page-application surfaces that never navigate — are still recorded.
 
 ## [6.0.3] - 2026-08-11
 
