@@ -678,49 +678,44 @@ function seedMapStore(repo, bundles) {
   }
 }
 
-function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main' } = {}) {
+function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main', changeLockfile = false } = {}) {
   const repo = mkTmp();
   gitInit(repo);
   addBareOrigin(repo);
   spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
   writeSpec(repo);
+  if (changeLockfile) fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"fixture":"base"}\n');
   const baseSha = commitAll(repo, 'base');
   if (baseBranch !== 'main') {
     spawnSync('git', ['checkout', '-qb', baseBranch], { cwd: repo });
     fs.writeFileSync(path.join(repo, 'stack.txt'), baseBranch);
     commitAll(repo, baseBranch);
   }
+  const baseRefSha = spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+  const baseCompatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
   spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'feature.txt'), 'feature');
+  if (changeLockfile) fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"fixture":"head"}\n');
   const headSha = commitAll(repo, 'feature');
 
-  const compatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
+  const headCompatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
   const baseDir = path.join(repo, 'seed-base');
   const headDir = path.join(repo, 'seed-head');
   writeCapture(baseDir, 'home@1280', mapWith('rgb(0, 0, 0)'), null);
   writeCapture(headDir, 'home@1280', mapWith(headColor), null);
-  writeManifest(
-    baseDir,
-    baseBranch === 'main'
-      ? baseSha
-      : spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim(),
-    compatibilityKey,
-  );
-  writeManifest(headDir, headSha, compatibilityKey);
+  writeManifest(baseDir, baseRefSha, baseCompatibilityKey);
+  writeManifest(headDir, headSha, headCompatibilityKey);
   seedMapStore(repo, [
     {
-      sha:
-        baseBranch === 'main'
-          ? baseSha
-          : spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim(),
-      compatibilityKey,
+      sha: baseRefSha,
+      compatibilityKey: baseCompatibilityKey,
       dir: baseDir,
     },
-    { sha: headSha, compatibilityKey, dir: headDir },
+    { sha: headSha, compatibilityKey: headCompatibilityKey, dir: headDir },
   ]);
   fs.rmSync(baseDir, { recursive: true, force: true });
   fs.rmSync(headDir, { recursive: true, force: true });
-  return { repo, baseSha, headSha, compatibilityKey };
+  return { repo, baseSha, headSha, baseCompatibilityKey, headCompatibilityKey };
 }
 
 test('diff defaults to cached maps against the inferred main branch', () => {
@@ -751,6 +746,15 @@ test('diff accepts a single base ref and uses cached maps', () => {
   const r = runIn(repo, DIFF, ['main']);
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /computed-style difference/);
+  rmTmp(repo);
+});
+
+test('diff restores each cached side under the compatibility key derived from its own commit', () => {
+  const { repo, baseCompatibilityKey, headCompatibilityKey } = setupCachedComparison({ changeLockfile: true });
+  assert.notEqual(baseCompatibilityKey, headCompatibilityKey, 'the lockfile-only fixture must exercise distinct keys');
+  const r = runIn(repo, DIFF, ['main']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
   rmTmp(repo);
 });
 

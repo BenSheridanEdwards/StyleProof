@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { CiWorktreeSession, consumerRelativeFromRepoRoot, gitRepoRoot, worktreeRunCwd } from './ci-worktree.js';
 import { inferBaseRef } from './gitref.js';
 import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
@@ -1242,14 +1243,24 @@ export function resolveCachedCaptureDirs(options: {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cache-'));
   const beforeDir = path.join(tmpRoot, 'base');
   const afterDir = path.join(tmpRoot, 'head');
+  let worktrees: CiWorktreeSession | undefined;
   try {
+    const repoRoot = gitRepoRoot(cwd);
+    const consumerRel = consumerRelativeFromRepoRoot(repoRoot, cwd);
+    worktrees = new CiWorktreeSession(repoRoot);
+    const baseWorktree = worktrees.addDetached(baseSha, 'cache-base');
+    const baseCompatibilityKey = expectedCompatibilityKey({
+      cwd: worktreeRunCwd(baseWorktree, consumerRel),
+      spec: options.spec,
+      baseUrl: options.baseUrl,
+    });
     restoreMapBundle({
       sha: baseSha,
       outDir: beforeDir,
       branch: options.branch,
       remote: options.remote,
       cwd,
-      compatibilityKey,
+      compatibilityKey: baseCompatibilityKey,
     });
     restoreMapBundle({
       sha: headSha,
@@ -1263,6 +1274,8 @@ export function resolveCachedCaptureDirs(options: {
   } catch (e) {
     removeTempWorkspace(tmpRoot);
     throw e;
+  } finally {
+    worktrees?.dispose();
   }
 }
 

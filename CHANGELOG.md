@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.0.4] - 2026-08-12
+
 ### Added
 
 - Opt-in nearest-ancestor baseline reuse for `styleproof-ci` (#367, conservative
@@ -54,6 +56,11 @@ in 42.1s (self-check 12.3s)` — so a slow capture run on a saturated runner is
 
 ### Fixed
 
+- Cached `styleproof-diff` and `styleproof-report` lookups now derive the base
+  bundle key from a detached base worktree and the head bundle key from the
+  current checkout. A lockfile change can no longer make the already-published
+  base bundle unreachable by looking it up under the head's compatibility key
+  (#341).
 - A late-arriving PR-comment delivery from an earlier attempt of the same
   workflow run (for example a network retry from attempt 1 landing after
   `rerun_failed_jobs` already published attempt 2) can no longer overwrite the
@@ -3053,7 +3060,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.3...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.4...HEAD
+[6.0.4]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.3...v6.0.4
 [6.0.3]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.2...v6.0.3
 [6.0.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.1...v6.0.2
 [6.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.0...v6.0.1
