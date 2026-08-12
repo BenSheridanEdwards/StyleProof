@@ -191,6 +191,24 @@ test('state recipes: refuse destructive labels (declared and live)', async ({ br
   });
 });
 
+test('state recipes: declared label controls key while live label still guards danger', async ({ browser }) => {
+  await withFixture(browser, async (page) => {
+    const recipe = { action: 'hover' as const, selector: '#card', label: 'Marketing hero' };
+    const applied = await applyStateRecipe(page, recipe);
+    expect(applied.stateKey).toBe(stateRecipeKey(recipe));
+    expect(applied.stateKey).toBe('hover-marketing-hero');
+    expect(applied.label).toBe('Marketing hero');
+
+    await expect(
+      applyStateRecipe(page, {
+        action: 'focus',
+        selector: '#danger',
+        label: 'Safe declared label',
+      }),
+    ).rejects.toThrow(/destructive-action guard/);
+  });
+});
+
 test('state recipes: repeated runs produce identical keys', async ({ browser }) => {
   await withFixture(browser, async (page) => {
     const recipe = { action: 'press' as const, selector: '#menu', key: 'Enter', label: 'Open menu' };

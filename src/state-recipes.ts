@@ -331,6 +331,18 @@ function applied(recipe: StateRecipe, label?: string): AppliedStateRecipe {
  *   (use {@link classifyStateRecipe} first when you want a soft skip instead)
  * - Never runs arbitrary script/eval
  */
+async function executeStateRecipe(page: Page, recipe: StateRecipe): Promise<void> {
+  const target = recipe.selector ? page.locator(recipe.selector).first() : null;
+  if (recipe.action === 'hover') {
+    await target!.hover({ timeout: 10_000 });
+  } else if (recipe.action === 'focus') {
+    await target!.focus({ timeout: 10_000 });
+  } else {
+    if (target) await target.focus({ timeout: 10_000 });
+    await page.keyboard.press(recipe.key!);
+  }
+}
+
 export async function applyStateRecipe(page: Page, raw: unknown): Promise<AppliedStateRecipe> {
   const classified = classifyStateRecipe(raw);
   if (!classified.ok) {
@@ -348,17 +360,8 @@ export async function applyStateRecipe(page: Page, raw: unknown): Promise<Applie
     }
   }
 
-  const target = recipe.selector ? page.locator(recipe.selector).first() : null;
-
   try {
-    if (recipe.action === 'hover') {
-      await target!.hover({ timeout: 10_000 });
-    } else if (recipe.action === 'focus') {
-      await target!.focus({ timeout: 10_000 });
-    } else {
-      if (target) await target.focus({ timeout: 10_000 });
-      await page.keyboard.press(recipe.key!);
-    }
+    await executeStateRecipe(page, recipe);
   } catch (e) {
     throw new StateRecipeError(
       `state recipe failed (${recipe.action} ${recipe.selector ?? recipe.key ?? ''}): ${
@@ -368,7 +371,7 @@ export async function applyStateRecipe(page: Page, raw: unknown): Promise<Applie
     );
   }
 
-  return applied(recipe, liveLabel ?? recipe.label);
+  return applied(recipe, recipe.label ?? liveLabel);
 }
 
 /**
