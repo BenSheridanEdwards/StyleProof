@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Crawl URL normalization and automatic breakpoint discovery now handle
+  malformed slash- or dot-heavy page input in linear time instead of allowing
+  regular-expression backtracking to stall capture.
+
 ## [6.0.4] - 2026-08-12
 
 ### Added

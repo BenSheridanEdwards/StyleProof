@@ -127,7 +127,9 @@ export function dedupIdentity(pathAndSearch: string): string {
   // `/index.html` → `/`, `/docs/index.html` → `/docs/` (the preceding slash stays so
   // the trailing-slash step below folds it into the same identity as `/docs` / `/docs/`).
   const withoutIndex = path.replace(/(^|\/)index\.html$/, '$1');
-  const normPath = withoutIndex.length > 1 ? withoutIndex.replace(/\/+$/, '') || '/' : withoutIndex;
+  let end = withoutIndex.length;
+  while (end > 1 && withoutIndex.charCodeAt(end - 1) === 47) end--;
+  const normPath = withoutIndex.slice(0, end);
   return normPath + search;
 }
 

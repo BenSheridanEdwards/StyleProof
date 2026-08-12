@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mediaTextWidthBoundaries, widthsFromBoundaries } from '../dist/breakpoints.js';
+import { performance } from 'node:perf_hooks';
 
 // ----------------------------------------- mediaTextWidthBoundaries (parsing real @media text)
 
@@ -38,6 +39,15 @@ test('non-width conditions yield nothing', () => {
   assert.deepEqual(mediaTextWidthBoundaries('print'), []);
   assert.deepEqual(mediaTextWidthBoundaries('(prefers-color-scheme: dark)'), []);
   assert.deepEqual(mediaTextWidthBoundaries('(min-height: 600px)'), []);
+});
+
+test('malformed dot-heavy media text is handled without blocking breakpoint discovery', () => {
+  const startedAt = performance.now();
+  const boundaries = mediaTextWidthBoundaries('.'.repeat(40_000) + 'x');
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.deepEqual(boundaries, []);
+  assert.ok(elapsedMs < 250, `dot-heavy media text took ${elapsedMs.toFixed(1)}ms`);
 });
 
 // ----------------------------------------- widthsFromBoundaries (band → representative widths)

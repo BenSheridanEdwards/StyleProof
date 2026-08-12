@@ -54,6 +54,47 @@ function collectMediaTexts(): MediaCollection {
   return { mediaTexts, unreadable, rootFontPx };
 }
 
+type MirroredWidth = { value: number; unit: string; operator: string };
+
+function previousNonWhitespace(text: string, from: number): number {
+  let i = from;
+  while (i >= 0 && /\s/.test(text[i])) i--;
+  return i;
+}
+
+function numberBefore(text: string, end: number): number | null {
+  let i = end - 1;
+  let dots = 0;
+  let digits = 0;
+  while (i >= 0 && ((text[i] >= '0' && text[i] <= '9') || text[i] === '.')) {
+    if (text[i] === '.') dots++;
+    else digits++;
+    i--;
+  }
+  if (digits === 0 || dots > 1) return null;
+  const value = Number(text.slice(i + 1, end));
+  return Number.isFinite(value) ? value : null;
+}
+
+function mirroredWidthBefore(text: string, widthIndex: number): MirroredWidth | null {
+  let i = previousNonWhitespace(text, widthIndex - 1);
+  let operator = text[i];
+  if (text[i] === '=' && (text[i - 1] === '<' || text[i - 1] === '>')) {
+    operator = text[i - 1] + '=';
+    i -= 2;
+  } else if (text[i] === '<' || text[i] === '>') {
+    i--;
+  } else {
+    return null;
+  }
+
+  i = previousNonWhitespace(text, i);
+  const unit = text.slice(Math.max(0, i - 2), i + 1) === 'rem' ? 'rem' : text.slice(Math.max(0, i - 1), i + 1);
+  if (unit !== 'px' && unit !== 'em' && unit !== 'rem') return null;
+  const value = numberBefore(text, i - unit.length + 1);
+  return value === null ? null : { value, unit, operator };
+}
+
 /**
  * Parse the px width BOUNDARIES a single `@media` condition introduces — the widths
  * at which its match flips. A `min-width: V` opens a band at `V`; a `max-width: V`
@@ -88,8 +129,11 @@ export function mediaTextWidthBoundaries(mediaText: string, rootFontPx = 16): nu
   };
   const reRight = /width\s*(<=|>=|<|>)\s*([\d.]+)(px|r?em)/g;
   while ((m = reRight.exec(t)) !== null) addCmp(px(parseFloat(m[2]), m[3]), m[1]);
-  const reLeft = /([\d.]+)(px|r?em)\s*(<=|>=|<|>)\s*width/g;
-  while ((m = reLeft.exec(t)) !== null) addCmp(px(parseFloat(m[1]), m[2]), flip(m[3]));
+  const reWidth = /\bwidth\b/g;
+  while ((m = reWidth.exec(t)) !== null) {
+    const mirrored = mirroredWidthBefore(t, m.index);
+    if (mirrored) addCmp(px(mirrored.value, mirrored.unit), flip(mirrored.operator));
+  }
 
   return [...out].sort((a, b) => a - b);
 }
