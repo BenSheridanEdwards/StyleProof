@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- A sibling removal or insertion above repeated same-shaped elements no longer
+  reports every shifted row's subtree as phantom removed+added content changes:
+  count-preserving signature groups now pair in document order, so only the
+  genuinely added/removed elements surface. A consumer report shrank from 420
+  phantom entries to the 4 real removals.
+- Content-change crops whose location renders identically on both sides (an
+  element inside a collapsed `<details>`, for example) now say so instead of
+  presenting the same pixels twice as before/after proof.
 - Release runs now serialize without cancellation, so rapid main pushes cannot
   race the same npm version and leave tagging or release publication partially
   failed.
