@@ -12,8 +12,9 @@ Intentional changes get approved. Unexpected changes block.
 [![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
 
 On a pull request the Action comment has to stop at a link. GitHub comments
-cannot carry the crops. The README can. This is that comment, with the report
-inlined. `github-actions` would post it. One tick signs it off.
+cannot carry the crops. The README can. Save below is the product rest crop.
+Hover, focus, and active are live forced-state crops: both sides in that
+state, old versus new. The Action does not emit those state crops yet.
 
 <!-- styleproof-report -->
 
@@ -25,7 +26,7 @@ _**Surface base** = one product UI state; capture keys with `@width` or live-sta
 
 - [ ] **Approve all changes**
 
-Two components. Save is style and size at rest. Docs is hover, focus, and active, each forced and cropped on its own.
+Two components. Save is style and size at rest. Docs is hover, focus, and active. Each state compares the old state to the new state. Both sides are forced into that state.
 
 ### `button.btn` · style and size
 
@@ -47,33 +48,33 @@ _demo-button @ 900_
 
 ### `a.link` `:hover`
 
-_demo-button @ 900 · forced state_
+_Both sides are :hover. Left is the old :hover. Right is the new :hover._
 
 `:hover` `color` `#a5f3fc` → `#fca5a5`
 
-![before ◀ │ ▶ after](docs/readme/live-report/crops/docs-hover-composite.png)
+![base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/docs-hover-composite.png)
 
-<sub>◀ before · after ▶ — Docs :hover</sub>
+<sub>◀ base :hover · head :hover ▶</sub>
 
 ### `a.link` `:focus`
 
-_demo-button @ 900 · forced state_
+_Both sides are :focus. Left is the old :focus. Right is the new :focus._
 
 `:focus` `outline-color` `#5eead4` → `#fca5a5`
 
-![before ◀ │ ▶ after](docs/readme/live-report/crops/docs-focus-composite.png)
+![base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/docs-focus-composite.png)
 
-<sub>◀ before · after ▶ — Docs :focus</sub>
+<sub>◀ base :focus · head :focus ▶</sub>
 
 ### `a.link` `:active`
 
-_demo-button @ 900 · forced state_
+_Both sides are :active. Left is the old :active. Right is the new :active._
 
 `:active` `color` `#2dd4bf` → `#f87171`
 
-![before ◀ │ ▶ after](docs/readme/live-report/crops/docs-active-composite.png)
+![base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/docs-active-composite.png)
 
-<sub>◀ before · after ▶ — Docs :active</sub>
+<sub>◀ base :active · head :active ▶</sub>
 
 ---
 

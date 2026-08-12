@@ -11,7 +11,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { PNG } from 'pngjs';
 import { chromium } from 'playwright';
 import { captureStyleMap, generateStyleMapReport } from '../dist/index.js';
 
@@ -68,31 +67,23 @@ function writeCapture(dir, surface, map, png) {
   fs.writeFileSync(path.join(dir, `${surface}.png`), png);
 }
 
-function fillRect(png, x, y, w, h, rgb) {
-  for (let yy = y; yy < y + h; yy++) {
-    for (let xx = x; xx < x + w; xx++) {
-      const i = (yy * png.width + xx) << 2;
-      png.data[i] = rgb[0];
-      png.data[i + 1] = rgb[1];
-      png.data[i + 2] = rgb[2];
-      png.data[i + 3] = 255;
-    }
-  }
-}
-
-function compositePair(before, after) {
-  const PAD = 20;
-  const GAP = 28;
-  const w = Math.max(before.width, after.width);
-  const h = Math.max(before.height, after.height);
-  const width = PAD + w + GAP + w + PAD;
-  const height = PAD + h + PAD;
-  const canvas = new PNG({ width, height });
-  fillRect(canvas, 0, 0, width, height, [13, 17, 23]);
-  PNG.bitblt(before, canvas, 0, 0, before.width, before.height, PAD, PAD);
-  PNG.bitblt(after, canvas, 0, 0, after.width, after.height, PAD + w + GAP, PAD);
-  fillRect(canvas, PAD + w + GAP / 2 - 1, PAD, 2, h, [48, 54, 61]);
-  return canvas;
+async function labeledPair(page, beforeBuf, afterBuf, leftLabel, rightLabel, outPath) {
+  const before64 = Buffer.from(beforeBuf).toString('base64');
+  const after64 = Buffer.from(afterBuf).toString('base64');
+  await page.setContent(`<!doctype html><html><body style="margin:0;background:#0d1117">
+    <div id="frame" style="display:flex;gap:28px;padding:16px 20px 14px;align-items:flex-start;width:max-content;font-family:ui-sans-serif,system-ui,sans-serif">
+      <figure style="margin:0">
+        <img alt="" src="data:image/png;base64,${before64}" style="display:block">
+        <figcaption style="margin:8px 0 0;color:#8b949e;font-size:12px;letter-spacing:0.06em">${leftLabel}</figcaption>
+      </figure>
+      <div style="width:2px;align-self:stretch;background:#30363d"></div>
+      <figure style="margin:0">
+        <img alt="" src="data:image/png;base64,${after64}" style="display:block">
+        <figcaption style="margin:8px 0 0;color:#8b949e;font-size:12px;letter-spacing:0.06em">${rightLabel}</figcaption>
+      </figure>
+    </div>
+  </body></html>`);
+  await page.locator('#frame').screenshot({ path: outPath, type: 'png' });
 }
 
 async function shotForced(page, selector, pseudos) {
@@ -153,10 +144,14 @@ for (const [name, pseudos] of Object.entries(STATE_SETS)) {
   const beforeBuf = await shotForced(page, 'a.link', pseudos);
   await loadDemo(page, HEAD_CSS);
   const afterBuf = await shotForced(page, 'a.link', pseudos);
-  const beforePng = PNG.sync.read(beforeBuf);
-  const afterPng = PNG.sync.read(afterBuf);
-  const composite = compositePair(beforePng, afterPng);
-  fs.writeFileSync(path.join(cropsDir, `docs-${name}-composite.png`), PNG.sync.write(composite));
+  await labeledPair(
+    page,
+    beforeBuf,
+    afterBuf,
+    `base :${name}`,
+    `head :${name}`,
+    path.join(cropsDir, `docs-${name}-composite.png`),
+  );
 }
 
 await browser.close();
@@ -192,13 +187,13 @@ const stateSections = Object.keys(STATE_SETS)
     [
       `### \`a.link\` \`:${name}\``,
       '',
-      '_demo-button @ 900 · forced state_',
+      `_Both sides are :${name}. Left is the old :${name}. Right is the new :${name}._`,
       '',
       STATE_GLANCE[name],
       '',
-      `![before ◀ │ ▶ after](crops/docs-${name}-composite.png)`,
+      `![base :${name} ◀ │ ▶ head :${name}](crops/docs-${name}-composite.png)`,
       '',
-      `<sub>◀ before  ·  after ▶ — Docs :${name}</sub>`,
+      `<sub>◀ base :${name}  ·  head :${name} ▶</sub>`,
     ].join('\n'),
   )
   .join('\n\n');

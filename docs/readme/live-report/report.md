@@ -25,30 +25,30 @@ _demo-button @ 900_
 
 ### `a.link` `:hover`
 
-_demo-button @ 900 · forced state_
+_Both sides are :hover. Left is the old :hover. Right is the new :hover._
 
 `:hover` `color` `#a5f3fc` → `#fca5a5`
 
-![before ◀ │ ▶ after](crops/docs-hover-composite.png)
+![base :hover ◀ │ ▶ head :hover](crops/docs-hover-composite.png)
 
-<sub>◀ before  ·  after ▶ — Docs :hover</sub>
+<sub>◀ base :hover  ·  head :hover ▶</sub>
 
 ### `a.link` `:focus`
 
-_demo-button @ 900 · forced state_
+_Both sides are :focus. Left is the old :focus. Right is the new :focus._
 
 `:focus` `outline-color` `#5eead4` → `#fca5a5`
 
-![before ◀ │ ▶ after](crops/docs-focus-composite.png)
+![base :focus ◀ │ ▶ head :focus](crops/docs-focus-composite.png)
 
-<sub>◀ before  ·  after ▶ — Docs :focus</sub>
+<sub>◀ base :focus  ·  head :focus ▶</sub>
 
 ### `a.link` `:active`
 
-_demo-button @ 900 · forced state_
+_Both sides are :active. Left is the old :active. Right is the new :active._
 
 `:active` `color` `#2dd4bf` → `#f87171`
 
-![before ◀ │ ▶ after](crops/docs-active-composite.png)
+![base :active ◀ │ ▶ head :active](crops/docs-active-composite.png)
 
-<sub>◀ before  ·  after ▶ — Docs :active</sub>
+<sub>◀ base :active  ·  head :active ▶</sub>
