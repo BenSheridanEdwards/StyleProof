@@ -1,7 +1,7 @@
 # StyleProof
 
-**Make every visual change on a pull request explainable, reviewable, and
-enforceable.**
+**StyleProof's job is a deterministic way to see visual regressions on the
+frontend. Here's what a report looks like.**
 
 StyleProof opens the app states you care about in a real browser, compares the
 base and head by computed CSS, and posts the evidence to the pull request.
@@ -11,37 +11,61 @@ Intentional changes get approved. Unexpected changes block.
 [![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)
 [![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
 
-[![A real StyleProof crop: the demo Save button, teal before, red after, magenta highlight](docs/readme/live-report/crops/demo-button-900-2-annotated.png)](docs/readme/live-report/report.md)
+On a pull request the Action comment has to stop at a link. GitHub comments
+cannot carry the crops. The README can. This is that comment, with the report
+inlined. `github-actions` would post it. One tick signs it off.
 
-_A real StyleProof report of this repository's demo button. Reviewers see the
-before/after crop, the magenta highlight, and the property table. Not a mock._
+<!-- styleproof-report -->
 
-**[Open the full report](docs/readme/live-report/report.md)** ·
+## 🗺️ StyleProof report
+
+**5 computed-style difference(s) · 4 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+
+_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
+
+- [ ] **Approve all changes**
+
+### `button.btn` · 1 element restyled
+
+_demo-button @ 900_
+
+![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-1-composite.png)
+
+<sub>◀ before · after ▶ — demo-button @ 900</sub>
+
+![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-1-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
+
+**`button.btn`**
+
+Style:
+
+| Property           | Before      | After       |
+| ------------------ | ----------- | ----------- |
+| `padding`          | `14px 28px` | `18px 32px` |
+| `border-color`     | `#38d6c6`   | `#f87171`   |
+| `background-color` | `#14b8a6`   | `#dc2626`   |
+| `font-size`        | `13px`      | `16px`      |
+| `letter-spacing`   | `1.56px`    | `1.92px`    |
+
+Interactive-state changes:
+
+| State     | Property         | Before → After                         |
+| --------- | ---------------- | -------------------------------------- |
+| `:hover`  | `color`          | `#5eead4` → `#fecaca`                  |
+| `:hover`  | `row-rule-color` | `#5eead4` → `#fecaca`                  |
+| `:focus`  | `outline-color`  | `#5eead4` → `#fca5a5`                  |
+| `:active` | `box-shadow`     | — → `rgb(127, 29, 29) 0px 0px 0px 4px` |
+
+---
+
+_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._
+
 **[Quickstart](#quickstart)** ·
 **[Read the catch contract](docs/what-it-catches.md)**
 
 ## See the gate work
-
-This is what a pull request actually gets: a StyleProof report of one `Save`
-button, captured in Chromium, teal to red.
-
-![before / after](docs/readme/live-report/crops/demo-button-900-2-composite.png)
-
-![highlighted before / after](docs/readme/live-report/crops/demo-button-900-2-annotated.png)
-
-| Property           | Before    | After     |
-| ------------------ | --------- | --------- |
-| `border-color`     | `#38d6c6` | `#f87171` |
-| `background-color` | `#14b8a6` | `#dc2626` |
-| `color`            | `#07090c` | `#ffffff` |
-
-Full receipt: [docs/readme/live-report/report.md](docs/readme/live-report/report.md).
-
-StyleProof also forces `:hover`, `:focus`, and `:active` on every capture. The
-current report folds those layers when they echo the same property as the rest
-style. The same `button.btn` is also listed twice, once with a false "not
-visible" note. That is the product today. Isolated component surfaces stay on
-[#392](https://github.com/BenSheridanEdwards/StyleProof/issues/392).
 
 ### Comment states
 
@@ -287,7 +311,9 @@ on:
 ## What the PR gets
 
 On every PR, StyleProof posts a small summary comment that links to the committed
-full report. The report groups each distinct visual change with:
+full report. GitHub comments cannot carry the crops, so the link is a product
+limit, not a design choice. This README inlines that same report. The report
+groups each distinct visual change with:
 
 - before/after crops from the same page rectangle;
 - highlighted crops that box the changed element;

@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 /**
- * One-shot: capture the real demo button (base vs a restyle of rest/hover/focus/active)
- * and write a StyleProof report to docs/readme/live-report/.
- * This is the report the README shows. It is not the synthetic docs/demo/ fixture.
+ * One-shot: capture the real demo button and write the StyleProof report
+ * the README inlines. Not the synthetic docs/demo/ fixture.
+ *
+ * Head restyle is deliberate so the report can show:
+ *   - rest style (fill)
+ *   - size (font-size, padding)
+ *   - :hover / :focus / :active on properties the rest style did not change
+ *     (otherwise cleanFindings folds them as echoes)
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -16,18 +21,31 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const demo = 'file://' + path.join(root, 'example/demo/index.html') + '?state=loaded';
 const outDir = path.join(root, 'docs/readme/live-report');
+
+// Rest changes fill + size. States change a *different* color property so they
+// survive echo suppression and show as their own rows.
 const HEAD_CSS = `
-  .btn { background: rgb(220, 38, 38); border-color: rgb(248, 113, 113); color: rgb(255, 255, 255); }
-  .btn:hover { background: rgb(7, 9, 12); color: rgb(252, 165, 165); border-color: rgb(252, 165, 165); }
-  .btn:focus { outline-color: rgb(252, 165, 165); border-color: rgb(254, 202, 202); }
-  .btn:active { background: rgb(153, 27, 27); border-color: rgb(127, 29, 29); }
+  .btn {
+    background: rgb(220, 38, 38);
+    border-color: rgb(248, 113, 113);
+    font-size: 16px;
+    padding: 18px 32px;
+  }
+  .btn:hover { color: rgb(254, 202, 202); }
+  .btn:focus { outline-color: rgb(252, 165, 165); }
+  .btn:active { box-shadow: rgb(127, 29, 29) 0px 0px 0px 4px; }
 `;
 
-async function captureOne(page, url, extraCss) {
-  await page.goto(url, { waitUntil: 'load' });
+const CAPTURE = {
+  ignore: ['.stage-organism'],
+  captureComponent: true,
+};
+
+async function captureOne(page, extraCss) {
+  await page.goto(demo, { waitUntil: 'load' });
   if (extraCss) await page.addStyleTag({ content: extraCss });
-  const map = await captureStyleMap(page);
-  const png = await page.screenshot({ type: 'png', fullPage: false });
+  const map = await captureStyleMap(page, CAPTURE);
+  const png = await page.screenshot({ type: 'png', fullPage: true });
   return { map, png };
 }
 
@@ -38,15 +56,15 @@ function writeCapture(dir, surface, map, png) {
 }
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 900, height: 520 } });
+const page = await browser.newPage({ viewport: { width: 900, height: 640 } });
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-live-'));
 const beforeDir = path.join(work, 'before');
 const afterDir = path.join(work, 'after');
 
-const baseAtom = await captureOne(page, demo);
-writeCapture(beforeDir, 'demo-button@900', baseAtom.map, baseAtom.png);
-const headAtom = await captureOne(page, demo, HEAD_CSS);
-writeCapture(afterDir, 'demo-button@900', headAtom.map, headAtom.png);
+const base = await captureOne(page);
+writeCapture(beforeDir, 'demo-button@900', base.map, base.png);
+const head = await captureOne(page, HEAD_CSS);
+writeCapture(afterDir, 'demo-button@900', head.map, head.png);
 
 await browser.close();
 
@@ -60,5 +78,19 @@ const res = generateStyleMapReport({
 });
 fs.rmSync(res.reportJsonPath, { force: true });
 fs.rmSync(work, { recursive: true, force: true });
+
+const report = fs.readFileSync(res.reportMdPath, 'utf8');
+const inlined = report.replaceAll('(crops/', '(docs/readme/live-report/crops/');
+const comment = [
+  '<!-- styleproof-report -->',
+  inlined.trim(),
+  '',
+  '- [ ] **Approve all changes**',
+  '',
+  '---',
+  '_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._',
+  '',
+].join('\n');
+fs.writeFileSync(path.join(outDir, 'comment.md'), comment);
 console.log('wrote', path.relative(root, res.reportMdPath));
 console.log('findings', res.totalFindings, 'changed', res.changedSurfaces);

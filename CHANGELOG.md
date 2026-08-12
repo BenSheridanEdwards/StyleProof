@@ -27,9 +27,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   disabled or inert controls, empty required inputs, and closed disclosures.
   It never records field values. Auth walls stay in `classifyAuthBoundary`
   (#398).
-- README leads with a real StyleProof report of the demo `Save` button
-  (teal → red, magenta highlight, property table). Isolated component
-  surfaces stay tracked as #392.
+- README leads with a real StyleProof PR comment of the demo `Save`
+  button, report inlined (style, size, hover, focus, active). Isolated
+  component surfaces stay tracked as #392.
 
 ### Fixed
 
