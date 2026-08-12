@@ -37,13 +37,21 @@ A button is the smallest useful StyleProof surface. StyleProof does not wait
 for a mouse. On every capture it forces `:hover`, `:focus`, and `:active` in
 the browser and records those computed styles as their own layer.
 
-That is the example:
+**Atom** — one `Save` button. Nothing else.
 
-1. **Atom** — one `Save` button, resting.
-2. **Forced states** — the same button, hover / focus / active. A PR that drops
-   `:hover` is a reviewable change even if the resting fill is identical.
-3. **Organism** — the same button inside a modal (`?scale=organism`). One
-   situation, one surface. The atom is not also on that page.
+![The StyleProof demo atom: one Save button on a dark page](docs/readme/demo-atom.png)
+
+**Forced states** — the same button. A PR that drops `:hover` is a reviewable
+change even if the resting fill is identical.
+
+| Hover                                                           | Focus                                                 | Active                                              |
+| --------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+| ![Save button hover: inverted fill](docs/readme/demo-hover.png) | ![Save button focus ring](docs/readme/demo-focus.png) | ![Save button pressed](docs/readme/demo-active.png) |
+
+**Organism** — the same button as the primary action of a modal
+(`?scale=organism`). The atom is not also on that page.
+
+![The same Save button as the primary action of a modal](docs/readme/demo-modal.png)
 
 Properties stay visible. A restyle should read as `background-color: #14b8a6 →
 #dc2626`, not as a second crop of the same button.
