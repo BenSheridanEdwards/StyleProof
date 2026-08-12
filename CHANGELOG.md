@@ -25,6 +25,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   baseline was restored from the exact SHA, reused from ancestor `<sha>` (with
   the changed-path-count proof), or captured fresh. Default behavior is
   unchanged when the variable is unset.
+- `styleproof-ci` now verifies the pinned Playwright browser build exists
+  before every capture, resolving the executable through the consumer's own
+  Playwright (`browserType.executablePath()`) — webkit too when the capture
+  Playwright config mentions it. A healthy host logs one `verified` line per
+  browser and skips the install; a missing build (e.g. a re-provisioned
+  runner with an empty ms-playwright cache) self-heals with one
+  `playwright install`, and a failed heal exits non-zero within seconds,
+  naming the missing revision and the exact `npx playwright install …`
+  remedy instead of dying minutes later at `browserType.launch: Executable
+doesn't exist`. Opt out with `STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1`.
 - Per-surface progress heartbeat: every completed surface capture logs one
   stable, greppable line — `styleproof: surface 17/41 (factory@1280) captured
 in 42.1s (self-check 12.3s)` — so a slow capture run on a saturated runner is

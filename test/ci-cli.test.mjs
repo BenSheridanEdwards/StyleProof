@@ -1719,3 +1719,146 @@ test(
     }
   },
 );
+
+test(
+  'styleproof-ci: browser preflight self-heals or fails fast with the exact remedy before any capture',
+  { timeout: 60_000 },
+  () => {
+    // Issue #366: a re-provisioned host with an empty ms-playwright cache used
+    // to die minutes into the run at `browserType.launch: Executable doesn't
+    // exist`. The preflight must fail BEFORE the first capture with the exact
+    // remedy, verify with one log line on a healthy host, and stay skippable.
+    const root = mkTmp('styleproof-ci-preflight-');
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'consumer');
+    const mapRoot = path.join(root, 'maps');
+    const installLog = path.join(root, 'install-log');
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    try {
+      fs.mkdirSync(repo);
+      git(root, ['init', '--bare', '-q', remote]);
+      git(repo, ['init', '-q', '-b', 'main']);
+      git(repo, ['config', 'user.email', 'styleproof@example.test']);
+      git(repo, ['config', 'user.name', 'StyleProof Test']);
+      git(repo, ['remote', 'add', 'origin', remote]);
+      fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture fixture\n');
+      fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
+      fs.writeFileSync(path.join(repo, 'app.txt'), 'base\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: base']);
+      const base = git(repo, ['rev-parse', 'HEAD']);
+      fs.writeFileSync(path.join(repo, 'app.txt'), 'head\n');
+      git(repo, ['add', 'app.txt']);
+      git(repo, ['commit', '-qm', 'test: head']);
+      const head = git(repo, ['rev-parse', 'HEAD']);
+      git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+      // The consumer's "installed Playwright": a fake playwright-core whose
+      // documented executablePath() API points wherever the test says.
+      const fakePlaywrightCore = path.join(root, 'fake-playwright-core.cjs');
+      fs.writeFileSync(
+        fakePlaywrightCore,
+        'module.exports = { chromium: { executablePath: () => process.env.STYLEPROOF_TEST_CHROMIUM_EXECUTABLE ?? "" } };\n',
+      );
+      // The playwright CLI shim: `install` only logs (it can never produce the
+      // executable), any other invocation is a capture and writes a map.
+      const playwrightShim = path.join(root, 'playwright-shim.sh');
+      fs.writeFileSync(
+        playwrightShim,
+        `#!/bin/sh
+if [ "$1" = "install" ]; then
+  echo "install $*" >> "$STYLEPROOF_TEST_INSTALL_LOG"
+  exit 0
+fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+`,
+      );
+      fs.chmodSync(playwrightShim, 0o755);
+
+      const plantConsumerModules = (checkoutRoot) => {
+        const bin = path.join(checkoutRoot, 'node_modules', '.bin');
+        const playwrightCoreRoot = path.join(checkoutRoot, 'node_modules', 'playwright-core');
+        fs.mkdirSync(bin, { recursive: true });
+        fs.mkdirSync(playwrightCoreRoot, { recursive: true });
+        fs.writeFileSync(
+          path.join(playwrightCoreRoot, 'package.json'),
+          '{"name":"playwright-core","main":"index.cjs"}\n',
+        );
+        fs.copyFileSync(fakePlaywrightCore, path.join(playwrightCoreRoot, 'index.cjs'));
+        fs.copyFileSync(playwrightShim, path.join(bin, 'playwright'));
+        fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+      };
+      plantConsumerModules(repo);
+      // The npm shim plants the same modules into whichever checkout it
+      // installs (the cold-base worktree has no node_modules of its own).
+      fs.writeFileSync(
+        path.join(repo, 'node_modules', '.bin', 'npm'),
+        npmShim(`
+mkdir -p node_modules/.bin node_modules/playwright-core
+printf '{"name":"playwright-core","main":"index.cjs"}\\n' > node_modules/playwright-core/package.json
+cp "$STYLEPROOF_TEST_PLAYWRIGHT_CORE" node_modules/playwright-core/index.cjs
+cp "$STYLEPROOF_TEST_PLAYWRIGHT_SHIM" node_modules/.bin/playwright
+chmod +x node_modules/.bin/playwright
+exit 0
+`),
+      );
+      fs.chmodSync(path.join(repo, 'node_modules', '.bin', 'npm'), 0o755);
+
+      const ciArgs = ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot, '--force'];
+      const missingExecutable = '/nonexistent/ms-playwright/chromium_headless_shell-9999/chrome-linux/headless_shell';
+      const sharedEnv = {
+        CI: '1',
+        STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        STYLEPROOF_TEST_PLAYWRIGHT_CORE: fakePlaywrightCore,
+        STYLEPROOF_TEST_PLAYWRIGHT_SHIM: playwrightShim,
+        STYLEPROOF_TEST_INSTALL_LOG: installLog,
+      };
+
+      // 1) Empty-cache host, and the self-heal install cannot produce the
+      //    executable: exit non-zero immediately, naming revision and remedy,
+      //    with no capture attempted.
+      const failed = runCi(ciArgs, { ...sharedEnv, STYLEPROOF_TEST_CHROMIUM_EXECUTABLE: missingExecutable }, repo);
+      assert.equal(failed.status, 1, failed.stderr + failed.stdout);
+      assert.match(failed.stderr, /chromium_headless_shell-9999/, 'the failure names the missing revision');
+      assert.match(failed.stderr, /npx playwright install chromium/, 'the failure names the exact remedy command');
+      assert.match(fs.readFileSync(installLog, 'utf8'), /install/, 'the self-heal attempted a playwright install');
+      assert.equal(fs.existsSync(path.join(mapRoot, 'base', 'home@900.json')), false, 'no base capture ran');
+      assert.equal(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')), false, 'no head capture ran');
+
+      // 2) Healthy host: one verified log line per browser, NO install spawned,
+      //    captures proceed.
+      fs.rmSync(installLog, { force: true });
+      const healthy = runCi(ciArgs, { ...sharedEnv, STYLEPROOF_TEST_CHROMIUM_EXECUTABLE: playwrightShim }, repo);
+      assert.equal(healthy.status, 0, healthy.stderr + healthy.stdout);
+      assert.match(healthy.stderr, /browser preflight: verified chromium/, 'the healthy path logs the verification');
+      assert.equal(fs.existsSync(installLog), false, 'a healthy host skips playwright install entirely');
+      assert.ok(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')), 'capture proceeded after verification');
+
+      // 3) Opt-out: STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1 restores the
+      //    unconditional-install behaviour with no executable verification.
+      const storeBranchDelete = spawnSync('git', ['branch', '-D', 'styleproof-maps'], { cwd: remote });
+      assert.equal(storeBranchDelete.status, 0, 'the published map-store branch resets so the next run goes cold');
+      fs.rmSync(mapRoot, { recursive: true, force: true });
+      const optedOut = runCi(
+        ciArgs,
+        {
+          ...sharedEnv,
+          STYLEPROOF_TEST_CHROMIUM_EXECUTABLE: missingExecutable,
+          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
+        },
+        repo,
+      );
+      assert.equal(optedOut.status, 0, optedOut.stderr + optedOut.stdout);
+      assert.doesNotMatch(optedOut.stderr, /browser preflight/, 'opting out silences the preflight entirely');
+      assert.match(fs.readFileSync(installLog, 'utf8'), /install/, 'opting out keeps the unconditional install');
+    } finally {
+      rmTmp(root);
+    }
+  },
+);

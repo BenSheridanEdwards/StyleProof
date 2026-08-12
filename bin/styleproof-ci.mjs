@@ -22,6 +22,13 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import {
+  browsersRequiredByCaptureConfig,
+  evaluateBrowserPreflight,
+  playwrightInstallRemedyCommand,
+  readCapturePlaywrightConfigText,
+  resolveBrowserExecutablePath,
+} from '../dist/browser-preflight.js';
 import { loadStyleProofConfig } from '../dist/config.js';
 import { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from '../dist/ci.js';
 import {
@@ -67,6 +74,13 @@ may run in the consumer tree at --head.
 If the base capture itself fails, the command records a bare baseline and still
 captures the head. That degraded, head-only result is explicit in
 base-capture-failed=true; a failed head capture still fails the command.
+
+Before each capture, the pinned Playwright browser build is verified through
+the consumer's own Playwright (webkit too when the capture config mentions
+it): a missing build self-heals with one \`playwright install\`, and a failed
+heal exits non-zero immediately, naming the missing revision and the exact
+\`npx playwright install ...\` remedy. STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1
+skips the verification and always runs the unconditional install.
 
 options:
   --base <sha>        base commit (e.g. github.event.pull_request.base.sha)
@@ -307,12 +321,113 @@ function restore(sha, dir, cwd) {
   return outcome === 'hit';
 }
 
-function playwrightInstall(cwd = consumerCwd) {
-  const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
-  runOrDie([command, 'install', '--with-deps', 'chromium'], 'playwright install', {
+function playwrightCliName() {
+  return process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
+}
+
+function playwrightInstall(cwd = consumerCwd, browserNames = ['chromium']) {
+  runOrDie([playwrightCliName(), 'install', '--with-deps', ...browserNames], 'playwright install', {
     cwd,
     extraEnv: { PATH: binFirstPath(cwd) },
   });
+}
+
+/** Like {@link playwrightInstall}, but reports failure instead of exiting so
+ *  the preflight can attach the exact remedy command and missing revision. */
+function playwrightInstallSucceeded(cwd, browserNames) {
+  const result = spawnSync(playwrightCliName(), ['install', '--with-deps', ...browserNames], {
+    stdio: 'inherit',
+    cwd,
+    env: { ...env, PATH: binFirstPath(cwd) },
+  });
+  if (result.error) log(`could not run ${playwrightCliName()} install — ${result.error.message}`);
+  return !result.error && (result.status ?? 1) === 0;
+}
+
+function logVerifiedBrowsers(verdicts) {
+  for (const verdict of verdicts) {
+    log(`browser preflight: verified ${verdict.browserName} ${verdict.revisionDirectory} at ${verdict.executablePath}`);
+  }
+}
+
+function exitWithBrowserRemedy(missingVerdicts, cause) {
+  const revisionNames = missingVerdicts.map((verdict) => verdict.revisionDirectory).join(', ');
+  const remedyCommand = playwrightInstallRemedyCommand(missingVerdicts.map((verdict) => verdict.browserName));
+  console.error(
+    `styleproof-ci: ${cause} — missing browser build(s): ${revisionNames}.\n` +
+      `Next: run \`${remedyCommand}\` on this host (the CI runner or capture machine), then re-run.`,
+  );
+  bail(1);
+}
+
+/** The per-browser preflight verdicts for `cwd`, or null when the consumer's
+ *  Playwright is not resolvable there (custom/global CLI installs) — the
+ *  caller then falls back to the unconditional install. */
+function browserPreflightVerdicts(cwd, browserNames) {
+  const verdicts = [];
+  for (const browserName of browserNames) {
+    const resolution = resolveBrowserExecutablePath(cwd, browserName);
+    if (resolution.kind === 'unresolvable') {
+      log(`browser preflight: cannot resolve the ${browserName} executable path (${resolution.reason})`);
+      return null;
+    }
+    verdicts.push(evaluateBrowserPreflight(browserName, resolution.executablePath));
+  }
+  return verdicts;
+}
+
+/**
+ * Verify the pinned Playwright browser builds exist BEFORE any capture, and
+ * self-heal a missing build (issue #366). A re-provisioned runner comes up
+ * with an empty ms-playwright cache, and without this check every capture
+ * dies minutes into the run at `browserType.launch: Executable doesn't
+ * exist`. Healthy hosts skip the install and log one `verified` line per
+ * browser; a missing build gets one `playwright install`, and if that fails
+ * or leaves the executable missing, the run exits non-zero immediately with
+ * the exact remedy command and the missing revision name. Webkit is included
+ * when the capture Playwright config mentions it; otherwise chromium only.
+ *
+ * Set STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1 to opt out of the executable
+ * verification and unconditionally run `playwright install --with-deps
+ * chromium` exactly as releases before the preflight did.
+ */
+function ensurePlaywrightBrowsersOrDie(cwd) {
+  if (process.env.STYLEPROOF_SKIP_BROWSER_PREFLIGHT === '1') {
+    playwrightInstall(cwd);
+    return;
+  }
+  const browserNames = browsersRequiredByCaptureConfig(readCapturePlaywrightConfigText(cwd));
+  if (browserNames.includes('webkit')) {
+    log('browser preflight: the capture Playwright config mentions webkit — checking chromium and webkit');
+  }
+  const verdicts = browserPreflightVerdicts(cwd, browserNames);
+  if (verdicts === null) {
+    log('browser preflight skipped — running playwright install unconditionally');
+    playwrightInstall(cwd, browserNames);
+    return;
+  }
+  const missingVerdicts = verdicts.filter((verdict) => verdict.status === 'missing');
+  if (missingVerdicts.length === 0) {
+    logVerifiedBrowsers(verdicts);
+    return;
+  }
+  for (const verdict of missingVerdicts) {
+    log(
+      `browser preflight: ${verdict.browserName} build ${verdict.revisionDirectory} is missing at ` +
+        `${verdict.executablePath} — self-healing with \`playwright install\``,
+    );
+  }
+  if (!playwrightInstallSucceeded(cwd, browserNames)) {
+    exitWithBrowserRemedy(missingVerdicts, 'playwright install failed');
+  }
+  const healedVerdicts = missingVerdicts.map((verdict) =>
+    evaluateBrowserPreflight(verdict.browserName, verdict.executablePath),
+  );
+  const stillMissingVerdicts = healedVerdicts.filter((verdict) => verdict.status === 'missing');
+  if (stillMissingVerdicts.length > 0) {
+    exitWithBrowserRemedy(stillMissingVerdicts, 'playwright install completed but the executable is still missing');
+  }
+  logVerifiedBrowsers([...verdicts.filter((verdict) => verdict.status === 'verified'), ...healedVerdicts]);
 }
 
 function capture(args, cwd, extraEnv = {}) {
@@ -578,7 +693,7 @@ try {
         if (tracked(file, coldBaseCwd))
           runOrDie(['git', 'checkout', '--', file], `restore ${file}`, { cwd: coldBaseCwd });
       }
-      playwrightInstall(coldBaseCwd);
+      ensurePlaywrightBrowsersOrDie(coldBaseCwd);
       const baseSpec = specFor(coldBaseCwd);
       const specPath = path.join(coldBaseCwd, baseSpec);
       if (fs.existsSync(specPath) || overlayApplies(coldBaseCwd, baseSpec)) {
@@ -647,14 +762,14 @@ try {
       ensureConsumerAtHead(repoRoot, head);
       const headPm = detectPackageManagerPlan(consumerCwd);
       runOrDie(headPm.install, `${headPm.name} install at head`, { cwd: consumerCwd });
-      playwrightInstall(consumerCwd);
+      ensurePlaywrightBrowsersOrDie(consumerCwd);
     } else {
       // A compatible base hit proves the current head environment. Keep that restored
       // base and capture only the missing head in the consumer checkout.
       log('head miss — capturing only the head');
       fs.rmSync(path.join(root, 'head'), { recursive: true, force: true });
       ensureConsumerAtHead(repoRoot, head);
-      playwrightInstall(consumerCwd);
+      ensurePlaywrightBrowsersOrDie(consumerCwd);
     }
 
     const replay = hasHarFiles(path.join(root, 'base')) ? { STYLEPROOF_REPLAY_FROM: path.join(root, 'base') } : {};
