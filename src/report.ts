@@ -988,7 +988,17 @@ function contentCropLines(
   if (!box || !pngA || !pngB) return [];
   const w = Math.max(ctx.minWidth, box.w);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h));
-  const composite = compositePair(cropPng(pngA, box, w, h).png, cropPng(pngB, box, w, h).png);
+  const beforeCrop = cropPng(pngA, box, w, h).png;
+  const afterCrop = cropPng(pngB, box, w, h).png;
+  // A structural change whose location renders identically on both sides (an
+  // element inside a collapsed <details>, for example) has no visual evidence —
+  // presenting the same pixels twice as before/after proof reads as a broken
+  // report, so name the absence instead. A consumer report repeated one such
+  // identical pair 420 times.
+  if (beforeCrop.data.equals(afterCrop.data)) {
+    return ['', NO_CONTENT_PIXEL_DIFFERENCE_NOTE];
+  }
+  const composite = compositePair(beforeCrop, afterCrop);
   const stem = `crops/${surface.replace(/[^a-z0-9-]/gi, '-')}-content-${seq}`;
   writePng(path.join(ctx.outDir, `${stem}-composite.png`), composite);
   return [
@@ -1287,6 +1297,9 @@ type RepresentativeScore = { hasExposedChange: boolean; hasActiveModal: boolean;
 
 const MISLEADING_CROP_REASON =
   'The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading.';
+
+const NO_CONTENT_PIXEL_DIFFERENCE_NOTE =
+  "_This element's location renders identically before and after (the change has no visible effect in the captured state), so there is no before/after crop to show._";
 
 /** Prefer proof a reviewer can see: an exposed changed element, then a non-modal
  * ordinary page over a popup state that can leave shared chrome in the background,
