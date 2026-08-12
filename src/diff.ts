@@ -413,34 +413,48 @@ function contentCorrespondenceSignature(elementPath: string, element: StyleMap['
   return JSON.stringify([semanticPathPattern, element.tag, className, element.ownTextLength ?? null, componentName]);
 }
 
-function uniquePathsByContentSignature(map: StyleMap): Map<string, string> {
+function pathsByContentSignature(map: StyleMap): Map<string, string[]> {
   const pathsBySignature = new Map<string, string[]>();
   for (const [elementPath, element] of Object.entries(map.elements)) {
     const signature = contentCorrespondenceSignature(elementPath, element);
     if (!signature) continue;
     pathsBySignature.set(signature, [...(pathsBySignature.get(signature) ?? []), elementPath]);
   }
-  return new Map(
-    [...pathsBySignature.entries()]
-      .filter(([, elementPaths]) => elementPaths.length === 1)
-      .map(([signature, [elementPath]]) => [signature, elementPath!]),
-  );
+  return pathsBySignature;
 }
 
 /**
- * Re-key uniquely identifiable base elements onto their head paths before a
- * content-disabled comparison. This prevents a sibling insertion from making
- * unchanged elements at shifted nth-child paths compare against the wrong
- * siblings. Ambiguous identities remain concrete and therefore fail closed.
+ * base path -> head path for every element whose identity is recognisable on both
+ * sides but whose concrete path moved. A signature shared by several elements
+ * (repeated same-shaped rows) pairs k-th to k-th in document order — map
+ * insertion order is capture's DOM walk — but only while the group's size is
+ * identical on both sides: pairing a count-preserving group can at worst re-label
+ * a visually-equivalent remove+add as a matched pair, whereas a size change means
+ * a real add/remove somewhere in the group, so those groups stay concrete and
+ * therefore fail closed.
+ */
+function correspondingPathsByContentSignature(before: StyleMap, after: StyleMap): Map<string, string> {
+  const bySignatureAfter = pathsByContentSignature(after);
+  const beforeToAfter = new Map<string, string>();
+  for (const [signature, beforePaths] of pathsByContentSignature(before)) {
+    const afterPaths = bySignatureAfter.get(signature) ?? [];
+    if (afterPaths.length !== beforePaths.length) continue;
+    beforePaths.forEach((beforePath, groupIndex) => {
+      const afterPath = afterPaths[groupIndex]!;
+      if (afterPath !== beforePath) beforeToAfter.set(beforePath, afterPath);
+    });
+  }
+  return beforeToAfter;
+}
+
+/**
+ * Re-key identifiable base elements onto their head paths before a
+ * content-disabled comparison. This prevents a sibling insertion or removal from
+ * making unchanged elements at shifted nth-child paths compare against the wrong
+ * siblings.
  */
 function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
-  const uniqueBefore = uniquePathsByContentSignature(before);
-  const uniqueAfter = uniquePathsByContentSignature(after);
-  const beforeToAfter = new Map<string, string>();
-  for (const [signature, beforePath] of uniqueBefore) {
-    const afterPath = uniqueAfter.get(signature);
-    if (afterPath && afterPath !== beforePath) beforeToAfter.set(beforePath, afterPath);
-  }
+  const beforeToAfter = correspondingPathsByContentSignature(before, after);
   if (beforeToAfter.size === 0) return before;
 
   // A matched element can move onto a path occupied by an ambiguous element in

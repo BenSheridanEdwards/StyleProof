@@ -7,6 +7,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Per-surface progress heartbeat: every completed surface capture logs one
+  stable, greppable line — `styleproof: surface 17/41 (factory@1280) captured
+in 42.1s (self-check 12.3s)` — so a slow capture run on a saturated runner is
+  distinguishable from a hung one (#365).
+- Per-surface capture timeout: `surfaceTimeoutMs` in the capture spec (env
+  override `STYLEPROOF_SURFACE_TIMEOUT_MS`, default 300000 ms). A surface
+  exceeding the ceiling fails loudly, naming the surface and the phase in
+  flight (navigate / settle / capture / self-check), instead of letting one
+  stuck surface silently consume the whole job budget (#365).
+
+### Changed
+
+- Generated capture-test budgets now derive from the per-surface ceiling
+  (ceiling + 60 s slack per surface×width, 180 s floor) instead of a flat
+  180 s per test and 60 s per crawled width, so the named per-surface timeout
+  always fires before Playwright's anonymous test timeout.
+
 ### Fixed
 
 - A late-arriving PR-comment delivery from an earlier attempt of the same
@@ -18,9 +37,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   skipped for such stale deliveries. Rerun supersession — attempt 2 replacing
   attempt 1's comment and status while attempt 1's durable report stays
   retrievable at its own commit — is now pinned by tests.
+- `styleproof-ci --spec-ref` can now source the capture spec and its colocated
+  harness from a dedicated ref when neither product commit tracks those files.
+  The same external harness is overlaid for base and head restore probes and
+  captures, then removed, so visual-test maintenance does not need to create a
+  shared conflict-prone file in every product pull request.
+- A sibling removal or insertion above repeated same-shaped elements no longer
+  reports every shifted row's subtree as phantom removed+added content changes:
+  count-preserving signature groups now pair in document order, so only the
+  genuinely added/removed elements surface. A consumer report shrank from 420
+  phantom entries to the 4 real removals.
+- Content-change crops whose location renders identically on both sides (an
+  element inside a collapsed `<details>`, for example) now say so instead of
+  presenting the same pixels twice as before/after proof.
 - Release runs now serialize without cancellation, so rapid main pushes cannot
   race the same npm version and leave tagging or release publication partially
   failed.
+- Data residue is now attributed to the surface that initiated the request. A
+  request still in flight when the shared-page walk hands off to the next
+  surface (for example a long-lived EventSource) is aborted by the handoff
+  navigation, and the abort was previously charged to whichever surface's
+  watcher happened to be armed — a timing lottery that produced random
+  `DATA_RESIDUE_UNACKNOWLEDGED` failures. The watcher now only records failures
+  for requests initiated inside the current surface's own window (after the
+  watcher armed, and not orphaned by a later cross-document commit); leftovers
+  from a previous surface or a torn-down document are excluded as handoff
+  artifacts. Genuine failures initiated by the current surface — including
+  single-page-application surfaces that never navigate — are still recorded.
 
 ## [6.0.3] - 2026-08-11
 

@@ -27,6 +27,13 @@ import {
   recordSurfaceCaptureFailure,
 } from './map-store.js';
 import { DEFAULT_CLOCK_TIME, frozenSpecClockInstant, realNow, restoreRealSpecClock } from './spec-clock.js';
+import {
+  captureTestBudgetMs,
+  formatSurfaceHeartbeat,
+  resolveSurfaceTimeoutMs,
+  runWithSurfaceTimeout,
+  type CapturePhase,
+} from './surface-progress.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
@@ -193,6 +200,19 @@ export type DefineOptions = {
    * `selfCheck` explicitly to override.
    */
   selfCheck?: boolean;
+  /**
+   * Per-surface capture ceiling in milliseconds (default 300000 — 5 minutes;
+   * STYLEPROOF_SURFACE_TIMEOUT_MS overrides when unset). Covers one surface at
+   * one width, navigate through self-check. On breach the capture fails LOUDLY,
+   * naming the surface and the phase in flight (navigate / settle / capture /
+   * self-check), so one stuck surface can't silently consume the whole job
+   * budget. Paired with the progress heartbeat — every completed surface logs
+   * `styleproof: surface 17/41 (factory@1280) captured in 42.1s (self-check
+   * 12.3s)` — a slow capture run stays distinguishable from a hung one.
+   * Automatic popup captures run after the timed window (each popup interaction
+   * is already bounded by `popups.timeoutMs`).
+   */
+  surfaceTimeoutMs?: number;
   /**
    * Run the generated capture tests in PARALLEL across Playwright workers
    * (default true). Every capture test is independent, so parallel is safe and
@@ -897,10 +917,32 @@ async function capturePopupSurfaces(
   }
 }
 
+/** Static heartbeat ordinal of one capture unit — `index`/`total` over the run's
+ *  declared unit set (assigned at define time, so it is stable across parallel
+ *  workers; the heartbeat line count, not the ordinal order, shows liveness). */
+type HeartbeatOrdinal = { index: number; total: number };
+
+/** One heartbeat unit per declared surface×width. An auto-width surface is ONE
+ *  unit — its band count is unknown until the page renders — so each of its
+ *  width sweeps reports the same ordinal, with the width visible in the capture
+ *  key (`factory@768`, `factory@1280`). */
+function heartbeatUnitCount(surfaces: ReadonlyArray<{ widths?: number[] }>): number {
+  return surfaces.reduce((sum, surface) => sum + (surface.widths?.length || 1), 0);
+}
+
 /** Drive one surface at one width to a settled state and save its style map (+ screenshot).
  *  The caller owns the test timeout (one-per-test for explicit surfaces, one budget for
- *  the whole crawl) so a multi-surface crawl can't reset its own deadline mid-loop. */
-async function captureSurface(page: Page, surface: ExpandedSurface, width: number, s: Settings): Promise<void> {
+ *  the whole crawl) so a multi-surface crawl can't reset its own deadline mid-loop; the
+ *  per-surface ceiling (`surfaceTimeoutMs`) enforced HERE is what names the surface and
+ *  the phase in flight when one surface hangs, and each completed capture logs one
+ *  heartbeat line so a slow run is distinguishable from a hung one (issue #365). */
+async function captureSurface(
+  page: Page,
+  surface: ExpandedSurface,
+  width: number,
+  s: Settings,
+  ordinal: HeartbeatOrdinal,
+): Promise<void> {
   // Declared BEFORE go(): JS animation libraries (framer-motion, react-spring…)
   // read prefers-reduced-motion at mount, and their rAF-driven inline styles are
   // beyond FREEZE_CSS's reach — an entrance caught mid-flight is exactly the
@@ -918,28 +960,62 @@ async function captureSurface(page: Page, surface: ExpandedSurface, width: numbe
   // must be seen. Keyed on the BASE surface key so a liveStates split (`-loading`/
   // `-loaded`) and every width dedupe to one `<surface>·<endpoint>` residue entry.
   const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key);
+  const captureKey = `${surface.key}@${width}`;
+  // realNow, not Date.now: the spec-process clock may be frozen (freezeClock),
+  // and a frozen clock would report every duration as 0.0s.
+  const startedAtMs = realNow();
+  let phase: CapturePhase = 'navigate';
+  let selfCheckMs: number | undefined;
   try {
-    await surface.go(page);
-    const map = await captureStyleMap(page, {
-      ignore: surface.ignore ?? [],
-      captureText: s.captureText,
-      captureComponent: s.captureComponent,
-      inventory: s.inventory,
-      pendingRequests: requests.pending,
-      metadata: surface.metadata,
-    });
-    if (s.selfCheck) await assertDeterministic(page, surface, map, s.captureText, requests.pending);
-    // Attach data-residue AFTER the self-check re-run so both runs' failures are folded
-    // (deduped in the watcher). Warn always; the recorded residue is what the gate reads.
-    attachDataResidue(map, residue.residue());
+    await runWithSurfaceTimeout(
+      captureKey,
+      s.surfaceTimeoutMs,
+      () => phase,
+      async () => {
+        await surface.go(page);
+        const map = await captureStyleMap(page, {
+          ignore: surface.ignore ?? [],
+          captureText: s.captureText,
+          captureComponent: s.captureComponent,
+          inventory: s.inventory,
+          pendingRequests: requests.pending,
+          metadata: surface.metadata,
+          // captureStyleMap reports 'settle' → 'capture'; the self-check re-run
+          // below deliberately does NOT get this callback, so a breach during it
+          // is named 'self-check', not the inner phase of the second capture.
+          onPhase: (captureStylePhase) => {
+            phase = captureStylePhase;
+          },
+        });
+        if (s.selfCheck) {
+          phase = 'self-check';
+          const selfCheckStartedAtMs = realNow();
+          await assertDeterministic(page, surface, map, s.captureText, requests.pending);
+          selfCheckMs = realNow() - selfCheckStartedAtMs;
+          phase = 'capture';
+        }
+        // Attach data-residue AFTER the self-check re-run so both runs' failures are folded
+        // (deduped in the watcher). Warn always; the recorded residue is what the gate reads.
+        attachDataResidue(map, residue.residue());
 
-    const stem = path.join(resolveOutputDir(s.baseDir, s.dir), `${surface.key}@${width}`);
-    saveStyleMap(`${stem}.json.gz`, map);
-    if (s.screenshots) {
-      // captureStyleMap froze animations/transitions, so this is the same settled
-      // state the map describes.
-      await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
-    }
+        const stem = path.join(resolveOutputDir(s.baseDir, s.dir), captureKey);
+        saveStyleMap(`${stem}.json.gz`, map);
+        if (s.screenshots) {
+          // captureStyleMap froze animations/transitions, so this is the same settled
+          // state the map describes.
+          await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+        }
+      },
+    );
+    // Heartbeat: one stable, greppable line per completed surface capture, so a
+    // watcher can tell progressing-slowly from dead. Emitted only on success —
+    // failures already name themselves loudly.
+    process.stderr.write(
+      `${formatSurfaceHeartbeat({ ...ordinal, captureKey, captureMs: realNow() - startedAtMs, selfCheckMs })}\n`,
+    );
+    // Popup discovery runs OUTSIDE the per-surface window: each interaction is
+    // already bounded by `popups.timeoutMs`, and a popup sweep's legitimate cost
+    // scales with the trigger count, which would force a much looser ceiling.
     await capturePopupSurfaces(page, surface, width, height, s);
   } finally {
     requests.dispose();
@@ -1068,6 +1144,7 @@ function resolveSettings(c: CaptureConfig): Settings {
     freezeClock,
     clockTime,
     selfCheck: c.selfCheck ?? defaultSelfCheck(replayFrom),
+    surfaceTimeoutMs: resolveSurfaceTimeoutMs(c.surfaceTimeoutMs),
     captureText: c.captureText ?? false,
     captureComponent: c.captureComponent ?? false,
     popups: resolvePopupCaptureOptions(c.popups),
@@ -1238,27 +1315,34 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     if (options.parallel !== false) test.describe.configure({ mode: 'parallel' });
     writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
     writeBrowserBuildTest(settings, dir);
+    // Heartbeat ordinals are assigned at define time (stable across parallel
+    // workers); Playwright test budgets derive from the per-surface ceiling so
+    // the NAMED per-surface timeout always fires before the anonymous test one.
+    const totalHeartbeatUnits = heartbeatUnitCount(captureSurfaces);
+    let heartbeatUnitIndex = 0;
     for (const surface of captureSurfaces) {
       if (surface.widths && surface.widths.length > 0) {
         // Explicit widths: one parallelizable test per surface × width.
         for (const width of surface.widths) {
+          const ordinal: HeartbeatOrdinal = { index: ++heartbeatUnitIndex, total: totalHeartbeatUnits };
           test(`${surface.key} @ ${width}`, ({ page }) => {
-            test.setTimeout(180_000);
+            test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs));
             return withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
-              captureSurface(page, surface, width, settings),
+              captureSurface(page, surface, width, settings, ordinal),
             );
           });
         }
       } else {
         // Auto widths: the band set isn't known until the page renders its CSS, so a
         // single test loads once, detects the breakpoints, then sweeps each band.
+        const ordinal: HeartbeatOrdinal = { index: ++heartbeatUnitIndex, total: totalHeartbeatUnits };
         test(`${surface.key} @ auto`, async ({ page }) => {
           await surface.go(page);
           const widths = await detectViewportWidths(page);
-          test.setTimeout(Math.max(180_000, widths.length * 60_000));
+          test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs, widths.length));
           for (const width of widths)
             await withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
-              captureSurface(page, surface, width, settings),
+              captureSurface(page, surface, width, settings, ordinal),
             );
         });
       }
@@ -1422,12 +1506,21 @@ async function crawlSweepWidths(
  */
 async function sweepCrawlSurfaces(page: Page, captureSurfaces: ExpandedSurface[], settings: Settings): Promise<void> {
   const failures: string[] = [];
+  const totalHeartbeatUnits = heartbeatUnitCount(captureSurfaces);
+  let heartbeatUnitIndex = 0;
   for (const surface of captureSurfaces) {
+    // Same unit semantics as the spec-driven path: one ordinal per declared
+    // surface×width; an auto-width surface is one unit for its whole sweep.
+    const explicitWidths = Boolean(surface.widths?.length);
+    const autoOrdinal: HeartbeatOrdinal | undefined = explicitWidths
+      ? undefined
+      : { index: ++heartbeatUnitIndex, total: totalHeartbeatUnits };
     const sweep = await crawlSweepWidths(page, surface, settings, failures);
     if (!sweep) continue;
     for (const width of sweep) {
+      const ordinal = autoOrdinal ?? { index: ++heartbeatUnitIndex, total: totalHeartbeatUnits };
       try {
-        await captureSurface(page, surface, width, settings);
+        await captureSurface(page, surface, width, settings, ordinal);
       } catch (e) {
         handleCrawlCaptureFailure(
           settings,
@@ -1529,9 +1622,14 @@ export function defineCrawlCapture(options: CrawlOptions): void {
       // Budget the whole sweep up front: one test captures every surface, and
       // captureSurface no longer sets its own timeout, so size it to the work found.
       // With auto-width the band count isn't known until each surface renders, so
-      // assume up to 4 bands per surface.
+      // assume up to 4 bands per surface. Sized from the per-surface ceiling so a
+      // breach is always reported by the NAMED per-surface timeout, never by the
+      // anonymous whole-sweep one.
       test.setTimeout(
-        Math.max(180_000, captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0) * 60_000),
+        captureTestBudgetMs(
+          settings.surfaceTimeoutMs,
+          captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0),
+        ),
       );
       // 2. Capture each discovered surface, aggregating per-surface failures.
       await sweepCrawlSurfaces(page, captureSurfaces, settings);

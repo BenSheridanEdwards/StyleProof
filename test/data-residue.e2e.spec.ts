@@ -104,6 +104,79 @@ test('a fixtured /api endpoint captures CLEAN — no residue', async ({ page }) 
   }
 });
 
+// The attribution defect (issue #364), end to end: surface A starts a long-lived
+// EventSource that is still in flight when the shared-page walk hands off to surface B.
+// B's navigation aborts it, and Chromium reports `requestfailed(ERR_ABORTED)` while B's
+// watcher is armed. B never initiated that request, so B's map must carry NO residue for
+// it — while a data request B itself initiates and fails must still be recorded.
+test('an in-flight stream aborted by the surface handoff is not the successor surface’s residue', async ({ page }) => {
+  const streamConnections: import('node:http').ServerResponse[] = [];
+  const server = http.createServer((req, res) => {
+    if (req.url?.startsWith('/api/stream')) {
+      // A long-lived stream: headers sent, never finished — in flight until navigation.
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write(':\n\n');
+      streamConnections.push(res);
+      return;
+    }
+    if (req.url?.startsWith('/api/')) {
+      res.statusCode = 503;
+      res.end('unavailable');
+      return;
+    }
+    res.setHeader('content-type', 'text/html');
+    if (req.url?.startsWith('/two')) {
+      // Surface B: fetches its own data endpoint, which genuinely fails (503).
+      res.end(
+        `<!doctype html><html><body><main>two</main>
+          <script>fetch('/api/probe').catch(() => {});</script>
+        </body></html>`,
+      );
+      return;
+    }
+    // Surface A: opens a long-lived stream that outlives the surface.
+    res.end(
+      `<!doctype html><html><body><main>one</main>
+        <script>new EventSource('/api/stream');</script>
+      </body></html>`,
+    );
+  });
+  const baseUrl = await new Promise<string>((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      resolve(`http://127.0.0.1:${port}`);
+    });
+  });
+  try {
+    // Surface A, armed exactly as captureSurface arms it: before navigation.
+    const surfaceAResidue = trackDataResidue(page, '**/api/**', 'surface-a');
+    const streamOpened = page.waitForResponse((candidate) => new URL(candidate.url()).pathname === '/api/stream');
+    await page.goto(`${baseUrl}/`, { waitUntil: 'load' });
+    await streamOpened; // the stream is now in flight and stays in flight
+    expect(surfaceAResidue.residue()).toEqual([]); // a live stream is not a failure
+    surfaceAResidue.dispose();
+
+    // Handoff: surface B's watcher arms, then B's navigation aborts A's stream.
+    const surfaceBResidue = trackDataResidue(page, '**/api/**', 'surface-b');
+    const streamAborted = page.waitForEvent(
+      'requestfailed',
+      (request) => new URL(request.url()).pathname === '/api/stream',
+    );
+    const probeFailed = page.waitForResponse((candidate) => new URL(candidate.url()).pathname === '/api/probe');
+    await page.goto(`${baseUrl}/two`, { waitUntil: 'load' });
+    await streamAborted; // the abort was reported while B's watcher was armed
+    await probeFailed; // B's own genuinely failing request has completed (HTTP 503)
+    const named = surfaceBResidue.residue();
+    surfaceBResidue.dispose();
+
+    // B is charged for its OWN failing request only — never for A's aborted leftover.
+    expect(named.map((entry) => entry.key)).toEqual(['surface-b·/api/probe']);
+  } finally {
+    for (const connection of streamConnections) connection.destroy();
+    server.close();
+  }
+});
+
 test('an EventSource terminal HTTP 204 captures CLEAN — no false stream residue', async ({ page }) => {
   const { url, stop } = await serveIncidentPage();
   try {
