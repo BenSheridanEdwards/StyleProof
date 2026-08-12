@@ -11,61 +11,37 @@ Intentional changes get approved. Unexpected changes block.
 [![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)
 [![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
 
-[![The StyleProof demo atom: one Save button](docs/readme/demo-atom.png)](#start-with-a-button)
+[![A real StyleProof crop: the demo Save button, teal before, red after, magenta highlight](docs/readme/live-report/crops/demo-button-900-2-annotated.png)](docs/readme/live-report/report.md)
 
-_One button. StyleProof certifies the resting style and forced hover, focus, and
-active. The same button then sits in a modal. Not a pass/fail score._
+_A real StyleProof report of this repository's demo button. Reviewers see the
+before/after crop, the magenta highlight, and the property table. Not a mock._
 
-**[See the full live report](docs/demo/report.md)** ·
+**[Open the full report](docs/readme/live-report/report.md)** ·
 **[Quickstart](#quickstart)** ·
 **[Read the catch contract](docs/what-it-catches.md)**
 
 ## See the gate work
 
-Start with one button. Then put that button in a modal. Do not show the same
-change twice.
+This is what a pull request actually gets: a StyleProof report of one `Save`
+button, captured in Chromium, teal to red.
 
-The self-certified demo is that button. Default surface: the atom. Add
-`?scale=organism` and the same `.btn` is the primary action of a modal. CI still
-pins no web fonts, no animation, query-driven `loading` / `loaded`, and
-`@media` 600 / 900.
+![before / after](docs/readme/live-report/crops/demo-button-900-2-composite.png)
 
-### Start with a button
+![highlighted before / after](docs/readme/live-report/crops/demo-button-900-2-annotated.png)
 
-A button is the smallest useful StyleProof surface. StyleProof does not wait
-for a mouse. On every capture it forces `:hover`, `:focus`, and `:active` in
-the browser and records those computed styles as their own layer.
+| Property           | Before    | After     |
+| ------------------ | --------- | --------- |
+| `border-color`     | `#38d6c6` | `#f87171` |
+| `background-color` | `#14b8a6` | `#dc2626` |
+| `color`            | `#07090c` | `#ffffff` |
 
-**Atom** — one `Save` button. Nothing else.
+Full receipt: [docs/readme/live-report/report.md](docs/readme/live-report/report.md).
 
-![The StyleProof demo atom: one Save button on a dark page](docs/readme/demo-atom.png)
-
-**Forced states** — the same button. A PR that drops `:hover` is a reviewable
-change even if the resting fill is identical.
-
-| Hover                                                           | Focus                                                 | Active                                              |
-| --------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
-| ![Save button hover: inverted fill](docs/readme/demo-hover.png) | ![Save button focus ring](docs/readme/demo-focus.png) | ![Save button pressed](docs/readme/demo-active.png) |
-
-**Organism** — the same button as the primary action of a modal
-(`?scale=organism`). The atom is not also on that page.
-
-![The same Save button as the primary action of a modal](docs/readme/demo-modal.png)
-
-Properties stay visible. A restyle should read as `background-color: #14b8a6 →
-#dc2626`, not as a second crop of the same button.
-
-### Page in context first
-
-When a page changes, show the page once. Reviewers need the surrounding layout
-before they need a magnified span.
-
-The live report still leads with new surfaces, then element crops. Isolated
-component surfaces (this button alone, this modal alone, each variant as its
-own URL) need a typed component manifest. That work is tracked as
-[#392](https://github.com/BenSheridanEdwards/StyleProof/issues/392). Until it
-lands, StyleProof can crop elements inside the page capture. It cannot honestly
-claim a component catalog.
+StyleProof also forces `:hover`, `:focus`, and `:active` on every capture. The
+current report folds those layers when they echo the same property as the rest
+style. The same `button.btn` is also listed twice, once with a false "not
+visible" note. That is the product today. Isolated component surfaces stay on
+[#392](https://github.com/BenSheridanEdwards/StyleProof/issues/392).
 
 ### Comment states
 
@@ -117,8 +93,6 @@ it or acknowledge it in policy. The approval box cannot clear it.
 ## Contents
 
 - [See the gate work](#see-the-gate-work)
-  - [Start with a button](#start-with-a-button)
-  - [Page in context first](#page-in-context-first)
   - [Comment states](#comment-states)
   - [Certified clean](#certified-clean)
   - [A safety policy blocks](#a-safety-policy-blocks)
