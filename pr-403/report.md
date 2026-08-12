@@ -1,10 +1,5 @@
 ## 🗺️ StyleProof report
 
-**Certification**
-- **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)
-- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
-- **Inventory** — ✓ navigable set unchanged
-
 ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
-<!-- styleproof-receipt head-sha:c4ff0235cf3a3065a1b1f1bf9fb4d297b58de5c8 run-id:31644950805 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:dbf945b1a7ec8af8648f6aaf87f0a74b7aee7067 run-id:31645626805 run-attempt:1 -->
