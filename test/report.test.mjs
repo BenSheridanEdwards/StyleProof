@@ -1896,7 +1896,7 @@ test('state-only change crops hover vs hover, not rest vs rest', () => {
   assert.match(md, /Both sides are :hover/);
   assert.match(md, /base :hover/);
   assert.match(md, /head :hover/);
-  assert.doesNotMatch(md, /◀ before  ·  after ▶/, 'state-only must not use the rest crop');
+  assert.ok(!md.includes('◀ before  ·  after ▶'), 'state-only must not use the rest crop');
   const crops = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((f) => f.endsWith('-composite.png'));
   assert.equal(crops.length, 1);
   const png = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, 'crops', crops[0])));

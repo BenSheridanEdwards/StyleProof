@@ -1729,8 +1729,129 @@ function buildRegionImages(args: {
   return { md, images };
 }
 
-// Render one crop region: its heading, the surface list, the before/after imagery (or a
-// note when there's nothing to show), and the per-crop change tables.
+type CropPack = {
+  md: string[];
+  images: { composite?: string; annotated?: string; zoom?: string };
+  cropSeq: number;
+  visualEvidence?: 'not-rendered';
+  reason?: string;
+};
+
+function cropNote(region: Box | null, pngA: PNG | null, pngB: PNG | null): string | undefined {
+  if (!region) return '_Changed element is not visible in this state (zero-size box) — see the property list._';
+  if (pngA && pngB) return `_${MISLEADING_CROP_REASON}_`;
+  return '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._';
+}
+
+function appendCrop(args: {
+  g: Group;
+  region: Box | null;
+  regionFindings: Finding[];
+  sd: SurfaceDiff;
+  mapA: StyleMap;
+  mapB: StyleMap;
+  pngA: PNG | null;
+  pngB: PNG | null;
+  ctx: RenderCtx;
+  cropSeq: number;
+  pairCaption?: { left: string; right: string; note?: string };
+}): CropPack {
+  const { g, region, regionFindings, sd, mapA, mapB, pngA, pngB, ctx } = args;
+  let cropSeq = args.cropSeq;
+  if (region && pngA && pngB && hasExposedChangedEntry(mapA, mapB, g.paths)) {
+    cropSeq++;
+    const built = buildRegionImages({
+      g,
+      region,
+      regionFindings,
+      sd,
+      mapA,
+      mapB,
+      pngA,
+      pngB,
+      ctx,
+      cropSeq,
+      pairCaption: args.pairCaption,
+    });
+    return { md: built.md, images: built.images, cropSeq };
+  }
+  const note = cropNote(region, pngA, pngB);
+  return {
+    md: note ? ['', note] : [],
+    images: {},
+    cropSeq,
+    ...(pngA && pngB && region ? { visualEvidence: 'not-rendered' as const, reason: MISLEADING_CROP_REASON } : {}),
+  };
+}
+
+function appendStateSections(args: {
+  g: Group;
+  regionFindings: Finding[];
+  sd: SurfaceDiff;
+  mapA: StyleMap;
+  mapB: StyleMap;
+  region: Box | null;
+  ctx: RenderCtx;
+  describeCtx: DescribeCtx;
+  surfaceList: string;
+  cropSeq: number;
+  firstHeadingUsesAll: boolean;
+}): {
+  md: string[];
+  stateImages: Record<string, { composite?: string; annotated?: string; zoom?: string }>;
+  firstImages: { composite?: string; annotated?: string; zoom?: string };
+  cropSeq: number;
+} {
+  const { g, regionFindings, sd, mapA, mapB, region, ctx, describeCtx, surfaceList } = args;
+  const md: string[] = [];
+  const stateImages: Record<string, { composite?: string; annotated?: string; zoom?: string }> = {};
+  const firstImages: { composite?: string; annotated?: string; zoom?: string } = {};
+  let cropSeq = args.cropSeq;
+  for (const state of STATE_LAYER_NAMES) {
+    const sf = regionFindings.filter(
+      (f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state' && f.state === state,
+    );
+    if (!sf.length) continue;
+    const headingFindings = args.firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
+    md.push('', `### ${regionHeading(g.paths, headingFindings)} \`:${state}\``, '', surfaceList);
+    md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
+    const glance = propertyGlanceLine(sf);
+    if (glance) md.push('', glance);
+    const layerA = readPng(path.join(ctx.beforeDir, `${sd.surface}.${state}.png`));
+    const layerB = readPng(path.join(ctx.afterDir, `${sd.surface}.${state}.png`));
+    if (layerA && layerB) {
+      const packed = appendCrop({
+        g,
+        region,
+        regionFindings: sf,
+        sd,
+        mapA,
+        mapB,
+        pngA: layerA,
+        pngB: layerB,
+        ctx,
+        cropSeq,
+        pairCaption: {
+          left: `base :${state}`,
+          right: `head :${state}`,
+          note: `both sides are :${state}`,
+        },
+      });
+      cropSeq = packed.cropSeq;
+      md.push(...packed.md);
+      if (packed.images.composite) {
+        stateImages[state] = packed.images;
+        if (!firstImages.composite) Object.assign(firstImages, packed.images);
+      }
+    } else {
+      md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
+    }
+    md.push(...renderCropChanges(sf, ctx.foldDetailsAt, describeCtx));
+  }
+  return { md, stateImages, firstImages, cropSeq };
+}
+
+// Render one crop region: heading, rest crop, then each forced-state crop.
 function renderRegion(args: {
   g: Group;
   cg: ChangeGroup;
@@ -1750,140 +1871,68 @@ function renderRegion(args: {
   const rest = regionFindings.filter((f) => f.kind !== 'state');
   const hasDom = regionFindings.some((f) => f.kind === 'dom');
   const stateOnly = !hasDom && rest.length === 0 && regionFindings.some((f) => f.kind === 'state');
-
   const surfaceList =
     cg.surfaces.length > 1
       ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(cg.surfaces, ctx.beforeDir)}_`
       : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
-
   const md: string[] = [];
   const images: { composite?: string; annotated?: string; zoom?: string } = {};
-  const stateImages: Record<string, { composite?: string; annotated?: string; zoom?: string }> = {};
   let cropSeq = args.cropSeq;
   let visualEvidence: 'not-rendered' | undefined;
   let reason: string | undefined;
   const region = visible(g.after) ? g.after : g.before;
-  const canCrop = !!(region && pngA && pngB && hasExposedChangedEntry(mapA, mapB, g.paths));
-
-  if (!stateOnly && hasDom) {
-    md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
-    const glance = propertyGlanceLine(regionFindings);
+  const cropFindings = hasDom ? regionFindings : rest;
+  if (!stateOnly && cropFindings.length) {
+    md.push('', `### ${regionHeading(g.paths, cropFindings)}`, '', surfaceList);
+    const glance = propertyGlanceLine(cropFindings);
     if (glance) md.push('', glance);
-    if (canCrop) {
-      cropSeq++;
-      const built = buildRegionImages({
-        g,
-        region: region!,
-        regionFindings,
-        sd,
-        mapA,
-        mapB,
-        pngA: pngA!,
-        pngB: pngB!,
-        ctx,
-        cropSeq,
-      });
-      md.push(...built.md);
-      Object.assign(images, built.images);
-    } else if (region && pngA && pngB) {
-      visualEvidence = 'not-rendered';
-      reason = MISLEADING_CROP_REASON;
-      md.push('', `_${reason}_`);
-    } else if (!region) {
-      md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
-    } else {
-      md.push(
-        '',
-        '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
-      );
+    const packed = appendCrop({
+      g,
+      region,
+      regionFindings: cropFindings,
+      sd,
+      mapA,
+      mapB,
+      pngA,
+      pngB,
+      ctx,
+      cropSeq,
+    });
+    cropSeq = packed.cropSeq;
+    md.push(...packed.md);
+    Object.assign(images, packed.images);
+    if (packed.visualEvidence) {
+      visualEvidence = packed.visualEvidence;
+      reason = packed.reason;
     }
-    md.push(...renderCropChanges(regionFindings, ctx.foldDetailsAt, describeCtx));
-  } else if (!stateOnly) {
-    md.push('', `### ${regionHeading(g.paths, rest.length ? rest : regionFindings)}`, '', surfaceList);
-    const glance = propertyGlanceLine(rest.length ? rest : regionFindings);
-    if (glance) md.push('', glance);
-    if (canCrop && rest.length) {
-      cropSeq++;
-      const built = buildRegionImages({
-        g,
-        region: region!,
-        regionFindings: rest,
-        sd,
-        mapA,
-        mapB,
-        pngA: pngA!,
-        pngB: pngB!,
-        ctx,
-        cropSeq,
-      });
-      md.push(...built.md);
-      Object.assign(images, built.images);
-    } else if (region && pngA && pngB && rest.length) {
-      visualEvidence = 'not-rendered';
-      reason = MISLEADING_CROP_REASON;
-      md.push('', `_${reason}_`);
-    } else if (!region && rest.length) {
-      md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
-    } else if (rest.length) {
-      md.push(
-        '',
-        '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
-      );
-    }
-    if (rest.length) md.push(...renderCropChanges(rest, ctx.foldDetailsAt, describeCtx));
+    md.push(...renderCropChanges(cropFindings, ctx.foldDetailsAt, describeCtx));
   }
 
-  if (!hasDom)
-    for (const state of STATE_LAYER_NAMES) {
-      const sf = regionFindings.filter(
-        (f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state' && f.state === state,
-      );
-      if (!sf.length) continue;
-      const headingFindings = stateOnly && md.length === 0 ? regionFindings : sf;
-      md.push('', `### ${regionHeading(g.paths, headingFindings)} \`:${state}\``, '', surfaceList);
-      md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
-      const glance = propertyGlanceLine(sf);
-      if (glance) md.push('', glance);
-      const layerA = readPng(path.join(ctx.beforeDir, `${sd.surface}.${state}.png`));
-      const layerB = readPng(path.join(ctx.afterDir, `${sd.surface}.${state}.png`));
-      if (region && layerA && layerB && hasExposedChangedEntry(mapA, mapB, g.paths)) {
-        cropSeq++;
-        const built = buildRegionImages({
-          g,
-          region,
-          regionFindings: sf,
-          sd,
-          mapA,
-          mapB,
-          pngA: layerA,
-          pngB: layerB,
-          ctx,
-          cropSeq,
-          pairCaption: {
-            left: `base :${state}`,
-            right: `head :${state}`,
-            note: `both sides are :${state}`,
-          },
-        });
-        md.push(...built.md);
-        stateImages[state] = built.images;
-        if (stateOnly && !images.composite) Object.assign(images, built.images);
-      } else {
-        md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
-      }
-      md.push(...renderCropChanges(sf, ctx.foldDetailsAt, describeCtx));
-    }
+  const stateImages: Record<string, { composite?: string; annotated?: string; zoom?: string }> = {};
+  if (!hasDom) {
+    const states = appendStateSections({
+      g,
+      regionFindings,
+      sd,
+      mapA,
+      mapB,
+      region,
+      ctx,
+      describeCtx,
+      surfaceList,
+      cropSeq,
+      firstHeadingUsesAll: stateOnly,
+    });
+    cropSeq = states.cropSeq;
+    md.push(...states.md);
+    Object.assign(stateImages, states.stateImages);
+    if (stateOnly && !images.composite) Object.assign(images, states.firstImages);
+  }
 
   if (!md.length) {
     md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
-    if (!region) {
-      md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
-    } else if (!pngA || !pngB) {
-      md.push(
-        '',
-        '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
-      );
-    }
+    const note = cropNote(region, pngA, pngB);
+    if (note) md.push('', note);
     md.push(...renderCropChanges(regionFindings, ctx.foldDetailsAt, describeCtx));
   }
 
