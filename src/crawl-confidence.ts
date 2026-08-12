@@ -147,6 +147,20 @@ export function mergeAuthBoundaryObservations(observations: AuthBoundaryObservat
 }
 
 /**
+ * Whether HTTP auth-redirect diagnostics collected during navigation should be
+ * retained after optional setup.
+ *
+ * Intermediate redirects are dropped only when setup demonstrably left the auth
+ * boundary (setup ran and the landed page has no auth wall). Real redirect-only
+ * boundaries are preserved when there is no setup, or when the final page is
+ * still gated.
+ */
+export function shouldRetainAuthRedirects(hadSetup: boolean, landedHasAuthBoundary: boolean): boolean {
+  if (hadSetup && !landedHasAuthBoundary) return false;
+  return true;
+}
+
+/**
  * Resolve run-level confidence from observations + optional reasoned exclusions.
  *
  * - No walls → `complete` (full certification).

@@ -44,6 +44,7 @@ export {
   authBoundaryKey,
   mergeAuthBoundaryObservations,
   redactedRoutePath,
+  shouldRetainAuthRedirects,
 } from './crawl-confidence.js';
 export type {
   CrawlConfidence,

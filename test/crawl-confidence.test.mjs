@@ -5,6 +5,7 @@ import {
   normalizeAuthBoundaryExclude,
   authBoundaryKey,
   mergeAuthBoundaryObservations,
+  shouldRetainAuthRedirects,
 } from '../dist/crawl-confidence.js';
 
 const passwordObs = (route = '/login') => ({
@@ -107,4 +108,11 @@ test('stale exclusions are reported when nothing matched', () => {
     },
   });
   assert.deepEqual(c.staleExclusions, ['/gone']);
+});
+
+test('shouldRetainAuthRedirects drops intermediate redirects only after setup leaves the wall', () => {
+  assert.equal(shouldRetainAuthRedirects(false, false), true, 'redirect-only, no setup');
+  assert.equal(shouldRetainAuthRedirects(false, true), true, 'redirect + landed wall, no setup');
+  assert.equal(shouldRetainAuthRedirects(true, true), true, 'setup but still gated');
+  assert.equal(shouldRetainAuthRedirects(true, false), false, 'setup left auth boundary');
 });

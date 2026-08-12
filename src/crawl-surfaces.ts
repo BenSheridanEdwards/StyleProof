@@ -10,6 +10,7 @@ import { classifyAuthBoundary, type AuthBoundaryMetadata } from './auth-boundary
 import {
   resolveCrawlConfidence,
   redactedRoutePath,
+  shouldRetainAuthRedirects,
   type AuthBoundaryObservation,
   type CrawlConfidence,
 } from './crawl-confidence.js';
@@ -782,6 +783,11 @@ type CrawlState = {
   queue: QueueEntry[];
   captured: number;
   failed: string[];
+  /**
+   * Auth-boundary observations collected at entry and at every newly recorded
+   * surface (late-mounted gates). Merged at resolve time.
+   */
+  authObservations: AuthBoundaryObservation[];
 };
 
 /** Record a newly-found surface, capture it in place (page is already there), and
@@ -800,6 +806,10 @@ async function record(
   const key = deriveKey(newPath, st.used, opts.keyPrefix ?? '');
   const surface: CrawledSurface = { key, depth, path: newPath, elements: fp.elements };
   st.surfaces.push(surface);
+  // Observe auth at every newly recorded state — a password form can mount after
+  // a crawl interaction; entry-only observation would false-complete.
+  const auth = await observeAuthBoundary(page);
+  if (auth) st.authObservations.push(auth);
   let addsVocab = false;
   for (const c of fp.classes)
     if (!st.classes.has(c)) {
@@ -1187,11 +1197,15 @@ async function gotoFreshObservingAuth(
   const redirectMeta: AuthBoundaryMetadata[] = [];
   await gotoFresh(page, opts, redirectMeta);
   const redirectDiagnostics = classifyAuthBoundary(redirectMeta);
-  if (redirectDiagnostics.length) {
+  const landed = await observeAuthBoundary(page);
+  const hadSetup = Boolean(opts.setup?.length);
+  // Intermediate 3xx→auth redirects are transit when setup leaves the wall.
+  // Keep redirect-only boundaries when there was no setup, or the final page
+  // is still gated (fail closed).
+  if (redirectDiagnostics.length && shouldRetainAuthRedirects(hadSetup, Boolean(landed))) {
     const route = redactedRoutePath(opts.url) ?? redactedRoutePath(page.url());
     sink.push({ ...(route ? { route } : {}), diagnostics: redirectDiagnostics });
   }
-  const landed = await observeAuthBoundary(page);
   if (landed) sink.push(landed);
 }
 
@@ -1231,6 +1245,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     queue: [],
     captured: 0,
     failed: [],
+    authObservations,
   };
   await record(page, opts, [], 0, fp, st, st.queue, false, false);
 
@@ -1246,7 +1261,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   await runPool(page, opts, st, counters, defined);
   const missing = defined.filter((c) => !st.classes.has(c)).sort();
   const confidence = resolveCrawlConfidence({
-    observations: authObservations,
+    observations: st.authObservations,
     exclude: opts.authBoundaryExclude,
   });
   return {

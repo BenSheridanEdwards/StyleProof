@@ -29,6 +29,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Auth crawl confidence (#390): intermediate HTTP auth redirects are dropped when
+  setup leaves the auth boundary; auth is re-observed on every newly recorded
+  crawl state (late-mounted gates); setup E2E loads steps via `loadSetupSteps`
+  with env interpolation and asserts secrets never appear in serialized
+  confidence.
 - Data-residue boundaries now match Playwright URL-glob punctuation, escaping,
   brace alternation, and `**/` semantics, so literal bracket and comma paths are
   neither missed nor widened during certification (#382).
