@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { selectCrawlLinks, defaultLinkKey, crawlCoverageGaps, crawlCoverageError } from '../dist/crawl.js';
+import { performance } from 'node:perf_hooks';
 
 const BASE = 'https://app.test/';
 const pick = (hrefs, opts = {}) => selectCrawlLinks(hrefs, { base: BASE, ...opts });
@@ -87,6 +88,15 @@ test('selectCrawlLinks: trailing slash is not a distinct surface — /about and 
   // so the second capture silently overwrote the first. First-seen href wins.
   assert.deepEqual(pick(['/about', '/about/']), [{ key: 'about', url: '/about' }]);
   assert.deepEqual(pick(['/about/', '/about']), [{ key: 'about', url: '/about/' }]);
+});
+
+test('selectCrawlLinks: a malformed slash-heavy path is handled without blocking the crawl', () => {
+  const startedAt = performance.now();
+  const links = pick(['/a' + '/'.repeat(40_000) + 'x']);
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.equal(links.length, 1);
+  assert.ok(elapsedMs < 250, `slash-heavy path took ${elapsedMs.toFixed(1)}ms`);
 });
 
 test('selectCrawlLinks: root "/" keeps its slash; the query is never trailing-slash-stripped', () => {
