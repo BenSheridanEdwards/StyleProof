@@ -38,6 +38,11 @@ in 42.1s (self-check 12.3s)` — so a slow capture run on a saturated runner is
 
 ### Fixed
 
+- Cached `styleproof-diff` and `styleproof-report` lookups now derive the base
+  bundle key from a detached base worktree and the head bundle key from the
+  current checkout. A lockfile change can no longer make the already-published
+  base bundle unreachable by looking it up under the head's compatibility key
+  (#341).
 - A late-arriving PR-comment delivery from an earlier attempt of the same
   workflow run (for example a network retry from attempt 1 landing after
   `rerun_failed_jobs` already published attempt 2) can no longer overwrite the
