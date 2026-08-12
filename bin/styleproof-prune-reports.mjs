@@ -18,7 +18,23 @@ import {
   selectReportFoldersToPrune,
 } from '../dist/report-prune.js';
 
+const HELP = `usage: styleproof-prune-reports --repository <owner/repo> [options]
+
+Delete one closed pull request report:
+  --pull-request <n>
+
+Sweep closed reports by retention and branch-size budget:
+  --retention-days <days> --budget-bytes <bytes>
+
+Options:
+  --branch <name>       report branch (default: styleproof-reports)
+  -h, --help            show this help`;
+
 const argv = process.argv.slice(2);
+if (argv.includes('--help') || argv.includes('-h')) {
+  console.log(HELP);
+  process.exit(0);
+}
 const options = {};
 for (let index = 0; index < argv.length; index += 1) {
   const argument = argv[index];
@@ -26,7 +42,14 @@ for (let index = 0; index < argv.length; index += 1) {
     console.error(`styleproof-prune-reports: unexpected argument ${argument}`);
     process.exit(2);
   }
-  options[argument.slice(2)] = argv[++index];
+  const equals = argument.indexOf('=');
+  const name = argument.slice(2, equals === -1 ? undefined : equals);
+  const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
+  if (!name || value === undefined || value === '' || value.startsWith('--')) {
+    console.error(`styleproof-prune-reports: missing value for --${name || argument.slice(2)}`);
+    process.exit(2);
+  }
+  options[name] = value;
 }
 
 if (!options.repository) {
@@ -42,6 +65,21 @@ if (sweepMode === (options['pull-request'] !== undefined)) {
 }
 if (sweepMode && (options['retention-days'] === undefined || options['budget-bytes'] === undefined)) {
   console.error('styleproof-prune-reports: sweep mode needs both --retention-days and --budget-bytes');
+  process.exit(2);
+}
+const pullRequest = options['pull-request'] === undefined ? undefined : Number(options['pull-request']);
+if (pullRequest !== undefined && (!Number.isInteger(pullRequest) || pullRequest <= 0)) {
+  console.error('styleproof-prune-reports: --pull-request must be a positive integer');
+  process.exit(2);
+}
+const retentionDays = options['retention-days'] === undefined ? undefined : Number(options['retention-days']);
+if (retentionDays !== undefined && (!Number.isFinite(retentionDays) || retentionDays < 0)) {
+  console.error('styleproof-prune-reports: --retention-days must be a finite non-negative number');
+  process.exit(2);
+}
+const budgetBytes = options['budget-bytes'] === undefined ? undefined : Number(options['budget-bytes']);
+if (budgetBytes !== undefined && (!Number.isFinite(budgetBytes) || budgetBytes < 0)) {
+  console.error('styleproof-prune-reports: --budget-bytes must be a finite non-negative number');
   process.exit(2);
 }
 const token = process.env.GH_TOKEN;
@@ -61,16 +99,16 @@ try {
   if (!sweepMode) {
     const { deletedFolders } = await deleteReportFolders({
       ...apiOptions,
-      selectFolders: () => [`pr-${options['pull-request']}`],
-      commitMessage: () => `chore(styleproof): prune report for closed PR #${options['pull-request']}`,
+      selectFolders: () => [`pr-${pullRequest}`],
+      commitMessage: () => `chore(styleproof): prune report for closed PR #${pullRequest}`,
     });
     console.error(
       deletedFolders.length === 0
-        ? `no pr-${options['pull-request']}/ folder — nothing to prune`
+        ? `no pr-${pullRequest}/ folder — nothing to prune`
         : `pruned ${deletedFolders.join(', ')}`,
     );
   } else {
-    const retentionCutoffEpochSeconds = Math.floor(Date.now() / 1000) - Number(options['retention-days']) * 86400;
+    const retentionCutoffEpochSeconds = Math.floor(Date.now() / 1000) - retentionDays * 86400;
     const closedAtEpochSecondsByPath = await readClosedPullRequestTimestamps(apiOptions);
     const { deletedFolders } = await deleteReportFolders({
       ...apiOptions,
@@ -79,7 +117,7 @@ try {
           folderSizesBytesByPath,
           closedAtEpochSecondsByPath,
           retentionCutoffEpochSeconds,
-          budgetBytes: Number(options['budget-bytes']),
+          budgetBytes,
         });
         console.error(`branch size after prune: ${(selection.branchSizeAfterBytes / 1e9).toFixed(2)} GB`);
         if (selection.openFoldersExceedBudget) {

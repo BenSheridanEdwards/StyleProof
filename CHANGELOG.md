@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Report pruning now rejects invalid retention, budget, and pull-request values
+  before contacting GitHub, preventing malformed numeric limits from selecting
+  every closed report folder (#383).
+- The public report publish and prune CLIs now support `--help` and the documented
+  `--flag=value` form, with both binaries covered by the packed-package smoke test
+  (#384).
+
 ## [6.0.5] - 2026-08-12
 
 ### Fixed

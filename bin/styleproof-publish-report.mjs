@@ -14,7 +14,23 @@
 import fs from 'node:fs';
 import { collectReportFiles, publishReportFolder, verifyPublishedReceipt } from '../dist/report-publish.js';
 
+const HELP = `usage: styleproof-publish-report --repository <owner/repo> --branch <name> [options]
+
+Required:
+  --report-path <path>  destination folder on the report branch
+  --report-dir <dir>    generated report directory
+  --head-sha <sha>      pull request head commit
+  --run-id <id>         GitHub Actions run id
+  --run-attempt <n>     GitHub Actions run attempt
+
+Options:
+  -h, --help            show this help`;
+
 const argv = process.argv.slice(2);
+if (argv.includes('--help') || argv.includes('-h')) {
+  console.log(HELP);
+  process.exit(0);
+}
 const options = {};
 for (let index = 0; index < argv.length; index += 1) {
   const argument = argv[index];
@@ -22,7 +38,14 @@ for (let index = 0; index < argv.length; index += 1) {
     console.error(`styleproof-publish-report: unexpected argument ${argument}`);
     process.exit(2);
   }
-  options[argument.slice(2)] = argv[++index];
+  const equals = argument.indexOf('=');
+  const name = argument.slice(2, equals === -1 ? undefined : equals);
+  const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
+  if (!name || value === undefined || value === '' || value.startsWith('--')) {
+    console.error(`styleproof-publish-report: missing value for --${name || argument.slice(2)}`);
+    process.exit(2);
+  }
+  options[name] = value;
 }
 
 const required = ['repository', 'branch', 'report-path', 'report-dir', 'head-sha', 'run-id', 'run-attempt'];
