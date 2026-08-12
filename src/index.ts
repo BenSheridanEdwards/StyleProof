@@ -81,3 +81,21 @@ export { generateStyleMapReport, summarizeProps, prettyLabel, assessComparisonTr
 export type { ReportOptions, ReportResult, ComparisonTruth } from './report.js';
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';
+
+export {
+  validateStateRecipe,
+  parseStateRecipes,
+  stateRecipeKey,
+  classifyStateRecipe,
+  applyStateRecipe,
+  stateRecipeDriver,
+  isUnsafeStateLabel,
+  StateRecipeError,
+} from './state-recipes.js';
+export type {
+  StateRecipeAction,
+  StateRecipe,
+  AppliedStateRecipe,
+  StateRecipeSkip,
+  StateRecipeSkipReason,
+} from './state-recipes.js';

@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- First experiment for deterministic interaction **state recipes** (#391): typed
+  `hover` / `focus` / `press` recipe schema with pure validation, stable keys,
+  Playwright drivers, and the shared destructive-action guard. Network/route
+  recipes, transient observation, and report wiring remain follow-up slices.
+  New exports: `validateStateRecipe`, `parseStateRecipes`, `stateRecipeKey`,
+  `classifyStateRecipe`, `applyStateRecipe`, `stateRecipeDriver`.
+
 ## [6.0.5] - 2026-08-12
 
 ### Fixed
