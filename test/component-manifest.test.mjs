@@ -255,7 +255,14 @@ test('componentManifestToDiscovered + catalog surfaces: feed componentCatalogSur
   );
   await surfaces[0].go({ goto: async (url) => visits.push(url) });
   assert.equal(visits[0], `/styleproof/components/${surfaces[0].key}`);
-  assert.deepEqual(surfaces[0].widths, [1280]);
+  // app-modal-open carries per-variant viewport; button variants inherit catalog widths.
+  assert.equal(surfaces[0].key, 'component-app-modal-open');
+  assert.deepEqual(surfaces[0].widths, [390, 1024]);
+  assert.equal(surfaces[0].height, 800);
+  const buttonDefault = surfaces.find((s) => s.key === 'component-button-default');
+  assert.ok(buttonDefault);
+  assert.deepEqual(buttonDefault.widths, [1280]);
+  assert.equal(buttonDefault.height, undefined);
 });
 
 test('componentManifestCatalogSurfaces: honors custom catalog base and url mapper', async () => {
@@ -274,4 +281,106 @@ test('componentManifestCatalogSurfaces: honors custom catalog base and url mappe
   const defaultSurfaces = componentManifestCatalogSurfaces(manifest);
   await defaultSurfaces[0].go({ goto: async (url) => visits.push(url) });
   assert.equal(visits[1], '/dev/catalog/component-toast-host');
+});
+
+test('isSerializableManifestValue: cyclic objects return false (no stack overflow)', () => {
+  const cyclic = { a: 1 };
+  cyclic.self = cyclic;
+  assert.equal(isSerializableManifestValue(cyclic), false);
+
+  const arr = [1, 2];
+  arr.push(arr);
+  assert.equal(isSerializableManifestValue(arr), false);
+
+  const nested = { ok: true, child: { n: 1 } };
+  nested.child.parent = nested;
+  assert.equal(isSerializableManifestValue(nested), false);
+});
+
+test('isSerializableManifestValue: shared acyclic references return true (like JSON.stringify)', () => {
+  const shared = { n: 1, label: 'fixture' };
+  const diamond = { left: shared, right: shared };
+  assert.equal(isSerializableManifestValue(diamond), true);
+  assert.equal(JSON.stringify(diamond), '{"left":{"n":1,"label":"fixture"},"right":{"n":1,"label":"fixture"}}');
+
+  const sharedArr = [1, 2];
+  const both = { a: sharedArr, b: sharedArr, nested: { again: shared } };
+  assert.equal(isSerializableManifestValue(both), true);
+
+  // Array that reuses the same plain object twice (still acyclic).
+  const item = { id: 'x' };
+  assert.equal(isSerializableManifestValue([item, item, { items: [item] }]), true);
+});
+
+test('componentManifestCatalogSurfaces: maps per-variant widths and height onto surfaces', () => {
+  const manifest = validateComponentManifest({
+    version: 1,
+    components: [
+      {
+        module: 'src/components/Card.tsx',
+        id: 'card',
+        variants: [
+          { key: 'mobile', props: { dense: true }, widths: [390], height: 700 },
+          { key: 'desktop', props: { dense: false }, widths: [1440] },
+          { key: 'default', props: {} },
+        ],
+      },
+    ],
+  });
+  const surfaces = componentManifestCatalogSurfaces(manifest, {
+    widths: [1280],
+    height: 900,
+  });
+  const byKey = Object.fromEntries(surfaces.map((s) => [s.key, s]));
+
+  assert.deepEqual(byKey['component-card-mobile'].widths, [390]);
+  assert.equal(byKey['component-card-mobile'].height, 700);
+
+  assert.deepEqual(byKey['component-card-desktop'].widths, [1440]);
+  // variant omitted height → catalog-level height retained
+  assert.equal(byKey['component-card-desktop'].height, 900);
+
+  assert.deepEqual(byKey['component-card-default'].widths, [1280]);
+  assert.equal(byKey['component-card-default'].height, 900);
+});
+
+test('validateComponentManifest: cwd rejects symlink escape outside project root', () => {
+  const root = mkTmp();
+  const outside = mkTmp();
+  try {
+    const outsideFile = path.join(outside, 'Secret.tsx');
+    fs.writeFileSync(outsideFile, 'export default function Secret() {}');
+
+    const linkDir = path.join(root, 'src/components');
+    fs.mkdirSync(linkDir, { recursive: true });
+    const linkPath = path.join(linkDir, 'Escaped.tsx');
+    fs.symlinkSync(outsideFile, linkPath);
+
+    // Inside-root real file still OK.
+    const okFile = path.join(linkDir, 'Button.tsx');
+    fs.writeFileSync(okFile, 'export function Button() {}');
+    const ok = validateComponentManifest(
+      {
+        version: 1,
+        components: [{ module: 'src/components/Button.tsx', export: 'Button', variants: [{ key: 'a' }] }],
+      },
+      { cwd: root },
+    );
+    assert.equal(ok.components[0].module, 'src/components/Button.tsx');
+
+    assert.throws(
+      () =>
+        validateComponentManifest(
+          {
+            version: 1,
+            components: [{ module: 'src/components/Escaped.tsx', variants: [{ key: 'a' }] }],
+          },
+          { cwd: root },
+        ),
+      /escapes project root|not found/i,
+    );
+  } finally {
+    rmTmp(root);
+    rmTmp(outside);
+  }
 });

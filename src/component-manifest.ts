@@ -96,20 +96,39 @@ function nonEmptyString(value: unknown, label: string): string {
   return value.trim();
 }
 
-/** True when `value` is JSON-serializable (no functions, bigint, undefined, NaN, Infinity, symbols). */
+/**
+ * True when `value` is JSON-serializable (no functions, bigint, undefined, NaN,
+ * Infinity, symbols, or cyclic structures). Cycles return false instead of
+ * overflowing the call stack. Repeated shared (acyclic) references are allowed,
+ * matching `JSON.stringify`.
+ */
 export function isSerializableManifestValue(value: unknown): value is ManifestJsonValue {
+  // Active-ancestor set only: objects leave the set after their subtree is
+  // walked so diamond/shared refs stay serializable while true cycles fail.
+  return isSerializableManifestValueInner(value, new WeakSet<object>());
+}
+
+function isSerializableManifestValueInner(value: unknown, ancestors: WeakSet<object>): boolean {
   if (value === null) return true;
   if (typeof value === 'string' || typeof value === 'boolean') return true;
   if (typeof value === 'number') return Number.isFinite(value);
   if (typeof value === 'bigint' || typeof value === 'function' || typeof value === 'symbol') return false;
   if (typeof value === 'undefined') return false;
-  if (Array.isArray(value)) return value.every((item) => isSerializableManifestValue(item));
-  if (typeof value === 'object') {
+  if (typeof value !== 'object') return false;
+  if (ancestors.has(value)) return false;
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      return value.every((item) => isSerializableManifestValueInner(item, ancestors));
+    }
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) return false;
-    return Object.values(value as Record<string, unknown>).every((item) => isSerializableManifestValue(item));
+    return Object.values(value as Record<string, unknown>).every((item) =>
+      isSerializableManifestValueInner(item, ancestors),
+    );
+  } finally {
+    ancestors.delete(value);
   }
-  return false;
 }
 
 function toSlash(file: string): string {
@@ -191,11 +210,39 @@ function componentIdFromModule(modulePath: string): string {
   return slug;
 }
 
+/** True when `candidate` is the same path as `root` or a path under it (after realpath). */
+function isPathInsideRoot(root: string, candidate: string): boolean {
+  const rootNorm = path.resolve(root);
+  const candidateNorm = path.resolve(candidate);
+  if (candidateNorm === rootNorm) return true;
+  const prefix = rootNorm.endsWith(path.sep) ? rootNorm : rootNorm + path.sep;
+  return candidateNorm.startsWith(prefix);
+}
+
+/**
+ * Resolve `rel` under `cwd`, require a real file, and reject paths that escape
+ * the project root via `..` or symlink (realpath containment where feasible).
+ */
 function assertFileExists(cwd: string, rel: string, label: string): void {
   const abs = path.resolve(cwd, rel);
+  let realRoot: string;
+  try {
+    realRoot = fs.realpathSync(cwd);
+  } catch {
+    fail(`${label}: project root not found (${cwd})`);
+  }
+  let realAbs: string;
+  try {
+    realAbs = fs.realpathSync(abs);
+  } catch {
+    fail(`${label} not found: ${rel}`);
+  }
+  if (!isPathInsideRoot(realRoot, realAbs)) {
+    fail(`${label} escapes project root: ${rel}`);
+  }
   let stat: fs.Stats;
   try {
-    stat = fs.statSync(abs);
+    stat = fs.statSync(realAbs);
   } catch {
     fail(`${label} not found: ${rel}`);
   }
@@ -380,10 +427,49 @@ export type ComponentManifestCatalogSurfaceOptions = ComponentCatalogSurfaceOpti
   catalogBasePath?: string;
 };
 
+function variantViewportBySurfaceKey(manifest: ComponentManifest): Map<string, Pick<Surface, 'widths' | 'height'>> {
+  const prefix = manifest.prefix ?? DEFAULT_PREFIX;
+  const byKey = new Map<string, Pick<Surface, 'widths' | 'height'>>();
+  for (const component of manifest.components) {
+    const componentId = component.id ?? componentIdFromModule(component.module);
+    for (const variant of component.variants) {
+      const viewport = pickVariantViewport(variant);
+      if (!viewport) continue;
+      const key = componentManifestSurfaceKey({
+        prefix,
+        componentId,
+        variantKey: variant.key,
+      });
+      byKey.set(key, viewport);
+    }
+  }
+  return byKey;
+}
+
+function pickVariantViewport(variant: ComponentManifestVariant): Pick<Surface, 'widths' | 'height'> | undefined {
+  if (variant.widths === undefined && variant.height === undefined) return undefined;
+  return {
+    ...(variant.widths !== undefined ? { widths: variant.widths } : {}),
+    ...(variant.height !== undefined ? { height: variant.height } : {}),
+  };
+}
+
+function applyVariantViewport(surface: Surface, override: Pick<Surface, 'widths' | 'height'> | undefined): Surface {
+  if (!override) return surface;
+  return {
+    ...surface,
+    ...(override.widths !== undefined ? { widths: override.widths } : {}),
+    ...(override.height !== undefined ? { height: override.height } : {}),
+  };
+}
+
 /**
  * Build StyleProof surfaces from a validated manifest using
  * {@link componentCatalogSurfaces}. Default URL:
  * `<catalogBasePath>/<surfaceKey>`.
+ *
+ * Per-variant `widths` / `height` from the manifest override catalog-level
+ * viewport options for the matching surface (typed variant contract).
  */
 export function componentManifestCatalogSurfaces(
   manifest: ComponentManifest,
@@ -393,8 +479,13 @@ export function componentManifestCatalogSurfaces(
   const catalogBasePath = options.catalogBasePath ?? manifest.catalogBasePath ?? DEFAULT_CATALOG_BASE;
   const { catalogBasePath: _drop, url, ...rest } = options;
   void _drop;
-  return componentCatalogSurfaces(discovered, {
+
+  const variantViewport = variantViewportBySurfaceKey(manifest);
+  const surfaces = componentCatalogSurfaces(discovered, {
     ...rest,
     url: url ?? ((component) => componentManifestCatalogPath(component.key, { catalogBasePath })),
   });
+
+  if (variantViewport.size === 0) return surfaces;
+  return surfaces.map((surface) => applyVariantViewport(surface, variantViewport.get(surface.key)));
 }
