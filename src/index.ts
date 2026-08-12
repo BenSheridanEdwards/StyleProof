@@ -84,3 +84,6 @@ export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affe
 
 export { classifyAuthBoundary } from './auth-boundary.js';
 export type { AuthBoundaryMetadata, AuthBoundaryDiagnostic } from './auth-boundary.js';
+
+export { classifyIncompleteUi } from './incomplete-ui.js';
+export type { IncompleteUiMetadata, IncompleteUiDiagnostic } from './incomplete-ui.js';
