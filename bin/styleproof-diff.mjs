@@ -48,6 +48,7 @@ import {
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
+  readBaselineProvenance,
   readMapManifest,
   resolveCachedCaptureDirs,
   surfaceMissingMatchesBaselineFailure,
@@ -371,6 +372,7 @@ let residueAudit = null;
 let surfacePaths = new Map();
 let surfaceKeyOf = () => undefined;
 let baselineSurfaceFailures = [];
+let baselineProvenance = null;
 try {
   // v4: a side without a manifest is unsupported — the same-environment guard can't be
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
@@ -398,6 +400,9 @@ try {
   // yielded [], so a PARTIAL_BASELINE run silently degraded into approvable
   // greenfield "new surfaces" (exit 3) in cached-map mode.
   baselineSurfaceFailures = readMapManifest(dirA)?.surfaceCaptureFailures ?? [];
+  // Baseline provenance (#367) — same "read while the dirs exist" rule. `null`
+  // when the run recorded none (every run before the opt-in ancestor reuse).
+  baselineProvenance = readBaselineProvenance(dirA);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -550,6 +555,10 @@ if (jsonOut) {
           surfaces,
           compared,
           baselineSurfaceFailures,
+          // Additive (#367): where the baseline maps came from, when the run
+          // recorded it — restored from the exact base SHA, restored from a
+          // nearest ancestor (with the changed-path-count proof), or captured.
+          ...(baselineProvenance ? { baselineProvenance } : {}),
           explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
           partialBaseline,
           // Subtrees excluded from every layer of the comparison because a side

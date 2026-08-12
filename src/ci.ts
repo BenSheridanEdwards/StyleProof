@@ -140,12 +140,22 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
 }
 
 /** The `$GITHUB_OUTPUT` lines the old workflow step emitted, verbatim, so existing
- *  consumer steps keyed on `steps.maps.outputs.*` keep working after the collapse. */
-export function ciOutputLines(baseHit: boolean, headHit: boolean, baseCaptureFailed = false): string[] {
+ *  consumer steps keyed on `steps.maps.outputs.*` keep working after the collapse.
+ *  `baseRestoredFromAncestorSha` appends `base-restored-from-ancestor=<sha>` ONLY
+ *  when the base baseline was reused from a nearest ancestor (#367) — the four
+ *  original lines never change shape, and a reused base still reads `base-hit=true`
+ *  (it was restored without a capture) while staying auditable in the outputs. */
+export function ciOutputLines(
+  baseHit: boolean,
+  headHit: boolean,
+  baseCaptureFailed = false,
+  baseRestoredFromAncestorSha = '',
+): string[] {
   return [
     `base-hit=${baseHit}`,
     `head-hit=${headHit}`,
     `capture-needed=${!(baseHit && headHit)}`,
     `base-capture-failed=${baseCaptureFailed}`,
+    ...(baseRestoredFromAncestorSha ? [`base-restored-from-ancestor=${baseRestoredFromAncestorSha}`] : []),
   ];
 }

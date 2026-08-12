@@ -47,7 +47,14 @@ import {
   gitRepoRoot,
   worktreeRunCwd,
 } from '../dist/ci-worktree.js';
-import { isMapFile } from '../dist/map-store.js';
+import {
+  expectedCompatibilityKey,
+  isMapFile,
+  listMapStoreBundleShas,
+  restoreMapBundle,
+  writeBaselineProvenance,
+} from '../dist/map-store.js';
+import { planAncestorBaselineReuse } from '../dist/ancestor-baseline.js';
 
 const HELP = `styleproof-ci — restore or capture the base/head maps for a PR, cache-first
 
@@ -92,6 +99,26 @@ options:
 
 Writes base-hit / head-hit / capture-needed / base-capture-failed to
 $GITHUB_OUTPUT when set, so workflow steps can branch on steps.<id>.outputs.*.
+
+Opt-in nearest-ancestor baseline reuse (issue #367, conservative):
+  STYLEPROOF_ANCESTOR_BASELINE=1        on a base miss, look for the nearest
+                                        first-parent ancestor of --base with a
+                                        stored bundle; if NO path changed between
+                                        them is capture-relevant, restore that
+                                        bundle as the baseline instead of a full
+                                        cold recapture. Any doubt or error falls
+                                        back to the full capture path.
+  STYLEPROOF_ANCESTOR_BASELINE_ROOTS    comma-separated repo-relative app source
+                                        directories (e.g. "src,styles") whose
+                                        changes are capture-relevant. REQUIRED
+                                        for reuse to fire on a non-empty diff:
+                                        with no roots declared every changed path
+                                        counts as relevant. The spec's directory,
+                                        styleproof.config.json, and package
+                                        manifests/lockfiles are always relevant.
+Reuse is never silent: the run log, base-restored-from-ancestor=<sha> in
+$GITHUB_OUTPUT, and a styleproof-baseline-provenance.json sidecar (surfaced in
+the report and diff --json) all record it, with the changed-path count as proof.
 
 exit codes:
   0  both maps present (restored or captured+published)
@@ -437,9 +464,96 @@ function countMaps(dir) {
 }
 
 function writeOutputs(baseCaptureFailed = false) {
-  const outputs = ciOutputLines(baseHit, headHit, baseCaptureFailed);
+  const outputs = ciOutputLines(baseHit, headHit, baseCaptureFailed, baseRestoredFromAncestorSha);
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
   log(outputs.join(' '));
+}
+
+// ── Nearest-ancestor baseline reuse (issue #367, conservative variant) ─────────
+// Opt-in via STYLEPROOF_ANCESTOR_BASELINE=1. On a base cache miss, restore the
+// nearest first-parent ancestor's stored bundle as the baseline — but ONLY when
+// no path changed between that ancestor and --base is capture-relevant. Every
+// error and every doubt falls back to the ordinary cold-capture path.
+
+function ancestorBaselineEnabled() {
+  return process.env.STYLEPROOF_ANCESTOR_BASELINE === '1';
+}
+
+/** Declared app source roots whose changes are capture-relevant (comma-separated). */
+function ancestorBaselineSourceRoots() {
+  return (process.env.STYLEPROOF_ANCESTOR_BASELINE_ROOTS ?? '')
+    .split(',')
+    .map((sourceRoot) => sourceRoot.trim())
+    .filter(Boolean);
+}
+
+/** Record where the baseline came from, so reuse (or its absence) is auditable in
+ *  the report and diff --json. Only written when the feature is opted in, keeping
+ *  default runs byte-identical; a sidecar write failure must never fail the run. */
+function recordBaselineProvenance(provenance) {
+  if (!ancestorBaselineEnabled()) return;
+  try {
+    writeBaselineProvenance(path.join(root, 'base'), { version: 1, requestedSha: base, ...provenance });
+  } catch (error) {
+    log(`could not record baseline provenance (${error instanceof Error ? error.message : String(error)})`);
+  }
+}
+
+/** Attempt the ancestor reuse; returns the restored ancestor SHA, or '' to take
+ *  the ordinary cold path. FAIL-SAFE: any thrown error only logs and returns ''. */
+function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
+  if (!ancestorBaselineEnabled()) return '';
+  if (specRefProvided) {
+    log('ancestor baseline reuse: skipped — --spec-ref overlays the base spec, which reuse cannot prove against');
+    return '';
+  }
+  try {
+    const probeSpec = specFor(baseProbeCwd);
+    const projectConfigAtBase = loadStyleProofConfig(baseProbeCwd);
+    const cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfigAtBase.cacheBranch;
+    const cacheRemote = process.env.STYLEPROOF_REMOTE ?? projectConfigAtBase.remote;
+    const sourceRoots = ancestorBaselineSourceRoots();
+    const plan = planAncestorBaselineReuse({
+      requestedSha: base,
+      availableShas: listMapStoreBundleShas({ branch: cacheBranch, remote: cacheRemote, cwd: repoRoot }),
+      spec: probeSpec,
+      sourceRoots,
+      cwd: repoRoot,
+    });
+    if (plan.decision === 'capture') {
+      log(`ancestor baseline reuse: taking the full capture path — ${plan.reason}`);
+      return '';
+    }
+    // Restore the ancestor bundle byte-for-byte under the compatibility key the
+    // base worktree expects (same spec bytes + lockfile, or this misses and the
+    // cold path runs) — its manifest keeps naming the ancestor SHA it was
+    // verified at, so reuse never launders provenance.
+    restoreMapBundle({
+      sha: plan.ancestorSha,
+      outDir: path.join(root, 'base'),
+      branch: cacheBranch,
+      remote: cacheRemote,
+      cwd: baseProbeCwd,
+      compatibilityKey: expectedCompatibilityKey({ cwd: baseProbeCwd, spec: probeSpec }),
+    });
+    recordBaselineProvenance({
+      baseline: 'ancestor-reuse',
+      restoredSha: plan.ancestorSha,
+      ancestorDepth: plan.ancestorDepth,
+      changedPathCount: plan.changedPathCount,
+      sourceRoots,
+    });
+    log(
+      `base miss for ${base.slice(0, 12)} — reused the baseline of nearest ancestor ${plan.ancestorSha.slice(0, 12)} ` +
+        `(depth ${plan.ancestorDepth}; ${plan.changedPathCount} changed path(s), none capture-relevant)`,
+    );
+    return plan.ancestorSha;
+  } catch (error) {
+    log(
+      `ancestor baseline reuse: falling back to the full capture path — ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return '';
+  }
 }
 
 /** True when the spec-ref overlay applies in `cwd`: --spec-ref was given and the
@@ -504,6 +618,7 @@ function restoreHead(cwd) {
 
 let baseHit;
 let headHit;
+let baseRestoredFromAncestorSha = '';
 let exitCode = 0;
 
 try {
@@ -512,6 +627,12 @@ try {
   const baseWorktree = worktrees.addDetached(base, 'probe-base');
   const baseRunCwd = worktreeRunCwd(baseWorktree, consumerRel);
   baseHit = restoreBase(baseRunCwd);
+  if (baseHit) {
+    recordBaselineProvenance({ baseline: 'exact-restore', restoredSha: base });
+  } else {
+    baseRestoredFromAncestorSha = tryRestoreNearestAncestorBaseline(baseRunCwd);
+    if (baseRestoredFromAncestorSha) baseHit = true;
+  }
 
   const headWorktree = worktrees.addDetached(head, 'probe-head');
   const headRunCwd = worktreeRunCwd(headWorktree, consumerRel);
@@ -630,6 +751,8 @@ try {
           fs.rmSync(baseDirPath, { recursive: true, force: true });
           fs.mkdirSync(baseDirPath, { recursive: true });
           baseCaptureFailed = true;
+        } else {
+          recordBaselineProvenance({ baseline: 'captured' });
         }
       } else {
         // The base commit predates the spec (first adoption): an empty base dir means
