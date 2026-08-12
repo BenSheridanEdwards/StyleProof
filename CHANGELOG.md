@@ -21,6 +21,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Nearest-ancestor baseline reuse now treats the Playwright capture config as
   capture-relevant, so changing the production server or browser setup always
   takes the full-capture path instead of restoring a stale ancestor map (#380).
+- Selective remap now treats global selectors nested in at-rules or selector
+  lists inside CSS Modules as unbounded, preventing stale map reuse on surfaces
+  affected by rules such as `@media { body { ... } }` (#381).
 
 ## [6.0.5] - 2026-08-12
 
