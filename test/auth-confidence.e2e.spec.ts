@@ -13,7 +13,8 @@ import { loadSetupSteps } from '../dist/capture-url.js';
  * Environment-backed setup unlocks the protected surface and clears the wall
  * when the gate leaves the DOM (realistic post-login navigation).
  * Auth is re-observed on every newly recorded crawl state (late-mounted gates).
- * Intermediate HTTP auth redirects are dropped only when setup leaves the wall.
+ * Intermediate HTTP auth redirects are dropped only when setup leaves the wall
+ * onto a non-auth path (OAuth-only + unrelated setup still retains).
  */
 
 const baseOpts = (url: string, out: string) => ({
@@ -146,29 +147,49 @@ test('unauthenticated protected page → incomplete-auth blocked; env setup clea
 });
 
 test('late-mounted password form during crawl → incomplete-auth blocked', async ({ page }) => {
-  // Entry has no auth wall; clicking "Sign in" mounts a password form.
-  // Entry-only observation would false-complete — must re-observe on new states.
+  // Entry has no auth wall; clicking "Sign in" creates and inserts a password form.
+  // Must truly insert after click — revealing a pre-existing DOM password is not
+  // mid-crawl detection proof (collector already sees type=password in initial DOM).
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     body { margin: 0; font-family: sans-serif; }
     .home { padding: 20px; background: rgb(250,250,250); }
-    .auth-panel { display: none; padding: 20px; background: rgb(240,240,245); }
-    .auth-panel.open { display: block; }
+    .auth-panel { padding: 20px; background: rgb(240,240,245); }
     button { cursor: pointer; }
   </style></head><body>
     <main class="home" id="home">
       <h1>Welcome</h1>
       <button id="open-auth" type="button">Sign in</button>
     </main>
-    <div class="auth-panel" id="auth">
-      <form action="/auth/login" method="post">
-        <input id="user" type="text" autocomplete="username" name="user">
-        <input id="pw" type="password" autocomplete="current-password" name="pw">
-        <button type="button" id="submit">Submit</button>
-      </form>
-    </div>
+    <div id="auth-host"></div>
     <script>
       document.getElementById('open-auth').onclick = () => {
-        document.getElementById('auth').classList.add('open');
+        const host = document.getElementById('auth-host');
+        if (host.querySelector('form')) return;
+        const panel = document.createElement('div');
+        panel.className = 'auth-panel';
+        panel.id = 'auth';
+        const form = document.createElement('form');
+        form.setAttribute('action', '/auth/login');
+        form.setAttribute('method', 'post');
+        const user = document.createElement('input');
+        user.id = 'user';
+        user.type = 'text';
+        user.autocomplete = 'username';
+        user.name = 'user';
+        const pw = document.createElement('input');
+        pw.id = 'pw';
+        pw.type = 'password';
+        pw.autocomplete = 'current-password';
+        pw.name = 'pw';
+        const submit = document.createElement('button');
+        submit.type = 'button';
+        submit.id = 'submit';
+        submit.textContent = 'Submit';
+        form.appendChild(user);
+        form.appendChild(pw);
+        form.appendChild(submit);
+        panel.appendChild(form);
+        host.appendChild(panel);
       };
     </script>
   </body></html>`;
@@ -187,6 +208,51 @@ test('late-mounted password form during crawl → incomplete-auth blocked', asyn
     expect(JSON.stringify(report.confidence)).not.toMatch(/value["']?\s*:/);
   } finally {
     fs.rmSync(file, { force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('authentication wall rendered by a synthetic data state → incomplete-auth blocked', async ({ page }) => {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/session') {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end('{"authenticated":true}');
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader('content-type', 'text/html; charset=utf-8');
+    res.end(`<!doctype html><html><head><meta charset="utf-8"><style>
+      .app { padding: 16px; } .gate { padding: 16px; } button { cursor: pointer; }
+    </style></head><body><main id="root" class="app">Loading</main><script>
+      fetch('/session').then((response) => {
+        if (!response.ok) throw new Error('session unavailable');
+        return response.json();
+      }).then(() => {
+        document.getElementById('root').innerHTML = '<button type="button">Open</button>';
+      }).catch(() => {
+        document.getElementById('root').className = 'gate';
+        document.getElementById('root').innerHTML =
+          '<form action="/auth/login"><input id="pw" type="password" autocomplete="current-password"></form>';
+      });
+    </script></body></html>`);
+  });
+  const port = await listen(server);
+  const out = path.join(os.tmpdir(), `styleproof-auth-data-out-${Math.random().toString(36).slice(2)}`);
+  try {
+    const report = await crawlAndCapture(page, {
+      ...baseOpts(`http://127.0.0.1:${port}/`, out),
+      dataStates: true,
+    });
+    expect(report.confidence.status).toBe('incomplete-auth');
+    expect(report.confidence.blocked).toBe(true);
+    expect(
+      report.confidence.authBoundaries.some((boundary) =>
+        boundary.diagnostics.some((diagnostic) => diagnostic.reason === 'password-input'),
+      ),
+    ).toBe(true);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
@@ -277,6 +343,91 @@ test('HTTP auth redirect without setup stays incomplete-auth; setup drops sticky
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     fs.rmSync(setupFile, { force: true });
+    fs.rmSync(outBlind, { recursive: true, force: true });
+    fs.rmSync(outSetup, { recursive: true, force: true });
+  }
+});
+
+test('HTTP OAuth-only redirect + unrelated cookie setup stays incomplete-auth blocked', async ({ page }) => {
+  // OAuth-only /login has no password field. Cookie-banner dismiss is setup that
+  // must not false-certify complete by dropping the intermediate auth redirect.
+  const loginBody = `<!doctype html><html><head><meta charset="utf-8"><style>
+    .gate { padding: 16px; background: rgb(240,240,245); }
+    .cookie { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px; background: rgb(255,250,200); }
+    .cookie.gone { display: none; }
+    a.oauth { display: inline-block; padding: 8px 12px; background: rgb(66,133,244); color: #fff; }
+  </style></head><body>
+    <main class="gate" id="gate">
+      <h1>Sign in with SSO</h1>
+      <a class="oauth" id="oauth" href="/oauth/start">Continue with OAuth</a>
+    </main>
+    <div class="cookie" id="cookie-banner">
+      We use cookies.
+      <button type="button" id="cookie-ok">OK</button>
+    </div>
+    <script>
+      document.getElementById('cookie-ok').onclick = () => {
+        const banner = document.getElementById('cookie-banner');
+        banner.classList.add('gone');
+        banner.remove();
+        const mark = document.createElement('div');
+        mark.id = 'cookie-dismissed';
+        mark.textContent = 'cookies accepted';
+        document.body.appendChild(mark);
+      };
+    </script>
+  </body></html>`;
+
+  const server = http.createServer((req, res) => {
+    const u = (req.url ?? '/').split('?')[0];
+    if (u === '/protected') {
+      res.statusCode = 302;
+      res.setHeader('location', '/login');
+      res.end();
+      return;
+    }
+    if (u === '/login') {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.end(loginBody);
+      return;
+    }
+    if (u === '/oauth/start') {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.end('<!doctype html><html><body>oauth provider stub</body></html>');
+      return;
+    }
+    res.statusCode = 404;
+    res.end('not found');
+  });
+  const port = await listen(server);
+  const base = `http://127.0.0.1:${port}`;
+  const outBlind = path.join(os.tmpdir(), `styleproof-auth-oauth-blind-${Math.random().toString(36).slice(2)}`);
+  const outSetup = path.join(os.tmpdir(), `styleproof-auth-oauth-setup-${Math.random().toString(36).slice(2)}`);
+  try {
+    const blind = await crawlAndCapture(page, baseOpts(`${base}/protected`, outBlind));
+    expect(blind.confidence.status).toBe('incomplete-auth');
+    expect(blind.confidence.blocked).toBe(true);
+    const blindReasons = blind.confidence.authBoundaries.flatMap((b) => b.diagnostics.map((d) => d.reason));
+    expect(blindReasons).toEqual(expect.arrayContaining(['auth-route-redirect']));
+
+    // Unrelated cookie dismiss — not an auth unlock.
+    const unlocked = await crawlAndCapture(page, {
+      ...baseOpts(`${base}/protected`, outSetup),
+      setup: [
+        { action: 'click', selector: '#cookie-ok' },
+        { action: 'waitFor', selector: '#cookie-dismissed' },
+      ],
+    });
+    expect(unlocked.confidence.status).toBe('incomplete-auth');
+    expect(unlocked.confidence.blocked).toBe(true);
+    expect(unlocked.confidence.certifiesFully).toBe(false);
+    const reasons = unlocked.confidence.authBoundaries.flatMap((b) => b.diagnostics.map((d) => d.reason));
+    expect(reasons).toEqual(expect.arrayContaining(['auth-route-redirect']));
+    expect(JSON.stringify(unlocked.confidence)).not.toMatch(/value["']?\s*:/);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     fs.rmSync(outBlind, { recursive: true, force: true });
     fs.rmSync(outSetup, { recursive: true, force: true });
   }

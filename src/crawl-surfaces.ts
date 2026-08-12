@@ -494,7 +494,9 @@ function collectAuthBoundaryMetadata(): AuthBoundaryMetadata[] {
 
 /** Observe the current page for auth walls; returns null when none classify. */
 async function observeAuthBoundary(page: Page): Promise<AuthBoundaryObservation | null> {
-  const metadata = await page.evaluate(collectAuthBoundaryMetadata).catch(() => [] as AuthBoundaryMetadata[]);
+  // Observation is part of the certification contract. If the page cannot be
+  // inspected, fail the crawl rather than silently certifying it as complete.
+  const metadata = await page.evaluate(collectAuthBoundaryMetadata);
   const diagnostics = classifyAuthBoundary(metadata);
   if (!diagnostics.length) return null;
   const route = redactedRoutePath(page.url());
@@ -1089,6 +1091,8 @@ async function recordDataState(
     await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
     await page.goto(opts.url, { waitUntil: 'load' });
     await settleDom(page, 2500); // no networkidle wait — a stalled request never goes idle
+    const auth = await observeAuthBoundary(page);
+    if (auth) st.authObservations.push(auth);
     const fp = await fingerprint(page);
     if (st.seen.has(fp.sig)) return; // renders identically to a captured state (e.g. SSR)
     st.seen.add(fp.sig);
@@ -1199,11 +1203,11 @@ async function gotoFreshObservingAuth(
   const redirectDiagnostics = classifyAuthBoundary(redirectMeta);
   const landed = await observeAuthBoundary(page);
   const hadSetup = Boolean(opts.setup?.length);
-  // Intermediate 3xx→auth redirects are transit when setup leaves the wall.
-  // Keep redirect-only boundaries when there was no setup, or the final page
-  // is still gated (fail closed).
-  if (redirectDiagnostics.length && shouldRetainAuthRedirects(hadSetup, Boolean(landed))) {
-    const route = redactedRoutePath(opts.url) ?? redactedRoutePath(page.url());
+  const landedPath = redactedRoutePath(page.url());
+  // Intermediate 3xx→auth redirects are transit only when setup left the wall
+  // onto a non-auth path. Unrelated setup on OAuth-only /login still retains.
+  if (redirectDiagnostics.length && shouldRetainAuthRedirects(hadSetup, Boolean(landed), landedPath)) {
+    const route = redactedRoutePath(opts.url) ?? landedPath;
     sink.push({ ...(route ? { route } : {}), diagnostics: redirectDiagnostics });
   }
   if (landed) sink.push(landed);

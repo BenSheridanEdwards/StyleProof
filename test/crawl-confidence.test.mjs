@@ -110,9 +110,24 @@ test('stale exclusions are reported when nothing matched', () => {
   assert.deepEqual(c.staleExclusions, ['/gone']);
 });
 
-test('shouldRetainAuthRedirects drops intermediate redirects only after setup leaves the wall', () => {
-  assert.equal(shouldRetainAuthRedirects(false, false), true, 'redirect-only, no setup');
+test('shouldRetainAuthRedirects drops intermediate redirects only after setup leaves the wall onto a non-auth path', () => {
+  assert.equal(shouldRetainAuthRedirects(false, false), true, 'no-setup redirect retains');
   assert.equal(shouldRetainAuthRedirects(false, true), true, 'redirect + landed wall, no setup');
-  assert.equal(shouldRetainAuthRedirects(true, true), true, 'setup but still gated');
-  assert.equal(shouldRetainAuthRedirects(true, false), false, 'setup left auth boundary');
+  assert.equal(shouldRetainAuthRedirects(true, true), true, 'still-gated retains');
+  assert.equal(shouldRetainAuthRedirects(true, true, '/login'), true, 'still-gated on auth path retains');
+  assert.equal(shouldRetainAuthRedirects(true, false, '/vault'), false, 'successful unlock off auth path drops');
+  assert.equal(shouldRetainAuthRedirects(true, false, '/dashboard'), false, 'setup left wall on ordinary path drops');
+  assert.equal(shouldRetainAuthRedirects(true, false, '/login'), true, 'unrelated setup + auth path retains');
+  assert.equal(
+    shouldRetainAuthRedirects(true, false, '/oauth/authorize'),
+    true,
+    'unrelated setup + oauth path retains',
+  );
+  assert.equal(
+    shouldRetainAuthRedirects(true, false, '/auth/callback'),
+    true,
+    'unrelated setup + auth segment retains',
+  );
+  assert.equal(shouldRetainAuthRedirects(true, false), true, 'setup + no wall + unknown path fails closed (retain)');
+  assert.equal(shouldRetainAuthRedirects(true, false, ''), true, 'empty path fails closed (retain)');
 });

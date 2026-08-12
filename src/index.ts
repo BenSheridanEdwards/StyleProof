@@ -102,7 +102,7 @@ export type { ReportOptions, ReportResult, ComparisonTruth } from './report.js';
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';
 
-export { classifyAuthBoundary } from './auth-boundary.js';
+export { classifyAuthBoundary, isAuthPath } from './auth-boundary.js';
 export type { AuthBoundaryMetadata, AuthBoundaryDiagnostic } from './auth-boundary.js';
 
 export { classifyIncompleteUi } from './incomplete-ui.js';

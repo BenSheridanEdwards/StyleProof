@@ -14,7 +14,7 @@
  * headers, query strings, fragments, and secret DOM text are out of scope.
  */
 
-import type { AuthBoundaryDiagnostic } from './auth-boundary.js';
+import { isAuthPath, type AuthBoundaryDiagnostic } from './auth-boundary.js';
 
 /** Run-level crawl completeness for certification. */
 export type CrawlConfidenceStatus = 'complete' | 'incomplete-auth' | 'incomplete-unknown';
@@ -150,13 +150,24 @@ export function mergeAuthBoundaryObservations(observations: AuthBoundaryObservat
  * Whether HTTP auth-redirect diagnostics collected during navigation should be
  * retained after optional setup.
  *
- * Intermediate redirects are dropped only when setup demonstrably left the auth
- * boundary (setup ran and the landed page has no auth wall). Real redirect-only
- * boundaries are preserved when there is no setup, or when the final page is
- * still gated.
+ * Intermediate redirects are dropped only when setup ran, the landed DOM has no
+ * auth wall, AND the final pathname is known and not auth-semantic (successful
+ * unlock away from login/oauth). Unrelated setup on an OAuth-only /login (no
+ * password field) must not drop the redirect. No setup, still-gated DOM, or
+ * auth-semantic landed path all retain (fail closed).
+ *
+ * @param landedPathname Redacted pathname only — never query, fragment, or secrets.
  */
-export function shouldRetainAuthRedirects(hadSetup: boolean, landedHasAuthBoundary: boolean): boolean {
-  if (hadSetup && !landedHasAuthBoundary) return false;
+export function shouldRetainAuthRedirects(
+  hadSetup: boolean,
+  landedHasAuthBoundary: boolean,
+  landedPathname?: string | null,
+): boolean {
+  if (!hadSetup) return true;
+  if (landedHasAuthBoundary) return true;
+  const path = typeof landedPathname === 'string' ? landedPathname.trim() : '';
+  // Only drop when we can prove we left auth: known non-auth path + no DOM wall.
+  if (path && !isAuthPath(path)) return false;
   return true;
 }
 
