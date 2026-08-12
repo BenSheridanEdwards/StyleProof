@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyAuthBoundary } from '../dist/auth-boundary.js';
+import { classifyAuthBoundary, isAuthPath } from '../dist/auth-boundary.js';
 
 const candidate = (overrides = {}) => ({ selector: 'form > input:nth-child(1)', ...overrides });
 
@@ -118,4 +118,16 @@ test('does not treat generic account routes/forms as auth without a strong auth 
   const [redirect] = classifyAuthBoundary([{ route: '/reports', redirectTo: '/auth/account', redirectStatus: 302 }]);
   assert.equal(redirect.reason, 'auth-route-redirect');
   assert.equal(redirect.redirectTo, '/auth/account');
+});
+
+test('isAuthPath matches strong auth segments only (shared with redirect retention)', () => {
+  assert.equal(isAuthPath('/login'), true);
+  assert.equal(isAuthPath('/oauth/authorize'), true);
+  assert.equal(isAuthPath('/sso/start'), true);
+  assert.equal(isAuthPath('/account/login'), true);
+  assert.equal(isAuthPath('/vault'), false);
+  assert.equal(isAuthPath('/account/settings'), false);
+  assert.equal(isAuthPath(undefined), false);
+  assert.equal(isAuthPath(null), false);
+  assert.equal(isAuthPath(''), false);
 });

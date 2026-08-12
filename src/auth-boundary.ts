@@ -52,8 +52,13 @@ function redactedPath(value: string | null | undefined): string | undefined {
   }
 }
 
-function isAuthPath(pathname: string | undefined): boolean {
-  if (!pathname) return false;
+/**
+ * True when a redacted pathname contains a strong auth segment (login, oauth, sso, …).
+ * Shared by the classifier and crawl redirect retention — keep one definition.
+ * Accepts pathname only; callers must redact query/fragment first.
+ */
+export function isAuthPath(pathname: string | undefined | null): boolean {
+  if (!pathname || typeof pathname !== 'string') return false;
   return pathname
     .split('/')
     .filter(Boolean)

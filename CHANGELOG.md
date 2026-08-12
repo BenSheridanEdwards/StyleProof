@@ -13,6 +13,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   autocomplete, auth form actions, and auth redirects from redacted DOM
   metadata. It never records field values, cookies, or query strings, and it
   does not treat generic `/account` routes as authentication walls (#390).
+- Crawl confidence contract (#390 production integration): `crawlAndCapture`
+  observes authentication boundaries via the classifier, attaches
+  `CrawlReport.confidence` with status `complete` | `incomplete-auth` |
+  `incomplete-unknown` (resolver-only via `unknownIncompleteness`; not
+  auto-produced by crawl today), and fail-closes when walls are unacknowledged.
+  Reasoned exclusions (`authBoundaryExclude` / `--auth-boundary-exclude`)
+  require non-empty reasons, mark scope explicitly limited, and never claim
+  full certification. No coverage percentage is invented for inaccessible
+  surfaces. Secrets are never recorded. CLI prints confidence and exits 5 on
+  an unacknowledged auth boundary.
 - Public `classifyIncompleteUi` helper names blocked continuation: forms,
   disabled or inert controls, empty required inputs, and closed disclosures.
   It never records field values. Auth walls stay in `classifyAuthBoundary`
@@ -20,6 +30,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Auth crawl confidence (#390): intermediate HTTP auth redirects are dropped when
+  setup leaves the auth boundary; auth is re-observed on every newly recorded
+  crawl state (late-mounted gates); setup E2E loads steps via `loadSetupSteps`
+  with env interpolation and asserts secrets never appear in serialized
+  confidence.
+- Auth crawl confidence (#390): only document navigation 3xx responses count as
+  auth-route redirects (fetch/XHR session 302s no longer false-block); merge
+  never falls back to raw unredacted routes; CLI exclusion/diagnostic lines are
+  control-safe; coverage exit 4 intentionally wins over auth exit 5; auth
+  observation failures after a recorded surface are fatal (not swallowed into a
+  false `complete`). `incomplete-unknown` remains resolver-only via
+  `unknownIncompleteness` — the crawl path does not auto-produce it.
 - Data-residue boundaries now match Playwright URL-glob punctuation, escaping,
   brace alternation, and `**/` semantics, so literal bracket and comma paths are
   neither missed nor widened during certification (#382).
