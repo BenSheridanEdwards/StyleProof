@@ -7,6 +7,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Per-surface progress heartbeat: every completed surface capture logs one
+  stable, greppable line — `styleproof: surface 17/41 (factory@1280) captured
+in 42.1s (self-check 12.3s)` — so a slow capture run on a saturated runner is
+  distinguishable from a hung one (#365).
+- Per-surface capture timeout: `surfaceTimeoutMs` in the capture spec (env
+  override `STYLEPROOF_SURFACE_TIMEOUT_MS`, default 300000 ms). A surface
+  exceeding the ceiling fails loudly, naming the surface and the phase in
+  flight (navigate / settle / capture / self-check), instead of letting one
+  stuck surface silently consume the whole job budget (#365).
+
+### Changed
+
+- Generated capture-test budgets now derive from the per-surface ceiling
+  (ceiling + 60 s slack per surface×width, 180 s floor) instead of a flat
+  180 s per test and 60 s per crawled width, so the named per-surface timeout
+  always fires before Playwright's anonymous test timeout.
+
 ### Fixed
 
 - A sibling removal or insertion above repeated same-shaped elements no longer

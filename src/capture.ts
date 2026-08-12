@@ -255,6 +255,14 @@ export type CaptureOptions = {
    * in flight when you called it (arm one yourself before `goto` if that matters).
    */
   pendingRequests?: () => number;
+  /**
+   * Advanced/internal: capture-phase callback for the per-surface progress and
+   * timeout layer. Called with `'settle'` when the settle wait begins and with
+   * `'capture'` once the page has settled and the style reads start, so a
+   * per-surface timeout can name the phase actually in flight.
+   * `defineStyleMapCapture` wires this; omit it for a direct call.
+   */
+  onPhase?: (phase: 'settle' | 'capture') => void;
   /** Advanced/internal: metadata to persist with the capture for report context. */
   metadata?: CaptureMetadata;
 };
@@ -1182,7 +1190,10 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // the same loaded state, and collect any region still changing on its own
   // (a live stream/ticker) to exclude — animations are frozen above, so only
   // real content/layout churn lands here.
+  options.onPhase?.('settle');
   const volatile = await detectVolatile(page, ignore, stabilize, captureText, options.pendingRequests);
+  // Settled: everything from here on is the style/state read work.
+  options.onPhase?.('capture');
   // Detect semantic live-state candidates automatically, but don't exclude them
   // merely for being live regions. Stable status/alert/log UI is product UI and
   // should still be captured; this metadata only improves reports and diagnostics.
