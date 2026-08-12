@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Public `classifyAuthBoundary` helper classifies password fields, credential
+  autocomplete, auth form actions, and auth redirects from redacted DOM
+  metadata. It never records field values, cookies, or query strings, and it
+  does not treat generic `/account` routes as authentication walls (#390).
+
 ### Fixed
 
 - Data-residue boundaries now match Playwright URL-glob punctuation, escaping,
