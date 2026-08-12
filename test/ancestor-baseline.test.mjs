@@ -48,11 +48,13 @@ function gitFixtureRepo(root) {
   return { repo, commit };
 }
 
-test('captureRelevantChangedPaths: spec, spec-dir harness, config, and package manifests are always relevant', () => {
+test('captureRelevantChangedPaths: capture harness, configs, and package manifests are always relevant', () => {
   const relevant = captureRelevantChangedPaths({
     changedPaths: [
       'e2e/styleproof.spec.ts',
       'e2e/fixtures/login-state.ts',
+      'playwright.styleproof.config.ts',
+      'playwright.config.mjs',
       'styleproof.config.json',
       'packages/widgets/styleproof.config.json',
       'package-lock.json',
@@ -66,6 +68,8 @@ test('captureRelevantChangedPaths: spec, spec-dir harness, config, and package m
   assert.deepEqual(relevant, [
     'e2e/styleproof.spec.ts',
     'e2e/fixtures/login-state.ts',
+    'playwright.styleproof.config.ts',
+    'playwright.config.mjs',
     'styleproof.config.json',
     'packages/widgets/styleproof.config.json',
     'package-lock.json',

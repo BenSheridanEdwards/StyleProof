@@ -18,6 +18,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The public report publish and prune CLIs now support `--help` and the documented
   `--flag=value` form, with both binaries covered by the packed-package smoke test
   (#384).
+- Nearest-ancestor baseline reuse now treats the Playwright capture config as
+  capture-relevant, so changing the production server or browser setup always
+  takes the full-capture path instead of restoring a stale ancestor map (#380).
 
 ## [6.0.5] - 2026-08-12
 
