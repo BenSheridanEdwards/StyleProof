@@ -27,6 +27,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   disabled or inert controls, empty required inputs, and closed disclosures.
   It never records field values. Auth walls stay in `classifyAuthBoundary`
   (#398).
+- README documents every Action comment trust state, and the self-certified
+  demo is a dark double-bezel console so report crops show a distinctive CTA
+  instead of a generic gray card.
 
 ### Fixed
 

@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>StyleProof demo</title>
     <!--
-      A small, deterministic page StyleProof certifies against itself in CI
+      Deterministic page StyleProof certifies against itself in CI
       (test/dogfood.e2e.spec.ts). No web fonts, no animation, no live data —
-      only a query-driven live-state demo whose states are pinned by the test — so
-      its computed styles are stable. Two real @media breakpoints (600 / 900) let
-      the dogfood prove automatic breakpoint detection on a real page.
+      only a query-driven live-state demo whose states are pinned by the test.
+      Contracts the e2e suite pins: .btn background is restyled; status-card
+      loading/loaded + data-tone=head; exactly @media 600 / 900.
     -->
     <style>
       * {
@@ -17,26 +17,38 @@
       }
       body {
         margin: 0;
-        font-family: system-ui, sans-serif;
-        color: rgb(17, 24, 39);
-        background: rgb(249, 250, 251);
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        color: rgb(214, 228, 232);
+        background: rgb(7, 9, 12);
       }
       header {
-        padding: 16px 24px;
-        background: rgb(17, 24, 39);
-        color: rgb(255, 255, 255);
+        padding: 18px 28px;
+        background: rgb(10, 13, 18);
+        color: rgb(232, 244, 247);
         display: flex;
         align-items: center;
         justify-content: space-between;
+        border-bottom: 1px solid rgb(36, 48, 54);
       }
       header .brand {
-        font-weight: 700;
-        font-size: 18px;
+        font-weight: 650;
+        font-size: 15px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      header .tag {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgb(126, 214, 208);
+        border: 1px solid rgb(38, 92, 88);
+        padding: 4px 10px;
       }
       main {
-        max-width: 960px;
+        max-width: 1040px;
         margin: 0 auto;
-        padding: 24px;
+        padding: 28px;
       }
       .grid {
         display: grid;
@@ -44,55 +56,66 @@
         gap: 16px;
       }
       .card {
-        padding: 16px;
-        border: 1px solid rgb(229, 231, 235);
-        border-radius: 8px;
-        background: rgb(255, 255, 255);
+        padding: 6px;
+        border: 1px solid rgb(36, 48, 54);
+        border-radius: 22px;
+        background: rgb(14, 18, 24);
+      }
+      .card-inner {
+        padding: 20px 20px 18px;
+        border: 1px solid rgb(28, 38, 44);
+        border-radius: 16px;
+        background: rgb(11, 14, 19);
       }
       .card h2 {
         margin: 0 0 8px;
         font-size: 16px;
-        color: rgb(31, 41, 55);
+        letter-spacing: -0.02em;
+        color: rgb(236, 244, 246);
       }
       .card p {
         margin: 0;
-        color: rgb(75, 85, 99);
+        color: rgb(154, 170, 176);
+        line-height: 1.45;
       }
       .btn {
         display: inline-block;
-        margin-top: 12px;
-        padding: 8px 16px;
-        border: 0;
-        border-radius: 6px;
-        background: rgb(37, 99, 235);
-        color: rgb(255, 255, 255);
-        font-size: 14px;
+        margin-top: 16px;
+        padding: 10px 18px;
+        border: 1px solid rgb(56, 214, 198);
+        border-radius: 999px;
+        background: rgb(20, 184, 166);
+        color: rgb(7, 9, 12);
+        font-size: 13px;
+        font-weight: 650;
+        letter-spacing: 0.04em;
       }
       .btn:hover {
-        background: rgb(29, 78, 216);
+        background: rgb(45, 212, 191);
       }
       .btn:focus {
-        outline: 3px solid rgb(147, 197, 253);
-        outline-offset: 2px;
+        outline: 3px solid rgb(94, 234, 212);
+        outline-offset: 3px;
       }
       .status-card {
-        margin: 0 0 16px;
-        padding: 12px 14px;
-        border: 1px solid rgb(147, 197, 253);
-        border-radius: 8px;
-        background: rgb(239, 246, 255);
-        color: rgb(30, 64, 175);
-        font-weight: 700;
+        margin: 0 0 18px;
+        padding: 12px 16px;
+        border: 1px solid rgb(56, 132, 220);
+        border-radius: 14px;
+        background: rgb(14, 28, 48);
+        color: rgb(147, 197, 253);
+        font-weight: 650;
+        letter-spacing: 0.02em;
       }
       .status-card.loaded {
-        border-color: rgb(110, 231, 183);
-        background: rgb(236, 253, 245);
-        color: rgb(6, 95, 70);
+        border-color: rgb(52, 211, 153);
+        background: rgb(10, 36, 28);
+        color: rgb(167, 243, 208);
       }
       .status-card.loaded[data-tone='head'] {
         border-color: rgb(251, 146, 60);
-        background: rgb(255, 247, 237);
-        color: rgb(154, 52, 18);
+        background: rgb(42, 24, 10);
+        color: rgb(254, 215, 170);
       }
 
       /* Two real breakpoints — the dogfood asserts detection finds exactly these. */
@@ -119,19 +142,25 @@
       </section>
       <div class="grid">
         <section class="card">
-          <h2>Computed, not pixels</h2>
-          <p>Every resolved longhand, every pseudo-element, every forced state.</p>
-          <button class="btn">Learn more</button>
+          <div class="card-inner">
+            <h2>Computed, not pixels</h2>
+            <p>Every resolved longhand, every pseudo-element, every forced state.</p>
+            <button class="btn">Learn more</button>
+          </div>
         </section>
         <section class="card">
-          <h2>Any styling system</h2>
-          <p>Tailwind, CSS Modules, styled-components, Sass, vanilla.</p>
-          <button class="btn">Learn more</button>
+          <div class="card-inner">
+            <h2>Any styling system</h2>
+            <p>Tailwind, CSS Modules, styled-components, Sass, vanilla.</p>
+            <button class="btn">Learn more</button>
+          </div>
         </section>
         <section class="card">
-          <h2>Swept across breakpoints</h2>
-          <p>One viewport per @media band, detected automatically.</p>
-          <button class="btn">Learn more</button>
+          <div class="card-inner">
+            <h2>Swept across breakpoints</h2>
+            <p>One viewport per @media band, detected automatically.</p>
+            <button class="btn">Learn more</button>
+          </div>
         </section>
       </div>
     </main>

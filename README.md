@@ -28,6 +28,27 @@ clean certification comes from two real Chromium captures of this repository's
 deterministic demo; the blocking receipt comes from public dogfood. They are not
 design mockups.
 
+### Comment states
+
+A StyleProof pull-request comment is a trust state, not a score. The Action
+emits exactly one of these terminal states. Reviewer approval can clear only
+`STYLE_REVIEW_REQUIRED`.
+
+| State                              | What the comment means                                                             | Approval box                           |
+| ---------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------- |
+| `NO_REVIEWABLE_STYLE_CHANGES`      | Captured computed styles match. Content/structure may still be advisory.           | Hidden. Check is green.                |
+| `STYLE_REVIEW_REQUIRED`            | Reviewable style or new-surface evidence exists.                                   | Shown. One tick signs off this commit. |
+| `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                   | Hidden. Approval cannot clear it.      |
+| `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified. | Hidden. Approval cannot clear it.      |
+| `CERTIFICATION_FAILED`             | Coverage, determinism, or report/diff consistency is incomplete.                   | Hidden. Approval cannot clear it.      |
+| `PARTIAL_BASELINE`                 | The base capture missed registered surfaces.                                       | Hidden. Repair the base branch.        |
+| `DEGRADED_BASELINE`                | The base capture failed. This is a head-only receipt.                              | Hidden. Not a comparison.              |
+| `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                               | Hidden. Delivery failed.               |
+
+The demo this repository certifies against is a dark, double-bezel console with
+a pill CTA (`.btn`). CI still pins the same contracts: no web fonts, no
+animation, query-driven `loading` / `loaded` states, and `@media` 600 / 900.
+
 ### Certified clean
 
 [![A GitHub-rendered StyleProof report with complete coverage, proven determinism, unchanged inventory, no data residue, and no reviewable computed-style changes](docs/readme/check-clean.png)](docs/readme/certified-clean-report.md)
@@ -72,6 +93,10 @@ and the exact computed properties.
 ## Contents
 
 - [See the gate work](#see-the-gate-work)
+  - [Comment states](#comment-states)
+  - [Certified clean](#certified-clean)
+  - [A safety policy blocks](#a-safety-policy-blocks)
+  - [A visual change becomes reviewable evidence](#a-visual-change-becomes-reviewable-evidence)
 - [Enterprise fit](#enterprise-fit)
 - [Why](#why)
 - [How it works](#how-it-works)
