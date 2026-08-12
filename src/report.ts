@@ -15,8 +15,10 @@ import {
 } from './capture.js';
 import {
   isMapFile,
+  readBaselineProvenance,
   readMapManifest,
   surfaceMissingMatchesBaselineFailure,
+  type BaselineProvenance,
   type SurfaceCaptureFailure,
 } from './map-store.js';
 import { fillRect, type RGB } from './png-util.js';
@@ -1201,6 +1203,35 @@ function certificationLines(beforeDir: string, afterDir: string): string[] {
   ];
 }
 
+/** A commit label safe to embed in the privileged PR-comment markdown: the sidecar
+ *  is a plain JSON file on disk, so hex-filter rather than trust its spelling. */
+function safeShaLabel(sha: string | undefined): string {
+  const hex = (sha ?? '').replace(/[^0-9a-f]/gi, '').slice(0, 12);
+  return hex || 'unknown';
+}
+
+/**
+ * Where the BASELINE maps came from, when the run recorded it (#367: reuse must
+ * never be silent). Empty without a provenance sidecar, so default runs keep
+ * their exact prior report bytes; with one, names exact-SHA restore, nearest-
+ * ancestor reuse (with the changed-path-count proof), or a fresh capture.
+ */
+function baselineProvenanceLines(provenance: BaselineProvenance | null): string[] {
+  if (!provenance) return [];
+  if (provenance.baseline === 'ancestor-reuse') {
+    return [
+      `**Baseline** — ♻ restored from nearest ancestor \`${safeShaLabel(provenance.restoredSha)}\` of base ` +
+        `\`${safeShaLabel(provenance.requestedSha)}\` (${provenance.changedPathCount ?? 0} path(s) changed between ` +
+        `them, none capture-relevant)`,
+      '',
+    ];
+  }
+  if (provenance.baseline === 'exact-restore') {
+    return [`**Baseline** — ✓ restored from the exact base commit \`${safeShaLabel(provenance.requestedSha)}\``, ''];
+  }
+  return [`**Baseline** — ✓ captured fresh at base commit \`${safeShaLabel(provenance.requestedSha)}\``, ''];
+}
+
 // A prepared surface: its diff plus the findings kept after noise-cleaning.
 type PreparedSurface = { sd: SurfaceDiff; findings: Finding[] };
 // Surfaces that changed the SAME way, collapsed to one group with a representative.
@@ -1954,6 +1985,7 @@ function writeReportArtifacts(
   reportConsistency: ReportConsistency,
   content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
+  baselineProvenance: BaselineProvenance | null = null,
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
@@ -1968,6 +2000,9 @@ function writeReportArtifacts(
         reportConsistency,
         content,
         surfaces: surfacesJson,
+        // Additive (#367): where the baseline maps came from, when recorded —
+        // exact-SHA restore, nearest-ancestor reuse (with proof), or fresh capture.
+        ...(baselineProvenance ? { baselineProvenance } : {}),
       },
       null,
       2,
@@ -2063,6 +2098,10 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Lead with the source-of-truth gates (coverage / determinism / inventory) so a
   // reviewer reads "is this green trustworthy?" before the pixel details.
   md.push(...certificationLines(beforeDir, afterDir));
+  // Baseline provenance (#367): when the run recorded where the base maps came
+  // from, say so up front — an ancestor reuse must be visible, never inferred.
+  const baselineProvenance = readBaselineProvenance(beforeDir);
+  md.push(...baselineProvenanceLines(baselineProvenance));
   md.push(
     ...reportHeadline({
       changeGroups,
@@ -2142,6 +2181,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reportConsistency,
     { evaluated: includeContent, changes: contentSection.count, advisory: true },
     json,
+    baselineProvenance,
   );
   return {
     changedSurfaces: prepared.length - missing.length,

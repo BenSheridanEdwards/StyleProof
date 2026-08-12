@@ -7,6 +7,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in nearest-ancestor baseline reuse for `styleproof-ci` (#367, conservative
+  first step): with `STYLEPROOF_ANCESTOR_BASELINE=1`, a base cache miss walks up
+  to 50 first-parent ancestors of `--base` for the nearest commit with a stored
+  bundle, and — only when no path changed since it is capture-relevant (the
+  capture spec's directory, `styleproof.config.json`, package
+  manifests/lockfiles, or an app source root declared via
+  `STYLEPROOF_ANCESTOR_BASELINE_ROOTS`) — restores that bundle byte-for-byte as
+  the baseline instead of a full cold recapture. Any error or doubt falls back
+  to the existing capture path, and with no declared source roots every changed
+  path counts as relevant. Reuse is never silent: the run appends
+  `base-restored-from-ancestor=<sha>` to `$GITHUB_OUTPUT`, records a
+  `styleproof-baseline-provenance.json` sidecar, and the report
+  (`report.md`/`report.json`) and `styleproof-diff --json` state whether the
+  baseline was restored from the exact SHA, reused from ancestor `<sha>` (with
+  the changed-path-count proof), or captured fresh. Default behavior is
+  unchanged when the variable is unset.
+
 ### Fixed
 
 - Release runs now serialize without cancellation, so rapid main pushes cannot
