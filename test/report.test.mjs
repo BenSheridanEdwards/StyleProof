@@ -1855,6 +1855,11 @@ test('propertyGlanceLine is one line per property, no bullets, no blank lines', 
     rows.every((r) => r.length > 0),
     'no blank lines between properties',
   );
+  assert.ok(
+    rows[0].endsWith('<br>') && rows[1].endsWith('<br>'),
+    'GitHub hard-breaks so they do not wrap into one paragraph',
+  );
+  assert.ok(!rows[2].includes('<br>'), 'last property has no trailing break');
   assert.ok(!line.includes(' · '), 'not smashed onto one middot line');
   assert.ok(!line.includes('- '), 'no bullets');
   assert.match(rows[0], /`background-color`/);

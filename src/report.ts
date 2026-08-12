@@ -765,7 +765,8 @@ export function propertyGlanceLine(findings: Finding[]): string {
       }
     }
   }
-  return parts.join('\n');
+  // <br> is required: GitHub collapses adjacent markdown lines into one paragraph.
+  return parts.join('<br>\n');
 }
 
 function beforeAfterTable(rows: PropChange[]): string[] {
