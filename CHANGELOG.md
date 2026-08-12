@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- `styleproof-ci --spec-ref` can now source the capture spec and its colocated
+  harness from a dedicated ref when neither product commit tracks those files.
+  The same external harness is overlaid for base and head restore probes and
+  captures, then removed, so visual-test maintenance does not need to create a
+  shared conflict-prone file in every product pull request.
 - A sibling removal or insertion above repeated same-shaped elements no longer
   reports every shifted row's subtree as phantom removed+added content changes:
   count-preserving signature groups now pair in document order, so only the

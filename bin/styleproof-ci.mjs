@@ -65,10 +65,10 @@ options:
   --base <sha>        base commit (e.g. github.event.pull_request.base.sha)
   --head <sha>        head commit (e.g. github.event.pull_request.head.sha)
   --spec <path>       StyleProof spec (default: e2e/styleproof.spec.ts)
-  --spec-ref <ref>    When a cold base capture runs and the base commit already has
-                      that spec, source the spec bytes from <ref>:<spec> for the base
-                      render only (app + lockfile stay at --base). Omitted keeps 4.5.0
-                      behavior. Invalid refs or a missing spec at the ref fail loudly.
+  --spec-ref <ref>    Source the spec and its colocated harness from <ref> for both
+                      base and head. Product commits do not need to track the harness.
+                      App code and lockfiles stay pinned to --base/--head. Invalid refs
+                      or a missing spec at the ref fail loudly.
   --base-dir <path>   map root; base/head land under it
                       (default: $RUNNER_TEMP/styleproof-maps, else .styleproof/ci-maps)
   --force             run outside CI (the flow may force-checkout --head in the consumer
@@ -327,10 +327,9 @@ function writeOutputs(baseCaptureFailed = false) {
   log(outputs.join(' '));
 }
 
-/** True when the spec-ref overlay applies in `cwd`: --spec-ref was given, the
- *  spec exists there, and the spec path did NOT move between base and head — a
- *  config-only spec move means the overlay concept doesn't apply (each side
- *  renders its own spec) and must never hard-fail the run. */
+/** True when the spec-ref overlay applies in `cwd`: --spec-ref was given and the
+ *  spec path did NOT move between base and head. The checkout does not need to
+ *  contain the spec because the explicit ref owns the capture harness. */
 function overlayApplies(cwd, cwdSpec) {
   if (!shouldApplySpecRefOverlay(fs.existsSync(path.join(cwd, cwdSpec)), specRef)) return false;
   if (cwdSpec !== spec) {
@@ -368,6 +367,26 @@ function restoreBase(cwd) {
   }
 }
 
+function restoreHead(cwd) {
+  const probeSpec = specFor(cwd);
+  if (!overlayApplies(cwd, probeSpec)) return restore(head, 'head', cwd);
+  let overlay;
+  try {
+    overlay = applySpecRefOverlay({ spec: probeSpec, specRef, cwd });
+  } catch (error) {
+    exitSpecRefError(error);
+  }
+  try {
+    return restore(head, 'head', cwd);
+  } finally {
+    try {
+      overlay.restore();
+    } catch (error) {
+      exitSpecRefError(error);
+    }
+  }
+}
+
 let baseHit;
 let headHit;
 let exitCode = 0;
@@ -381,7 +400,7 @@ try {
 
   const headWorktree = worktrees.addDetached(head, 'probe-head');
   const headRunCwd = worktreeRunCwd(headWorktree, consumerRel);
-  headHit = restore(head, 'head', headRunCwd);
+  headHit = restoreHead(headRunCwd);
 
   if (baseHit && headHit) {
     writeOutputs();
@@ -441,7 +460,7 @@ try {
       playwrightInstall(coldBaseCwd);
       const baseSpec = specFor(coldBaseCwd);
       const specPath = path.join(coldBaseCwd, baseSpec);
-      if (fs.existsSync(specPath)) {
+      if (fs.existsSync(specPath) || overlayApplies(coldBaseCwd, baseSpec)) {
         let overlay;
         if (overlayApplies(coldBaseCwd, baseSpec)) {
           try {
@@ -516,7 +535,41 @@ try {
     }
 
     const replay = hasHarFiles(path.join(root, 'base')) ? { STYLEPROOF_REPLAY_FROM: path.join(root, 'base') } : {};
-    captureOrDie(['--spec', spec, '--dir', 'head', '--base-dir', root, '--sha', head, '--upload'], consumerCwd, replay);
+    let headOverlay;
+    if (overlayApplies(consumerCwd, spec)) {
+      try {
+        headOverlay = applySpecRefOverlay({ spec, specRef, cwd: consumerCwd });
+        log(`overlaying ${headOverlay.paths.length} spec-harness file(s) from ${specRef} for head capture`);
+      } catch (error) {
+        exitSpecRefError(error);
+      }
+    }
+    try {
+      captureOrDie(
+        [
+          '--spec',
+          spec,
+          '--dir',
+          'head',
+          '--base-dir',
+          root,
+          '--sha',
+          head,
+          '--upload',
+          ...(headOverlay?.dirtyAllow ?? []).flatMap((allowedPath) => ['--dirty-allow', allowedPath]),
+        ],
+        consumerCwd,
+        replay,
+      );
+    } finally {
+      if (headOverlay) {
+        try {
+          headOverlay.restore();
+        } catch (error) {
+          exitSpecRefError(error);
+        }
+      }
+    }
     writeOutputs(baseCaptureFailed);
   }
 } catch (error) {
