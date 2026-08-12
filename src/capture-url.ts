@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from '@playwright/test';
-import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
+import { captureStyleMap, saveStyleMap, captureSurfaceScreenshots, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { runSetup, type SetupStep } from './crawl-surfaces.js';
 import { writeCaptureManifest } from './map-store.js';
@@ -262,10 +262,9 @@ export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Prom
       saveStyleMap(mapPath, map);
       const result: CaptureUrlResult = { width, map: mapPath };
       if (opts.screenshots) {
-        const shot = `${stem}.png`;
         // captureStyleMap froze animations, so the shot matches the mapped state.
-        await page.screenshot({ path: shot, fullPage: true, animations: 'disabled' });
-        result.screenshot = shot;
+        await captureSurfaceScreenshots(page, stem, { ignore: opts.ignore });
+        result.screenshot = `${stem}.png`;
       }
       results.push(result);
     } finally {

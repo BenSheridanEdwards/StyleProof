@@ -1867,6 +1867,78 @@ test('propertyGlanceLine is one line per property, no bullets, no blank lines', 
   assert.match(rows[2], /`:hover` `color`/);
 });
 
+test('state-only change crops hover vs hover, not rest vs rest', () => {
+  const link = (hoverColor) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 400, 200], style: {} },
+        'body > a:nth-child(1)': {
+          tag: 'a',
+          cls: 'link',
+          rect: [20, 20, 80, 20],
+          style: { color: 'rgb(126, 214, 208)' },
+        },
+      },
+      states: {
+        'body > a:nth-child(1)': { hover: { 'body > a:nth-child(1)': { color: hoverColor } } },
+      },
+    });
+  const dirs = pairFixture({
+    surface: 'demo@900',
+    before: link('rgb(165, 243, 252)'),
+    after: link('rgb(252, 165, 165)'),
+    beforePng: solidPng(400, 200, [13, 17, 23]),
+    afterPng: solidPng(400, 200, [13, 17, 23]),
+  });
+  fs.writeFileSync(path.join(dirs.beforeDir, 'demo@900.hover.png'), solidPng(400, 200, [165, 243, 252]));
+  fs.writeFileSync(path.join(dirs.afterDir, 'demo@900.hover.png'), solidPng(400, 200, [252, 165, 165]));
+  const md = fs.readFileSync(generateStyleMapReport(dirs).reportMdPath, 'utf8');
+  assert.match(md, /Both sides are :hover/);
+  assert.match(md, /base :hover/);
+  assert.match(md, /head :hover/);
+  assert.doesNotMatch(md, /◀ before  ·  after ▶/, 'state-only must not use the rest crop');
+  const crops = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((f) => f.endsWith('-composite.png'));
+  assert.equal(crops.length, 1);
+  const png = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, 'crops', crops[0])));
+  let sawCyan = false;
+  let sawPink = false;
+  for (let i = 0; i < png.data.length; i += 4) {
+    if (png.data[i] === 165 && png.data[i + 1] === 243 && png.data[i + 2] === 252) sawCyan = true;
+    if (png.data[i] === 252 && png.data[i + 1] === 165 && png.data[i + 2] === 165) sawPink = true;
+  }
+  assert.ok(sawCyan && sawPink, 'composite is the hover layer (cyan vs pink), not rest');
+  rmTmp(dirs.root);
+});
+
+test('state-only change without layer screenshots does not pretend rest is hover', () => {
+  const link = (hoverColor) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 400, 200], style: {} },
+        'body > a:nth-child(1)': {
+          tag: 'a',
+          cls: 'link',
+          rect: [20, 20, 80, 20],
+          style: { color: 'rgb(126, 214, 208)' },
+        },
+      },
+      states: {
+        'body > a:nth-child(1)': { hover: { 'body > a:nth-child(1)': { color: hoverColor } } },
+      },
+    });
+  const dirs = pairFixture({
+    surface: 'demo@900',
+    before: link('rgb(165, 243, 252)'),
+    after: link('rgb(252, 165, 165)'),
+    beforePng: solidPng(400, 200, [13, 17, 23]),
+    afterPng: solidPng(400, 200, [13, 17, 23]),
+  });
+  const md = fs.readFileSync(generateStyleMapReport(dirs).reportMdPath, 'utf8');
+  assert.match(md, /No :hover screenshot/);
+  assert.doesNotMatch(md, /!\[before/);
+  rmTmp(dirs.root);
+});
+
 test('property changes sit on one line above the crop, not only under the fold', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
@@ -2156,9 +2228,11 @@ test('end-to-end: a stable-path forced-state change stays annotated', () => {
     surface: 'state-change@640',
     before,
     after,
-    beforePng: solidPng(640, 400),
-    afterPng: solidPng(640, 400),
+    beforePng: solidPng(640, 400, [0, 0, 0]),
+    afterPng: solidPng(640, 400, [0, 0, 0]),
   });
+  fs.writeFileSync(path.join(beforeDir, 'state-change@640.hover.png'), solidPng(640, 400, [0, 0, 0]));
+  fs.writeFileSync(path.join(afterDir, 'state-change@640.hover.png'), solidPng(640, 400, [255, 0, 0]));
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
