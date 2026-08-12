@@ -1071,51 +1071,88 @@ export function trackDataResidue(
  * A plain (glob-char-free) string is treated as a substring match, matching Playwright's
  * own "contains" fallback for non-glob route URLs.
  */
-export function urlMatcher(glob: string): (url: string) => boolean {
-  if (!/[*?{}[\]\\]/.test(glob)) return (url) => url.includes(glob);
+const URL_GLOB_REGEX_CHARS = new Set(['$', '^', '+', '.', '*', '(', ')', '|', '\\', '?', '{', '}', '[', ']']);
+
+function urlGlobLiteral(char: string): string {
+  return URL_GLOB_REGEX_CHARS.has(char) ? `\\${char}` : char;
+}
+
+function urlGlobStar(glob: string, index: number): { token: string; endIndex: number } {
+  let endIndex = index;
+  while (glob[endIndex + 1] === '*') endIndex++;
+  if (endIndex === index) return { token: '([^/]*)', endIndex };
+
+  if (glob[endIndex + 1] !== '/') return { token: '(.*)', endIndex };
+  const token = glob[index - 1] === '/' ? '((.+/)|)' : '(.*/)';
+  return { token, endIndex: endIndex + 1 };
+}
+
+function invalidUrlGlob(glob: string, reason: string): never {
+  throw new Error(`Invalid glob pattern ${JSON.stringify(glob)}: ${reason}`);
+}
+
+function urlGlobEscapedLiteral(glob: string, index: number): { token: string; endIndex: number } {
+  const next = glob[index + 1];
+  return {
+    token: urlGlobLiteral(next ?? glob[index]),
+    endIndex: next === undefined ? index : index + 1,
+  };
+}
+
+function openUrlGlobGroup(glob: string, inGroup: boolean): string {
+  if (inGroup) invalidUrlGlob(glob, "nested '{' is not supported");
+  return '(';
+}
+
+function closeUrlGlobGroup(glob: string, inGroup: boolean): string {
+  if (!inGroup) invalidUrlGlob(glob, "unmatched '}'");
+  return ')';
+}
+
+function compileUrlGlob(glob: string): RegExp {
   // Kept in lockstep with Playwright's public URL-glob micro-syntax without
   // reaching into its private bundle. Regex punctuation is literal unless the
   // glob syntax assigns it meaning; commas alternate only inside `{a,b}`.
-  const escapedChars = new Set(['$', '^', '+', '.', '*', '(', ')', '|', '\\', '?', '{', '}', '[', ']']);
   const tokens = ['^'];
   let inGroup = false;
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
-    if (c === '\\' && i + 1 < glob.length) {
-      const char = glob[++i];
-      tokens.push(escapedChars.has(char) ? `\\${char}` : char);
-      continue;
-    }
-    if (c === '*') {
-      const charBefore = glob[i - 1];
-      let starCount = 1;
-      while (glob[i + 1] === '*') {
-        starCount++;
-        i++;
+    switch (c) {
+      case '\\': {
+        const escaped = urlGlobEscapedLiteral(glob, i);
+        tokens.push(escaped.token);
+        i = escaped.endIndex;
+        break;
       }
-      if (starCount > 1) {
-        const charAfter = glob[i + 1];
-        if (charAfter === '/') {
-          tokens.push(charBefore === '/' ? '((.+/)|)' : '(.*/)');
-          i++;
-        } else tokens.push('(.*)');
-      } else tokens.push('([^/]*)');
-      continue;
+      case '*': {
+        const star = urlGlobStar(glob, i);
+        tokens.push(star.token);
+        i = star.endIndex;
+        break;
+      }
+      case '{':
+        tokens.push(openUrlGlobGroup(glob, inGroup));
+        inGroup = true;
+        break;
+      case '}':
+        tokens.push(closeUrlGlobGroup(glob, inGroup));
+        inGroup = false;
+        break;
+      case ',':
+        tokens.push(inGroup ? '|' : c);
+        break;
+      default:
+        tokens.push(urlGlobLiteral(c));
     }
-    if (c === '{') {
-      if (inGroup) throw new Error(`Invalid glob pattern ${JSON.stringify(glob)}: nested '{' is not supported`);
-      inGroup = true;
-      tokens.push('(');
-    } else if (c === '}') {
-      if (!inGroup) throw new Error(`Invalid glob pattern ${JSON.stringify(glob)}: unmatched '}'`);
-      inGroup = false;
-      tokens.push(')');
-    } else if (c === ',' && inGroup) tokens.push('|');
-    else tokens.push(escapedChars.has(c) ? `\\${c}` : c);
   }
-  if (inGroup) throw new Error(`Invalid glob pattern ${JSON.stringify(glob)}: unmatched '{'`);
+  if (inGroup) invalidUrlGlob(glob, "unmatched '{'");
   tokens.push('$');
-  const compiled = new RegExp(tokens.join(''));
+  return new RegExp(tokens.join(''));
+}
+
+export function urlMatcher(glob: string): (url: string) => boolean {
+  if (!/[*?{}[\]\\]/.test(glob)) return (url) => url.includes(glob);
+  const compiled = compileUrlGlob(glob);
   return (url) => compiled.test(url);
 }
 
