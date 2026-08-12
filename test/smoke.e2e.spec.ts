@@ -1477,6 +1477,8 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
   // A data-driven page: skeleton until the fetch resolves, error render on 500.
   // The crawl must capture loaded (base), loading, and error — with no config.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-data-'));
+  const outside = path.join(path.dirname(dir), `styleproof-outside-${Math.random().toString(36).slice(2)}.txt`);
+  fs.writeFileSync(outside, 'outside fixture root');
   fs.writeFileSync(path.join(dir, 'data.json'), JSON.stringify({ items: ['a', 'b'] }));
   fs.writeFileSync(
     path.join(dir, 'index.html'),
@@ -1497,7 +1499,10 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
   );
   const server = http.createServer((req, res) => {
     const clean = (req.url ?? '').split('?')[0]; // the fetch cache-busts — serve by pathname
-    const f = path.join(dir, clean === '/' ? 'index.html' : clean);
+    const fileName =
+      clean === '/' || clean === '/index.html' ? 'index.html' : clean === '/data.json' ? 'data.json' : null;
+    if (!fileName) return void res.writeHead(404).end();
+    const f = path.join(dir, fileName);
     if (!fs.existsSync(f)) return void res.writeHead(404).end();
     res.writeHead(200, { 'content-type': f.endsWith('.json') ? 'application/json' : 'text/html' });
     res.end(fs.readFileSync(f));
@@ -1506,6 +1511,19 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
   const port = (server.address() as { port: number }).port;
   const out = path.join(os.tmpdir(), `styleproof-data-out-${Math.random().toString(36).slice(2)}`);
   try {
+    const traversal = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const request = http.get({ hostname: '127.0.0.1', port, path: `/../${path.basename(outside)}` }, (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () =>
+          resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }),
+        );
+      });
+      request.on('error', reject);
+    });
+    expect(traversal.status, 'the fixture server rejects paths outside its root').toBe(404);
+    expect(traversal.body).not.toContain('outside fixture root');
+
     const report = await crawlAndCapture(page, {
       url: `http://127.0.0.1:${port}/index.html`,
       out,
@@ -1524,6 +1542,7 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
     expect(report.coverage.missing, 'loaded + loading + error all rendered somewhere').toEqual([]);
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
+    fs.rmSync(outside, { force: true });
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(out, { recursive: true, force: true });
   }
