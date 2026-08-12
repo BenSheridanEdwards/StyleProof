@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Framework-neutral typed **component manifest** schema and validator (issue #392
+  experiment, slice 1): `validateComponentManifest` checks module paths (local
+  only), export names, unique component+variant surface keys, JSON-serializable
+  props, provider module refs, and exclusions with required reasons. Deterministic
+  keys and catalog URLs (`componentManifestSurfaceKey`,
+  `componentManifestCatalogPath`, `componentManifestToDiscovered`,
+  `componentManifestCatalogSurfaces`) plug into existing `componentCatalogSurfaces`.
+  No React adapter, prop inference, eval, or remote modules in this slice.
+
 ## [6.0.5] - 2026-08-12
 
 ### Fixed
