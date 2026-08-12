@@ -46,6 +46,33 @@
         border: 1px solid rgb(38, 92, 88);
         padding: 3px 8px;
       }
+      header .header-end {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      a.link {
+        color: rgb(126, 214, 208);
+        font-size: 14px;
+        font-weight: 650;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        text-decoration: none;
+        border: 0 solid transparent;
+        padding: 8px 2px;
+      }
+      a.link:hover {
+        color: rgb(165, 243, 252);
+        border-color: transparent;
+      }
+      a.link:focus {
+        outline: 2px solid rgb(94, 234, 212);
+        outline-offset: 3px;
+      }
+      a.link:active {
+        color: rgb(45, 212, 191);
+        border-color: transparent;
+      }
       main {
         max-width: 720px;
         margin: 0 auto;
@@ -177,7 +204,10 @@
   <body data-scale="atom">
     <header>
       <span class="brand">StyleProof</span>
-      <span class="tag">demo</span>
+      <div class="header-end">
+        <a class="link" href="#docs">Docs</a>
+        <span class="tag">demo</span>
+      </div>
     </header>
     <main>
       <section class="status-card loading" role="status" aria-live="polite" aria-busy="true">
@@ -187,8 +217,8 @@
         <p class="stage-label">Atom</p>
         <button class="btn" type="button">Save</button>
         <p class="stage-note">
-          One button. StyleProof certifies the resting style and the forced hover, focus, and
-          active styles. Nothing else is on this surface.
+          Save is the atom. Docs in the header is a second component, used for hover,
+          focus, and active. StyleProof certifies each one on its own.
         </p>
       </section>
       <section class="stage stage-organism" aria-label="Organism" hidden>

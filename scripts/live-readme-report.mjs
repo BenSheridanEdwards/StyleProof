@@ -22,8 +22,8 @@ const root = path.join(here, '..');
 const demo = 'file://' + path.join(root, 'example/demo/index.html') + '?state=loaded';
 const outDir = path.join(root, 'docs/readme/live-report');
 
-// Rest changes fill + size. States change a *different* color property so they
-// survive echo suppression and show as their own rows.
+// Save: rest style + size only. Docs link: hover / focus / active only.
+// Separate components so the report does not smash every change into one line.
 const HEAD_CSS = `
   .btn {
     background: rgb(220, 38, 38);
@@ -31,13 +31,13 @@ const HEAD_CSS = `
     font-size: 16px;
     padding: 18px 32px;
   }
-  .btn:hover { color: rgb(254, 202, 202); }
-  .btn:focus { outline-color: rgb(252, 165, 165); }
-  .btn:active { box-shadow: rgb(127, 29, 29) 0px 0px 0px 4px; }
+  a.link:hover { color: rgb(252, 165, 165); border-color: transparent; }
+  a.link:focus { outline-color: rgb(252, 165, 165); }
+  a.link:active { color: rgb(248, 113, 113); border-color: transparent; }
 `;
 
 const CAPTURE = {
-  ignore: ['.stage-organism'],
+  ignore: ['.stage-organism', '.status-card'],
   captureComponent: true,
 };
 

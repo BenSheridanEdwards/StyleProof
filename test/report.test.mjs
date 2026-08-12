@@ -34,6 +34,7 @@ test('summarizeProps drops a currentColor follower that echoes the color change'
   const out = summarizeProps([
     { prop: 'color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' },
     { prop: 'caret-color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' },
+    { prop: 'row-rule-color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' },
   ]);
   assert.deepEqual(out, [{ prop: 'color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' }]);
 });
