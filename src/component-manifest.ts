@@ -266,9 +266,9 @@ function parsePrefix(value: unknown): string {
 
 function parseCatalogBasePath(value: unknown): string {
   if (value === undefined) return DEFAULT_CATALOG_BASE;
-  let catalogBasePath = nonEmptyString(value, 'catalogBasePath').replace(/\\/g, '/');
-  if (!catalogBasePath.startsWith('/')) fail(`"catalogBasePath" must start with '/'`);
-  return catalogBasePath.replace(/\/+$/, '') || '/';
+  const raw = nonEmptyString(value, 'catalogBasePath').replace(/\\/g, '/');
+  if (!raw.startsWith('/')) fail(`"catalogBasePath" must start with '/'`);
+  return raw.replace(/\/+$/, '') || '/';
 }
 
 function parseExclusions(value: unknown): ComponentManifestExclusion[] | undefined {
