@@ -314,7 +314,20 @@ function parsePrefix(value: unknown): string {
 function parseCatalogBasePath(value: unknown): string {
   if (value === undefined) return DEFAULT_CATALOG_BASE;
   const raw = nonEmptyString(value, 'catalogBasePath').replace(/\\/g, '/');
-  if (!raw.startsWith('/')) fail(`"catalogBasePath" must start with '/'`);
+  if (!raw.startsWith('/') || raw.startsWith('//')) {
+    fail(`"catalogBasePath" must be an app-relative path starting with exactly one '/'`);
+  }
+  if (/[?#\0]/.test(raw)) fail(`"catalogBasePath" must not contain query, fragment, or NUL characters`);
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    fail(`"catalogBasePath" must contain valid URL encoding`);
+  }
+  const segments = decoded.split('/');
+  if (segments.some((segment) => segment === '.' || segment === '..')) {
+    fail(`"catalogBasePath" must not contain traversal segments`);
+  }
   return raw.replace(/\/+$/, '') || '/';
 }
 
@@ -397,10 +410,11 @@ export function componentManifestCatalogPath(
   options: ComponentManifestCatalogPathOptions = {},
 ): string {
   const key = nonEmptyString(surfaceKey, 'surfaceKey');
-  let base = (options.catalogBasePath ?? DEFAULT_CATALOG_BASE).replace(/\\/g, '/').replace(/\/+$/, '');
-  if (!base.startsWith('/')) base = `/${base}`;
-  if (!base) base = DEFAULT_CATALOG_BASE;
-  return `${base}/${key}`;
+  if (/[/?#\\\0]/.test(key) || key === '.' || key === '..') {
+    fail(`"surfaceKey" must be a single URL-safe path segment`);
+  }
+  const base = parseCatalogBasePath(options.catalogBasePath);
+  return `${base === '/' ? '' : base}/${key}`;
 }
 
 /**

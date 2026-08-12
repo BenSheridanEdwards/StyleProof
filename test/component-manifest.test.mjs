@@ -265,6 +265,41 @@ test('componentManifestToDiscovered + catalog surfaces: feed componentCatalogSur
   assert.equal(buttonDefault.height, undefined);
 });
 
+test('catalog paths reject traversal, external origins, delimiters, NULs, and unsafe surface keys', () => {
+  const unsafeBases = [
+    '/../admin',
+    '//evil.example/x',
+    '/%2e%2e/admin',
+    '/safe/./x',
+    '/safe?x=1',
+    '/safe#fragment',
+    '/safe\0bad',
+    'http://evil.example/x',
+    ['file:', '', '', 'tmp', 'x'].join('/'),
+  ];
+  for (const catalogBasePath of unsafeBases) {
+    assert.throws(
+      () => validateComponentManifest({ version: 1, catalogBasePath, components: [] }),
+      ComponentManifestError,
+      catalogBasePath,
+    );
+    assert.throws(
+      () => componentManifestCatalogPath('component-safe-default', { catalogBasePath }),
+      ComponentManifestError,
+      catalogBasePath,
+    );
+  }
+
+  for (const surfaceKey of ['../admin', 'safe/key', 'safe?x', 'safe#x', 'safe\\key', 'safe\0key']) {
+    assert.throws(() => componentManifestCatalogPath(surfaceKey), ComponentManifestError, surfaceKey);
+  }
+
+  assert.equal(
+    componentManifestCatalogPath('component-safe-default', { catalogBasePath: '/' }),
+    '/component-safe-default',
+  );
+});
+
 test('componentManifestCatalogSurfaces: honors custom catalog base and url mapper', async () => {
   const manifest = validateComponentManifest({
     version: 1,
