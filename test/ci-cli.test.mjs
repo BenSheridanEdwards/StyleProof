@@ -751,6 +751,112 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
   },
 );
 
+test('styleproof-ci: --spec-ref can keep the capture harness outside product commits', { timeout: 30_000 }, () => {
+  const root = mkTmp('styleproof-ci-external-spec-ref-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const mapRoot = path.join(root, 'maps');
+  const output = path.join(root, 'github-output');
+  const git = (cwd, args, expectedStatus = 0) => {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, expectedStatus, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    fs.mkdirSync(repo);
+    git(root, ['init', '--bare', '-q', remote]);
+    git(repo, ['init', '-q', '-b', 'main']);
+    git(repo, ['config', 'user.email', 'styleproof@example.test']);
+    git(repo, ['config', 'user.name', 'StyleProof Test']);
+    git(repo, ['remote', 'add', 'origin', remote]);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\ntests/styleproof/\n');
+    fs.writeFileSync(path.join(repo, 'app.txt'), 'base-app\n');
+    git(repo, ['add', '-A']);
+    git(repo, ['commit', '-qm', 'test: base']);
+    const base = git(repo, ['rev-parse', 'HEAD']);
+    fs.writeFileSync(path.join(repo, 'app.txt'), 'head-app\n');
+    git(repo, ['add', 'app.txt']);
+    git(repo, ['commit', '-qm', 'test: head']);
+    const head = git(repo, ['rev-parse', 'HEAD']);
+
+    git(repo, ['checkout', '-qb', 'styleproof-harness']);
+    fs.mkdirSync(path.join(repo, 'tests', 'styleproof'), { recursive: true });
+    fs.writeFileSync(
+      path.join(repo, 'tests', 'styleproof', 'styleproof.spec.ts'),
+      "import './fixture';\nSPEC_BYTES=EXTERNAL\n",
+    );
+    fs.writeFileSync(path.join(repo, 'tests', 'styleproof', 'fixture.ts'), 'EXTERNAL_FIXTURE=true\n');
+    git(repo, ['add', '-f', 'tests/styleproof']);
+    git(repo, ['commit', '-qm', 'test: external capture harness']);
+    const specRef = git(repo, ['rev-parse', 'HEAD']);
+    git(repo, ['checkout', '-q', head]);
+    git(repo, ['push', '-q', 'origin', `${head}:refs/heads/main`, `${specRef}:refs/heads/styleproof-harness`]);
+
+    git(repo, ['cat-file', '-e', `${base}:tests/styleproof/styleproof.spec.ts`], 128);
+    git(repo, ['cat-file', '-e', `${head}:tests/styleproof/styleproof.spec.ts`], 128);
+
+    const bin = path.join(repo, 'node_modules', '.bin');
+    fs.mkdirSync(bin, { recursive: true });
+    fs.writeFileSync(path.join(bin, 'npm'), npmShim());
+    fs.writeFileSync(
+      path.join(bin, 'playwright'),
+      `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+if [ ! -f tests/styleproof/styleproof.spec.ts ] || [ ! -f tests/styleproof/fixture.ts ]; then
+  echo "external StyleProof harness is missing" >&2
+  exit 42
+fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+cp tests/styleproof/styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"
+cp tests/styleproof/fixture.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-fixture.ts"
+cp app.txt "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-app.txt"
+`,
+    );
+    fs.chmodSync(path.join(bin, 'npm'), 0o755);
+    fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+
+    const result = runCi(
+      [
+        '--base',
+        base,
+        '--head',
+        head,
+        '--spec',
+        'tests/styleproof/styleproof.spec.ts',
+        '--spec-ref',
+        specRef,
+        '--base-dir',
+        mapRoot,
+        '--force',
+      ],
+      {
+        CI: '1',
+        GITHUB_OUTPUT: output,
+        STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+      },
+      repo,
+    );
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'captured-app.txt'), 'utf8'), 'base-app\n');
+    assert.equal(fs.readFileSync(path.join(mapRoot, 'head', 'captured-app.txt'), 'utf8'), 'head-app\n');
+    for (const side of ['base', 'head']) {
+      assert.equal(
+        fs.readFileSync(path.join(mapRoot, side, 'captured-spec.ts'), 'utf8'),
+        "import './fixture';\nSPEC_BYTES=EXTERNAL\n",
+      );
+      assert.equal(fs.readFileSync(path.join(mapRoot, side, 'captured-fixture.ts'), 'utf8'), 'EXTERNAL_FIXTURE=true\n');
+    }
+    assert.equal(fs.existsSync(path.join(repo, 'tests', 'styleproof', 'styleproof.spec.ts')), false);
+    assert.equal(git(repo, ['status', '--porcelain']), '', 'the product checkout has no harness residue');
+    assert.match(fs.readFileSync(output, 'utf8'), /base-capture-failed=false/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('CiWorktreeSession: construction prunes stale worktree registrations from a prior hard kill', () => {
   const root = mkTmp('styleproof-ci-prune-');
   try {
@@ -897,9 +1003,9 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
   },
 );
 
-test('shouldApplySpecRefOverlay: only overlays when the base tree already has the spec', () => {
+test('shouldApplySpecRefOverlay: an explicit ref owns the harness even when the checkout has no spec', () => {
   assert.equal(shouldApplySpecRefOverlay(true, 'head-sha'), true);
-  assert.equal(shouldApplySpecRefOverlay(false, 'head-sha'), false);
+  assert.equal(shouldApplySpecRefOverlay(false, 'head-sha'), true);
   assert.equal(shouldApplySpecRefOverlay(true, ''), false);
 });
 

@@ -106,9 +106,9 @@ export type SpecRefOverlay = {
   restore: () => void;
 };
 
-/** Cold base capture only overlays when the base tree already contains the spec path. */
-export function shouldApplySpecRefOverlay(specExistsAtBase: boolean, specRef: string): boolean {
-  return Boolean(specRef && specExistsAtBase);
+/** An explicit spec ref owns the capture harness, even when product commits do not track it. */
+export function shouldApplySpecRefOverlay(_specExistsAtCheckout: boolean, specRef: string): boolean {
+  return Boolean(specRef);
 }
 
 /**
