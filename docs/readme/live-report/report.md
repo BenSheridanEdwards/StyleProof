@@ -9,7 +9,9 @@ _**Surface base** = one product UI state; capture keys with `@width` or live-sta
 
 _demo-button @ 900_
 
-`:hover` `color` `#a5f3fc` → `#fca5a5` · `:focus` `outline-color` `#5eead4` → `#fca5a5` · `:active` `color` `#2dd4bf` → `#f87171`
+`:hover` `color` `#a5f3fc` → `#fca5a5`
+`:focus` `outline-color` `#5eead4` → `#fca5a5`
+`:active` `color` `#2dd4bf` → `#f87171`
 
 ![before ◀ │ ▶ after](crops/demo-button-900-1-composite.png)
 
@@ -37,7 +39,11 @@ Interactive-state changes:
 
 _demo-button @ 900_
 
-`padding` `14px 28px` → `18px 32px` · `border-color` `#38d6c6` → `#f87171` · `background-color` `#14b8a6` → `#dc2626` · `font-size` `13px` → `16px` · `letter-spacing` `1.56px` → `1.92px`
+`padding` `14px 28px` → `18px 32px`
+`border-color` `#38d6c6` → `#f87171`
+`background-color` `#14b8a6` → `#dc2626`
+`font-size` `13px` → `16px`
+`letter-spacing` `1.56px` → `1.92px`
 
 ![before ◀ │ ▶ after](crops/demo-button-900-2-composite.png)
 

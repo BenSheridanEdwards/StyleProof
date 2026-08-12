@@ -33,8 +33,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Report crops now lead with one glance line of every property change,
-  then the picture. The details diamond still holds the full tables.
+- Report crops now lead with one line per property change above the picture.
+  No bullets, no blank lines between them. The details diamond still holds
+  the full tables.
 - README live report splits style/size (Save) from hover/focus/active (Docs).
 
 ### Fixed

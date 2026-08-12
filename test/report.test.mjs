@@ -1828,7 +1828,7 @@ test('end-to-end: each crop shows a clean image plus a highlighted twin by defau
   rmTmp(root);
 });
 
-test('propertyGlanceLine joins style and state on one line', () => {
+test('propertyGlanceLine is one line per property, no bullets, no blank lines', () => {
   const line = propertyGlanceLine([
     {
       kind: 'style',
@@ -1849,10 +1849,17 @@ test('propertyGlanceLine joins style and state on one line', () => {
       props: [{ prop: 'color', before: 'rgb(94, 234, 212)', after: 'rgb(254, 202, 202)' }],
     },
   ]);
-  assert.match(line, /`background-color`/);
-  assert.match(line, /`font-size`/);
-  assert.match(line, /`:hover` `color`/);
-  assert.ok(line.includes(' · '), 'every change sits on one glance line');
+  const rows = line.split('\n');
+  assert.equal(rows.length, 3);
+  assert.ok(
+    rows.every((r) => r.length > 0),
+    'no blank lines between properties',
+  );
+  assert.ok(!line.includes(' · '), 'not smashed onto one middot line');
+  assert.ok(!line.includes('- '), 'no bullets');
+  assert.match(rows[0], /`background-color`/);
+  assert.match(rows[1], /`font-size`/);
+  assert.match(rows[2], /`:hover` `color`/);
 });
 
 test('property changes sit on one line above the crop, not only under the fold', () => {

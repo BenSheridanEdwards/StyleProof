@@ -740,7 +740,7 @@ function cellPair(before: string, after: string): [string, string] {
   return [codeValue(toHex(b)), codeValue(toHex(a))];
 }
 
-/** Every property change on one glance line, above the crop. */
+/** One line per property change, stacked above the crop. No bullets. */
 export function propertyGlanceLine(findings: Finding[]): string {
   const parts: string[] = [];
   for (const group of groupByPath(findings)) {
@@ -765,7 +765,7 @@ export function propertyGlanceLine(findings: Finding[]): string {
       }
     }
   }
-  return parts.join(' · ');
+  return parts.join('\n');
 }
 
 function beforeAfterTable(rows: PropChange[]): string[] {
