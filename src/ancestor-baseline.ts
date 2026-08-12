@@ -40,6 +40,7 @@ export class AncestorBaselineError extends Error {}
 export const DEFAULT_ANCESTOR_WALK_LIMIT = 50;
 
 const STYLEPROOF_CONFIG_FILE_NAME = 'styleproof.config.json';
+const CAPTURE_PLAYWRIGHT_CONFIG_FILE_NAME = /^playwright(?:\.styleproof)?\.config\.[cm]?[jt]s$/;
 
 /** Package manifests and lockfiles: a change to any of them (at any depth — a
  *  monorepo subpackage's included) can change what the app renders with, and
@@ -96,10 +97,11 @@ function isSameOrUnderDirectory(candidate: string, directory: string): boolean {
 /**
  * The subset of `changedPaths` that is capture-relevant, conservatively:
  * the capture spec and anything in its directory (colocated harness files),
- * any `styleproof.config.json`, any package manifest/lockfile, and anything
- * under a declared app source root. With NO source roots declared — or a root
- * that canonicalizes to the repo root — every changed path is relevant, so
- * reuse can never fire on an undeclared app layout. Pure and fs-free.
+ * the Playwright capture config, any `styleproof.config.json`, any package
+ * manifest/lockfile, and anything under a declared app source root. With NO
+ * source roots declared — or a root that canonicalizes to the repo root — every
+ * changed path is relevant, so reuse can never fire on an undeclared app
+ * layout. Pure and fs-free.
  */
 export function captureRelevantChangedPaths(options: {
   changedPaths: readonly string[];
@@ -115,6 +117,7 @@ export function captureRelevantChangedPaths(options: {
     const changed = canonicalPath(originalPath);
     const baseName = changed.includes('/') ? changed.slice(changed.lastIndexOf('/') + 1) : changed;
     if (baseName === STYLEPROOF_CONFIG_FILE_NAME) return true;
+    if (CAPTURE_PLAYWRIGHT_CONFIG_FILE_NAME.test(baseName)) return true;
     if (PACKAGE_MANIFEST_FILE_NAMES.has(baseName)) return true;
     if (changed === spec || isSameOrUnderDirectory(changed, specDirectory)) return true;
     return sourceRoots.some((root) => isSameOrUnderDirectory(changed, root));
