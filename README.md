@@ -864,6 +864,23 @@ CAPTURE_USER=demo CAPTURE_PASS=… styleproof-capture https://example.com --craw
 
 The crawl's vocabulary is **click, select, neutral typing, scrolling, and your setup steps** — and it sweeps the page's real `@media` breakpoints automatically when you give it none. Within it, mapping is exhaustive. Outside it, states are not reached by crawling — and the coverage verifier is what keeps that honest: anything unreached is _named_, never silently missed.
 
+### Authentication boundaries and crawl confidence
+
+When a crawl lands on a sign-in form or is redirected to an auth route, StyleProof records a **redacted** auth-boundary observation (route path, selector structure, reason — never field values, cookies, tokens, or query strings) and sets run-level confidence to `incomplete-auth`. Surfaces behind the wall are **unknown**; no coverage percentage is invented for them. Unacknowledged boundaries **fail closed** (`styleproof-capture --crawl` exits 5).
+
+Unlock protected surfaces with `--setup` and environment-interpolated values (the only credential path). To mark a wall deliberately outside certification scope without claiming full coverage:
+
+```bash
+styleproof-capture https://example.com --crawl \
+  --auth-boundary-exclude auth-exclude.json --out design
+```
+
+```json
+{ "/login": "SSO entry — outside certification scope" }
+```
+
+Empty exclusion reasons are rejected. Acknowledged exclusions keep status `incomplete-auth` and `certifiesFully: false` so a visual PASS is never confused with complete surface access. Programmatic consumers read `CrawlReport.confidence` from `crawlAndCapture`.
+
 | State                                                                        | Reached by                                                                                                                                                                            |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Click-opened surfaces (modals, drawers, popovers, tabs, toggles)             | crawl, automatically                                                                                                                                                                  |

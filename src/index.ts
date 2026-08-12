@@ -21,7 +21,13 @@ export {
 } from './capture.js';
 export * from './inventory.js';
 export * from './data-residue.js';
-export { captureUrlToDir, runCaptureUrl, parseCaptureUrlArgs, UsageError } from './capture-url.js';
+export {
+  captureUrlToDir,
+  runCaptureUrl,
+  parseCaptureUrlArgs,
+  loadAuthBoundaryExclude,
+  UsageError,
+} from './capture-url.js';
 export type { CaptureUrlOptions, CaptureUrlResult } from './capture-url.js';
 export { crawlAndCapture, CRAWL_DEFAULTS } from './crawl-surfaces.js';
 export type {
@@ -32,6 +38,19 @@ export type {
   CrawlStep,
   SetupStep,
 } from './crawl-surfaces.js';
+export {
+  resolveCrawlConfidence,
+  normalizeAuthBoundaryExclude,
+  authBoundaryKey,
+  mergeAuthBoundaryObservations,
+  redactedRoutePath,
+} from './crawl-confidence.js';
+export type {
+  CrawlConfidence,
+  CrawlConfidenceStatus,
+  AuthBoundaryObservation,
+  AuthBoundaryExclude,
+} from './crawl-confidence.js';
 export { loadSetupSteps } from './capture-url.js';
 export type {
   StyleMap,

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseCaptureUrlArgs, loadSetupSteps, UsageError } from '../dist/capture-url.js';
+import { parseCaptureUrlArgs, loadSetupSteps, loadAuthBoundaryExclude, UsageError } from '../dist/capture-url.js';
 
 test('defaults: just a url', () => {
   const o = parseCaptureUrlArgs(['https://example.com/pricing']);
@@ -29,6 +29,8 @@ test('defaults: just a url', () => {
     dataStates: true,
     workers: 4,
     followLinks: true,
+    authBoundaryExcludeFile: undefined,
+    authBoundaryExclude: undefined,
   });
 });
 
@@ -145,4 +147,20 @@ test('loadSetupSteps: validates, and interpolates ${ENV} so secrets stay out of 
   } finally {
     fs.rmSync(file, { force: true });
   }
+});
+
+test('loadAuthBoundaryExclude accepts reasoned keys and rejects empty reasons', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-auth-ex-'));
+  const ok = path.join(dir, 'ok.json');
+  fs.writeFileSync(ok, JSON.stringify({ '/login': 'outside certification scope' }));
+  assert.deepEqual(loadAuthBoundaryExclude(ok), { '/login': 'outside certification scope' });
+  const bad = path.join(dir, 'bad.json');
+  fs.writeFileSync(bad, JSON.stringify({ '/login': '  ' }));
+  assert.throws(() => loadAuthBoundaryExclude(bad), UsageError);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('--auth-boundary-exclude parses', () => {
+  const o = parseCaptureUrlArgs(['https://x', '--crawl', '--auth-boundary-exclude', 'exclusions.json']);
+  assert.equal(o.authBoundaryExcludeFile, 'exclusions.json');
 });
