@@ -5,37 +5,7 @@ _**Surface base** = one product UI state; capture keys with `@width` or live-sta
 
 ## Element-level changes
 
-### `a.link` · 1 element restyled
-
-_demo-button @ 900_
-
-`:hover` `color` `#a5f3fc` → `#fca5a5`<br>
-`:focus` `outline-color` `#5eead4` → `#fca5a5`<br>
-`:active` `color` `#2dd4bf` → `#f87171`
-
-![before ◀ │ ▶ after](crops/demo-button-900-1-composite.png)
-
-<sub>◀ before  ·  after ▶ — demo-button @ 900</sub>
-
-![highlighted before ◀ │ ▶ after](crops/demo-button-900-1-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
-
-![zoomed before ◀ │ ▶ after](crops/demo-button-900-1-zoom.png)
-
-<sub>🔬 magnified 2× — change too small to see at 1:1 — changed: `a.link`</sub>
-
-**`a.link`**
-
-Interactive-state changes:
-
-| State | Property | Before → After |
-| --- | --- | --- |
-| `:hover` | `color` | `#a5f3fc` → `#fca5a5` |
-| `:focus` | `outline-color` | `#5eead4` → `#fca5a5` |
-| `:active` | `color` | `#2dd4bf` → `#f87171` |
-
-### `button.btn` · 1 element restyled
+### `button.btn` · style and size
 
 _demo-button @ 900_
 
@@ -47,20 +17,38 @@ _demo-button @ 900_
 
 ![before ◀ │ ▶ after](crops/demo-button-900-2-composite.png)
 
-<sub>◀ before  ·  after ▶ — demo-button @ 900</sub>
+<sub>◀ before  ·  after ▶ — Save at rest</sub>
 
 ![highlighted before ◀ │ ▶ after](crops/demo-button-900-2-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
 
-**`button.btn`**
+### `a.link` `:hover`
 
-Style:
+_demo-button @ 900 · forced state_
 
-| Property | Before | After |
-| --- | --- | --- |
-| `padding` | `14px 28px` | `18px 32px` |
-| `border-color` | `#38d6c6` | `#f87171` |
-| `background-color` | `#14b8a6` | `#dc2626` |
-| `font-size` | `13px` | `16px` |
-| `letter-spacing` | `1.56px` | `1.92px` |
+`:hover` `color` `#a5f3fc` → `#fca5a5`
+
+![before ◀ │ ▶ after](crops/docs-hover-composite.png)
+
+<sub>◀ before  ·  after ▶ — Docs :hover</sub>
+
+### `a.link` `:focus`
+
+_demo-button @ 900 · forced state_
+
+`:focus` `outline-color` `#5eead4` → `#fca5a5`
+
+![before ◀ │ ▶ after](crops/docs-focus-composite.png)
+
+<sub>◀ before  ·  after ▶ — Docs :focus</sub>
+
+### `a.link` `:active`
+
+_demo-button @ 900 · forced state_
+
+`:active` `color` `#2dd4bf` → `#f87171`
+
+![before ◀ │ ▶ after](crops/docs-active-composite.png)
+
+<sub>◀ before  ·  after ▶ — Docs :active</sub>

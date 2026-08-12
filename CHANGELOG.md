@@ -37,7 +37,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   GitHub hard-breaks (`<br>`) so they stay stacked, not one wrapping
   paragraph. No bullets, no blank lines. The details diamond still holds
   the full tables.
-- README live report splits style/size (Save) from hover/focus/active (Docs).
+- README live report splits style/size (Save) from hover, focus, and
+  active (Docs). Each state is a forced CDP screenshot, not a rest crop.
 
 ### Fixed
 

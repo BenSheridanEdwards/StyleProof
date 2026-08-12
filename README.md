@@ -25,9 +25,9 @@ _**Surface base** = one product UI state; capture keys with `@width` or live-sta
 
 - [ ] **Approve all changes**
 
-Two components. Save changed style and size. Docs changed hover, focus, and active.
+Two components. Save is style and size at rest. Docs is hover, focus, and active, each forced and cropped on its own.
 
-### `button.btn` · 1 element restyled
+### `button.btn` · style and size
 
 _demo-button @ 900_
 
@@ -39,27 +39,41 @@ _demo-button @ 900_
 
 ![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-2-composite.png)
 
-<sub>◀ before · after ▶ — demo-button @ 900</sub>
+<sub>◀ before · after ▶ — Save at rest</sub>
 
 ![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-2-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
 
-### `a.link` · 1 element restyled
+### `a.link` `:hover`
 
-_demo-button @ 900_
+_demo-button @ 900 · forced state_
 
-`:hover` `color` `#a5f3fc` → `#fca5a5`<br>
-`:focus` `outline-color` `#5eead4` → `#fca5a5`<br>
+`:hover` `color` `#a5f3fc` → `#fca5a5`
+
+![before ◀ │ ▶ after](docs/readme/live-report/crops/docs-hover-composite.png)
+
+<sub>◀ before · after ▶ — Docs :hover</sub>
+
+### `a.link` `:focus`
+
+_demo-button @ 900 · forced state_
+
+`:focus` `outline-color` `#5eead4` → `#fca5a5`
+
+![before ◀ │ ▶ after](docs/readme/live-report/crops/docs-focus-composite.png)
+
+<sub>◀ before · after ▶ — Docs :focus</sub>
+
+### `a.link` `:active`
+
+_demo-button @ 900 · forced state_
+
 `:active` `color` `#2dd4bf` → `#f87171`
 
-![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-1-composite.png)
+![before ◀ │ ▶ after](docs/readme/live-report/crops/docs-active-composite.png)
 
-<sub>◀ before · after ▶ — demo-button @ 900</sub>
-
-![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-1-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
+<sub>◀ before · after ▶ — Docs :active</sub>
 
 ---
 
