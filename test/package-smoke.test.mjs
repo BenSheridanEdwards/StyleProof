@@ -117,6 +117,8 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       'styleproof-prepush',
       'styleproof-affected',
       'styleproof-ci',
+      'styleproof-publish-report',
+      'styleproof-prune-reports',
     ]) {
       const installedShim = path.join(app, 'node_modules', '.bin', process.platform === 'win32' ? `${bin}.cmd` : bin);
       assert.ok(fs.existsSync(installedShim), `${bin} is missing from the installed package bin manifest`);
