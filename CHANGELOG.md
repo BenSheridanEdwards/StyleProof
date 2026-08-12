@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.0.5] - 2026-08-12
+
 ### Fixed
 
 - Crawl URL normalization and automatic breakpoint discovery now handle
@@ -3066,7 +3068,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.4...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.5...HEAD
+[6.0.5]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.4...v6.0.5
 [6.0.4]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.3...v6.0.4
 [6.0.3]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.2...v6.0.3
 [6.0.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.1...v6.0.2
