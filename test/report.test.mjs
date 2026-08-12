@@ -1225,7 +1225,7 @@ test('a long gradient diff excerpts the differing substring, never an equal pair
     afterPng: solidPng(1280, 800),
   });
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
-  const row = md.split('\n').find((l) => l.includes('`background-image`'));
+  const row = md.split('\n').find((l) => l.startsWith('|') && l.includes('`background-image`'));
   assert.ok(row, 'background-image row present');
   const [, beforeCell, afterCell] = row
     .split('|')
@@ -2501,7 +2501,7 @@ test('end-to-end: a hostile CSS value renders as one intact row with no live mar
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
 
   // Find the table row carrying the hostile value.
-  const contentRow = md.split('\n').find((l) => l.includes('content') && l.includes('counter'));
+  const contentRow = md.split('\n').find((l) => l.startsWith('|') && l.includes('content') && l.includes('counter'));
   assert.ok(contentRow, 'the content change is rendered as a table row');
 
   // A GitHub table row is a single line with exactly the cell pipes it declares:
