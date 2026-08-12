@@ -9,6 +9,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- A late-arriving PR-comment delivery from an earlier attempt of the same
+  workflow run (for example a network retry from attempt 1 landing after
+  `rerun_failed_jobs` already published attempt 2) can no longer overwrite the
+  newer attempt's report comment or commit status. The comment now records the
+  run id and run attempt that wrote it, the upsert refuses to replace a comment
+  written by a later attempt of the same run, and the commit-status step is
+  skipped for such stale deliveries. Rerun supersession — attempt 2 replacing
+  attempt 1's comment and status while attempt 1's durable report stays
+  retrievable at its own commit — is now pinned by tests.
 - Release runs now serialize without cancellation, so rapid main pushes cannot
   race the same npm version and leave tagging or release publication partially
   failed.
