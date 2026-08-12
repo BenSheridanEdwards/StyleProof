@@ -305,6 +305,8 @@ runs:
         retries: 3
         script: |
           const fs = require('fs');
+          const { shouldSupersedeExistingComment, formatRunAttemptReceiptMarker } =
+            await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
           const marker = '<!-- styleproof-report -->';
           // `changed` = review required: before/after differences OR new surfaces
@@ -314,6 +316,20 @@ runs:
             ...context.repo, issue_number: prNumber, per_page: 100,
           });
           const existing = comments.find((c) => c.body && c.body.includes(marker));
+          // Rerun-attempt ordering guard: a late-arriving delivery from an earlier
+          // attempt of THIS run must not overwrite the verdict a newer attempt
+          // already published. The comment records its writing attempt; a stale
+          // delivery leaves the comment (and, downstream, the commit status) alone.
+          const runId = '${{ github.run_id }}';
+          const runAttempt = '${{ github.run_attempt }}';
+          if (existing && !shouldSupersedeExistingComment({
+            existingCommentBody: existing.body, runId, runAttempt,
+          })) {
+            core.setOutput('stale-delivery', 'true');
+            core.info(`StyleProof: the report comment was already published by a later attempt of run ${runId} — leaving it (and the commit status) in place.`);
+            return;
+          }
+          core.setOutput('stale-delivery', 'false');
           const upsert = (body) => existing
             ? github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
             : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
@@ -372,6 +388,7 @@ runs:
                   : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
               : advisoryGuidance),
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
+            formatRunAttemptReceiptMarker({ runId, runAttempt }),
           ];
 
           const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
@@ -380,9 +397,13 @@ runs:
     # Review-gate mode: drive a commit status the approve workflow can flip,
     # instead of failing the job. Green when nothing changed; red ("needs
     # sign-off") until a write-access reviewer ticks the box. PR events only.
+    # Skipped when the comment step classified this delivery as a stale earlier
+    # attempt, so a late attempt-1 retry cannot clobber attempt 2's status either.
     - name: Set review status
       id: status
-      if: steps.context.outputs.pr-number != '' && inputs.require-approval == 'true'
+      if: >-
+        steps.context.outputs.pr-number != '' && inputs.require-approval == 'true' &&
+        steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}

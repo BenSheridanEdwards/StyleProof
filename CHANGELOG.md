@@ -54,6 +54,15 @@ in 42.1s (self-check 12.3s)` — so a slow capture run on a saturated runner is
 
 ### Fixed
 
+- A late-arriving PR-comment delivery from an earlier attempt of the same
+  workflow run (for example a network retry from attempt 1 landing after
+  `rerun_failed_jobs` already published attempt 2) can no longer overwrite the
+  newer attempt's report comment or commit status. The comment now records the
+  run id and run attempt that wrote it, the upsert refuses to replace a comment
+  written by a later attempt of the same run, and the commit-status step is
+  skipped for such stale deliveries. Rerun supersession — attempt 2 replacing
+  attempt 1's comment and status while attempt 1's durable report stays
+  retrievable at its own commit — is now pinned by tests.
 - `styleproof-ci --spec-ref` can now source the capture spec and its colocated
   harness from a dedicated ref when neither product commit tracks those files.
   The same external harness is overlaid for base and head restore probes and
