@@ -11,6 +11,7 @@ import {
   colorName,
   tokenIndex,
   toHex,
+  propertyGlanceLine,
 } from '../dist/report.js';
 import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture } from './helpers.mjs';
 
@@ -1823,6 +1824,51 @@ test('end-to-end: each crop shows a clean image plus a highlighted twin by defau
     }
   }
   assert.ok(hasHilite, 'annotated crop contains the highlight colour');
+  rmTmp(root);
+});
+
+test('propertyGlanceLine joins style and state on one line', () => {
+  const line = propertyGlanceLine([
+    {
+      kind: 'style',
+      path: 'button',
+      cls: 'btn',
+      pseudo: null,
+      props: [
+        { prop: 'background-color', before: 'rgb(20, 184, 166)', after: 'rgb(220, 38, 38)' },
+        { prop: 'font-size', before: '13px', after: '16px' },
+      ],
+    },
+    {
+      kind: 'state',
+      path: 'button',
+      cls: 'btn',
+      state: 'hover',
+      sub: '',
+      props: [{ prop: 'color', before: 'rgb(94, 234, 212)', after: 'rgb(254, 202, 202)' }],
+    },
+  ]);
+  assert.match(line, /`background-color`/);
+  assert.match(line, /`font-size`/);
+  assert.match(line, /`:hover` `color`/);
+  assert.ok(line.includes(' · '), 'every change sits on one glance line');
+});
+
+test('property changes sit on one line above the crop, not only under the fold', () => {
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    after: sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+  const img = md.indexOf('![before');
+  assert.ok(img > 0, 'report still has a crop');
+  const above = md.slice(0, img);
+  assert.match(above, /`background-color`/, 'the property is readable before the picture');
+  assert.match(above, /→/, 'before → after is on the glance line');
+  assert.ok(!above.includes('<details>'), 'glance is not inside the diamond fold');
   rmTmp(root);
 });
 

@@ -31,6 +31,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   button, report inlined (style, size, hover, focus, active). Isolated
   component surfaces stay tracked as #392.
 
+### Changed
+
+- Report crops now lead with one glance line of every property change,
+  then the picture. The details diamond still holds the full tables.
+
 ### Fixed
 
 - Auth crawl confidence (#390): intermediate HTTP auth redirects are dropped when

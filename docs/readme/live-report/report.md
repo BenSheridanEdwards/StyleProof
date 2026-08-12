@@ -9,6 +9,8 @@ _**Surface base** = one product UI state; capture keys with `@width` or live-sta
 
 _demo-button @ 900_
 
+`padding` `14px 28px` → `18px 32px` · `border-color` `#38d6c6` → `#f87171` · `background-color` `#14b8a6` → `#dc2626` · `font-size` `13px` → `16px` · `letter-spacing` `1.56px` → `1.92px` · `:hover` `color` `#5eead4` → `#fecaca` · `:hover` `row-rule-color` `#5eead4` → `#fecaca` · `:focus` `outline-color` `#5eead4` → `#fca5a5` · `:active` `box-shadow` — → `rgb(127, 29, 29) 0px 0px 0px 4px`
+
 ![before ◀ │ ▶ after](crops/demo-button-900-1-composite.png)
 
 <sub>◀ before  ·  after ▶ — demo-button @ 900</sub>

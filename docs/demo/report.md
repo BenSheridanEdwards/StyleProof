@@ -23,6 +23,8 @@ _No baseline to compare against — this surface is new. Review and approve it b
 
 _home @ 900_
 
+`color` `#9ca3af` → `#2563eb`
+
 ![before ◀ │ ▶ after](crops/home-900-2-composite.png)
 
 <sub>◀ before  ·  after ▶ — home @ 900</sub>
@@ -54,6 +56,8 @@ Style:
 
 _home @ 900_
 
+`background-color` `#2563eb` → `#dc2626`
+
 ![before ◀ │ ▶ after](crops/home-900-3-composite.png)
 
 <sub>◀ before  ·  after ▶ — home @ 900</sub>
@@ -80,6 +84,8 @@ Style:
 ### `aside.off-canvas-status` · 1 element restyled
 
 _home @ 900_
+
+`opacity` `0.85` → `1`
 
 _The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading._
 

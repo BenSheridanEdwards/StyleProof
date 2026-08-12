@@ -740,6 +740,34 @@ function cellPair(before: string, after: string): [string, string] {
   return [codeValue(toHex(b)), codeValue(toHex(a))];
 }
 
+/** Every property change on one glance line, above the crop. */
+export function propertyGlanceLine(findings: Finding[]): string {
+  const parts: string[] = [];
+  for (const group of groupByPath(findings)) {
+    const added = group.some((f) => f.kind === 'dom' && f.change === 'added');
+    for (const s of group.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style')) {
+      const prefix = s.pseudo ? `${codeValue(s.pseudo)} ` : '';
+      for (const c of summarizeProps(s.props)) {
+        if (added) parts.push(`${prefix}${codeValue(c.prop)} ${cell(c.after)}`);
+        else {
+          const [b, a] = cellPair(c.before, c.after);
+          parts.push(`${prefix}${codeValue(c.prop)} ${b} → ${a}`);
+        }
+      }
+    }
+    for (const st of group.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state')) {
+      for (const c of summarizeProps(st.props)) {
+        if (added) parts.push(`${codeValue(`:${st.state}`)} ${codeValue(c.prop)} ${cell(c.after)}`);
+        else {
+          const [b, a] = cellPair(c.before, c.after);
+          parts.push(`${codeValue(`:${st.state}`)} ${codeValue(c.prop)} ${b} → ${a}`);
+        }
+      }
+    }
+  }
+  return parts.join(' · ');
+}
+
 function beforeAfterTable(rows: PropChange[]): string[] {
   return [
     '| Property | Before | After |',
@@ -1724,6 +1752,8 @@ function renderRegion(args: {
       : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
 
   const md: string[] = ['', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList];
+  const glance = propertyGlanceLine(regionFindings);
+  if (glance) md.push('', glance);
 
   const region = visible(g.after) ? g.after : g.before;
   let images: { composite?: string; annotated?: string; zoom?: string } = {};
