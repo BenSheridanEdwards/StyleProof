@@ -13,7 +13,14 @@ import {
   shouldApplySpecRefOverlay,
 } from '../dist/ci-spec-ref.js';
 import { CiWorktreeSession } from '../dist/ci-worktree.js';
-import { workingTreeDirty } from '../dist/map-store.js';
+import {
+  BASELINE_PROVENANCE_FILE,
+  MAP_MANIFEST,
+  expectedCompatibilityKey,
+  readBaselineProvenance,
+  readMapManifest,
+  workingTreeDirty,
+} from '../dist/map-store.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 // styleproof-ci packages the workflow's restore → capture-on-miss → replay →
@@ -106,6 +113,22 @@ test('ciOutputLines: the exact steps.maps.outputs.* contract the workflow bash e
     'capture-needed=true',
     'base-capture-failed=true',
   ]);
+});
+
+test('ciOutputLines: ancestor reuse appends its own auditable output line, never reshaping the original four', () => {
+  const ancestorSha = 'a'.repeat(40);
+  assert.deepEqual(ciOutputLines(true, true, false, ancestorSha), [
+    'base-hit=true',
+    'head-hit=true',
+    'capture-needed=false',
+    'base-capture-failed=false',
+    `base-restored-from-ancestor=${ancestorSha}`,
+  ]);
+  assert.deepEqual(
+    ciOutputLines(true, true, false, ''),
+    ['base-hit=true', 'head-hit=true', 'capture-needed=false', 'base-capture-failed=false'],
+    'no reuse → the exact prior contract, byte for byte',
+  );
 });
 
 test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv (no shell)', () => {
@@ -1574,6 +1597,128 @@ esac
     rmTmp(root);
   }
 });
+
+// ── Nearest-ancestor baseline reuse (#367, opt-in via STYLEPROOF_ANCESTOR_BASELINE=1):
+// a base miss whose diff against the nearest STORED ancestor touches nothing
+// capture-relevant restores that ancestor's bundle as the baseline — with the
+// reuse recorded in $GITHUB_OUTPUT and the provenance sidecar, never silently.
+test(
+  'styleproof-ci: opt-in ancestor reuse restores the nearest stored ancestor on a docs-only base miss',
+  { timeout: 60_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-ancestor-');
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'consumer');
+    const mapRoot = path.join(root, 'maps');
+    const githubOutput = path.join(root, 'github-output');
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    try {
+      fs.mkdirSync(repo);
+      git(root, ['init', '--bare', '-q', remote]);
+      git(repo, ['init', '-q', '-b', 'main']);
+      git(repo, ['config', 'user.email', 'styleproof@example.test']);
+      git(repo, ['config', 'user.name', 'StyleProof Test']);
+      git(repo, ['remote', 'add', 'origin', remote]);
+      // Ancestor A: the commit whose bundle is stored. Spec + lockfile stay
+      // byte-identical afterwards, so A's compatibility key matches the base
+      // probe's expectation.
+      fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+      fs.mkdirSync(path.join(repo, 'docs'), { recursive: true });
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture fixture\n');
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"lockfileVersion":3}\n');
+      fs.writeFileSync(path.join(repo, 'src', 'app.css'), 'a{}\n');
+      fs.writeFileSync(path.join(repo, 'docs', 'notes.md'), 'one\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: stored ancestor']);
+      const ancestor = git(repo, ['rev-parse', 'HEAD']);
+      // Base B: a docs-only merge on top of A — a full-tree cache miss, but
+      // nothing capture-relevant changed.
+      fs.writeFileSync(path.join(repo, 'docs', 'notes.md'), 'two\n');
+      git(repo, ['add', 'docs/notes.md']);
+      git(repo, ['commit', '-qm', 'test: docs-only base move']);
+      const base = git(repo, ['rev-parse', 'HEAD']);
+      // Head H: the PR head, whose exact bundle is stored (no capture needed).
+      fs.writeFileSync(path.join(repo, 'src', 'app.css'), 'a{color:red}\n');
+      git(repo, ['add', 'src/app.css']);
+      git(repo, ['commit', '-qm', 'test: head']);
+      const head = git(repo, ['rev-parse', 'HEAD']);
+      git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+      // Seed the store with bundles for A and H under the compatibility key the
+      // probes will expect (spec + lockfile bytes are identical at A, B, and H).
+      const compatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'styleproof.spec.ts' });
+      const seed = path.join(root, 'seed');
+      git(root, ['clone', '-q', remote, seed]);
+      git(seed, ['checkout', '-q', '-b', 'styleproof-maps']);
+      git(seed, ['config', 'user.email', 'styleproof@example.test']);
+      git(seed, ['config', 'user.name', 'StyleProof Test']);
+      for (const seededSha of [ancestor, head]) {
+        const bundle = path.join(seed, seededSha, compatibilityKey);
+        fs.mkdirSync(bundle, { recursive: true });
+        fs.writeFileSync(path.join(bundle, 'home@1280.json'), `{"seeded":"${seededSha}"}\n`);
+        fs.writeFileSync(
+          path.join(bundle, MAP_MANIFEST),
+          JSON.stringify({
+            version: 1,
+            packageVersion: 'test',
+            sha: seededSha,
+            dirty: false,
+            spec: 'styleproof.spec.ts',
+            specHash: 'test',
+            platform: process.platform,
+            arch: process.arch,
+            nodeMajor: process.versions.node.split('.')[0],
+            screenshots: false,
+            har: false,
+            compatibilityKey,
+            createdAt: '2026-01-01T00:00:00.000Z',
+          }),
+        );
+      }
+      git(seed, ['add', '-A']);
+      git(seed, ['commit', '-qm', 'seed']);
+      git(seed, ['push', '-q', 'origin', 'styleproof-maps']);
+      git(root, ['--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true']);
+
+      const result = runCi(
+        ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot, '--force'],
+        {
+          CI: '1',
+          STYLEPROOF_ANCESTOR_BASELINE: '1',
+          STYLEPROOF_ANCESTOR_BASELINE_ROOTS: 'src',
+          STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+          GITHUB_OUTPUT: githubOutput,
+        },
+        repo,
+      );
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      assert.match(result.stderr, /reused the baseline of nearest ancestor/, 'reuse is stated in the run log');
+      const outputs = fs.readFileSync(githubOutput, 'utf8');
+      assert.match(outputs, /base-hit=true/);
+      assert.match(outputs, /head-hit=true/);
+      assert.match(outputs, /capture-needed=false/, 'no capture ran — the whole point of the reuse');
+      assert.match(outputs, new RegExp(`base-restored-from-ancestor=${ancestor}`), 'reuse is auditable in outputs');
+      // The restored bundle is byte-honest: its manifest still names the ancestor
+      // it was verified at — reuse never relabels a map to a SHA it never rendered.
+      assert.equal(readMapManifest(path.join(mapRoot, 'base'))?.sha, ancestor);
+      assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'home@1280.json'), 'utf8'), `{"seeded":"${ancestor}"}\n`);
+      const provenance = readBaselineProvenance(path.join(mapRoot, 'base'));
+      assert.ok(provenance, `expected a ${BASELINE_PROVENANCE_FILE} sidecar`);
+      assert.equal(provenance.baseline, 'ancestor-reuse');
+      assert.equal(provenance.requestedSha, base);
+      assert.equal(provenance.restoredSha, ancestor);
+      assert.equal(provenance.ancestorDepth, 1);
+      assert.equal(provenance.changedPathCount, 1, 'the no-relevant-changes proof: one docs path changed');
+      assert.deepEqual(provenance.sourceRoots, ['src']);
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
 
 test(
   'styleproof-ci: browser preflight self-heals or fails fast with the exact remedy before any capture',

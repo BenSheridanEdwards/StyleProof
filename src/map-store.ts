@@ -45,6 +45,12 @@ const GIT_REPOSITORY_ENVIRONMENT_VARIABLES = [
   'GIT_WORK_TREE',
 ] as const;
 
+/** Sidecar recording where a run's BASELINE maps came from — restored from the
+ *  exact base SHA, restored from a nearest ancestor (with the no-relevant-changes
+ *  proof), or captured fresh (#367: reuse must never be silent). Written locally
+ *  by the CI driver into its base dir; never a surface map. */
+export const BASELINE_PROVENANCE_FILE = 'styleproof-baseline-provenance.json';
+
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
  *  these, or a sidecar reads as a phantom "new surface". */
@@ -52,6 +58,7 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
   MAP_MANIFEST,
   COVERAGE_LEDGER,
   BROWSER_BUILD_SIDECAR,
+  BASELINE_PROVENANCE_FILE,
 ]);
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */
@@ -679,6 +686,43 @@ export function readMapManifest(dir: string): MapManifest | null {
   }
 }
 
+/** Where a run's baseline maps came from (#367). `ancestor-reuse` carries the
+ *  no-relevant-changes proof: how many paths changed between the restored
+ *  ancestor and the requested base commit (all of them capture-irrelevant),
+ *  and the declared app source roots the relevance gate ran against. The
+ *  restored bundle itself stays byte-identical to what was verified at capture
+ *  time — this sidecar only records the reuse decision, it never rewrites the
+ *  bundle's own manifest or SHA. */
+export type BaselineProvenance = {
+  version: 1;
+  baseline: 'exact-restore' | 'ancestor-reuse' | 'captured';
+  /** The base commit this run needed a baseline for. */
+  requestedSha: string;
+  /** The commit whose stored bundle was restored (absent for `captured`). */
+  restoredSha?: string;
+  /** 1 = the base commit's direct first-parent parent. */
+  ancestorDepth?: number;
+  /** `git diff --name-only <restoredSha> <requestedSha>` path count — the proof. */
+  changedPathCount?: number;
+  /** The app source roots the relevance gate was declared with. */
+  sourceRoots?: string[];
+};
+
+/** Record the baseline-provenance sidecar into a base map dir (#367: no silent reuse). */
+export function writeBaselineProvenance(dir: string, provenance: BaselineProvenance): void {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, BASELINE_PROVENANCE_FILE), JSON.stringify(provenance, null, 2));
+}
+
+/** Read the baseline-provenance sidecar; `null` when absent or unreadable. */
+export function readBaselineProvenance(dir: string): BaselineProvenance | null {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(dir, BASELINE_PROVENANCE_FILE), 'utf8')) as BaselineProvenance;
+  } catch {
+    return null;
+  }
+}
+
 /** True if `dir` holds at least one captured surface map (`<key>@<width>.json[.gz]`),
  *  ignoring metadata sidecars. Distinguishes a real capture that merely lacks a manifest
  *  (a legacy committed-map bundle — v4 refuses it) from an empty/bare dir (no baseline
@@ -1118,6 +1162,63 @@ export function restoreMapBundle(options: {
     `could not restore ${sha} from ${branch} after ${attempts} ${attempts === 1 ? 'attempt' : 'attempts'}: ` +
       (lastInfraError || 'unknown map store error'),
   );
+}
+
+/**
+ * The commit SHAs that currently have at least one stored bundle on the map
+ * store branch — the top-level directory names at the branch tip. One bounded
+ * network operation: a `tree:0` no-checkout clone plus one root `ls-tree`, so
+ * no map blob (and no subtree) is downloaded. A missing branch is an EMPTY set
+ * (nothing stored yet, not a fault); any network/clone failure throws a plain
+ * {@link MapStoreError} so the caller can fall back rather than trust a
+ * partial listing. Used by the nearest-ancestor baseline reuse (#367).
+ */
+export function listMapStoreBundleShas(options: { branch?: string; remote?: string; cwd?: string } = {}): Set<string> {
+  const cwd = options.cwd ?? process.cwd();
+  const branch = options.branch ?? DEFAULT_MAP_STORE_BRANCH;
+  const remote = options.remote ?? DEFAULT_REMOTE;
+  if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
+  const branchLookup = runMapStoreNetworkGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20);
+  if (branchLookup.status === 2) return new Set();
+  if (branchLookup.status !== 0) {
+    throw new MapStoreError(gitFailureMessage(branchLookup, 'could not query map store branch'));
+  }
+  const remoteUrl = gitOutput(cwd, ['remote', 'get-url', remote]);
+  const httpExtraHeaders = effectiveGitHttpExtraHeaders(cwd);
+  const authenticationArguments = httpExtraHeaders.flatMap(({ key, value }) => ['-c', `${key}=${value}`]);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-list-'));
+  try {
+    const clone = runMapStoreNetworkGit(cwd, [
+      ...authenticationArguments,
+      'clone',
+      '-q',
+      '--filter=tree:0',
+      '--no-checkout',
+      '--depth',
+      '1',
+      '--single-branch',
+      '--branch',
+      branch,
+      remoteUrl,
+      tmp,
+    ]);
+    if (clone.status !== 0) throw new MapStoreError(gitFailureMessage(clone, 'could not clone map store branch'));
+    // The lazy root-tree fetch below goes back through the promisor remote, so the
+    // clone's checkout must carry the same auth the clone itself used.
+    for (const { key, value } of httpExtraHeaders) runGit(tmp, ['config', '--local', '--add', key, value]);
+    const listing = runMapStoreNetworkGit(tmp, ['ls-tree', '--name-only', 'HEAD'], 1 << 20);
+    if (listing.status !== 0) {
+      throw new MapStoreError(gitFailureMessage(listing, 'could not list map store bundles'));
+    }
+    return new Set(
+      listing.stdout
+        .split('\n')
+        .map((name) => name.trim())
+        .filter((name) => /^[0-9a-f]{7,40}$/i.test(name)),
+    );
+  } finally {
+    removeTempWorkspace(tmp);
+  }
 }
 
 export function resolveCachedCaptureDirs(options: {
