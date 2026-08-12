@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Data-residue boundaries now match Playwright URL-glob punctuation, escaping,
+  brace alternation, and `**/` semantics, so literal bracket and comma paths are
+  neither missed nor widened during certification (#382).
+
 ## [6.0.5] - 2026-08-12
 
 ### Fixed

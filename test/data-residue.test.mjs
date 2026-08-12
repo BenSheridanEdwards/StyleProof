@@ -23,6 +23,29 @@ test('urlMatcher reproduces Playwright URL-glob semantics for the data boundary'
   assert.equal(sub('http://app.test/api/x'), false);
 });
 
+test('urlMatcher keeps Playwright glob punctuation literal and validates brace groups', () => {
+  const brackets = urlMatcher('**/api/[id]');
+  assert.equal(brackets('https://app.test/api/[id]'), true);
+  assert.equal(brackets('https://app.test/api/i'), false);
+
+  const group = urlMatcher('**/api/{users,teams}');
+  assert.equal(group('https://app.test/api/users'), true);
+  assert.equal(group('https://app.test/api/teams'), true);
+  assert.equal(group('https://app.test/api/users,teams'), false);
+
+  const comma = urlMatcher('**/api/users,teams');
+  assert.equal(comma('https://app.test/api/users,teams'), true);
+  assert.equal(comma('https://app.test/api/users'), false);
+
+  const escapedStar = urlMatcher('**/api/\\*');
+  assert.equal(escapedStar('https://app.test/api/*'), true);
+  assert.equal(escapedStar('https://app.test/api/users'), false);
+
+  assert.throws(() => urlMatcher('**/api/{users,{teams,orgs}}'), /nested '\{' is not supported/);
+  assert.throws(() => urlMatcher('**/api/{users,teams'), /unmatched '\{'/);
+  assert.throws(() => urlMatcher('**/api/users}'), /unmatched '\}'/);
+});
+
 // The residue guard's pure core: query-stripped endpoints, escaped surface·endpoint keys,
 // dedupe across widths / a self-check re-run, and ledger reconciliation (unacknowledged +
 // stale). Mirrors the inventory guard's unit tests — same list-vs-ledger discipline, but a
@@ -108,6 +131,25 @@ const fakeNavigationRequest = (url) => ({
   isNavigationRequest: () => true,
   frame: () => fakeMainFrame,
   failure: () => null,
+});
+
+test('a failed request under a literal-bracket data boundary is recorded as residue', () => {
+  const page = new EventEmitter();
+  const request = fakeRequest('https://app.test/api/[id]');
+  const residue = trackDataResidue(page, '**/api/[id]', 'dashboard');
+
+  page.emit('request', request);
+  page.emit('requestfailed', request);
+
+  assert.deepEqual(residue.residue(), [
+    {
+      key: 'dashboard·/api/-id-',
+      surface: 'dashboard',
+      endpoint: '/api/[id]',
+      reason: 'net::ERR_ABORTED',
+    },
+  ]);
+  residue.dispose();
 });
 
 test('an EventSource HTTP 204 terminal response is clean when Chromium later reports ERR_ABORTED', () => {

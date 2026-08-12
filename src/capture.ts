@@ -1071,25 +1071,88 @@ export function trackDataResidue(
  * A plain (glob-char-free) string is treated as a substring match, matching Playwright's
  * own "contains" fallback for non-glob route URLs.
  */
-export function urlMatcher(glob: string): (url: string) => boolean {
-  if (!/[*?{}[\]]/.test(glob)) return (url) => url.includes(glob);
-  const specials = new Set(['.', '+', '^', '$', '|', '(', ')']);
-  let re = '';
+const URL_GLOB_REGEX_CHARS = new Set(['$', '^', '+', '.', '*', '(', ')', '|', '\\', '?', '{', '}', '[', ']']);
+
+function urlGlobLiteral(char: string): string {
+  return URL_GLOB_REGEX_CHARS.has(char) ? `\\${char}` : char;
+}
+
+function urlGlobStar(glob: string, index: number): { token: string; endIndex: number } {
+  let endIndex = index;
+  while (glob[endIndex + 1] === '*') endIndex++;
+  if (endIndex === index) return { token: '([^/]*)', endIndex };
+
+  if (glob[endIndex + 1] !== '/') return { token: '(.*)', endIndex };
+  const token = glob[index - 1] === '/' ? '((.+/)|)' : '(.*/)';
+  return { token, endIndex: endIndex + 1 };
+}
+
+function invalidUrlGlob(glob: string, reason: string): never {
+  throw new Error(`Invalid glob pattern ${JSON.stringify(glob)}: ${reason}`);
+}
+
+function urlGlobEscapedLiteral(glob: string, index: number): { token: string; endIndex: number } {
+  const next = glob[index + 1];
+  return {
+    token: urlGlobLiteral(next ?? glob[index]),
+    endIndex: next === undefined ? index : index + 1,
+  };
+}
+
+function openUrlGlobGroup(glob: string, inGroup: boolean): string {
+  if (inGroup) invalidUrlGlob(glob, "nested '{' is not supported");
+  return '(';
+}
+
+function closeUrlGlobGroup(glob: string, inGroup: boolean): string {
+  if (!inGroup) invalidUrlGlob(glob, "unmatched '}'");
+  return ')';
+}
+
+function compileUrlGlob(glob: string): RegExp {
+  // Kept in lockstep with Playwright's public URL-glob micro-syntax without
+  // reaching into its private bundle. Regex punctuation is literal unless the
+  // glob syntax assigns it meaning; commas alternate only inside `{a,b}`.
+  const tokens = ['^'];
+  let inGroup = false;
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
-    if (c === '*') {
-      if (glob[i + 1] === '*') {
-        re += '.*';
-        i++;
-      } else re += '[^/]*';
-    } else if (c === '?') re += '\\?';
-    else if (c === '{') re += '(';
-    else if (c === '}') re += ')';
-    else if (c === ',') re += '|';
-    else if (specials.has(c)) re += `\\${c}`;
-    else re += c;
+    switch (c) {
+      case '\\': {
+        const escaped = urlGlobEscapedLiteral(glob, i);
+        tokens.push(escaped.token);
+        i = escaped.endIndex;
+        break;
+      }
+      case '*': {
+        const star = urlGlobStar(glob, i);
+        tokens.push(star.token);
+        i = star.endIndex;
+        break;
+      }
+      case '{':
+        tokens.push(openUrlGlobGroup(glob, inGroup));
+        inGroup = true;
+        break;
+      case '}':
+        tokens.push(closeUrlGlobGroup(glob, inGroup));
+        inGroup = false;
+        break;
+      case ',':
+        tokens.push(inGroup ? '|' : c);
+        break;
+      default:
+        tokens.push(urlGlobLiteral(c));
+    }
   }
-  const compiled = new RegExp(`^${re}$`);
+  if (inGroup) invalidUrlGlob(glob, "unmatched '{'");
+  tokens.push('$');
+  return new RegExp(tokens.join(''));
+}
+
+export function urlMatcher(glob: string): (url: string) => boolean {
+  if (!/[*?{}[\]\\]/.test(glob)) return (url) => url.includes(glob);
+  const compiled = compileUrlGlob(glob);
   return (url) => compiled.test(url);
 }
 
