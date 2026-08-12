@@ -92,19 +92,34 @@ test('a 4xx/5xx completion is residue just like a network failure (reason carrie
   assert.equal(audit.unacknowledged[0].reason, 'HTTP 503');
 });
 
+// Fakes for the harvest-layer (page-event) tests. A request the CURRENT surface owns
+// fires its `request` event while the watcher is armed — every fake surface-owned
+// request below is emitted as `request` first, exactly as Playwright orders events.
+const fakeMainFrame = { parentFrame: () => null };
+const fakeRequest = (url, resourceType = 'fetch', errorText = 'net::ERR_ABORTED') => ({
+  url: () => url,
+  resourceType: () => resourceType,
+  isNavigationRequest: () => false,
+  failure: () => ({ errorText }),
+});
+const fakeNavigationRequest = (url) => ({
+  url: () => url,
+  resourceType: () => 'document',
+  isNavigationRequest: () => true,
+  frame: () => fakeMainFrame,
+  failure: () => null,
+});
+
 test('an EventSource HTTP 204 terminal response is clean when Chromium later reports ERR_ABORTED', () => {
   const page = new EventEmitter();
-  const request = {
-    url: () => 'https://app.test/api/stream',
-    resourceType: () => 'eventsource',
-    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
-  };
+  const request = fakeRequest('https://app.test/api/stream', 'eventsource');
   const response = { request: () => request, status: () => 204 };
   const residue = trackDataResidue(page, '**/api/**', 'dashboard');
 
   // Chromium can report the protocol-level EventSource shutdown as a successful
   // 204 response followed by requestfailed(ERR_ABORTED). The 204 is terminal by
   // design; it does not render a data-fallback branch and must not gate capture.
+  page.emit('request', request);
   page.emit('response', response);
   page.emit('requestfailed', request);
 
@@ -114,13 +129,10 @@ test('an EventSource HTTP 204 terminal response is clean when Chromium later rep
 
 test('an EventSource HTTP 204 terminal response clears an earlier ERR_ABORTED observation', () => {
   const page = new EventEmitter();
-  const request = {
-    url: () => 'https://app.test/api/stream',
-    resourceType: () => 'eventsource',
-    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
-  };
+  const request = fakeRequest('https://app.test/api/stream', 'eventsource');
   const residue = trackDataResidue(page, '**/api/**', 'dashboard');
 
+  page.emit('request', request);
   page.emit('requestfailed', request);
   page.emit('response', { request: () => request, status: () => 204 });
 
@@ -130,13 +142,10 @@ test('an EventSource HTTP 204 terminal response clears an earlier ERR_ABORTED ob
 
 test('a stream abort without a terminal HTTP 204 response remains fail-closed residue', () => {
   const page = new EventEmitter();
-  const request = {
-    url: () => 'https://app.test/api/stream',
-    resourceType: () => 'eventsource',
-    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
-  };
+  const request = fakeRequest('https://app.test/api/stream', 'eventsource');
   const residue = trackDataResidue(page, '**/api/**', 'dashboard');
 
+  page.emit('request', request);
   page.emit('requestfailed', request);
 
   assert.deepEqual(residue.residue(), [
@@ -152,13 +161,10 @@ test('a stream abort without a terminal HTTP 204 response remains fail-closed re
 
 test('an EventSource HTTP 200 followed by an abort remains fail-closed residue', () => {
   const page = new EventEmitter();
-  const request = {
-    url: () => 'https://app.test/api/stream',
-    resourceType: () => 'eventsource',
-    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
-  };
+  const request = fakeRequest('https://app.test/api/stream', 'eventsource');
   const residue = trackDataResidue(page, '**/api/**', 'dashboard');
 
+  page.emit('request', request);
   page.emit('response', { request: () => request, status: () => 200 });
   page.emit('requestfailed', request);
 
@@ -168,16 +174,95 @@ test('an EventSource HTTP 200 followed by an abort remains fail-closed residue',
 
 test('a non-EventSource HTTP 204 followed by an abort remains fail-closed residue', () => {
   const page = new EventEmitter();
-  const request = {
-    url: () => 'https://app.test/api/job',
-    resourceType: () => 'fetch',
-    failure: () => ({ errorText: 'net::ERR_ABORTED' }),
-  };
+  const request = fakeRequest('https://app.test/api/job', 'fetch');
   const residue = trackDataResidue(page, '**/api/**', 'dashboard');
 
+  page.emit('request', request);
   page.emit('response', { request: () => request, status: () => 204 });
   page.emit('requestfailed', request);
 
   assert.equal(residue.residue()[0]?.reason, 'net::ERR_ABORTED');
+  residue.dispose();
+});
+
+// ── surface-handoff attribution (issue #364) ────────────────────────────────────
+// The walk shares ONE page across surfaces. A request a previous surface started can
+// abort during the NEXT surface's window (the handoff navigation kills it), and which
+// surface caught the `requestfailed` event was a timing lottery. Only requests
+// initiated inside the current surface's window may be charged to it.
+
+test('a leftover request from a previous surface, aborted during the handoff, is NOT the successor surface’s residue', () => {
+  const page = new EventEmitter();
+  // The previous surface started this stream — its `request` event fired BEFORE this
+  // watcher armed, so this watcher never saw it start.
+  const leftoverStream = fakeRequest('https://app.test/api/stream', 'eventsource');
+  const residue = trackDataResidue(page, '**/api/**', 'next-surface');
+
+  // The handoff navigation aborts the leftover while THIS surface's watcher is armed.
+  page.emit('requestfailed', leftoverStream);
+
+  assert.deepEqual(residue.residue(), []);
+  residue.dispose();
+});
+
+test('a request initiated before a cross-document commit that aborts after it is a handoff artifact, not residue', () => {
+  const page = new EventEmitter();
+  // Fired by the OUTGOING document after this watcher armed but before go()'s
+  // navigation committed — the commit orphans it.
+  const outgoingFetch = fakeRequest('https://app.test/api/poll', 'fetch');
+  const residue = trackDataResidue(page, '**/api/**', 'next-surface');
+
+  page.emit('request', outgoingFetch);
+  page.emit('request', fakeNavigationRequest('https://app.test/next'));
+  page.emit('framenavigated', fakeMainFrame); // cross-document commit
+  page.emit('requestfailed', outgoingFetch); // the commit aborted the old document's fetch
+
+  assert.deepEqual(residue.residue(), []);
+  residue.dispose();
+});
+
+test('a genuine failure initiated after the commit is still residue (the gate is not weakened)', () => {
+  const page = new EventEmitter();
+  const ownFetch = fakeRequest('https://app.test/api/probe', 'fetch', 'net::ERR_CONNECTION_REFUSED');
+  const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+
+  page.emit('request', fakeNavigationRequest('https://app.test/dashboard'));
+  page.emit('framenavigated', fakeMainFrame); // this surface's own navigation commits
+  page.emit('request', ownFetch); // initiated by the NEW document
+  page.emit('requestfailed', ownFetch);
+
+  assert.deepEqual(
+    residue.residue().map((entry) => [entry.key, entry.reason]),
+    [['dashboard·/api/probe', 'net::ERR_CONNECTION_REFUSED']],
+  );
+  residue.dispose();
+});
+
+test('a same-document navigation (pushState) does NOT orphan an SPA surface’s own failing fetch', () => {
+  const page = new EventEmitter();
+  const spaFetch = fakeRequest('https://app.test/api/probe', 'fetch', 'net::ERR_CONNECTION_REFUSED');
+  const residue = trackDataResidue(page, '**/api/**', 'spa-tab');
+
+  page.emit('request', spaFetch);
+  // `framenavigated` fires for pushState too, but no document request preceded it —
+  // the document survives, so its in-flight requests stay owned.
+  page.emit('framenavigated', fakeMainFrame);
+  page.emit('requestfailed', spaFetch);
+
+  assert.equal(residue.residue()[0]?.key, 'spa-tab·/api/probe');
+  residue.dispose();
+});
+
+test('a failure recorded before a later commit stays recorded (self-check runs still fold)', () => {
+  const page = new EventEmitter();
+  const failingFetch = fakeRequest('https://app.test/api/probe', 'fetch');
+  const residue = trackDataResidue(page, '**/api/**', 'dashboard');
+
+  page.emit('request', failingFetch);
+  page.emit('response', { request: () => failingFetch, status: () => 503 }); // recorded now
+  page.emit('request', fakeNavigationRequest('https://app.test/dashboard'));
+  page.emit('framenavigated', fakeMainFrame); // e.g. the self-check re-runs go()
+
+  assert.equal(residue.residue()[0]?.reason, 'HTTP 503');
   residue.dispose();
 });
