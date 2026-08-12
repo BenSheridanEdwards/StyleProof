@@ -866,7 +866,7 @@ The crawl's vocabulary is **click, select, neutral typing, scrolling, and your s
 
 ### Authentication boundaries and crawl confidence
 
-When a crawl lands on a sign-in form or is redirected to an auth route, StyleProof records a **redacted** auth-boundary observation (route path, selector structure, reason — never field values, cookies, tokens, or query strings) and sets run-level confidence to `incomplete-auth`. Surfaces behind the wall are **unknown**; no coverage percentage is invented for them. Unacknowledged boundaries **fail closed** (`styleproof-capture --crawl` exits 5).
+When a crawl lands on a sign-in form or is redirected (document navigation 3xx) to an auth route, StyleProof records a **redacted** auth-boundary observation (route path, selector structure, reason — never field values, cookies, tokens, or query strings) and sets run-level confidence to `incomplete-auth`. Fetch/XHR 3xx responses are not auth boundaries. Surfaces behind the wall are **unknown**; no coverage percentage is invented for them. Unacknowledged boundaries **fail closed** (`styleproof-capture --crawl` exits 5). With `--require-full-coverage`, coverage residue exit **4** intentionally takes precedence over auth exit 5. The optional resolver status `incomplete-unknown` is for callers that pass `unknownIncompleteness`; crawl does not auto-emit it today.
 
 Unlock protected surfaces with `--setup` and environment-interpolated values (the only credential path). To mark a wall deliberately outside certification scope without claiming full coverage:
 

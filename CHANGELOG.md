@@ -16,7 +16,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Crawl confidence contract (#390 production integration): `crawlAndCapture`
   observes authentication boundaries via the classifier, attaches
   `CrawlReport.confidence` with status `complete` | `incomplete-auth` |
-  `incomplete-unknown`, and fail-closes when walls are unacknowledged.
+  `incomplete-unknown` (resolver-only via `unknownIncompleteness`; not
+  auto-produced by crawl today), and fail-closes when walls are unacknowledged.
   Reasoned exclusions (`authBoundaryExclude` / `--auth-boundary-exclude`)
   require non-empty reasons, mark scope explicitly limited, and never claim
   full certification. No coverage percentage is invented for inaccessible
@@ -34,6 +35,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   crawl state (late-mounted gates); setup E2E loads steps via `loadSetupSteps`
   with env interpolation and asserts secrets never appear in serialized
   confidence.
+- Auth crawl confidence (#390): only document navigation 3xx responses count as
+  auth-route redirects (fetch/XHR session 302s no longer false-block); merge
+  never falls back to raw unredacted routes; CLI exclusion/diagnostic lines are
+  control-safe; coverage exit 4 intentionally wins over auth exit 5; auth
+  observation failures after a recorded surface are fatal (not swallowed into a
+  false `complete`). `incomplete-unknown` remains resolver-only via
+  `unknownIncompleteness` — the crawl path does not auto-produce it.
 - Data-residue boundaries now match Playwright URL-glob punctuation, escaping,
   brace alternation, and `**/` semantics, so literal bracket and comma paths are
   neither missed nor widened during certification (#382).

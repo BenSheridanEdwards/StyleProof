@@ -15,6 +15,14 @@ import {
   type CrawlConfidence,
 } from './crawl-confidence.js';
 
+/** Thrown when auth-boundary observation fails after a surface was recorded — must not yield false complete. */
+export class AuthBoundaryObserveError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause !== undefined ? { cause } : undefined);
+    this.name = 'AuthBoundaryObserveError';
+  }
+}
+
 /**
  * Surface crawler: deterministically map a single URL's WHOLE interactive
  * surface — not just the state it loads in — and run to natural termination.
@@ -621,6 +629,10 @@ async function gotoFresh(page: Page, opts: SurfaceCrawlOptions, authSink?: AuthB
   // Headers/query/fragments are discarded by classifyAuthBoundary.
   const onResponse = (res: Response): void => {
     if (!authSink) return;
+    // Only document navigation redirects count as auth boundaries. Fetch/XHR 3xx
+    // (session probes, API clients) must not mark the crawl incomplete-auth.
+    const req = res.request();
+    if (req.resourceType() !== 'document' || !req.isNavigationRequest()) return;
     const status = res.status();
     if (status < 300 || status >= 400) return;
     const headers = res.headers();
@@ -810,8 +822,14 @@ async function record(
   st.surfaces.push(surface);
   // Observe auth at every newly recorded state — a password form can mount after
   // a crawl interaction; entry-only observation would false-complete.
-  const auth = await observeAuthBoundary(page);
-  if (auth) st.authObservations.push(auth);
+  // Failures are fatal (AuthBoundaryObserveError): runPool must not swallow them
+  // into a false complete confidence report.
+  try {
+    const auth = await observeAuthBoundary(page);
+    if (auth) st.authObservations.push(auth);
+  } catch (err) {
+    throw new AuthBoundaryObserveError(`auth-boundary observation failed after recording surface ${key}`, err);
+  }
   let addsVocab = false;
   for (const c of fp.classes)
     if (!st.classes.has(c)) {
@@ -1091,8 +1109,12 @@ async function recordDataState(
     await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
     await page.goto(opts.url, { waitUntil: 'load' });
     await settleDom(page, 2500); // no networkidle wait — a stalled request never goes idle
-    const auth = await observeAuthBoundary(page);
-    if (auth) st.authObservations.push(auth);
+    try {
+      const auth = await observeAuthBoundary(page);
+      if (auth) st.authObservations.push(auth);
+    } catch (err) {
+      throw new AuthBoundaryObserveError(`auth-boundary observation failed during data-state ${mode}`, err);
+    }
     const fp = await fingerprint(page);
     if (st.seen.has(fp.sig)) return; // renders identically to a captured state (e.g. SSR)
     st.seen.add(fp.sig);
@@ -1154,9 +1176,16 @@ async function runPool(
   };
 
   let active = 0;
-  await new Promise<void>((resolve) => {
+  let fatalError: unknown;
+  await new Promise<void>((resolve, reject) => {
     const pump = (): void => {
-      while (pages.length > 0 && st.queue.length > 0 && st.surfaces.length < opts.maxStates && !converged()) {
+      while (
+        !fatalError &&
+        pages.length > 0 &&
+        st.queue.length > 0 &&
+        st.surfaces.length < opts.maxStates &&
+        !converged()
+      ) {
         const entry = st.queue.shift()!; // FIFO → breadth-first: exhaust every
         // shallow surface (nav tabs, opened panels — where distinct UI lives)
         // before drilling. Depth-first starves breadth: one append-generator
@@ -1173,7 +1202,14 @@ async function runPool(
             counters.tried += r.tried;
             counters.skipped += r.skipped;
           })
-          .catch(() => {
+          .catch((err) => {
+            // Auth observation failures are never fail-soft: a missing observation
+            // after surfaces.push would otherwise produce a false complete report.
+            if (err instanceof AuthBoundaryObserveError) {
+              fatalError = err;
+              st.queue.length = 0;
+              return;
+            }
             /* fail-soft: the state's surface was already captured in place */
           })
           .finally(() => {
@@ -1183,7 +1219,13 @@ async function runPool(
             pump();
           });
       }
-      if (active === 0 && (st.queue.length === 0 || st.surfaces.length >= opts.maxStates || converged())) resolve();
+      if (
+        active === 0 &&
+        (st.queue.length === 0 || st.surfaces.length >= opts.maxStates || converged() || fatalError)
+      ) {
+        if (fatalError) reject(fatalError);
+        else resolve();
+      }
     };
     pump();
   });

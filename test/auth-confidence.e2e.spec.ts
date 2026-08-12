@@ -432,3 +432,87 @@ test('HTTP OAuth-only redirect + unrelated cookie setup stays incomplete-auth bl
     fs.rmSync(outSetup, { recursive: true, force: true });
   }
 });
+
+test('public page with session fetch/XHR 302 to auth stays complete; document 302 stays incomplete-auth', async ({
+  page,
+}) => {
+  // Fetch/XHR 3xx to /login?token=... must not count as auth-route-redirect.
+  // Document navigation 302 to /login must still fail closed.
+  const publicBody = `<!doctype html><html><head><meta charset="utf-8"><style>
+    .public { padding: 16px; background: rgb(230,240,255); }
+  </style></head><body>
+    <main class="public" id="pub">public surface</main>
+    <script>
+      // Session probe style: XHR/fetch 302 with token in query — must not wall the crawl.
+      fetch('/session-check').catch(() => {});
+      const x = new XMLHttpRequest();
+      x.open('GET', '/session-xhr');
+      x.send();
+    </script>
+  </body></html>`;
+
+  const loginBody = `<!doctype html><html><head><meta charset="utf-8"><style>
+    .gate { padding: 12px; }
+  </style></head><body>
+    <main class="gate"><input type="password" id="pw" autocomplete="current-password"></main>
+  </body></html>`;
+
+  const server = http.createServer((req, res) => {
+    const raw = req.url ?? '/';
+    const u = raw.split('?')[0];
+    if (u === '/public') {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.end(publicBody);
+      return;
+    }
+    if (u === '/session-check' || u === '/session-xhr') {
+      res.statusCode = 302;
+      res.setHeader('location', '/login?token=session-secret-token-xyz');
+      res.end();
+      return;
+    }
+    if (u === '/protected-doc') {
+      res.statusCode = 302;
+      res.setHeader('location', '/login?token=nav-secret-token-abc');
+      res.end();
+      return;
+    }
+    if (u === '/login') {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.end(loginBody);
+      return;
+    }
+    res.statusCode = 404;
+    res.end('not found');
+  });
+  const port = await listen(server);
+  const base = `http://127.0.0.1:${port}`;
+  const outPublic = path.join(os.tmpdir(), `styleproof-auth-xhr-${Math.random().toString(36).slice(2)}`);
+  const outDoc = path.join(os.tmpdir(), `styleproof-auth-doc-${Math.random().toString(36).slice(2)}`);
+  try {
+    const pub = await crawlAndCapture(page, baseOpts(`${base}/public`, outPublic));
+    expect(pub.confidence.status).toBe('complete');
+    expect(pub.confidence.blocked).toBe(false);
+    expect(pub.confidence.certifiesFully).toBe(true);
+    expect(pub.confidence.authBoundaries).toEqual([]);
+    const pubBlob = JSON.stringify(pub.confidence);
+    expect(pubBlob).not.toContain('session-secret-token-xyz');
+    expect(pubBlob).not.toContain('token=');
+
+    const doc = await crawlAndCapture(page, baseOpts(`${base}/protected-doc`, outDoc));
+    expect(doc.confidence.status).toBe('incomplete-auth');
+    expect(doc.confidence.blocked).toBe(true);
+    const reasons = doc.confidence.authBoundaries.flatMap((b) => b.diagnostics.map((d) => d.reason));
+    expect(reasons).toEqual(expect.arrayContaining(['auth-route-redirect']));
+    // May also see password-input on landed login — either way must block.
+    const docBlob = JSON.stringify(doc.confidence);
+    expect(docBlob).not.toContain('nav-secret-token-abc');
+    expect(docBlob).not.toContain('session-secret-token');
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    fs.rmSync(outPublic, { recursive: true, force: true });
+    fs.rmSync(outDoc, { recursive: true, force: true });
+  }
+});

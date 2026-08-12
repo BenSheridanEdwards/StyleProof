@@ -45,6 +45,8 @@ export {
   mergeAuthBoundaryObservations,
   redactedRoutePath,
   shouldRetainAuthRedirects,
+  cliSafeLine,
+  crawlCaptureExitCode,
 } from './crawl-confidence.js';
 export type {
   CrawlConfidence,

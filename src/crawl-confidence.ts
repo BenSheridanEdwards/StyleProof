@@ -8,6 +8,8 @@
  * `incomplete-unknown`) and an acknowledgement ledger so unacknowledged walls
  * fail closed while reasoned exclusions mark scope as explicitly limited —
  * never inventing a coverage percentage for inaccessible surfaces.
+ * `incomplete-unknown` is available on the resolver when callers pass
+ * `unknownIncompleteness`; the crawl itself does not currently emit it.
  *
  * Secrets never appear here: observations carry only classifier diagnostics
  * (selectors already redacted, pathnames only). Values, cookies, tokens,
@@ -131,8 +133,9 @@ export function mergeAuthBoundaryObservations(observations: AuthBoundaryObservat
   const byRoute = new Map<string, AuthBoundaryObservation>();
   for (const obs of observations) {
     if (!obs.diagnostics.length) continue;
-    const route = redactedRoutePath(obs.route) ?? obs.route;
-    const groupKey = route ?? `unknown:${authBoundaryKey(obs)}`;
+    const route = redactedRoutePath(obs.route);
+    // Never fall back to raw obs.route — omit route when redaction fails.
+    const groupKey = route ?? `unknown:${authBoundaryKey({ diagnostics: obs.diagnostics })}`;
     const prev = byRoute.get(groupKey);
     if (!prev) {
       byRoute.set(groupKey, { ...(route ? { route } : {}), diagnostics: [...obs.diagnostics] });
@@ -178,8 +181,45 @@ export function shouldRetainAuthRedirects(
  * - Any wall → `incomplete-auth` (even when every wall is excluded — exclusions
  *   mark scope limited and never upgrade to full certification).
  * - `unknownIncompleteness` with no auth walls → `incomplete-unknown`.
+ *   Note: `incomplete-unknown` is resolver-only today — callers may pass
+ *   `unknownIncompleteness`; the crawl path does not auto-produce it.
  * - `blocked` iff any wall is unacknowledged (fail closed).
  */
+
+/**
+ * Collapse text for single-line CLI/log rendering: strip C0 controls, DEL, and
+ * Unicode line/paragraph separators so exclusion reasons cannot inject multiline
+ * log lines. Stored/API reason strings keep their original semantics; only the
+ * terminal rendering path should use this.
+ */
+export function cliSafeLine(value: string): string {
+  // C0 controls + DEL + Unicode line/paragraph separators → space
+  return Array.from(String(value), (ch) => {
+    const c = ch.codePointAt(0)!;
+    if (c <= 0x1f || c === 0x7f || c === 0x2028 || c === 0x2029) return ' ';
+    return ch;
+  })
+    .join('')
+    .replace(/ +/g, ' ')
+    .trim();
+}
+
+/**
+ * Crawl CLI exit precedence after a successful capture run.
+ * Coverage residue (`--require-full-coverage`) exits 4 and intentionally wins
+ * over unacknowledged auth (exit 5) so a coverage gap is not masked by auth.
+ * Auth blocked → 5; otherwise 0.
+ */
+export function crawlCaptureExitCode(input: {
+  requireFullCoverage: boolean;
+  hasCoverageResidue: boolean;
+  authBlocked: boolean;
+}): 0 | 4 | 5 {
+  if (input.requireFullCoverage && input.hasCoverageResidue) return 4;
+  if (input.authBlocked) return 5;
+  return 0;
+}
+
 export function resolveCrawlConfidence(input: {
   observations: AuthBoundaryObservation[];
   exclude?: Record<string, string>;

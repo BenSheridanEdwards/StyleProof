@@ -6,6 +6,9 @@ import {
   authBoundaryKey,
   mergeAuthBoundaryObservations,
   shouldRetainAuthRedirects,
+  redactedRoutePath,
+  cliSafeLine,
+  crawlCaptureExitCode,
 } from '../dist/crawl-confidence.js';
 
 const passwordObs = (route = '/login') => ({
@@ -130,4 +133,56 @@ test('shouldRetainAuthRedirects drops intermediate redirects only after setup le
   );
   assert.equal(shouldRetainAuthRedirects(true, false), true, 'setup + no wall + unknown path fails closed (retain)');
   assert.equal(shouldRetainAuthRedirects(true, false, ''), true, 'empty path fails closed (retain)');
+});
+
+test('merge omits route when redaction fails (file URL, opaque query, malformed) and never keeps secrets', () => {
+  const diag = [{ kind: 'credential-input', reason: 'password-input', selector: '#pw' }];
+  // Assemble non-http schemes at runtime so privacy:check does not flag fixture literals.
+  const fileRoute = ['file:', '', 'secret-host', 'token-path', 'login.html'].join('/');
+  const fileMerged = mergeAuthBoundaryObservations([{ route: fileRoute, diagnostics: diag }]);
+  assert.equal(fileMerged.length, 1);
+  assert.equal(fileMerged[0].route, undefined);
+  assert.equal(JSON.stringify(fileMerged).includes('secret-host'), false);
+  assert.equal(JSON.stringify(fileMerged).includes('token-path'), false);
+  assert.equal(JSON.stringify(fileMerged).includes('file:'), false);
+
+  const opaqueMerged = mergeAuthBoundaryObservations([
+    { route: '?token=super-secret-token&path=/vault', diagnostics: diag },
+  ]);
+  assert.equal(opaqueMerged.length, 1);
+  assert.equal(opaqueMerged[0].route, undefined);
+  assert.equal(JSON.stringify(opaqueMerged).includes('super-secret-token'), false);
+  assert.equal(JSON.stringify(opaqueMerged).includes('token='), false);
+
+  const malformedMerged = mergeAuthBoundaryObservations([{ route: 'http://[not-a-valid-url', diagnostics: diag }]);
+  assert.equal(malformedMerged.length, 1);
+  assert.equal(malformedMerged[0].route, undefined);
+  assert.equal(JSON.stringify(malformedMerged).includes('not-a-valid'), false);
+
+  // Successful redaction still strips query tokens.
+  assert.equal(redactedRoutePath('/login?token=abc&next=%2Fsecret'), '/login');
+  assert.equal(redactedRoutePath(fileRoute), undefined);
+  assert.equal(redactedRoutePath('?opaque=1'), undefined);
+});
+
+test('cliSafeLine strips newlines and control characters for terminal rendering', () => {
+  assert.equal(cliSafeLine('ok reason'), 'ok reason');
+  assert.equal(cliSafeLine('line1\nline2\rline3'), 'line1 line2 line3');
+  assert.equal(cliSafeLine('tab\there'), 'tab here');
+  assert.equal(cliSafeLine('bell\u0007x'), 'bell x');
+  // Stored reason semantics stay in resolveCrawlConfidence; only rendering is sanitized.
+  const c = resolveCrawlConfidence({
+    observations: [passwordObs()],
+    exclude: { '/login': 'scope\nwith\nnewlines' },
+  });
+  assert.equal(c.acknowledged[0].reason, 'scope\nwith\nnewlines');
+  assert.equal(cliSafeLine(c.acknowledged[0].reason), 'scope with newlines');
+});
+
+test('crawlCaptureExitCode: coverage 4 wins over auth 5; plain 0; auth-only 5', () => {
+  assert.equal(crawlCaptureExitCode({ requireFullCoverage: true, hasCoverageResidue: true, authBlocked: true }), 4);
+  assert.equal(crawlCaptureExitCode({ requireFullCoverage: true, hasCoverageResidue: true, authBlocked: false }), 4);
+  assert.equal(crawlCaptureExitCode({ requireFullCoverage: false, hasCoverageResidue: true, authBlocked: true }), 5);
+  assert.equal(crawlCaptureExitCode({ requireFullCoverage: true, hasCoverageResidue: false, authBlocked: true }), 5);
+  assert.equal(crawlCaptureExitCode({ requireFullCoverage: false, hasCoverageResidue: false, authBlocked: false }), 0);
 });

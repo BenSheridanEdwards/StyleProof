@@ -28,6 +28,7 @@ import {
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { selectCrawlLinks, dedupIdentity } from '../dist/crawl.js';
 import { writeCaptureManifest } from '../dist/map-store.js';
+import { cliSafeLine, crawlCaptureExitCode } from '../dist/crawl-confidence.js';
 
 const COMMAND = 'styleproof-capture';
 
@@ -92,6 +93,7 @@ Then diff against another capture — zero diff = pixel-identical:
 
 exit: 0 captured, 2 usage error, 3 capture failed, 4 coverage gap (--require-full-coverage),
       5 unacknowledged auth boundary (incomplete-auth, fail closed).
+      When both apply, coverage exit 4 wins over auth exit 5.
 `;
 
 const argv = process.argv.slice(2);
@@ -147,11 +149,16 @@ function printAuthIncomplete(blocked, unack, ack, stale) {
       `surfaces behind it are unknown (no coverage percentage invented)${tail}`,
   );
   for (const u of unack) {
-    const reasons = (u.diagnostics ?? []).map((d) => d.reason).join(', ');
-    console.log(`    unacknowledged: ${u.key}${reasons ? ` (${reasons})` : ''}`);
+    const key = cliSafeLine(String(u.key ?? ''));
+    const reasons = cliSafeLine((u.diagnostics ?? []).map((d) => d.reason).join(', '));
+    console.log(`    unacknowledged: ${key}${reasons ? ` (${reasons})` : ''}`);
   }
-  for (const a of ack) console.log(`    acknowledged: ${a.key} — ${a.reason}`);
-  if (stale.length) console.log(`    stale exclusions: ${stale.join(', ')}`);
+  for (const a of ack) {
+    const key = cliSafeLine(String(a.key ?? ''));
+    const reason = cliSafeLine(String(a.reason ?? ''));
+    console.log(`    acknowledged: ${key} — ${reason}`);
+  }
+  if (stale.length) console.log(`    stale exclusions: ${stale.map((s) => cliSafeLine(String(s))).join(', ')}`);
   if (blocked) {
     console.log(
       '    Next: add --setup with env-interpolated credentials, or --auth-boundary-exclude ' +
@@ -304,11 +311,13 @@ async function runCrawl() {
     const cov = aggregateCoverage(reports);
     printCoverage(cov, reports.length > 1 ? ` (${reports.length} pages)` : '');
     const conf = printConfidence(reports);
-    // Residue under --require-full-coverage → exit 4: a never-seen class OR an
-    // unreadable sheet (whose vocabulary can't be proven covered at all).
-    if (opts.requireFullCoverage && (cov.missing.length > 0 || cov.unreadable.length > 0)) process.exit(4);
-    // Unacknowledged auth boundaries fail closed → exit 5.
-    if (conf.blocked) process.exit(5);
+    // Coverage residue (exit 4) intentionally wins over unacknowledged auth (exit 5).
+    const code = crawlCaptureExitCode({
+      requireFullCoverage: opts.requireFullCoverage,
+      hasCoverageResidue: cov.missing.length > 0 || cov.unreadable.length > 0,
+      authBlocked: conf.blocked,
+    });
+    if (code !== 0) process.exit(code);
   } finally {
     await browser.close();
   }
