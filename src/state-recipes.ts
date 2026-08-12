@@ -6,14 +6,21 @@
  * *real* interaction states — hover, focus, and keyboard press — driven through
  * Playwright with stable keys and the shared destructive-action guard.
  *
+ * A recipe **collection** is a set of **independent state variants**, not an
+ * ordered action sequence. Each recipe is meant to be applied in isolation from
+ * a known baseline (e.g. after navigation/settle); array order never encodes
+ * multi-step choreography. `parseStateRecipes` enforces unique stable keys and
+ * returns a deterministic key-sorted collection for that reason.
+ *
  * First-slice scope only:
- *   - schema + pure validation
+ *   - schema + pure validation (including conservative press-key vocabulary)
  *   - hover / focus / press drivers
- *   - stable key derivation
+ *   - stable key derivation + duplicate detection
+ *   - deterministic collection ordering
  *   - destructive-label safety (never apply an unsafe control)
  *
  * Out of scope here (follow-up slices): network/route recipes, transient
- * observation windows, report wiring, arbitrary script/eval.
+ * observation windows, report wiring, arbitrary script/eval, modifier chords.
  */
 import type { Page } from '@playwright/test';
 import { DANGER_SOURCE } from './danger.js';
@@ -22,10 +29,34 @@ import { DANGER_SOURCE } from './danger.js';
 export type StateRecipeAction = 'hover' | 'focus' | 'press';
 
 /**
+ * Conservative keyboard vocabulary for `press` recipes — disclosure and
+ * navigation only. Exact Playwright key names; no modifiers, chords, or free text.
+ */
+export const ALLOWED_PRESS_KEYS = [
+  'Enter',
+  'Escape',
+  'Space',
+  'Tab',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+] as const;
+
+export type AllowedPressKey = (typeof ALLOWED_PRESS_KEYS)[number];
+
+const ALLOWED_PRESS_KEY_SET: ReadonlySet<string> = new Set(ALLOWED_PRESS_KEYS);
+
+/**
  * A single deterministic interaction that reaches a UI state.
  *
  * Shape mirrors {@link import('./crawl-surfaces.js').SetupStep}: plain data,
  * no functions, so recipes can live in JSON fixtures and stay serializable.
+ *
+ * Recipes in a collection are independent variants of state, not steps in a
+ * sequence — see {@link parseStateRecipes}.
  */
 export type StateRecipe = {
   action: StateRecipeAction;
@@ -36,10 +67,11 @@ export type StateRecipe = {
    */
   selector?: string;
   /**
-   * Playwright keyboard key for `press` (e.g. `Enter`, `Escape`, `ArrowDown`).
-   * Required when `action` is `press`.
+   * Keyboard key for `press`. Must be one of {@link ALLOWED_PRESS_KEYS}
+   * (e.g. `Enter`, `Escape`, `ArrowDown`). Required when `action` is `press`.
+   * Modifiers, chords (`Control+k`), and free-text values are rejected.
    */
-  key?: string;
+  key?: AllowedPressKey | string;
   /**
    * Human label for provenance and the destructive-action guard. When omitted
    * at apply time, the driver reads the live accessible label from the target.
@@ -115,6 +147,14 @@ function optionalNonEmptyString(value: unknown, field: string): string | undefin
 }
 
 /**
+ * True when `key` is in the conservative press vocabulary (exact match).
+ * Rejects modifiers/chords (`Control+Enter`), free text, and casing variants.
+ */
+export function isAllowedPressKey(key: string): key is AllowedPressKey {
+  return ALLOWED_PRESS_KEY_SET.has(key);
+}
+
+/**
  * Pure shape validation. Does **not** apply the destructive guard — use
  * {@link classifyStateRecipe} / {@link applyStateRecipe} for that so discovery
  * lists can still carry skipped unsafe candidates.
@@ -149,8 +189,15 @@ export function validateStateRecipe(raw: unknown): StateRecipe {
   if ((action === 'hover' || action === 'focus') && !selector) {
     throw new StateRecipeError(`state recipe action "${action}" requires a selector`);
   }
-  if (action === 'press' && !key) {
-    throw new StateRecipeError('state recipe action "press" requires a key');
+  if (action === 'press') {
+    if (!key) {
+      throw new StateRecipeError('state recipe action "press" requires a key');
+    }
+    if (!isAllowedPressKey(key)) {
+      throw new StateRecipeError(
+        `state recipe press key must be one of ${ALLOWED_PRESS_KEYS.join(', ')} (got ${JSON.stringify(key)}; modifiers, chords, and free-text are not allowed)`,
+      );
+    }
   }
 
   return {
@@ -162,10 +209,18 @@ export function validateStateRecipe(raw: unknown): StateRecipe {
   };
 }
 
-/** Validate an array of recipes. Index is included in any error message. */
+/**
+ * Validate a collection of **independent state variants** (not an ordered
+ * action sequence). Each recipe is a standalone path to a UI state from a
+ * known baseline; collection order is not choreography.
+ *
+ * - Validates every entry via {@link validateStateRecipe}
+ * - Rejects duplicate derived stable keys ({@link stateRecipeKey})
+ * - Returns recipes sorted by stable key for deterministic collection ordering
+ */
 export function parseStateRecipes(raw: unknown): StateRecipe[] {
   if (!Array.isArray(raw)) throw new StateRecipeError('state recipes must be a JSON array');
-  return raw.map((item, i) => {
+  const recipes = raw.map((item, i) => {
     try {
       return validateStateRecipe(item);
     } catch (e) {
@@ -174,6 +229,25 @@ export function parseStateRecipes(raw: unknown): StateRecipe[] {
       }
       throw e;
     }
+  });
+
+  const seen = new Map<string, number>();
+  for (let i = 0; i < recipes.length; i++) {
+    const derived = stateRecipeKey(recipes[i]!);
+    const prev = seen.get(derived);
+    if (prev !== undefined) {
+      throw new StateRecipeError(
+        `duplicate state recipe key "${derived}" (recipes[${prev}] and recipes[${i}]); state recipes are independent variants, not a sequence`,
+      );
+    }
+    seen.set(derived, i);
+  }
+
+  // Deterministic collection order by stable key (input order is not semantic).
+  return [...recipes].sort((a, b) => {
+    const ka = stateRecipeKey(a);
+    const kb = stateRecipeKey(b);
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
   });
 }
 

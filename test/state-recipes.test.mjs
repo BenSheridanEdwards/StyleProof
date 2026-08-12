@@ -1,10 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ALLOWED_PRESS_KEYS,
   validateStateRecipe,
   parseStateRecipes,
   stateRecipeKey,
   classifyStateRecipe,
+  isAllowedPressKey,
   isUnsafeStateLabel,
   StateRecipeError,
 } from '../dist/state-recipes.js';
@@ -73,6 +75,47 @@ test('validateStateRecipe: rejects unknown actions and forbidden fields loudly',
   assert.throws(() => validateStateRecipe('hover'), /plain object/);
 });
 
+test('validateStateRecipe: press keys limited to disclosure/navigation vocabulary', () => {
+  // Exact allowed set — no silent expansion
+  assert.deepEqual(
+    [...ALLOWED_PRESS_KEYS],
+    ['Enter', 'Escape', 'Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'],
+  );
+
+  for (const key of ALLOWED_PRESS_KEYS) {
+    assert.equal(isAllowedPressKey(key), true, key);
+    assert.equal(validateStateRecipe({ action: 'press', key }).key, key);
+  }
+
+  const rejected = [
+    'a',
+    'A',
+    'enter',
+    'ENTER',
+    ' ',
+    'PageDown',
+    'PageUp',
+    'F1',
+    'Backspace',
+    'Delete',
+    'Meta+k',
+    'Control+Enter',
+    'Shift+Tab',
+    'Alt+ArrowDown',
+    'cmd+s',
+    'Control+Shift+p',
+    'hello',
+    'ArrowDown ArrowUp',
+  ];
+  for (const key of rejected) {
+    assert.equal(isAllowedPressKey(key), false, key);
+    assert.throws(
+      () => validateStateRecipe({ action: 'press', key }),
+      /press key must be one of|modifiers, chords, and free-text/,
+    );
+  }
+});
+
 test('parseStateRecipes: validates arrays and indexes errors', () => {
   const recipes = parseStateRecipes([
     { action: 'hover', selector: '#a' },
@@ -81,6 +124,74 @@ test('parseStateRecipes: validates arrays and indexes errors', () => {
   assert.equal(recipes.length, 2);
   assert.throws(() => parseStateRecipes({ action: 'hover' }), /JSON array/);
   assert.throws(() => parseStateRecipes([{ action: 'hover' }]), /state recipe\[0\]/);
+});
+
+test('parseStateRecipes: rejects duplicate derived stable keys', () => {
+  assert.throws(
+    () =>
+      parseStateRecipes([
+        { action: 'hover', selector: '#menu', label: 'Open menu' },
+        { action: 'hover', selector: '#other', label: 'Open menu' },
+      ]),
+    /duplicate state recipe key "hover-open-menu".*recipes\[0\].*recipes\[1\].*independent variants/,
+  );
+
+  // Explicit stateKey collision (same slug after normalize)
+  assert.throws(
+    () =>
+      parseStateRecipes([
+        { action: 'press', key: 'Escape', stateKey: 'dismiss' },
+        { action: 'focus', selector: '#x', stateKey: 'dismiss' },
+      ]),
+    /duplicate state recipe key "dismiss"/,
+  );
+
+  // Explicit stateKey slug collides with another recipe's derived key
+  assert.throws(
+    () =>
+      parseStateRecipes([
+        { action: 'focus', selector: '#other', stateKey: 'hover-open-menu' },
+        { action: 'hover', selector: '#menu', label: 'Open menu' },
+      ]),
+    /duplicate state recipe key "hover-open-menu"/,
+  );
+
+  // stateKey values that slug-normalize to the same key
+  assert.throws(
+    () =>
+      parseStateRecipes([
+        { action: 'press', key: 'Tab', stateKey: 'Next Step!' },
+        { action: 'focus', selector: '#y', stateKey: 'next-step' },
+      ]),
+    /duplicate state recipe key "next-step"/,
+  );
+
+  // Same free-form inputs that slug to the same key
+  assert.throws(
+    () =>
+      parseStateRecipes([
+        { action: 'press', key: 'Enter', label: 'Submit' },
+        { action: 'press', key: 'Enter', label: 'Submit' },
+      ]),
+    /duplicate state recipe key "press-submit-enter"/,
+  );
+});
+
+test('parseStateRecipes: returns deterministic key ordering (independent variants, not a sequence)', () => {
+  const input = [
+    { action: 'press', key: 'Escape' },
+    { action: 'hover', selector: '#menu', label: 'Open menu' },
+    { action: 'focus', selector: '#email' },
+    { action: 'press', key: 'Tab', label: 'Next' },
+  ];
+  const a = parseStateRecipes(input);
+  const b = parseStateRecipes([...input].reverse());
+  const keysA = a.map(stateRecipeKey);
+  const keysB = b.map(stateRecipeKey);
+  assert.deepEqual(keysA, keysB);
+  assert.deepEqual(keysA, [...keysA].sort());
+  // Sorted by stable key, not input order
+  assert.deepEqual(keysA, ['focus-email', 'hover-open-menu', 'press-escape', 'press-next-tab']);
 });
 
 // ---------------------------------------------------------------------------
@@ -131,4 +242,21 @@ test('classifyStateRecipe: soft-skips unsafe labels; validates shape first', () 
 
   // Shape still fails before safety
   assert.throws(() => classifyStateRecipe({ action: 'hover' }), StateRecipeError);
+  assert.throws(() => classifyStateRecipe({ action: 'press', key: 'Control+c' }), /press key must be one of/);
+});
+
+// ---------------------------------------------------------------------------
+// Public package entry re-exports
+// ---------------------------------------------------------------------------
+
+test('package index re-exports press-key API used by consumers', async () => {
+  const pkg = await import('../dist/index.js');
+  assert.equal(typeof pkg.isAllowedPressKey, 'function');
+  assert.ok(Array.isArray(pkg.ALLOWED_PRESS_KEYS));
+  assert.deepEqual([...pkg.ALLOWED_PRESS_KEYS], [...ALLOWED_PRESS_KEYS]);
+  assert.equal(pkg.isAllowedPressKey('Enter'), true);
+  assert.equal(pkg.isAllowedPressKey('Control+Enter'), false);
+  assert.equal(typeof pkg.parseStateRecipes, 'function');
+  assert.equal(typeof pkg.validateStateRecipe, 'function');
+  assert.equal(typeof pkg.StateRecipeError, 'function');
 });

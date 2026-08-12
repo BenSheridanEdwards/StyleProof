@@ -11,10 +11,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - First experiment for deterministic interaction **state recipes** (#391): typed
   `hover` / `focus` / `press` recipe schema with pure validation, stable keys,
-  Playwright drivers, and the shared destructive-action guard. Network/route
+  Playwright drivers, and the shared destructive-action guard. A recipe
+  collection is a set of **independent state variants** (not an action
+  sequence): `parseStateRecipes` rejects duplicate derived keys and returns
+  deterministic key-sorted order. `press` accepts only a conservative
+  disclosure/navigation vocabulary (`Enter`, `Escape`, `Space`, `Tab`, arrows,
+  `Home`, `End`) — modifiers, chords, and free-text are rejected. Network/route
   recipes, transient observation, and report wiring remain follow-up slices.
-  New exports: `validateStateRecipe`, `parseStateRecipes`, `stateRecipeKey`,
-  `classifyStateRecipe`, `applyStateRecipe`, `stateRecipeDriver`.
+  New exports: `ALLOWED_PRESS_KEYS`, `isAllowedPressKey`, `validateStateRecipe`,
+  `parseStateRecipes`, `stateRecipeKey`, `classifyStateRecipe`,
+  `applyStateRecipe`, `stateRecipeDriver`.
 
 ## [6.0.5] - 2026-08-12
 

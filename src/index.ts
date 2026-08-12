@@ -83,17 +83,20 @@ export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from '
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';
 
 export {
+  ALLOWED_PRESS_KEYS,
   validateStateRecipe,
   parseStateRecipes,
   stateRecipeKey,
   classifyStateRecipe,
   applyStateRecipe,
   stateRecipeDriver,
+  isAllowedPressKey,
   isUnsafeStateLabel,
   StateRecipeError,
 } from './state-recipes.js';
 export type {
   StateRecipeAction,
+  AllowedPressKey,
   StateRecipe,
   AppliedStateRecipe,
   StateRecipeSkip,
