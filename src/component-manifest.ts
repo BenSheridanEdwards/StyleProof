@@ -328,7 +328,14 @@ function parseCatalogBasePath(value: unknown): string {
   if (segments.some((segment) => segment === '.' || segment === '..')) {
     fail(`"catalogBasePath" must not contain traversal segments`);
   }
-  return raw.replace(/\/+$/, '') || '/';
+  return stripTrailingSlashes(raw) || '/';
+}
+
+/** Linear trailing-slash trim. Avoids `/\/+$/` so CodeQL cannot treat catalog input as ReDoS. */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+  return value.slice(0, end);
 }
 
 function parseExclusions(value: unknown): ComponentManifestExclusion[] | undefined {

@@ -298,6 +298,12 @@ test('catalog paths reject traversal, external origins, delimiters, NULs, and un
     componentManifestCatalogPath('component-safe-default', { catalogBasePath: '/' }),
     '/component-safe-default',
   );
+  assert.equal(
+    componentManifestCatalogPath('component-safe-default', {
+      catalogBasePath: `/catalog${'/'.repeat(10_000)}`,
+    }),
+    '/catalog/component-safe-default',
+  );
 });
 
 test('componentManifestCatalogSurfaces: honors custom catalog base and url mapper', async () => {
