@@ -148,6 +148,15 @@ approval can clear only `STYLE_REVIEW_REQUIRED`. Each state appears once.
 | `DEGRADED_BASELINE`                | The base capture failed. This is a head-only receipt.                              | Hidden. Not a comparison.              |
 | `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                               | Hidden. Delivery failed.               |
 
+### Certified clean
+
+[![A GitHub-rendered StyleProof report with complete coverage, proven determinism, unchanged inventory, no data residue, and no reviewable computed-style changes](docs/readme/check-clean.png)](docs/readme/certified-clean-report.md)
+
+This report earns every green claim: the registered surface was captured, both
+base and head passed the self-check, the navigable set stayed intact, no failing
+data boundary was captured, and no reviewable computed-style or forced-state
+change was detected among semantically matched elements.
+
 ### Review required: approve the visual changes
 
 [![A GitHub-rendered StyleProof report showing changed visual evidence and the Approve all changes review gate](docs/readme/check-review-required.png)](docs/readme/live-report/comment.md)
@@ -183,6 +192,7 @@ it or acknowledge it in policy. The approval box cannot clear it.
 
 - [See the gate work](#see-the-gate-work)
   - [Comment states](#comment-states)
+  - [Certified clean](#certified-clean)
   - [Review required: approve the visual changes](#review-required-approve-the-visual-changes)
   - [A safety policy blocks](#a-safety-policy-blocks)
 - [Enterprise fit](#enterprise-fit)
