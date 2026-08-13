@@ -159,12 +159,13 @@ change was detected among semantically matched elements.
 
 ### Review required: approve the visual changes
 
-[![A GitHub-rendered StyleProof report showing changed visual evidence and the Approve all changes review gate](docs/readme/check-review-required.png)](docs/readme/live-report/comment.md)
+![An actual StyleProof GitHub PR comment showing detected computed-style and state changes with the unchecked Approve all changes control](docs/readme/check-review-required.png)
 
-This is the normal feature-work state. StyleProof has found reviewable visual
-changes, shown the before-and-after evidence, and kept the check red. A reviewer
-ticks **Approve all changes** to sign off that commit. Any later push that changes
-the evidence reopens the gate.
+This is the normal feature-work state, captured from an actual production pull
+request with repository details cropped out. StyleProof has found reviewable
+visual changes and kept the check red. A reviewer ticks **Approve all changes**
+to sign off that commit. Any later push that changes the evidence reopens the
+gate.
 
 ### A safety policy blocks
 
