@@ -717,13 +717,16 @@ Rules for this slice:
   rejected).
 - Every action, including `press`, requires an explicit **CSS-only, value-free**
   selector (`#id`, `.class`, `[aria-expanded]`, `input[name]`, `li:nth-child(2)`,
-  …). Quotes/backticks, attribute-equality, Playwright engine prefixes
-  (`text=`, `xpath=`, `css=`, …), and value-carrying functions (`:text()`,
-  `:has-text()`, `url()`) are rejected so secrets never enter keys, provenance,
-  or error messages. Public `stateRecipeKey` re-validates at entry. Labels and
-  `stateKey` are length-bounded and control-sanitized; fragments that cannot
-  slug are rejected (no generic `state` collision key). Bare Escape / ambient
-  keyboard is deferred rather than unsafe.
+  `nav > a`, …). Quotes/backticks, attribute-equality, Playwright engine prefixes
+  (`text=`, `xpath=`, `css=`, …), Playwright locator chaining (`>>`,
+  `button >> …`; single CSS `>` is fine), and value-carrying functions
+  (`:text()`, `:has-text()`, `url()`) are rejected so secrets never enter keys,
+  provenance, or error messages. Public `stateRecipeKey` runs full
+  `validateStateRecipe` then shared internal key derivation. Labels and
+  `stateKey` are length-bounded and control-sanitized; labels/`stateKey` that
+  cannot produce a non-empty safe slug fragment (emoji/CJK/punctuation-only)
+  are rejected before browser I/O (no generic `state` collision key). Bare
+  Escape / ambient keyboard is deferred rather than unsafe.
 - A collection is a set of **independent variants** from a known baseline, not a
   multi-step choreography. Duplicate derived keys are rejected; order is sorted
   by stable key.

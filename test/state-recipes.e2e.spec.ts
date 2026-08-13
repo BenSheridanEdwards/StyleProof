@@ -336,3 +336,56 @@ test('state recipes: apply failure messages never echo secret selectors', async 
     }
   });
 });
+
+test('state recipes: preflight rejects >> selectors and non-slug labels without mutating target', async ({
+  browser,
+}) => {
+  await withFixture(browser, async (page) => {
+    const secret = 'leaked-chain-value-9f3a';
+    // Snapshot mutation markers before any reject attempt
+    const beforeClass = await page.locator('body').getAttribute('class');
+    const emailFocusedBefore = await page.locator('body').evaluate((b) => b.classList.contains('email-focused'));
+    const cardHoveredBefore = await page.locator('body').evaluate((b) => b.classList.contains('card-hovered'));
+    const listOpenBefore = await page.locator('body').evaluate((b) => b.classList.contains('list-open'));
+
+    // Playwright >> chaining — pure preflight (apply / go validates on build)
+    for (const selector of [`>> ${secret}`, `button >> ${secret}`] as const) {
+      await expect(applyStateRecipe(page, { action: 'focus', selector })).rejects.toThrow(/privacy policy/);
+      expect(() => stateRecipeGo({ action: 'click', selector })).toThrow(/privacy policy/);
+      try {
+        await applyStateRecipe(page, { action: 'hover', selector });
+        expect.fail('should reject');
+      } catch (e) {
+        const text = `${(e as Error).name}\n${(e as Error).message}\n${(e as Error).stack ?? ''}`;
+        expect(text.includes(secret)).toBe(false);
+        expect(text).toMatch(/privacy policy/);
+      }
+    }
+
+    // Non-slug labels fail before browser I/O — target must stay pristine
+    for (const label of ['🎉', '你好', '!!!'] as const) {
+      await expect(applyStateRecipe(page, { action: 'focus', selector: '#email', label })).rejects.toThrow(
+        /label rejected by privacy policy|slug-able/,
+      );
+      expect(() => stateRecipeGo({ action: 'hover', selector: '#card', label })).toThrow(
+        /label rejected by privacy policy|slug-able/,
+      );
+    }
+
+    // No mutation from any of the above rejects
+    expect(await page.locator('body').getAttribute('class')).toBe(beforeClass);
+    expect(await page.locator('body').evaluate((b) => b.classList.contains('email-focused'))).toBe(emailFocusedBefore);
+    expect(await page.locator('body').evaluate((b) => b.classList.contains('card-hovered'))).toBe(cardHoveredBefore);
+    expect(await page.locator('body').evaluate((b) => b.classList.contains('list-open'))).toBe(listOpenBefore);
+    await expect(page.locator('#list')).toBeHidden();
+
+    // Safe apply still works afterward
+    const applied = await applyStateRecipe(page, {
+      action: 'focus',
+      selector: '#email',
+      label: 'Email',
+    });
+    expect(applied.stateKey).toBe('focus-email');
+    await expect(page.locator('body')).toHaveClass(/email-focused/);
+  });
+});

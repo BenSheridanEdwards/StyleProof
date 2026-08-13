@@ -17,7 +17,7 @@
  *   - hover / focus / press / click drivers
  *   - CSS-only selector privacy policy (value-free structural selectors only)
  *   - press always targets an explicit selector (no ambient keyboard)
- *   - stable key derivation + duplicate detection (public `stateRecipeKey` re-validates)
+ *   - stable key derivation + duplicate detection (public `stateRecipeKey` = validate + internal derive)
  *   - deterministic collection ordering
  *   - destructive-label safety (never apply an unsafe control)
  *   - post-action DOM settle via the same real-clock pattern as crawl
@@ -148,7 +148,8 @@ export type StateRecipe = {
    * Declared human label for stable keys and provenance. When omitted at apply
    * time, the driver may read the live accessible label for the destructive
    * guard and provenance only — live labels never rewrite stable keys.
-   * Blank/whitespace-only labels are rejected. Bounded and control-sanitized.
+   * Blank/whitespace-only and non-slugable (emoji/CJK/punctuation-only) labels
+   * are rejected. Bounded and control-sanitized.
    */
   label?: string;
   /**
@@ -304,6 +305,11 @@ function rejectSelectorShape(selector: string): void {
   if (selector.includes('\\')) {
     selectorPolicyReject('escape sequences are not allowed in selectors');
   }
+  // Playwright locator chaining (`>>` / `internal:…`) is not CSS. A single `>`
+  // child combinator remains allowed; reject any `>>` (optionally spaced).
+  if (/\s*>>\s*/.test(selector) || selector.includes('>>')) {
+    selectorPolicyReject('Playwright locator chaining is not allowed');
+  }
 }
 
 function rejectSelectorValueCarriers(selector: string): void {
@@ -358,13 +364,15 @@ function rejectUnsafePseudos(selector: string): void {
  * - no backslash escapes (no smuggled payloads)
  * - no attribute-equality (`=`, `~=`, `|=`, `^=`, `$=`, `*=`) — presence-only `[attr]` OK
  * - no Playwright engine prefixes (`text=`, `xpath=`, `css=`, `id=`, `role=`, …)
+ * - no Playwright locator chaining (`>>` / `button >> …`) — single CSS `>` OK
  * - no value-carrying functions (`:text(...)`, `:has-text(...)`, `url(...)`, …)
  * - structural pseudos only (`:first-child`, `:nth-child(2)`, simple `:not(...)`, …)
  * - no URL query (`?`) or credential forms
  *
  * Allowed: `#id`, `.class`, `button.primary`, `[aria-expanded]`, `input[name]`, `nav > a`,
  * `li:first-child`, `li:nth-child(2)`.
- * Rejected: `input[value=secret]`, `:text("x")`, `text=secret`, `xpath=//a`, quotes, escapes.
+ * Rejected: `input[value=secret]`, `:text("x")`, `text=secret`, `xpath=//a`, `>> secret`,
+ * `button >> secret`, quotes, escapes.
  *
  * Errors name the **policy**, never echo the selector (secrets must not appear in messages).
  * Prefer false rejection over privacy leak.
@@ -384,7 +392,9 @@ export function assertSafeRecipeSelector(value: unknown): string {
 }
 
 /**
- * Bound + control-sanitize declared labels. Never echo the value in errors.
+ * Bound + control-sanitize declared labels. Must produce a non-empty safe slug
+ * fragment (emoji / CJK / punctuation-only labels are rejected). Never echo the
+ * value in errors.
  */
 export function assertSafeRecipeLabel(value: unknown): string {
   if (typeof value !== 'string') {
@@ -402,6 +412,11 @@ export function assertSafeRecipeLabel(value: unknown): string {
   }
   if (CREDENTIALISH.test(label)) {
     labelPolicyReject('credential- or secret-like patterns are not allowed');
+  }
+  // Pure validation: labels that cannot contribute a stable key fragment fail
+  // before browser I/O (classify / go / apply preflight).
+  if (!slugFragment(label)) {
+    labelPolicyReject('must contain a slug-able alphanumeric fragment');
   }
   return label;
 }
@@ -487,12 +502,46 @@ export function validateStateRecipe(raw: unknown): StateRecipe {
 }
 
 /**
+ * Internal stable-key derivation for an already-validated {@link StateRecipe}.
+ * No re-validation and no recursion into {@link stateRecipeKey} /
+ * {@link validateStateRecipe} — callers that already hold a validated recipe
+ * (e.g. {@link parseStateRecipes}) use this to avoid double work and drift.
+ */
+function requireSlugFragment(value: string, reject: (detail: string) => never, maxLen = 48): string {
+  const s = slugFragment(value, maxLen);
+  if (!s) reject('must contain a slug-able alphanumeric fragment');
+  return s;
+}
+
+function deriveValidatedStateRecipeKey(recipe: StateRecipe): string {
+  if (recipe.stateKey !== undefined) {
+    return requireSlugFragment(recipe.stateKey, stateKeyPolicyReject, MAX_RECIPE_STATE_KEY_LENGTH).slice(0, 80);
+  }
+  const parts: string[] = [recipe.action];
+  if (recipe.label) {
+    parts.push(requireSlugFragment(recipe.label, labelPolicyReject));
+  } else {
+    parts.push(requireSlugFragment(recipe.selector, selectorPolicyReject));
+  }
+  if (recipe.action === 'press' && recipe.key !== undefined) {
+    // Validated recipes already constrain key; keep a hard guard for internal safety.
+    if (!isAllowedPressKey(recipe.key)) {
+      throw new StateRecipeError(
+        `state recipe press key must be one of ${ALLOWED_PRESS_KEYS.join(', ')} (modifiers, chords, and free-text are not allowed)`,
+      );
+    }
+    parts.push(slugFragment(recipe.key) ?? 'key');
+  }
+  return parts.join('-').replace(/-+/g, '-').slice(0, 80);
+}
+
+/**
  * Validate a collection of **independent state variants** (not an ordered
  * action sequence). Each recipe is a standalone path to a UI state from a
  * known baseline; collection order is not choreography.
  *
  * - Validates every entry via {@link validateStateRecipe}
- * - Rejects duplicate derived stable keys ({@link stateRecipeKey})
+ * - Rejects duplicate derived stable keys (internal derive after one validate)
  * - Returns recipes sorted by stable key for deterministic collection ordering
  */
 export function parseStateRecipes(raw: unknown): StateRecipe[] {
@@ -510,7 +559,7 @@ export function parseStateRecipes(raw: unknown): StateRecipe[] {
 
   const seen = new Map<string, number>();
   for (let i = 0; i < recipes.length; i++) {
-    const derived = stateRecipeKey(recipes[i]!);
+    const derived = deriveValidatedStateRecipeKey(recipes[i]!);
     const prev = seen.get(derived);
     if (prev !== undefined) {
       throw new StateRecipeError(
@@ -522,8 +571,8 @@ export function parseStateRecipes(raw: unknown): StateRecipe[] {
 
   // Deterministic collection order by stable key (input order is not semantic).
   return [...recipes].sort((a, b) => {
-    const ka = stateRecipeKey(a);
-    const kb = stateRecipeKey(b);
+    const ka = deriveValidatedStateRecipeKey(a);
+    const kb = deriveValidatedStateRecipeKey(b);
     return ka < kb ? -1 : ka > kb ? 1 : 0;
   });
 }
@@ -533,61 +582,19 @@ export function parseStateRecipes(raw: unknown): StateRecipe[] {
  * `action[-declared-label|-selector][-press-key]`. Deterministic across runs
  * and independent of live DOM labels.
  *
- * **Entry validation (public API):** re-checks selector / label / stateKey with
- * the privacy policy before deriving. Direct JS/cast calls with secret-bearing
- * selectors throw a policy-only error (no secret in message/stack) and never
- * return a secret-bearing key. Fragments that slug to empty are rejected
- * rather than collapsing to a generic `state` collision key.
+ * **Entry validation (public API):** runs full {@link validateStateRecipe}
+ * (closed world, selector/label/stateKey privacy, press-key rules) then derives
+ * via the shared internal helper. Direct JS/cast calls with secret-bearing
+ * selectors, unknown fields, or invalid keys throw policy-only errors (no
+ * secret in message/stack) and never return a secret-bearing key. Fragments
+ * that slug to empty are rejected rather than collapsing to a generic `state`
+ * collision key.
+ *
+ * Accepts `unknown` at runtime; TypeScript callers may still pass a
+ * {@link StateRecipe}.
  */
-function requireSlugFragment(value: string, reject: (detail: string) => never, maxLen = 48): string {
-  const s = slugFragment(value, maxLen);
-  if (!s) reject('must contain a slug-able alphanumeric fragment');
-  return s;
-}
-
-function derivedStateRecipeKey(
-  action: StateRecipeAction,
-  selector: string,
-  label: string | undefined,
-  key?: AllowedPressKey,
-): string {
-  const parts: string[] = [action];
-  if (label) {
-    parts.push(requireSlugFragment(label, labelPolicyReject));
-  } else {
-    parts.push(requireSlugFragment(selector, selectorPolicyReject));
-  }
-  if (action === 'press' && key !== undefined) {
-    if (!isAllowedPressKey(key)) {
-      throw new StateRecipeError(
-        `state recipe press key must be one of ${ALLOWED_PRESS_KEYS.join(', ')} (modifiers, chords, and free-text are not allowed)`,
-      );
-    }
-    parts.push(slugFragment(key) ?? 'key');
-  }
-  return parts.join('-').replace(/-+/g, '-').slice(0, 80);
-}
-
-export function stateRecipeKey(recipe: StateRecipe): string {
-  if (typeof recipe !== 'object' || recipe === null || Array.isArray(recipe)) {
-    throw new StateRecipeError('state recipe key rejected by privacy policy (must be a plain object)');
-  }
-  const r = recipe as StateRecipe;
-  // Always re-validate at the public boundary — typed StateRecipe is not a trust boundary.
-  const selector = assertSafeRecipeSelector(r.selector);
-  const label = r.label !== undefined ? assertSafeRecipeLabel(r.label) : undefined;
-  const explicit = r.stateKey !== undefined ? assertSafeRecipeStateKey(r.stateKey) : undefined;
-
-  if (explicit) {
-    return requireSlugFragment(explicit, stateKeyPolicyReject, MAX_RECIPE_STATE_KEY_LENGTH).slice(0, 80);
-  }
-
-  if (typeof r.action !== 'string' || !ACTIONS.has(r.action)) {
-    throw new StateRecipeError(
-      `state recipe action must be one of ${[...ACTIONS].join(', ')} (got ${typeof r.action === 'string' ? 'invalid action' : typeof r.action})`,
-    );
-  }
-  return derivedStateRecipeKey(r.action as StateRecipeAction, selector, label, r.key);
+export function stateRecipeKey(recipe: StateRecipe | unknown): string {
+  return deriveValidatedStateRecipeKey(validateStateRecipe(recipe));
 }
 
 /**
@@ -661,7 +668,7 @@ async function settleAfterRecipe(page: Page, maxMs = 1200): Promise<void> {
 function applied(recipe: StateRecipe, label?: string): AppliedStateRecipe {
   const resolvedLabel = label ?? recipe.label;
   return {
-    stateKey: stateRecipeKey(recipe),
+    stateKey: deriveValidatedStateRecipeKey(recipe),
     action: recipe.action,
     selector: recipe.selector,
     ...(recipe.key ? { key: recipe.key } : {}),
@@ -700,7 +707,8 @@ export async function applyStateRecipe(page: Page, raw: unknown): Promise<Applie
     throw new StateRecipeError(`refusing unsafe state recipe (${classified.skip.label}): ${classified.skip.detail}`);
   }
   const recipe = classified.recipe;
-  const fail = () => new StateRecipeError(`state recipe failed (${recipe.action} key=${stateRecipeKey(recipe)})`);
+  const fail = () =>
+    new StateRecipeError(`state recipe failed (${recipe.action} key=${deriveValidatedStateRecipeKey(recipe)})`);
 
   let liveLabel: string | undefined;
   try {

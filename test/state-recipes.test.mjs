@@ -225,6 +225,11 @@ test('assertSafeRecipeSelector / validateStateRecipe: CSS-only policy rejects se
     '#x' + String.fromCharCode(92) + ':text(' + secret + ')',
 
     `internal:testid=${secret}`,
+    // Playwright locator chaining (not CSS; single `>` remains OK)
+    `>> ${secret}`,
+    `button >> ${secret}`,
+    `#menu >> text=${secret}`,
+    `div >> css=button`,
   ];
 
   for (const selector of leaky) {
@@ -321,6 +326,14 @@ test('label / stateKey bounds, controls, and non-collapsing slugs', () => {
     assert.equal(String(err.message).includes(String.fromCharCode(10)), false);
   }
 
+  // Labels that cannot slug rejected at pure validation (not only at key time)
+  for (const label of ['!!!', '🎉', '你好']) {
+    assert.throws(
+      () => validateStateRecipe({ action: 'hover', selector: '#x', label }),
+      /label rejected by privacy policy/,
+    );
+  }
+
   // stateKey must slug; all-punctuation collapses rejected (no generic "state")
   for (const stateKey of ['!!!', '---', '…', '@@@', '']) {
     assert.throws(
@@ -343,6 +356,116 @@ test('label / stateKey bounds, controls, and non-collapsing slugs', () => {
   );
   // Selector that cannot slug
   assert.throws(() => stateRecipeKey(/** @type {any} */ ({ action: 'hover', selector: '###' })), /privacy policy/);
+});
+
+// Playwright >> chaining rejected before key derivation (no secret echo)
+test('selector policy: Playwright >> chaining rejected without echoing secrets', () => {
+  const secret = 'chain-secret-token-xyz';
+  const chained = [`>> ${secret}`, `button >> ${secret}`, `#x >> .y`, `main >> ${secret}`];
+  for (const selector of chained) {
+    for (const fn of [
+      () => assertSafeRecipeSelector(selector),
+      () => validateStateRecipe({ action: 'focus', selector }),
+      () => stateRecipeKey(/** @type {any} */ ({ action: 'focus', selector })),
+      () => classifyStateRecipe({ action: 'click', selector }),
+      () => stateRecipeGo({ action: 'hover', selector }),
+    ]) {
+      let err;
+      try {
+        fn();
+        assert.fail(`expected reject for ${JSON.stringify(selector)}`);
+      } catch (e) {
+        err = e;
+      }
+      assert.ok(err instanceof StateRecipeError);
+      assert.match(String(err.message), /privacy policy/);
+      const ser = JSON.stringify({ m: err.message, s: err.stack, n: err.name });
+      assert.equal(ser.includes(secret), false, 'must not echo secret');
+      assert.equal(ser.includes('chain-secret'), false);
+    }
+  }
+  // Single CSS child combinator remains allowed
+  assert.equal(assertSafeRecipeSelector('nav > a'), 'nav > a');
+  assert.equal(validateStateRecipe({ action: 'click', selector: 'nav > a' }).selector, 'nav > a');
+});
+
+// Labels must slug; emoji/CJK/punctuation-only fail pure validation (preflight)
+test('label policy: requires non-empty slug fragment (emoji/CJK/punct-only rejected)', () => {
+  const bad = ['🎉', '🔥🔥', '你好', '日本語', '!!!', '…', '@@@', '—', '   !!!   '];
+  for (const label of bad) {
+    for (const fn of [
+      () => assertSafeRecipeLabel(label),
+      () => validateStateRecipe({ action: 'hover', selector: '#x', label }),
+      () => classifyStateRecipe({ action: 'hover', selector: '#x', label }),
+      () => stateRecipeKey(/** @type {any} */ ({ action: 'hover', selector: '#x', label })),
+      () => stateRecipeGo({ action: 'focus', selector: '#x', label }),
+    ]) {
+      let err;
+      try {
+        fn();
+        assert.fail(`expected label reject for ${JSON.stringify(label)}`);
+      } catch (e) {
+        err = e;
+      }
+      assert.ok(err instanceof StateRecipeError);
+      assert.match(String(err.message), /label rejected by privacy policy|slug-able/);
+      // Never echo the raw label body in errors
+      const msg = String(err.message);
+      if (label.trim()) {
+        assert.equal(msg.includes(label.trim()), false);
+      }
+    }
+  }
+  // Mixed labels that retain an alphanumeric fragment still work
+  assert.equal(assertSafeRecipeLabel('Open 🎉 menu'), 'Open 🎉 menu');
+  assert.equal(stateRecipeKey({ action: 'hover', selector: '#x', label: 'Open 🎉 menu' }), 'hover-open-menu');
+});
+
+// Canonical stateRecipeKey = full validate + internal derive
+test('stateRecipeKey: full canonical validation (unknown fields, non-press key, invalid press key)', () => {
+  // Unknown fields
+  assert.throws(
+    () => stateRecipeKey(/** @type {any} */ ({ action: 'hover', selector: '#x', timeout: 1 })),
+    /must not include "timeout"/,
+  );
+  assert.throws(
+    () => stateRecipeKey(/** @type {any} */ ({ action: 'focus', selector: '#x', force: true })),
+    /must not include "force"/,
+  );
+  // key only on press
+  assert.throws(
+    () => stateRecipeKey(/** @type {any} */ ({ action: 'hover', selector: '#x', key: 'Enter' })),
+    /must not include "key"/,
+  );
+  assert.throws(
+    () => stateRecipeKey(/** @type {any} */ ({ action: 'click', selector: '#x', key: 'Escape' })),
+    /must not include "key"/,
+  );
+  // invalid press key
+  assert.throws(
+    () => stateRecipeKey(/** @type {any} */ ({ action: 'press', selector: '#x', key: 'Control+c' })),
+    /press key must be one of/,
+  );
+  assert.throws(
+    () => stateRecipeKey(/** @type {any} */ ({ action: 'press', selector: '#x', key: 'a' })),
+    /press key must be one of/,
+  );
+  // missing press key
+  assert.throws(() => stateRecipeKey(/** @type {any} */ ({ action: 'press', selector: '#x' })), /requires a key/);
+  // matches validate → derive for safe recipes
+  const r = { action: 'press', selector: '#dlg', key: 'Escape', label: 'Dialog' };
+  assert.equal(stateRecipeKey(r), 'press-dialog-escape');
+  assert.equal(stateRecipeKey(validateStateRecipe(r)), 'press-dialog-escape');
+  // >> + secret never in key path
+  const secret = 'key-path-secret-zzz';
+  try {
+    stateRecipeKey(/** @type {any} */ ({ action: 'focus', selector: `button >> ${secret}` }));
+    assert.fail('expected reject');
+  } catch (e) {
+    const ser = JSON.stringify({ m: e.message, s: e.stack });
+    assert.equal(ser.includes(secret), false);
+    assert.match(String(e.message), /privacy policy/);
+  }
 });
 
 // ---------------------------------------------------------------------------
