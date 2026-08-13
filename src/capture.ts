@@ -18,8 +18,9 @@ import { isMapFile } from './map-store.js';
  *              plus ::before / ::after / ::marker / ::placeholder.
  *   states   — for interactive elements, what :hover, :focus(-visible) and
  *              :active change (forced via CDP, no mouse involved), captured
- *              as a delta over the element's subtree. Screenshots cannot see
- *              these; this is where dropped `hover:` variants get caught.
+ *              as a delta over the element's subtree. Rest screenshots cannot
+ *              see these; the `*.hover.png` / `*.focus.png` / `*.active.png`
+ *              layers can. This is where dropped `hover:` variants get caught.
  *   motion   — transition/animation longhands are captured before the
  *              freeze-CSS below nulls them, so declared motion is verified
  *              too, while every other captured value is a settled end state.
@@ -826,6 +827,84 @@ async function captureForcedStates(
   // flag the layer so the diff reports it as uncertified instead of letting the
   // missing states read as "identical" against a fully-captured side.
   return { states, skipped: truncated };
+}
+
+export const STATE_LAYER_NAMES = ['hover', 'focus', 'active'] as const;
+export type StateLayerName = (typeof STATE_LAYER_NAMES)[number];
+
+/** `<stem>.hover.png` — the full-page shot with every interactive node forced. */
+export function stateLayerScreenshotPath(stem: string, state: string): string {
+  return `${stem}.${state}.png`;
+}
+
+function markInteractiveForShot({ selector, skipSel, attr }: MarkArgs): string[] {
+  let i = 0;
+  const ids: string[] = [];
+  for (const el of document.querySelectorAll(selector)) {
+    if (skipSel && (el as Element).matches(skipSel)) continue;
+    const id = `sp-${i++}`;
+    el.setAttribute(attr, id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * Force every interactive element into :hover, then :focus, then :active, and
+ * write one full-page screenshot per state next to the rest shot. The report
+ * crops those layers so a hover change is hover-versus-hover, not rest-versus-rest.
+ */
+export async function captureStateLayerScreenshots(
+  page: Page,
+  stem: string,
+  options: { ignore?: string[]; maxInteractive?: number } = {},
+): Promise<string[]> {
+  const ignore = options.ignore ?? [];
+  const maxInteractive = options.maxInteractive ?? 800;
+  const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
+  const ids = (
+    await page.evaluate(markInteractiveForShot, { selector: INTERACTIVE, skipSel, attr: STATE_ID_ATTR })
+  ).slice(0, maxInteractive);
+  const written: string[] = [];
+  const client = await page.context().newCDPSession(page);
+  try {
+    await client.send('DOM.enable');
+    await client.send('CSS.enable');
+    const { root } = await client.send('DOM.getDocument');
+    const nodeIds: number[] = [];
+    for (const id of ids) {
+      const { nodeId } = await client.send('DOM.querySelector', {
+        nodeId: root.nodeId,
+        selector: `[${STATE_ID_ATTR}="${id}"]`,
+      });
+      if (nodeId) nodeIds.push(nodeId);
+    }
+    for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
+      for (const nodeId of nodeIds) {
+        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses });
+      }
+      const dest = stateLayerScreenshotPath(stem, stateName);
+      await page.screenshot({ path: dest, fullPage: true, animations: 'disabled' });
+      written.push(dest);
+      for (const nodeId of nodeIds) {
+        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+      }
+    }
+  } finally {
+    await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
+    await client.detach().catch(() => undefined);
+  }
+  return written;
+}
+
+/** Rest screenshot plus the three forced-state layers. */
+export async function captureSurfaceScreenshots(
+  page: Page,
+  stem: string,
+  options: { ignore?: string[]; maxInteractive?: number } = {},
+): Promise<void> {
+  await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+  await captureStateLayerScreenshots(page, stem, options);
 }
 
 type Elements = Record<string, ElementEntry>;

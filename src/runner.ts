@@ -4,6 +4,7 @@ import path from 'node:path';
 import {
   captureStyleMap,
   saveStyleMap,
+  captureSurfaceScreenshots,
   trackInflightRequests,
   trackDataResidue,
   type CaptureMetadata,
@@ -891,7 +892,7 @@ async function capturePopupCandidate(
 
     const stem = path.join(resolveOutputDir(s.baseDir, s.dir), `${surface.key}-${popupId}@${width}`);
     saveStyleMap(`${stem}.json.gz`, map);
-    if (s.screenshots) await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+    if (s.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
   } finally {
     requests.dispose();
   }
@@ -1002,8 +1003,8 @@ async function captureSurface(
         saveStyleMap(`${stem}.json.gz`, map);
         if (s.screenshots) {
           // captureStyleMap froze animations/transitions, so this is the same settled
-          // state the map describes.
-          await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+          // state the map describes. State layers are hover/focus/active, not rest.
+          await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
         }
       },
     );
