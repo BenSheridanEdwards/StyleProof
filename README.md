@@ -12,9 +12,9 @@ Intentional changes get approved. Unexpected changes block.
 [![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
 
 On a pull request the Action comment has to stop at a link. GitHub comments
-cannot carry the crops. The README can. This is the unmodified product
-report: Save at rest, then Docs hover, focus, and active. Both sides of
-each state crop are in that state.
+cannot carry the crops. The README can. This report starts with ordinary
+resting-state changes to colour and size, then shows hover, focus, and active
+changes. Both sides of each interaction-state crop are in that state.
 
 <!-- styleproof-report -->
 
@@ -24,6 +24,46 @@ each state crop are in that state.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
 ## Element-level changes
+
+### `button.btn` · resting colour changed
+
+_demo-button @ 900_
+
+`background-color` `#14b8a6` → `#dc2626`<br>
+`border-color` `#38d6c6` → `#f87171`
+
+![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
+
+<sub>◀ before · after ▶ — the button at rest</sub>
+
+**`button.btn`**
+
+Style:
+
+| Property           | Before    | After     |
+| ------------------ | --------- | --------- |
+| `background-color` | `#14b8a6` | `#dc2626` |
+| `border-color`     | `#38d6c6` | `#f87171` |
+
+### `button.btn` · resting size changed
+
+_demo-button @ 900_
+
+`padding` `14px 28px` → `18px 32px`<br>
+`font-size` `13px` → `16px`
+
+![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
+
+<sub>🔍 magenta boxes mark the size change — changed: `button.btn`</sub>
+
+**`button.btn`**
+
+Style:
+
+| Property    | Before      | After       |
+| ----------- | ----------- | ----------- |
+| `padding`   | `14px 28px` | `18px 32px` |
+| `font-size` | `13px`      | `16px`      |
 
 ### `a.link` · 1 element restyled `:hover`
 
