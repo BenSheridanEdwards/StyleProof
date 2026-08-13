@@ -742,28 +742,23 @@ function cellPair(before: string, after: string): [string, string] {
 }
 
 /** One line per property change, stacked above the crop. No bullets. */
+function glancePart(prefix: string, change: { prop: string; before: string; after: string }, added: boolean): string {
+  if (added) return `${prefix}${codeValue(change.prop)} ${cell(change.after)}`;
+  const [b, a] = cellPair(change.before, change.after);
+  return `${prefix}${codeValue(change.prop)} ${b} → ${a}`;
+}
+
 export function propertyGlanceLine(findings: Finding[]): string {
   const parts: string[] = [];
   for (const group of groupByPath(findings)) {
     const added = group.some((f) => f.kind === 'dom' && f.change === 'added');
     for (const s of group.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style')) {
       const prefix = s.pseudo ? `${codeValue(s.pseudo)} ` : '';
-      for (const c of summarizeProps(s.props)) {
-        if (added) parts.push(`${prefix}${codeValue(c.prop)} ${cell(c.after)}`);
-        else {
-          const [b, a] = cellPair(c.before, c.after);
-          parts.push(`${prefix}${codeValue(c.prop)} ${b} → ${a}`);
-        }
-      }
+      for (const c of summarizeProps(s.props)) parts.push(glancePart(prefix, c, added));
     }
     for (const st of group.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state')) {
-      for (const c of summarizeProps(st.props)) {
-        if (added) parts.push(`${codeValue(`:${st.state}`)} ${codeValue(c.prop)} ${cell(c.after)}`);
-        else {
-          const [b, a] = cellPair(c.before, c.after);
-          parts.push(`${codeValue(`:${st.state}`)} ${codeValue(c.prop)} ${b} → ${a}`);
-        }
-      }
+      const prefix = `${codeValue(`:${st.state}`)} `;
+      for (const c of summarizeProps(st.props)) parts.push(glancePart(prefix, c, added));
     }
   }
   // <br> is required: GitHub collapses adjacent markdown lines into one paragraph.
@@ -1784,7 +1779,7 @@ function appendCrop(args: {
   };
 }
 
-function appendStateSections(args: {
+type StateSectionArgs = {
   g: Group;
   regionFindings: Finding[];
   sd: SurfaceDiff;
@@ -1796,59 +1791,113 @@ function appendStateSections(args: {
   surfaceList: string;
   cropSeq: number;
   firstHeadingUsesAll: boolean;
-}): {
+};
+
+function appendOneState(
+  args: StateSectionArgs,
+  state: (typeof STATE_LAYER_NAMES)[number],
+  md: string[],
+): {
+  cropSeq: number;
+  images?: { composite?: string; annotated?: string; zoom?: string };
+} {
+  const { g, regionFindings, sd, mapA, mapB, region, ctx, describeCtx, surfaceList } = args;
+  const sf = regionFindings.filter(
+    (f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state' && f.state === state,
+  );
+  if (!sf.length) return { cropSeq: args.cropSeq };
+  const headingFindings = args.firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
+  md.push('', `### ${regionHeading(g.paths, headingFindings)} \`:${state}\``, '', surfaceList);
+  md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
+  const glance = propertyGlanceLine(sf);
+  if (glance) md.push('', glance);
+  const layerA = readPng(path.join(ctx.beforeDir, `${sd.surface}.${state}.png`));
+  const layerB = readPng(path.join(ctx.afterDir, `${sd.surface}.${state}.png`));
+  let cropSeq = args.cropSeq;
+  let images: { composite?: string; annotated?: string; zoom?: string } | undefined;
+  if (layerA && layerB) {
+    const packed = appendCrop({
+      g,
+      region,
+      regionFindings: sf,
+      sd,
+      mapA,
+      mapB,
+      pngA: layerA,
+      pngB: layerB,
+      ctx,
+      cropSeq,
+      pairCaption: {
+        left: `base :${state}`,
+        right: `head :${state}`,
+        note: `both sides are :${state}`,
+      },
+    });
+    cropSeq = packed.cropSeq;
+    md.push(...packed.md);
+    if (packed.images.composite) images = packed.images;
+  } else {
+    md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
+  }
+  md.push(...renderCropChanges(sf, ctx.foldDetailsAt, describeCtx));
+  return { cropSeq, images };
+}
+
+function appendStateSections(args: StateSectionArgs): {
   md: string[];
   stateImages: Record<string, { composite?: string; annotated?: string; zoom?: string }>;
   firstImages: { composite?: string; annotated?: string; zoom?: string };
   cropSeq: number;
 } {
-  const { g, regionFindings, sd, mapA, mapB, region, ctx, describeCtx, surfaceList } = args;
   const md: string[] = [];
   const stateImages: Record<string, { composite?: string; annotated?: string; zoom?: string }> = {};
   const firstImages: { composite?: string; annotated?: string; zoom?: string } = {};
   let cropSeq = args.cropSeq;
   for (const state of STATE_LAYER_NAMES) {
-    const sf = regionFindings.filter(
-      (f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state' && f.state === state,
-    );
-    if (!sf.length) continue;
-    const headingFindings = args.firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
-    md.push('', `### ${regionHeading(g.paths, headingFindings)} \`:${state}\``, '', surfaceList);
-    md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
-    const glance = propertyGlanceLine(sf);
-    if (glance) md.push('', glance);
-    const layerA = readPng(path.join(ctx.beforeDir, `${sd.surface}.${state}.png`));
-    const layerB = readPng(path.join(ctx.afterDir, `${sd.surface}.${state}.png`));
-    if (layerA && layerB) {
-      const packed = appendCrop({
-        g,
-        region,
-        regionFindings: sf,
-        sd,
-        mapA,
-        mapB,
-        pngA: layerA,
-        pngB: layerB,
-        ctx,
-        cropSeq,
-        pairCaption: {
-          left: `base :${state}`,
-          right: `head :${state}`,
-          note: `both sides are :${state}`,
-        },
-      });
-      cropSeq = packed.cropSeq;
-      md.push(...packed.md);
-      if (packed.images.composite) {
-        stateImages[state] = packed.images;
-        if (!firstImages.composite) Object.assign(firstImages, packed.images);
-      }
-    } else {
-      md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
-    }
-    md.push(...renderCropChanges(sf, ctx.foldDetailsAt, describeCtx));
+    const one = appendOneState({ ...args, cropSeq }, state, md);
+    cropSeq = one.cropSeq;
+    if (!one.images) continue;
+    stateImages[state] = one.images;
+    if (!firstImages.composite) Object.assign(firstImages, one.images);
   }
   return { md, stateImages, firstImages, cropSeq };
+}
+
+function appendRestBlock(args: {
+  g: Group;
+  sd: SurfaceDiff;
+  mapA: StyleMap;
+  mapB: StyleMap;
+  pngA: PNG | null;
+  pngB: PNG | null;
+  region: Box | null;
+  cropFindings: Finding[];
+  ctx: RenderCtx;
+  describeCtx: DescribeCtx;
+  surfaceList: string;
+  cropSeq: number;
+}): CropPack & { headingMd: string[] } {
+  const headingMd = ['', `### ${regionHeading(args.g.paths, args.cropFindings)}`, '', args.surfaceList];
+  const glance = propertyGlanceLine(args.cropFindings);
+  if (glance) headingMd.push('', glance);
+  const packed = appendCrop({
+    g: args.g,
+    region: args.region,
+    regionFindings: args.cropFindings,
+    sd: args.sd,
+    mapA: args.mapA,
+    mapB: args.mapB,
+    pngA: args.pngA,
+    pngB: args.pngB,
+    ctx: args.ctx,
+    cropSeq: args.cropSeq,
+  });
+  packed.md = [
+    ...headingMd,
+    ...packed.md,
+    ...renderCropChanges(args.cropFindings, args.ctx.foldDetailsAt, args.describeCtx),
+  ];
+  return { ...packed, headingMd };
 }
 
 // Render one crop region: heading, rest crop, then each forced-state crop.
@@ -1883,52 +1932,45 @@ function renderRegion(args: {
   const region = visible(g.after) ? g.after : g.before;
   const cropFindings = hasDom ? regionFindings : rest;
   if (!stateOnly && cropFindings.length) {
-    md.push('', `### ${regionHeading(g.paths, cropFindings)}`, '', surfaceList);
-    const glance = propertyGlanceLine(cropFindings);
-    if (glance) md.push('', glance);
-    const packed = appendCrop({
+    const packed = appendRestBlock({
       g,
-      region,
-      regionFindings: cropFindings,
       sd,
       mapA,
       mapB,
       pngA,
       pngB,
+      region,
+      cropFindings,
       ctx,
+      describeCtx,
+      surfaceList,
       cropSeq,
     });
     cropSeq = packed.cropSeq;
     md.push(...packed.md);
     Object.assign(images, packed.images);
-    if (packed.visualEvidence) {
-      visualEvidence = packed.visualEvidence;
-      reason = packed.reason;
-    }
-    md.push(...renderCropChanges(cropFindings, ctx.foldDetailsAt, describeCtx));
+    visualEvidence = packed.visualEvidence;
+    reason = packed.reason;
   }
 
-  const stateImages: Record<string, { composite?: string; annotated?: string; zoom?: string }> = {};
-  if (!hasDom) {
-    const states = appendStateSections({
-      g,
-      regionFindings,
-      sd,
-      mapA,
-      mapB,
-      region,
-      ctx,
-      describeCtx,
-      surfaceList,
-      cropSeq,
-      firstHeadingUsesAll: stateOnly,
-    });
-    cropSeq = states.cropSeq;
-    md.push(...states.md);
-    Object.assign(stateImages, states.stateImages);
-    if (stateOnly && !images.composite) Object.assign(images, states.firstImages);
-  }
-
+  const states = hasDom
+    ? { md: [] as string[], stateImages: {}, firstImages: {}, cropSeq }
+    : appendStateSections({
+        g,
+        regionFindings,
+        sd,
+        mapA,
+        mapB,
+        region,
+        ctx,
+        describeCtx,
+        surfaceList,
+        cropSeq,
+        firstHeadingUsesAll: stateOnly,
+      });
+  cropSeq = states.cropSeq;
+  md.push(...states.md);
+  if (stateOnly && !images.composite) Object.assign(images, states.firstImages);
   if (!md.length) {
     md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
     const note = cropNote(region, pngA, pngB);
@@ -1943,7 +1985,7 @@ function renderRegion(args: {
       before: g.before,
       after: g.after,
       images,
-      ...(Object.keys(stateImages).length ? { stateImages } : {}),
+      ...(Object.keys(states.stateImages).length ? { stateImages: states.stateImages } : {}),
       ...(visualEvidence ? { visualEvidence, reason } : {}),
     },
     cropSeq,
