@@ -2,8 +2,8 @@
 
 **Certification**
 - **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)
-- **Determinism** — ⚠ unknown (a capture predates the determinism ledger)
-- **Inventory** — ⚠ 1 navigable affordance(s) removed, unacknowledged: route:/b
+- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
+- **Inventory** — ✓ navigable set unchanged
 
 ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
