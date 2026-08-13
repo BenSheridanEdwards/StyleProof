@@ -685,6 +685,44 @@ overlay, an empty render) has no control to click, so it never appears in the
 manifest; those need `liveStates` fixtures, per the
 [un-exercised-state gap](#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle).
 
+### State recipes: explicit hover, focus, keyboard, and click variants
+
+For interaction states that must be driven as **independent, named variants**
+(not crawl discovery), StyleProof exports a typed **state recipe** contract:
+
+```ts
+import { parseStateRecipes, stateRecipeDriver, applyStateRecipe, stateRecipeKey } from 'styleproof';
+
+const recipes = parseStateRecipes([
+  { action: 'hover', selector: '#plan-card', label: 'Plan card' },
+  { action: 'focus', selector: '#email', label: 'Email' },
+  { action: 'press', selector: '#menu', key: 'ArrowDown', label: 'Open menu' },
+  { action: 'click', selector: '#menu', label: 'Open menu' },
+]);
+
+// Drop into an existing SurfaceVariant / setup:
+const go = stateRecipeDriver(recipes[0]);
+// or drive ad hoc:
+// await applyStateRecipe(page, recipes[0]);
+```
+
+Rules for this slice:
+
+- Actions are only `hover`, `focus`, `press`, and `click` — no `eval`, arbitrary
+  script, network mocks, or route recipes here.
+- A collection is a set of **independent variants** from a known baseline, not a
+  multi-step choreography. Duplicate derived keys are rejected; order is sorted
+  by stable key.
+- Stable keys come from declared `stateKey` / label / selector. Live accessible
+  labels still feed the destructive-action guard (so a benign declared label
+  cannot authorize a control whose live label is `Delete` / `Remove` / …).
+- `press` keys are a fixed disclosure/navigation allowlist (`Enter`, `Escape`,
+  `Space`, `Tab`, arrows, `Home`, `End`).
+
+Crawler auto-discovery, transient observation windows, network-state recipes,
+and state-coverage reporting are **not** wired in this release — those remain
+follow-up slices.
+
 ### Live UI states: capture each state, not an average
 
 StyleProof automatically detects semantic live-state candidates (`aria-live`,
