@@ -87,6 +87,28 @@ export type {
   DiscoverComponentFilesOptions,
   ComponentCatalogSurfaceOptions,
 } from './components.js';
+export {
+  validateComponentManifest,
+  isSerializableManifestValue,
+  slugManifestSegment,
+  componentManifestSurfaceKey,
+  componentManifestCatalogPath,
+  componentManifestToDiscovered,
+  componentManifestCatalogSurfaces,
+  ComponentManifestError,
+} from './component-manifest.js';
+export type {
+  ManifestJsonPrimitive,
+  ManifestJsonValue,
+  ComponentManifestVariant,
+  ComponentManifestComponent,
+  ComponentManifestExclusion,
+  ComponentManifest,
+  ValidateComponentManifestOptions,
+  ComponentManifestSurfaceKeyInput,
+  ComponentManifestCatalogPathOptions,
+  ComponentManifestCatalogSurfaceOptions,
+} from './component-manifest.js';
 export { selectCrawlLinks, defaultLinkKey, crawlCoverageGaps, crawlCoverageError } from './crawl.js';
 export type { CrawlLink, LinkMatch, SelectLinksOptions, CrawlCoverageGaps } from './crawl.js';
 export { harvestStyleVariants } from './variant-crawler.js';
