@@ -12,33 +12,33 @@ Intentional changes get approved. Unexpected changes block.
 [![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
 
 On a pull request the Action comment has to stop at a link. GitHub comments
-cannot carry the crops. The README can. This report starts with ordinary
-resting-state changes to colour and size, then shows hover, focus, and active
-changes. Both sides of each interaction-state crop are in that state.
+cannot carry the crops. The README can. This is the unmodified product
+report: Save at rest comes first, followed by Docs hover, focus, and active.
+Both sides of each interaction-state crop are in that state.
 
 <!-- styleproof-report -->
 
 ## 🗺️ StyleProof report
 
-**5 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+**2 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
 ## Element-level changes
 
-### `button.btn` · resting colour and size changed
+### `button.btn` · 1 element restyled
 
 _demo-button @ 900_
 
-`background-color` `#14b8a6` → `#dc2626`<br>
-`padding` `14px 28px` → `18px 32px`
+`padding` `14px 28px` → `18px 32px`<br>
+`background-color` `#14b8a6` → `#dc2626`
 
 ![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
 
-<sub>◀ before · after ▶ — the button at rest</sub>
+<sub>◀ before · after ▶ — demo-button @ 900</sub>
 
 ![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
 
-<sub>🔍 magenta boxes mark the complete resting-state change — changed: `button.btn`</sub>
+<sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
 
 **`button.btn`**
 
@@ -46,8 +46,8 @@ Style:
 
 | Property           | Before      | After       |
 | ------------------ | ----------- | ----------- |
-| `background-color` | `#14b8a6`   | `#dc2626`   |
 | `padding`          | `14px 28px` | `18px 32px` |
+| `background-color` | `#14b8a6`   | `#dc2626`   |
 
 ### `a.link` · 1 element restyled `:hover`
 
@@ -120,36 +120,6 @@ Interactive-state changes:
 | State     | Property | Before → After        |
 | --------- | -------- | --------------------- |
 | `:active` | `color`  | `#2dd4bf` → `#f87171` |
-
-### `button.btn` · 1 element restyled
-
-_demo-button @ 900_
-
-`padding` `14px 28px` → `18px 32px`<br>
-`border-color` `#38d6c6` → `#f87171`<br>
-`background-color` `#14b8a6` → `#dc2626`<br>
-`font-size` `13px` → `16px`<br>
-`letter-spacing` `1.56px` → `1.92px`
-
-![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
-
-<sub>◀ before · after ▶ — demo-button @ 900</sub>
-
-![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
-
-**`button.btn`**
-
-Style:
-
-| Property           | Before      | After       |
-| ------------------ | ----------- | ----------- |
-| `padding`          | `14px 28px` | `18px 32px` |
-| `border-color`     | `#38d6c6`   | `#f87171`   |
-| `background-color` | `#14b8a6`   | `#dc2626`   |
-| `font-size`        | `13px`      | `16px`      |
-| `letter-spacing`   | `1.56px`    | `1.92px`    |
 
 - [ ] **Approve all changes**
 
