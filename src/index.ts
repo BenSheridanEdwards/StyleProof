@@ -18,6 +18,9 @@ export {
   trackInflightRequests,
   trackDataResidue,
   urlMatcher,
+  captureStateLayerScreenshots,
+  captureSurfaceScreenshots,
+  STATE_LAYER_NAMES,
 } from './capture.js';
 export * from './inventory.js';
 export * from './data-residue.js';

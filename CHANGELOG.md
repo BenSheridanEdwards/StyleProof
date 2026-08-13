@@ -27,6 +27,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   disabled or inert controls, empty required inputs, and closed disclosures.
   It never records field values. Auth walls stay in `classifyAuthBoundary`
   (#398).
+- README leads with a real StyleProof PR comment of the demo `Save`
+  button, report inlined (style, size, hover, focus, active). Isolated
+  component surfaces stay tracked as #392.
+
+### Changed
+
+- Report crops now lead with one line per property change above the picture.
+  GitHub hard-breaks (`<br>`) so they stay stacked, not one wrapping
+  paragraph. No bullets, no blank lines. The details diamond still holds
+  the full tables.
+- README live report is the unmodified product report. Hover, focus, and
+  active are forced-state layers (`*.hover.png`) cropped hover-versus-hover,
+  not rest-versus-rest.
+- Captures now write `*.hover.png`, `*.focus.png`, and `*.active.png` next
+  to the rest screenshot so the report can compare both sides in that state.
 
 ### Fixed
 

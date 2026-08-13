@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Page, Response } from '@playwright/test';
-import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
+import { captureStyleMap, saveStyleMap, captureSurfaceScreenshots, trackInflightRequests } from './capture.js';
 import { realNow } from './spec-clock.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { DANGER_SOURCE } from './danger.js';
@@ -752,7 +752,7 @@ async function captureInPlace(page: Page, key: string, opts: SurfaceCrawlOptions
       });
       const stem = path.join(opts.out, `${key}@${width}`);
       saveStyleMap(`${stem}.json.gz`, map);
-      if (opts.screenshots) await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+      if (opts.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: opts.ignore });
     } finally {
       requests.dispose();
     }
