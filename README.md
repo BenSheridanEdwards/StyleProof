@@ -29,11 +29,8 @@ _**Surface base** = one product UI state; capture keys with `@width` or live-sta
 
 _demo-button @ 900_
 
-`padding` `14px 28px` → `18px 32px`<br>
-`border-color` `#38d6c6` → `#f87171`<br>
 `background-color` `#14b8a6` → `#dc2626`<br>
-`font-size` `13px` → `16px`<br>
-`letter-spacing` `1.56px` → `1.92px`
+`padding` `14px 28px` → `18px 32px`
 
 ![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
 
@@ -49,11 +46,8 @@ Style:
 
 | Property           | Before      | After       |
 | ------------------ | ----------- | ----------- |
-| `padding`          | `14px 28px` | `18px 32px` |
-| `border-color`     | `#38d6c6`   | `#f87171`   |
 | `background-color` | `#14b8a6`   | `#dc2626`   |
-| `font-size`        | `13px`      | `16px`      |
-| `letter-spacing`   | `1.56px`    | `1.92px`    |
+| `padding`          | `14px 28px` | `18px 32px` |
 
 ### `a.link` · 1 element restyled `:hover`
 
