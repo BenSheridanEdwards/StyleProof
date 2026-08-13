@@ -71,9 +71,6 @@ export const MAX_RECIPE_LABEL_LENGTH = 160;
 /** Explicit stable state-key fragments before slugging. */
 export const MAX_RECIPE_STATE_KEY_LENGTH = 80;
 
-/** Unknown closed-world field names: echo only short safe identifiers. */
-const SAFE_FIELD_NAME = /^[A-Za-z_][A-Za-z0-9_-]{0,39}$/;
-
 /**
  * Safe CSS structural / presence-only pseudo-classes (optional simple numeric args).
  * Value-carrying Playwright/CSS functions (`:text`, `:has-text`, `url`, …) are rejected.
@@ -117,9 +114,6 @@ const SAFE_PSEUDO_NAMES = new Set([
   'is',
   'where',
 ]);
-
-const NTH_PSEUDO_ARG = /^\s*\d+\s*$/;
-const SIMPLE_SELECTOR_LIST_ARG = /^\s*[^()"'`=]+\s*$/;
 
 /**
  * A single deterministic interaction that reaches a UI state.
@@ -195,26 +189,381 @@ const CONTROL_OR_BIDI =
   // eslint-disable-next-line no-control-regex -- intentional control/bidi reject class
   /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
 
-/** URL / credential-ish shapes in declared label/stateKey (no secret echo). */
-const CREDENTIALISH =
-  /(?:\/\/[^/\s]*@)|(?:^|[\s>+~,])[^/\s]*:[^/\s]*@|(?:[?&](?:password|passwd|pwd|token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|auth)=)|(?:(?:^|[^A-Za-z0-9_-])(?:password|passwd|pwd|token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization)\s*[:=])/i;
-
 /**
  * Slug a fragment for stable keys. Returns null when the value collapses to empty
  * (all punctuation / non-ascii) — callers must reject rather than emit collision-prone `state`.
+ *
+ * One-pass ASCII scan (no regex): lowercases A–Z, maps runs of non-alphanumerics to a
+ * single `-`, trims leading/trailing separators, and bounds output to `maxLen`.
  */
+// fallow-ignore-next-line complexity
 function slugFragment(value: string, maxLen = 48): string | null {
-  const s = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, maxLen);
-  return s || null;
+  if (maxLen <= 0) return null;
+  let out = '';
+  let pendingSep = false;
+  for (let i = 0; i < value.length; i++) {
+    let c = value.charCodeAt(i);
+    if (c >= 65 && c <= 90) c += 32; // A-Z → a-z
+    const isAlnum = (c >= 97 && c <= 122) || (c >= 48 && c <= 57);
+    if (isAlnum) {
+      if (pendingSep && out.length > 0) {
+        if (out.length >= maxLen) break;
+        out += '-';
+      }
+      pendingSep = false;
+      if (out.length >= maxLen) break;
+      out += String.fromCharCode(c);
+    } else if (out.length > 0) {
+      pendingSep = true;
+    }
+  }
+  return out || null;
+}
+
+function isAsciiWs(c: number): boolean {
+  return c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d || c === 0x0c || c === 0x0b;
+}
+
+function isAsciiAlpha(c: number): boolean {
+  return (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+}
+
+function isAsciiDigit(c: number): boolean {
+  return c >= 48 && c <= 57;
+}
+
+function isAsciiAlphaNum(c: number): boolean {
+  return isAsciiAlpha(c) || isAsciiDigit(c);
+}
+
+function isIdentContinue(c: number): boolean {
+  return isAsciiAlphaNum(c) || c === 0x5f /* _ */ || c === 0x2d; /* - */
+}
+
+/** Fixed-length field-name allowlist (closed-world error formatting only). */
+function isSafeFieldName(field: string): boolean {
+  if (field.length === 0 || field.length > 40) return false;
+  const c0 = field.charCodeAt(0);
+  if (!(isAsciiAlpha(c0) || c0 === 0x5f)) return false;
+  for (let i = 1; i < field.length; i++) {
+    const c = field.charCodeAt(i);
+    if (!(isAsciiAlphaNum(c) || c === 0x5f || c === 0x2d)) return false;
+  }
+  return true;
+}
+
+/** `nth-*` args: optional ASCII ws + one or more digits + optional ASCII ws. */
+function isNthPseudoArg(args: string): boolean {
+  let i = 0;
+  const n = args.length;
+  while (i < n && isAsciiWs(args.charCodeAt(i))) i++;
+  if (i >= n || !isAsciiDigit(args.charCodeAt(i))) return false;
+  while (i < n && isAsciiDigit(args.charCodeAt(i))) i++;
+  while (i < n && isAsciiWs(args.charCodeAt(i))) i++;
+  return i === n;
+}
+
+/**
+ * `:not` / `:is` / `:where` args: trim non-empty, no `()"'`=` anywhere.
+ * Linear character scan (no quantifier backtracking).
+ */
+function isSimpleSelectorListArg(args: string): boolean {
+  let start = 0;
+  let end = args.length;
+  while (start < end && isAsciiWs(args.charCodeAt(start))) start++;
+  while (end > start && isAsciiWs(args.charCodeAt(end - 1))) end--;
+  if (start >= end) return false;
+  for (let i = 0; i < args.length; i++) {
+    const c = args.charCodeAt(i);
+    // ( ) " ' ` =
+    if (c === 0x28 || c === 0x29 || c === 0x22 || c === 0x27 || c === 0x60 || c === 0x3d) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Collapse consecutive ASCII hyphens in already-slugged key parts (linear). */
+function collapseHyphens(value: string, maxLen: number): string {
+  let out = '';
+  let prevHyphen = false;
+  for (let i = 0; i < value.length && out.length < maxLen; i++) {
+    const c = value.charCodeAt(i);
+    if (c === 0x2d) {
+      if (prevHyphen || out.length === 0) continue;
+      out += '-';
+      prevHyphen = true;
+    } else {
+      out += value.charAt(i);
+      prevHyphen = false;
+    }
+  }
+  if (out.endsWith('-')) out = out.slice(0, -1);
+  return out;
+}
+
+/**
+ * `//user@host` credential shape — linear scan after each `//`.
+ * Stops the userinfo segment at `/` or ASCII whitespace.
+ */
+function hasDoubleSlashUserInfo(value: string): boolean {
+  let from = 0;
+  while (from < value.length) {
+    const idx = value.indexOf('//', from);
+    if (idx === -1) return false;
+    let j = idx + 2;
+    let sawAt = false;
+    while (j < value.length) {
+      const c = value.charCodeAt(j);
+      if (c === 0x2f || isAsciiWs(c)) break;
+      if (c === 0x40) sawAt = true;
+      j++;
+    }
+    if (sawAt) return true;
+    from = idx + 2;
+  }
+  return false;
+}
+
+/**
+ * `user:pass@` after start or combinator/ws (`>` `+` `~` `,`).
+ * Linear backward segment scan at each `@`.
+ */
+// fallow-ignore-next-line complexity
+function hasUserPassAt(value: string): boolean {
+  let from = 0;
+  while (from < value.length) {
+    const at = value.indexOf('@', from);
+    if (at === -1) return false;
+    // Walk left over [^/\s>+~,]; require a `:` in that segment before `@`.
+    let j = at - 1;
+    let sawColon = false;
+    while (j >= 0) {
+      const c = value.charCodeAt(j);
+      if (c === 0x2f || isAsciiWs(c) || c === 0x3e || c === 0x2b || c === 0x7e || c === 0x2c) break;
+      if (c === 0x3a) sawColon = true;
+      j--;
+    }
+    const atStartOrSep =
+      j < 0 ||
+      isAsciiWs(value.charCodeAt(j)) ||
+      value.charCodeAt(j) === 0x3e ||
+      value.charCodeAt(j) === 0x2b ||
+      value.charCodeAt(j) === 0x7e ||
+      value.charCodeAt(j) === 0x2c;
+    if (sawColon && atStartOrSep) return true;
+    from = at + 1;
+  }
+  return false;
+}
+
+/** Lowercase copy for bounded token scans (selectors/labels are length-capped). */
+function asciiLowercase(value: string): string {
+  let out = '';
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    out += c >= 65 && c <= 90 ? String.fromCharCode(c + 32) : value.charAt(i);
+  }
+  return out;
+}
+
+const QUERY_SECRET_KEYS = [
+  'password',
+  'passwd',
+  'pwd',
+  'token',
+  'secret',
+  'api_key',
+  'api-key',
+  'apikey',
+  'access_token',
+  'access-token',
+  'accesstoken',
+  'refresh_token',
+  'refresh-token',
+  'refreshtoken',
+  'authorization',
+  'auth',
+] as const;
+
+const BODY_SECRET_KEYS = [
+  'password',
+  'passwd',
+  'pwd',
+  'token',
+  'secret',
+  'api_key',
+  'api-key',
+  'apikey',
+  'access_token',
+  'access-token',
+  'accesstoken',
+  'refresh_token',
+  'refresh-token',
+  'refreshtoken',
+  'authorization',
+] as const;
+
+function keyCharBoundary(c: number | undefined): boolean {
+  if (c === undefined) return true;
+  return !(isAsciiAlphaNum(c) || c === 0x5f || c === 0x2d);
+}
+
+/** `?key=` / `&key=` secret query shapes (exact key tokens, linear). */
+function hasSecretQueryAssignment(lower: string): boolean {
+  for (let i = 0; i < lower.length; i++) {
+    const c = lower.charCodeAt(i);
+    if (c !== 0x3f && c !== 0x26) continue; // ? or &
+    for (const key of QUERY_SECRET_KEYS) {
+      if (i + 1 + key.length >= lower.length) continue;
+      if (!lower.startsWith(key, i + 1)) continue;
+      const after = lower.charCodeAt(i + 1 + key.length);
+      if (after === 0x3d) return true; // =
+    }
+  }
+  return false;
+}
+
+/** `password=` / `token:` style assignments at token boundaries (linear). */
+// fallow-ignore-next-line complexity
+function hasSecretKeyedAssignment(lower: string): boolean {
+  for (const key of BODY_SECRET_KEYS) {
+    let from = 0;
+    while (from < lower.length) {
+      const idx = lower.indexOf(key, from);
+      if (idx === -1) break;
+      const before = idx === 0 ? undefined : lower.charCodeAt(idx - 1);
+      if (!keyCharBoundary(before)) {
+        from = idx + key.length;
+        continue;
+      }
+      let j = idx + key.length;
+      while (j < lower.length && isAsciiWs(lower.charCodeAt(j))) j++;
+      if (j < lower.length) {
+        const sep = lower.charCodeAt(j);
+        if (sep === 0x3a || sep === 0x3d) return true; // : or =
+      }
+      from = idx + key.length;
+    }
+  }
+  return false;
+}
+
+/**
+ * Credential / secret-like shapes in labels and stateKeys (and selector URL checks).
+ * Pure indexOf + character scans — no ambiguous quantifiers.
+ */
+function isCredentialish(value: string): boolean {
+  if (hasDoubleSlashUserInfo(value) || hasUserPassAt(value)) return true;
+  const lower = asciiLowercase(value);
+  return hasSecretQueryAssignment(lower) || hasSecretKeyedAssignment(lower);
+}
+
+/** `http:` / `https:` / `file:` / `data:` / `javascript:` at a non-ident boundary. */
+function hasUrlScheme(selector: string): boolean {
+  const lower = asciiLowercase(selector);
+  const schemes = ['https:', 'http:', 'file:', 'data:', 'javascript:'] as const;
+  for (const scheme of schemes) {
+    let from = 0;
+    while (from < lower.length) {
+      const idx = lower.indexOf(scheme, from);
+      if (idx === -1) break;
+      const before = idx === 0 ? undefined : lower.charCodeAt(idx - 1);
+      if (before === undefined || !isAsciiAlphaNum(before)) return true;
+      from = idx + scheme.length;
+    }
+  }
+  return false;
+}
+
+/** `url(` with optional ASCII whitespace before `(` — linear. */
+function hasUrlFunction(selector: string): boolean {
+  const lower = asciiLowercase(selector);
+  let from = 0;
+  while (from < lower.length) {
+    const idx = lower.indexOf('url', from);
+    if (idx === -1) return false;
+    const before = idx === 0 ? undefined : lower.charCodeAt(idx - 1);
+    if (before !== undefined && isAsciiAlphaNum(before)) {
+      from = idx + 3;
+      continue;
+    }
+    let j = idx + 3;
+    while (j < lower.length && isAsciiWs(lower.charCodeAt(j))) j++;
+    if (j < lower.length && lower.charCodeAt(j) === 0x28) return true;
+    from = idx + 3;
+  }
+  return false;
+}
+
+/**
+ * Single-pass bracket scan:
+ * - presence-only `[name]` / `[aria-expanded]` OK
+ * - any `=` inside a bracket block → attribute-equality
+ * - nested `[` or unbalanced `]` / unclosed `[` → fail-closed reject
+ */
+// fallow-ignore-next-line complexity
+function scanAttributeBrackets(selector: string): 'ok' | 'equality' | 'malformed' {
+  let i = 0;
+  const n = selector.length;
+  while (i < n) {
+    if (selector.charCodeAt(i) !== 0x5b) {
+      // stray `]` outside a block
+      if (selector.charCodeAt(i) === 0x5d) return 'malformed';
+      i++;
+      continue;
+    }
+    // Enter `[` block
+    i++;
+    let sawEq = false;
+    let closed = false;
+    while (i < n) {
+      const c = selector.charCodeAt(i);
+      if (c === 0x5b) return 'malformed'; // nested [
+      if (c === 0x5d) {
+        closed = true;
+        i++;
+        break;
+      }
+      if (c === 0x3d) sawEq = true;
+      i++;
+    }
+    if (!closed) return 'malformed';
+    if (sawEq) return 'equality';
+  }
+  return 'ok';
+}
+
+/** Conservative CSS selector character allowlist (linear). */
+function isAllowedSelectorChar(c: number): boolean {
+  // a-z A-Z 0-9 # . [ ] - _ * > + ~ , \s : ( ) |
+  if (isAsciiAlphaNum(c)) return true;
+  if (isAsciiWs(c)) return true;
+  switch (c) {
+    case 0x23: // #
+    case 0x2e: // .
+    case 0x5b: // [
+    case 0x5d: // ]
+    case 0x2d: // -
+    case 0x5f: // _
+    case 0x2a: // *
+    case 0x3e: // >
+    case 0x2b: // +
+    case 0x7e: // ~
+    case 0x2c: // ,
+    case 0x3a: // :
+    case 0x28: // (
+    case 0x29: // )
+    case 0x7c: // |
+      return true;
+    default:
+      return false;
+  }
 }
 
 /** Format unknown field names for errors — never echo hostile/secret-bearing keys. */
 function formatUnknownFieldName(field: string): string {
-  if (SAFE_FIELD_NAME.test(field)) return `"${field}"`;
+  if (isSafeFieldName(field)) return `"${field}"`;
   return '(invalid field name)';
 }
 
@@ -284,8 +633,8 @@ function isSafePseudo(name: string, args: string | null): boolean {
   if (args === null) {
     return !n.startsWith('nth-') && n !== 'not' && n !== 'is' && n !== 'where';
   }
-  if (n.startsWith('nth-')) return NTH_PSEUDO_ARG.test(args);
-  if (n === 'not' || n === 'is' || n === 'where') return SIMPLE_SELECTOR_LIST_ARG.test(args);
+  if (n.startsWith('nth-')) return isNthPseudoArg(args);
+  if (n === 'not' || n === 'is' || n === 'where') return isSimpleSelectorListArg(args);
   // Named pseudos above that take no args must not have args.
   return false;
 }
@@ -298,7 +647,7 @@ function rejectSelectorShape(selector: string): void {
     selectorPolicyReject('controls, newlines, NUL, or bidi characters are not allowed');
   }
   // Quotes/backticks always carry or delimit values — CSS-only structural policy forbids them.
-  if (/["'`]/.test(selector)) {
+  if (selector.includes('"') || selector.includes("'") || selector.includes('`')) {
     selectorPolicyReject('quotes and backticks are not allowed in selectors');
   }
   // CSS escapes can smuggle value-like payloads; reject entirely.
@@ -306,53 +655,98 @@ function rejectSelectorShape(selector: string): void {
     selectorPolicyReject('escape sequences are not allowed in selectors');
   }
   // Playwright locator chaining (`>>` / `internal:…`) is not CSS. A single `>`
-  // child combinator remains allowed; reject any `>>` (optionally spaced).
-  if (/\s*>>\s*/.test(selector) || selector.includes('>>')) {
+  // child combinator remains allowed; includes('>>') catches optional surrounding spaces.
+  if (selector.includes('>>')) {
     selectorPolicyReject('Playwright locator chaining is not allowed');
   }
 }
 
 function rejectSelectorValueCarriers(selector: string): void {
-  // Attribute selectors with a value binding (=, ~=, |=, ^=, $=, *=).
-  if (/\[[^\]]*[~|^$*]?=[^\]]*\]/.test(selector)) {
+  // Attribute selectors: presence-only OK; any `=` inside brackets rejected.
+  // Nested/unbalanced brackets fail closed.
+  const brackets = scanAttributeBrackets(selector);
+  if (brackets === 'equality' || brackets === 'malformed') {
     selectorPolicyReject('attribute-equality selectors are not allowed');
   }
-  // Playwright engine prefixes and bare name=value (text=secret, xpath=//div, css=button, …).
-  if (/(?:^|[\s,|])[a-zA-Z][\w-]*\s*=/.test(selector) || /^[a-zA-Z][\w-]*\s*=/.test(selector)) {
-    selectorPolicyReject('engine prefixes and attribute-equality selectors are not allowed');
-  }
-  // Defense in depth: any remaining equals (value binding outside brackets).
+  // Playwright engine prefixes and bare name=value (text=secret, xpath=//div, css=button, …)
+  // all contain `=`; defend in depth with a plain includes check (no regex).
   if (selector.includes('=')) {
-    selectorPolicyReject('attribute-equality selectors are not allowed');
+    selectorPolicyReject('engine prefixes and attribute-equality selectors are not allowed');
   }
   // Query strings and credential-bearing URL shapes (#id is CSS — allow bare #).
   if (selector.includes('?')) {
     selectorPolicyReject('query strings are not allowed in selectors');
   }
-  if (/\/\/[^/\s]*@/.test(selector) || /(?:^|[\s>+~,])[^/\s]*:[^/\s]*@/.test(selector)) {
+  if (hasDoubleSlashUserInfo(selector) || hasUserPassAt(selector)) {
     selectorPolicyReject('URL credentials are not allowed in selectors');
   }
-  if (/\b(?:https?|file|data|javascript):/i.test(selector)) {
+  if (hasUrlScheme(selector)) {
     selectorPolicyReject('URL schemes are not allowed in selectors');
   }
-  if (/\burl\s*\(/i.test(selector)) {
+  if (hasUrlFunction(selector)) {
     selectorPolicyReject('value-carrying functions are not allowed in selectors');
   }
 }
 
+// fallow-ignore-next-line complexity
 function rejectUnsafePseudos(selector: string): void {
-  // Single-pass :ident / :ident(...) — avoid bare-name backtracking into nth-* tokens.
-  const pseudo = /:([a-zA-Z][\w-]*)(?:\s*\(([^)]*)\))?/g;
-  let m: RegExpExecArray | null;
-  while ((m = pseudo.exec(selector)) !== null) {
-    const args = m[2] !== undefined ? m[2] : null;
-    if (!isSafePseudo(m[1]!, args)) {
+  // Manual scanner: `:ident` / `:ident(...)` with balanced non-nested parentheses.
+  // Nested or unbalanced `()` fail closed. Namespaces/colons stay conservative
+  // (only ASCII ident after `:` is considered a pseudo).
+  let i = 0;
+  const n = selector.length;
+  while (i < n) {
+    if (selector.charCodeAt(i) !== 0x3a /* : */) {
+      i++;
+      continue;
+    }
+    i++; // consume ':'
+    if (i >= n || !isAsciiAlpha(selector.charCodeAt(i))) {
+      // Not `:ident` (e.g. trailing `:`, `::`, or `:123`) — continue from here.
+      continue;
+    }
+    const nameStart = i;
+    i++;
+    while (i < n && isIdentContinue(selector.charCodeAt(i))) i++;
+    const name = selector.slice(nameStart, i);
+
+    // Optional ASCII ws then `(...)`
+    let j = i;
+    while (j < n && isAsciiWs(selector.charCodeAt(j))) j++;
+    let args: string | null = null;
+    if (j < n && selector.charCodeAt(j) === 0x28 /* ( */) {
+      j++; // consume '('
+      const argStart = j;
+      let depth = 1;
+      let nested = false;
+      while (j < n && depth > 0) {
+        const c = selector.charCodeAt(j);
+        if (c === 0x28) {
+          depth++;
+          nested = true;
+        } else if (c === 0x29) {
+          depth--;
+          if (depth === 0) break;
+        }
+        j++;
+      }
+      if (depth !== 0 || nested) {
+        selectorPolicyReject('value-carrying or unsupported pseudo/functions are not allowed in selectors');
+      }
+      args = selector.slice(argStart, j);
+      j++; // consume ')'
+      i = j;
+    }
+
+    if (!isSafePseudo(name, args)) {
       selectorPolicyReject('value-carrying or unsupported pseudo/functions are not allowed in selectors');
     }
   }
   // Character allowlist: conservative CSS selector grammar without value carriers.
-  if (!/^[a-zA-Z0-9#.[\]\-_*>+~,\s:()|]+$/.test(selector)) {
-    selectorPolicyReject('selector contains characters outside the CSS-only allowlist');
+  for (let k = 0; k < n; k++) {
+    if (!isAllowedSelectorChar(selector.charCodeAt(k))) {
+      selectorPolicyReject('selector contains characters outside the CSS-only allowlist');
+    }
   }
 }
 
@@ -410,7 +804,7 @@ export function assertSafeRecipeLabel(value: unknown): string {
   if (CONTROL_OR_BIDI.test(label)) {
     labelPolicyReject('controls, newlines, NUL, or bidi characters are not allowed');
   }
-  if (CREDENTIALISH.test(label)) {
+  if (isCredentialish(label)) {
     labelPolicyReject('credential- or secret-like patterns are not allowed');
   }
   // Pure validation: labels that cannot contribute a stable key fragment fail
@@ -439,7 +833,7 @@ export function assertSafeRecipeStateKey(value: unknown): string {
   if (CONTROL_OR_BIDI.test(stateKey)) {
     stateKeyPolicyReject('controls, newlines, NUL, or bidi characters are not allowed');
   }
-  if (CREDENTIALISH.test(stateKey)) {
+  if (isCredentialish(stateKey)) {
     stateKeyPolicyReject('credential- or secret-like patterns are not allowed');
   }
   if (!slugFragment(stateKey, MAX_RECIPE_STATE_KEY_LENGTH)) {
@@ -532,7 +926,7 @@ function deriveValidatedStateRecipeKey(recipe: StateRecipe): string {
     }
     parts.push(slugFragment(recipe.key) ?? 'key');
   }
-  return parts.join('-').replace(/-+/g, '-').slice(0, 80);
+  return collapseHyphens(parts.join('-'), 80);
 }
 
 /**

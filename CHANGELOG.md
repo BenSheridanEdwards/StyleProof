@@ -67,6 +67,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- State recipes (#391): replace polynomial selector/label regex paths with
+  bounded linear character scanners (slug builder, pseudo/arg validators,
+  bracket equality scan, credential/scheme token scans, manual `:ident()`
+  parser). CodeQL `js/polynomial-redos` shapes (hyphen/space/`[`/`[=`/`+`/`:`/
+  nested-paren runs) complete boundedly without secret echo; public contract
+  unchanged.
 - State recipes (#391): close remaining selector/key privacy bypasses — public
   `stateRecipeKey` runs full `validateStateRecipe` then shared internal key
   derivation (closed world, press-key rules, no partial-validation drift;

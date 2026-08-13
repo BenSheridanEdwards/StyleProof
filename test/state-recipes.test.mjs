@@ -634,3 +634,228 @@ test('package index re-exports consumer API (no stateRecipeDriver; has stateReci
   assert.equal(typeof fixture.stateRecipeSurfaceVariantFixture.go, 'function');
   assert.equal(fixture.stateRecipeSurfaceVariantFixture.setup, undefined);
 });
+
+// ---------------------------------------------------------------------------
+// Linear scanners — CodeQL js/polynomial-redos regression shapes
+// Semantic accept/reject + bounded completion (not timing-theater alone).
+// ---------------------------------------------------------------------------
+
+test('linear scanners: CodeQL-named adversarial shapes reject without secret echo', () => {
+  const secret = 'poly-redos-secret-token-xyz';
+
+  /** @type {Array<{ name: string, run: () => unknown, expectReject?: boolean, expectAccept?: string }>} */
+  const cases = [
+    // many hyphens (slugFragment path via label/stateKey)
+    {
+      name: 'many-hyphens-label-slug',
+      run: () => stateRecipeKey({ action: 'hover', selector: '#x', label: `${'-'.repeat(40)}ok${'-'.repeat(40)}` }),
+      expectAccept: 'hover-ok',
+    },
+    {
+      name: 'many-hyphens-only-label',
+      run: () => validateStateRecipe({ action: 'hover', selector: '#x', label: '-'.repeat(80) }),
+      expectReject: true,
+    },
+    // SIMPLE_SELECTOR_LIST_ARG shapes: '!' + spaces / spaces inside :not()
+    {
+      name: 'not-bang-spaces',
+      run: () => assertSafeRecipeSelector(`:not(${'!'.repeat(80)}${' '.repeat(80)})`),
+      expectReject: true,
+    },
+    {
+      name: 'not-spaces-only',
+      run: () => assertSafeRecipeSelector(`:not(${' '.repeat(120)})`),
+      expectReject: true,
+    },
+    {
+      name: 'not-simple-class',
+      run: () => assertSafeRecipeSelector(':not(.disabled)'),
+      expectAccept: ':not(.disabled)',
+    },
+    // >> with spaces (includes path)
+    {
+      name: 'spaced-double-gt',
+      run: () => assertSafeRecipeSelector(`button ${' '.repeat(40)}>>${' '.repeat(40)} .x`),
+      expectReject: true,
+    },
+    // repeated [ / [=
+    {
+      name: 'many-open-brackets',
+      run: () => assertSafeRecipeSelector(`${'['.repeat(120)}name]`),
+      expectReject: true,
+    },
+    {
+      name: 'bracket-eq-repeats',
+      run: () => assertSafeRecipeSelector(`[${'='.repeat(80)}]`),
+      expectReject: true,
+    },
+    {
+      name: 'nested-brackets',
+      run: () => assertSafeRecipeSelector('[[aria-expanded]]'),
+      expectReject: true,
+    },
+    {
+      name: 'presence-attr-ok',
+      run: () => assertSafeRecipeSelector('[aria-expanded]'),
+      expectAccept: '[aria-expanded]',
+    },
+    {
+      name: 'presence-name-ok',
+      run: () => assertSafeRecipeSelector('input[name]'),
+      expectAccept: 'input[name]',
+    },
+    // many + / : (credential + combinator stress)
+    {
+      name: 'many-plus-colon',
+      run: () => assertSafeRecipeSelector(`${'+'.repeat(80)}:${':'.repeat(40)}@${secret}`),
+      expectReject: true,
+    },
+    {
+      name: 'userinfo-at',
+      run: () => assertSafeRecipeSelector(`//user:${secret}@host`),
+      expectReject: true,
+    },
+    // repeated :A(( pseudo nesting / unbalance
+    {
+      name: 'nested-pseudo-parens',
+      run: () => assertSafeRecipeSelector(`:A${'(('.repeat(40)}x${'))'.repeat(40)}`),
+      expectReject: true,
+    },
+    {
+      name: 'unbalanced-pseudo-parens',
+      run: () => assertSafeRecipeSelector(`:not(${'('.repeat(60)}x`),
+      expectReject: true,
+    },
+    {
+      name: 'nth-child-ok',
+      run: () => assertSafeRecipeSelector('li:nth-child(2)'),
+      expectAccept: 'li:nth-child(2)',
+    },
+    // max-length selectors / labels / stateKeys
+    {
+      name: 'max-selector',
+      run: () => assertSafeRecipeSelector('a'.repeat(MAX_RECIPE_SELECTOR_LENGTH)),
+      expectAccept: 'a'.repeat(MAX_RECIPE_SELECTOR_LENGTH),
+    },
+    {
+      name: 'over-max-selector',
+      run: () => assertSafeRecipeSelector('a'.repeat(MAX_RECIPE_SELECTOR_LENGTH + 1)),
+      expectReject: true,
+    },
+    {
+      name: 'max-label',
+      run: () => assertSafeRecipeLabel(`L${'a'.repeat(MAX_RECIPE_LABEL_LENGTH - 1)}`),
+      expectAccept: `L${'a'.repeat(MAX_RECIPE_LABEL_LENGTH - 1)}`,
+    },
+    {
+      name: 'max-stateKey',
+      run: () => assertSafeRecipeStateKey(`k${'a'.repeat(MAX_RECIPE_STATE_KEY_LENGTH - 1)}`),
+      expectAccept: `k${'a'.repeat(MAX_RECIPE_STATE_KEY_LENGTH - 1)}`,
+    },
+    {
+      name: 'credential-label',
+      run: () => assertSafeRecipeLabel(`password=${secret}`),
+      expectReject: true,
+    },
+  ];
+
+  for (const c of cases) {
+    let result;
+    let err;
+    try {
+      result = c.run();
+    } catch (e) {
+      err = e;
+    }
+    if (c.expectReject) {
+      assert.ok(err instanceof StateRecipeError, `${c.name}: expected StateRecipeError`);
+      assert.match(String(err.message), /privacy policy/);
+      const ser = JSON.stringify({ m: err.message, s: err.stack, n: err.name });
+      assert.equal(ser.includes(secret), false, `${c.name}: must not echo secret`);
+      assert.equal(ser.includes('poly-redos-secret'), false, `${c.name}: must not echo secret prefix`);
+    } else {
+      assert.equal(err, undefined, `${c.name}: unexpected reject ${err && err.message}`);
+      if (c.expectAccept !== undefined) {
+        if (typeof result === 'object' && result && 'label' in result) {
+          assert.equal(result.label, c.expectAccept, c.name);
+        } else {
+          assert.equal(result, c.expectAccept, c.name);
+        }
+      }
+    }
+  }
+});
+
+test('linear scanners: stress shapes complete boundedly (semantic loop + generous probe)', () => {
+  const shapes = [
+    () => {
+      try {
+        assertSafeRecipeLabel(`${'-'.repeat(10_000)}ok`);
+      } catch {
+        /* reject is fine */
+      }
+    },
+    () => {
+      try {
+        assertSafeRecipeSelector(`${'['.repeat(2_000)}${'='.repeat(2_000)}`);
+      } catch {
+        /* reject is fine */
+      }
+    },
+    () => {
+      try {
+        assertSafeRecipeSelector(`:not(${'!'.repeat(1_000)}${' '.repeat(1_000)})`);
+      } catch {
+        /* reject is fine */
+      }
+    },
+    () => {
+      try {
+        assertSafeRecipeSelector(`x ${' '.repeat(500)}>>${' '.repeat(500)} y`);
+      } catch {
+        /* reject is fine */
+      }
+    },
+    () => {
+      try {
+        assertSafeRecipeSelector(`${'+'.repeat(1_000)}:${':'.repeat(500)}@x`);
+      } catch {
+        /* reject is fine */
+      }
+    },
+    () => {
+      try {
+        assertSafeRecipeSelector(`:A${'(('.repeat(200)}x`);
+      } catch {
+        /* reject is fine */
+      }
+    },
+    () => {
+      try {
+        assertSafeRecipeLabel(`password=${'x'.repeat(500)}`);
+      } catch {
+        /* reject is fine */
+      }
+    },
+    () => {
+      // accept path still linear at max bounds
+      assertSafeRecipeSelector('a'.repeat(MAX_RECIPE_SELECTOR_LENGTH));
+      assertSafeRecipeLabel('Open menu');
+      stateRecipeKey({ action: 'hover', selector: '#menu', label: 'Open menu' });
+    },
+  ];
+
+  // Semantic loop: each shape runs many times and always finishes.
+  const iterations = 200;
+  for (const shape of shapes) {
+    for (let i = 0; i < iterations; i++) shape();
+  }
+
+  // Generous performance sanity probe (not a flake-prone tight threshold).
+  const started = Date.now();
+  for (let i = 0; i < 2_000; i++) {
+    for (const shape of shapes) shape();
+  }
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 15_000, `stress probe exceeded generous budget: ${elapsed}ms`);
+});
