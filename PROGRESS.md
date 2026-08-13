@@ -82,3 +82,32 @@
 - `npm test` — 670 passed, 0 failed.
 - `npm run test:e2e` — 121 passed, 0 failed.
 - GitHub-rendered demo report inspected at the exact branch; committed proof shows the off-canvas audit without an unrelated crop.
+
+---
+
+# Open PR and issue sweep
+
+## Completed
+
+- Read the current repository and PR proof contracts.
+- Fetched the live remote and inventoried eight open pull requests and six open issues.
+- Confirmed issues #364-#368 each have implementing PRs #369-#373.
+
+## Findings
+
+- PRs #370-#374 were non-draft, green, mergeable, and `CLEAN` at inventory time.
+- PR #369 conflicts with current `main`.
+- Dependabot PRs #338 and #348 need current-base/PR-body repair.
+- Issue #341 appears related to PR #374 but is not linked for automatic closure and needs semantic verification.
+
+## Next
+
+- Audit diffs, acceptance criteria, failure logs, and merge ordering before changing or merging branches.
+
+## Blockers
+
+- None.
+
+## Verification
+
+- Inventory is live as of 2026-08-12. No PR has been merged or modified in this sweep yet.
