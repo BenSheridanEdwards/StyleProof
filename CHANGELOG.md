@@ -9,6 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Framework-neutral component manifest (#392 slice 1): typed document for
+  module path, export name, variant keys, serializable props, optional
+  provider modules, viewports, and exclusions-with-reason. Validation
+  rejects remote URLs, traversal, non-JSON props, empty reasons, and
+  duplicate surface keys. Valid manifests expand into
+  `componentCatalogSurfaces` routes. No React runtime, no eval, no
+  invented props.
 - Public `classifyAuthBoundary` helper classifies password fields, credential
   autocomplete, auth form actions, and auth redirects from redacted DOM
   metadata. It never records field values, cookies, or query strings, and it
