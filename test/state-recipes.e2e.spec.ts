@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import http from 'node:http';
 import {
   applyStateRecipe,
-  stateRecipeDriver,
+  stateRecipeGo,
   stateRecipeKey,
   captureStyleMap,
   diffStyleMaps,
@@ -97,6 +97,23 @@ async function withFixture(
   }
 }
 
+/** Certification-stable slice of a style map (no viewport/metadata noise). */
+function certificationSlice(map: {
+  defaults: unknown;
+  elements: unknown;
+  states: unknown;
+  statesSkipped?: boolean;
+  volatile?: string[];
+}) {
+  return {
+    defaults: map.defaults,
+    elements: map.elements,
+    states: map.states,
+    statesSkipped: map.statesSkipped ?? false,
+    volatile: [...(map.volatile ?? [])].sort(),
+  };
+}
+
 test('state recipes: hover/focus/press/click change computed maps with stable keys', async ({ browser }) => {
   await withFixture(browser, async (page) => {
     const hoverRecipe = {
@@ -112,7 +129,7 @@ test('state recipes: hover/focus/press/click change computed maps with stable ke
     const pressRecipe = {
       action: 'press' as const,
       selector: '#menu',
-      key: 'ArrowDown',
+      key: 'ArrowDown' as const,
       label: 'Open menu',
     };
     const clickRecipe = {
@@ -151,7 +168,7 @@ test('state recipes: hover/focus/press/click change computed maps with stable ke
     const focusAfter = await captureStyleMap(page, { captureStates: false });
     expect(diffStyleMaps(focusBefore, focusAfter).length, 'focus changes computed styles').toBeGreaterThan(0);
 
-    // --- keyboard press opens listbox ---
+    // --- keyboard press opens listbox (explicit selector required) ---
     await page.goto(page.url(), { waitUntil: 'load' });
     const pressBefore = await captureStyleMap(page, { captureStates: false });
     const pressApplied = await applyStateRecipe(page, pressRecipe);
@@ -160,6 +177,7 @@ test('state recipes: hover/focus/press/click change computed maps with stable ke
         stateKey: 'press-open-menu-arrowdown',
         action: 'press',
         key: 'ArrowDown',
+        selector: '#menu',
       }),
     );
     await expect(page.locator('#list')).toBeVisible();
@@ -182,11 +200,13 @@ test('state recipes: hover/focus/press/click change computed maps with stable ke
     const clickAfter = await captureStyleMap(page, { captureStates: false });
     expect(diffStyleMaps(clickBefore, clickAfter).length, 'click opens listbox styles').toBeGreaterThan(0);
 
-    // stateRecipeDriver is the SurfaceVariant.go adapter
+    // stateRecipeGo is the SurfaceVariant.go adapter (Promise<void>)
     await page.goto(page.url(), { waitUntil: 'load' });
-    const driver = stateRecipeDriver(focusRecipe);
-    const driven = await driver(page);
-    expect(driven.stateKey).toBe('focus-email');
+    const go = stateRecipeGo(focusRecipe);
+    const driven = go(page);
+    expect(driven).toBeInstanceOf(Promise);
+    await expect(driven).resolves.toBeUndefined();
+    await expect(page.locator('body')).toHaveClass(/email-focused/);
   });
 });
 
@@ -250,13 +270,79 @@ test('state recipes: declared label controls key while live label still guards d
   });
 });
 
-test('state recipes: repeated runs produce identical keys', async ({ browser }) => {
+test('state recipes: repeated runs from fresh baseline yield stable key and identical certification maps', async ({
+  browser,
+}) => {
   await withFixture(browser, async (page) => {
-    const recipe = { action: 'press' as const, selector: '#menu', key: 'Enter', label: 'Open menu' };
-    const first = await applyStateRecipe(page, recipe);
+    // Focus is a stable sticky state (no pointer/hover-sink noise).
+    const recipe = { action: 'focus' as const, selector: '#email', label: 'Email' };
+
     await page.goto(page.url(), { waitUntil: 'load' });
+    const baseline1 = await captureStyleMap(page, { captureStates: false });
+    const first = await applyStateRecipe(page, recipe);
+    const map1 = await captureStyleMap(page, { captureStates: false });
+    const delta1 = diffStyleMaps(baseline1, map1);
+    expect(first.stateKey).toBe('focus-email');
+    expect(delta1.length).toBeGreaterThan(0);
+    await expect(page.locator('body')).toHaveClass(/email-focused/);
+
+    await page.goto(page.url(), { waitUntil: 'load' });
+    const baseline2 = await captureStyleMap(page, { captureStates: false });
     const second = await applyStateRecipe(page, recipe);
-    expect(first.stateKey).toBe(second.stateKey);
-    expect(first.stateKey).toBe('press-open-menu-enter');
+    const map2 = await captureStyleMap(page, { captureStates: false });
+    const delta2 = diffStyleMaps(baseline2, map2);
+
+    expect(second.stateKey).toBe(first.stateKey);
+    expect(second).toEqual(first);
+    // Same baseline→after certification delta (path/kind/prop identity), twice from fresh load.
+    const norm = (findings: ReturnType<typeof diffStyleMaps>) =>
+      JSON.stringify(
+        findings.map((f) => ({
+          kind: f.kind,
+          path: 'path' in f ? f.path : undefined,
+          prop: 'prop' in f ? f.prop : undefined,
+          before: 'before' in f ? f.before : undefined,
+          after: 'after' in f ? f.after : undefined,
+        })),
+      );
+    expect(norm(delta1)).toBe(norm(delta2));
+    expect(JSON.stringify(certificationSlice(map1))).toBe(JSON.stringify(certificationSlice(map2)));
+  });
+});
+
+test('state recipes: apply failure messages never echo secret selectors', async ({ browser }) => {
+  await withFixture(browser, async (page) => {
+    const secret = 'leaked-secret-value-9f3a';
+    await expect(
+      applyStateRecipe(page, {
+        action: 'focus',
+        selector: `input[value=${secret}]`,
+      }),
+    ).rejects.toThrow(/privacy policy/);
+
+    try {
+      await applyStateRecipe(page, { action: 'focus', selector: `input[value=${secret}]` });
+      expect.fail('should reject');
+    } catch (e) {
+      const err = e as Error;
+      const text = `${err.name}\n${err.message}\n${err.stack ?? ''}`;
+      expect(text.includes(secret)).toBe(false);
+    }
+
+    // Missing target: error names action + stable key only (no Playwright locator dump).
+    // Explicit stateKey so the message does not need the selector slug.
+    try {
+      await applyStateRecipe(page, {
+        action: 'click',
+        selector: '#does-not-exist-xyz',
+        stateKey: 'missing-target',
+      });
+      expect.fail('should fail');
+    } catch (e) {
+      expect(e).toBeInstanceOf(StateRecipeError);
+      const msg = String((e as Error).message);
+      expect(msg).toBe('state recipe failed (click key=missing-target)');
+      expect(msg).not.toMatch(/does-not-exist|locator|Timeout/i);
+    }
   });
 });

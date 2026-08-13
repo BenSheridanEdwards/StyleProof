@@ -691,7 +691,7 @@ For interaction states that must be driven as **independent, named variants**
 (not crawl discovery), StyleProof exports a typed **state recipe** contract:
 
 ```ts
-import { parseStateRecipes, stateRecipeDriver, applyStateRecipe, stateRecipeKey } from 'styleproof';
+import { parseStateRecipes, stateRecipeGo, applyStateRecipe, stateRecipeKey, type SurfaceVariant } from 'styleproof';
 
 const recipes = parseStateRecipes([
   { action: 'hover', selector: '#plan-card', label: 'Plan card' },
@@ -700,16 +700,26 @@ const recipes = parseStateRecipes([
   { action: 'click', selector: '#menu', label: 'Open menu' },
 ]);
 
-// Drop into an existing SurfaceVariant / setup:
-const go = stateRecipeDriver(recipes[0]);
-// or drive ad hoc:
-// await applyStateRecipe(page, recipes[0]);
+// Real SurfaceVariant: wire recipes through `go` (Promise<void>), not setup.
+const variant: SurfaceVariant = {
+  key: 'plan-card-hover',
+  go: stateRecipeGo(recipes[0]),
+};
+
+// Or drive ad hoc when you need provenance (stable key / label):
+// const applied = await applyStateRecipe(page, recipes[0]);
 ```
 
 Rules for this slice:
 
-- Actions are only `hover`, `focus`, `press`, and `click` — no `eval`, arbitrary
-  script, network mocks, or route recipes here.
+- Actions are only `hover`, `focus`, `press`, and `click` — closed-world fields
+  are exactly `action`, `selector`, `key`, `label`, `stateKey` (unknown keys
+  rejected).
+- Every action, including `press`, requires an explicit **value-free** selector
+  (`#id`, `.class`, `[aria-expanded]`, `input[name]`, …). Attribute-equality
+  selectors (`[value=…]`, `[data-token=…]`, `a[href="…?…"]`, …) are rejected so
+  secrets never enter keys, provenance, or error messages. Bare Escape / ambient
+  keyboard is deferred rather than unsafe.
 - A collection is a set of **independent variants** from a known baseline, not a
   multi-step choreography. Duplicate derived keys are rejected; order is sorted
   by stable key.
@@ -717,7 +727,8 @@ Rules for this slice:
   labels still feed the destructive-action guard (so a benign declared label
   cannot authorize a control whose live label is `Delete` / `Remove` / …).
 - `press` keys are a fixed disclosure/navigation allowlist (`Enter`, `Escape`,
-  `Space`, `Tab`, arrows, `Home`, `End`).
+  `Space`, `Tab`, arrows, `Home`, `End`). The driver focuses the target, then
+  presses — never ambient page focus.
 
 Crawler auto-discovery, transient observation windows, network-state recipes,
 and state-coverage reporting are **not** wired in this release — those remain

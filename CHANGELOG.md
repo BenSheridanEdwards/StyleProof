@@ -9,20 +9,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Typed **state recipes** contract (#391 production PR #2): pure schema validation
-  and Playwright drivers for independent `hover` / `focus` / `press` / `click`
-  variants. Stable keys come from declared `stateKey` / label / selector (never
-  live DOM labels); `parseStateRecipes` rejects duplicate derived keys and returns
-  deterministic key-sorted collections. `press` accepts only a conservative
-  disclosure/navigation vocabulary (`Enter`, `Escape`, `Space`, `Tab`, arrows,
-  `Home`, `End`) — modifiers, chords, and free-text are rejected. Declared and
-  live accessible labels both feed the shared destructive-action guard. Drivers
-  settle via the crawl DOM-stability primitive (`realNow`). Network/route recipes,
+- Typed **state recipes** contract (#391 production PR #2): closed-world schema
+  validation and Playwright drivers for independent `hover` / `focus` / `press` /
+  `click` variants. Allowed fields are exactly `action`, `selector`, `key`,
+  `label`, `stateKey`. Stable keys come from declared `stateKey` / label /
+  selector (never live DOM labels); `parseStateRecipes` rejects duplicate derived
+  keys and returns deterministic key-sorted collections. Every action — including
+  `press` — requires an explicit value-free selector (attribute-equality,
+  controls/bidi, query/credentials, and oversized selectors are rejected without
+  echoing secrets). `press` accepts only a conservative disclosure/navigation
+  vocabulary (`Enter`, `Escape`, `Space`, `Tab`, arrows, `Home`, `End`) —
+  modifiers, chords, and free-text are rejected; the driver focuses the target
+  then presses (no ambient keyboard). Declared and live accessible labels both
+  feed the shared destructive-action guard. Drivers settle via an equivalent
+  real-clock DOM settle implementation (`realNow`), matching crawl behaviour
+  without sharing a crawl primitive. `stateRecipeGo` returns
+  `(page) => Promise<void>` for `SurfaceVariant.go`. Network/route recipes,
   crawler wiring, automatic discovery, transient observation, live-region
   promotion, report rendering, and state-coverage reporting remain deferred
   follow-ups. New exports: `ALLOWED_PRESS_KEYS`, `isAllowedPressKey`,
   `validateStateRecipe`, `parseStateRecipes`, `stateRecipeKey`,
-  `classifyStateRecipe`, `applyStateRecipe`, `stateRecipeDriver`,
+  `classifyStateRecipe`, `applyStateRecipe`, `stateRecipeGo`,
   `isUnsafeStateLabel`, `StateRecipeError`.
 - Public `classifyAuthBoundary` helper classifies password fields, credential
   autocomplete, auth form actions, and auth redirects from redacted DOM

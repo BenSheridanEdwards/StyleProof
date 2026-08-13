@@ -117,7 +117,7 @@ export {
   stateRecipeKey,
   classifyStateRecipe,
   applyStateRecipe,
-  stateRecipeDriver,
+  stateRecipeGo,
   isAllowedPressKey,
   isUnsafeStateLabel,
   StateRecipeError,

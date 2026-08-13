@@ -13,16 +13,20 @@
  * returns a deterministic key-sorted collection for that reason.
  *
  * First production slice (#391 PR #2):
- *   - schema + pure validation (including conservative press-key vocabulary)
+ *   - closed-world schema + pure validation (including conservative press-key vocabulary)
  *   - hover / focus / press / click drivers
+ *   - selector privacy policy (value-free structural selectors only)
+ *   - press always targets an explicit selector (no ambient keyboard)
  *   - stable key derivation + duplicate detection
  *   - deterministic collection ordering
  *   - destructive-label safety (never apply an unsafe control)
  *   - post-action DOM settle via the same real-clock pattern as crawl
+ *   - `stateRecipeGo` adapter assignable to `SurfaceVariant.go`
  *
  * Deferred (PR #3 / follow-ups): crawler wiring, config parsing, automatic
  * discovery, transient observation windows, live-region promotion, network/route
- * recipes, report rendering, and state-coverage reporting.
+ * recipes, report rendering, and state-coverage reporting. Bare Escape without a
+ * target selector is deferred rather than ambient-unsafe.
  */
 import type { Page } from '@playwright/test';
 import { DANGER_SOURCE } from './danger.js';
@@ -52,6 +56,15 @@ export type AllowedPressKey = (typeof ALLOWED_PRESS_KEYS)[number];
 
 const ALLOWED_PRESS_KEY_SET: ReadonlySet<string> = new Set(ALLOWED_PRESS_KEYS);
 
+/** Closed-world recipe fields — anything else is rejected. */
+const ALLOWED_RECIPE_FIELDS = new Set(['action', 'selector', 'key', 'label', 'stateKey']);
+
+/**
+ * Max accepted selector length. Keeps provenance/keys bounded and blocks
+ * paste-dump / data-URI style selectors without echoing content in errors.
+ */
+export const MAX_RECIPE_SELECTOR_LENGTH = 256;
+
 /**
  * A single deterministic interaction that reaches a UI state.
  *
@@ -64,21 +77,22 @@ const ALLOWED_PRESS_KEY_SET: ReadonlySet<string> = new Set(ALLOWED_PRESS_KEYS);
 export type StateRecipe = {
   action: StateRecipeAction;
   /**
-   * Target selector. Required for `hover`, `focus`, and `click`. Optional for
-   * `press` (when set, the target is focused before the key is pressed — e.g.
-   * open a focused combobox with ArrowDown).
+   * Target selector. Required for every action, including `press` (focus target
+   * then key — never ambient keyboard input). Must pass the recipe selector
+   * privacy policy (value-free structural selectors only).
    */
-  selector?: string;
+  selector: string;
   /**
    * Keyboard key for `press`. Must be one of {@link ALLOWED_PRESS_KEYS}
    * (e.g. `Enter`, `Escape`, `ArrowDown`). Required when `action` is `press`.
    * Modifiers, chords (`Control+k`), and free-text values are rejected.
    */
-  key?: AllowedPressKey | string;
+  key?: AllowedPressKey;
   /**
    * Declared human label for stable keys and provenance. When omitted at apply
    * time, the driver may read the live accessible label for the destructive
    * guard and provenance only — live labels never rewrite stable keys.
+   * Blank/whitespace-only labels are rejected.
    */
   label?: string;
   /**
@@ -93,8 +107,9 @@ export type AppliedStateRecipe = {
   /** Stable key for map/report identity (`hover-open-menu`, …). */
   stateKey: string;
   action: StateRecipeAction;
-  selector?: string;
-  key?: string;
+  /** Validated value-free selector (never attribute-equality / secret-bearing). */
+  selector: string;
+  key?: AllowedPressKey;
   label?: string;
 };
 
@@ -117,8 +132,10 @@ export class StateRecipeError extends Error {
 
 const ACTIONS = new Set<string>(['hover', 'focus', 'press', 'click']);
 
-/** Fields that imply a later slice or an unsafe capability — rejected loudly. */
-const FORBIDDEN_FIELDS = ['script', 'eval', 'route', 'url', 'network', 'dispatchEvent', 'code'] as const;
+/** Controls, C0/C1, bidi overrides, ZW* / BOM — never valid in a recipe selector. */
+const SELECTOR_CONTROL_OR_BIDI =
+  // eslint-disable-next-line no-control-regex -- intentional control/bidi reject class
+  /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
 
 function slug(value: string): string {
   return (
@@ -167,30 +184,93 @@ function parseAction(raw: Record<string, unknown>): StateRecipeAction {
   return raw.action as StateRecipeAction;
 }
 
-function rejectForbiddenFields(raw: Record<string, unknown>): void {
-  for (const field of FORBIDDEN_FIELDS) {
-    if (field in raw) {
+/** Closed world: only action, selector, key, label, stateKey. */
+function rejectUnknownFields(raw: Record<string, unknown>): void {
+  for (const field of Object.keys(raw)) {
+    if (!ALLOWED_RECIPE_FIELDS.has(field)) {
       throw new StateRecipeError(
-        `state recipe must not include "${field}" (unsupported; no arbitrary script/network recipes)`,
+        `state recipe must not include "${field}" (allowed fields: action, selector, key, label, stateKey)`,
       );
     }
   }
 }
 
-function optionalLabel(value: unknown): string | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== 'string') throw new StateRecipeError('"label" must be a string when provided');
-  return value;
+/**
+ * Recipe selector privacy policy (auth-boundary principle, local copy — no private coupling):
+ * - trim + nonempty
+ * - length ≤ {@link MAX_RECIPE_SELECTOR_LENGTH}
+ * - no controls / newlines / NUL / bidi
+ * - no attribute-equality (`=`, `~=`, `|=`, `^=`, `$=`, `*=`) quoted or unquoted — values must not ride selectors
+ * - no URL query (`?`) or credential (`user:pass@` / `//…@`) forms
+ *
+ * Allowed examples: `#id`, `.class`, `button.primary`, `[aria-expanded]`, `input[name]`, `nav > a`.
+ * Rejected examples: `input[value=secret]`, `[data-token="…"]`, `a[href="/x?t=1"]`, newline/control, oversized.
+ *
+ * Errors name the **policy**, never echo the selector (secrets must not appear in messages).
+ */
+export function assertSafeRecipeSelector(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new StateRecipeError('state recipe selector rejected by privacy policy (must be a non-empty string)');
+  }
+  const selector = value.trim();
+  if (!selector) {
+    throw new StateRecipeError('state recipe selector rejected by privacy policy (must be a non-empty string)');
+  }
+  if (selector.length > MAX_RECIPE_SELECTOR_LENGTH) {
+    throw new StateRecipeError(
+      `state recipe selector rejected by privacy policy (exceeds ${MAX_RECIPE_SELECTOR_LENGTH} characters)`,
+    );
+  }
+  if (SELECTOR_CONTROL_OR_BIDI.test(selector)) {
+    throw new StateRecipeError(
+      'state recipe selector rejected by privacy policy (controls, newlines, NUL, or bidi characters are not allowed)',
+    );
+  }
+  // Attribute selectors with a value binding (=, ~=, |=, ^=, $=, *=), any quoting style.
+  // Same principle as auth-boundary redactedSelector — equality can carry field values.
+  if (/\[[^\]]*[~|^$*]?=[^\]]*\]/.test(selector)) {
+    throw new StateRecipeError(
+      'state recipe selector rejected by privacy policy (attribute-equality selectors are not allowed)',
+    );
+  }
+  // Defense in depth: bare `=…` value patterns outside brackets.
+  if (/[=]["'`][^"'`]*["'`]/.test(selector) || /=\s*[^\s"'`\]]+/.test(selector)) {
+    throw new StateRecipeError(
+      'state recipe selector rejected by privacy policy (attribute-equality selectors are not allowed)',
+    );
+  }
+  // Query strings and credential-bearing URL shapes (fragments use # which is also CSS id — allow #id).
+  if (selector.includes('?')) {
+    throw new StateRecipeError(
+      'state recipe selector rejected by privacy policy (query strings are not allowed in selectors)',
+    );
+  }
+  if (/\/\/[^/\s]*@/.test(selector) || /(?:^|[\s>+~,])[^/\s]*:[^/\s]*@/.test(selector)) {
+    throw new StateRecipeError(
+      'state recipe selector rejected by privacy policy (URL credentials are not allowed in selectors)',
+    );
+  }
+  return selector;
 }
 
-function requireSelector(action: StateRecipeAction, selector: string | undefined): void {
-  if ((action === 'hover' || action === 'focus' || action === 'click') && !selector) {
-    throw new StateRecipeError(`state recipe action "${action}" requires a selector`);
+function optionalLabel(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') {
+    throw new StateRecipeError('"label" must be a non-empty string when provided');
   }
+  if (!value.trim()) {
+    throw new StateRecipeError('"label" must be a non-empty string when provided');
+  }
+  return value.trim();
 }
 
 function requirePressKey(action: StateRecipeAction, key: string | undefined): void {
-  if (action !== 'press') return;
+  if (action !== 'press') {
+    if (key !== undefined) {
+      throw new StateRecipeError(`state recipe action "${action}" must not include "key" (only press uses key)`);
+    }
+    return;
+  }
   if (!key) {
     throw new StateRecipeError('state recipe action "press" requires a key');
   }
@@ -209,19 +289,18 @@ function requirePressKey(action: StateRecipeAction, key: string | undefined): vo
 export function validateStateRecipe(raw: unknown): StateRecipe {
   const r = plainObject(raw, 'state recipe');
   const action = parseAction(r);
-  rejectForbiddenFields(r);
+  rejectUnknownFields(r);
 
-  const selector = optionalNonEmptyString(r.selector, 'selector');
-  const key = optionalNonEmptyString(r.key, 'key');
+  const selector = assertSafeRecipeSelector(r.selector);
+  const keyRaw = optionalNonEmptyString(r.key, 'key');
+  requirePressKey(action, keyRaw);
+  const key = keyRaw !== undefined && isAllowedPressKey(keyRaw) ? keyRaw : undefined;
   const stateKey = optionalNonEmptyString(r.stateKey, 'stateKey');
   const label = optionalLabel(r.label);
 
-  requireSelector(action, selector);
-  requirePressKey(action, key);
-
   return {
     action,
-    ...(selector ? { selector } : {}),
+    selector,
     ...(key ? { key } : {}),
     ...(label !== undefined ? { label } : {}),
     ...(stateKey ? { stateKey } : {}),
@@ -273,7 +352,8 @@ export function parseStateRecipes(raw: unknown): StateRecipe[] {
 /**
  * Stable identity for a recipe. Explicit `stateKey` wins; otherwise
  * `action[-declared-label|-selector][-press-key]`. Deterministic across runs
- * and independent of live DOM labels.
+ * and independent of live DOM labels. Selector is only slugged after privacy
+ * validation — never a secret-bearing attribute-equality form.
  */
 export function stateRecipeKey(recipe: StateRecipe): string {
   if (recipe.stateKey) return slug(recipe.stateKey);
@@ -316,19 +396,23 @@ async function readElementLabel(page: Page, selector: string): Promise<string> {
   return page
     .locator(selector)
     .first()
-    .evaluate((el) => {
-      const own = (
-        el.getAttribute('aria-label') ||
-        el.getAttribute('name') ||
-        el.textContent ||
-        el.getAttribute('title') ||
-        ''
-      )
-        .trim()
-        .replace(/\s+/g, ' ')
-        .slice(0, 80);
-      return own || el.tagName.toLowerCase();
-    });
+    .evaluate(
+      (el) => {
+        const own = (
+          el.getAttribute('aria-label') ||
+          el.getAttribute('name') ||
+          el.textContent ||
+          el.getAttribute('title') ||
+          ''
+        )
+          .trim()
+          .replace(/\s+/g, ' ')
+          .slice(0, 80);
+        return own || el.tagName.toLowerCase();
+      },
+      undefined,
+      { timeout: 5_000 },
+    );
 }
 
 /** Element count for settle polls (kept out of line-level clone with crawl). */
@@ -339,6 +423,7 @@ async function bodyElementCount(page: Page): Promise<number> {
 /**
  * Cheap post-interaction settle: poll until the DOM element count is stable.
  * Uses {@link realNow} so a frozen spec clock cannot hang the deadline.
+ * Equivalent real-clock DOM settle implementation to crawl (not a shared import).
  */
 async function settleAfterRecipe(page: Page, maxMs = 1200): Promise<void> {
   const deadline = realNow() + maxMs;
@@ -357,7 +442,7 @@ function applied(recipe: StateRecipe, label?: string): AppliedStateRecipe {
   return {
     stateKey: stateRecipeKey(recipe),
     action: recipe.action,
-    ...(recipe.selector ? { selector: recipe.selector } : {}),
+    selector: recipe.selector,
     ...(recipe.key ? { key: recipe.key } : {}),
     ...(resolvedLabel !== undefined ? { label: resolvedLabel } : {}),
   };
@@ -370,17 +455,19 @@ function applied(recipe: StateRecipe, label?: string): AppliedStateRecipe {
  * - Declared or live label matching {@link DANGER_SOURCE} → {@link StateRecipeError}
  *   (use {@link classifyStateRecipe} first when you want a soft skip instead)
  * - Never runs arbitrary script/eval
+ * - `press` always focuses the explicit selector first (no ambient keyboard)
  */
 async function executeStateRecipe(page: Page, recipe: StateRecipe): Promise<void> {
-  const target = recipe.selector ? page.locator(recipe.selector).first() : null;
+  const target = page.locator(recipe.selector).first();
   if (recipe.action === 'hover') {
-    await target!.hover({ timeout: 10_000 });
+    await target.hover({ timeout: 5_000 });
   } else if (recipe.action === 'focus') {
-    await target!.focus({ timeout: 10_000 });
+    await target.focus({ timeout: 5_000 });
   } else if (recipe.action === 'click') {
-    await target!.click({ timeout: 10_000 });
+    await target.click({ timeout: 5_000 });
   } else {
-    if (target) await target.focus({ timeout: 10_000 });
+    // press: require focused target — never page.keyboard against ambient focus
+    await target.focus({ timeout: 5_000 });
     await page.keyboard.press(recipe.key!);
   }
   await settleAfterRecipe(page);
@@ -392,27 +479,22 @@ export async function applyStateRecipe(page: Page, raw: unknown): Promise<Applie
     throw new StateRecipeError(`refusing unsafe state recipe (${classified.skip.label}): ${classified.skip.detail}`);
   }
   const recipe = classified.recipe;
+  const fail = () => new StateRecipeError(`state recipe failed (${recipe.action} key=${stateRecipeKey(recipe)})`);
 
   let liveLabel: string | undefined;
-  if (recipe.selector) {
+  try {
     liveLabel = await readElementLabel(page, recipe.selector);
     if (liveLabel && isUnsafeStateLabel(liveLabel)) {
       throw new StateRecipeError(
         `refusing unsafe state recipe target (${liveLabel}): label matched the built-in destructive-action guard`,
       );
     }
-  }
-
-  try {
     await executeStateRecipe(page, recipe);
   } catch (e) {
     if (e instanceof StateRecipeError) throw e;
-    throw new StateRecipeError(
-      `state recipe failed (${recipe.action} ${recipe.selector ?? recipe.key ?? ''}): ${
-        e instanceof Error ? e.message : String(e)
-      }`,
-      { cause: e },
-    );
+    // Privacy: name action + stable key only. Do not echo selector or nested
+    // Playwright locator text (which re-embeds the selector).
+    throw fail();
   }
 
   // Declared label wins for provenance display; live label only fills gaps.
@@ -421,11 +503,14 @@ export async function applyStateRecipe(page: Page, raw: unknown): Promise<Applie
 }
 
 /**
- * Build a `SurfaceVariant.go` / setup-style driver from a recipe so consumers
- * can drop typed recipes into existing capture surfaces without hand-rolling
- * Playwright calls.
+ * Build a driver assignable to {@link import('./runner.js').SurfaceVariant.go}
+ * (and similarly shaped slots that take `(page) => Promise<void>`).
+ * Applies the recipe and discards provenance — use {@link applyStateRecipe}
+ * when you need the returned {@link AppliedStateRecipe}.
  */
-export function stateRecipeDriver(raw: unknown): (page: Page) => Promise<AppliedStateRecipe> {
+export function stateRecipeGo(raw: unknown): (page: Page) => Promise<void> {
   const recipe = validateStateRecipe(raw);
-  return (page) => applyStateRecipe(page, recipe);
+  return async (page: Page) => {
+    await applyStateRecipe(page, recipe);
+  };
 }

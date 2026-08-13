@@ -2,12 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ALLOWED_PRESS_KEYS,
+  MAX_RECIPE_SELECTOR_LENGTH,
   validateStateRecipe,
   parseStateRecipes,
   stateRecipeKey,
   classifyStateRecipe,
   isAllowedPressKey,
   isUnsafeStateLabel,
+  assertSafeRecipeSelector,
+  stateRecipeGo,
   StateRecipeError,
 } from '../dist/state-recipes.js';
 
@@ -21,12 +24,13 @@ test('validateStateRecipe: accepts hover/focus/press/click shapes', () => {
     selector: '#menu',
     label: 'Open menu',
   });
-  assert.deepEqual(validateStateRecipe({ action: 'focus', selector: 'input[name=email]' }), {
+  assert.deepEqual(validateStateRecipe({ action: 'focus', selector: '#email' }), {
     action: 'focus',
-    selector: 'input[name=email]',
+    selector: '#email',
   });
-  assert.deepEqual(validateStateRecipe({ action: 'press', key: 'Escape' }), {
+  assert.deepEqual(validateStateRecipe({ action: 'press', selector: '#dialog', key: 'Escape' }), {
     action: 'press',
+    selector: '#dialog',
     key: 'Escape',
   });
   assert.deepEqual(validateStateRecipe({ action: 'click', selector: '#menu', label: 'Open menu' }), {
@@ -38,51 +42,69 @@ test('validateStateRecipe: accepts hover/focus/press/click shapes', () => {
     validateStateRecipe({
       action: 'press',
       key: 'ArrowDown',
-      selector: '[role=combobox]',
+      selector: '#plan',
       label: 'Plan',
       stateKey: 'plan-listbox-open',
     }),
     {
       action: 'press',
       key: 'ArrowDown',
-      selector: '[role=combobox]',
+      selector: '#plan',
       label: 'Plan',
       stateKey: 'plan-listbox-open',
     },
   );
+  // Value-free structural selectors
+  assert.equal(validateStateRecipe({ action: 'focus', selector: 'input[name]' }).selector, 'input[name]');
+  assert.equal(validateStateRecipe({ action: 'click', selector: '[aria-expanded]' }).selector, '[aria-expanded]');
+  assert.equal(validateStateRecipe({ action: 'hover', selector: '  #card  ' }).selector, '#card');
 });
 
-test('validateStateRecipe: hover/focus/click require selector; press requires key', () => {
-  assert.throws(() => validateStateRecipe({ action: 'hover' }), StateRecipeError);
-  assert.throws(() => validateStateRecipe({ action: 'focus' }), StateRecipeError);
-  assert.throws(() => validateStateRecipe({ action: 'click' }), StateRecipeError);
-  assert.throws(() => validateStateRecipe({ action: 'press', selector: '#x' }), StateRecipeError);
-  assert.throws(() => validateStateRecipe({ action: 'hover', selector: '' }), StateRecipeError);
+test('validateStateRecipe: every action requires selector; press requires key', () => {
+  assert.throws(() => validateStateRecipe({ action: 'hover' }), /privacy policy|selector/);
+  assert.throws(() => validateStateRecipe({ action: 'focus' }), /privacy policy|selector/);
+  assert.throws(() => validateStateRecipe({ action: 'click' }), /privacy policy|selector/);
+  assert.throws(() => validateStateRecipe({ action: 'press', key: 'Escape' }), /privacy policy|selector/);
+  assert.throws(() => validateStateRecipe({ action: 'press', selector: '#x' }), /requires a key/);
+  assert.throws(() => validateStateRecipe({ action: 'hover', selector: '' }), /privacy policy/);
+  assert.throws(() => validateStateRecipe({ action: 'hover', selector: '   ' }), /privacy policy/);
 });
 
-test('validateStateRecipe: rejects unknown actions and forbidden fields loudly', () => {
+test('validateStateRecipe: closed-world — rejects unknown keys including typos and deferred fields', () => {
+  const unknown = [
+    'seletor',
+    'timeout',
+    'force',
+    'button',
+    'modifiers',
+    'fill',
+    'value',
+    'href',
+    'script',
+    'eval',
+    'route',
+    'url',
+    'network',
+    'dispatchEvent',
+    'code',
+    'futureField',
+  ];
+  for (const field of unknown) {
+    assert.throws(
+      () => validateStateRecipe({ action: 'hover', selector: '#x', [field]: 'x' }),
+      new RegExp(`must not include "${field}"`),
+      field,
+    );
+  }
   assert.throws(() => validateStateRecipe({ action: 'route' }), /one of hover, focus, press, click/);
   assert.throws(() => validateStateRecipe({ action: 'dblclick', selector: '#x' }), /one of hover, focus, press, click/);
-  assert.throws(() => validateStateRecipe({ action: 'hover', selector: '#x', url: '/api' }), /must not include "url"/);
-  assert.throws(
-    () => validateStateRecipe({ action: 'hover', selector: '#x', script: 'evil()' }),
-    /must not include "script"/,
-  );
-  assert.throws(() => validateStateRecipe({ action: 'hover', selector: '#x', eval: '1' }), /must not include "eval"/);
-  assert.throws(
-    () => validateStateRecipe({ action: 'hover', selector: '#x', network: {} }),
-    /must not include "network"/,
-  );
-  assert.throws(
-    () => validateStateRecipe({ action: 'hover', selector: '#x', dispatchEvent: 'mouseover' }),
-    /must not include "dispatchEvent"/,
-  );
   assert.throws(() => validateStateRecipe(null), /plain object/);
   assert.throws(() => validateStateRecipe('hover'), /plain object/);
+  // key only allowed on press
+  assert.throws(() => validateStateRecipe({ action: 'hover', selector: '#x', key: 'Enter' }), /must not include "key"/);
 });
 
 test('validateStateRecipe: press keys limited to disclosure/navigation vocabulary', () => {
-  // Exact allowed set — no silent expansion
   assert.deepEqual(
     [...ALLOWED_PRESS_KEYS],
     ['Enter', 'Escape', 'Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'],
@@ -90,7 +112,7 @@ test('validateStateRecipe: press keys limited to disclosure/navigation vocabular
 
   for (const key of ALLOWED_PRESS_KEYS) {
     assert.equal(isAllowedPressKey(key), true, key);
-    assert.equal(validateStateRecipe({ action: 'press', key }).key, key);
+    assert.equal(validateStateRecipe({ action: 'press', selector: '#t', key }).key, key);
   }
 
   const rejected = [
@@ -116,17 +138,77 @@ test('validateStateRecipe: press keys limited to disclosure/navigation vocabular
   for (const key of rejected) {
     assert.equal(isAllowedPressKey(key), false, key);
     assert.throws(
-      () => validateStateRecipe({ action: 'press', key }),
+      () => validateStateRecipe({ action: 'press', selector: '#t', key }),
       /press key must be one of|modifiers, chords, and free-text/,
     );
   }
 });
 
+test('validateStateRecipe: blank/whitespace label rejected', () => {
+  assert.throws(() => validateStateRecipe({ action: 'hover', selector: '#x', label: '' }), /label/);
+  assert.throws(() => validateStateRecipe({ action: 'hover', selector: '#x', label: '   ' }), /label/);
+  assert.equal(validateStateRecipe({ action: 'hover', selector: '#x', label: '  Open  ' }).label, 'Open');
+});
+
+// ---------------------------------------------------------------------------
+// Selector privacy
+// ---------------------------------------------------------------------------
+
+test('assertSafeRecipeSelector / validateStateRecipe: rejects secret-bearing and unsafe selectors without echoing secrets', () => {
+  const secret = 'super-secret-token-xyz';
+  const leaky = [
+    `input[value=${secret}]`,
+    `input[value="${secret}"]`,
+    `input[value='${secret}']`,
+    `[data-token=${secret}]`,
+    `[data-token="${secret}"]`,
+    `a[href="/path?token=${secret}"]`,
+    `a[href*="${secret}"]`,
+    `input[name=user]`,
+    `[role=button]`,
+    'form input[autocomplete^=current]',
+    `#x\n.y`,
+    `#x\u0000y`,
+    `#x\u200by`,
+    'a'.repeat(MAX_RECIPE_SELECTOR_LENGTH + 1),
+    `a[href="https://user:${secret}@evil.test/"]`,
+  ];
+
+  for (const selector of leaky) {
+    let err;
+    try {
+      validateStateRecipe({ action: 'focus', selector });
+      assert.fail(`expected reject for selector policy case`);
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof StateRecipeError, 'StateRecipeError');
+    assert.match(String(err.message), /privacy policy/);
+    const serialized = JSON.stringify({ message: err.message, name: err.name, stack: err.stack });
+    assert.equal(serialized.includes(secret), false, 'error must not contain secret');
+    assert.equal(String(err.message).includes(secret), false);
+    // Oversized case has no secret; still no raw dump of selector body beyond policy name
+    if (selector.includes(secret)) {
+      assert.equal(serialized.includes(secret.slice(0, 8)), false);
+    }
+  }
+
+  // Accepted value-free structural selectors
+  for (const selector of ['#id', '.class', 'button.primary', '[aria-expanded]', 'input[name]', 'nav > a']) {
+    assert.equal(assertSafeRecipeSelector(selector), selector);
+    assert.equal(validateStateRecipe({ action: 'click', selector }).selector, selector);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Collections + keys
+// ---------------------------------------------------------------------------
+
 test('parseStateRecipes: validates arrays and indexes errors', () => {
   const recipes = parseStateRecipes([
     { action: 'hover', selector: '#a' },
-    { action: 'press', key: 'Enter' },
-    { action: 'click', selector: '#b' },
+    { action: 'press', selector: '#b', key: 'Enter' },
+    { action: 'click', selector: '#c' },
   ]);
   assert.equal(recipes.length, 3);
   assert.throws(() => parseStateRecipes({ action: 'hover' }), /JSON array/);
@@ -143,17 +225,15 @@ test('parseStateRecipes: rejects duplicate derived stable keys', () => {
     /duplicate state recipe key "hover-open-menu".*recipes\[0\].*recipes\[1\].*independent variants/,
   );
 
-  // Explicit stateKey collision (same slug after normalize)
   assert.throws(
     () =>
       parseStateRecipes([
-        { action: 'press', key: 'Escape', stateKey: 'dismiss' },
+        { action: 'press', selector: '#a', key: 'Escape', stateKey: 'dismiss' },
         { action: 'focus', selector: '#x', stateKey: 'dismiss' },
       ]),
     /duplicate state recipe key "dismiss"/,
   );
 
-  // Explicit stateKey slug collides with another recipe's derived key
   assert.throws(
     () =>
       parseStateRecipes([
@@ -163,27 +243,24 @@ test('parseStateRecipes: rejects duplicate derived stable keys', () => {
     /duplicate state recipe key "hover-open-menu"/,
   );
 
-  // stateKey values that slug-normalize to the same key
   assert.throws(
     () =>
       parseStateRecipes([
-        { action: 'press', key: 'Tab', stateKey: 'Next Step!' },
+        { action: 'press', selector: '#a', key: 'Tab', stateKey: 'Next Step!' },
         { action: 'focus', selector: '#y', stateKey: 'next-step' },
       ]),
     /duplicate state recipe key "next-step"/,
   );
 
-  // Same free-form inputs that slug to the same key
   assert.throws(
     () =>
       parseStateRecipes([
-        { action: 'press', key: 'Enter', label: 'Submit' },
-        { action: 'press', key: 'Enter', label: 'Submit' },
+        { action: 'press', selector: '#a', key: 'Enter', label: 'Submit' },
+        { action: 'press', selector: '#b', key: 'Enter', label: 'Submit' },
       ]),
     /duplicate state recipe key "press-submit-enter"/,
   );
 
-  // click and hover with same label are distinct actions (different keys)
   const mixed = parseStateRecipes([
     { action: 'hover', selector: '#a', label: 'Open menu' },
     { action: 'click', selector: '#a', label: 'Open menu' },
@@ -193,11 +270,11 @@ test('parseStateRecipes: rejects duplicate derived stable keys', () => {
 
 test('parseStateRecipes: returns deterministic key ordering (independent variants, not a sequence)', () => {
   const input = [
-    { action: 'press', key: 'Escape' },
+    { action: 'press', selector: '#dlg', key: 'Escape' },
     { action: 'hover', selector: '#menu', label: 'Open menu' },
     { action: 'focus', selector: '#email' },
     { action: 'click', selector: '#cta', label: 'Start' },
-    { action: 'press', key: 'Tab', label: 'Next' },
+    { action: 'press', selector: '#nav', key: 'Tab', label: 'Next' },
   ];
   const a = parseStateRecipes(input);
   const b = parseStateRecipes([...input].reverse());
@@ -205,29 +282,21 @@ test('parseStateRecipes: returns deterministic key ordering (independent variant
   const keysB = b.map(stateRecipeKey);
   assert.deepEqual(keysA, keysB);
   assert.deepEqual(keysA, [...keysA].sort());
-  // Sorted by stable key, not input order
-  assert.deepEqual(keysA, ['click-start', 'focus-email', 'hover-open-menu', 'press-escape', 'press-next-tab']);
+  assert.deepEqual(keysA, ['click-start', 'focus-email', 'hover-open-menu', 'press-dlg-escape', 'press-next-tab']);
 });
-
-// ---------------------------------------------------------------------------
-// Stable keys
-// ---------------------------------------------------------------------------
 
 test('stateRecipeKey: deterministic keys from action + declared label/selector/key', () => {
   assert.equal(stateRecipeKey({ action: 'hover', selector: '#menu', label: 'Open menu' }), 'hover-open-menu');
   assert.equal(stateRecipeKey({ action: 'focus', selector: '#email' }), 'focus-email');
-  assert.equal(stateRecipeKey({ action: 'press', key: 'Escape' }), 'press-escape');
+  assert.equal(stateRecipeKey({ action: 'press', selector: '#dlg', key: 'Escape' }), 'press-dlg-escape');
   assert.equal(stateRecipeKey({ action: 'click', selector: '#cta', label: 'Start' }), 'click-start');
   assert.equal(
     stateRecipeKey({ action: 'press', key: 'ArrowDown', selector: '#plan', label: 'Plan' }),
     'press-plan-arrowdown',
   );
   assert.equal(stateRecipeKey({ action: 'hover', selector: '#x', stateKey: 'nav-tooltip' }), 'nav-tooltip');
-  // Same inputs → same key across calls
   const recipe = { action: 'hover', selector: 'button.menu', label: 'Show help' };
   assert.equal(stateRecipeKey(recipe), stateRecipeKey({ ...recipe }));
-  // Without declared label, selector (not a hypothetical live label) drives the key
-  assert.equal(stateRecipeKey({ action: 'focus', selector: '#email' }), 'focus-email');
 });
 
 // ---------------------------------------------------------------------------
@@ -258,16 +327,27 @@ test('classifyStateRecipe: soft-skips unsafe labels; validates shape first', () 
   assert.equal(safe.ok, true);
   if (safe.ok) assert.equal(safe.recipe.action, 'focus');
 
-  // Shape still fails before safety
   assert.throws(() => classifyStateRecipe({ action: 'hover' }), StateRecipeError);
-  assert.throws(() => classifyStateRecipe({ action: 'press', key: 'Control+c' }), /press key must be one of/);
+  assert.throws(
+    () => classifyStateRecipe({ action: 'press', selector: '#x', key: 'Control+c' }),
+    /press key must be one of/,
+  );
+  assert.throws(() => classifyStateRecipe({ action: 'press', key: 'Escape' }), /privacy policy|selector/);
 });
 
 // ---------------------------------------------------------------------------
-// Public package entry re-exports
+// stateRecipeGo adapter + public package entry
 // ---------------------------------------------------------------------------
 
-test('package index re-exports press-key API used by consumers', async () => {
+test('stateRecipeGo: returns Promise<void> driver after validating recipe', async () => {
+  const go = stateRecipeGo({ action: 'focus', selector: '#email', label: 'Email' });
+  assert.equal(typeof go, 'function');
+  // Validate-on-build: bad recipes throw before a page exists
+  assert.throws(() => stateRecipeGo({ action: 'press', key: 'Escape' }), /privacy policy|selector/);
+  assert.throws(() => stateRecipeGo({ action: 'hover', selector: `input[value=secret-nope]` }), /privacy policy/);
+});
+
+test('package index re-exports consumer API (no stateRecipeDriver; has stateRecipeGo)', async () => {
   const pkg = await import('../dist/index.js');
   assert.equal(typeof pkg.isAllowedPressKey, 'function');
   assert.ok(Array.isArray(pkg.ALLOWED_PRESS_KEYS));
@@ -277,6 +357,11 @@ test('package index re-exports press-key API used by consumers', async () => {
   assert.equal(typeof pkg.parseStateRecipes, 'function');
   assert.equal(typeof pkg.validateStateRecipe, 'function');
   assert.equal(typeof pkg.applyStateRecipe, 'function');
-  assert.equal(typeof pkg.stateRecipeDriver, 'function');
+  assert.equal(typeof pkg.stateRecipeGo, 'function');
+  assert.equal(pkg.stateRecipeDriver, undefined);
   assert.equal(typeof pkg.StateRecipeError, 'function');
+  // Type fixture module is built
+  const fixture = await import('../dist/state-recipe-go-assignability.js');
+  assert.equal(fixture.stateRecipeSurfaceVariantFixture.key, 'plan-card-hover');
+  assert.equal(typeof fixture.stateRecipeSurfaceVariantFixture.go, 'function');
 });
