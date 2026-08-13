@@ -25,45 +25,35 @@ _**Surface base** = one product UI state; capture keys with `@width` or live-sta
 
 ## Element-level changes
 
-### `button.btn` · resting colour changed
+### `button.btn` · resting colour and size changed
 
 _demo-button @ 900_
 
+`padding` `14px 28px` → `18px 32px`<br>
+`border-color` `#38d6c6` → `#f87171`<br>
 `background-color` `#14b8a6` → `#dc2626`<br>
-`border-color` `#38d6c6` → `#f87171`
+`font-size` `13px` → `16px`<br>
+`letter-spacing` `1.56px` → `1.92px`
 
 ![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
 
 <sub>◀ before · after ▶ — the button at rest</sub>
 
-**`button.btn`**
-
-Style:
-
-| Property           | Before    | After     |
-| ------------------ | --------- | --------- |
-| `background-color` | `#14b8a6` | `#dc2626` |
-| `border-color`     | `#38d6c6` | `#f87171` |
-
-### `button.btn` · resting size changed
-
-_demo-button @ 900_
-
-`padding` `14px 28px` → `18px 32px`<br>
-`font-size` `13px` → `16px`
-
 ![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
 
-<sub>🔍 magenta boxes mark the size change — changed: `button.btn`</sub>
+<sub>🔍 magenta boxes mark the complete resting-state change — changed: `button.btn`</sub>
 
 **`button.btn`**
 
 Style:
 
-| Property    | Before      | After       |
-| ----------- | ----------- | ----------- |
-| `padding`   | `14px 28px` | `18px 32px` |
-| `font-size` | `13px`      | `16px`      |
+| Property           | Before      | After       |
+| ------------------ | ----------- | ----------- |
+| `padding`          | `14px 28px` | `18px 32px` |
+| `border-color`     | `#38d6c6`   | `#f87171`   |
+| `background-color` | `#14b8a6`   | `#dc2626`   |
+| `font-size`        | `13px`      | `16px`      |
+| `letter-spacing`   | `1.56px`    | `1.92px`    |
 
 ### `a.link` · 1 element restyled `:hover`
 
