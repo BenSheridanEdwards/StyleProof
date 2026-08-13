@@ -811,6 +811,62 @@ overlay, an empty render) has no control to click, so it never appears in the
 manifest; those need `liveStates` fixtures, per the
 [un-exercised-state gap](#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle).
 
+### State recipes: explicit hover, focus, keyboard, and click variants
+
+For interaction states that must be driven as **independent, named variants**
+(not crawl discovery), StyleProof exports a typed **state recipe** contract:
+
+```ts
+import { parseStateRecipes, stateRecipeGo, applyStateRecipe, stateRecipeKey, type SurfaceVariant } from 'styleproof';
+
+const recipes = parseStateRecipes([
+  { action: 'hover', selector: '#plan-card', label: 'Plan card' },
+  { action: 'focus', selector: '#email', label: 'Email' },
+  { action: 'press', selector: '#menu', key: 'ArrowDown', label: 'Open menu' },
+  { action: 'click', selector: '#menu', label: 'Open menu' },
+]);
+
+// Real SurfaceVariant: wire recipes through `go` (Promise<void>), not setup.
+const variant: SurfaceVariant = {
+  key: 'plan-card-hover',
+  go: stateRecipeGo(recipes[0]),
+};
+
+// Or drive ad hoc when you need provenance (stable key / label):
+// const applied = await applyStateRecipe(page, recipes[0]);
+```
+
+Rules for this slice:
+
+- Actions are only `hover`, `focus`, `press`, and `click` — closed-world fields
+  are exactly `action`, `selector`, `key`, `label`, `stateKey` (unknown keys
+  rejected).
+- Every action, including `press`, requires an explicit **CSS-only, value-free**
+  selector (`#id`, `.class`, `[aria-expanded]`, `input[name]`, `li:nth-child(2)`,
+  `nav > a`, …). Quotes/backticks, attribute-equality, Playwright engine prefixes
+  (`text=`, `xpath=`, `css=`, …), Playwright locator chaining (`>>`,
+  `button >> …`; single CSS `>` is fine), and value-carrying functions
+  (`:text()`, `:has-text()`, `url()`) are rejected so secrets never enter keys,
+  provenance, or error messages. Public `stateRecipeKey` runs full
+  `validateStateRecipe` then shared internal key derivation. Labels and
+  `stateKey` are length-bounded and control-sanitized; labels/`stateKey` that
+  cannot produce a non-empty safe slug fragment (emoji/CJK/punctuation-only)
+  are rejected before browser I/O (no generic `state` collision key). Bare
+  Escape / ambient keyboard is deferred rather than unsafe.
+- A collection is a set of **independent variants** from a known baseline, not a
+  multi-step choreography. Duplicate derived keys are rejected; order is sorted
+  by stable key.
+- Stable keys come from declared `stateKey` / label / selector. Live accessible
+  labels still feed the destructive-action guard (so a benign declared label
+  cannot authorize a control whose live label is `Delete` / `Remove` / …).
+- `press` keys are a fixed disclosure/navigation allowlist (`Enter`, `Escape`,
+  `Space`, `Tab`, arrows, `Home`, `End`). The driver focuses the target, then
+  presses — never ambient page focus.
+
+Crawler auto-discovery, transient observation windows, network-state recipes,
+and state-coverage reporting are **not** wired in this release — those remain
+follow-up slices.
+
 ### Live UI states: capture each state, not an average
 
 StyleProof automatically detects semantic live-state candidates (`aria-live`,

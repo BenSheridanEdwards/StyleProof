@@ -9,6 +9,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Typed **state recipes** contract (#391 production PR #2): closed-world schema
+  validation and Playwright drivers for independent `hover` / `focus` / `press` /
+  `click` variants. Allowed fields are exactly `action`, `selector`, `key`,
+  `label`, `stateKey`. Stable keys come from declared `stateKey` / label /
+  selector (never live DOM labels); `parseStateRecipes` rejects duplicate derived
+  keys and returns deterministic key-sorted collections. Every action — including
+  `press` — requires an explicit value-free selector (attribute-equality,
+  controls/bidi, query/credentials, and oversized selectors are rejected without
+  echoing secrets). `press` accepts only a conservative disclosure/navigation
+  vocabulary (`Enter`, `Escape`, `Space`, `Tab`, arrows, `Home`, `End`) —
+  modifiers, chords, and free-text are rejected; the driver focuses the target
+  then presses (no ambient keyboard). Declared and live accessible labels both
+  feed the shared destructive-action guard. Drivers settle via an equivalent
+  real-clock DOM settle implementation (`realNow`), matching crawl behaviour
+  without sharing a crawl primitive. `stateRecipeGo` returns
+  `(page) => Promise<void>` for `SurfaceVariant.go`. Network/route recipes,
+  crawler wiring, automatic discovery, transient observation, live-region
+  promotion, report rendering, and state-coverage reporting remain deferred
+  follow-ups. New exports: `ALLOWED_PRESS_KEYS`, `isAllowedPressKey`,
+  `validateStateRecipe`, `parseStateRecipes`, `stateRecipeKey`,
+  `classifyStateRecipe`, `applyStateRecipe`, `stateRecipeGo`,
+  `isUnsafeStateLabel`, `StateRecipeError`.
 - Framework-neutral component manifest (#392 slice 1): typed document for
   module path, export name, variant keys, serializable props, optional
   provider modules, viewports, and exclusions-with-reason. Validation
@@ -51,6 +73,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   to the rest screenshot so the report can compare both sides in that state.
 
 ### Fixed
+
+- State recipes (#391): replace polynomial selector/label regex paths with
+  bounded linear character scanners (slug builder, pseudo/arg validators,
+  bracket equality scan, credential/scheme token scans, manual `:ident()`
+  parser). CodeQL `js/polynomial-redos` shapes (hyphen/space/`[`/`[=`/`+`/`:`/
+  nested-paren runs) complete boundedly without secret echo; public contract
+  unchanged.
+- State recipes (#391): close remaining selector/key privacy bypasses — public
+  `stateRecipeKey` runs full `validateStateRecipe` then shared internal key
+  derivation (closed world, press-key rules, no partial-validation drift;
+  cast/JS secret selectors throw policy-only errors with no secret in
+  message/stack); CSS-only selector policy rejects quotes, engine prefixes
+  (`text=`, `xpath=`, …), Playwright locator chaining (`>>` / `button >> …`;
+  single CSS `>` remains allowed), value-carrying functions (`:text()`,
+  `url()`, …), and escapes; unknown field-name errors never echo hostile keys;
+  labels/`stateKey` are bounded and control-sanitized and must produce a
+  non-empty safe slug fragment (emoji/CJK/punctuation-only labels fail pure
+  validation / preflight before browser I/O); E2E identity asserts equal
+  normalized baseline-to-state deltas across independent fresh contexts (not
+  whole-map equality); compile fixture proves `go` only.
 
 - Auth crawl confidence (#390): intermediate HTTP auth redirects are dropped when
   setup leaves the auth boundary; auth is re-observed on every newly recorded

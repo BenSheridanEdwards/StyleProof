@@ -134,3 +134,24 @@ export type { AuthBoundaryMetadata, AuthBoundaryDiagnostic } from './auth-bounda
 
 export { classifyIncompleteUi } from './incomplete-ui.js';
 export type { IncompleteUiMetadata, IncompleteUiDiagnostic } from './incomplete-ui.js';
+
+export {
+  ALLOWED_PRESS_KEYS,
+  validateStateRecipe,
+  parseStateRecipes,
+  stateRecipeKey,
+  classifyStateRecipe,
+  applyStateRecipe,
+  stateRecipeGo,
+  isAllowedPressKey,
+  isUnsafeStateLabel,
+  StateRecipeError,
+} from './state-recipes.js';
+export type {
+  StateRecipeAction,
+  AllowedPressKey,
+  StateRecipe,
+  AppliedStateRecipe,
+  StateRecipeSkip,
+  StateRecipeSkipReason,
+} from './state-recipes.js';
