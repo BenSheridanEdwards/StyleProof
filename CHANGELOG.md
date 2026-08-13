@@ -52,6 +52,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- State recipes (#391): close remaining selector/key privacy bypasses — public
+  `stateRecipeKey` re-validates selectors/labels/`stateKey` at entry (cast/JS
+  secret selectors throw policy-only errors with no secret in message/stack);
+  CSS-only selector policy rejects quotes, engine prefixes (`text=`, `xpath=`,
+  …), value-carrying functions (`:text()`, `url()`, …), and escapes; unknown
+  field-name errors never echo hostile keys; labels/`stateKey` are bounded and
+  control-sanitized with non-collapsing slugs; E2E identity asserts equal
+  normalized baseline-to-state deltas across independent fresh contexts (not
+  whole-map equality); compile fixture proves `go` only.
+
 - Auth crawl confidence (#390): intermediate HTTP auth redirects are dropped when
   setup leaves the auth boundary; auth is re-observed on every newly recorded
   crawl state (late-mounted gates); setup E2E loads steps via `loadSetupSteps`

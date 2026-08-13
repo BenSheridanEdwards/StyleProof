@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   ALLOWED_PRESS_KEYS,
   MAX_RECIPE_SELECTOR_LENGTH,
+  MAX_RECIPE_LABEL_LENGTH,
+  MAX_RECIPE_STATE_KEY_LENGTH,
   validateStateRecipe,
   parseStateRecipes,
   stateRecipeKey,
@@ -10,6 +12,8 @@ import {
   isAllowedPressKey,
   isUnsafeStateLabel,
   assertSafeRecipeSelector,
+  assertSafeRecipeLabel,
+  assertSafeRecipeStateKey,
   stateRecipeGo,
   StateRecipeError,
 } from '../dist/state-recipes.js';
@@ -54,10 +58,12 @@ test('validateStateRecipe: accepts hover/focus/press/click shapes', () => {
       stateKey: 'plan-listbox-open',
     },
   );
-  // Value-free structural selectors
+  // Value-free structural CSS selectors
   assert.equal(validateStateRecipe({ action: 'focus', selector: 'input[name]' }).selector, 'input[name]');
   assert.equal(validateStateRecipe({ action: 'click', selector: '[aria-expanded]' }).selector, '[aria-expanded]');
   assert.equal(validateStateRecipe({ action: 'hover', selector: '  #card  ' }).selector, '#card');
+  assert.equal(validateStateRecipe({ action: 'click', selector: 'li:first-child' }).selector, 'li:first-child');
+  assert.equal(validateStateRecipe({ action: 'click', selector: 'li:nth-child(2)' }).selector, 'li:nth-child(2)');
 });
 
 test('validateStateRecipe: every action requires selector; press requires key', () => {
@@ -95,6 +101,30 @@ test('validateStateRecipe: closed-world — rejects unknown keys including typos
       new RegExp(`must not include "${field}"`),
       field,
     );
+  }
+  // Hostile / secret-bearing field names are not echoed
+  const secretField = 'password=super-secret-field-xyz';
+  let fieldErr;
+  try {
+    validateStateRecipe({ action: 'hover', selector: '#x', [secretField]: 'x' });
+    assert.fail('expected reject');
+  } catch (e) {
+    fieldErr = e;
+  }
+  assert.ok(fieldErr instanceof StateRecipeError);
+  assert.match(String(fieldErr.message), /\(invalid field name\)/);
+  const fieldSer = JSON.stringify({ m: fieldErr.message, s: fieldErr.stack });
+  assert.equal(fieldSer.includes(secretField), false);
+  assert.equal(fieldSer.includes('super-secret-field-xyz'), false);
+  // Newline / control in field name
+  const nlField = 'evil\nkey';
+  try {
+    validateStateRecipe({ action: 'hover', selector: '#x', [nlField]: 1 });
+    assert.fail('expected reject');
+  } catch (e) {
+    assert.match(String(e.message), /\(invalid field name\)/);
+    assert.equal(String(e.message).includes('\n'), false);
+    assert.equal(String(e.stack ?? '').includes(nlField), false);
   }
   assert.throws(() => validateStateRecipe({ action: 'route' }), /one of hover, focus, press, click/);
   assert.throws(() => validateStateRecipe({ action: 'dblclick', selector: '#x' }), /one of hover, focus, press, click/);
@@ -154,12 +184,13 @@ test('validateStateRecipe: blank/whitespace label rejected', () => {
 // Selector privacy
 // ---------------------------------------------------------------------------
 
-test('assertSafeRecipeSelector / validateStateRecipe: rejects secret-bearing and unsafe selectors without echoing secrets', () => {
+test('assertSafeRecipeSelector / validateStateRecipe: CSS-only policy rejects secret-bearing and engine forms without echoing secrets', () => {
   const secret = 'super-secret-token-xyz';
   const leaky = [
     `input[value=${secret}]`,
     `input[value="${secret}"]`,
     `input[value='${secret}']`,
+    'input[value=`' + secret + '`]',
     `[data-token=${secret}]`,
     `[data-token="${secret}"]`,
     `a[href="/path?token=${secret}"]`,
@@ -167,11 +198,33 @@ test('assertSafeRecipeSelector / validateStateRecipe: rejects secret-bearing and
     `input[name=user]`,
     `[role=button]`,
     'form input[autocomplete^=current]',
-    `#x\n.y`,
-    `#x\u0000y`,
-    `#x\u200by`,
+    '#x' + String.fromCharCode(10) + '.y',
+    '#x' + String.fromCharCode(0) + 'y',
+    '#x' + String.fromCharCode(0x200b) + 'y',
+    '#x' + String.fromCharCode(92) + 'escape',
+
     'a'.repeat(MAX_RECIPE_SELECTOR_LENGTH + 1),
     `a[href="https://user:${secret}@evil.test/"]`,
+    // Playwright engines + value-carrying functions (CSS-only contract)
+    `:text("${secret}")`,
+    `:text(${secret})`,
+    `:has-text("${secret}")`,
+    `text=${secret}`,
+    `text="${secret}"`,
+    `xpath=//div[@data="${secret}"]`,
+    `css=button.${secret}`,
+    `id=${secret}`,
+    `data-testid=${secret}`,
+    `role=button`,
+    `nth=0`,
+    `url(http://evil.test/${secret})`,
+    `button:text(${secret})`,
+    `:is(:text(${secret}))`,
+    `:not(:text(${secret}))`,
+    // Escapes / nested smuggling
+    '#x' + String.fromCharCode(92) + ':text(' + secret + ')',
+
+    `internal:testid=${secret}`,
   ];
 
   for (const selector of leaky) {
@@ -187,17 +240,109 @@ test('assertSafeRecipeSelector / validateStateRecipe: rejects secret-bearing and
     const serialized = JSON.stringify({ message: err.message, name: err.name, stack: err.stack });
     assert.equal(serialized.includes(secret), false, 'error must not contain secret');
     assert.equal(String(err.message).includes(secret), false);
-    // Oversized case has no secret; still no raw dump of selector body beyond policy name
     if (selector.includes(secret)) {
       assert.equal(serialized.includes(secret.slice(0, 8)), false);
     }
   }
 
-  // Accepted value-free structural selectors
-  for (const selector of ['#id', '.class', 'button.primary', '[aria-expanded]', 'input[name]', 'nav > a']) {
+  // Accepted value-free structural CSS selectors
+  for (const selector of [
+    '#id',
+    '.class',
+    'button.primary',
+    '[aria-expanded]',
+    'input[name]',
+    'nav > a',
+    'li:first-child',
+    'li:nth-child(2)',
+    'button:hover',
+    ':not(.disabled)',
+  ]) {
     assert.equal(assertSafeRecipeSelector(selector), selector);
     assert.equal(validateStateRecipe({ action: 'click', selector }).selector, selector);
   }
+});
+
+test('stateRecipeKey: re-validates at entry — secret selectors never produce keys or leak in errors', () => {
+  const secret = 'super-secret-password';
+  const hostile = [
+    `input[value="${secret}"]`,
+    `input[value=${secret}]`,
+    `:text(${secret})`,
+    `text=${secret}`,
+    `xpath=//input[@value="${secret}"]`,
+  ];
+  for (const selector of hostile) {
+    let err;
+    try {
+      // Direct cast/JS call bypassing validateStateRecipe
+      stateRecipeKey(/** @type {any} */ ({ action: 'focus', selector }));
+      assert.fail('expected stateRecipeKey to reject');
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof StateRecipeError);
+    assert.match(String(err.message), /privacy policy/);
+    const serialized = JSON.stringify({ message: err.message, name: err.name, stack: err.stack });
+    assert.equal(serialized.includes(secret), false, 'key error must not contain secret');
+    assert.equal(serialized.includes('super-secret'), false);
+  }
+  // Safe path still works
+  assert.equal(stateRecipeKey({ action: 'focus', selector: '#email' }), 'focus-email');
+});
+
+test('label / stateKey bounds, controls, and non-collapsing slugs', () => {
+  assert.equal(assertSafeRecipeLabel('Open menu'), 'Open menu');
+  assert.equal(assertSafeRecipeStateKey('nav-tooltip'), 'nav-tooltip');
+  assert.equal(MAX_RECIPE_LABEL_LENGTH, 160);
+  assert.equal(MAX_RECIPE_STATE_KEY_LENGTH, 80);
+
+  const secret = 'super-secret-label-token';
+  const badLabels = [
+    '',
+    '   ',
+    'x'.repeat(MAX_RECIPE_LABEL_LENGTH + 1),
+    'line1' + String.fromCharCode(10) + 'line2',
+    `password=${secret}`,
+    `token=${secret}`,
+  ];
+  for (const label of badLabels) {
+    let err;
+    try {
+      validateStateRecipe({ action: 'hover', selector: '#x', label });
+      assert.fail('expected label reject');
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof StateRecipeError);
+    const ser = JSON.stringify({ m: err.message, s: err.stack });
+    assert.equal(ser.includes(secret), false);
+    assert.equal(String(err.message).includes('\n'), false);
+    assert.equal(String(err.message).includes(String.fromCharCode(10)), false);
+  }
+
+  // stateKey must slug; all-punctuation collapses rejected (no generic "state")
+  for (const stateKey of ['!!!', '---', '…', '@@@', '']) {
+    assert.throws(
+      () => validateStateRecipe({ action: 'hover', selector: '#x', stateKey }),
+      /stateKey rejected by privacy policy/,
+    );
+    assert.throws(
+      () => stateRecipeKey(/** @type {any} */ ({ action: 'hover', selector: '#x', stateKey })),
+      /stateKey rejected by privacy policy|must be a non-empty/,
+    );
+  }
+  assert.throws(
+    () =>
+      validateStateRecipe({ action: 'hover', selector: '#x', stateKey: 'k'.repeat(MAX_RECIPE_STATE_KEY_LENGTH + 1) }),
+    /stateKey rejected by privacy policy/,
+  );
+  assert.throws(
+    () => validateStateRecipe({ action: 'hover', selector: '#x', stateKey: 'a' + String.fromCharCode(0) + 'b' }),
+    /stateKey rejected by privacy policy/,
+  );
+  // Selector that cannot slug
+  assert.throws(() => stateRecipeKey(/** @type {any} */ ({ action: 'hover', selector: '###' })), /privacy policy/);
 });
 
 // ---------------------------------------------------------------------------
@@ -360,8 +505,9 @@ test('package index re-exports consumer API (no stateRecipeDriver; has stateReci
   assert.equal(typeof pkg.stateRecipeGo, 'function');
   assert.equal(pkg.stateRecipeDriver, undefined);
   assert.equal(typeof pkg.StateRecipeError, 'function');
-  // Type fixture module is built
+  // Type fixture module is built (go only — not setup)
   const fixture = await import('../dist/state-recipe-go-assignability.js');
   assert.equal(fixture.stateRecipeSurfaceVariantFixture.key, 'plan-card-hover');
   assert.equal(typeof fixture.stateRecipeSurfaceVariantFixture.go, 'function');
+  assert.equal(fixture.stateRecipeSurfaceVariantFixture.setup, undefined);
 });

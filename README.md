@@ -715,10 +715,14 @@ Rules for this slice:
 - Actions are only `hover`, `focus`, `press`, and `click` — closed-world fields
   are exactly `action`, `selector`, `key`, `label`, `stateKey` (unknown keys
   rejected).
-- Every action, including `press`, requires an explicit **value-free** selector
-  (`#id`, `.class`, `[aria-expanded]`, `input[name]`, …). Attribute-equality
-  selectors (`[value=…]`, `[data-token=…]`, `a[href="…?…"]`, …) are rejected so
-  secrets never enter keys, provenance, or error messages. Bare Escape / ambient
+- Every action, including `press`, requires an explicit **CSS-only, value-free**
+  selector (`#id`, `.class`, `[aria-expanded]`, `input[name]`, `li:nth-child(2)`,
+  …). Quotes/backticks, attribute-equality, Playwright engine prefixes
+  (`text=`, `xpath=`, `css=`, …), and value-carrying functions (`:text()`,
+  `:has-text()`, `url()`) are rejected so secrets never enter keys, provenance,
+  or error messages. Public `stateRecipeKey` re-validates at entry. Labels and
+  `stateKey` are length-bounded and control-sanitized; fragments that cannot
+  slug are rejected (no generic `state` collision key). Bare Escape / ambient
   keyboard is deferred rather than unsafe.
 - A collection is a set of **independent variants** from a known baseline, not a
   multi-step choreography. Duplicate derived keys are rejected; order is sorted

@@ -15,9 +15,9 @@
  * First production slice (#391 PR #2):
  *   - closed-world schema + pure validation (including conservative press-key vocabulary)
  *   - hover / focus / press / click drivers
- *   - selector privacy policy (value-free structural selectors only)
+ *   - CSS-only selector privacy policy (value-free structural selectors only)
  *   - press always targets an explicit selector (no ambient keyboard)
- *   - stable key derivation + duplicate detection
+ *   - stable key derivation + duplicate detection (public `stateRecipeKey` re-validates)
  *   - deterministic collection ordering
  *   - destructive-label safety (never apply an unsafe control)
  *   - post-action DOM settle via the same real-clock pattern as crawl
@@ -65,6 +65,62 @@ const ALLOWED_RECIPE_FIELDS = new Set(['action', 'selector', 'key', 'label', 'st
  */
 export const MAX_RECIPE_SELECTOR_LENGTH = 256;
 
+/** Declared human labels (provenance / keys) — bounded against log injection. */
+export const MAX_RECIPE_LABEL_LENGTH = 160;
+
+/** Explicit stable state-key fragments before slugging. */
+export const MAX_RECIPE_STATE_KEY_LENGTH = 80;
+
+/** Unknown closed-world field names: echo only short safe identifiers. */
+const SAFE_FIELD_NAME = /^[A-Za-z_][A-Za-z0-9_-]{0,39}$/;
+
+/**
+ * Safe CSS structural / presence-only pseudo-classes (optional simple numeric args).
+ * Value-carrying Playwright/CSS functions (`:text`, `:has-text`, `url`, …) are rejected.
+ */
+const SAFE_PSEUDO_NAMES = new Set([
+  'root',
+  'empty',
+  'focus',
+  'focus-visible',
+  'focus-within',
+  'hover',
+  'active',
+  'visited',
+  'link',
+  'target',
+  'enabled',
+  'disabled',
+  'checked',
+  'indeterminate',
+  'default',
+  'optional',
+  'required',
+  'valid',
+  'invalid',
+  'user-invalid',
+  'read-only',
+  'read-write',
+  'placeholder-shown',
+  'autofill',
+  'first-child',
+  'last-child',
+  'only-child',
+  'first-of-type',
+  'last-of-type',
+  'only-of-type',
+  'nth-child',
+  'nth-last-child',
+  'nth-of-type',
+  'nth-last-of-type',
+  'not',
+  'is',
+  'where',
+]);
+
+const NTH_PSEUDO_ARG = /^\s*\d+\s*$/;
+const SIMPLE_SELECTOR_LIST_ARG = /^\s*[^()"'`=]+\s*$/;
+
 /**
  * A single deterministic interaction that reaches a UI state.
  *
@@ -79,7 +135,7 @@ export type StateRecipe = {
   /**
    * Target selector. Required for every action, including `press` (focus target
    * then key — never ambient keyboard input). Must pass the recipe selector
-   * privacy policy (value-free structural selectors only).
+   * privacy policy (CSS-only value-free structural selectors).
    */
   selector: string;
   /**
@@ -92,12 +148,13 @@ export type StateRecipe = {
    * Declared human label for stable keys and provenance. When omitted at apply
    * time, the driver may read the live accessible label for the destructive
    * guard and provenance only — live labels never rewrite stable keys.
-   * Blank/whitespace-only labels are rejected.
+   * Blank/whitespace-only labels are rejected. Bounded and control-sanitized.
    */
   label?: string;
   /**
    * Optional explicit stable state-key fragment. When omitted, derived from
    * action + declared label/selector/key via {@link stateRecipeKey}.
+   * Bounded, control-sanitized, and must slug to a non-empty fragment.
    */
   stateKey?: string;
 };
@@ -107,7 +164,7 @@ export type AppliedStateRecipe = {
   /** Stable key for map/report identity (`hover-open-menu`, …). */
   stateKey: string;
   action: StateRecipeAction;
-  /** Validated value-free selector (never attribute-equality / secret-bearing). */
+  /** Validated value-free CSS selector (never attribute-equality / secret-bearing). */
   selector: string;
   key?: AllowedPressKey;
   label?: string;
@@ -132,19 +189,32 @@ export class StateRecipeError extends Error {
 
 const ACTIONS = new Set<string>(['hover', 'focus', 'press', 'click']);
 
-/** Controls, C0/C1, bidi overrides, ZW* / BOM — never valid in a recipe selector. */
-const SELECTOR_CONTROL_OR_BIDI =
+/** Controls, C0/C1, bidi overrides, ZW* / BOM — never valid in recipe strings. */
+const CONTROL_OR_BIDI =
   // eslint-disable-next-line no-control-regex -- intentional control/bidi reject class
   /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
 
-function slug(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 48) || 'state'
-  );
+/** URL / credential-ish shapes in declared label/stateKey (no secret echo). */
+const CREDENTIALISH =
+  /(?:\/\/[^/\s]*@)|(?:^|[\s>+~,])[^/\s]*:[^/\s]*@|(?:[?&](?:password|passwd|pwd|token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|auth)=)|(?:(?:^|[^A-Za-z0-9_-])(?:password|passwd|pwd|token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization)\s*[:=])/i;
+
+/**
+ * Slug a fragment for stable keys. Returns null when the value collapses to empty
+ * (all punctuation / non-ascii) — callers must reject rather than emit collision-prone `state`.
+ */
+function slugFragment(value: string, maxLen = 48): string | null {
+  const s = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, maxLen);
+  return s || null;
+}
+
+/** Format unknown field names for errors — never echo hostile/secret-bearing keys. */
+function formatUnknownFieldName(field: string): string {
+  if (SAFE_FIELD_NAME.test(field)) return `"${field}"`;
+  return '(invalid field name)';
 }
 
 /** True when a control label matches the shared destructive-action guard. */
@@ -189,79 +259,188 @@ function rejectUnknownFields(raw: Record<string, unknown>): void {
   for (const field of Object.keys(raw)) {
     if (!ALLOWED_RECIPE_FIELDS.has(field)) {
       throw new StateRecipeError(
-        `state recipe must not include "${field}" (allowed fields: action, selector, key, label, stateKey)`,
+        `state recipe must not include ${formatUnknownFieldName(field)} (allowed fields: action, selector, key, label, stateKey)`,
       );
     }
   }
 }
 
+function selectorPolicyReject(detail: string): never {
+  throw new StateRecipeError(`state recipe selector rejected by privacy policy (${detail})`);
+}
+
+function labelPolicyReject(detail: string): never {
+  throw new StateRecipeError(`state recipe label rejected by privacy policy (${detail})`);
+}
+
+function stateKeyPolicyReject(detail: string): never {
+  throw new StateRecipeError(`state recipe stateKey rejected by privacy policy (${detail})`);
+}
+
+function isSafePseudo(name: string, args: string | null): boolean {
+  const n = name.toLowerCase();
+  if (!SAFE_PSEUDO_NAMES.has(n)) return false;
+  if (args === null) {
+    return !n.startsWith('nth-') && n !== 'not' && n !== 'is' && n !== 'where';
+  }
+  if (n.startsWith('nth-')) return NTH_PSEUDO_ARG.test(args);
+  if (n === 'not' || n === 'is' || n === 'where') return SIMPLE_SELECTOR_LIST_ARG.test(args);
+  // Named pseudos above that take no args must not have args.
+  return false;
+}
+
+function rejectSelectorShape(selector: string): void {
+  if (selector.length > MAX_RECIPE_SELECTOR_LENGTH) {
+    selectorPolicyReject(`exceeds ${MAX_RECIPE_SELECTOR_LENGTH} characters`);
+  }
+  if (CONTROL_OR_BIDI.test(selector)) {
+    selectorPolicyReject('controls, newlines, NUL, or bidi characters are not allowed');
+  }
+  // Quotes/backticks always carry or delimit values — CSS-only structural policy forbids them.
+  if (/["'`]/.test(selector)) {
+    selectorPolicyReject('quotes and backticks are not allowed in selectors');
+  }
+  // CSS escapes can smuggle value-like payloads; reject entirely.
+  if (selector.includes('\\')) {
+    selectorPolicyReject('escape sequences are not allowed in selectors');
+  }
+}
+
+function rejectSelectorValueCarriers(selector: string): void {
+  // Attribute selectors with a value binding (=, ~=, |=, ^=, $=, *=).
+  if (/\[[^\]]*[~|^$*]?=[^\]]*\]/.test(selector)) {
+    selectorPolicyReject('attribute-equality selectors are not allowed');
+  }
+  // Playwright engine prefixes and bare name=value (text=secret, xpath=//div, css=button, …).
+  if (/(?:^|[\s,|])[a-zA-Z][\w-]*\s*=/.test(selector) || /^[a-zA-Z][\w-]*\s*=/.test(selector)) {
+    selectorPolicyReject('engine prefixes and attribute-equality selectors are not allowed');
+  }
+  // Defense in depth: any remaining equals (value binding outside brackets).
+  if (selector.includes('=')) {
+    selectorPolicyReject('attribute-equality selectors are not allowed');
+  }
+  // Query strings and credential-bearing URL shapes (#id is CSS — allow bare #).
+  if (selector.includes('?')) {
+    selectorPolicyReject('query strings are not allowed in selectors');
+  }
+  if (/\/\/[^/\s]*@/.test(selector) || /(?:^|[\s>+~,])[^/\s]*:[^/\s]*@/.test(selector)) {
+    selectorPolicyReject('URL credentials are not allowed in selectors');
+  }
+  if (/\b(?:https?|file|data|javascript):/i.test(selector)) {
+    selectorPolicyReject('URL schemes are not allowed in selectors');
+  }
+  if (/\burl\s*\(/i.test(selector)) {
+    selectorPolicyReject('value-carrying functions are not allowed in selectors');
+  }
+}
+
+function rejectUnsafePseudos(selector: string): void {
+  // Single-pass :ident / :ident(...) — avoid bare-name backtracking into nth-* tokens.
+  const pseudo = /:([a-zA-Z][\w-]*)(?:\s*\(([^)]*)\))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = pseudo.exec(selector)) !== null) {
+    const args = m[2] !== undefined ? m[2] : null;
+    if (!isSafePseudo(m[1]!, args)) {
+      selectorPolicyReject('value-carrying or unsupported pseudo/functions are not allowed in selectors');
+    }
+  }
+  // Character allowlist: conservative CSS selector grammar without value carriers.
+  if (!/^[a-zA-Z0-9#.[\]\-_*>+~,\s:()|]+$/.test(selector)) {
+    selectorPolicyReject('selector contains characters outside the CSS-only allowlist');
+  }
+}
+
 /**
- * Recipe selector privacy policy (auth-boundary principle, local copy — no private coupling):
- * - trim + nonempty
- * - length ≤ {@link MAX_RECIPE_SELECTOR_LENGTH}
- * - no controls / newlines / NUL / bidi
- * - no attribute-equality (`=`, `~=`, `|=`, `^=`, `$=`, `*=`) quoted or unquoted — values must not ride selectors
- * - no URL query (`?`) or credential (`user:pass@` / `//…@`) forms
+ * Conservative CSS-only recipe selector privacy policy:
+ * - trim + nonempty, length ≤ {@link MAX_RECIPE_SELECTOR_LENGTH}
+ * - no controls / newlines / NUL / bidi / ZW / BOM
+ * - no quotes or backticks (block value payloads and engine string forms)
+ * - no backslash escapes (no smuggled payloads)
+ * - no attribute-equality (`=`, `~=`, `|=`, `^=`, `$=`, `*=`) — presence-only `[attr]` OK
+ * - no Playwright engine prefixes (`text=`, `xpath=`, `css=`, `id=`, `role=`, …)
+ * - no value-carrying functions (`:text(...)`, `:has-text(...)`, `url(...)`, …)
+ * - structural pseudos only (`:first-child`, `:nth-child(2)`, simple `:not(...)`, …)
+ * - no URL query (`?`) or credential forms
  *
- * Allowed examples: `#id`, `.class`, `button.primary`, `[aria-expanded]`, `input[name]`, `nav > a`.
- * Rejected examples: `input[value=secret]`, `[data-token="…"]`, `a[href="/x?t=1"]`, newline/control, oversized.
+ * Allowed: `#id`, `.class`, `button.primary`, `[aria-expanded]`, `input[name]`, `nav > a`,
+ * `li:first-child`, `li:nth-child(2)`.
+ * Rejected: `input[value=secret]`, `:text("x")`, `text=secret`, `xpath=//a`, quotes, escapes.
  *
  * Errors name the **policy**, never echo the selector (secrets must not appear in messages).
+ * Prefer false rejection over privacy leak.
  */
 export function assertSafeRecipeSelector(value: unknown): string {
   if (typeof value !== 'string') {
-    throw new StateRecipeError('state recipe selector rejected by privacy policy (must be a non-empty string)');
+    selectorPolicyReject('must be a non-empty string');
   }
   const selector = value.trim();
   if (!selector) {
-    throw new StateRecipeError('state recipe selector rejected by privacy policy (must be a non-empty string)');
+    selectorPolicyReject('must be a non-empty string');
   }
-  if (selector.length > MAX_RECIPE_SELECTOR_LENGTH) {
-    throw new StateRecipeError(
-      `state recipe selector rejected by privacy policy (exceeds ${MAX_RECIPE_SELECTOR_LENGTH} characters)`,
-    );
-  }
-  if (SELECTOR_CONTROL_OR_BIDI.test(selector)) {
-    throw new StateRecipeError(
-      'state recipe selector rejected by privacy policy (controls, newlines, NUL, or bidi characters are not allowed)',
-    );
-  }
-  // Attribute selectors with a value binding (=, ~=, |=, ^=, $=, *=), any quoting style.
-  // Same principle as auth-boundary redactedSelector — equality can carry field values.
-  if (/\[[^\]]*[~|^$*]?=[^\]]*\]/.test(selector)) {
-    throw new StateRecipeError(
-      'state recipe selector rejected by privacy policy (attribute-equality selectors are not allowed)',
-    );
-  }
-  // Defense in depth: bare `=…` value patterns outside brackets.
-  if (/[=]["'`][^"'`]*["'`]/.test(selector) || /=\s*[^\s"'`\]]+/.test(selector)) {
-    throw new StateRecipeError(
-      'state recipe selector rejected by privacy policy (attribute-equality selectors are not allowed)',
-    );
-  }
-  // Query strings and credential-bearing URL shapes (fragments use # which is also CSS id — allow #id).
-  if (selector.includes('?')) {
-    throw new StateRecipeError(
-      'state recipe selector rejected by privacy policy (query strings are not allowed in selectors)',
-    );
-  }
-  if (/\/\/[^/\s]*@/.test(selector) || /(?:^|[\s>+~,])[^/\s]*:[^/\s]*@/.test(selector)) {
-    throw new StateRecipeError(
-      'state recipe selector rejected by privacy policy (URL credentials are not allowed in selectors)',
-    );
-  }
+  rejectSelectorShape(selector);
+  rejectSelectorValueCarriers(selector);
+  rejectUnsafePseudos(selector);
   return selector;
+}
+
+/**
+ * Bound + control-sanitize declared labels. Never echo the value in errors.
+ */
+export function assertSafeRecipeLabel(value: unknown): string {
+  if (typeof value !== 'string') {
+    labelPolicyReject('must be a non-empty string');
+  }
+  const label = value.trim();
+  if (!label) {
+    labelPolicyReject('must be a non-empty string');
+  }
+  if (label.length > MAX_RECIPE_LABEL_LENGTH) {
+    labelPolicyReject(`exceeds ${MAX_RECIPE_LABEL_LENGTH} characters`);
+  }
+  if (CONTROL_OR_BIDI.test(label)) {
+    labelPolicyReject('controls, newlines, NUL, or bidi characters are not allowed');
+  }
+  if (CREDENTIALISH.test(label)) {
+    labelPolicyReject('credential- or secret-like patterns are not allowed');
+  }
+  return label;
+}
+
+/**
+ * Bound + control-sanitize explicit stateKey fragments. Must slug to a non-empty
+ * stable key (reject all-punctuation/Unicode that would collapse to generic `state`).
+ */
+export function assertSafeRecipeStateKey(value: unknown): string {
+  if (typeof value !== 'string') {
+    stateKeyPolicyReject('must be a non-empty string');
+  }
+  const stateKey = value.trim();
+  if (!stateKey) {
+    stateKeyPolicyReject('must be a non-empty string');
+  }
+  if (stateKey.length > MAX_RECIPE_STATE_KEY_LENGTH) {
+    stateKeyPolicyReject(`exceeds ${MAX_RECIPE_STATE_KEY_LENGTH} characters`);
+  }
+  if (CONTROL_OR_BIDI.test(stateKey)) {
+    stateKeyPolicyReject('controls, newlines, NUL, or bidi characters are not allowed');
+  }
+  if (CREDENTIALISH.test(stateKey)) {
+    stateKeyPolicyReject('credential- or secret-like patterns are not allowed');
+  }
+  if (!slugFragment(stateKey, MAX_RECIPE_STATE_KEY_LENGTH)) {
+    stateKeyPolicyReject('must contain a slug-able alphanumeric fragment');
+  }
+  return stateKey;
 }
 
 function optionalLabel(value: unknown): string | undefined {
   if (value === undefined) return undefined;
-  if (typeof value !== 'string') {
-    throw new StateRecipeError('"label" must be a non-empty string when provided');
-  }
-  if (!value.trim()) {
-    throw new StateRecipeError('"label" must be a non-empty string when provided');
-  }
-  return value.trim();
+  return assertSafeRecipeLabel(value);
+}
+
+function optionalStateKey(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  return assertSafeRecipeStateKey(value);
 }
 
 function requirePressKey(action: StateRecipeAction, key: string | undefined): void {
@@ -276,7 +455,7 @@ function requirePressKey(action: StateRecipeAction, key: string | undefined): vo
   }
   if (!isAllowedPressKey(key)) {
     throw new StateRecipeError(
-      `state recipe press key must be one of ${ALLOWED_PRESS_KEYS.join(', ')} (got ${JSON.stringify(key)}; modifiers, chords, and free-text are not allowed)`,
+      `state recipe press key must be one of ${ALLOWED_PRESS_KEYS.join(', ')} (modifiers, chords, and free-text are not allowed)`,
     );
   }
 }
@@ -295,7 +474,7 @@ export function validateStateRecipe(raw: unknown): StateRecipe {
   const keyRaw = optionalNonEmptyString(r.key, 'key');
   requirePressKey(action, keyRaw);
   const key = keyRaw !== undefined && isAllowedPressKey(keyRaw) ? keyRaw : undefined;
-  const stateKey = optionalNonEmptyString(r.stateKey, 'stateKey');
+  const stateKey = optionalStateKey(r.stateKey);
   const label = optionalLabel(r.label);
 
   return {
@@ -352,21 +531,63 @@ export function parseStateRecipes(raw: unknown): StateRecipe[] {
 /**
  * Stable identity for a recipe. Explicit `stateKey` wins; otherwise
  * `action[-declared-label|-selector][-press-key]`. Deterministic across runs
- * and independent of live DOM labels. Selector is only slugged after privacy
- * validation — never a secret-bearing attribute-equality form.
+ * and independent of live DOM labels.
+ *
+ * **Entry validation (public API):** re-checks selector / label / stateKey with
+ * the privacy policy before deriving. Direct JS/cast calls with secret-bearing
+ * selectors throw a policy-only error (no secret in message/stack) and never
+ * return a secret-bearing key. Fragments that slug to empty are rejected
+ * rather than collapsing to a generic `state` collision key.
  */
-export function stateRecipeKey(recipe: StateRecipe): string {
-  if (recipe.stateKey) return slug(recipe.stateKey);
-  const parts: string[] = [recipe.action];
-  if (recipe.label?.trim()) {
-    parts.push(slug(recipe.label));
-  } else if (recipe.selector) {
-    parts.push(slug(recipe.selector));
+function requireSlugFragment(value: string, reject: (detail: string) => never, maxLen = 48): string {
+  const s = slugFragment(value, maxLen);
+  if (!s) reject('must contain a slug-able alphanumeric fragment');
+  return s;
+}
+
+function derivedStateRecipeKey(
+  action: StateRecipeAction,
+  selector: string,
+  label: string | undefined,
+  key?: AllowedPressKey,
+): string {
+  const parts: string[] = [action];
+  if (label) {
+    parts.push(requireSlugFragment(label, labelPolicyReject));
+  } else {
+    parts.push(requireSlugFragment(selector, selectorPolicyReject));
   }
-  if (recipe.action === 'press' && recipe.key) {
-    parts.push(slug(recipe.key));
+  if (action === 'press' && key !== undefined) {
+    if (!isAllowedPressKey(key)) {
+      throw new StateRecipeError(
+        `state recipe press key must be one of ${ALLOWED_PRESS_KEYS.join(', ')} (modifiers, chords, and free-text are not allowed)`,
+      );
+    }
+    parts.push(slugFragment(key) ?? 'key');
   }
   return parts.join('-').replace(/-+/g, '-').slice(0, 80);
+}
+
+export function stateRecipeKey(recipe: StateRecipe): string {
+  if (typeof recipe !== 'object' || recipe === null || Array.isArray(recipe)) {
+    throw new StateRecipeError('state recipe key rejected by privacy policy (must be a plain object)');
+  }
+  const r = recipe as StateRecipe;
+  // Always re-validate at the public boundary — typed StateRecipe is not a trust boundary.
+  const selector = assertSafeRecipeSelector(r.selector);
+  const label = r.label !== undefined ? assertSafeRecipeLabel(r.label) : undefined;
+  const explicit = r.stateKey !== undefined ? assertSafeRecipeStateKey(r.stateKey) : undefined;
+
+  if (explicit) {
+    return requireSlugFragment(explicit, stateKeyPolicyReject, MAX_RECIPE_STATE_KEY_LENGTH).slice(0, 80);
+  }
+
+  if (typeof r.action !== 'string' || !ACTIONS.has(r.action)) {
+    throw new StateRecipeError(
+      `state recipe action must be one of ${[...ACTIONS].join(', ')} (got ${typeof r.action === 'string' ? 'invalid action' : typeof r.action})`,
+    );
+  }
+  return derivedStateRecipeKey(r.action as StateRecipeAction, selector, label, r.key);
 }
 
 /**
