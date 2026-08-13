@@ -21,8 +21,6 @@ const outDir = path.join(root, 'docs/readme/live-report');
 const HEAD_CSS = `
   .btn {
     background: rgb(220, 38, 38);
-    border-color: rgb(248, 113, 113);
-    font-size: 16px;
     padding: 18px 32px;
   }
   a.link:hover { color: rgb(252, 165, 165); border-color: transparent; }
@@ -79,7 +77,26 @@ const res = generateStyleMapReport({
 fs.rmSync(res.reportJsonPath, { force: true });
 fs.rmSync(work, { recursive: true, force: true });
 
-const report = fs.readFileSync(res.reportMdPath, 'utf8');
+function restingChangesFirst(markdown) {
+  const heading = '## Element-level changes\n\n';
+  const start = markdown.indexOf(heading);
+  if (start === -1) return markdown;
+  const bodyStart = start + heading.length;
+  const body = markdown.slice(bodyStart);
+  const blocks = body.split(/(?=^### )/m);
+  const resting = blocks.filter(
+    (block) =>
+      block.startsWith('### ') &&
+      !block.includes('`:hover`') &&
+      !block.includes('`:focus`') &&
+      !block.includes('`:active`'),
+  );
+  const states = blocks.filter((block) => !resting.includes(block));
+  return markdown.slice(0, bodyStart) + [...resting, ...states].join('');
+}
+
+const report = restingChangesFirst(fs.readFileSync(res.reportMdPath, 'utf8'));
+fs.writeFileSync(res.reportMdPath, report);
 const inlined = report.replaceAll('(crops/', '(docs/readme/live-report/crops/');
 const comment = [
   '<!-- styleproof-report -->',

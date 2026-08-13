@@ -13,17 +13,41 @@ Intentional changes get approved. Unexpected changes block.
 
 On a pull request the Action comment has to stop at a link. GitHub comments
 cannot carry the crops. The README can. This is the unmodified product
-report: Save at rest, then Docs hover, focus, and active. Both sides of
-each state crop are in that state.
+report: Save at rest comes first, followed by Docs hover, focus, and active.
+Both sides of each interaction-state crop are in that state.
 
 <!-- styleproof-report -->
 
 ## 🗺️ StyleProof report
 
-**5 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+**2 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
 ## Element-level changes
+
+### `button.btn` · 1 element restyled
+
+_demo-button @ 900_
+
+`padding` `14px 28px` → `18px 32px`<br>
+`background-color` `#14b8a6` → `#dc2626`
+
+![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
+
+<sub>◀ before · after ▶ — demo-button @ 900</sub>
+
+![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
+
+**`button.btn`**
+
+Style:
+
+| Property           | Before      | After       |
+| ------------------ | ----------- | ----------- |
+| `padding`          | `14px 28px` | `18px 32px` |
+| `background-color` | `#14b8a6`   | `#dc2626`   |
 
 ### `a.link` · 1 element restyled `:hover`
 
@@ -97,36 +121,6 @@ Interactive-state changes:
 | --------- | -------- | --------------------- |
 | `:active` | `color`  | `#2dd4bf` → `#f87171` |
 
-### `button.btn` · 1 element restyled
-
-_demo-button @ 900_
-
-`padding` `14px 28px` → `18px 32px`<br>
-`border-color` `#38d6c6` → `#f87171`<br>
-`background-color` `#14b8a6` → `#dc2626`<br>
-`font-size` `13px` → `16px`<br>
-`letter-spacing` `1.56px` → `1.92px`
-
-![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
-
-<sub>◀ before · after ▶ — demo-button @ 900</sub>
-
-![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
-
-**`button.btn`**
-
-Style:
-
-| Property           | Before      | After       |
-| ------------------ | ----------- | ----------- |
-| `padding`          | `14px 28px` | `18px 32px` |
-| `border-color`     | `#38d6c6`   | `#f87171`   |
-| `background-color` | `#14b8a6`   | `#dc2626`   |
-| `font-size`        | `13px`      | `16px`      |
-| `letter-spacing`   | `1.56px`    | `1.92px`    |
-
 - [ ] **Approve all changes**
 
 ---
@@ -163,6 +157,15 @@ base and head passed the self-check, the navigable set stayed intact, no failing
 data boundary was captured, and no reviewable computed-style or forced-state
 change was detected among semantically matched elements.
 
+### Review required: approve the visual changes
+
+[![A GitHub-rendered StyleProof report showing changed visual evidence and the Approve all changes review gate](docs/readme/check-review-required.png)](docs/readme/live-report/comment.md)
+
+This is the normal feature-work state. StyleProof has found reviewable visual
+changes, shown the before-and-after evidence, and kept the check red. A reviewer
+ticks **Approve all changes** to sign off that commit. Any later push that changes
+the evidence reopens the gate.
+
 ### A safety policy blocks
 
 [![A real StyleProof GitHub comment blocking an unacknowledged navigation removal](docs/readme/check-blocked.png)](https://github.com/BenSheridanEdwards/StyleProof/pull/284#issuecomment-4984031529)
@@ -190,6 +193,7 @@ it or acknowledge it in policy. The approval box cannot clear it.
 - [See the gate work](#see-the-gate-work)
   - [Comment states](#comment-states)
   - [Certified clean](#certified-clean)
+  - [Review required: approve the visual changes](#review-required-approve-the-visual-changes)
   - [A safety policy blocks](#a-safety-policy-blocks)
 - [Enterprise fit](#enterprise-fit)
 - [Why](#why)

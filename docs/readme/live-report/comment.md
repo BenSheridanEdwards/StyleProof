@@ -1,10 +1,35 @@
 <!-- styleproof-report -->
+
 ## 🗺️ StyleProof report
 
-**5 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+**2 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
 ## Element-level changes
+
+### `button.btn` · 1 element restyled
+
+_demo-button @ 900_
+
+`padding` `14px 28px` → `18px 32px`<br>
+`background-color` `#14b8a6` → `#dc2626`
+
+![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
+
+<sub>◀ before · after ▶ — demo-button @ 900</sub>
+
+![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
+
+**`button.btn`**
+
+Style:
+
+| Property           | Before      | After       |
+| ------------------ | ----------- | ----------- |
+| `padding`          | `14px 28px` | `18px 32px` |
+| `background-color` | `#14b8a6`   | `#dc2626`   |
 
 ### `a.link` · 1 element restyled `:hover`
 
@@ -16,7 +41,7 @@ _Both sides are :hover. Left is the old :hover. Right is the new :hover._
 
 ![base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/demo-button-900-1-composite.png)
 
-<sub>◀ base :hover  ·  head :hover ▶ — both sides are :hover</sub>
+<sub>◀ base :hover · head :hover ▶ — both sides are :hover</sub>
 
 ![highlighted base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/demo-button-900-1-annotated.png)
 
@@ -26,9 +51,9 @@ _Both sides are :hover. Left is the old :hover. Right is the new :hover._
 
 Interactive-state changes:
 
-| State | Property | Before → After |
-| --- | --- | --- |
-| `:hover` | `color` | `#a5f3fc` → `#fca5a5` |
+| State    | Property | Before → After        |
+| -------- | -------- | --------------------- |
+| `:hover` | `color`  | `#a5f3fc` → `#fca5a5` |
 
 ### `a.link` · 1 element restyled `:focus`
 
@@ -40,7 +65,7 @@ _Both sides are :focus. Left is the old :focus. Right is the new :focus._
 
 ![base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/demo-button-900-2-composite.png)
 
-<sub>◀ base :focus  ·  head :focus ▶ — both sides are :focus</sub>
+<sub>◀ base :focus · head :focus ▶ — both sides are :focus</sub>
 
 ![highlighted base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/demo-button-900-2-annotated.png)
 
@@ -50,8 +75,8 @@ _Both sides are :focus. Left is the old :focus. Right is the new :focus._
 
 Interactive-state changes:
 
-| State | Property | Before → After |
-| --- | --- | --- |
+| State    | Property        | Before → After        |
+| -------- | --------------- | --------------------- |
 | `:focus` | `outline-color` | `#5eead4` → `#fca5a5` |
 
 ### `a.link` · 1 element restyled `:active`
@@ -64,7 +89,7 @@ _Both sides are :active. Left is the old :active. Right is the new :active._
 
 ![base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/demo-button-900-3-composite.png)
 
-<sub>◀ base :active  ·  head :active ▶ — both sides are :active</sub>
+<sub>◀ base :active · head :active ▶ — both sides are :active</sub>
 
 ![highlighted base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/demo-button-900-3-annotated.png)
 
@@ -74,41 +99,12 @@ _Both sides are :active. Left is the old :active. Right is the new :active._
 
 Interactive-state changes:
 
-| State | Property | Before → After |
-| --- | --- | --- |
-| `:active` | `color` | `#2dd4bf` → `#f87171` |
-
-### `button.btn` · 1 element restyled
-
-_demo-button @ 900_
-
-`padding` `14px 28px` → `18px 32px`<br>
-`border-color` `#38d6c6` → `#f87171`<br>
-`background-color` `#14b8a6` → `#dc2626`<br>
-`font-size` `13px` → `16px`<br>
-`letter-spacing` `1.56px` → `1.92px`
-
-![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
-
-<sub>◀ before  ·  after ▶ — demo-button @ 900</sub>
-
-![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
-
-**`button.btn`**
-
-Style:
-
-| Property | Before | After |
-| --- | --- | --- |
-| `padding` | `14px 28px` | `18px 32px` |
-| `border-color` | `#38d6c6` | `#f87171` |
-| `background-color` | `#14b8a6` | `#dc2626` |
-| `font-size` | `13px` | `16px` |
-| `letter-spacing` | `1.56px` | `1.92px` |
+| State     | Property | Before → After        |
+| --------- | -------- | --------------------- |
+| `:active` | `color`  | `#2dd4bf` → `#f87171` |
 
 - [ ] **Approve all changes**
 
 ---
+
 _Tick **Approve all changes** to turn the **StyleProof** check green — write access required, one tick signs it off. A new push that changes styles or surfaces re-opens it._
