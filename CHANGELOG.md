@@ -9,6 +9,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **State recipe capture integration** (#391): `Surface.stateRecipes` (and the
+  same field on `defineCrawlCapture` options) expands each validated recipe into
+  an independent capture surface `<surface.key>-<stateKey>`. Expansion calls
+  `parseStateRecipes` for unique keys + deterministic sort, fails closed on
+  invalid/unsafe _declared_ recipes before browser tests register, then runs
+  parent `surface.go` followed by `applyStateRecipe` (no choreography). Maps
+  persist `variantKind: 'state-recipe'` plus report-only provenance (stable key,
+  action, validated selector, optional press key/label) ignored by the
+  certification diff. `assertUniqueExpandedKeys` names recipe collisions with
+  variants/liveStates without leaking selectors. Coverage translation and crawl
+  ledger expansion include recipes; absent `stateRecipes` preserves prior
+  variants/liveStates behaviour exactly. Still deferred: automatic discovery,
+  config-file recipe parsing, transient windows, network recipes, live-region
+  promotion, and state-coverage UI.
+
 - Typed **state recipes** contract (#391 production PR #2): closed-world schema
   validation and Playwright drivers for independent `hover` / `focus` / `press` /
   `click` variants. Allowed fields are exactly `action`, `selector`, `key`,
@@ -24,10 +39,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   feed the shared destructive-action guard. Drivers settle via an equivalent
   real-clock DOM settle implementation (`realNow`), matching crawl behaviour
   without sharing a crawl primitive. `stateRecipeGo` returns
-  `(page) => Promise<void>` for `SurfaceVariant.go`. Network/route recipes,
-  crawler wiring, automatic discovery, transient observation, live-region
-  promotion, report rendering, and state-coverage reporting remain deferred
-  follow-ups. New exports: `ALLOWED_PRESS_KEYS`, `isAllowedPressKey`,
+  `(page) => Promise<void>` for `SurfaceVariant.go`. Surface/`defineCrawlCapture`
+  expansion wiring landed in a follow-up Unreleased entry. Still deferred:
+  network/route recipes, automatic discovery, transient observation, live-region
+  promotion, report state-coverage UI, and config-file recipe parsing. New exports: `ALLOWED_PRESS_KEYS`, `isAllowedPressKey`,
   `validateStateRecipe`, `parseStateRecipes`, `stateRecipeKey`,
   `classifyStateRecipe`, `applyStateRecipe`, `stateRecipeGo`,
   `isUnsafeStateLabel`, `StateRecipeError`.

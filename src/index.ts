@@ -62,6 +62,7 @@ export type {
   StyleMap,
   CaptureOptions,
   CaptureMetadata,
+  StateRecipeCaptureProvenance,
   ElementEntry,
   LiveRegionCandidate,
   CapturedOverlay,

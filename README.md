@@ -813,11 +813,19 @@ manifest; those need `liveStates` fixtures, per the
 
 ### State recipes: explicit hover, focus, keyboard, and click variants
 
-For interaction states that must be driven as **independent, named variants**
-(not crawl discovery), StyleProof exports a typed **state recipe** contract:
+For interaction states that must be driven as **independent, named captures**
+(not crawl discovery or multi-step choreography), StyleProof exports a typed
+**state recipe** contract and wires it through `Surface.stateRecipes` (and the
+same field on crawl capture options):
 
 ```ts
-import { parseStateRecipes, stateRecipeGo, applyStateRecipe, stateRecipeKey, type SurfaceVariant } from 'styleproof';
+import {
+  defineStyleMapCapture,
+  parseStateRecipes,
+  stateRecipeGo,
+  applyStateRecipe,
+  type SurfaceVariant,
+} from 'styleproof';
 
 const recipes = parseStateRecipes([
   { action: 'hover', selector: '#plan-card', label: 'Plan card' },
@@ -826,13 +834,28 @@ const recipes = parseStateRecipes([
   { action: 'click', selector: '#menu', label: 'Open menu' },
 ]);
 
-// Real SurfaceVariant: wire recipes through `go` (Promise<void>), not setup.
+// Preferred: declare on the surface — each recipe expands to
+// `<surface>-<stateKey>` after parent `go`, with `variantKind: 'state-recipe'`
+// and report-only provenance (stable key, action, safe selector, optional press
+// key / label). Metadata is ignored by the certification diff.
+defineStyleMapCapture({
+  dir: process.env.STYLEMAP_DIR,
+  surfaces: [
+    {
+      key: 'pricing',
+      go: (page) => page.goto('/pricing'),
+      stateRecipes: recipes,
+    },
+  ],
+});
+
+// Still supported: hand-wire a single recipe through SurfaceVariant.go
 const variant: SurfaceVariant = {
   key: 'plan-card-hover',
   go: stateRecipeGo(recipes[0]),
 };
 
-// Or drive ad hoc when you need provenance (stable key / label):
+// Or drive ad hoc when you need AppliedStateRecipe provenance:
 // const applied = await applyStateRecipe(page, recipes[0]);
 ```
 
@@ -854,18 +877,25 @@ Rules for this slice:
   are rejected before browser I/O (no generic `state` collision key). Bare
   Escape / ambient keyboard is deferred rather than unsafe.
 - A collection is a set of **independent variants** from a known baseline, not a
-  multi-step choreography. Duplicate derived keys are rejected; order is sorted
-  by stable key.
+  multi-step choreography. Surface expansion always runs parent `go` then
+  `applyStateRecipe` for that recipe alone. Duplicate derived keys are rejected;
+  order is sorted by stable key. Declared invalid/unsafe recipes fail closed at
+  expansion (before browser tests register); unsafe live targets still fail the
+  capture with a privacy-safe `StateRecipeError`.
 - Stable keys come from declared `stateKey` / label / selector. Live accessible
   labels still feed the destructive-action guard (so a benign declared label
   cannot authorize a control whose live label is `Delete` / `Remove` / …).
 - `press` keys are a fixed disclosure/navigation allowlist (`Enter`, `Escape`,
   `Space`, `Tab`, arrows, `Home`, `End`). The driver focuses the target, then
   presses — never ambient page focus.
+- Expanded keys participate in `assertUniqueExpandedKeys` alongside variants and
+  live states (collision messages name origins without selectors/secrets).
+  Coverage translation treats recipe expansions like other metadata-bearing
+  captures.
 
-Crawler auto-discovery, transient observation windows, network-state recipes,
-and state-coverage reporting are **not** wired in this release — those remain
-follow-up slices.
+Automatic discovery, config-file recipe parsing, transient observation windows,
+network-state recipes, live-region promotion, and state-coverage UI are **not**
+wired in this release — those remain follow-up slices.
 
 ### Live UI states: capture each state, not an average
 

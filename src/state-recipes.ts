@@ -23,10 +23,14 @@
  *   - post-action DOM settle via the same real-clock pattern as crawl
  *   - `stateRecipeGo` adapter assignable to `SurfaceVariant.go`
  *
- * Deferred (PR #3 / follow-ups): crawler wiring, config parsing, automatic
- * discovery, transient observation windows, live-region promotion, network/route
- * recipes, report rendering, and state-coverage reporting. Bare Escape without a
- * target selector is deferred rather than ambient-unsafe.
+ * Surface expansion wiring (this package PR #3 / #391 capture slice):
+ *   - `Surface.stateRecipes` / crawl `stateRecipes` expand via `parseStateRecipes`
+ *   - independent captures `<surface.key>-<stateKey>` after parent `go` + apply
+ *   - `CaptureMetadata.variantKind: 'state-recipe'` + report-only provenance
+ *
+ * Still deferred: automatic discovery, config-file recipe parsing, transient
+ * observation windows, live-region promotion, network/route recipes, report
+ * state-coverage UI, and bare Escape without a target selector (ambient-unsafe).
  */
 import type { Page } from '@playwright/test';
 import { DANGER_SOURCE } from './danger.js';

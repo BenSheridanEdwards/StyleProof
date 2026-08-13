@@ -78,10 +78,28 @@ export type ElementEntry = {
    */
   component?: { name: string; props?: Record<string, string> };
 };
+/** Report-only provenance for a surface expanded from {@link import('./state-recipes.js').StateRecipe}. Ignored by the certification diff. */
+export type StateRecipeCaptureProvenance = {
+  /** Stable recipe key (`hover-plan-card`, …) — same fragment joined into the capture key. */
+  stateKey: string;
+  action: 'hover' | 'focus' | 'press' | 'click';
+  /** Validated value-free CSS selector (never attribute-equality / secret-bearing). */
+  selector: string;
+  /** Press key when action is `press`. */
+  key?: string;
+  /** Declared label when provided (not a live DOM label rewrite). */
+  label?: string;
+};
+
 export type CaptureMetadata = {
   surfaceKey?: string;
   variantKey?: string;
-  variantKind?: 'variant' | 'live-state' | 'popup';
+  variantKind?: 'variant' | 'live-state' | 'popup' | 'state-recipe';
+  /**
+   * Provenance for `variantKind: 'state-recipe'` expansions. Report-only —
+   * ignored by the certification diff (same as other metadata fields).
+   */
+  stateRecipe?: StateRecipeCaptureProvenance;
 };
 export type LiveRegionCandidate = {
   path: string;
