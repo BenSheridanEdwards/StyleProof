@@ -16,6 +16,7 @@ import {
   selfCheckErrorMessage,
 } from '../dist/runner.js';
 import { coverageGaps } from '../dist/coverage.js';
+import { StateRecipeError } from '../dist/state-recipes.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -214,6 +215,200 @@ test('expandSurfaceVariants: liveStates carry live-state metadata', () => {
     variantKey: 'loaded',
     variantKind: 'live-state',
   });
+});
+
+test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach provenance', async () => {
+  const calls = [];
+  const surfaces = expandSurfaceVariants({
+    key: 'pricing',
+    go: async () => calls.push('surface'),
+    widths: [900],
+    // Intentionally unsorted input — parseStateRecipes sorts by derived key.
+    stateRecipes: [
+      { action: 'click', selector: '#menu', label: 'Open menu' },
+      { action: 'hover', selector: '#card', label: 'Plan card' },
+      { action: 'focus', selector: '#email', label: 'Email' },
+      { action: 'press', selector: '#menu', key: 'ArrowDown', label: 'Open menu' },
+    ],
+  });
+
+  assert.deepEqual(
+    surfaces.map((s) => s.key),
+    [
+      'pricing',
+      'pricing-click-open-menu',
+      'pricing-focus-email',
+      'pricing-hover-plan-card',
+      'pricing-press-open-menu-arrowdown',
+    ],
+  );
+  assert.deepEqual(surfaces[0].metadata, { surfaceKey: 'pricing' });
+  assert.deepEqual(surfaces[3].metadata, {
+    surfaceKey: 'pricing',
+    variantKey: 'hover-plan-card',
+    variantKind: 'state-recipe',
+    stateRecipe: {
+      stateKey: 'hover-plan-card',
+      action: 'hover',
+      selector: '#card',
+      label: 'Plan card',
+    },
+  });
+  assert.deepEqual(surfaces[4].metadata?.stateRecipe, {
+    stateKey: 'press-open-menu-arrowdown',
+    action: 'press',
+    selector: '#menu',
+    key: 'ArrowDown',
+    label: 'Open menu',
+  });
+
+  // Recipe execution is parent go then apply — no setup choreography.
+  const fakePage = {
+    locator() {
+      return {
+        first() {
+          return {
+            async hover() {
+              calls.push('hover');
+            },
+            async focus() {
+              calls.push('focus');
+            },
+            async click() {
+              calls.push('click');
+            },
+            async evaluate() {
+              return 'Plan card';
+            },
+          };
+        },
+      };
+    },
+    keyboard: {
+      async press(k) {
+        calls.push(`press:${k}`);
+      },
+    },
+    async waitForTimeout() {},
+    async evaluate() {
+      return 1;
+    },
+  };
+  await surfaces[3].go(fakePage);
+  assert.deepEqual(calls, ['surface', 'hover']);
+});
+
+test('expandSurfaceVariants: absent stateRecipes preserves variants/liveStates exactly', () => {
+  const withVariants = expandSurfaceVariants({
+    key: 'dashboard',
+    go: async () => {},
+    variants: [{ key: 'menu-open' }],
+  });
+  assert.deepEqual(
+    withVariants.map((s) => ({ key: s.key, kind: s.metadata?.variantKind })),
+    [
+      { key: 'dashboard', kind: undefined },
+      { key: 'dashboard-menu-open', kind: 'variant' },
+    ],
+  );
+
+  const withLive = expandSurfaceVariants({
+    key: 'home',
+    go: async () => {},
+    liveStates: [{ key: 'loading' }, { key: 'loaded' }],
+  });
+  assert.deepEqual(
+    withLive.map((s) => s.key),
+    ['home-loading', 'home-loaded'],
+  );
+});
+
+test('expandSurfaceVariants: liveStates + stateRecipes drop base and keep both expansions', () => {
+  const surfaces = expandSurfaceVariants({
+    key: 'home',
+    go: async () => {},
+    liveStates: [{ key: 'loaded' }],
+    stateRecipes: [{ action: 'hover', selector: '#card', label: 'Plan card' }],
+  });
+  assert.deepEqual(
+    surfaces.map((s) => ({ key: s.key, kind: s.metadata?.variantKind })),
+    [
+      { key: 'home-loaded', kind: 'live-state' },
+      { key: 'home-hover-plan-card', kind: 'state-recipe' },
+    ],
+  );
+});
+
+test('expandSurfaceVariants: invalid/unsafe declared recipes fail before browser registration', () => {
+  assert.throws(
+    () =>
+      expandSurfaceVariants({
+        key: 'dash',
+        go: async () => {},
+        stateRecipes: [{ action: 'hover', selector: 'input[value="secret-token-xyz"]' }],
+      }),
+    (err) => {
+      assert.equal(err.name, 'StateRecipeError');
+      assert.equal(String(err.message).includes('secret-token-xyz'), false);
+      assert.match(err.message, /privacy policy|selector/i);
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      expandSurfaceVariants({
+        key: 'dash',
+        go: async () => {},
+        stateRecipes: [{ action: 'click', selector: '#btn', label: 'Delete account' }],
+      }),
+    (err) => {
+      assert.equal(err instanceof StateRecipeError || err.name === 'StateRecipeError', true);
+      assert.match(err.message, /refusing unsafe state recipe/i);
+      assert.equal(String(err.message).includes('secret'), false);
+      return true;
+    },
+  );
+});
+
+test('assertUniqueExpandedKeys: recipe collides with variant/liveState with named origins', () => {
+  const expanded = [
+    ...expandSurfaceVariants({
+      key: 'dash',
+      go: async () => {},
+      variants: [{ key: 'hover-plan-card' }],
+      stateRecipes: [{ action: 'hover', selector: '#card', label: 'Plan card' }],
+    }),
+  ];
+  // base + variant hover-plan-card + recipe hover-plan-card → collision on dash-hover-plan-card
+  assert.throws(
+    () => assertUniqueExpandedKeys(expanded),
+    (err) => {
+      assert.match(err.message, /capture key 'dash-hover-plan-card'/);
+      assert.match(err.message, /surface 'dash' variant 'hover-plan-card'/);
+      assert.match(err.message, /surface 'dash' state-recipe 'hover-plan-card'/);
+      // Origins name kind without leaking selectors or declared labels.
+      assert.equal(err.message.includes('#card'), false);
+      assert.equal(err.message.includes('Plan card'), false);
+      return true;
+    },
+  );
+});
+
+test('coverageKeys: state-recipe expansions satisfy declared base key', () => {
+  const surfaces = expandSurfaceVariants({
+    key: 'pricing',
+    go: async () => {},
+    stateRecipes: [{ action: 'hover', selector: '#card', label: 'Plan card' }],
+  });
+  // Base retained, so coverage is satisfied either way.
+  assert.deepEqual(
+    coverageGaps(
+      surfaces.map((s) => s.key),
+      ['pricing', 'pricing-hover-plan-card'],
+    ).uncovered,
+    [],
+  );
 });
 
 test('expanded variant keys can satisfy the coverage guard', () => {

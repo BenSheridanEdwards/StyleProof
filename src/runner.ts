@@ -38,6 +38,14 @@ import {
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
+import {
+  applyStateRecipe,
+  classifyStateRecipe,
+  parseStateRecipes,
+  stateRecipeKey,
+  StateRecipeError,
+  type StateRecipe,
+} from './state-recipes.js';
 
 /**
  * A surface is one deterministic page state worth certifying: a route plus
@@ -77,6 +85,14 @@ export type Surface = {
    * variants so reports and diagnostics can explain why the capture was split.
    */
   liveStates?: SurfaceLiveState[];
+  /**
+   * Independent interaction state recipes for this surface (hover / focus / press /
+   * click). Each recipe becomes its own capture (`<surface>-<stateKey>@<width>`)
+   * after the parent `go`, never as multi-step choreography. Validated and
+   * key-sorted via {@link parseStateRecipes} at expansion time — unsafe declared
+   * labels and invalid selectors fail closed before browser tests register.
+   */
+  stateRecipes?: StateRecipe[];
   /**
    * Opt in to automatically opening visible click-triggered popups after the base
    * surface is captured. Captures persistent dialogs, popovers, menus, listboxes,
@@ -540,7 +556,9 @@ async function markPopupCandidates(page: Page, options: ResolvedPopupCaptureOpti
   });
 }
 
-type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates'> & { metadata?: CaptureMetadata };
+type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates' | 'stateRecipes'> & {
+  metadata?: CaptureMetadata;
+};
 
 function expandOne(
   surface: Surface,
@@ -562,20 +580,76 @@ function expandOne(
   };
 }
 
+/**
+ * Validate + sort surface recipes and fail closed on declared unsafe labels
+ * before any browser test is registered. Live-label danger is still checked at
+ * apply time (browser) via {@link applyStateRecipe}.
+ */
+function resolveSurfaceStateRecipes(raw: unknown): StateRecipe[] {
+  const recipes = parseStateRecipes(raw);
+  for (const recipe of recipes) {
+    const classified = classifyStateRecipe(recipe);
+    if (!classified.ok) {
+      throw new StateRecipeError(`refusing unsafe state recipe (${classified.skip.label}): ${classified.skip.detail}`);
+    }
+  }
+  return recipes;
+}
+
+function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurface {
+  const stateKey = stateRecipeKey(recipe);
+  return {
+    key: `${surface.key}-${stateKey}`,
+    // Every recipe starts from the same base navigation — never choreography.
+    // Recipe-specific setup is not part of the recipe schema; optional setup
+    // belongs on a sibling variant/liveState if needed.
+    go: async (page) => {
+      await surface.go(page);
+      await applyStateRecipe(page, recipe);
+    },
+    ignore: surface.ignore,
+    widths: surface.widths,
+    height: surface.height,
+    popups: surface.popups,
+    metadata: {
+      surfaceKey: surface.key,
+      variantKey: stateKey,
+      variantKind: 'state-recipe',
+      stateRecipe: {
+        stateKey,
+        action: recipe.action,
+        selector: recipe.selector,
+        ...(recipe.key ? { key: recipe.key } : {}),
+        ...(recipe.label !== undefined ? { label: recipe.label } : {}),
+      },
+    },
+  };
+}
+
 export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
   const variants = surface.variants ?? [];
   const liveStates = surface.liveStates ?? [];
-  const { variants: _variants, liveStates: _liveStates, ...base } = surface;
+  const { variants: _variants, liveStates: _liveStates, stateRecipes: rawStateRecipes, ...base } = surface;
+  const recipes = rawStateRecipes === undefined ? [] : resolveSurfaceStateRecipes(rawStateRecipes);
   const baseSurface = { ...base, metadata: { surfaceKey: surface.key } };
   void _variants;
   void _liveStates;
-  if (!variants.length && !liveStates.length) {
+  if (!variants.length && !liveStates.length && !recipes.length) {
     return [baseSurface];
   }
   const expandedVariants = variants.map((variant) => expandOne(surface, variant, 'variant'));
-  if (!liveStates.length) return [baseSurface, ...expandedVariants];
+  const expandedRecipes = recipes.map((recipe) => expandStateRecipe(surface, recipe));
+  if (!liveStates.length) {
+    // Base retained for variants and/or state recipes (same as variants alone).
+    return [baseSurface, ...expandedVariants, ...expandedRecipes];
+  }
 
-  return [...expandedVariants, ...liveStates.map((state) => expandOne(surface, state, 'live-state'))];
+  // liveStates drop the bare base (fuzzy live UI); variants + recipes still expand.
+  return [
+    ...expandedVariants,
+    ...liveStates.map((state) => expandOne(surface, state, 'live-state')),
+    ...expandedRecipes,
+  ];
 }
 
 /** The identity fields of an expanded surface a collision check needs. */
@@ -585,19 +659,29 @@ type ExpandedKeyed = { key: string; metadata?: CaptureMetadata };
 function expandedOrigin(s: ExpandedKeyed): string {
   const surfaceKey = s.metadata?.surfaceKey ?? s.key;
   const variantKey = s.metadata?.variantKey;
-  return variantKey ? `surface '${surfaceKey}' variant '${variantKey}'` : `surface '${surfaceKey}'`;
+  if (!variantKey) return `surface '${surfaceKey}'`;
+  if (s.metadata?.variantKind === 'state-recipe') {
+    return `surface '${surfaceKey}' state-recipe '${variantKey}'`;
+  }
+  if (s.metadata?.variantKind === 'live-state') {
+    return `surface '${surfaceKey}' live-state '${variantKey}'`;
+  }
+  return `surface '${surfaceKey}' variant '${variantKey}'`;
 }
 
 /**
  * Fail LOUDLY on two expanded surfaces sharing a capture key.
  *
- * The expanded key is `surface.key-variant.key`, and that key is the map filename
- * (`<key>@<width>.json.gz`) and the report identity — so it's public and can't
- * change without breaking backward compatibility. But the `-` join is ambiguous:
- * surface `a` + variant `b-c` and surface `a-b` + variant `c` both expand to
- * `a-b-c`, and the second capture would silently overwrite the first, dropping a
- * surface with no error. Rather than mangle the public key format, we assert
- * uniqueness up front and name BOTH origins so the author can rename one.
+ * The expanded key is `surface.key-variant.key` (or `surface.key-stateKey` for
+ * state recipes), and that key is the map filename (`<key>@<width>.json.gz`) and
+ * the report identity — so it's public and can't change without breaking backward
+ * compatibility. But the `-` join is ambiguous: surface `a` + variant `b-c` and
+ * surface `a-b` + variant `c` both expand to `a-b-c`, and the second capture would
+ * silently overwrite the first, dropping a surface with no error. The same collision
+ * can arise between a recipe state key and a hand-named variant/liveState. Rather
+ * than mangle the public key format, we assert uniqueness up front and name BOTH
+ * origins so the author can rename one — without echoing recipe selectors or other
+ * potentially secret-bearing fields.
  */
 export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
   const byKey = new Map<string, ExpandedKeyed>();
@@ -608,7 +692,7 @@ export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
         `styleproof: capture key '${s.key}' is produced by two surfaces — ` +
           `${expandedOrigin(prior)} collides with ${expandedOrigin(s)}. ` +
           `Keys must expand uniquely (they name the map files and report entries); ` +
-          `rename one surface or variant.`,
+          `rename one surface, variant, live state, or state recipe.`,
       );
     }
     byKey.set(s.key, s);
@@ -1378,6 +1462,8 @@ export type CrawlOptions = CaptureConfig & {
   variants?: SurfaceVariant[];
   /** First-class live product states captured for every discovered link surface. */
   liveStates?: SurfaceLiveState[];
+  /** Independent interaction state recipes captured for every discovered link surface. */
+  stateRecipes?: StateRecipe[];
   /** Opt-in automatic popup/modal capture for every discovered link surface. */
   popups?: boolean | PopupCaptureOptions;
   /** Max ms to wait for the crawl root's links to render before reading them
@@ -1548,6 +1634,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     ignore,
     variants,
     liveStates,
+    stateRecipes,
     popups,
     linkTimeout = 15_000,
     dir,
@@ -1573,7 +1660,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     // `expected` key with this crawl's variants/liveStates to get the keys captured to
     // disk, so a liveStates crawl's ledger is pre-translated like the spec-driven one.
     const ledgerSurfaces = (expected ?? []).flatMap((key) =>
-      expandSurfaceVariants({ key, go: async () => {}, variants, liveStates }),
+      expandSurfaceVariants({ key, go: async () => {}, variants, liveStates, stateRecipes }),
     );
     writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, ledgerSurfaces);
     writeBrowserBuildTest(settings, dir);
@@ -1616,6 +1703,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           height,
           variants,
           liveStates,
+          stateRecipes,
           popups,
         }),
       );
