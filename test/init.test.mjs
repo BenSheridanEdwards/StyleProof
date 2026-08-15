@@ -76,6 +76,7 @@ for (const manager of [
   {
     name: 'npm by default',
     lockfile: null,
+    installLine: '- run: npm ci',
     config: /npm run build && npm run start/,
     workflow: [
       /cache: npm/,
@@ -90,6 +91,7 @@ for (const manager of [
   {
     name: 'Yarn v1 lockfile',
     lockfile: 'yarn.lock',
+    installLine: '- run: npx -y yarn@1.22.22 install --frozen-lockfile --non-interactive',
     config: /npx -y yarn@1\.22\.22 build && npx -y yarn@1\.22\.22 start/,
     workflow: [
       /cache: yarn/,
@@ -103,6 +105,7 @@ for (const manager of [
   {
     name: 'pnpm lockfile',
     lockfile: 'pnpm-lock.yaml',
+    installLine: '- run: pnpm install --frozen-lockfile',
     config: /pnpm run build && pnpm run start/,
     workflow: [/cache: pnpm/, /corepack enable/, /pnpm install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v6/],
     absent: [/npm ci/],
@@ -112,6 +115,7 @@ for (const manager of [
   {
     name: 'Bun lockfile',
     lockfile: 'bun.lock',
+    installLine: '- run: bun install --frozen-lockfile',
     config: /bun run build && bun run start/,
     workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v6/],
     absent: [/npm ci/],
@@ -146,6 +150,18 @@ for (const manager of [
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
       for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(workflow, pattern);
+      const scaffoldCheck =
+        "node node_modules/styleproof/bin/styleproof-init.mjs --check --dir 'e2e/styleproof.spec.ts'";
+      assert.match(workflow, /- name: Verify StyleProof scaffold matches the installed release/);
+      assert.ok(workflow.includes(scaffoldCheck));
+      assert.ok(
+        workflow.indexOf(manager.installLine) < workflow.indexOf(scaffoldCheck),
+        'the installed StyleProof release owns the expected scaffold bytes',
+      );
+      assert.ok(
+        workflow.indexOf(scaffoldCheck) < workflow.indexOf('- id: maps'),
+        'scaffold freshness is enforced before capture orchestration',
+      );
 
       // The restore → capture-on-miss → replay → publish orchestration is ONE
       // packaged command (styleproof-ci), invoked on the installed release with the
@@ -160,7 +176,7 @@ for (const manager of [
       );
       assert.match(
         workflow,
-        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec e2e\/styleproof\.spec\.ts "\$\{SPEC_REF_ARGS\[@\]\}" --base-dir "\$\{\{ runner\.temp \}\}\/styleproof-maps"/,
+        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec 'e2e\/styleproof\.spec\.ts' "\$\{SPEC_REF_ARGS\[@\]\}" --base-dir "\$\{\{ runner\.temp \}\}\/styleproof-maps"/,
       );
       assert.doesNotMatch(workflow, /styleproof-map\.mjs/);
       assert.doesNotMatch(workflow, /"styleproof@\$STYLEPROOF_VERSION"/);
@@ -244,6 +260,52 @@ test('styleproof-init: config-only first adoption sources the head harness', () 
     const result = spawnSync('/bin/bash', ['-c', generatedMapScript], { cwd: root, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), `--spec-ref\n${head}`);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: generated scaffold check executes with a shell-hostile custom spec path', () => {
+  const root = mkTmp();
+  try {
+    const specPath = "tests/visual #proof/$draft's.spec.ts";
+    const res = runInit(root, ['--dir', specPath]);
+    assert.equal(res.status, 0, res.stderr);
+    const workflowPath = '.github/workflows/styleproof.yml';
+    const workflow = readFile(root, workflowPath);
+    const checkCommand = workflow.match(
+      /- name: Verify StyleProof scaffold matches the installed release\n\s+shell: bash\n\s+run: \|\n\s+(.+)/,
+    )?.[1];
+    assert.ok(checkCommand, 'generated workflow contains an executable freshness command');
+    fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+    fs.symlinkSync(path.join(here, '..'), path.join(root, 'node_modules', 'styleproof'), 'dir');
+
+    const clean = spawnSync('/bin/bash', ['-c', checkCommand], { cwd: root, encoding: 'utf8' });
+    assert.equal(clean.status, 0, clean.stderr + clean.stdout);
+    assert.match(clean.stdout, /all machine-owned files match/);
+
+    fs.appendFileSync(path.join(root, workflowPath), '# stale release template\n');
+    const stale = spawnSync('/bin/bash', ['-c', checkCommand], { cwd: root, encoding: 'utf8' });
+    assert.equal(stale.status, 1, stale.stderr + stale.stdout);
+    assert.match(stale.stdout, /stale {4}\.github\/workflows\/styleproof\.yml/);
+    assert.match(stale.stdout, /styleproof-init --upgrade/);
+
+    const upgraded = runInit(root, ['--upgrade', '--dir', specPath]);
+    assert.equal(upgraded.status, 0, upgraded.stderr);
+    const refreshed = spawnSync('/bin/bash', ['-c', checkCommand], { cwd: root, encoding: 'utf8' });
+    assert.equal(refreshed.status, 0, refreshed.stderr + refreshed.stdout);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: rejects control characters that would invalidate generated YAML', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'tests/visual\u000bproof.spec.ts']);
+    assert.equal(res.status, 2);
+    assert.match(res.stderr, /--dir must not contain control characters/);
+    assert.equal(fs.existsSync(path.join(root, '.github', 'workflows', 'styleproof.yml')), false);
   } finally {
     rmTmp(root);
   }

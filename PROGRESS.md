@@ -1,14 +1,11 @@
-# First-adoption capture harness (#408)
+# Generated scaffold drift gate (#410)
 
 ## Completed
 
-- Added a generated-workflow regression for an adoption PR whose base predates
-  the StyleProof capture spec.
-- Made the workflow opt into `--spec-ref` only for that missing-base-spec case.
-- Extended the overlay to supply the dedicated production Playwright config
-  only when the checkout does not already have one.
-- Made exact dirty allowances work when the generated harness directory is
-  wholly untracked.
+- Added package-manager regressions for the installed-release scaffold check.
+- Preserved custom spec paths in the generated `--check --dir` command.
+- Positioned the fail-closed check after dependency installation and before map
+  restore or capture.
 
 ## Next
 
@@ -20,8 +17,8 @@
 
 ## Verification
 
-- `npm test` — 816 passed, 0 failed.
-- `npm run test:e2e` — 152 passed, 0 failed.
+- `node --test test/init.test.mjs` — 17 passed, 0 failed.
+- `npm test` — 818 passed, 0 failed.
 - `npm run build`, `npm run typecheck`, `npm run lint`, and `npm run format:check` — passed.
 - `npm run privacy:check` — passed across 229 public text files.
 - `npm audit --audit-level=high` — 0 vulnerabilities.

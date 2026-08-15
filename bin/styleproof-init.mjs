@@ -56,7 +56,8 @@ options:
                       templates; never touches the spec or playwright config
   --check             report drift between the machine-owned files and this
                       release's templates without writing; exit 1 if any differ —
-                      run it in CI to learn when --upgrade is due
+                      the generated workflow runs it before capture so upgrades
+                      fail with the --upgrade remedy instead of silently drifting
   -h, --help          show this help
 
 --upgrade/--check interpolate the spec path into the templates: pass the same
@@ -110,6 +111,15 @@ if (!specPath) {
   console.error('--dir requires a path');
   process.exit(2);
 }
+const hasControlCharacter = Array.from(specPath).some((character) => {
+  const codePoint = character.codePointAt(0);
+  return codePoint <= 0x1f || codePoint === 0x7f;
+});
+if (hasControlCharacter) {
+  console.error('--dir must not contain control characters');
+  process.exit(2);
+}
+const shellSpecPath = `'${specPath.replaceAll("'", `'"'"'`)}'`;
 
 // Captures read whatever is in front of them, so the page must be settled and
 // deterministic first — this helper is shared by both spec variants below.
@@ -419,6 +429,10 @@ jobs:
           fetch-depth: 0 # need base/head commits for cache fallback capture
 ${PM.setup}
       - run: ${PM.install}
+      - name: Verify StyleProof scaffold matches the installed release
+        shell: bash
+        run: |
+          node node_modules/styleproof/bin/styleproof-init.mjs --check --dir ${shellSpecPath}
       - id: maps
         name: Restore or capture StyleProof maps
         shell: bash
@@ -442,7 +456,7 @@ ${PM.setup}
             ! git cat-file -e "$BASE_SHA:playwright.styleproof.config.ts" 2>/dev/null; then
             SPEC_REF_ARGS=(--spec-ref "$HEAD_SHA")
           fi
-          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec ${specPath} "\${SPEC_REF_ARGS[@]}" --base-dir "\${{ runner.temp }}/styleproof-maps"
+          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec ${shellSpecPath} "\${SPEC_REF_ARGS[@]}" --base-dir "\${{ runner.temp }}/styleproof-maps"
       - uses: BenSheridanEdwards/StyleProof@v6
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
