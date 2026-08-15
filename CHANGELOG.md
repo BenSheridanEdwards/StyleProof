@@ -143,6 +143,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and never become generated YAML expressions or shell command source. Package
   upgrades fail CI with the existing `--upgrade` remedy when machine-owned
   workflow, approval, or hook templates are stale (#410).
+- `styleproof-init` now activates its generated `.githooks/pre-push` shim only
+  when the effective Git configuration has no hook path and the default
+  pre-push hook is absent. It reports verified matching/Husky activation and
+  warns when preserved default, worktree, global, system, custom, or
+  repository-owned hook state leaves the shim inactive (#409).
 - State recipes (#391): replace polynomial selector/label regex paths with
   bounded linear character scanners (slug builder, pseudo/arg validators,
   bracket equality scan, credential/scheme token scans, manual `:ident()`

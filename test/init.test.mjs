@@ -9,7 +9,8 @@ import { mkNonGitTmp, mkTmp, rmTmp } from './helpers.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 
-const runInit = (cwd, args = []) => spawnSync(process.execPath, [INIT, ...args], { cwd, encoding: 'utf8' });
+const runInit = (cwd, args = [], env = {}) =>
+  spawnSync(process.execPath, [INIT, ...args], { cwd, encoding: 'utf8', env: { ...process.env, ...env } });
 function touch(root, rel) {
   const f = path.join(root, rel);
   fs.mkdirSync(path.dirname(f), { recursive: true });
@@ -406,11 +407,16 @@ test('styleproof-init: installs the approval workflow so require-approval is not
 test('styleproof-init: pre-push publish hook — husky-aware, executable, idempotent', () => {
   const root = mkTmp();
   try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: root }).status, 0);
     const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     const hookPath = path.join(root, '.githooks', 'pre-push');
     assert.match(res.stdout, /created \.githooks\/pre-push/);
-    assert.match(res.stdout, /git config core\.hooksPath \.githooks/); // activation hint
+    assert.match(res.stdout, /activated \.githooks\/pre-push via core\.hooksPath/);
+    assert.equal(
+      spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: root, encoding: 'utf8' }).stdout.trim(),
+      '.githooks',
+    );
     if (process.platform !== 'win32') {
       assert.ok(fs.statSync(hookPath).mode & 0o111, 'hook is executable');
     }
@@ -418,22 +424,189 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
     const rerun = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(rerun.status, 0, rerun.stderr);
     assert.match(rerun.stdout, /pre-push already exists — left untouched/);
+    assert.match(rerun.stdout, /active via core\.hooksPath=\.githooks/);
+    const checked = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.match(checked.stdout, /\.githooks\/pre-push is active via core\.hooksPath=\.githooks/);
   } finally {
     rmTmp(root);
+  }
+
+  const nonExecutableManaged = mkTmp();
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: nonExecutableManaged }).status, 0);
+    const initial = runInit(nonExecutableManaged, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(initial.status, 0, initial.stderr);
+    assert.equal(
+      spawnSync('git', ['config', '--local', '--unset', 'core.hooksPath'], { cwd: nonExecutableManaged }).status,
+      0,
+    );
+    fs.chmodSync(path.join(nonExecutableManaged, '.githooks', 'pre-push'), 0o644);
+
+    const res = runInit(nonExecutableManaged, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stderr, /generated \.githooks\/pre-push is inactive: the hook is not executable/);
+    assert.match(res.stderr, /refresh it with: styleproof-init --hook/);
+    assert.equal(
+      spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: nonExecutableManaged }).status,
+      1,
+    );
+  } finally {
+    rmTmp(nonExecutableManaged);
+  }
+
+  // A custom hook path is repository-owned: init writes the recoverable shim,
+  // reports that it is inactive, and never replaces the configured path.
+  const custom = mkTmp();
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: custom }).status, 0);
+    assert.equal(spawnSync('git', ['config', '--local', 'core.hooksPath', '.custom-hooks'], { cwd: custom }).status, 0);
+    const res = runInit(custom, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(readFile(custom, '.githooks/pre-push').includes('styleproof-prepush'), true);
+    assert.equal(
+      spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], {
+        cwd: custom,
+        encoding: 'utf8',
+      }).stdout.trim(),
+      '.custom-hooks',
+    );
+    assert.match(res.stderr, /generated \.githooks\/pre-push is inactive: core\.hooksPath is \.custom-hooks/);
+    assert.match(res.stderr, /git config --local core\.hooksPath \.githooks/);
+  } finally {
+    rmTmp(custom);
+  }
+
+  // Effective global and worktree-scoped paths are just as repository-owned as
+  // a local value. Init must not shadow either with a new local setting.
+  for (const scope of ['global', 'worktree']) {
+    const scoped = mkTmp();
+    try {
+      assert.equal(spawnSync('git', ['init', '-q'], { cwd: scoped }).status, 0);
+      const globalConfig = path.join(scoped, 'global.gitconfig');
+      const env = { GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: '1' };
+      if (scope === 'global') {
+        fs.writeFileSync(globalConfig, '[core]\n\thooksPath = .global-hooks\n');
+      } else {
+        assert.equal(spawnSync('git', ['config', 'extensions.worktreeConfig', 'true'], { cwd: scoped }).status, 0);
+        assert.equal(
+          spawnSync('git', ['config', '--worktree', 'core.hooksPath', '.worktree-hooks'], { cwd: scoped }).status,
+          0,
+        );
+      }
+      const res = runInit(scoped, ['--dir', 'e2e/styleproof.spec.ts'], env);
+      assert.equal(res.status, 0, res.stderr);
+      assert.equal(spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: scoped }).status, 1);
+      assert.match(res.stderr, new RegExp(`core\\.hooksPath is \\.${scope}-hooks`));
+    } finally {
+      rmTmp(scoped);
+    }
+  }
+
+  // An active default hook is also repository-owned even with hooksPath unset.
+  const defaultHook = mkTmp();
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: defaultHook }).status, 0);
+    const defaultHookPath = path.join(defaultHook, '.git', 'hooks', 'pre-push');
+    fs.writeFileSync(defaultHookPath, '#!/bin/sh\nnpm test\n');
+    fs.chmodSync(defaultHookPath, 0o755);
+    const res = runInit(defaultHook, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: defaultHook }).status, 1);
+    assert.match(res.stderr, /existing active hook at \.git\/hooks\/pre-push was left unchanged/);
+  } finally {
+    rmTmp(defaultHook);
   }
 
   // A husky repo gets the hook in .husky/ instead, and an existing hook survives.
   const husky = mkTmp();
   try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: husky }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'core.hooksPath', '.husky/_'], { cwd: husky }).status, 0);
     fs.mkdirSync(path.join(husky, '.husky'));
+    fs.mkdirSync(path.join(husky, '.husky', '_'));
     fs.writeFileSync(path.join(husky, '.husky', 'pre-push'), '#!/bin/sh\nnpm test\n');
+    const huskyShim = path.join(husky, '.husky', '_', 'pre-push');
+    fs.writeFileSync(huskyShim, '#!/bin/sh\necho husky\n');
+    fs.chmodSync(huskyShim, 0o755);
     const res = runInit(husky, ['--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     assert.equal(fs.existsSync(path.join(husky, '.githooks')), false);
     assert.equal(readFile(husky, '.husky/pre-push'), '#!/bin/sh\nnpm test\n'); // untouched
     assert.match(res.stdout, /pre-push already exists — left untouched/);
+    assert.match(res.stdout, /Husky manages hook activation via core\.hooksPath=\.husky\/_/);
+    assert.equal(
+      spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], {
+        cwd: husky,
+        encoding: 'utf8',
+      }).stdout.trim(),
+      '.husky/_',
+    );
   } finally {
     rmTmp(husky);
+  }
+
+  const inactiveHusky = mkTmp();
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: inactiveHusky }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'core.hooksPath', '.husky/_'], { cwd: inactiveHusky }).status, 0);
+    fs.mkdirSync(path.join(inactiveHusky, '.husky'));
+    fs.writeFileSync(path.join(inactiveHusky, '.husky', 'pre-push'), '#!/bin/sh\nnpm test\n');
+    const res = runInit(inactiveHusky, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stderr, /generated \.husky\/pre-push is inactive/);
+    assert.match(res.stderr, /active shim does not exist/);
+  } finally {
+    rmTmp(inactiveHusky);
+  }
+
+  const nonExecutableHusky = mkTmp();
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: nonExecutableHusky }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'core.hooksPath', '.husky/_'], { cwd: nonExecutableHusky }).status, 0);
+    fs.mkdirSync(path.join(nonExecutableHusky, '.husky', '_'), { recursive: true });
+    fs.writeFileSync(path.join(nonExecutableHusky, '.husky', 'pre-push'), '#!/bin/sh\nnpm test\n');
+    fs.writeFileSync(path.join(nonExecutableHusky, '.husky', '_', 'pre-push'), '#!/bin/sh\necho husky\n', {
+      mode: 0o644,
+    });
+    const res = runInit(nonExecutableHusky, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stderr, /generated \.husky\/pre-push is inactive/);
+    assert.match(res.stderr, /active shim is not executable/);
+  } finally {
+    rmTmp(nonExecutableHusky);
+  }
+
+  const missingMatchingHook = mkTmp();
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: missingMatchingHook }).status, 0);
+    assert.equal(
+      spawnSync('git', ['config', '--local', 'core.hooksPath', '.githooks'], { cwd: missingMatchingHook }).status,
+      0,
+    );
+    const checked = runInit(missingMatchingHook, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(checked.status, 1, checked.stderr);
+    assert.match(checked.stdout, /missing {2}\.githooks\/pre-push/);
+    assert.match(checked.stderr, /Git resolves pre-push there, but the hook does not exist/);
+  } finally {
+    rmTmp(missingMatchingHook);
+  }
+
+  const unmanaged = mkTmp();
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: unmanaged }).status, 0);
+    fs.mkdirSync(path.join(unmanaged, '.githooks'));
+    fs.writeFileSync(path.join(unmanaged, '.githooks', 'pre-push'), '#!/bin/sh\nnpm test\n');
+    const res = runInit(unmanaged, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: unmanaged }).status, 1);
+    assert.match(res.stderr, /repository-owned \.githooks\/pre-push was left unchanged and inactive/);
+    const checked = runInit(unmanaged, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.match(checked.stdout, /unmanaged \.githooks\/pre-push/);
+    assert.match(checked.stderr, /repository-owned \.githooks\/pre-push was left unchanged and inactive/);
+  } finally {
+    rmTmp(unmanaged);
   }
 });
 

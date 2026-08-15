@@ -31,6 +31,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 // Import from the leaf module, not the barrel: styleproof-init only scaffolds
 // files and never captures. Pulling `../dist/index.js` here dragged the whole
@@ -74,6 +75,9 @@ What it writes:
   - .github/workflows/styleproof.yml, a cache-first PR report workflow
   - .github/workflows/styleproof-approve.yml, the "Approve all changes" gate
     (active once merged to your default branch)
+  - .githooks/pre-push and, when the effective core.hooksPath is unset and no
+    default pre-push hook exists, activates .githooks for this repository.
+    Existing default/custom hooks and Husky remain untouched.
 
 After running, build and upload this commit's map outside CI when possible:
   npx styleproof-map
@@ -604,6 +608,137 @@ exec ./node_modules/.bin/styleproof-prepush
 `;
 const HOOK_OWNERSHIP_MARKER = '# StyleProof pre-push';
 
+function isExecutableFile(file) {
+  try {
+    const stat = fs.statSync(file);
+    return stat.isFile() && (process.platform === 'win32' || (stat.mode & 0o111) !== 0);
+  } catch {
+    return false;
+  }
+}
+
+function reportHuskyHookStatus({ hookPath, configuredPath, activeHookPath, activeHookAbsolute }) {
+  const huskyRoot = path.resolve('.husky');
+  const executable = isExecutableFile(activeHookAbsolute);
+  if (activeHookAbsolute.startsWith(`${huskyRoot}${path.sep}`) && executable) {
+    console.log(`  Husky manages hook activation via core.hooksPath=${configuredPath}`);
+    return;
+  }
+
+  let reason = 'the active shim is outside Husky';
+  if (!fs.existsSync(activeHookAbsolute)) reason = 'that active shim does not exist';
+  else if (!executable) reason = 'that active shim is not executable';
+  console.warn(
+    `generated ${hookPath} is inactive: Git resolves pre-push to ${activeHookPath}; ${reason}; ` +
+      `core.hooksPath left unchanged for Husky to manage`,
+  );
+}
+
+function reportMatchingHookStatus({ hookPath, configuredPath, activeHookAbsolute, managed }) {
+  if (!isExecutableFile(activeHookAbsolute)) {
+    console.warn(
+      `generated ${hookPath} is inactive: Git resolves pre-push there, but the hook ` +
+        `${fs.existsSync(activeHookAbsolute) ? 'is not executable' : 'does not exist'}`,
+    );
+    return;
+  }
+  console.log(
+    managed
+      ? `  ${hookPath} is active via core.hooksPath=${configuredPath}`
+      : `  repository-owned ${hookPath} is active; StyleProof left it unchanged`,
+  );
+}
+
+function activateGeneratedHook(hookPath, generatedHookAbsolute) {
+  const activated = spawnSync('git', ['config', '--local', 'core.hooksPath', '.githooks'], { encoding: 'utf8' });
+  if (activated.status === 0) {
+    const verified = spawnSync('git', ['rev-parse', '--git-path', 'hooks/pre-push'], { encoding: 'utf8' });
+    const verifiedPath = verified.status === 0 ? path.resolve(verified.stdout.trim()) : undefined;
+    if (verifiedPath === generatedHookAbsolute && isExecutableFile(generatedHookAbsolute)) {
+      console.log(`  activated ${hookPath} via core.hooksPath=.githooks`);
+      return;
+    }
+    spawnSync('git', ['config', '--local', '--unset', 'core.hooksPath'], { encoding: 'utf8' });
+  }
+  console.warn(
+    `generated ${hookPath} is inactive: could not set core.hooksPath; run: git config --local core.hooksPath .githooks`,
+  );
+}
+
+function handleUnconfiguredHook({ hookPath, generatedHookAbsolute, activate, managed }) {
+  if (!managed) {
+    console.warn(`repository-owned ${hookPath} was left unchanged and inactive; StyleProof did not activate it`);
+    return;
+  }
+  if (!isExecutableFile(generatedHookAbsolute)) {
+    console.warn(
+      `generated ${hookPath} is inactive: the hook is not executable; refresh it with: styleproof-init --hook`,
+    );
+    return;
+  }
+  if (!activate) {
+    console.warn(
+      `generated ${hookPath} is inactive in this checkout; activate with: git config --local core.hooksPath .githooks`,
+    );
+    return;
+  }
+  activateGeneratedHook(hookPath, generatedHookAbsolute);
+}
+
+function reportOrActivateHook(hookDir, hookPath, { activate = true, managed = true } = {}) {
+  const worktree = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' });
+  if (worktree.status !== 0 || worktree.stdout.trim() !== 'true') {
+    console.warn(
+      `generated ${hookPath} is inactive outside a Git worktree; after git init run: git config --local core.hooksPath .githooks`,
+    );
+    return;
+  }
+
+  const configured = spawnSync('git', ['config', '--get', 'core.hooksPath'], { encoding: 'utf8' });
+  const active = spawnSync('git', ['rev-parse', '--git-path', 'hooks/pre-push'], { encoding: 'utf8' });
+  if (active.status !== 0) {
+    console.warn(`generated ${hookPath} is inactive: could not resolve Git's active pre-push hook path`);
+    return;
+  }
+  const activeHookPath = active.stdout.trim();
+  const activeHookAbsolute = path.resolve(activeHookPath);
+  const generatedHookAbsolute = path.resolve(hookPath);
+  const configuredPath = configured.stdout.trim();
+
+  if (hookDir === '.husky') {
+    reportHuskyHookStatus({ hookPath, configuredPath, activeHookPath, activeHookAbsolute });
+    return;
+  }
+
+  if (activeHookAbsolute === generatedHookAbsolute) {
+    reportMatchingHookStatus({ hookPath, configuredPath, activeHookAbsolute, managed });
+    return;
+  }
+
+  if (configured.status === 1 && !isExecutableFile(activeHookAbsolute)) {
+    handleUnconfiguredHook({ hookPath, generatedHookAbsolute, activate, managed });
+    return;
+  }
+
+  if (configured.status !== 0 && configured.status !== 1) {
+    console.warn(`generated ${hookPath} is inactive: could not read core.hooksPath`);
+    return;
+  }
+
+  if (configured.status === 1) {
+    console.warn(
+      `generated ${hookPath} is inactive: existing active hook at ${activeHookPath} was left unchanged; ` +
+        `integrate styleproof-prepush there or explicitly run: git config --local core.hooksPath .githooks`,
+    );
+    return;
+  }
+
+  console.warn(
+    `generated ${hookPath} is inactive: core.hooksPath is ${configuredPath} (active hook: ${activeHookPath}); left unchanged. ` +
+      `If you intend to replace it, run: git config --local core.hooksPath .githooks`,
+  );
+}
+
 function installPrePushHook({ force: f = false } = {}) {
   const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
   const hookPath = path.join(hookDir, 'pre-push');
@@ -613,10 +748,11 @@ function installPrePushHook({ force: f = false } = {}) {
     console.log(
       `${hook.exists ? 'refreshed' : 'created'} ${hookPath} (pre-push capture → publish via styleproof-prepush; maps never land on the PR branch)`,
     );
-    if (hookDir === '.githooks') console.log('  activate with: git config core.hooksPath .githooks');
   } else {
     console.log(`${hookPath} already exists — left untouched (refresh it with: styleproof-init --hook)`);
   }
+  const managed = fs.readFileSync(hookPath, 'utf8').includes(HOOK_OWNERSHIP_MARKER);
+  reportOrActivateHook(hookDir, hookPath, { activate: managed, managed });
   return { ...hook, hookPath };
 }
 
@@ -675,7 +811,8 @@ function machineOwnedFiles() {
 // "a styleproof upgrade changed the generated files — run styleproof-init --upgrade".
 if (checkOnly) {
   let stale = 0;
-  for (const { file, contents, ownershipMarker } of machineOwnedFiles()) {
+  const ownedFiles = machineOwnedFiles();
+  for (const { file, contents, ownershipMarker } of ownedFiles) {
     if (!fs.existsSync(file)) {
       console.log(`missing  ${file}`);
       stale++;
@@ -687,6 +824,11 @@ if (checkOnly) {
     } else {
       console.log(`current  ${file}`);
     }
+  }
+  const hookFile = ownedFiles.find(({ ownershipMarker }) => ownershipMarker === HOOK_OWNERSHIP_MARKER)?.file;
+  if (hookFile) {
+    const managed = fs.existsSync(hookFile) && fs.readFileSync(hookFile, 'utf8').includes(HOOK_OWNERSHIP_MARKER);
+    reportOrActivateHook(path.dirname(hookFile), hookFile, { activate: false, managed });
   }
   if (stale) {
     console.log(
