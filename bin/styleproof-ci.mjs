@@ -87,9 +87,11 @@ options:
   --head <sha>        head commit (e.g. github.event.pull_request.head.sha)
   --spec <path>       StyleProof spec (default: e2e/styleproof.spec.ts)
   --spec-ref <ref>    Source the spec and its colocated harness from <ref> for both
-                      base and head. Product commits do not need to track the harness.
-                      App code and lockfiles stay pinned to --base/--head. Invalid refs
-                      or a missing spec at the ref fail loudly.
+                      base and head. When the checkout has no dedicated StyleProof
+                      Playwright config, source that config from <ref> too. Product
+                      commits do not need to track the harness. App code and lockfiles
+                      stay pinned to --base/--head. Invalid refs or a missing spec at
+                      the ref fail loudly.
   --base-dir <path>   map root; base/head land under it
                       (default: $RUNNER_TEMP/styleproof-maps, else .styleproof/ci-maps)
   --force             run outside CI (the flow may force-checkout --head in the consumer
@@ -676,6 +678,7 @@ try {
         // adopter dependency.
         const isolatedPlaywrightTest = path.join(exactRuntimeRoot, 'node_modules', '@playwright', 'test');
         const adopterPlaywrightTest = path.join(coldBaseCwd, 'node_modules', '@playwright', 'test');
+        const consumerPlaywrightTest = path.join(consumerCwd, 'node_modules', '@playwright', 'test');
         // A custom/global Playwright CLI need not install this package in the
         // adopter. In that supported case the isolated runtime remains
         // self-contained; there is no adopter module instance to unify with.
@@ -683,6 +686,23 @@ try {
           fs.rmSync(isolatedPlaywrightTest, { recursive: true, force: true });
           fs.mkdirSync(path.dirname(isolatedPlaywrightTest), { recursive: true });
           fs.symlinkSync(adopterPlaywrightTest, isolatedPlaywrightTest, 'junction');
+        } else if (fs.existsSync(consumerPlaywrightTest)) {
+          // First adoption can add both StyleProof and its Playwright peer on the
+          // head. The base lockfile therefore has neither, but the overlaid head
+          // config still imports @playwright/test. Point both the isolated runner
+          // and base checkout at the consumer head's peer: the Playwright CLI on
+          // PATH comes from that same head install, so no second module instance
+          // can be loaded.
+          fs.rmSync(isolatedPlaywrightTest, { recursive: true, force: true });
+          fs.mkdirSync(path.dirname(isolatedPlaywrightTest), { recursive: true });
+          fs.symlinkSync(consumerPlaywrightTest, isolatedPlaywrightTest, 'junction');
+          fs.mkdirSync(path.dirname(adopterPlaywrightTest), { recursive: true });
+          fs.symlinkSync(consumerPlaywrightTest, adopterPlaywrightTest, 'junction');
+        } else if (fs.existsSync(isolatedPlaywrightTest)) {
+          // A custom/global Playwright CLI can leave the consumer without a local
+          // peer. The isolated install is still the only resolvable harness peer.
+          fs.mkdirSync(path.dirname(adopterPlaywrightTest), { recursive: true });
+          fs.symlinkSync(isolatedPlaywrightTest, adopterPlaywrightTest, 'junction');
         }
         const checkoutStyleProofPackage = path.join(coldBaseCwd, 'node_modules', 'styleproof');
         fs.mkdirSync(path.dirname(checkoutStyleProofPackage), { recursive: true });

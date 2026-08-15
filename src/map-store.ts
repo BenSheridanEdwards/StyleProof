@@ -464,7 +464,10 @@ export function refSha(ref: string, cwd = process.cwd()): string {
  * (the ambient equivalent of the built-in next-env.d.ts allowance).
  */
 export function workingTreeDirty(cwd = process.cwd(), ignore?: string | readonly string[]): boolean {
-  const r = runGit(cwd, ['status', '--porcelain']);
+  // Enumerate every untracked file. Git otherwise collapses a wholly untracked
+  // directory to `dir/`, which makes an exact dirty allowance for generated
+  // first-adoption harness files impossible to honor.
+  const r = runGit(cwd, ['status', '--porcelain', '--untracked-files=all']);
   const status = r.status === 0 ? r.stdout.trimEnd() : '';
   if (!status) return false;
   const prefixes = (typeof ignore === 'string' ? [ignore] : (ignore ?? []))
