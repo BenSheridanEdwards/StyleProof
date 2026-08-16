@@ -218,3 +218,130 @@ test('a clean healthy bundle (no residue, not armed) omits the data-residue line
   assert.doesNotMatch(md, /Data residue/); // but no residue line
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+// ── confidence ledger line (issue #399) ───────────────────────────────────────────
+// Completeness and the visual verdict are two badges: the certification block
+// carries the confidence line, the headline stays the visual verdict, and a green
+// on one never implies the other.
+import { writeConfidenceLedger, buildConfidenceLedger, CONFIDENCE_LEDGER } from '../dist/confidence-ledger.js';
+
+test('a healthy asserted bundle renders Confidence ✓ complete, and report.json carries the summary', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['home', 'about'],
+    baseNav: ['home', 'about'],
+    headNav: ['home', 'about'],
+    expected: ['home', 'about'],
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(md, /\*\*Confidence\*\* — ✓ complete \(2 captured\)/);
+  assert.equal(result.confidence.completeness, 'complete');
+  const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.equal(json.confidence.completeness, 'complete');
+  assert.equal(json.confidence.counts.captured, 2);
+  // Two badges: the visual verdict wording never absorbs the completeness claim.
+  assert.doesNotMatch(md, /complete.*surfaces identical|surfaces identical.*fully certified/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('an unasserted registry renders ⚠ unasserted — no percentage, no completeness claim', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['home'],
+    baseNav: ['home'],
+    headNav: ['home'],
+    expected: null,
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(
+    md,
+    /\*\*Confidence\*\* — ⚠ unasserted \(no `expected` registry — certifies only the 1 captured surface\(s\)/,
+  );
+  assert.doesNotMatch(md, /\d+(\.\d+)?%/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a registered-but-uncovered surface and unproven determinism read as limited with named counts', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['home'],
+    baseNav: ['home'],
+    headNav: ['home'],
+    expected: ['home', 'about'],
+    baseDet: 'self-checked',
+    headDet: 'unproven',
+  });
+  const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(md, /\*\*Confidence\*\* — ⚠ limited \(0 captured, 1 unknown, 1 unproven-determinism\)/);
+  assert.equal(result.confidence.completeness, 'limited');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a persisted crawl ledger with an auth wall renders limited and names the inaccessible surface', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['landing'],
+    baseNav: ['landing'],
+    headNav: ['landing'],
+    expected: null,
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  writeConfidenceLedger(
+    head,
+    buildConfidenceLedger({
+      capturedKeys: ['landing'],
+      coverage: null,
+      auth: { acknowledged: [], unacknowledged: [{ key: '/login·password-input' }] },
+    }),
+  );
+  const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(
+    md,
+    /\*\*Confidence\*\* — ⚠ limited \(1 captured, 1 inaccessible\); inaccessible: \/login·password-input/,
+  );
+  assert.equal(result.confidence.counts.inaccessible, 1);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a bundle predating the confidence ledger degrades to ⚠ unknown when the block renders (never blocks)', () => {
+  // No coverage ledger and no confidence file — but an inventory change forces the
+  // certification block, so the confidence line must degrade honestly to unknown.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-cert-conf-old-'));
+  const base = path.join(root, 'base');
+  const head = path.join(root, 'head');
+  const out = path.join(root, 'out');
+  fs.mkdirSync(base);
+  fs.mkdirSync(head);
+  fs.writeFileSync(path.join(base, 'home@1440.json'), mapWith(nav(['home', 'billing'])));
+  fs.writeFileSync(path.join(head, 'home@1440.json'), mapWith(nav(['home'])));
+  const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(
+    md,
+    /\*\*Confidence\*\* — ⚠ unknown \(capture predates the confidence ledger; not blocking retroactively\)/,
+  );
+  assert.equal(result.confidence.completeness, 'unknown');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a corrupt confidence file degrades to derived/unknown instead of disarming or throwing', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['home'],
+    baseNav: ['home'],
+    headNav: ['home'],
+    expected: ['home'],
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  fs.writeFileSync(path.join(head, CONFIDENCE_LEDGER), '{corrupt');
+  const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  // The coverage ledger still derives a real verdict; the corrupt file cannot disarm it.
+  assert.match(readMd(out), /\*\*Confidence\*\* — ✓ complete \(1 captured\)/);
+  assert.equal(result.confidence.completeness, 'complete');
+  fs.rmSync(root, { recursive: true, force: true });
+});

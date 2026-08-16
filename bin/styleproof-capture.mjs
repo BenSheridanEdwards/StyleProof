@@ -29,6 +29,7 @@ import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { selectCrawlLinks, dedupIdentity } from '../dist/crawl.js';
 import { writeCaptureManifest } from '../dist/map-store.js';
 import { cliSafeLine, crawlCaptureExitCode } from '../dist/crawl-confidence.js';
+import { buildConfidenceLedger, writeConfidenceLedger, CONFIDENCE_LEDGER } from '../dist/confidence-ledger.js';
 
 const COMMAND = 'styleproof-capture';
 
@@ -175,7 +176,7 @@ function printConfidence(reports) {
   if (status !== 'complete') {
     console.log('    certification: not full — visual PASS does not imply complete surface access');
   }
-  return { blocked, status };
+  return { blocked, status, ack, unack };
 }
 
 function printCoverage(cov, label) {
@@ -311,6 +312,20 @@ async function runCrawl() {
     const cov = aggregateCoverage(reports);
     printCoverage(cov, reports.length > 1 ? ` (${reports.length} pages)` : '');
     const conf = printConfidence(reports);
+    // Persist the confidence ledger (#399) into the bundle so the console-only
+    // auth verdict travels with the maps: styleproof-report renders it as the
+    // completeness badge next to the visual verdict. Failed captures stay out of
+    // the captured set — they are neither certified nor silently forgotten.
+    const failedKeys = new Set(reports.flatMap((r) => r.failed));
+    writeConfidenceLedger(
+      opts.out,
+      buildConfidenceLedger({
+        capturedKeys: reports.flatMap((r) => r.surfaces.map((s) => s.key)).filter((k) => !failedKeys.has(k)),
+        coverage: null, // a crawl declares no `expected` registry — basis stays unasserted
+        auth: { acknowledged: conf.ack, unacknowledged: conf.unack },
+      }),
+    );
+    console.log(`  confidence ledger → ${CONFIDENCE_LEDGER}`);
     // Coverage residue (exit 4) intentionally wins over unacknowledged auth (exit 5).
     const code = crawlCaptureExitCode({
       requireFullCoverage: opts.requireFullCoverage,

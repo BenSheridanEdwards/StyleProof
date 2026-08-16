@@ -494,6 +494,19 @@ report leads with their verdicts:
   stale acknowledgement also fails. Opt down with `dataResidue: 'warn'`. See
   [Data residue](#data-residue-a-failed-data-request-is-named-not-swallowed).
 
+Those verdicts roll up into one more line the report always states: the
+**confidence ledger** (`styleproof-confidence.json`, bundled next to the maps).
+It assigns every surface one status — `captured`, `excluded-with-reason`,
+`inaccessible` (an auth wall or blocked continuation), `unknown` (declared but
+never captured), or `unproven-determinism` — and renders a completeness badge
+(`✓ complete`, `⚠ limited`, `⚠ unasserted`, `⚠ unknown`) **separate from the
+visual verdict**: a visual PASS and a complete capture are two claims, never one
+green. Crawl captures persist the ledger themselves (auth walls travel with the
+bundle); spec captures derive it from the coverage ledger; bundles from before
+the ledger existed read `⚠ unknown` and are never blocked retroactively. No
+coverage percentage is ever invented for surfaces that cannot be enumerated.
+The same summary lands machine-readably in `report.json` (`confidence`).
+
 ## Coverage: what you own, what's discovered
 
 The important boundary: **StyleProof only certifies states it can reach.** It

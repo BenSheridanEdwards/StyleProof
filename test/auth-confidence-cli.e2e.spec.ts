@@ -98,15 +98,27 @@ test('styleproof-capture --crawl: exit 5 password wall; exit 0 plain; exit 0 rea
     '--widths',
     '800',
   ];
+  // The confidence ledger (#399) must travel with the bundle in every outcome —
+  // including the fail-closed exit 5, whose bundle must still state its walls.
+  const readLedger = (dir: string) => JSON.parse(fs.readFileSync(path.join(dir, 'styleproof-confidence.json'), 'utf8'));
   try {
     const plainRes = await runCaptureAsync([`${base}/`, ...common, '--out', outPlain]);
     expect(plainRes.status, plainRes.stderr + plainRes.stdout).toBe(0);
     expect(plainRes.stdout).toMatch(/crawl confidence: complete/);
+    const plainLedger = readLedger(outPlain);
+    expect(plainLedger.basis).toBe('unasserted');
+    expect(plainLedger.entries.length).toBeGreaterThan(0);
+    expect(plainLedger.entries.every((e: { status: string }) => e.status === 'captured')).toBe(true);
 
     const wallRes = await runCaptureAsync([`${base}/wall`, ...common, '--out', outWall]);
     expect(wallRes.status, wallRes.stderr + wallRes.stdout).toBe(5);
     expect(wallRes.stdout).toMatch(/incomplete-auth/);
     expect(wallRes.stdout).toMatch(/unacknowledged/);
+    const wallLedger = readLedger(outWall);
+    const inaccessible = wallLedger.entries.filter((e: { status: string }) => e.status === 'inaccessible');
+    expect(inaccessible.length).toBeGreaterThan(0);
+    expect(inaccessible[0].producer).toBe('auth-boundary');
+    expect(inaccessible[0].reason).toMatch(/authentication boundary/);
 
     const keyMatch = wallRes.stdout.match(/unacknowledged:\s+(\S+)/);
     const key = keyMatch ? keyMatch[1].replace(/\($/, '') : '/wall';
@@ -131,6 +143,11 @@ test('styleproof-capture --crawl: exit 5 password wall; exit 0 plain; exit 0 rea
     expect(ackRes.stdout).toMatch(/incomplete-auth/);
     expect(ackRes.stdout).toMatch(/acknowledged/);
     expect(ackRes.stdout).not.toMatch(/unacknowledged \(fail closed\)/);
+    const ackLedger = readLedger(outAck);
+    const excluded = ackLedger.entries.filter((e: { status: string }) => e.status === 'excluded-with-reason');
+    expect(excluded.length).toBeGreaterThan(0);
+    expect(excluded[0].producer).toBe('auth-boundary');
+    expect(excluded[0].reason).toMatch(/outside certification scope/);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     fs.rmSync(rootDir, { recursive: true, force: true });

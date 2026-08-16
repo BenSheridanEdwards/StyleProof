@@ -51,6 +51,11 @@ const GIT_REPOSITORY_ENVIRONMENT_VARIABLES = [
  *  by the CI driver into its base dir; never a surface map. */
 export const BASELINE_PROVENANCE_FILE = 'styleproof-baseline-provenance.json';
 
+/** The confidence ledger (#399) — per-surface trust statuses bundled with the
+ *  maps. Defined here (not in confidence-ledger.ts, its owning module, which
+ *  re-exports it) so {@link RESERVED_BUNDLE_FILES} needs no import cycle. */
+export const CONFIDENCE_LEDGER = 'styleproof-confidence.json';
+
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
  *  these, or a sidecar reads as a phantom "new surface". */
@@ -59,6 +64,7 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
   COVERAGE_LEDGER,
   BROWSER_BUILD_SIDECAR,
   BASELINE_PROVENANCE_FILE,
+  CONFIDENCE_LEDGER,
 ]);
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */

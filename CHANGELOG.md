@@ -9,6 +9,24 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **First-class confidence ledger** (#399): `styleproof-confidence.json` is
+  bundled next to the maps and assigns every surface one status — `captured`,
+  `excluded-with-reason`, `inaccessible`, `unknown`, or `unproven-determinism` —
+  each non-captured status carrying a named producer (`coverage`, `determinism`,
+  `auth-boundary` from #390, `incomplete-ui` reserved for #398) and a non-empty
+  reason. The report's certification block gains a **Confidence** line with a
+  completeness badge (`complete` / `limited` / `unasserted` / `unknown`) kept
+  separate from the visual verdict — never one green — and `report.json` and
+  `ReportResult` carry the same summary machine-readably (`confidence`). Crawl
+  captures (`styleproof-capture --crawl`) persist the ledger — including on the
+  fail-closed auth exit — so console-only auth verdicts now travel with the
+  bundle; spec captures derive it from the coverage ledger + captured maps.
+  Bundles from before the ledger degrade to `unknown` and never block
+  retroactively; no coverage percentage is ever invented for un-enumerable
+  surfaces. New exports: `CONFIDENCE_LEDGER`, `buildConfidenceLedger`,
+  `summarizeConfidence`, `writeConfidenceLedger`, `readConfidenceLedger`,
+  `resolveBundleConfidence` (+ types).
+
 - **State recipe capture integration** (#391): `Surface.stateRecipes` (and the
   same field on `defineCrawlCapture` options) expands each validated recipe into
   an independent capture surface `<surface.key>-<stateKey>`. Expansion calls

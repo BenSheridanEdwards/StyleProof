@@ -37,13 +37,20 @@ import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx
 import {
   auditCoverage,
   auditDeterminism,
-  COVERAGE_LEDGER,
   type CoverageLedger,
   type CoverageVerdict,
   type DeterminismVerdict,
 } from './coverage.js';
 import { auditRunInventory, readAckFile } from './inventory.js';
 import { auditRunResidue, readResidueAckFile } from './data-residue.js';
+import {
+  bundleSurfaceKeys,
+  readCoverageLedgerLenient,
+  resolveBundleConfidence,
+  summarizeConfidence,
+  type ConfidenceLedgerFile,
+  type ConfidenceSummary,
+} from './confidence-ledger.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 import {
@@ -159,6 +166,12 @@ export type ReportResult = {
   comparison: ComparisonTruth;
   /** Presentation-vs-certification coherence. Any false value must fail closed. */
   reportConsistency: ReportConsistency;
+  /**
+   * The head bundle's confidence badge (#399): completeness + per-status counts,
+   * separate from the visual verdict. `completeness: 'unknown'` on bundles from
+   * before the ledger existed — advisory, never a retroactive block.
+   */
+  confidence: ConfidenceSummary;
   reportMdPath: string;
   reportJsonPath: string;
 };
@@ -1094,30 +1107,6 @@ function renderContentSection(ctx: ContentCtx): { md: string[]; count: number } 
   return { md, count };
 }
 
-// Pre-existing, grandfathered in the health baseline; the content layer is
-// rendered by extracted helpers, this only gained a call + headline branch.
-// fallow-ignore-next-line complexity
-function readLedgerFile(dir: string): CoverageLedger | null {
-  const p = path.join(dir, COVERAGE_LEDGER);
-  if (!fs.existsSync(p)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf8')) as CoverageLedger;
-  } catch {
-    return null;
-  }
-}
-
-function surfaceKeysIn(dir: string): string[] {
-  return [
-    ...new Set(
-      fs
-        .readdirSync(dir)
-        .filter(isMapFile)
-        .map((f) => f.replace(/@\d+\.json(\.gz)?$/, '')),
-    ),
-  ];
-}
-
 // ── Certification renderers ──────────────────────────────────────────────────────
 // Each maps one source-of-truth verdict to its report line. Kept as separate one-
 // verdict functions so certificationLines stays a thin orchestrator (and each stays
@@ -1210,30 +1199,59 @@ function dataResidueLine(res: ReturnType<typeof auditRunResidue>): string {
   return '- **Data residue** — ✓ no failing data-boundary request during capture';
 }
 
+// One confidence clause (#399): the completeness badge, always separate from the
+// visual verdict in the headline — never one green. Counts only, no percentages;
+// a bundle from before the ledger existed reads ⚠ unknown and never blocks.
+function confidenceLine(ledger: ConfidenceLedgerFile | null, summary: ConfidenceSummary): string {
+  const { counts, completeness } = summary;
+  if (completeness === 'unknown')
+    return '- **Confidence** — ⚠ unknown (capture predates the confidence ledger; not blocking retroactively)';
+  const parts = [
+    `${counts.captured} captured`,
+    ...(counts['excluded-with-reason'] ? [`${counts['excluded-with-reason']} excluded-with-reason`] : []),
+    ...(counts.inaccessible ? [`${counts.inaccessible} inaccessible`] : []),
+    ...(counts.unknown ? [`${counts.unknown} unknown`] : []),
+    ...(counts['unproven-determinism'] ? [`${counts['unproven-determinism']} unproven-determinism`] : []),
+  ].join(', ');
+  if (completeness === 'complete') return `- **Confidence** — ✓ complete (${parts})`;
+  if (completeness === 'unasserted')
+    return `- **Confidence** — ⚠ unasserted (no \`expected\` registry — certifies only the ${counts.captured} captured surface(s), not that they are all of them)`;
+  const inaccessible = (ledger?.entries ?? []).filter((e) => e.status === 'inaccessible');
+  const named = inaccessible.length ? `; inaccessible: ${keyList(inaccessible.map((e) => ({ key: e.surface })))}` : '';
+  return `- **Confidence** — ⚠ limited (${parts})${named}`;
+}
+
 /**
  * The certification block a reviewer reads FIRST — the source-of-truth gates (coverage
- * complete? determinism proven? did the navigable set shrink?), not just the pixel diff.
- * Empty when the bundle carries no certification metadata (an old capture).
+ * complete? determinism proven? did the navigable set shrink? how complete was the
+ * capture?), not just the pixel diff. Empty when the bundle carries no certification
+ * metadata (an old capture).
  */
-function certificationLines(beforeDir: string, afterDir: string): string[] {
-  const baseLedger = readLedgerFile(beforeDir);
-  const headLedger = readLedgerFile(afterDir);
+function certificationLines(
+  beforeDir: string,
+  afterDir: string,
+  confidence: { ledger: ConfidenceLedgerFile | null; summary: ConfidenceSummary },
+): string[] {
+  // Lenient reads (advisory renderer): missing or corrupt sidecars degrade to null.
+  const baseLedger = readCoverageLedgerLenient(beforeDir);
+  const headLedger = readCoverageLedgerLenient(afterDir);
   const inv = auditRunInventory(readInventories(beforeDir), readInventories(afterDir), readAcknowledgedRemovals());
   const res = auditRunResidue(readResidue(afterDir), readAcknowledgedResidue(), headLedger?.dataResidue === 'gate');
 
-  const hasLedger = baseLedger !== null || headLedger !== null;
+  const hasLedger = baseLedger !== null || headLedger !== null || confidence.ledger !== null;
   const hasInvChange = inv.delta.removed.length > 0 || inv.delta.added.length > 0;
   const hasResidue = res.residue.length > 0 || res.armed;
   if (!hasLedger && !hasInvChange && !hasResidue) return [];
 
   return [
     '**Certification**',
-    coverageLine(auditCoverage(surfaceKeysIn(afterDir), headLedger), explicitExclusionCount(headLedger)),
+    coverageLine(auditCoverage(bundleSurfaceKeys(afterDir), headLedger), explicitExclusionCount(headLedger)),
     determinismLine(auditDeterminism(baseLedger, headLedger)),
     inventoryLine(inv),
     // Only add the residue line when there's residue or the gate was armed — an ordinary
     // bundle (no failing endpoint, not armed) keeps its exact prior 3-line block.
     ...(hasResidue ? [dataResidueLine(res)] : []),
+    confidenceLine(confidence.ledger, confidence.summary),
     '',
   ];
 }
@@ -2230,6 +2248,7 @@ function writeReportArtifacts(
   content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
   baselineProvenance: BaselineProvenance | null = null,
+  confidence: ConfidenceSummary | null = null,
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
@@ -2244,6 +2263,9 @@ function writeReportArtifacts(
         reportConsistency,
         content,
         surfaces: surfacesJson,
+        // Additive (#399): the completeness badge, machine-readable — a consumer
+        // must never read one green as full certification.
+        ...(confidence ? { confidence } : {}),
         // Additive (#367): where the baseline maps came from, when recorded —
         // exact-SHA restore, nearest-ancestor reuse (with proof), or fresh capture.
         ...(baselineProvenance ? { baselineProvenance } : {}),
@@ -2339,9 +2361,13 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     : { md: [], count: 0 };
 
   md.push('## 🗺️ StyleProof report', '');
-  // Lead with the source-of-truth gates (coverage / determinism / inventory) so a
-  // reviewer reads "is this green trustworthy?" before the pixel details.
-  md.push(...certificationLines(beforeDir, afterDir));
+  // Lead with the source-of-truth gates (coverage / determinism / inventory /
+  // confidence) so a reviewer reads "is this green trustworthy?" before the
+  // pixel details. Confidence is resolved once and shared with report.json so
+  // the badge and the machine-readable summary can never disagree.
+  const confidenceLedger = resolveBundleConfidence(afterDir);
+  const confidence = summarizeConfidence(confidenceLedger);
+  md.push(...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }));
   // Baseline provenance (#367): when the run recorded where the base maps came
   // from, say so up front — an ancestor reuse must be visible, never inferred.
   const baselineProvenance = readBaselineProvenance(beforeDir);
@@ -2426,6 +2452,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     { evaluated: includeContent, changes: contentSection.count, advisory: true },
     json,
     baselineProvenance,
+    confidence,
   );
   return {
     changedSurfaces: prepared.length - missing.length,
@@ -2434,6 +2461,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     contentChanges: contentSection.count,
     comparison,
     reportConsistency,
+    confidence,
     reportMdPath,
     reportJsonPath,
   };
