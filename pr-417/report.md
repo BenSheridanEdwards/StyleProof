@@ -2,10 +2,9 @@
 
 **Certification**
 - **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)
-- **Determinism** — ✓ proven (base self-checked, head self-checked)
-- **Inventory** — ✓ navigable set unchanged
-- **Data residue** — ✗ 1 failing data endpoint(s), unacknowledged: home·/api/status
-- **Confidence** — ⚠ unasserted (no `expected` registry — certifies only the 1 captured surface(s), not that they are all of them)
+- **Determinism** — ⚠ unknown (a capture predates the determinism ledger)
+- **Inventory** — ⚠ 1 navigable affordance(s) removed, unacknowledged: route:/b
+- **Confidence** — ⚠ unknown (capture predates the confidence ledger; not blocking retroactively)
 
 ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
