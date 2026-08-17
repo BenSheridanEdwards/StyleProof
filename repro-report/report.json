@@ -1,0 +1,4576 @@
+{
+  "counts": {
+    "dom": 36,
+    "style": 360,
+    "state": 12
+  },
+  "rawCounts": {
+    "dom": 54,
+    "style": 1326,
+    "state": 84
+  },
+  "reviewableCounts": {
+    "dom": 54,
+    "style": 1110,
+    "state": 84
+  },
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "surfaces": [
+    {
+      "surfaces": [
+        "model-config-pool-popover@1024",
+        "model-config-pool-popover@768"
+      ],
+      "representative": "model-config-pool-popover@1024",
+      "regions": [
+        {
+          "paths": [
+            "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)",
+            "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)"
+          ],
+          "before": {
+            "x": 38,
+            "y": 821,
+            "w": 948,
+            "h": 84
+          },
+          "after": null,
+          "images": {
+            "composite": "crops/model-config-pool-popover-1024-1-composite.png",
+            "annotated": "crops/model-config-pool-popover-1024-1-annotated.png"
+          }
+        },
+        {
+          "paths": [
+            "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)",
+            "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3)"
+          ],
+          "before": null,
+          "after": {
+            "x": 38,
+            "y": 821,
+            "w": 948,
+            "h": 84
+          },
+          "images": {
+            "composite": "crops/model-config-pool-popover-1024-2-composite.png",
+            "annotated": "crops/model-config-pool-popover-1024-2-annotated.png"
+          }
+        }
+      ],
+      "findings": [
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left [background:none] [border-top-style:none] border-t-[0] [border-top-style:none] border-t-[color:currentColor] border-t-[color:currentColor] [border-right-style:none] border-r-[0] [border-right-style:none] border-r-[color:currentColor] border-r-[color:currentColor] [border-bottom-style:none] border-b-[0] [border-bottom-style:none] border-b-[color:currentColor] border-b-[color:currentColor] [border-left-style:none] border-l-[0] [border-left-style:none] border-l-[color:currentColor] border-l-[color:currentColor] cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "change": "removed"
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left [background:none] [border-top-style:none] border-t-[0] [border-top-style:none] border-t-[color:currentColor] border-t-[color:currentColor] [border-right-style:none] border-r-[0] [border-right-style:none] border-r-[color:currentColor] border-r-[color:currentColor] [border-bottom-style:none] border-b-[0] [border-bottom-style:none] border-b-[color:currentColor] border-b-[color:currentColor] [border-left-style:none] border-l-[0] [border-left-style:none] border-l-[color:currentColor] border-l-[color:currentColor] cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "state": "focus",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)",
+          "props": [
+            {
+              "prop": "outline-color",
+              "before": "rgb(0, 95, 204)",
+              "after": "(state no longer changes it)"
+            },
+            {
+              "prop": "outline-style",
+              "before": "auto",
+              "after": "(state no longer changes it)"
+            },
+            {
+              "prop": "outline-width",
+              "before": "1px",
+              "after": "(state no longer changes it)"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left [background:none] [border-top-style:none] border-t-[0] [border-top-style:none] border-t-[color:currentColor] border-t-[color:currentColor] [border-right-style:none] border-r-[0] [border-right-style:none] border-r-[color:currentColor] border-r-[color:currentColor] [border-bottom-style:none] border-b-[0] [border-bottom-style:none] border-b-[color:currentColor] border-b-[color:currentColor] [border-left-style:none] border-l-[0] [border-left-style:none] border-l-[color:currentColor] border-l-[color:currentColor] cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "change": "removed"
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left [background:none] [border-top-style:none] border-t-[0] [border-top-style:none] border-t-[color:currentColor] border-t-[color:currentColor] [border-right-style:none] border-r-[0] [border-right-style:none] border-r-[color:currentColor] border-r-[color:currentColor] [border-bottom-style:none] border-b-[0] [border-bottom-style:none] border-b-[color:currentColor] border-b-[color:currentColor] [border-left-style:none] border-l-[0] [border-left-style:none] border-l-[color:currentColor] border-l-[color:currentColor] cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "state": "focus",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)",
+          "props": [
+            {
+              "prop": "outline-color",
+              "before": "rgb(0, 95, 204)",
+              "after": "(state no longer changes it)"
+            },
+            {
+              "prop": "outline-style",
+              "before": "auto",
+              "after": "(state no longer changes it)"
+            },
+            {
+              "prop": "outline-width",
+              "before": "1px",
+              "after": "(state no longer changes it)"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgba(217, 107, 255, 0.12)"
+            },
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "12px"
+            },
+            {
+              "prop": "font-weight",
+              "before": "(unset)",
+              "after": "500"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "row-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgba(0, 0, 0, 0)"
+            },
+            {
+              "prop": "border-block-end-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-block-start-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-bottom-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-inline-end-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-inline-start-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-left-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-right-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-top-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "flex-basis",
+              "before": "(unset)",
+              "after": "0%"
+            },
+            {
+              "prop": "flex-grow",
+              "before": "(unset)",
+              "after": "1"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "padding-block-end",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-block-start",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-bottom",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-top",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "row-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "state": "focus",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "outline-color",
+              "before": "(state does not change it)",
+              "after": "rgb(0, 95, 204)"
+            },
+            {
+              "prop": "outline-style",
+              "before": "(state does not change it)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-width",
+              "before": "(state does not change it)",
+              "after": "1px"
+            }
+          ]
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "state": "active",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "border-block-end-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-block-start-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-bottom-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-inline-end-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-inline-start-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-left-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-right-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-top-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-end-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-block-end-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-start-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-block-start-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-bottom-left-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-bottom-right-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-bottom-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-bottom-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-end-end-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-end-start-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-inline-end-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-inline-end-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-inline-start-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-inline-start-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-left-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-left-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-right-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-right-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-start-end-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-start-start-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-top-left-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-right-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-top-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "flex-shrink",
+              "before": "(unset)",
+              "after": "0"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "10px"
+            },
+            {
+              "prop": "justify-content",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "min-inline-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "block"
+            },
+            {
+              "prop": "flex-basis",
+              "before": "(unset)",
+              "after": "0%"
+            },
+            {
+              "prop": "flex-grow",
+              "before": "(unset)",
+              "after": "1"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "13.3333px"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "overflow-block",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-inline",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-x",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-y",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-overflow",
+              "before": "(unset)",
+              "after": "ellipsis"
+            },
+            {
+              "prop": "text-wrap-mode",
+              "before": "(unset)",
+              "after": "nowrap"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "block"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "10px"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "min-inline-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-wrap-mode",
+              "before": "(unset)",
+              "after": "nowrap"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgba(217, 107, 255, 0.12)"
+            },
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "12px"
+            },
+            {
+              "prop": "font-weight",
+              "before": "(unset)",
+              "after": "500"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "row-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgba(0, 0, 0, 0)"
+            },
+            {
+              "prop": "border-block-end-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-block-start-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-bottom-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-inline-end-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-inline-start-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-left-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-right-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-top-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "flex-basis",
+              "before": "(unset)",
+              "after": "0%"
+            },
+            {
+              "prop": "flex-grow",
+              "before": "(unset)",
+              "after": "1"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "padding-block-end",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-block-start",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-bottom",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-top",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "row-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "state": "focus",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "outline-color",
+              "before": "(state does not change it)",
+              "after": "rgb(0, 95, 204)"
+            },
+            {
+              "prop": "outline-style",
+              "before": "(state does not change it)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-width",
+              "before": "(state does not change it)",
+              "after": "1px"
+            }
+          ]
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "state": "active",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "border-block-end-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-block-start-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-bottom-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-inline-end-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-inline-start-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-left-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-right-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-top-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-end-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-block-end-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-start-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-block-start-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-bottom-left-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-bottom-right-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-bottom-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-bottom-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-end-end-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-end-start-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-inline-end-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-inline-end-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-inline-start-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-inline-start-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-left-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-left-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-right-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-right-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-start-end-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-start-start-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-top-left-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-right-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-top-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "flex-shrink",
+              "before": "(unset)",
+              "after": "0"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "10px"
+            },
+            {
+              "prop": "justify-content",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "min-inline-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "block"
+            },
+            {
+              "prop": "flex-basis",
+              "before": "(unset)",
+              "after": "0%"
+            },
+            {
+              "prop": "flex-grow",
+              "before": "(unset)",
+              "after": "1"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "13.3333px"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "overflow-block",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-inline",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-x",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-y",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-overflow",
+              "before": "(unset)",
+              "after": "ellipsis"
+            },
+            {
+              "prop": "text-wrap-mode",
+              "before": "(unset)",
+              "after": "nowrap"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "block"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "10px"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "min-inline-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-wrap-mode",
+              "before": "(unset)",
+              "after": "nowrap"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surfaces": [
+        "model-config-pool-popover@1440"
+      ],
+      "representative": "model-config-pool-popover@1440",
+      "regions": [
+        {
+          "paths": [
+            "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)",
+            "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)"
+          ],
+          "before": {
+            "x": 564,
+            "y": 647,
+            "w": 401,
+            "h": 84
+          },
+          "after": null,
+          "images": {
+            "composite": "crops/model-config-pool-popover-1440-3-composite.png",
+            "annotated": "crops/model-config-pool-popover-1440-3-annotated.png"
+          }
+        },
+        {
+          "paths": [
+            "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)",
+            "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3)"
+          ],
+          "before": null,
+          "after": {
+            "x": 564,
+            "y": 647,
+            "w": 401,
+            "h": 84
+          },
+          "images": {
+            "composite": "crops/model-config-pool-popover-1440-4-composite.png",
+            "annotated": "crops/model-config-pool-popover-1440-4-annotated.png"
+          }
+        }
+      ],
+      "findings": [
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left [background:none] [border-top-style:none] border-t-[0] [border-top-style:none] border-t-[color:currentColor] border-t-[color:currentColor] [border-right-style:none] border-r-[0] [border-right-style:none] border-r-[color:currentColor] border-r-[color:currentColor] [border-bottom-style:none] border-b-[0] [border-bottom-style:none] border-b-[color:currentColor] border-b-[color:currentColor] [border-left-style:none] border-l-[0] [border-left-style:none] border-l-[color:currentColor] border-l-[color:currentColor] cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "change": "removed"
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left [background:none] [border-top-style:none] border-t-[0] [border-top-style:none] border-t-[color:currentColor] border-t-[color:currentColor] [border-right-style:none] border-r-[0] [border-right-style:none] border-r-[color:currentColor] border-r-[color:currentColor] [border-bottom-style:none] border-b-[0] [border-bottom-style:none] border-b-[color:currentColor] border-b-[color:currentColor] [border-left-style:none] border-l-[0] [border-left-style:none] border-l-[color:currentColor] border-l-[color:currentColor] cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "state": "focus",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)",
+          "props": [
+            {
+              "prop": "outline-color",
+              "before": "rgb(0, 95, 204)",
+              "after": "(state no longer changes it)"
+            },
+            {
+              "prop": "outline-style",
+              "before": "auto",
+              "after": "(state no longer changes it)"
+            },
+            {
+              "prop": "outline-width",
+              "before": "1px",
+              "after": "(state no longer changes it)"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left [background:none] [border-top-style:none] border-t-[0] [border-top-style:none] border-t-[color:currentColor] border-t-[color:currentColor] [border-right-style:none] border-r-[0] [border-right-style:none] border-r-[color:currentColor] border-r-[color:currentColor] [border-bottom-style:none] border-b-[0] [border-bottom-style:none] border-b-[color:currentColor] border-b-[color:currentColor] [border-left-style:none] border-l-[0] [border-left-style:none] border-l-[color:currentColor] border-l-[color:currentColor] cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "change": "removed"
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left [background:none] [border-top-style:none] border-t-[0] [border-top-style:none] border-t-[color:currentColor] border-t-[color:currentColor] [border-right-style:none] border-r-[0] [border-right-style:none] border-r-[color:currentColor] border-r-[color:currentColor] [border-bottom-style:none] border-b-[0] [border-bottom-style:none] border-b-[color:currentColor] border-b-[color:currentColor] [border-left-style:none] border-l-[0] [border-left-style:none] border-l-[color:currentColor] border-l-[color:currentColor] cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "state": "focus",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)",
+          "props": [
+            {
+              "prop": "outline-color",
+              "before": "rgb(0, 95, 204)",
+              "after": "(state no longer changes it)"
+            },
+            {
+              "prop": "outline-style",
+              "before": "auto",
+              "after": "(state no longer changes it)"
+            },
+            {
+              "prop": "outline-width",
+              "before": "1px",
+              "after": "(state no longer changes it)"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "change": "removed"
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgba(217, 107, 255, 0.12)"
+            },
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "12px"
+            },
+            {
+              "prop": "font-weight",
+              "before": "(unset)",
+              "after": "500"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "row-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgba(0, 0, 0, 0)"
+            },
+            {
+              "prop": "border-block-end-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-block-start-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-bottom-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-inline-end-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-inline-start-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-left-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-right-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-top-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "flex-basis",
+              "before": "(unset)",
+              "after": "0%"
+            },
+            {
+              "prop": "flex-grow",
+              "before": "(unset)",
+              "after": "1"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "padding-block-end",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-block-start",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-bottom",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-top",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "row-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "state": "focus",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "outline-color",
+              "before": "(state does not change it)",
+              "after": "rgb(0, 95, 204)"
+            },
+            {
+              "prop": "outline-style",
+              "before": "(state does not change it)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-width",
+              "before": "(state does not change it)",
+              "after": "1px"
+            }
+          ]
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "state": "active",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "border-block-end-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-block-start-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-bottom-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-inline-end-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-inline-start-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-left-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-right-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-top-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-end-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-block-end-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-start-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-block-start-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-bottom-left-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-bottom-right-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-bottom-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-bottom-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-end-end-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-end-start-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-inline-end-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-inline-end-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-inline-start-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-inline-start-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-left-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-left-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-right-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-right-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-start-end-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-start-start-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-top-left-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-right-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-top-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "flex-shrink",
+              "before": "(unset)",
+              "after": "0"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "10px"
+            },
+            {
+              "prop": "justify-content",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "min-inline-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "block"
+            },
+            {
+              "prop": "flex-basis",
+              "before": "(unset)",
+              "after": "0%"
+            },
+            {
+              "prop": "flex-grow",
+              "before": "(unset)",
+              "after": "1"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "13.3333px"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "overflow-block",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-inline",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-x",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-y",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-overflow",
+              "before": "(unset)",
+              "after": "ellipsis"
+            },
+            {
+              "prop": "text-wrap-mode",
+              "before": "(unset)",
+              "after": "nowrap"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "block"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "10px"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "min-inline-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-wrap-mode",
+              "before": "(unset)",
+              "after": "nowrap"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3)",
+          "cls": "flex items-center gap-[8px] w-[100%] text-left font-mono text-[12px] text-[color:var(--text)] [&:hover]:bg-[rgba(217,107,255,0.08)] [&[data-style~='on']]:bg-[rgba(217,107,255,0.12)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:bg-[var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:text-[color:var(--void)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-t-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-r-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-b-[color:var(--magenta)] [&[data-style~='on']_[data-style~='mc-whirl-rank']]:border-l-[color:var(--magenta)]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgba(217, 107, 255, 0.12)"
+            },
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "12px"
+            },
+            {
+              "prop": "font-weight",
+              "before": "(unset)",
+              "after": "500"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "row-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgba(0, 0, 0, 0)"
+            },
+            {
+              "prop": "border-block-end-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-block-start-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-bottom-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-inline-end-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-inline-start-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-left-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-right-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "border-top-width",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "flex-basis",
+              "before": "(unset)",
+              "after": "0%"
+            },
+            {
+              "prop": "flex-grow",
+              "before": "(unset)",
+              "after": "1"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "padding-block-end",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-block-start",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-bottom",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "padding-top",
+              "before": "(unset)",
+              "after": "6px"
+            },
+            {
+              "prop": "row-gap",
+              "before": "(unset)",
+              "after": "8px"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "state": "focus",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "outline-color",
+              "before": "(state does not change it)",
+              "after": "rgb(0, 95, 204)"
+            },
+            {
+              "prop": "outline-style",
+              "before": "(state does not change it)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-width",
+              "before": "(state does not change it)",
+              "after": "1px"
+            }
+          ]
+        },
+        {
+          "kind": "state",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "cls": "flex flex-[1] min-w-0 items-center gap-[8px] text-left [background:none] border-0 cursor-pointer pt-[6px] pr-[6px] pb-[6px] pl-[6px] font-[inherit] text-[inherit] [&:disabled]:cursor-not-allowed [&:disabled]:opacity-[0.62]",
+          "state": "active",
+          "sub": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "border-block-end-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-block-start-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-bottom-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-inline-end-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-inline-start-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-left-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-right-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            },
+            {
+              "prop": "border-top-style",
+              "before": "(state does not change it)",
+              "after": "inset"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(1)",
+          "cls": "inline-flex items-center justify-center w-[18px] h-[18px] border-t [border-top-style:solid] border-t-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-r [border-right-style:solid] border-r-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-b [border-bottom-style:solid] border-b-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] border-l [border-left-style:solid] border-l-[color:var(--magenta-dim,_rgba(217,107,255,0.4))] rounded-[50%] text-[10px] text-[color:var(--magenta-bright)] flex-[none]",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "align-items",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "background-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-end-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-block-end-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-block-start-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-block-start-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-bottom-left-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-bottom-right-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-bottom-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-bottom-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-end-end-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-end-start-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-inline-end-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-inline-end-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-inline-start-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-inline-start-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-left-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-left-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-right-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-right-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "border-start-end-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-start-start-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(217, 107, 255)"
+            },
+            {
+              "prop": "border-top-left-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-right-radius",
+              "before": "(unset)",
+              "after": "50%"
+            },
+            {
+              "prop": "border-top-style",
+              "before": "(unset)",
+              "after": "solid"
+            },
+            {
+              "prop": "border-top-width",
+              "before": "(unset)",
+              "after": "1px"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "flex"
+            },
+            {
+              "prop": "flex-shrink",
+              "before": "(unset)",
+              "after": "0"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "10px"
+            },
+            {
+              "prop": "justify-content",
+              "before": "(unset)",
+              "after": "center"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "min-inline-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(3, 7, 14)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(2)",
+          "cls": "flex-[1] min-w-0 overflow-x-hidden overflow-y-hidden [text-overflow:ellipsis] whitespace-nowrap",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "block"
+            },
+            {
+              "prop": "flex-basis",
+              "before": "(unset)",
+              "after": "0%"
+            },
+            {
+              "prop": "flex-grow",
+              "before": "(unset)",
+              "after": "1"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "13.3333px"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "overflow-block",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-inline",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-x",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "overflow-y",
+              "before": "(unset)",
+              "after": "hidden"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "text-overflow",
+              "before": "(unset)",
+              "after": "ellipsis"
+            },
+            {
+              "prop": "text-wrap-mode",
+              "before": "(unset)",
+              "after": "nowrap"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(191, 233, 245)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        },
+        {
+          "kind": "dom",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(3) > button:nth-child(1) > span:nth-child(3)",
+          "cls": "text-[color:var(--text-faint)] text-[10px] whitespace-nowrap",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "box-sizing",
+              "before": "(unset)",
+              "after": "border-box"
+            },
+            {
+              "prop": "caret-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "cursor",
+              "before": "(unset)",
+              "after": "pointer"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "block"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "\"Share Tech Mono\", ui-monospace, monospace"
+            },
+            {
+              "prop": "font-size",
+              "before": "(unset)",
+              "after": "10px"
+            },
+            {
+              "prop": "min-block-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "min-inline-size",
+              "before": "(unset)",
+              "after": "auto"
+            },
+            {
+              "prop": "outline-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-align",
+              "before": "(unset)",
+              "after": "left"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "text-wrap-mode",
+              "before": "(unset)",
+              "after": "nowrap"
+            },
+            {
+              "prop": "-webkit-font-smoothing",
+              "before": "(unset)",
+              "after": "antialiased"
+            },
+            {
+              "prop": "-webkit-locale",
+              "before": "(unset)",
+              "after": "\"en\""
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "(unset)",
+              "after": "rgb(97, 134, 155)"
+            },
+            {
+              "prop": "transition-property",
+              "before": "(unset)",
+              "after": "none"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

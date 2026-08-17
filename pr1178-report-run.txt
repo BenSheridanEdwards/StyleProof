@@ -1,0 +1,2 @@
+✗ 3 changed surface(s), 68 finding(s)
+report: /Users/agents/Agents/Neo/workspace/reviews/styleproof-audit-artifacts/repro-report/report.md

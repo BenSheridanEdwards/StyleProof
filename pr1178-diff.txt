@@ -1,0 +1,109 @@
+
+model-config-pool-popover@1024 (+1 more surface: model-config-pool-popover @ 1024, 768): 10 elements added, 8 elements removed (+72 derived longhands)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)  (.flex.items-center.gap-[8px]…)
+  [:focus] body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)  (.flex.items-center.gap-[8px]…)
+    outline: 1px auto rgb(0, 95, 204) → (unset)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(1)  (.inline-flex.items-center.justify-center…)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(2)  (.flex-[1].min-w-0.overflow-x-hidden…)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(3)  (.text-[color:var(--text-faint)].text-[10px].whitespace-nowrap)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)  (.flex.items-center.gap-[8px]…)
+  [:focus] body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)  (.flex.items-center.gap-[8px]…)
+    outline: 1px auto rgb(0, 95, 204) → (unset)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(1)  (.inline-flex.items-center.justify-center…)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(2)  (.flex-[1].min-w-0.overflow-x-hidden…)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(3)  (.text-[color:var(--text-faint)].text-[10px].whitespace-nowrap)
+  DOM added: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)  (.flex.items-center.gap-[8px]…)
+  body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)  (.flex.items-center.gap-[8px]…)
+    display: (unset) → flex
+    align-items: (unset) → center
+    gap: (unset) → 8px
+    border-color: (unset) → rgb(191, 233, 245)
+    background-color: (unset) → rgba(217, 107, 255, 0.12)
+    color: (unset) → rgb(191, 233, 245)
+    font-family: (unset) → "Share Tech Mono", ui-monospace, monospace
+    font-size: (unset) → 12px
+    font-weight: (unset) → 500
+    text-align: (unset) → left
+    -webkit-font-smoothing: (unset) → antialiased
+    -webkit-locale: (unset) → "en"
+    box-sizing: (unset) → border-box
+    row-rule-color: (unset) → rgb(191, 233, 245)
+    transition-property: (unset) → none
+  DOM added: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)  (.flex.flex-[1].min-w-0…)
+  body > div:nth-child(4) > div:nth-child(3) > main:nth-child(3) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)  (.flex.flex-[1].min-w-0…)
+    display: (unset) → flex
+    align-items: (unset) → center
+    gap: (unset) → 8px
+    border-width: (unset) → 0px
+    background-color: (unset) → transparent
+    color: (unset) → rgb(191, 233, 245)
+    font-family: (unset) → "Share Tech Mono", ui-monospace, monospace
+    text-align: (unset) → left
+    -webkit-font-smoothing: (unset) → antialiased
+  ... and 180 more lines (re-run with --max 220)
+
+model-config-pool-popover@1440: 10 elements added, 8 elements removed (+72 derived longhands)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)  (.flex.items-center.gap-[8px]…)
+  [:focus] body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2)  (.flex.items-center.gap-[8px]…)
+    outline: 1px auto rgb(0, 95, 204) → (unset)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(1)  (.inline-flex.items-center.justify-center…)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(2)  (.flex-[1].min-w-0.overflow-x-hidden…)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(2) > span:nth-child(3)  (.text-[color:var(--text-faint)].text-[10px].whitespace-nowrap)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)  (.flex.items-center.gap-[8px]…)
+  [:focus] body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3)  (.flex.items-center.gap-[8px]…)
+    outline: 1px auto rgb(0, 95, 204) → (unset)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(1)  (.inline-flex.items-center.justify-center…)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(2)  (.flex-[1].min-w-0.overflow-x-hidden…)
+  DOM removed: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > button:nth-child(3) > span:nth-child(3)  (.text-[color:var(--text-faint)].text-[10px].whitespace-nowrap)
+  DOM added: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)  (.flex.items-center.gap-[8px]…)
+  body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2)  (.flex.items-center.gap-[8px]…)
+    display: (unset) → flex
+    align-items: (unset) → center
+    gap: (unset) → 8px
+    border-color: (unset) → rgb(191, 233, 245)
+    background-color: (unset) → rgba(217, 107, 255, 0.12)
+    color: (unset) → rgb(191, 233, 245)
+    font-family: (unset) → "Share Tech Mono", ui-monospace, monospace
+    font-size: (unset) → 12px
+    font-weight: (unset) → 500
+    text-align: (unset) → left
+    -webkit-font-smoothing: (unset) → antialiased
+    -webkit-locale: (unset) → "en"
+    box-sizing: (unset) → border-box
+    row-rule-color: (unset) → rgb(191, 233, 245)
+    transition-property: (unset) → none
+  DOM added: body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)  (.flex.flex-[1].min-w-0…)
+  body > div:nth-child(4) > div:nth-child(3) > main:nth-child(2) > div:nth-child(2) > div:nth-child(3) > section:nth-child(2) > div:nth-child(6) > div:nth-child(4) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)  (.flex.flex-[1].min-w-0…)
+    display: (unset) → flex
+    align-items: (unset) → center
+    gap: (unset) → 8px
+    border-width: (unset) → 0px
+    background-color: (unset) → transparent
+    color: (unset) → rgb(191, 233, 245)
+    font-family: (unset) → "Share Tech Mono", ui-monospace, monospace
+    text-align: (unset) → left
+    -webkit-font-smoothing: (unset) → antialiased
+  ... and 180 more lines (re-run with --max 220)
+
+📐 Inventory: navigable set unchanged across captured surfaces
+
+🩹 Data residue (data-boundary requests that FAILED during capture — fallback branch captured):
+  ✗ agentnet-comparison-drawer · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ agents-configuration-profile · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ agents-create-dialog · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ agents-cron-continuable-brief · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ agents-roster-team-badge-after-assignment · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ agents-scaffold-run-dialog · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ agents · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ credential-recovery-modal · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ faults-data-state-error · /api/probe (HTTP 503), unacknowledged
+  ✗ loopforge · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ wukong-treasury-hoard · /api/agent/avatar (HTTP 404), unacknowledged
+  ✗ wukong · /api/agent/avatar (HTTP 404), unacknowledged
+  → 12 unacknowledged failing endpoint(s): fixture each (page.route / liveStates), acknowledge intentional ones in styleproof.data-residue.json {"<key>":"<why>"}, or opt down with `dataResidue: "warn"` in the capture spec.
+
+✓ coverage complete — all 41 registered surface(s) captured or explicitly excluded
+
+✓ determinism proven — base self-checked, head replayed
+
+✗ 54 DOM change(s), 1326 computed-style difference(s), 84 state-delta difference(s) across 3 surfaces + 12 data-residue gate failure(s) (unacknowledged or stale)

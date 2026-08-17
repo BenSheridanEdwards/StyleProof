@@ -1,9 +1,0 @@
-{
-  "options": {
-    "tsConfig": { "fileName": "tsconfig.json" },
-    "enhancedResolveOptions": {
-      "extensions": [".ts", ".tsx", ".js", ".jsx", ".css"]
-    },
-    "doNotFollow": { "path": "node_modules" }
-  }
-}
