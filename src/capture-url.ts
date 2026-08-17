@@ -1,10 +1,10 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import type { Browser, Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, captureSurfaceScreenshots, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { runSetup, type SetupStep } from './crawl-surfaces.js';
 import { writeCaptureManifest } from './map-store.js';
+import { captureArtifactStem } from './surface-keys.js';
 
 /**
  * One-shot capture of a single URL's computed-style map — no spec, no config,
@@ -257,7 +257,7 @@ export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Prom
         pendingRequests: requests.pending,
         metadata: { surfaceKey: opts.key },
       });
-      const stem = path.join(opts.out, `${opts.key}@${width}`);
+      const stem = captureArtifactStem(opts.out, opts.key, width);
       const mapPath = `${stem}.json.gz`;
       saveStyleMap(mapPath, map);
       const result: CaptureUrlResult = { width, map: mapPath };

@@ -35,6 +35,7 @@ import {
   runWithSurfaceTimeout,
   type CapturePhase,
 } from './surface-progress.js';
+import { assertSafeCaptureKey, captureArtifactStem } from './surface-keys.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
@@ -681,11 +682,12 @@ function expandedOrigin(s: ExpandedKeyed): string {
  * can arise between a recipe state key and a hand-named variant/liveState. Rather
  * than mangle the public key format, we assert uniqueness up front and name BOTH
  * origins so the author can rename one — without echoing recipe selectors or other
- * potentially secret-bearing fields.
+ * potentially secret-bearing fields. Path-unsafe keys also fail closed before any write.
  */
 export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
   const byKey = new Map<string, ExpandedKeyed>();
   for (const s of surfaces) {
+    assertSafeCaptureKey(s.key);
     const prior = byKey.get(s.key);
     if (prior) {
       throw new Error(
@@ -698,6 +700,8 @@ export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
     byKey.set(s.key, s);
   }
 }
+
+export { assertSafeCaptureKey, captureArtifactStem } from './surface-keys.js';
 
 /**
  * Let SSE (EventSource) requests bypass HAR record/replay and reach the live
@@ -974,7 +978,7 @@ async function capturePopupCandidate(
       }
     }
 
-    const stem = path.join(resolveOutputDir(s.baseDir, s.dir), `${surface.key}-${popupId}@${width}`);
+    const stem = captureArtifactStem(resolveOutputDir(s.baseDir, s.dir), `${surface.key}-${popupId}`, width);
     saveStyleMap(`${stem}.json.gz`, map);
     if (s.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
   } finally {
@@ -1056,7 +1060,7 @@ async function captureSurface(
       captureKey,
       s.surfaceTimeoutMs,
       () => phase,
-      async () => {
+      async (surfaceRun) => {
         await surface.go(page);
         const map = await captureStyleMap(page, {
           ignore: surface.ignore ?? [],
@@ -1083,7 +1087,10 @@ async function captureSurface(
         // (deduped in the watcher). Warn always; the recorded residue is what the gate reads.
         attachDataResidue(map, residue.residue());
 
-        const stem = path.join(resolveOutputDir(s.baseDir, s.dir), captureKey);
+        // Timeout fence: abandoned work must not write maps/screenshots after rejection.
+        if (!surfaceRun.isActive()) return;
+
+        const stem = captureArtifactStem(resolveOutputDir(s.baseDir, s.dir), surface.key, width);
         saveStyleMap(`${stem}.json.gz`, map);
         if (s.screenshots) {
           // captureStyleMap froze animations/transitions, so this is the same settled
