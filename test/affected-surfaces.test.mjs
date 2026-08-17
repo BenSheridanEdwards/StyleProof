@@ -25,13 +25,6 @@ test('classify: CSS Module with :global escapes its scope', () => {
 test('classify: CSS Module containing :root is global despite the .module extension', () => {
   assert.equal(classifyStyleChange('Tokens.module.css', read(':root{--brand:#00f}\n.btn{padding:8px}')), 'all');
 });
-test('classify: nested and selector-list global elements escape a CSS Module', () => {
-  assert.equal(
-    classifyStyleChange('Theme.module.css', read('@media (min-width: 900px) { body.dark, .local { color: red } }')),
-    'all',
-  );
-  assert.equal(classifyStyleChange('Theme.module.css', read('.local, :where(BODY) { color: red }')), 'all');
-});
 test('classify: CSS Module using `composes … from` pulls in outside scope', () => {
   assert.equal(classifyStyleChange('Btn.module.css', read('.btn{composes: base from "./shared.css"}')), 'all');
 });
@@ -201,14 +194,6 @@ test('a component reachable ONLY via a computed import → recovered as a contex
 });
 test('a scoped CSS-module change follows its component, staying selective', () => {
   assert.deepEqual(sorted(run(['src/components/PriceTable.module.css'])), ['dashboard', 'pricing']);
-});
-test('a nested global selector in a CSS Module forces every surface to re-capture', () => {
-  const f = fixture();
-  f.readFile = (p) =>
-    p === 'src/components/PriceTable.module.css'
-      ? '@media (min-width: 900px) { body { color: red } .tbl { border: 1px } }'
-      : fixture().readFile(p);
-  assert.equal(affectedSurfaces({ ...f, changedFiles: ['src/components/PriceTable.module.css'] }), 'all');
 });
 test('a vanilla component stylesheet forces a full re-capture', () => {
   assert.equal(run(['src/components/Header.css']), 'all');

@@ -12,14 +12,11 @@ import {
   type LiveRegionCandidate,
   type Rect,
   type StyleMap,
-  STATE_LAYER_NAMES,
 } from './capture.js';
 import {
   isMapFile,
-  readBaselineProvenance,
   readMapManifest,
   surfaceMissingMatchesBaselineFailure,
-  type BaselineProvenance,
   type SurfaceCaptureFailure,
 } from './map-store.js';
 import { fillRect, type RGB } from './png-util.js';
@@ -37,21 +34,13 @@ import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx
 import {
   auditCoverage,
   auditDeterminism,
+  COVERAGE_LEDGER,
   type CoverageLedger,
   type CoverageVerdict,
   type DeterminismVerdict,
 } from './coverage.js';
 import { auditRunInventory, readAckFile } from './inventory.js';
 import { auditRunResidue, readResidueAckFile } from './data-residue.js';
-import {
-  bundleSurfaceKeys,
-  CONFIDENCE_LEDGER,
-  readCoverageLedgerLenient,
-  resolveBundleConfidence,
-  summarizeConfidence,
-  type ConfidenceLedgerFile,
-  type ConfidenceSummary,
-} from './confidence-ledger.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 import {
@@ -167,12 +156,6 @@ export type ReportResult = {
   comparison: ComparisonTruth;
   /** Presentation-vs-certification coherence. Any false value must fail closed. */
   reportConsistency: ReportConsistency;
-  /**
-   * The head bundle's confidence badge (#399): completeness + per-status counts,
-   * separate from the visual verdict. `completeness: 'unknown'` on bundles from
-   * before the ledger existed — advisory, never a retroactive block.
-   */
-  confidence: ConfidenceSummary;
   reportMdPath: string;
   reportJsonPath: string;
 };
@@ -755,30 +738,6 @@ function cellPair(before: string, after: string): [string, string] {
   return [codeValue(toHex(b)), codeValue(toHex(a))];
 }
 
-/** One line per property change, stacked above the crop. No bullets. */
-function glancePart(prefix: string, change: { prop: string; before: string; after: string }, added: boolean): string {
-  if (added) return `${prefix}${codeValue(change.prop)} ${cell(change.after)}`;
-  const [b, a] = cellPair(change.before, change.after);
-  return `${prefix}${codeValue(change.prop)} ${b} → ${a}`;
-}
-
-export function propertyGlanceLine(findings: Finding[]): string {
-  const parts: string[] = [];
-  for (const group of groupByPath(findings)) {
-    const added = group.some((f) => f.kind === 'dom' && f.change === 'added');
-    for (const s of group.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style')) {
-      const prefix = s.pseudo ? `${codeValue(s.pseudo)} ` : '';
-      for (const c of summarizeProps(s.props)) parts.push(glancePart(prefix, c, added));
-    }
-    for (const st of group.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state')) {
-      const prefix = `${codeValue(`:${st.state}`)} `;
-      for (const c of summarizeProps(st.props)) parts.push(glancePart(prefix, c, added));
-    }
-  }
-  // <br> is required: GitHub collapses adjacent markdown lines into one paragraph.
-  return parts.join('<br>\n');
-}
-
 function beforeAfterTable(rows: PropChange[]): string[] {
   return [
     '| Property | Before | After |',
@@ -1027,17 +986,7 @@ function contentCropLines(
   if (!box || !pngA || !pngB) return [];
   const w = Math.max(ctx.minWidth, box.w);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h));
-  const beforeCrop = cropPng(pngA, box, w, h).png;
-  const afterCrop = cropPng(pngB, box, w, h).png;
-  // A structural change whose location renders identically on both sides (an
-  // element inside a collapsed <details>, for example) has no visual evidence —
-  // presenting the same pixels twice as before/after proof reads as a broken
-  // report, so name the absence instead. A consumer report repeated one such
-  // identical pair 420 times.
-  if (beforeCrop.data.equals(afterCrop.data)) {
-    return ['', NO_CONTENT_PIXEL_DIFFERENCE_NOTE];
-  }
-  const composite = compositePair(beforeCrop, afterCrop);
+  const composite = compositePair(cropPng(pngA, box, w, h).png, cropPng(pngB, box, w, h).png);
   const stem = `crops/${surface.replace(/[^a-z0-9-]/gi, '-')}-content-${seq}`;
   writePng(path.join(ctx.outDir, `${stem}-composite.png`), composite);
   return [
@@ -1048,7 +997,7 @@ function contentCropLines(
   ];
 }
 
-/** One surface's content block: heading, then per content/structure change
+/** One surface's content block: heading, then per change the before/after text
  *  and its crop. Returns the markdown plus the advanced crop counter. */
 function renderContentSurface(
   ctx: ContentCtx,
@@ -1060,18 +1009,15 @@ function renderContentSurface(
   const mapB = loadStyleMap(findCapture(ctx.afterDir, surface));
   const pngA = readPng(path.join(ctx.beforeDir, `${surface}.png`));
   const pngB = readPng(path.join(ctx.afterDir, `${surface}.png`));
-  const md: string[] = ['', `### \`${safeKey(surface)}\` · ${changes.length} content/structure change(s)`];
+  const md: string[] = ['', `### \`${safeKey(surface)}\` · ${changes.length} content change(s)`];
   for (const c of changes) {
     seq++;
-    const changeLines =
-      c.kind === 'text'
-        ? [`- before: \`${clipText(c.before) || '(empty)'}\``, `- after: \`${clipText(c.after) || '(empty)'}\``]
-        : [`- ${c.change === 'retagged' ? `element retagged: \`${c.detail}\`` : `element ${c.change}`}`];
     md.push(
       '',
       `**\`${prettyLabel(c.path, c.cls)}\`**`,
       '',
-      ...changeLines,
+      `- before: \`${clipText(c.before) || '(empty)'}\``,
+      `- after: \`${clipText(c.after) || '(empty)'}\``,
       ...contentCropLines(ctx, surface, c, mapA, mapB, pngA, pngB, seq),
     );
   }
@@ -1093,11 +1039,11 @@ function renderContentSection(ctx: ContentCtx): { md: string[]; count: number } 
     '',
     '---',
     '',
-    '## 📝 Content and structure changes (advisory)',
+    '## 📝 Content changes (advisory)',
     '',
-    `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
-      `computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are ` +
-      `visible when content comparison is enabled._`,
+    `_${count} element(s) changed their own text. **Advisory only** — content is not part of the computed-style ` +
+      `certification and does not affect the check. Surfaced so a copy change the style diff can't see (and any ` +
+      `overflow or clipping it causes) is visible in review._`,
   ];
   let seq = 0;
   for (const { surface, changes } of surfaces) {
@@ -1108,28 +1054,41 @@ function renderContentSection(ctx: ContentCtx): { md: string[]; count: number } 
   return { md, count };
 }
 
+// Pre-existing, grandfathered in the health baseline; the content layer is
+// rendered by extracted helpers, this only gained a call + headline branch.
+// fallow-ignore-next-line complexity
+function readLedgerFile(dir: string): CoverageLedger | null {
+  const p = path.join(dir, COVERAGE_LEDGER);
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8')) as CoverageLedger;
+  } catch {
+    return null;
+  }
+}
+
+function surfaceKeysIn(dir: string): string[] {
+  return [
+    ...new Set(
+      fs
+        .readdirSync(dir)
+        .filter(isMapFile)
+        .map((f) => f.replace(/@\d+\.json(\.gz)?$/, '')),
+    ),
+  ];
+}
+
 // ── Certification renderers ──────────────────────────────────────────────────────
 // Each maps one source-of-truth verdict to its report line. Kept as separate one-
 // verdict functions so certificationLines stays a thin orchestrator (and each stays
 // well under the complexity gate).
 
-function coverageLine(cov: CoverageVerdict, exclusionCount = 0): string {
-  if (cov.basis === 'complete') {
-    if (exclusionCount > 0) {
-      const capturedCount = Math.max(0, (cov.registrySize ?? 0) - exclusionCount);
-      return `- **Coverage** — ✓ complete (${capturedCount} of ${cov.registrySize} registered surface(s) captured; ${exclusionCount} explicitly excluded)`;
-    }
+function coverageLine(cov: CoverageVerdict): string {
+  if (cov.basis === 'complete')
     return `- **Coverage** — ✓ complete (all ${cov.registrySize} registered surface(s) captured)`;
-  }
   if (cov.basis === 'incomplete')
     return `- **Coverage** — ✗ INCOMPLETE (${cov.uncovered.length} registered surface(s) not captured: ${cov.uncovered.map(safeKey).join(', ')})`;
   return '- **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)';
-}
-
-function explicitExclusionCount(ledger: CoverageLedger | null): number {
-  if (ledger?.expected == null) return 0;
-  const expected = new Set(ledger.expected);
-  return new Set(Object.keys(ledger.exclude).filter((key) => expected.has(key))).size;
 }
 
 function determinismLine(det: DeterminismVerdict): string {
@@ -1200,103 +1159,32 @@ function dataResidueLine(res: ReturnType<typeof auditRunResidue>): string {
   return '- **Data residue** — ✓ no failing data-boundary request during capture';
 }
 
-// One confidence clause (#399): the completeness badge, always separate from the
-// visual verdict in the headline — never one green. Counts only, no percentages;
-// a bundle from before the ledger existed reads ⚠ unknown and never blocks.
-function confidenceLine(
-  ledger: ConfidenceLedgerFile | null,
-  summary: ConfidenceSummary,
-  confidenceSidecarPresent = false,
-): string {
-  const { counts, completeness } = summary;
-  if (completeness === 'unknown') {
-    const reason = confidenceSidecarPresent
-      ? 'confidence sidecar is missing or malformed; not blocking retroactively'
-      : 'capture predates the confidence ledger; not blocking retroactively';
-    return `- **Confidence** — ⚠ unknown (${reason})`;
-  }
-  const parts = [
-    `${counts.captured} captured`,
-    ...(counts['excluded-with-reason'] ? [`${counts['excluded-with-reason']} excluded-with-reason`] : []),
-    ...(counts.inaccessible ? [`${counts.inaccessible} inaccessible`] : []),
-    ...(counts.unknown ? [`${counts.unknown} unknown`] : []),
-    ...(counts['unproven-determinism'] ? [`${counts['unproven-determinism']} unproven-determinism`] : []),
-  ].join(', ');
-  if (completeness === 'complete') return `- **Confidence** — ✓ complete (${parts})`;
-  if (completeness === 'unasserted')
-    return `- **Confidence** — ⚠ unasserted (no \`expected\` registry — certifies only the ${counts.captured} captured surface(s), not that they are all of them)`;
-  const inaccessible = (ledger?.entries ?? []).filter((e) => e.status === 'inaccessible');
-  const named = inaccessible.length ? `; inaccessible: ${keyList(inaccessible.map((e) => ({ key: e.surface })))}` : '';
-  return `- **Confidence** — ⚠ limited (${parts})${named}`;
-}
-
 /**
  * The certification block a reviewer reads FIRST — the source-of-truth gates (coverage
- * complete? determinism proven? did the navigable set shrink? how complete was the
- * capture?), not just the pixel diff. Empty when the bundle carries no certification
- * metadata (an old capture).
+ * complete? determinism proven? did the navigable set shrink?), not just the pixel diff.
+ * Empty when the bundle carries no certification metadata (an old capture).
  */
-function certificationLines(
-  beforeDir: string,
-  afterDir: string,
-  confidence: { ledger: ConfidenceLedgerFile | null; summary: ConfidenceSummary },
-): string[] {
-  // Lenient reads (advisory renderer): missing or corrupt sidecars degrade to null.
-  const baseLedger = readCoverageLedgerLenient(beforeDir);
-  const headLedger = readCoverageLedgerLenient(afterDir);
+function certificationLines(beforeDir: string, afterDir: string): string[] {
+  const baseLedger = readLedgerFile(beforeDir);
+  const headLedger = readLedgerFile(afterDir);
   const inv = auditRunInventory(readInventories(beforeDir), readInventories(afterDir), readAcknowledgedRemovals());
   const res = auditRunResidue(readResidue(afterDir), readAcknowledgedResidue(), headLedger?.dataResidue === 'gate');
 
-  const hasLedger = baseLedger !== null || headLedger !== null || confidence.ledger !== null;
-  const confidenceSidecarPresent = fs.existsSync(path.join(afterDir, CONFIDENCE_LEDGER));
-  const hasConfidence = hasLedger || confidenceSidecarPresent;
+  const hasLedger = baseLedger !== null || headLedger !== null;
   const hasInvChange = inv.delta.removed.length > 0 || inv.delta.added.length > 0;
   const hasResidue = res.residue.length > 0 || res.armed;
-  if (!hasConfidence && !hasInvChange && !hasResidue) return [];
+  if (!hasLedger && !hasInvChange && !hasResidue) return [];
 
   return [
     '**Certification**',
-    coverageLine(
-      auditCoverage(bundleSurfaceKeys(afterDir, headLedger?.expected ?? null), headLedger),
-      explicitExclusionCount(headLedger),
-    ),
+    coverageLine(auditCoverage(surfaceKeysIn(afterDir), headLedger)),
     determinismLine(auditDeterminism(baseLedger, headLedger)),
     inventoryLine(inv),
     // Only add the residue line when there's residue or the gate was armed — an ordinary
     // bundle (no failing endpoint, not armed) keeps its exact prior 3-line block.
     ...(hasResidue ? [dataResidueLine(res)] : []),
-    confidenceLine(confidence.ledger, confidence.summary, confidenceSidecarPresent),
     '',
   ];
-}
-
-/** A commit label safe to embed in the privileged PR-comment markdown: the sidecar
- *  is a plain JSON file on disk, so hex-filter rather than trust its spelling. */
-function safeShaLabel(sha: string | undefined): string {
-  const hex = (sha ?? '').replace(/[^0-9a-f]/gi, '').slice(0, 12);
-  return hex || 'unknown';
-}
-
-/**
- * Where the BASELINE maps came from, when the run recorded it (#367: reuse must
- * never be silent). Empty without a provenance sidecar, so default runs keep
- * their exact prior report bytes; with one, names exact-SHA restore, nearest-
- * ancestor reuse (with the changed-path-count proof), or a fresh capture.
- */
-function baselineProvenanceLines(provenance: BaselineProvenance | null): string[] {
-  if (!provenance) return [];
-  if (provenance.baseline === 'ancestor-reuse') {
-    return [
-      `**Baseline** — ♻ restored from nearest ancestor \`${safeShaLabel(provenance.restoredSha)}\` of base ` +
-        `\`${safeShaLabel(provenance.requestedSha)}\` (${provenance.changedPathCount ?? 0} path(s) changed between ` +
-        `them, none capture-relevant)`,
-      '',
-    ];
-  }
-  if (provenance.baseline === 'exact-restore') {
-    return [`**Baseline** — ✓ restored from the exact base commit \`${safeShaLabel(provenance.requestedSha)}\``, ''];
-  }
-  return [`**Baseline** — ✓ captured fresh at base commit \`${safeShaLabel(provenance.requestedSha)}\``, ''];
 }
 
 // A prepared surface: its diff plus the findings kept after noise-cleaning.
@@ -1318,14 +1206,11 @@ type RenderCtx = {
   foldDetailsAt: number;
 };
 
-/** A changed element can anchor useful visual proof only when the captured page can show it. */
-function isPaintedEntry(map: StyleMap, entry: ElementEntry | undefined): boolean {
+/** A changed element can anchor useful visual proof only when the browser paints it. */
+function isPaintedEntry(entry: ElementEntry | undefined): boolean {
   if (!entry?.rect || !visible(rectToBox(entry.rect))) return false;
   if (entry.style.display === 'none' || entry.style.visibility === 'hidden') return false;
-  if (Number(entry.style.opacity ?? '1') <= 0) return false;
-  const [x, y, width, height] = entry.rect;
-  if (x + width <= 0 || y + height <= 0) return false;
-  return map.viewport?.width === undefined || x < map.viewport.width;
+  return Number(entry.style.opacity ?? '1') > 0;
 }
 
 function isSameOrDescendantPath(candidatePath: string, ancestorPath: string): boolean {
@@ -1341,7 +1226,7 @@ function isBackgroundBehindActiveModal(map: StyleMap, changedPath: string): bool
 }
 
 function isExposedChangedEntry(map: StyleMap, changedPath: string): boolean {
-  return isPaintedEntry(map, map.elements[changedPath]) && !isBackgroundBehindActiveModal(map, changedPath);
+  return isPaintedEntry(map.elements[changedPath]) && !isBackgroundBehindActiveModal(map, changedPath);
 }
 
 function hasExposedChangedEntry(mapA: StyleMap, mapB: StyleMap, changedPaths: string[]): boolean {
@@ -1351,12 +1236,6 @@ function hasExposedChangedEntry(mapA: StyleMap, mapB: StyleMap, changedPaths: st
 }
 
 type RepresentativeScore = { hasExposedChange: boolean; hasActiveModal: boolean; isPopup: boolean; width: number };
-
-const MISLEADING_CROP_REASON =
-  'The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading.';
-
-const NO_CONTENT_PIXEL_DIFFERENCE_NOTE =
-  "_This element's location renders identically before and after (the change has no visible effect in the captured state), so there is no before/after crop to show._";
 
 /** Prefer proof a reviewer can see: an exposed changed element, then a non-modal
  * ordinary page over a popup state that can leave shared chrome in the background,
@@ -1500,39 +1379,12 @@ function changedSurfaceSummaryLines(
   ];
 }
 
-function reportConsistencyFailureSummaryLines(
-  reportConsistency: ReportConsistency,
-  rawCounts: DiffCounts | undefined,
-  baselineSurfaceFailures: SurfaceCaptureFailure[],
-): string[] | undefined {
-  if (reportConsistency.ok || !rawCounts) return undefined;
-
-  const explanation =
-    reportConsistency.reason === 'raw_only_no_reviewable'
-      ? 'every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.'
-      : 'report-only path correspondence collapsed every presentation finding — **no reviewable crops or change sections remain**.';
-  const remediation =
-    reportConsistency.reason === 'raw_only_no_reviewable'
-      ? '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._'
-      : '_This is **not** a clean no-change and cannot be approved visually. Fail closed (`CERTIFICATION_FAILED`): inspect the raw path churn or tighten the correspondence signal before trusting this comparison._';
-  const md = [
-    `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but ${explanation}`,
-    '',
-    remediation,
-  ];
-  if (baselineSurfaceFailures.length > 0) {
-    md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
-  }
-  return md;
-}
-
 function summaryLines(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
   shown: DiffCounts;
   changedScope: { bases: number; variants: number };
   contentCount: number;
-  contentEvaluated: boolean;
   /** Any raw-vs-presentation contradiction: must not claim "identical". */
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
@@ -1544,7 +1396,6 @@ function summaryLines(args: {
     shown,
     changedScope,
     contentCount,
-    contentEvaluated,
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
@@ -1559,15 +1410,37 @@ function summaryLines(args: {
     surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
   if (changeGroups.length === 0 && missing.length === 0) {
-    const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineSurfaceFailures);
-    if (failureSummary) return failureSummary;
+    if (!reportConsistency.ok && reportConsistency.reason === 'raw_only_no_reviewable' && rawCounts) {
+      const md = [
+        `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.`,
+        '',
+        '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._',
+      ];
+      if (baselineSurfaceFailures.length > 0) {
+        md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
+      }
+      return md;
+    }
+    if (
+      !reportConsistency.ok &&
+      reportConsistency.reason === 'presentation_collapsed_while_raw_reviewable' &&
+      rawCounts
+    ) {
+      const md = [
+        `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but report-only path correspondence collapsed every presentation finding — **no reviewable crops or change sections remain**.`,
+        '',
+        '_This is **not** a clean no-change and cannot be approved visually. Fail closed (`CERTIFICATION_FAILED`): inspect the raw path churn or tighten the correspondence signal before trusting this comparison._',
+      ];
+      if (baselineSurfaceFailures.length > 0) {
+        md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
+      }
+      return md;
+    }
     if (baselineSurfaceFailures.length === 0) {
       return [
-        contentEvaluated
-          ? contentCount > 0
-            ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
-            : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
-          : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.',
+        contentCount > 0
+          ? '✓ Computed styles identical: every longhand, pseudo-element, and hover/focus/active state matches. See the advisory content changes below.'
+          : '✓ All surfaces identical: every computed style, pseudo-element, and hover/focus/active state matches.',
       ];
     }
   }
@@ -1590,7 +1463,6 @@ function reportHeadline(args: {
   volatileCount: number;
   liveCandidateLabels: string[];
   contentCount: number;
-  contentEvaluated: boolean;
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
@@ -1603,7 +1475,6 @@ function reportHeadline(args: {
     volatileCount,
     liveCandidateLabels,
     contentCount,
-    contentEvaluated,
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
@@ -1614,7 +1485,6 @@ function reportHeadline(args: {
     shown,
     changedScope,
     contentCount,
-    contentEvaluated,
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
@@ -1660,12 +1530,9 @@ function buildRegionImages(args: {
   pngB: PNG;
   ctx: RenderCtx;
   cropSeq: number;
-  pairCaption?: { left: string; right: string; note?: string };
 }): { md: string[]; images: { composite?: string; annotated?: string; zoom?: string } } {
   const { g, region, regionFindings, sd, mapA, mapB, pngA, pngB, ctx, cropSeq } = args;
   const { img, outDir, minWidth, minHeight, maxHeight, zoomBelow } = ctx;
-  const leftLabel = args.pairCaption?.left ?? 'before';
-  const rightLabel = args.pairCaption?.right ?? 'after';
   // Crop the SAME page rectangle from both sides — the union of where the change sits
   // on each side — so the pair lines up exactly and the reviewer compares like-for-like
   // instead of playing spot-the-difference. (Centring each side on its own moved box
@@ -1711,7 +1578,7 @@ function buildRegionImages(args: {
     ),
   ].slice(0, 3);
   const changedLabel = changedNames.length ? ` — changed: \`${changedNames.join('`, `')}\`` : '';
-  const ctxLabel = args.pairCaption?.note ?? formatSurfaceWithContext(sd.surface, mapA, mapB);
+  const ctxLabel = formatSurfaceWithContext(sd.surface, mapA, mapB);
 
   // A sub-pixel change (e.g. a 2px font bump on a caret) is invisible at 1:1, so when
   // the changed-element footprint is small, add a magnified crop that makes it obvious
@@ -1733,14 +1600,14 @@ function buildRegionImages(args: {
   // full-resolution file.
   const md = [
     '',
-    `![${leftLabel} ◀ │ ▶ ${rightLabel}](${img(images.composite!)})`,
+    `![before ◀ │ ▶ after](${img(images.composite!)})`,
     '',
-    `<sub>◀ ${leftLabel}  ·  ${rightLabel} ▶ — ${ctxLabel}</sub>`,
+    `<sub>◀ before  ·  after ▶ — ${ctxLabel}</sub>`,
   ];
   if (images.annotated) {
     md.push(
       '',
-      `![highlighted ${leftLabel} ◀ │ ▶ ${rightLabel}](${img(images.annotated)})`,
+      `![highlighted before ◀ │ ▶ after](${img(images.annotated)})`,
       '',
       `<sub>🔍 magenta boxes mark each change${changedLabel}</sub>`,
     );
@@ -1748,7 +1615,7 @@ function buildRegionImages(args: {
   if (images.zoom) {
     md.push(
       '',
-      `![zoomed ${leftLabel} ◀ │ ▶ ${rightLabel}](${img(images.zoom)})`,
+      `![zoomed before ◀ │ ▶ after](${img(images.zoom)})`,
       '',
       `<sub>🔬 magnified ${zoomFactor}× — change too small to see at 1:1${changedLabel}</sub>`,
     );
@@ -1756,183 +1623,8 @@ function buildRegionImages(args: {
   return { md, images };
 }
 
-type CropPack = {
-  md: string[];
-  images: { composite?: string; annotated?: string; zoom?: string };
-  cropSeq: number;
-  visualEvidence?: 'not-rendered';
-  reason?: string;
-};
-
-function cropNote(region: Box | null, pngA: PNG | null, pngB: PNG | null): string | undefined {
-  if (!region) return '_Changed element is not visible in this state (zero-size box) — see the property list._';
-  if (pngA && pngB) return `_${MISLEADING_CROP_REASON}_`;
-  return '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._';
-}
-
-function appendCrop(args: {
-  g: Group;
-  region: Box | null;
-  regionFindings: Finding[];
-  sd: SurfaceDiff;
-  mapA: StyleMap;
-  mapB: StyleMap;
-  pngA: PNG | null;
-  pngB: PNG | null;
-  ctx: RenderCtx;
-  cropSeq: number;
-  pairCaption?: { left: string; right: string; note?: string };
-}): CropPack {
-  const { g, region, regionFindings, sd, mapA, mapB, pngA, pngB, ctx } = args;
-  let cropSeq = args.cropSeq;
-  if (region && pngA && pngB && hasExposedChangedEntry(mapA, mapB, g.paths)) {
-    cropSeq++;
-    const built = buildRegionImages({
-      g,
-      region,
-      regionFindings,
-      sd,
-      mapA,
-      mapB,
-      pngA,
-      pngB,
-      ctx,
-      cropSeq,
-      pairCaption: args.pairCaption,
-    });
-    return { md: built.md, images: built.images, cropSeq };
-  }
-  const note = cropNote(region, pngA, pngB);
-  return {
-    md: note ? ['', note] : [],
-    images: {},
-    cropSeq,
-    ...(pngA && pngB && region ? { visualEvidence: 'not-rendered' as const, reason: MISLEADING_CROP_REASON } : {}),
-  };
-}
-
-type StateSectionArgs = {
-  g: Group;
-  regionFindings: Finding[];
-  sd: SurfaceDiff;
-  mapA: StyleMap;
-  mapB: StyleMap;
-  region: Box | null;
-  ctx: RenderCtx;
-  describeCtx: DescribeCtx;
-  surfaceList: string;
-  cropSeq: number;
-  firstHeadingUsesAll: boolean;
-};
-
-function appendOneState(
-  args: StateSectionArgs,
-  state: (typeof STATE_LAYER_NAMES)[number],
-  md: string[],
-): {
-  cropSeq: number;
-  images?: { composite?: string; annotated?: string; zoom?: string };
-} {
-  const { g, regionFindings, sd, mapA, mapB, region, ctx, describeCtx, surfaceList } = args;
-  const sf = regionFindings.filter(
-    (f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state' && f.state === state,
-  );
-  if (!sf.length) return { cropSeq: args.cropSeq };
-  const headingFindings = args.firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
-  md.push('', `### ${regionHeading(g.paths, headingFindings)} \`:${state}\``, '', surfaceList);
-  md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
-  const glance = propertyGlanceLine(sf);
-  if (glance) md.push('', glance);
-  const layerA = readPng(path.join(ctx.beforeDir, `${sd.surface}.${state}.png`));
-  const layerB = readPng(path.join(ctx.afterDir, `${sd.surface}.${state}.png`));
-  let cropSeq = args.cropSeq;
-  let images: { composite?: string; annotated?: string; zoom?: string } | undefined;
-  if (layerA && layerB) {
-    const packed = appendCrop({
-      g,
-      region,
-      regionFindings: sf,
-      sd,
-      mapA,
-      mapB,
-      pngA: layerA,
-      pngB: layerB,
-      ctx,
-      cropSeq,
-      pairCaption: {
-        left: `base :${state}`,
-        right: `head :${state}`,
-        note: `both sides are :${state}`,
-      },
-    });
-    cropSeq = packed.cropSeq;
-    md.push(...packed.md);
-    if (packed.images.composite) images = packed.images;
-  } else {
-    md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
-  }
-  md.push(...renderCropChanges(sf, ctx.foldDetailsAt, describeCtx));
-  return { cropSeq, images };
-}
-
-function appendStateSections(args: StateSectionArgs): {
-  md: string[];
-  stateImages: Record<string, { composite?: string; annotated?: string; zoom?: string }>;
-  firstImages: { composite?: string; annotated?: string; zoom?: string };
-  cropSeq: number;
-} {
-  const md: string[] = [];
-  const stateImages: Record<string, { composite?: string; annotated?: string; zoom?: string }> = {};
-  const firstImages: { composite?: string; annotated?: string; zoom?: string } = {};
-  let cropSeq = args.cropSeq;
-  for (const state of STATE_LAYER_NAMES) {
-    const one = appendOneState({ ...args, cropSeq }, state, md);
-    cropSeq = one.cropSeq;
-    if (!one.images) continue;
-    stateImages[state] = one.images;
-    if (!firstImages.composite) Object.assign(firstImages, one.images);
-  }
-  return { md, stateImages, firstImages, cropSeq };
-}
-
-function appendRestBlock(args: {
-  g: Group;
-  sd: SurfaceDiff;
-  mapA: StyleMap;
-  mapB: StyleMap;
-  pngA: PNG | null;
-  pngB: PNG | null;
-  region: Box | null;
-  cropFindings: Finding[];
-  ctx: RenderCtx;
-  describeCtx: DescribeCtx;
-  surfaceList: string;
-  cropSeq: number;
-}): CropPack & { headingMd: string[] } {
-  const headingMd = ['', `### ${regionHeading(args.g.paths, args.cropFindings)}`, '', args.surfaceList];
-  const glance = propertyGlanceLine(args.cropFindings);
-  if (glance) headingMd.push('', glance);
-  const packed = appendCrop({
-    g: args.g,
-    region: args.region,
-    regionFindings: args.cropFindings,
-    sd: args.sd,
-    mapA: args.mapA,
-    mapB: args.mapB,
-    pngA: args.pngA,
-    pngB: args.pngB,
-    ctx: args.ctx,
-    cropSeq: args.cropSeq,
-  });
-  packed.md = [
-    ...headingMd,
-    ...packed.md,
-    ...renderCropChanges(args.cropFindings, args.ctx.foldDetailsAt, args.describeCtx),
-  ];
-  return { ...packed, headingMd };
-}
-
-// Render one crop region: heading, rest crop, then each forced-state crop.
+// Render one crop region: its heading, the surface list, the before/after imagery (or a
+// note when there's nothing to show), and the per-crop change tables.
 function renderRegion(args: {
   g: Group;
   cg: ChangeGroup;
@@ -1943,85 +1635,42 @@ function renderRegion(args: {
   describeCtx: DescribeCtx;
   ctx: RenderCtx;
   cropSeq: number;
-}): { md: string[]; regionJson: Record<string, unknown>; cropSeq: number } {
-  const { g, cg, mapA, mapB, pngA, pngB, describeCtx, ctx } = args;
+}): { md: string[]; regionJson: Record<string, unknown> } {
+  const { g, cg, mapA, mapB, pngA, pngB, describeCtx, ctx, cropSeq } = args;
   const { sd } = cg.rep;
+  // Exactly the findings whose element lives inside THIS crop, so the tables sit
+  // directly under the screenshot that shows them — never a wall of changes spanning
+  // several crops with no way to tell which is which.
   const regionFindings = cg.rep.findings.filter((f) =>
     g.paths.some((root) => f.path === root || f.path.startsWith(root + ' > ')),
   );
-  const rest = regionFindings.filter((f) => f.kind !== 'state');
-  const hasDom = regionFindings.some((f) => f.kind === 'dom');
-  const stateOnly = !hasDom && rest.length === 0 && regionFindings.some((f) => f.kind === 'state');
+
   const surfaceList =
     cg.surfaces.length > 1
       ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(cg.surfaces, ctx.beforeDir)}_`
       : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
-  const md: string[] = [];
-  const images: { composite?: string; annotated?: string; zoom?: string } = {};
-  let cropSeq = args.cropSeq;
-  let visualEvidence: 'not-rendered' | undefined;
-  let reason: string | undefined;
+
+  const md: string[] = ['', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList];
+
   const region = visible(g.after) ? g.after : g.before;
-  const cropFindings = hasDom ? regionFindings : rest;
-  if (!stateOnly && cropFindings.length) {
-    const packed = appendRestBlock({
-      g,
-      sd,
-      mapA,
-      mapB,
-      pngA,
-      pngB,
-      region,
-      cropFindings,
-      ctx,
-      describeCtx,
-      surfaceList,
-      cropSeq,
-    });
-    cropSeq = packed.cropSeq;
-    md.push(...packed.md);
-    Object.assign(images, packed.images);
-    visualEvidence = packed.visualEvidence;
-    reason = packed.reason;
+  let images: { composite?: string; annotated?: string; zoom?: string } = {};
+  if (region && pngA && pngB) {
+    const built = buildRegionImages({ g, region, regionFindings, sd, mapA, mapB, pngA, pngB, ctx, cropSeq });
+    md.push(...built.md);
+    images = built.images;
+  } else if (!region) {
+    md.push('', '_Changed element is not visible in this state (zero-size box) — see the property list._');
+  } else {
+    md.push(
+      '',
+      '_No screenshots in these capture sets (run captures with `screenshots: true` for side-by-side crops)._',
+    );
   }
 
-  const states = hasDom
-    ? { md: [] as string[], stateImages: {}, firstImages: {}, cropSeq }
-    : appendStateSections({
-        g,
-        regionFindings,
-        sd,
-        mapA,
-        mapB,
-        region,
-        ctx,
-        describeCtx,
-        surfaceList,
-        cropSeq,
-        firstHeadingUsesAll: stateOnly,
-      });
-  cropSeq = states.cropSeq;
-  md.push(...states.md);
-  if (stateOnly && !images.composite) Object.assign(images, states.firstImages);
-  if (!md.length) {
-    md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
-    const note = cropNote(region, pngA, pngB);
-    if (note) md.push('', note);
-    md.push(...renderCropChanges(regionFindings, ctx.foldDetailsAt, describeCtx));
-  }
-
-  return {
-    md,
-    regionJson: {
-      paths: g.paths,
-      before: g.before,
-      after: g.after,
-      images,
-      ...(Object.keys(states.stateImages).length ? { stateImages: states.stateImages } : {}),
-      ...(visualEvidence ? { visualEvidence, reason } : {}),
-    },
-    cropSeq,
-  };
+  // What this crop changed: plain-English bullets, then the property tables — folded
+  // under a toggle once they'd be a wall (foldDetailsAt).
+  md.push(...renderCropChanges(regionFindings, ctx.foldDetailsAt, describeCtx));
+  return { md, regionJson: { paths: g.paths, before: g.before, after: g.after, images } };
 }
 
 // Render one change group: load its representative maps/screenshots, split it into
@@ -2042,7 +1691,8 @@ function renderChangeGroup(
   const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
   const changedPaths = outermost([...new Set(surfaceFindings.map((f) => f.path))]);
   if (!hasExposedChangedEntry(mapA, mapB, changedPaths)) {
-    const reason = MISLEADING_CROP_REASON;
+    const reason =
+      'The changed element is not visibly painted in this representative state (it is hidden at this breakpoint or is background content behind an active modal), so a before/after crop would be misleading.';
     return {
       md: ['', `_${reason}_`, '', ...renderCropChanges(surfaceFindings, ctx.foldDetailsAt, describeCtx)],
       json: {
@@ -2068,8 +1718,8 @@ function renderChangeGroup(
   const md: string[] = [];
   const regions: unknown[] = [];
   for (const g of groups) {
+    cropSeq++;
     const r = renderRegion({ g, cg, mapA, mapB, pngA, pngB, describeCtx, ctx, cropSeq });
-    cropSeq = r.cropSeq;
     md.push(...r.md);
     regions.push(r.regionJson);
   }
@@ -2216,7 +1866,6 @@ function comparisonForReport(
 function prepareReportSurfaces(
   surfaces: ReturnType<typeof diffStyleMapDirs>['surfaces'],
   includeNoise: boolean,
-  includeStructure: boolean,
   beforeDir: string,
   afterDir: string,
 ): PreparedSurface[] {
@@ -2225,7 +1874,7 @@ function prepareReportSurfaces(
       if (sd.missing) return { sd, findings: sd.findings };
       const beforeMap = loadStyleMap(findCapture(beforeDir, sd.surface));
       const afterMap = loadStyleMap(findCapture(afterDir, sd.surface));
-      const corresponded = presentationDiffStyleMaps(beforeMap, afterMap, { includeStructure });
+      const corresponded = presentationDiffStyleMaps(beforeMap, afterMap);
       return {
         sd,
         findings: includeNoise ? corresponded : cleanFindingsForDisplay(corresponded),
@@ -2259,10 +1908,7 @@ function writeReportArtifacts(
   shown: DiffCounts,
   comparison: ComparisonTruth,
   reportConsistency: ReportConsistency,
-  content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
-  baselineProvenance: BaselineProvenance | null = null,
-  confidence: ConfidenceSummary | null = null,
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
@@ -2275,14 +1921,7 @@ function writeReportArtifacts(
         rawCounts: comparison.rawCounts,
         reviewableCounts: comparison.reviewableCounts,
         reportConsistency,
-        content,
         surfaces: surfacesJson,
-        // Additive (#399): the completeness badge, machine-readable — a consumer
-        // must never read one green as full certification.
-        ...(confidence ? { confidence } : {}),
-        // Additive (#367): where the baseline maps came from, when recorded —
-        // exact-SHA restore, nearest-ancestor reuse (with proof), or fresh capture.
-        ...(baselineProvenance ? { baselineProvenance } : {}),
       },
       null,
       2,
@@ -2291,7 +1930,7 @@ function writeReportArtifacts(
   return { reportMdPath, reportJsonPath };
 }
 
-function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: boolean): ReportResult {
+export function generateStyleMapReport(opts: ReportOptions): ReportResult {
   const {
     beforeDir,
     afterDir,
@@ -2316,11 +1955,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Base first, head second: current capture metadata is authoritative when a
   // surface's product key changed between revisions.
   const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
-  const {
-    surfaces,
-    volatile: volatileCount,
-    counts: rawCounts,
-  } = diffStyleMapDirs(beforeDir, afterDir, { includeStructure });
+  const { surfaces, volatile: volatileCount, counts: rawCounts } = diffStyleMapDirs(beforeDir, afterDir);
   // Canonical truth shared with styleproof-diff / action trust: when raw
   // certification deltas exist but cleanFindings leaves nothing reviewable,
   // never claim "identical" and never enable visual approval.
@@ -2332,7 +1967,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // forced-state echoes of base changes, and remove non-value noise (see
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
-  const prepared = prepareReportSurfaces(surfaces, includeNoise, includeStructure, beforeDir, afterDir);
+  const prepared = prepareReportSurfaces(surfaces, includeNoise, beforeDir, afterDir);
 
   const missing = prepared.filter((p) => p.sd.missing);
   const changeGroups = groupBySignature(prepared, beforeDir, afterDir);
@@ -2375,17 +2010,9 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     : { md: [], count: 0 };
 
   md.push('## 🗺️ StyleProof report', '');
-  // Lead with the source-of-truth gates (coverage / determinism / inventory /
-  // confidence) so a reviewer reads "is this green trustworthy?" before the
-  // pixel details. Confidence is resolved once and shared with report.json so
-  // the badge and the machine-readable summary can never disagree.
-  const confidenceLedger = resolveBundleConfidence(afterDir);
-  const confidence = summarizeConfidence(confidenceLedger);
-  md.push(...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }));
-  // Baseline provenance (#367): when the run recorded where the base maps came
-  // from, say so up front — an ancestor reuse must be visible, never inferred.
-  const baselineProvenance = readBaselineProvenance(beforeDir);
-  md.push(...baselineProvenanceLines(baselineProvenance));
+  // Lead with the source-of-truth gates (coverage / determinism / inventory) so a
+  // reviewer reads "is this green trustworthy?" before the pixel details.
+  md.push(...certificationLines(beforeDir, afterDir));
   md.push(
     ...reportHeadline({
       changeGroups,
@@ -2395,7 +2022,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       volatileCount,
       liveCandidateLabels,
       contentCount: contentSection.count,
-      contentEvaluated: includeContent,
       reportConsistency,
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
@@ -2457,17 +2083,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   }
   md.push(...contentSection.md);
 
-  const { reportMdPath, reportJsonPath } = writeReportArtifacts(
-    outDir,
-    md,
-    shown,
-    comparison,
-    reportConsistency,
-    { evaluated: includeContent, changes: contentSection.count, advisory: true },
-    json,
-    baselineProvenance,
-    confidence,
-  );
+  const { reportMdPath, reportJsonPath } = writeReportArtifacts(outDir, md, shown, comparison, reportConsistency, json);
   return {
     changedSurfaces: prepared.length - missing.length,
     newSurfaces: missing.length,
@@ -2475,20 +2091,9 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     contentChanges: contentSection.count,
     comparison,
     reportConsistency,
-    confidence,
     reportMdPath,
     reportJsonPath,
   };
-}
-
-/** Generate the public report. DOM structure is never part of certification. */
-export function generateStyleMapReport(opts: ReportOptions): ReportResult {
-  return generateStyleMapReportInternal(opts, false);
-}
-
-/** @internal Retains direct coverage of the low-level structural renderer. */
-export function generateStructuralStyleMapReportForTesting(opts: ReportOptions): ReportResult {
-  return generateStyleMapReportInternal(opts, true);
 }
 
 function findCapture(dir: string, surface: string): string {

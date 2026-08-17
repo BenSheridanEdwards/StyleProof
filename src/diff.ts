@@ -87,28 +87,10 @@ export type SurfaceDiff = {
 
 export type DiffCounts = { dom: number; style: number; state: number };
 
-export type DiffStyleOptions = {
-  /**
-   * Include DOM additions/removals/retags and style/state inventories for
-   * one-sided elements. Defaults to true for low-level callers such as settle
-   * detection and variant discovery. Certification passes false because
-   * structure belongs to the opt-in advisory content layer.
-   */
-  includeStructure?: boolean;
-};
-
-/** Content and structural changes are an opt-in advisory layer. Kept out of
- *  `Finding`/`DiffCounts` on purpose: neither affects style certification or
- *  blocking counts when content comparison is disabled. */
-export type ContentChange =
-  | { kind: 'text'; path: string; cls: string; before: string; after: string }
-  | {
-      kind: 'structure';
-      path: string;
-      cls: string;
-      change: 'added' | 'removed' | 'retagged';
-      detail?: string;
-    };
+/** A change to an element's own rendered text (opt-in content layer). Kept out
+ *  of `Finding`/`DiffCounts` on purpose: content is advisory, never part of the
+ *  computed-style certification or its blocking counts. */
+export type ContentChange = { path: string; cls: string; before: string; after: string };
 
 function diffProps(
   propsA: Record<string, string>,
@@ -210,26 +192,6 @@ function dropSubpixelOriginProps(props: PropChange[]): PropChange[] {
   return props.filter((p) => !SUBPIXEL_ORIGIN_PROPS.has(p.prop) || !sameSubpixelOrigin(p.before, p.after));
 }
 
-/**
- * CSSOM resolves several layout-dependent computed values to used pixels. A
- * sibling/content change can therefore move an `auto` margin or resize a `20%`
- * box without changing its CSS computed value. Current captures retain the CSS
- * Typed OM computed value only when it differs from that used value. When BOTH
- * sides prove the computed value is unchanged, the pixel delta is reflow, not a
- * style change. Legacy captures have no such proof and remain fail-closed.
- */
-function dropUsedValueOnlyProps(
-  props: PropChange[],
-  elementA: StyleMap['elements'][string],
-  elementB: StyleMap['elements'][string],
-): PropChange[] {
-  return props.filter((propertyChange) => {
-    const computedBefore = elementA.computedValueStyle?.[propertyChange.prop];
-    const computedAfter = elementB.computedValueStyle?.[propertyChange.prop];
-    return !computedBefore || !computedAfter || !styleValuesEqual(computedBefore, computedAfter);
-  });
-}
-
 /** Union of both captures' live-region paths — skipped by every diff layer so a
  *  region volatile on either side never reads as a change. */
 function volatilePaths(a: StyleMap, b: StyleMap): string[] {
@@ -240,9 +202,8 @@ function volatilePaths(a: StyleMap, b: StyleMap): string[] {
 // Pre-existing, grandfathered in the health baseline; the content layer only
 // extracted volatilePaths out of this, it is not newly complex.
 // fallow-ignore-next-line complexity
-export function diffStyleMaps(a: StyleMap, b: StyleMap, options: DiffStyleOptions = {}): Finding[] {
+export function diffStyleMaps(a: StyleMap, b: StyleMap): Finding[] {
   const findings: Finding[] = [];
-  const includeStructure = options.includeStructure ?? true;
 
   // Live regions either capture flagged as nondeterministic (a stream, ticker,
   // late-loading content): never diff them — their values move with no code
@@ -255,38 +216,38 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap, options: DiffStyleOption
     const ea = a.elements[p];
     const eb = b.elements[p];
     if (!ea || !eb) {
-      if (includeStructure) {
-        const present = (ea ?? eb)!;
-        findings.push({
-          kind: 'dom',
-          path: p,
-          cls: present.cls,
-          change: !ea ? 'added' : 'removed',
-          ...(!ea && eb.component ? { component: eb.component } : {}),
-        });
-        if (!ea && eb) {
-          const defsB = b.defaults[eb.tag] ?? {};
-          for (const pseudo of [null, ...Object.keys(eb.pseudo ?? {})]) {
-            const propsB = pseudo ? (eb.pseudo?.[pseudo] ?? {}) : eb.style;
-            const pdefsB = pseudo ? (b.defaults[eb.tag + pseudo] ?? defsB) : defsB;
-            const props = diffProps({}, propsB, {}, pdefsB, '(unset)', '(unset)');
-            if (props.length) findings.push({ kind: 'style', path: p, cls: eb.cls, pseudo, props });
-          }
+      const present = (ea ?? eb)!;
+      findings.push({
+        kind: 'dom',
+        path: p,
+        cls: present.cls,
+        change: !ea ? 'added' : 'removed',
+        ...(!ea && eb.component ? { component: eb.component } : {}),
+      });
+      // An added element has no "before", so the style loop below is skipped —
+      // surface its full resting computed style (+ pseudos) as (unset)→value so a
+      // new element's styling is reviewable, not just its interaction-state
+      // deltas. Removed elements get none (there is no "after" to show).
+      if (!ea && eb) {
+        const defsB = b.defaults[eb.tag] ?? {};
+        for (const pseudo of [null, ...Object.keys(eb.pseudo ?? {})]) {
+          const propsB = pseudo ? (eb.pseudo?.[pseudo] ?? {}) : eb.style;
+          const pdefsB = pseudo ? (b.defaults[eb.tag + pseudo] ?? defsB) : defsB;
+          const props = diffProps({}, propsB, {}, pdefsB, '(unset)', '(unset)');
+          if (props.length) findings.push({ kind: 'style', path: p, cls: eb.cls, pseudo, props });
         }
       }
       continue;
     }
     if (ea.tag !== eb.tag) {
-      if (includeStructure) {
-        findings.push({
-          kind: 'dom',
-          path: p,
-          cls: ea.cls,
-          change: 'retagged',
-          detail: `<${ea.tag}> → <${eb.tag}>`,
-          ...(eb.component ? { component: eb.component } : {}),
-        });
-      }
+      findings.push({
+        kind: 'dom',
+        path: p,
+        cls: ea.cls,
+        change: 'retagged',
+        detail: `<${ea.tag}> → <${eb.tag}>`,
+        ...(eb.component ? { component: eb.component } : {}),
+      });
       continue;
     }
     const defsA = a.defaults[ea.tag] ?? {};
@@ -300,10 +261,7 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap, options: DiffStyleOption
       const pdefsA = pseudo ? (a.defaults[ea.tag + pseudo] ?? defsA) : defsA;
       const pdefsB = pseudo ? (b.defaults[eb.tag + pseudo] ?? defsB) : defsB;
       const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
-      const restingProps = pseudo
-        ? rawProps
-        : dropUsedValueOnlyProps(dropLayoutEquivalentMarginProps(rawProps, ea, eb), ea, eb);
-      const props = dropSubpixelOriginProps(restingProps);
+      const props = dropSubpixelOriginProps(pseudo ? rawProps : dropLayoutEquivalentMarginProps(rawProps, ea, eb));
       if (props.length) {
         const contentLengthSignal =
           pseudo !== null
@@ -348,7 +306,6 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap, options: DiffStyleOption
 
   for (const p of new Set([...Object.keys(a.states ?? {}), ...Object.keys(b.states ?? {})])) {
     if (volatile.length && isUnder(p, volatile)) continue;
-    if (!includeStructure && (!a.elements[p] || !b.elements[p] || a.elements[p].tag !== b.elements[p].tag)) continue;
     const sa = a.states?.[p] ?? {};
     const sb = b.states?.[p] ?? {};
     const cls = (a.elements[p] ?? b.elements[p])?.cls ?? '';
@@ -356,8 +313,6 @@ export function diffStyleMaps(a: StyleMap, b: StyleMap, options: DiffStyleOption
       const da = sa[state] ?? {};
       const db = sb[state] ?? {};
       for (const sub of new Set([...Object.keys(da), ...Object.keys(db)])) {
-        if (!includeStructure && (!a.elements[sub] || !b.elements[sub] || a.elements[sub].tag !== b.elements[sub].tag))
-          continue;
         const props = diffProps(
           da[sub] ?? {},
           db[sub] ?? {},
@@ -395,125 +350,11 @@ function indexDir(dir: string): Record<string, string> {
   );
 }
 
-/**
- * Privacy-safe identity for correspondence across an nth-child shift. Positional
- * indexes are normalized, while hashed semantic path segments remain exact: a
- * sibling insertion can move the same element, but a developer-authored identity
- * replacement must stay structural instead of being paired back into a restyle.
- * A class is capture metadata already present in every map; own-text length and
- * React component name disambiguate repeated semantic classes without storing
- * copy. Empty anonymous elements stay unmatched rather than receiving invented
- * provenance.
- */
-function contentCorrespondenceSignature(elementPath: string, element: StyleMap['elements'][string]): string | null {
-  const className = element.cls.trim();
-  const componentName = element.component?.name ?? '';
-  if (!className && !componentName && element.ownTextLength === undefined) return null;
-  const semanticPathPattern = elementPath.replace(/:nth-child\(\d+\)/g, ':nth-child(*)');
-  return JSON.stringify([semanticPathPattern, element.tag, className, element.ownTextLength ?? null, componentName]);
-}
-
-function pathsByContentSignature(map: StyleMap): Map<string, string[]> {
-  const pathsBySignature = new Map<string, string[]>();
-  for (const [elementPath, element] of Object.entries(map.elements)) {
-    const signature = contentCorrespondenceSignature(elementPath, element);
-    if (!signature) continue;
-    pathsBySignature.set(signature, [...(pathsBySignature.get(signature) ?? []), elementPath]);
-  }
-  return pathsBySignature;
-}
-
-/**
- * base path -> head path for every element whose identity is recognisable on both
- * sides but whose concrete path moved. A signature shared by several elements
- * (repeated same-shaped rows) pairs k-th to k-th in document order — map
- * insertion order is capture's DOM walk — but only while the group's size is
- * identical on both sides: pairing a count-preserving group can at worst re-label
- * a visually-equivalent remove+add as a matched pair, whereas a size change means
- * a real add/remove somewhere in the group, so those groups stay concrete and
- * therefore fail closed.
- */
-function correspondingPathsByContentSignature(before: StyleMap, after: StyleMap): Map<string, string> {
-  const bySignatureAfter = pathsByContentSignature(after);
-  const beforeToAfter = new Map<string, string>();
-  for (const [signature, beforePaths] of pathsByContentSignature(before)) {
-    const afterPaths = bySignatureAfter.get(signature) ?? [];
-    if (afterPaths.length !== beforePaths.length) continue;
-    beforePaths.forEach((beforePath, groupIndex) => {
-      const afterPath = afterPaths[groupIndex]!;
-      if (afterPath !== beforePath) beforeToAfter.set(beforePath, afterPath);
-    });
-  }
-  return beforeToAfter;
-}
-
-/**
- * Re-key identifiable base elements onto their head paths before a
- * content-disabled comparison. This prevents a sibling insertion or removal from
- * making unchanged elements at shifted nth-child paths compare against the wrong
- * siblings.
- */
-function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
-  const beforeToAfter = correspondingPathsByContentSignature(before, after);
-  if (beforeToAfter.size === 0) return before;
-
-  // A matched element can move onto a path occupied by an ambiguous element in
-  // the base capture. That occupant has no trustworthy head identity, so it
-  // must not overwrite the matched evidence when the object is re-keyed.
-  const displacedUnmatchedPaths = new Set(
-    [...beforeToAfter.values()].filter((afterPath) => afterPath in before.elements && !beforeToAfter.has(afterPath)),
-  );
-  const remapPath = (elementPath: string): string | null => {
-    const correspondingPath = beforeToAfter.get(elementPath);
-    if (correspondingPath) return correspondingPath;
-    return displacedUnmatchedPaths.has(elementPath) ? null : elementPath;
-  };
-  const elements: StyleMap['elements'] = {};
-  for (const [elementPath, element] of Object.entries(before.elements)) {
-    const correspondingPath = remapPath(elementPath);
-    if (correspondingPath) elements[correspondingPath] = element;
-  }
-
-  const states: StyleMap['states'] = {};
-  for (const [ownerPath, statesByName] of Object.entries(before.states ?? {})) {
-    const correspondingOwnerPath = remapPath(ownerPath);
-    if (!correspondingOwnerPath) continue;
-    const remappedStates: (typeof states)[string] = {};
-    for (const [stateName, targets] of Object.entries(statesByName)) {
-      remappedStates[stateName] = Object.fromEntries(
-        Object.entries(targets)
-          .map(([targetPath, properties]) => [remapPath(targetPath), properties] as const)
-          .filter((entry): entry is [string, (typeof entry)[1]] => entry[0] !== null),
-      );
-    }
-    states[correspondingOwnerPath] = remappedStates;
-  }
-
-  const remapKnownPaths = (elementPaths: string[] | undefined): string[] | undefined =>
-    elementPaths?.map(remapPath).filter((elementPath): elementPath is string => elementPath !== null);
-
-  return {
-    ...before,
-    elements,
-    states,
-    volatile: remapKnownPaths(before.volatile),
-    liveCandidates: before.liveCandidates?.flatMap((candidate) => {
-      const correspondingPath = remapPath(candidate.path);
-      return correspondingPath ? [{ ...candidate, path: correspondingPath }] : [];
-    }),
-    overlays: before.overlays?.flatMap((overlay) => {
-      const correspondingPath = remapPath(overlay.path);
-      return correspondingPath ? [{ ...overlay, path: correspondingPath }] : [];
-    }),
-  };
-}
-
 /** Diff every same-named capture between two directories. `volatile` is the
  *  count of live regions auto-excluded across all surfaces (union per surface). */
 export function diffStyleMapDirs(
   dirA: string,
   dirB: string,
-  options: DiffStyleOptions = { includeStructure: false },
 ): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number; statesUncertified: number; compared: number } {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
@@ -549,7 +390,7 @@ export function diffStyleMapDirs(
       surfaces.push({ surface, missing: indexA[surface] ? 'after' : 'before', findings: [] });
       continue;
     }
-    const findings = diffSurfacePair(indexA[surface], indexB[surface], uncompared, options);
+    const findings = diffSurfacePair(indexA[surface], indexB[surface], uncompared);
     tallyCounts(findings, counts);
     if (findings.length) surfaces.push({ surface, findings });
   }
@@ -562,14 +403,12 @@ function diffSurfacePair(
   fileA: string,
   fileB: string,
   uncompared: { volatile: number; statesUncertified: number },
-  options: DiffStyleOptions,
 ): Finding[] {
   const mapA = loadStyleMap(fileA);
   const mapB = loadStyleMap(fileB);
   uncompared.volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
   if (mapA.statesSkipped && mapB.statesSkipped) uncompared.statesUncertified++;
-  const comparableBase = options.includeStructure === false ? correspondContentShiftedPaths(mapA, mapB) : mapA;
-  return diffStyleMaps(comparableBase, mapB, options);
+  return diffStyleMaps(mapA, mapB);
 }
 
 /**
@@ -586,36 +425,19 @@ function diffSurfacePair(
 const ownText = (t?: string): string => t ?? '';
 
 export function diffContentMaps(a: StyleMap, b: StyleMap): ContentChange[] {
-  const comparableBase = correspondContentShiftedPaths(a, b);
-  const volatile = volatilePaths(comparableBase, b);
+  const volatile = volatilePaths(a, b);
+  // Only paths present in BOTH captures: an add/remove is a DOM change the style
+  // diff already owns, so iterating the intersection both skips them and keeps
+  // this loop branch-light. Equal text (incl. both absent → '' === '') drops out.
+  const common = Object.keys(a.elements)
+    .filter((p) => p in b.elements)
+    .sort();
   const out: ContentChange[] = [];
-  for (const p of [...new Set([...Object.keys(comparableBase.elements), ...Object.keys(b.elements)])].sort()) {
+  for (const p of common) {
     if (isUnder(p, volatile)) continue;
-    const elementA = comparableBase.elements[p];
-    const elementB = b.elements[p];
-    if (!elementA || !elementB) {
-      const presentElement = (elementA ?? elementB)!;
-      out.push({
-        kind: 'structure',
-        path: p,
-        cls: presentElement.cls,
-        change: elementA ? 'removed' : 'added',
-      });
-      continue;
-    }
-    if (elementA.tag !== elementB.tag) {
-      out.push({
-        kind: 'structure',
-        path: p,
-        cls: elementA.cls,
-        change: 'retagged',
-        detail: `<${elementA.tag}> → <${elementB.tag}>`,
-      });
-      continue;
-    }
-    const before = ownText(elementA.text);
-    const after = ownText(elementB.text);
-    if (before !== after) out.push({ kind: 'text', path: p, cls: elementA.cls, before, after });
+    const before = ownText(a.elements[p].text);
+    const after = ownText(b.elements[p].text);
+    if (before !== after) out.push({ path: p, cls: a.elements[p].cls, before, after });
   }
   return out;
 }
