@@ -24,19 +24,17 @@ test('composite action builds its checkout before running local bins', () => {
 });
 
 test('composite action publishes a durable no-change report on a clean first run', () => {
-  const reportStep = extractActionStep('- id: report', '\\n\\s{4}#|\\n\\s{4}- id:');
   const publishStep = extractActionStep('- id: publish', '\\n\\s{4}- name: Upsert PR comment');
   const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
 
-  assert.ok(reportStep, 'action.yml should include a local report generation step');
   assert.ok(publishStep, 'action.yml should include a report publish step');
   assert.ok(commentStep, 'action.yml should include a PR comment step');
-  assert.doesNotMatch(reportStep[0], /if: steps\.diff\.outputs/);
-  assert.match(reportStep[0], /rm -rf styleproof-report/);
-  assert.match(reportStep[0], /styleproof-report\.mjs/);
-  assert.doesNotMatch(reportStep[0], /styleproof-report\.mjs[^\n]*\|\| true/);
-  assert.match(reportStep[0], /report_exit_code=\$\?/);
-  assert.match(reportStep[0], /"\$report_exit_code" -ne 0.*"\$report_exit_code" -ne 1/);
+  assert.doesNotMatch(publishStep[0], /if: steps\.diff\.outputs/);
+  assert.match(publishStep[0], /rm -rf styleproof-report/);
+  assert.match(publishStep[0], /styleproof-report\.mjs/);
+  assert.doesNotMatch(publishStep[0], /styleproof-report\.mjs[^\n]*\|\| true/);
+  assert.match(publishStep[0], /report_exit_code=\$\?/);
+  assert.match(publishStep[0], /"\$report_exit_code" -ne 0.*"\$report_exit_code" -ne 1/);
   // The run receipt is embedded by the API publisher before upload.
   assert.match(publishStep[0], /styleproof-publish-report\.mjs/);
   assert.match(
@@ -49,30 +47,6 @@ test('composite action publishes a durable no-change report on a clean first run
     dogfoodYml.match(/- id: clean[\s\S]*?(?=\n\s{6}- name: Assert clean output)/)[0],
     /fail-on-diff:/,
   );
-});
-
-test('composite action names style certification precisely and can publish advisory content evidence', () => {
-  const reportStep = extractActionStep('- id: report', '\\n\\s{4}#|\\n\\s{4}- id:');
-  const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
-  const statusStep = extractActionStep('- name: Set review status', '\\n\\s{4}#|\\n\\s{4}- name:');
-
-  assert.ok(reportStep, 'action.yml should include a local report generation step');
-  assert.ok(commentStep, 'action.yml should include a PR comment step');
-  assert.ok(statusStep, 'action.yml should include a review-status step');
-  assert.match(actionYml, /include-content:[\s\S]*?default: 'false'/);
-  assert.match(actionYml, /content-changes:[\s\S]*?steps\.report\.outputs\.content-changes/);
-  assert.match(reportStep[0], /STYLEPROOF_INCLUDE_CONTENT/);
-  assert.match(reportStep[0], /--include-content/);
-  assert.match(reportStep[0], /generated\.content\.evaluated/);
-  assert.match(reportStep[0], /generated\.content\.changes/);
-  assert.match(actionYml, /NO_REVIEWABLE_STYLE_CHANGES/);
-  assert.match(actionYml, /STYLE_REVIEW_REQUIRED/);
-  assert.match(commentStep[0], /Content\/structure was not evaluated/);
-  assert.match(commentStep[0], /advisory content\/structure change/);
-  assert.match(commentStep[0], /StyleProof is advisory/);
-  assert.doesNotMatch(commentStep[0], /To accept: rebuild the map/);
-  assert.match(statusStep[0], /No reviewable computed-style changes/);
-  assert.doesNotMatch(actionYml, /NO_VISUAL_CHANGES|VISUAL_APPROVAL_REQUIRED|No visual changes/);
 });
 
 test('composite action never clones the report branch to publish', () => {
@@ -136,7 +110,7 @@ test('composite action marks certify-mode comments with their source head SHA', 
 
 test('dogfood workflow runs the local composite action against every trust-state class', () => {
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 9);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 8);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
@@ -146,10 +120,8 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /steps\.clean\.outputs\.report-url }}'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
   assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'true'/);
-  assert.match(dogfoodYml, /steps\.clean\.outputs\.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'/);
-  assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
-  assert.match(dogfoodYml, /steps\.content-advisory\.outputs\.content-changes }}' = '1'/);
-  assert.match(dogfoodYml, /Content and structure changes \(advisory\)/);
+  assert.match(dogfoodYml, /steps\.clean\.outputs\.trust-state }}' = 'NO_VISUAL_CHANGES'/);
+  assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'VISUAL_APPROVAL_REQUIRED'/);
   assert.match(dogfoodYml, /steps\.residue\.outputs\.trust-state }}' = 'DATA_RESIDUE_UNACKNOWLEDGED'/);
   assert.match(dogfoodYml, /action-dogfood\/partial-base/);
   assert.match(dogfoodYml, /steps\.partial-baseline\.outputs\.trust-state }}' = 'PARTIAL_BASELINE'/);
@@ -175,14 +147,14 @@ test('composite action exposes one precedence-ordered machine-readable trust ver
   const certification = verdict[0].indexOf('CERTIFICATION_FAILED');
   const partial = verdict[0].indexOf('PARTIAL_BASELINE');
   const degraded = verdict[0].indexOf('DEGRADED_BASELINE');
-  const styleReview = verdict[0].indexOf('STYLE_REVIEW_REQUIRED');
+  const visual = verdict[0].indexOf('VISUAL_APPROVAL_REQUIRED');
   assert.ok(
     residue > 0 &&
       inventory > residue &&
       certification > inventory &&
       partial > certification &&
       degraded > partial &&
-      styleReview > degraded,
+      visual > degraded,
   );
   // The verdict's degraded-baseline check must accept the same values the
   // GitHub-expression gate downstream accepts (case-insensitive 'true').
@@ -257,49 +229,25 @@ test('composite action hard-gates certification failures the approve box cannot 
   assert.doesNotMatch(gate[0], /require-approval/, 'the provenance gate must fire in BOTH modes');
 });
 
-test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILED not style review', () => {
+test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILED not visual approval', () => {
   const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
   assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
   assert.match(verdict[0], /reportConsistency/);
   assert.match(verdict[0], /rawOnlyNoReviewable|raw_only_no_reviewable/);
   // Assignment order: raw-only shares the CERTIFICATION_FAILED branch, which must
-  // appear before the STYLE_REVIEW_REQUIRED assignment (state = '…' only).
+  // appear before the VISUAL_APPROVAL_REQUIRED assignment (state = '…' only).
   const certAssign = verdict[0].indexOf("state = 'CERTIFICATION_FAILED'");
-  const styleReviewAssign = verdict[0].indexOf("state = 'STYLE_REVIEW_REQUIRED'");
+  const visualAssign = verdict[0].indexOf("state = 'VISUAL_APPROVAL_REQUIRED'");
   assert.ok(
-    certAssign > 0 && styleReviewAssign > certAssign,
-    'CERTIFICATION_FAILED assignment must outrank style review',
+    certAssign > 0 && visualAssign > certAssign,
+    'CERTIFICATION_FAILED assignment must outrank visual approval',
   );
   assert.match(verdict[0], /rawOnlyNoReviewable\) state = 'CERTIFICATION_FAILED'/);
-  // Approval checkbox only for STYLE_REVIEW_REQUIRED — never for consistency failure.
+  // Approval checkbox only for VISUAL_APPROVAL_REQUIRED — never for consistency failure.
   const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
   assert.ok(commentStep, 'PR comment step present');
-  assert.match(commentStep[0], /trustState === 'STYLE_REVIEW_REQUIRED'/);
+  assert.match(commentStep[0], /trustState === 'VISUAL_APPROVAL_REQUIRED'/);
   assert.match(commentStep[0], /report\/diff consistency|reflow source/i);
-});
-
-test('composite action classifies report-time correspondence collapse before approval or publication', () => {
-  const report = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
-  assert.ok(report, 'action.yml should generate the report before classifying trust');
-  assert.match(report[0], /styleproof-report\.mjs/);
-  assert.match(report[0], /styleproof-report\/report\.json/);
-  assert.match(report[0], /diff\.reportConsistency\s*=\s*generated\.reportConsistency/);
-  assert.match(report[0], /writeFileSync\('styleproof-diff\.json'/);
-
-  const reportIndex = actionYml.indexOf('- id: report');
-  const verdictIndex = actionYml.indexOf('- id: verdict');
-  const gateIndex = actionYml.indexOf('- id: gate');
-  const publishIndex = actionYml.indexOf('- id: publish');
-  assert.ok(
-    reportIndex > 0 && verdictIndex > reportIndex,
-    'report consistency must exist before verdict classification',
-  );
-  assert.ok(gateIndex > verdictIndex, 'approval lookup must consume the final trust verdict ordering');
-  assert.ok(publishIndex > gateIndex, 'network publication follows local report generation and classification');
-
-  const publish = actionYml.match(/- id: publish[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
-  assert.ok(publish);
-  assert.doesNotMatch(publish[0], /styleproof-report\.mjs/, 'publication must not regenerate a second report');
 });
 
 test('composite action blocks unapproved changes by default (opt out with "blocking": false)', () => {
@@ -322,7 +270,7 @@ test('composite action blocks unapproved changes by default (opt out with "block
   assert.ok(blockStep, 'action.yml should include the unapproved-changes block step');
   assert.match(blockStep[0], /inputs\.require-approval == 'true'/);
   assert.match(blockStep[0], /steps\.config\.outputs\.blocking == 'true'/);
-  assert.match(blockStep[0], /steps\.verdict\.outputs\.state == 'STYLE_REVIEW_REQUIRED'/);
+  assert.match(blockStep[0], /steps\.verdict\.outputs\.state == 'VISUAL_APPROVAL_REQUIRED'/);
   assert.match(blockStep[0], /steps\.gate\.outputs\.approved != 'true'/);
   assert.match(blockStep[0], /exit 1/);
 
@@ -350,9 +298,6 @@ test('dogfood workflow asserts the PR report comment and branch artifact', () =>
   assert.match(dogfoodYml, /blob\/\[0-9a-f\]\{40\}\/\$\{report_path\}/);
   assert.ok(dogfoodYml.includes('/issues/${PR_NUMBER}/comments'));
   assert.ok(dogfoodYml.includes('/contents/${report_path}?ref=${REPORT_BRANCH}'));
-  assert.ok(dogfoodYml.includes('Label published report as synthetic dogfood evidence'));
-  assert.ok(dogfoodYml.includes('Synthetic action dogfood receipt'));
-  assert.ok(dogfoodYml.includes('does not certify this pull request'));
 });
 
 test('composite action self-verifies the published receipt before advertising the report URL', () => {
@@ -387,7 +332,7 @@ test('composite action verdict honors the gateInventoryRemovals opt-out end to e
   assert.ok(verdict, 'action.yml should include the verdict step');
   // The opt-out must reach the CLASSIFICATION, not just the job-fail step:
   // without it the commit status stayed an unclearable red (the approval box is
-  // only rendered for STYLE_REVIEW_REQUIRED).
+  // only rendered for VISUAL_APPROVAL_REQUIRED).
   assert.match(verdict[0], /steps\.config\.outputs\.gate-inventory-removals/);
   assert.match(
     verdict[0],

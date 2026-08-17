@@ -48,7 +48,6 @@ import {
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
-  readBaselineProvenance,
   readMapManifest,
   resolveCachedCaptureDirs,
   surfaceMissingMatchesBaselineFailure,
@@ -372,7 +371,6 @@ let residueAudit = null;
 let surfacePaths = new Map();
 let surfaceKeyOf = () => undefined;
 let baselineSurfaceFailures = [];
-let baselineProvenance = null;
 try {
   // v4: a side without a manifest is unsupported — the same-environment guard can't be
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
@@ -400,9 +398,6 @@ try {
   // yielded [], so a PARTIAL_BASELINE run silently degraded into approvable
   // greenfield "new surfaces" (exit 3) in cached-map mode.
   baselineSurfaceFailures = readMapManifest(dirA)?.surfaceCaptureFailures ?? [];
-  // Baseline provenance (#367) — same "read while the dirs exist" rule. `null`
-  // when the run recorded none (every run before the opt-in ancestor reuse).
-  baselineProvenance = readBaselineProvenance(dirA);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -411,7 +406,7 @@ try {
 }
 const { surfaces, counts, compared, volatile, statesUncertified } = result;
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned)
-// findings the report/crops can show. Prevents STYLE_REVIEW_REQUIRED without
+// findings the report/crops can show. Prevents VISUAL_APPROVAL_REQUIRED without
 // evidence when only derived/reflow longhands differ.
 const truth = assessComparisonTruth(surfaces, counts);
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
@@ -436,9 +431,8 @@ printBaselineSurfaceFailureCallout();
 
 // One finding's lines: a heading, then its summarised property deltas (the same
 // dedupe the report shows). Returns [] for a DOM finding (handled separately) or a
-// finding whose props all summarised away. `inventory` = one-sided added path —
-// head-side values with no baseline, never printed as before → after restyles.
-function findingLines(f, inventory = false) {
+// finding whose props all summarised away.
+function findingLines(f) {
   if (f.kind === 'dom') return [];
   const rows = summarizeProps(f.props);
   if (!rows.length) return [];
@@ -446,11 +440,7 @@ function findingLines(f, inventory = false) {
     f.kind === 'state'
       ? `  [:${f.state}] ${findingLabel(f.path, f.cls)}${f.sub !== f.path ? ` ⇒ ${f.sub}` : ''}`
       : `  ${findingLabel(f.path, f.cls)}${f.pseudo || ''}`;
-  const note = inventory ? '  (head-side inventory — no baseline)' : '';
-  return [
-    head + note,
-    ...rows.map((p) => (inventory ? `    ${p.prop}: ${p.after}` : `    ${p.prop}: ${p.before} → ${p.after}`)),
-  ];
+  return [head, ...rows.map((p) => `    ${p.prop}: ${p.before} → ${p.after}`)];
 }
 
 // A DOM finding's one-line heading (added/removed/retagged).
@@ -467,8 +457,7 @@ function elementLines(findings) {
   for (const group of groupByPath(findings)) {
     const dom = group.find((f) => f.kind === 'dom');
     if (dom) lines.push(domLine(dom));
-    const inventory = dom?.change === 'added';
-    for (const f of group) lines.push(...findingLines(f, inventory));
+    for (const f of group) lines.push(...findingLines(f));
   }
   return lines;
 }
@@ -549,16 +538,12 @@ if (jsonOut) {
                 ok: false,
                 reason: 'raw_only_no_reviewable',
                 detail:
-                  'certification differ found computed-style deltas that the visual report strips as derived/reflow longhands — no reviewable crops; fail closed as CERTIFICATION_FAILED, never STYLE_REVIEW_REQUIRED',
+                  'certification differ found computed-style deltas that the visual report strips as derived/reflow longhands — no reviewable crops; fail closed as CERTIFICATION_FAILED, never VISUAL_APPROVAL_REQUIRED',
               }
             : { ok: true, reason: 'aligned' },
           surfaces,
           compared,
           baselineSurfaceFailures,
-          // Additive (#367): where the baseline maps came from, when the run
-          // recorded it — restored from the exact base SHA, restored from a
-          // nearest ancestor (with the changed-path-count proof), or captured.
-          ...(baselineProvenance ? { baselineProvenance } : {}),
           explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
           partialBaseline,
           // Subtrees excluded from every layer of the comparison because a side
@@ -648,13 +633,13 @@ if (truth.rawOnlyNoReviewable) {
   console.log(
     '\n⚠ report consistency: raw certification delta(s) have no reviewable rendering — the visual ' +
       'report would show nothing for a gating change. Failing closed as a certification inconsistency ' +
-      '(not STYLE_REVIEW_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect.',
+      '(not VISUAL_APPROVAL_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect.',
   );
 }
 console.log(
   clean
     ? newSurfaces === 0
-      ? `\n✓ 0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
+      ? `\n✓ 0 changed surfaces across ${compared} captured surface(s): every computed style, pseudo-element, and hover/focus/active state matches`
       : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
         ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
         : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`

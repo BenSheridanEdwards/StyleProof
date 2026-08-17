@@ -117,7 +117,6 @@ const CURRENTCOLOR_FOLLOWERS = [
   'caret-color',
   'outline-color',
   'column-rule-color',
-  'row-rule-color',
   'text-decoration-color',
   'text-emphasis-color',
   '-webkit-text-fill-color',
