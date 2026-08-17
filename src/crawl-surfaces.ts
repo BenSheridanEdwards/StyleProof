@@ -14,6 +14,7 @@ import {
   type AuthBoundaryObservation,
   type CrawlConfidence,
 } from './crawl-confidence.js';
+import { captureArtifactStem } from './surface-keys.js';
 
 /** Thrown when auth-boundary observation fails after a surface was recorded — must not yield false complete. */
 export class AuthBoundaryObserveError extends Error {
@@ -750,7 +751,7 @@ async function captureInPlace(page: Page, key: string, opts: SurfaceCrawlOptions
         pendingRequests: requests.pending,
         metadata: { surfaceKey: key },
       });
-      const stem = path.join(opts.out, `${key}@${width}`);
+      const stem = captureArtifactStem(opts.out, key, width);
       saveStyleMap(`${stem}.json.gz`, map);
       if (opts.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: opts.ignore });
     } finally {

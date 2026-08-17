@@ -115,6 +115,36 @@ test('runWithSurfaceTimeout: a work failure under the ceiling propagates unchang
   );
 });
 
+// Timed-out work can still resolve later. The run token must flip inactive at the
+// deadline so callers can refuse artifact writes after rejection (#420).
+test('runWithSurfaceTimeout: abandoned work is marked inactive and cannot claim a live write fence', async () => {
+  /** @type {{ isActive: () => boolean } | undefined} */
+  let run;
+  let wroteAfterTimeout = false;
+  let observedActiveAfterTimeout = true;
+
+  await assert.rejects(
+    runWithSurfaceTimeout(
+      'factory@1280',
+      25,
+      () => 'capture',
+      async (surfaceRun) => {
+        run = surfaceRun;
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        observedActiveAfterTimeout = surfaceRun.isActive();
+        if (surfaceRun.isActive()) wroteAfterTimeout = true;
+        return 'late-write';
+      },
+    ),
+    /surface 'factory@1280' timed out/,
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.equal(run?.isActive(), false);
+  assert.equal(observedActiveAfterTimeout, false);
+  assert.equal(wroteAfterTimeout, false);
+});
+
 // A timeout during the self-check PHASE is slowness or a hang, not proof of
 // nondeterminism — it must stay tolerable on a baseline run instead of being
 // escalated to a fatal self-check capture failure (#276 semantics).

@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 /**
  * Pure surface-key helpers (no map reads). Surface keys originate from artifact
  * filenames and flow into the PR-comment summary — strip Markdown/HTML control
@@ -15,6 +17,39 @@ export const safeKey = (s: string): string => s.replace(/[`[\]()<>|]/g, '-');
 
 export const surfaceBase = (s: string): string => s.replace(/@\d+$/, '');
 export const surfaceWidth = (s: string): number => Number(s.match(/@(\d+)$/)?.[1] ?? 0);
+
+/**
+ * Capture keys name map files under the output directory. Reject anything that
+ * is not a single relative path segment: separators, traversal, drive prefixes,
+ * absolute forms, NUL, and empty keys. Uniqueness alone is not filesystem-safe.
+ */
+export function assertSafeCaptureKey(key: string): string {
+  if (typeof key !== 'string' || key.length === 0) {
+    throw new Error(`styleproof: capture key must be a non-empty single path segment`);
+  }
+  if (key.includes('\0')) {
+    throw new Error(`styleproof: capture key must not contain NUL`);
+  }
+  if (key !== key.trim() || key === '.' || key === '..') {
+    throw new Error(`styleproof: capture key '${key}' is not a safe single path segment`);
+  }
+  if (/[\\/]/.test(key) || key.includes('..') || path.isAbsolute(key) || /^[A-Za-z]:/.test(key)) {
+    throw new Error(
+      `styleproof: capture key '${key}' is not a safe single path segment ` +
+        `(no separators, traversal, or drive/absolute forms)`,
+    );
+  }
+  return key;
+}
+
+/**
+ * Build the map/screenshot stem inside `outputDir`. Always validates the surface
+ * key first so hostile keys cannot escape the output directory.
+ */
+export function captureArtifactStem(outputDir: string, surfaceKey: string, width: number | string): string {
+  const key = assertSafeCaptureKey(surfaceKey);
+  return path.join(outputDir, `${key}@${width}`);
+}
 
 /**
  * Product surface base for counting: authoritative `metadata.surfaceKey` when the

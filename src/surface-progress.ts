@@ -116,19 +116,28 @@ export function captureTestBudgetMs(surfaceTimeoutMs: number, units = 1): number
 /**
  * Run one surface's capture under the per-surface ceiling. On breach, reject
  * with {@link surfaceTimeoutErrorMessage} naming the surface and the phase the
- * `currentPhase` getter reports at that moment. The losing work promise cannot
- * be cancelled (Playwright operations are not abortable), but its eventual
- * rejection is detached so it never surfaces as an unhandled rejection — the
- * test has already failed with the named error.
+ * `currentPhase` getter reports at that moment. Playwright work is not abortable,
+ * so the callback receives a {@link SurfaceRun} fence: `isActive()` flips false at
+ * the deadline and callers must refuse artifact writes once inactive. Eventual
+ * rejection from abandoned work is detached so it never surfaces as unhandled.
  */
+export type SurfaceRun = {
+  /** True only while this surface still owns the capture result. */
+  isActive: () => boolean;
+};
+
 export async function runWithSurfaceTimeout<ResultType>(
   captureKey: string,
   timeoutMs: number,
   currentPhase: () => CapturePhase,
-  work: () => Promise<ResultType>,
+  work: (run: SurfaceRun) => Promise<ResultType>,
 ): Promise<ResultType> {
   let timer: NodeJS.Timeout | undefined;
-  const working = work();
+  let active = true;
+  const run: SurfaceRun = {
+    isActive: () => active,
+  };
+  const working = Promise.resolve().then(() => work(run));
   // Detached second listener: if the timeout wins the race, a later rejection
   // from the abandoned work must not crash the process. The original promise
   // still rejects the race normally when it loses first.
@@ -137,10 +146,10 @@ export async function runWithSurfaceTimeout<ResultType>(
     return await Promise.race([
       working,
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(surfaceTimeoutErrorMessage(captureKey, currentPhase(), timeoutMs))),
-          timeoutMs,
-        );
+        timer = setTimeout(() => {
+          active = false;
+          reject(new Error(surfaceTimeoutErrorMessage(captureKey, currentPhase(), timeoutMs)));
+        }, timeoutMs);
       }),
     ]);
   } finally {

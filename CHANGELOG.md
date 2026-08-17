@@ -122,6 +122,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Surface timeout no longer leaves abandoned capture work able to write maps or
+  screenshots after rejection. `runWithSurfaceTimeout` now hands the callback a
+  run fence whose `isActive()` flips false at the deadline; the runner refuses
+  artifact writes once inactive (#420).
+- Expanded capture keys used as map filenames are validated as a single safe path
+  segment before uniqueness checks and before any write. Traversal, separators,
+  drive-relative, absolute, and NUL-bearing keys fail closed across runner, URL
+  capture, and crawl paths (#421).
+
 - First-adoption workflows now detect when the base commit predates either the
   capture spec or the dedicated `playwright.styleproof.config.ts`, and source the
   PR head's generated harness for the base render. The `--spec-ref` overlay uses

@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   assertUniqueExpandedKeys,
+  captureArtifactStem,
   defaultSelfCheck,
   expandSurfaceVariants,
   resolveBaseDir,
@@ -169,6 +170,30 @@ test('assertUniqueExpandedKeys: passes when every expanded key is distinct', () 
     { key: 'a-c', metadata: { surfaceKey: 'a', variantKey: 'c' } },
   ];
   assert.doesNotThrow(() => assertUniqueExpandedKeys(surfaces));
+});
+
+// Capture keys name map files under the output directory. Uniqueness alone is
+// not enough: path traversal and drive-relative forms must fail closed (#421).
+test('assertUniqueExpandedKeys: rejects traversal and path-separator keys before any map write', () => {
+  for (const key of ['../escaped', '..\\escaped', 'foo/bar', 'foo\\bar', 'C:..\\outside', '/abs', 'a\0b']) {
+    assert.throws(
+      () => assertUniqueExpandedKeys([{ key, metadata: { surfaceKey: key } }]),
+      (err) => {
+        assert.match(err.message, /capture key/);
+        assert.match(err.message, /safe|path|traversal|separator|single path segment|NUL/i);
+        return true;
+      },
+      key,
+    );
+  }
+});
+
+test('captureArtifactStem keeps map paths inside the output directory', () => {
+  const out = path.resolve('/tmp/styleproof-out');
+  assert.equal(captureArtifactStem(out, 'home', 1280), path.join(out, 'home@1280'));
+  assert.throws(() => captureArtifactStem(out, '../escaped', 800), /capture key/);
+  const bad = path.resolve(out, '../escaped@800');
+  assert.notEqual(path.dirname(bad), out);
 });
 
 test('assertUniqueExpandedKeys: throws naming BOTH origins on an ambiguous "-" join collision', () => {
