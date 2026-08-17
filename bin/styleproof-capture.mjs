@@ -27,8 +27,14 @@ import {
 } from '../dist/capture-url.js';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { selectCrawlLinks, dedupIdentity } from '../dist/crawl.js';
-import { writeCaptureManifest } from '../dist/map-store.js';
+import { clearCaptureOutput, writeCaptureManifest } from '../dist/map-store.js';
 import { cliSafeLine, crawlCaptureExitCode } from '../dist/crawl-confidence.js';
+import {
+  buildConfidenceLedger,
+  bundleSurfaceKeys,
+  writeConfidenceLedger,
+  CONFIDENCE_LEDGER,
+} from '../dist/confidence-ledger.js';
 
 const COMMAND = 'styleproof-capture';
 
@@ -167,15 +173,17 @@ function printAuthIncomplete(blocked, unack, ack, stale) {
   }
 }
 
-function printConfidence(reports) {
-  const { blocked, status, unack, ack, stale } = aggregateConfidence(reports);
+function printConfidence(reports, scopeGaps = []) {
+  const aggregated = aggregateConfidence(reports);
+  const { blocked, unack, ack, stale } = aggregated;
+  const status = aggregated.status === 'complete' && scopeGaps.length > 0 ? 'incomplete-unknown' : aggregated.status;
   if (status === 'complete') console.log('✓ crawl confidence: complete — no authentication boundary observed');
   else if (status === 'incomplete-auth') printAuthIncomplete(blocked, unack, ack, stale);
   else console.log('⚠ crawl confidence: incomplete-unknown');
   if (status !== 'complete') {
     console.log('    certification: not full — visual PASS does not imply complete surface access');
   }
-  return { blocked, status };
+  return { blocked, status, ack, unack };
 }
 
 function printCoverage(cov, label) {
@@ -291,18 +299,32 @@ async function runCrawl() {
       usedPrefixes: new Set(['base']), // 'base' is the entry crawl's root key
     };
     const reports = [];
+    const pageScopeGaps = [];
     let statesLeft = opts.maxStates;
 
     while (sweep.queue.length > 0 && statesLeft > 0) {
       const { url, prefix } = sweep.queue.shift();
       const report = await crawlPage(browser, page, url, prefix, statesLeft);
-      if (!report) continue; // linked page skipped loudly (e.g. off-origin redirect)
+      if (!report) {
+        pageScopeGaps.push({
+          surface: `page:${prefix}`,
+          reason: 'linked page was discovered but could not be crawled',
+        });
+        continue; // linked page skipped loudly (e.g. off-origin redirect)
+      }
       reports.push(report);
       statesLeft -= report.surfaces.length;
       if (opts.followLinks) enqueueLinkedPages(await harvestPageLinks(page, url), sweep);
     }
-    if (sweep.queue.length > 0)
+    if (sweep.queue.length > 0) {
       console.log(`⚠ --max-states reached: ${sweep.queue.length} linked page(s) left uncrawled — raise --max-states`);
+      pageScopeGaps.push(
+        ...sweep.queue.map(({ prefix }) => ({
+          surface: `page:${prefix}`,
+          reason: 'linked page was discovered but left uncrawled because --max-states was reached',
+        })),
+      );
+    }
 
     // Stamp a manifest so a two-directory diff against this crawl output has the
     // same-environment guard on both sides (v4 refuses a manifest-less side).
@@ -310,7 +332,33 @@ async function runCrawl() {
     printCrawlSummary(reports);
     const cov = aggregateCoverage(reports);
     printCoverage(cov, reports.length > 1 ? ` (${reports.length} pages)` : '');
-    const conf = printConfidence(reports);
+    const conf = printConfidence(reports, pageScopeGaps);
+    // Persist the confidence ledger (#399) into the bundle so the console-only
+    // auth verdict travels with the maps: styleproof-report renders it as the
+    // completeness badge next to the visual verdict. Failed captures stay out of
+    // the captured set — they are neither certified nor silently forgotten.
+    const failedKeys = new Set(reports.flatMap((r) => r.failed));
+    const capturedKeys = new Set(bundleSurfaceKeys(opts.out));
+    const discoveredKeys = [...new Set(reports.flatMap((r) => r.surfaces.map((s) => s.key)))];
+    const captureGaps = discoveredKeys
+      .filter((key) => !capturedKeys.has(key))
+      .map((surface) => ({
+        surface,
+        reason: failedKeys.has(surface)
+          ? 'capture failed before every configured viewport completed'
+          : 'crawl stopped before this discovered surface was captured',
+      }));
+    captureGaps.push(...pageScopeGaps);
+    writeConfidenceLedger(
+      opts.out,
+      buildConfidenceLedger({
+        capturedKeys,
+        coverage: null, // a crawl declares no `expected` registry — basis stays unasserted
+        auth: { acknowledged: conf.ack, unacknowledged: conf.unack },
+        captureGaps,
+      }),
+    );
+    console.log(`  confidence ledger → ${CONFIDENCE_LEDGER}`);
     // Coverage residue (exit 4) intentionally wins over unacknowledged auth (exit 5).
     const code = crawlCaptureExitCode({
       requireFullCoverage: opts.requireFullCoverage,
@@ -324,6 +372,7 @@ async function runCrawl() {
 }
 
 try {
+  clearCaptureOutput(opts.out);
   if (opts.crawl) {
     await runCrawl();
     process.exit(0);

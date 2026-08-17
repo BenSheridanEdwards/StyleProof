@@ -57,6 +57,24 @@ export type {
   AuthBoundaryObservation,
   AuthBoundaryExclude,
 } from './crawl-confidence.js';
+export {
+  CONFIDENCE_LEDGER,
+  buildConfidenceLedger,
+  summarizeConfidence,
+  writeConfidenceLedger,
+  readConfidenceLedger,
+  resolveBundleConfidence,
+} from './confidence-ledger.js';
+export type {
+  ConfidenceStatus,
+  ConfidenceProducer,
+  ConfidenceEntry,
+  ConfidenceLedgerFile,
+  ConfidenceCompleteness,
+  ConfidenceSummary,
+  ConfidenceAuthInput,
+  ConfidenceIncompleteUiInput,
+} from './confidence-ledger.js';
 export { loadSetupSteps } from './capture-url.js';
 export type {
   StyleMap,

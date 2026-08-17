@@ -51,6 +51,11 @@ const GIT_REPOSITORY_ENVIRONMENT_VARIABLES = [
  *  by the CI driver into its base dir; never a surface map. */
 export const BASELINE_PROVENANCE_FILE = 'styleproof-baseline-provenance.json';
 
+/** The confidence ledger (#399) — per-surface trust statuses bundled with the
+ *  maps. Defined here (not in confidence-ledger.ts, its owning module, which
+ *  re-exports it) so {@link RESERVED_BUNDLE_FILES} needs no import cycle. */
+export const CONFIDENCE_LEDGER = 'styleproof-confidence.json';
+
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
  *  these, or a sidecar reads as a phantom "new surface". */
@@ -59,11 +64,41 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
   COVERAGE_LEDGER,
   BROWSER_BUILD_SIDECAR,
   BASELINE_PROVENANCE_FILE,
+  CONFIDENCE_LEDGER,
 ]);
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */
 export function isMapFile(name: string): boolean {
   return !RESERVED_BUNDLE_FILES.has(name) && /\.json(\.gz)?$/.test(name);
+}
+
+const CRAWL_BUNDLE_FILES = new Set([...RESERVED_BUNDLE_FILES, FATAL_CAPTURE_MARKER]);
+const GENERATED_CAPTURE_ARTIFACT = /@\d+\.(?:json(?:\.gz)?|png|(?:hover|focus|active)\.png)$/;
+
+/** Clear only artifacts that a crawl owns when refreshing a reused output directory.
+ * Generated sidecars and the `<surface>@<width>` namespace are reserved StyleProof output;
+ * unrelated names are preserved. Preflight before removal so malformed state cannot
+ * leave a half-cleared bundle. */
+export function clearCaptureOutput(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true });
+  const candidates = fs
+    .readdirSync(dir)
+    .filter(
+      (name) =>
+        CRAWL_BUNDLE_FILES.has(name) || name === SURFACE_CAPTURE_FAILURES_DIR || GENERATED_CAPTURE_ARTIFACT.test(name),
+    );
+  const classified = candidates.map((name) => {
+    const target = path.join(dir, name);
+    const stat = fs.lstatSync(target);
+    if (name !== SURFACE_CAPTURE_FAILURES_DIR && stat.isDirectory()) {
+      throw new MapStoreError(`generated capture artifact is a directory: ${target}`);
+    }
+    return { name, target, stat };
+  });
+  for (const { name, target, stat } of classified) {
+    const recursive = name === SURFACE_CAPTURE_FAILURES_DIR && stat.isDirectory() && !stat.isSymbolicLink();
+    fs.rmSync(target, { force: true, recursive });
+  }
 }
 
 export class MapStoreError extends Error {}

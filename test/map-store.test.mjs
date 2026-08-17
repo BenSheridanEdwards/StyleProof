@@ -7,9 +7,13 @@ import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {
   assertCompatibleMapDirs,
+  BASELINE_PROVENANCE_FILE,
   expectedCompatibilityKey,
   BROWSER_BUILD_SIDECAR,
+  clearCaptureOutput,
+  CONFIDENCE_LEDGER,
   currentGitSha,
+  FATAL_CAPTURE_MARKER,
   manifestlessError,
   manifestlessSide,
   MAP_MANIFEST,
@@ -18,13 +22,60 @@ import {
   publishMapBundle,
   readMapManifest,
   restoreMapBundle,
+  SURFACE_CAPTURE_FAILURES_DIR,
   workflowTokenCredentialArguments,
   workingTreeDirty,
   writeBrowserBuildSidecar,
   writeCaptureManifest,
   writeMapManifest,
 } from '../dist/map-store.js';
+import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { makeMap, mkNonGitTmp, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+
+test('clearCaptureOutput removes complete generated bundle state without following symlinks', () => {
+  const dir = mkNonGitTmp('styleproof-clear-capture-');
+  const outside = mkNonGitTmp('styleproof-clear-outside-');
+  try {
+    for (const name of [
+      MAP_MANIFEST,
+      COVERAGE_LEDGER,
+      BROWSER_BUILD_SIDECAR,
+      BASELINE_PROVENANCE_FILE,
+      CONFIDENCE_LEDGER,
+      FATAL_CAPTURE_MARKER,
+      'base@800.json',
+      'base@800.png',
+    ])
+      fs.writeFileSync(path.join(dir, name), 'generated');
+    fs.mkdirSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR));
+    fs.writeFileSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR, 'base.json'), '{}');
+    fs.writeFileSync(path.join(dir, 'notes.txt'), 'user');
+    const outsideFile = path.join(outside, 'keep.json');
+    fs.writeFileSync(outsideFile, 'outside');
+    fs.symlinkSync(outsideFile, path.join(dir, 'linked@800.json'));
+
+    clearCaptureOutput(dir);
+
+    assert.deepEqual(fs.readdirSync(dir), ['.git', 'notes.txt']);
+    assert.equal(fs.readFileSync(outsideFile, 'utf8'), 'outside');
+  } finally {
+    rmTmp(dir);
+    rmTmp(outside);
+  }
+});
+
+test('clearCaptureOutput preflights malformed generated-file directories before deleting anything', () => {
+  const dir = mkNonGitTmp('styleproof-clear-preflight-');
+  try {
+    fs.writeFileSync(path.join(dir, 'a@800.json'), 'map');
+    fs.mkdirSync(path.join(dir, 'z@800.json'));
+    assert.throws(() => clearCaptureOutput(dir), /generated capture artifact.*directory/i);
+    assert.equal(fs.readFileSync(path.join(dir, 'a@800.json'), 'utf8'), 'map');
+    assert.equal(fs.statSync(path.join(dir, 'z@800.json')).isDirectory(), true);
+  } finally {
+    rmTmp(dir);
+  }
+});
 
 test('currentGitSha binds pull-request captures to the real head, not the merge commit', () => {
   const dir = mkNonGitTmp('styleproof-event-');
