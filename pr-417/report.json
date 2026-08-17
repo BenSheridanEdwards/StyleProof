@@ -27,11 +27,11 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 1,
+      "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
       "captured": 0
     },
-    "completeness": "limited"
+    "completeness": "unknown"
   }
 }
