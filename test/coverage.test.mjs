@@ -145,23 +145,3 @@ test('translateExpected: a plain (non-live) surface passes through unchanged', (
   const about = expandSurfaceVariants({ key: 'about', go: async () => {} });
   assert.deepEqual(translateExpected(['about'], about), ['about']);
 });
-
-test('translateExpected / coverageKeys: stateRecipes expansions map back to base', () => {
-  const recipeSurfaces = expandSurfaceVariants({
-    key: 'pricing',
-    go: async () => {},
-    stateRecipes: [
-      { action: 'hover', selector: '#card', label: 'Plan card' },
-      { action: 'focus', selector: '#email', label: 'Email' },
-    ],
-  });
-  // Base retained for recipes, so declared base stays captured directly.
-  assert.ok(recipeSurfaces.some((s) => s.key === 'pricing'));
-  const { uncovered } = coverageGaps(coverageKeys(recipeSurfaces), ['pricing']);
-  assert.deepEqual(uncovered, []);
-  // Explicit expanded keys also satisfy.
-  assert.deepEqual(
-    coverageGaps(coverageKeys(recipeSurfaces), ['pricing-hover-plan-card', 'pricing-focus-email']).uncovered,
-    [],
-  );
-});

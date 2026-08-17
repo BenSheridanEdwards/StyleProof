@@ -358,8 +358,7 @@ test('diff CLI exits 0 when captures are identical', () => {
   const { root, A, B } = identicalPair();
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
-  assert.match(r.stdout, /content\/structure not evaluated/);
+  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
   rmTmp(root);
 });
 
@@ -678,51 +677,56 @@ function seedMapStore(repo, bundles) {
   }
 }
 
-function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main', changeLockfile = false } = {}) {
+function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main' } = {}) {
   const repo = mkTmp();
   gitInit(repo);
   addBareOrigin(repo);
   spawnSync('git', ['checkout', '-qb', 'main'], { cwd: repo });
   writeSpec(repo);
-  if (changeLockfile) fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"fixture":"base"}\n');
   const baseSha = commitAll(repo, 'base');
   if (baseBranch !== 'main') {
     spawnSync('git', ['checkout', '-qb', baseBranch], { cwd: repo });
     fs.writeFileSync(path.join(repo, 'stack.txt'), baseBranch);
     commitAll(repo, baseBranch);
   }
-  const baseRefSha = spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim();
-  const baseCompatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
   spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'feature.txt'), 'feature');
-  if (changeLockfile) fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"fixture":"head"}\n');
   const headSha = commitAll(repo, 'feature');
 
-  const headCompatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
+  const compatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
   const baseDir = path.join(repo, 'seed-base');
   const headDir = path.join(repo, 'seed-head');
   writeCapture(baseDir, 'home@1280', mapWith('rgb(0, 0, 0)'), null);
   writeCapture(headDir, 'home@1280', mapWith(headColor), null);
-  writeManifest(baseDir, baseRefSha, baseCompatibilityKey);
-  writeManifest(headDir, headSha, headCompatibilityKey);
+  writeManifest(
+    baseDir,
+    baseBranch === 'main'
+      ? baseSha
+      : spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim(),
+    compatibilityKey,
+  );
+  writeManifest(headDir, headSha, compatibilityKey);
   seedMapStore(repo, [
     {
-      sha: baseRefSha,
-      compatibilityKey: baseCompatibilityKey,
+      sha:
+        baseBranch === 'main'
+          ? baseSha
+          : spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim(),
+      compatibilityKey,
       dir: baseDir,
     },
-    { sha: headSha, compatibilityKey: headCompatibilityKey, dir: headDir },
+    { sha: headSha, compatibilityKey, dir: headDir },
   ]);
   fs.rmSync(baseDir, { recursive: true, force: true });
   fs.rmSync(headDir, { recursive: true, force: true });
-  return { repo, baseSha, headSha, baseCompatibilityKey, headCompatibilityKey };
+  return { repo, baseSha, headSha, compatibilityKey };
 }
 
 test('diff defaults to cached maps against the inferred main branch', () => {
   const { repo } = setupCachedComparison();
   const r = runIn(repo, DIFF, []);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
+  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
   rmTmp(repo);
 });
 
@@ -737,7 +741,7 @@ test('diff defaults to the GitHub PR base for stacked local branches when gh is 
     env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}`, GITHUB_BASE_REF: '' },
   });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
+  assert.match(r.stdout, /0 changed surfaces across 1 captured surface\(s\)/);
   rmTmp(repo);
 });
 
@@ -746,15 +750,6 @@ test('diff accepts a single base ref and uses cached maps', () => {
   const r = runIn(repo, DIFF, ['main']);
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /computed-style difference/);
-  rmTmp(repo);
-});
-
-test('diff restores each cached side under the compatibility key derived from its own commit', () => {
-  const { repo, baseCompatibilityKey, headCompatibilityKey } = setupCachedComparison({ changeLockfile: true });
-  assert.notEqual(baseCompatibilityKey, headCompatibilityKey, 'the lockfile-only fixture must exercise distinct keys');
-  const r = runIn(repo, DIFF, ['main']);
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
   rmTmp(repo);
 });
 
@@ -872,8 +867,7 @@ test('report CLI exits 0 and writes an empty report when nothing changed', () =>
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /no reviewable computed-style changes/);
-  assert.match(r.stdout, /content\/structure not evaluated/);
+  assert.match(r.stdout, /no changes/);
   assert.ok(fs.existsSync(path.join(out, 'report.md')));
   rmTmp(root);
 });
@@ -888,16 +882,18 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
   rmTmp(root);
 });
 
-test('report CLI exits 0 for structural-only path churn when content comparison is off', () => {
+test('report CLI exits 1 when correspondence collapses every presentation finding', () => {
   const { root, A, B } = correspondenceCollapsedPair();
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /✓ no reviewable computed-style changes/);
-  assert.match(r.stdout, /content\/structure not evaluated/);
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /presentation_collapsed_while_raw_reviewable/);
+  assert.doesNotMatch(r.stdout, /✓ no changes/);
   const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
-  assert.deepEqual(json.rawCounts, { dom: 0, style: 0, state: 0 });
-  assert.deepEqual(json.reportConsistency, { ok: true, reason: 'aligned' });
+  assert.deepEqual(json.reportConsistency, {
+    ok: false,
+    reason: 'presentation_collapsed_while_raw_reviewable',
+  });
   rmTmp(root);
 });
 
@@ -1064,16 +1060,11 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
-    // Harness selection is packaged, not generated shell: the CLI treats the
-    // spec and dedicated Playwright config as independent requirements.
+    // The whole restore → capture-on-miss → replay → publish orchestration is ONE
+    // packaged command invoked on the installed release — no inlined bash to drift.
     assert.match(
       ci,
-      /styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec-ref-if-missing "\$HEAD_SHA"/,
-      'first adoption delegates head-harness selection to styleproof-ci',
-    );
-    assert.match(
-      ci,
-      /node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA"/,
+      /node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$\{\{ github\.event\.pull_request\.base\.sha \}\}" --head "\$\{\{ github\.event\.pull_request\.head\.sha \}\}"/,
       'CI delegates restore/capture to the packaged styleproof-ci',
     );
     assert.match(ci, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs/);
@@ -1084,7 +1075,7 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
       /"styleproof@\$STYLEPROOF_VERSION"/,
       'the exact-release pin lives inside styleproof-ci now',
     );
-    assert.match(ci, /BenSheridanEdwards\/StyleProof@v6/, 'workflow uses the current report action');
+    assert.match(ci, /BenSheridanEdwards\/StyleProof@v4/, 'workflow uses the current report action');
     assert.match(ci, /require-approval: true/, 'workflow enables the approval report gate');
     assert.doesNotMatch(ci, /git add stylemaps/);
     assert.doesNotMatch(ci, /core\.hooksPath/);
@@ -1218,29 +1209,34 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
   try {
-    // A persistent nav item is recoloured on EVERY view (the shared frame). One view
+    // A persistent nav item is added on EVERY view (the shared frame). One view
     // (`home`) also has a real content restyle nothing else shares.
-    const nav = (color) => ({
+    const nav = (extra) => ({
       'html > body > nav': { tag: 'nav', cls: 'rail', style: { display: 'flex' } },
-      'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color } },
+      'html > body > nav > a:nth-child(1)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } },
+      ...extra,
     });
     const views = ['home', 'settings', 'reports'];
     for (const v of views) {
-      const before = makeMap({ elements: nav('rgb(0, 0, 0)') });
-      const after = makeMap({ elements: nav('rgb(0, 0, 255)') });
+      // base: nav has one link; head: nav gains a second link → an added element on every view.
+      const before = makeMap({ elements: nav({}) });
+      const afterExtra = {
+        'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } },
+      };
+      const after = makeMap({ elements: nav(afterExtra) });
       writeCapture(A, `${v}@1280`, before, null);
       writeCapture(B, `${v}@1280`, after, null);
     }
     // home ALSO restyles its own content element (present only on home).
     const homeBefore = makeMap({
       elements: {
-        ...nav('rgb(0, 0, 0)'),
+        ...nav({}),
         'html > body > main > h1': { tag: 'h1', cls: 'title', style: { color: 'rgb(0, 0, 0)' } },
       },
     });
     const homeAfter = makeMap({
       elements: {
-        ...nav('rgb(0, 0, 255)'),
+        ...nav({ 'html > body > nav > a:nth-child(2)': { tag: 'a', cls: 'link', style: { color: 'rgb(0, 0, 0)' } } }),
         'html > body > main > h1': { tag: 'h1', cls: 'title', style: { color: 'rgb(255, 0, 0)' } },
       },
     });
@@ -1251,13 +1247,13 @@ test('diff CLI promotes a frame-wide change to a chrome callout, leaves a one-vi
 
     const r = run(DIFF, [A, B]);
     assert.equal(r.status, 1, r.stderr);
-    // The nav recolour is chrome (every base that hosts the nav changed it), and
+    // The nav addition is chrome (every base that hosts the nav changed it), and
     // the pure-nav surfaces group under the callout.
     assert.match(r.stdout, /🧱 Global chrome change\(s\) — across all 3 captured surface base\(s\)/, r.stdout);
     assert.match(r.stdout, /1 change\(s\) rode the shared frame/, r.stdout);
     // home entangled the nav change with its OWN h1 restyle, so it renders in place
     // (never hidden under the chrome banner) — the view-specific change stays visible.
-    assert.match(r.stdout, /home@1280: 2 elements restyled/, 'the view-specific change stays visible');
+    assert.match(r.stdout, /home@1280: 1 element added, 1 element restyled/, 'the view-specific change stays visible');
     assert.match(r.stdout, /color: rgb\(0, 0, 0\) → rgb\(255, 0, 0\)/, 'home h1 restyle shown');
   } finally {
     rmTmp(root);

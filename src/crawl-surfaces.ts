@@ -1,27 +1,11 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Page, Response } from '@playwright/test';
-import { captureStyleMap, saveStyleMap, captureSurfaceScreenshots, trackInflightRequests } from './capture.js';
+import type { Page } from '@playwright/test';
+import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { realNow } from './spec-clock.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { DANGER_SOURCE } from './danger.js';
-import { classifyAuthBoundary, type AuthBoundaryMetadata } from './auth-boundary.js';
-import {
-  resolveCrawlConfidence,
-  redactedRoutePath,
-  shouldRetainAuthRedirects,
-  type AuthBoundaryObservation,
-  type CrawlConfidence,
-} from './crawl-confidence.js';
-
-/** Thrown when auth-boundary observation fails after a surface was recorded — must not yield false complete. */
-export class AuthBoundaryObserveError extends Error {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause !== undefined ? { cause } : undefined);
-    this.name = 'AuthBoundaryObserveError';
-  }
-}
 
 /**
  * Surface crawler: deterministically map a single URL's WHOLE interactive
@@ -89,12 +73,6 @@ export type CrawlReport = {
   /** Keys of surfaces discovered but whose full capture failed. */
   failed: string[];
   coverage: CrawlCoverage;
-  /**
-   * Run-level crawl confidence: `complete` | `incomplete-auth` | `incomplete-unknown`.
-   * Auth walls yield redacted diagnostics only; unacknowledged walls set `blocked`.
-   * Always present — consumers without auth walls see `status: 'complete'`.
-   */
-  confidence: CrawlConfidence;
 };
 
 /**
@@ -159,15 +137,6 @@ export type SurfaceCrawlOptions = {
   /** Namespace for every derived surface key (multi-page sweeps): the root
    *  surface keys as the prefix itself, sub-states as `<prefix>-<label>`. */
   keyPrefix?: string;
-  /**
-   * Auth boundaries deliberately outside certification scope (`key → reason`).
-   * Keys may be a full observation id (`/login·password-input`), a route path
-   * (`/login`), or an auth formAction/redirectTo path. Every reason must be
-   * non-empty after trim — empty reasons are rejected so silence cannot clear
-   * a fail-closed wall. Exclusions mark scope limited; they never claim full
-   * certification (`certifiesFully` stays false).
-   */
-  authBoundaryExclude?: Record<string, string>;
 };
 
 // Exhaustive by default — these ceilings are safety backstops, not budgets.
@@ -467,50 +436,6 @@ function collectDefinedClasses(): { classes: string[]; unreadable: string[] } {
 }
 /* c8 ignore stop */
 
-/**
- * Runs in the browser: structural auth-boundary metadata only — input types,
- * autocomplete tokens, form actions, and id-or-tag selectors. Never reads
- * `value`, `textContent`, cookies, or storage. The classifier strips any
- * attribute-equality selector that could leak values.
- */
-/* c8 ignore start */
-function collectAuthBoundaryMetadata(): AuthBoundaryMetadata[] {
-  const sel = (el: Element): string => {
-    const id = el.getAttribute('id');
-    if (id && document.querySelectorAll(`#${CSS.escape(id)}`).length === 1) return `#${CSS.escape(id)}`;
-    return el.tagName.toLowerCase();
-  };
-  const out: AuthBoundaryMetadata[] = [];
-  for (const el of document.querySelectorAll('input')) {
-    const input = el as HTMLInputElement;
-    if (input.type === 'hidden') continue;
-    const formAction = input.form?.getAttribute('action') ?? null;
-    out.push({
-      selector: sel(input),
-      inputType: input.type || 'text',
-      autocomplete: input.getAttribute('autocomplete'),
-      ...(formAction ? { formAction } : {}),
-    });
-  }
-  for (const form of document.querySelectorAll('form')) {
-    const formAction = form.getAttribute('action');
-    if (formAction) out.push({ selector: sel(form), formAction });
-  }
-  return out;
-}
-/* c8 ignore stop */
-
-/** Observe the current page for auth walls; returns null when none classify. */
-async function observeAuthBoundary(page: Page): Promise<AuthBoundaryObservation | null> {
-  // Observation is part of the certification contract. If the page cannot be
-  // inspected, fail the crawl rather than silently certifying it as complete.
-  const metadata = await page.evaluate(collectAuthBoundaryMetadata);
-  const diagnostics = classifyAuthBoundary(metadata);
-  if (!diagnostics.length) return null;
-  const route = redactedRoutePath(page.url());
-  return { ...(route ? { route } : {}), diagnostics };
-}
-
 /** Structural fingerprint of the page's CURRENT state. Dedup key for surfaces. */
 async function fingerprint(page: Page): Promise<{ sig: string; elements: number; classes: string[] }> {
   const fp = await page.evaluate(domShape);
@@ -623,60 +548,30 @@ async function scrollReveal(page: Page): Promise<void> {
     .catch(() => {});
 }
 
-async function gotoFresh(page: Page, opts: SurfaceCrawlOptions, authSink?: AuthBoundaryMetadata[]): Promise<void> {
+async function gotoFresh(page: Page, opts: SurfaceCrawlOptions): Promise<void> {
   await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
-  // Capture same-document auth redirects (3xx → auth path) as redacted metadata.
-  // Headers/query/fragments are discarded by classifyAuthBoundary.
-  const onResponse = (res: Response): void => {
-    if (!authSink) return;
-    // Only document navigation redirects count as auth boundaries. Fetch/XHR 3xx
-    // (session probes, API clients) must not mark the crawl incomplete-auth.
-    const req = res.request();
-    if (req.resourceType() !== 'document' || !req.isNavigationRequest()) return;
-    const status = res.status();
-    if (status < 300 || status >= 400) return;
-    const headers = res.headers();
-    const location = headers['location'] ?? headers['Location'];
-    if (!location) return;
-    let route: string | undefined;
-    try {
-      route = redactedRoutePath(res.url());
-    } catch {
-      route = undefined;
-    }
-    authSink.push({
-      ...(route ? { route } : {}),
-      redirectTo: location,
-      redirectStatus: status,
-    });
-  };
-  if (authSink) page.on('response', onResponse);
-  try {
-    await page.goto(opts.url, { waitUntil: 'load' });
-    // A same-origin URL can still 302 off-origin (SSO, /out?url=…). External
-    // content is nondeterministic and never belongs in a map — abort the crawl of
-    // this page rather than capture a third-party render as if it were the app.
-    const wanted = URL.canParse(opts.url) ? new URL(opts.url).origin : null; // relative url → origin unknowable
-    const landed = new URL(page.url()).origin;
-    if (wanted && landed !== wanted) {
-      throw new Error(
-        `styleproof crawl: ${opts.url} redirected off-origin to ${landed} — external content is never captured`,
-      );
-    }
-    // Tolerant wait: the generic settle below is the real readiness signal; an
-    // optional waitSelector just accelerates it and must not fail the crawl.
-    const ready = opts.waitSelector ? page.locator(opts.waitSelector).first() : null;
-    if (ready) await ready.waitFor({ state: 'visible' }).catch(() => {});
-    await waitSettled(page);
-    if (opts.setup?.length) {
-      await runSetup(page, opts.setup);
-      await settleDom(page); // the steps changed page state — let it land
-    }
-    await scrollReveal(page);
-    await settleDom(page);
-  } finally {
-    if (authSink) page.off('response', onResponse);
+  await page.goto(opts.url, { waitUntil: 'load' });
+  // A same-origin URL can still 302 off-origin (SSO, /out?url=…). External
+  // content is nondeterministic and never belongs in a map — abort the crawl of
+  // this page rather than capture a third-party render as if it were the app.
+  const wanted = URL.canParse(opts.url) ? new URL(opts.url).origin : null; // relative url → origin unknowable
+  const landed = new URL(page.url()).origin;
+  if (wanted && landed !== wanted) {
+    throw new Error(
+      `styleproof crawl: ${opts.url} redirected off-origin to ${landed} — external content is never captured`,
+    );
   }
+  // Tolerant wait: the generic settle below is the real readiness signal; an
+  // optional waitSelector just accelerates it and must not fail the crawl.
+  const ready = opts.waitSelector ? page.locator(opts.waitSelector).first() : null;
+  if (ready) await ready.waitFor({ state: 'visible' }).catch(() => {});
+  await waitSettled(page);
+  if (opts.setup?.length) {
+    await runSetup(page, opts.setup);
+    await settleDom(page); // the steps changed page state — let it land
+  }
+  await scrollReveal(page);
+  await settleDom(page);
 }
 
 async function perform(page: Page, s: { action: string; selector: string; value?: string }): Promise<void> {
@@ -752,7 +647,7 @@ async function captureInPlace(page: Page, key: string, opts: SurfaceCrawlOptions
       });
       const stem = path.join(opts.out, `${key}@${width}`);
       saveStyleMap(`${stem}.json.gz`, map);
-      if (opts.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: opts.ignore });
+      if (opts.screenshots) await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
     } finally {
       requests.dispose();
     }
@@ -797,11 +692,6 @@ type CrawlState = {
   queue: QueueEntry[];
   captured: number;
   failed: string[];
-  /**
-   * Auth-boundary observations collected at entry and at every newly recorded
-   * surface (late-mounted gates). Merged at resolve time.
-   */
-  authObservations: AuthBoundaryObservation[];
 };
 
 /** Record a newly-found surface, capture it in place (page is already there), and
@@ -820,16 +710,6 @@ async function record(
   const key = deriveKey(newPath, st.used, opts.keyPrefix ?? '');
   const surface: CrawledSurface = { key, depth, path: newPath, elements: fp.elements };
   st.surfaces.push(surface);
-  // Observe auth at every newly recorded state — a password form can mount after
-  // a crawl interaction; entry-only observation would false-complete.
-  // Failures are fatal (AuthBoundaryObserveError): runPool must not swallow them
-  // into a false complete confidence report.
-  try {
-    const auth = await observeAuthBoundary(page);
-    if (auth) st.authObservations.push(auth);
-  } catch (err) {
-    throw new AuthBoundaryObserveError(`auth-boundary observation failed after recording surface ${key}`, err);
-  }
   let addsVocab = false;
   for (const c of fp.classes)
     if (!st.classes.has(c)) {
@@ -877,21 +757,10 @@ async function captureAndReport(
     await captureInPlace(page, surface.key, opts);
     st.captured++;
   } catch {
-    removeSurfaceCaptureArtifacts(opts.out, surface.key, opts.widths);
     st.failed.push(surface.key);
     ok = false;
   }
   opts.onSurface?.(surface, ok);
-}
-
-/** Remove every artifact a failed multi-width capture may have written before a
- * later width failed. The producer ledger and filesystem must tell one story. */
-export function removeSurfaceCaptureArtifacts(out: string, key: string, widths: readonly number[]): void {
-  const names = fs.existsSync(out) ? fs.readdirSync(out) : [];
-  const prefixes = widths.map((width) => `${key}@${width}.`);
-  for (const name of names) {
-    if (prefixes.some((prefix) => name.startsWith(prefix))) fs.rmSync(path.join(out, name), { force: true });
-  }
 }
 
 /** Click one candidate where the page stands; classify the outcome. */
@@ -1120,12 +989,6 @@ async function recordDataState(
     await page.setViewportSize({ width: opts.widths[0] ?? 1280, height: opts.height });
     await page.goto(opts.url, { waitUntil: 'load' });
     await settleDom(page, 2500); // no networkidle wait — a stalled request never goes idle
-    try {
-      const auth = await observeAuthBoundary(page);
-      if (auth) st.authObservations.push(auth);
-    } catch (err) {
-      throw new AuthBoundaryObserveError(`auth-boundary observation failed during data-state ${mode}`, err);
-    }
     const fp = await fingerprint(page);
     if (st.seen.has(fp.sig)) return; // renders identically to a captured state (e.g. SSR)
     st.seen.add(fp.sig);
@@ -1187,16 +1050,9 @@ async function runPool(
   };
 
   let active = 0;
-  let fatalError: unknown;
-  await new Promise<void>((resolve, reject) => {
+  await new Promise<void>((resolve) => {
     const pump = (): void => {
-      while (
-        !fatalError &&
-        pages.length > 0 &&
-        st.queue.length > 0 &&
-        st.surfaces.length < opts.maxStates &&
-        !converged()
-      ) {
+      while (pages.length > 0 && st.queue.length > 0 && st.surfaces.length < opts.maxStates && !converged()) {
         const entry = st.queue.shift()!; // FIFO → breadth-first: exhaust every
         // shallow surface (nav tabs, opened panels — where distinct UI lives)
         // before drilling. Depth-first starves breadth: one append-generator
@@ -1213,14 +1069,7 @@ async function runPool(
             counters.tried += r.tried;
             counters.skipped += r.skipped;
           })
-          .catch((err) => {
-            // Auth observation failures are never fail-soft: a missing observation
-            // after surfaces.push would otherwise produce a false complete report.
-            if (err instanceof AuthBoundaryObserveError) {
-              fatalError = err;
-              st.queue.length = 0;
-              return;
-            }
+          .catch(() => {
             /* fail-soft: the state's surface was already captured in place */
           })
           .finally(() => {
@@ -1230,13 +1079,7 @@ async function runPool(
             pump();
           });
       }
-      if (
-        active === 0 &&
-        (st.queue.length === 0 || st.surfaces.length >= opts.maxStates || converged() || fatalError)
-      ) {
-        if (fatalError) reject(fatalError);
-        else resolve();
-      }
+      if (active === 0 && (st.queue.length === 0 || st.surfaces.length >= opts.maxStates || converged())) resolve();
     };
     pump();
   });
@@ -1245,28 +1088,6 @@ async function runPool(
 /** Depth-first discovery + in-place capture of every reachable surface. Depth-first
  *  so a surface's OWN sub-states (a modal's tab → its toggles) are mapped while the
  *  branch is fresh; with no budget, order affects time-to-depth, not coverage. */
-/** Navigate fresh and append any auth-boundary observations (redirect + DOM). */
-async function gotoFreshObservingAuth(
-  page: Page,
-  opts: SurfaceCrawlOptions,
-  sink: AuthBoundaryObservation[],
-): Promise<void> {
-  const redirectMeta: AuthBoundaryMetadata[] = [];
-  await gotoFresh(page, opts, redirectMeta);
-  const redirectDiagnostics = classifyAuthBoundary(redirectMeta);
-  const landed = await observeAuthBoundary(page);
-  const hadSetup = Boolean(opts.setup?.length);
-  const landedPath = redactedRoutePath(page.url());
-  // Intermediate 3xx→auth redirects are transit only when setup left the wall
-  // onto a non-auth path. Unrelated setup on OAuth-only /login still retains.
-  if (redirectDiagnostics.length && shouldRetainAuthRedirects(hadSetup, Boolean(landed), landedPath)) {
-    const route = redactedRoutePath(opts.url) ?? landedPath;
-    sink.push({ ...(route ? { route } : {}), diagnostics: redirectDiagnostics });
-  }
-  if (landed) sink.push(landed);
-}
-
-// fallow-ignore-next-line complexity
 async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlReport> {
   fs.mkdirSync(opts.out, { recursive: true });
   // Watch the entry load's data requests so the automatic data states know what
@@ -1277,8 +1098,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     if (t === 'fetch' || t === 'xhr') dataUrls.add(req.url());
   };
   page.on('request', onRequest);
-  const authObservations: AuthBoundaryObservation[] = [];
-  await gotoFreshObservingAuth(page, opts, authObservations);
+  await gotoFresh(page, opts);
   // No widths given? Detect the page's real @media breakpoints (like the
   // one-shot path does) and sweep one width per band — automatically. Detection
   // reads every stylesheet and THROWS if one is cross-origin/unreadable: it never
@@ -1287,7 +1107,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   if (opts.widths.length === 0) {
     const widths = await detectViewportWidths(page);
     opts = { ...opts, widths };
-    if ((widths[0] ?? 1280) !== 1280) await gotoFreshObservingAuth(page, opts, authObservations); // re-pin BEFORE base fingerprint
+    if ((widths[0] ?? 1280) !== 1280) await gotoFresh(page, opts); // re-pin discovery width BEFORE the base fingerprint
   }
   page.off('request', onRequest);
   const { classes: defined, unreadable } = await page.evaluate(collectDefinedClasses);
@@ -1302,7 +1122,6 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     queue: [],
     captured: 0,
     failed: [],
-    authObservations,
   };
   await record(page, opts, [], 0, fp, st, st.queue, false, false);
 
@@ -1317,10 +1136,6 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
   const counters = { tried: 0, skipped: 0 };
   await runPool(page, opts, st, counters, defined);
   const missing = defined.filter((c) => !st.classes.has(c)).sort();
-  const confidence = resolveCrawlConfidence({
-    observations: st.authObservations,
-    exclude: opts.authBoundaryExclude,
-  });
   return {
     surfaces: st.surfaces,
     actionsTried: counters.tried,
@@ -1334,7 +1149,6 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
       unreadable,
       renderedClasses: defined.filter((c) => st.classes.has(c)).sort(),
     },
-    confidence,
   };
 }
 
