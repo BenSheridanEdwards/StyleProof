@@ -20,7 +20,6 @@ import { classifyRestoreExit } from '../dist/ci.js';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { DEFAULT_MAP_DIR, DEFAULT_MAP_LABEL } from '../dist/map-store.js';
 import { choosePrePushCaptureSha, parsePrePushRefs } from '../dist/prepush.js';
-import { decodeSpecPathEnv, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
 
 const HELP = `styleproof-prepush — capture the pushed commit's map and publish it to the map store
 
@@ -51,8 +50,8 @@ A styleproof.config.json at the repo root supplies project defaults ("spec",
 `;
 
 const argv = process.argv.slice(2);
-let spec;
-let specProvided = false;
+const projectConfig = projectConfigOrExit('styleproof-prepush');
+let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
 let dir = DEFAULT_MAP_LABEL;
 let baseDir = DEFAULT_MAP_DIR;
 let advisoryDiff = true;
@@ -60,13 +59,9 @@ const dirtyAllow = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
-  else if (a === '--spec') {
-    specProvided = true;
-    spec = argv[++i];
-  } else if (a.startsWith('--spec=')) {
-    specProvided = true;
-    spec = a.slice(7);
-  } else if (a === '--dir') dir = argv[++i];
+  else if (a === '--spec') spec = argv[++i];
+  else if (a.startsWith('--spec=')) spec = a.slice(7);
+  else if (a === '--dir') dir = argv[++i];
   else if (a.startsWith('--dir=')) dir = a.slice(6);
   else if (a === '--base-dir') baseDir = argv[++i];
   else if (a.startsWith('--base-dir=')) baseDir = a.slice(11);
@@ -77,14 +72,6 @@ for (let i = 0; i < argv.length; i++) {
     console.error(unknownFlagMessage('styleproof-prepush', a));
     process.exit(2);
   }
-}
-
-try {
-  if (!specProvided) spec = projectConfigOrExit('styleproof-prepush').spec ?? decodeSpecPathEnv();
-  spec = validateRepoRelativeSpecPath(spec ?? 'e2e/styleproof.spec.ts');
-} catch (error) {
-  console.error(`styleproof-prepush: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(2);
 }
 
 if (process.env.STYLEPROOF_SKIP_CAPTURE === '1') process.exit(0);

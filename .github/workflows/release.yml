@@ -16,12 +16,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Only one release may inspect and publish a version at a time. Queued runs
-# re-check the tag after the active release finishes and become clean no-ops.
-concurrency:
-  group: styleproof-release
-  cancel-in-progress: false
-
 # contents: write -> tag + GitHub Release + move the major alias.
 # id-token: write -> npm publish --provenance (OIDC -> Sigstore).
 # packages: write -> the GitHub Packages mirror job.
@@ -177,8 +171,8 @@ jobs:
           tag_name: v${{ steps.check.outputs.version }}
           generate_release_notes: true
 
-      # Move the major alias (e.g. v6) to this release, so consumers pinning
-      # `uses: BenSheridanEdwards/StyleProof@v6` always get the latest 6.x. A
+      # Move the major alias (e.g. v3) to this release, so consumers pinning
+      # `uses: BenSheridanEdwards/StyleProof@v3` always get the latest 3.x. A
       # GITHUB_TOKEN push does not retrigger workflows, so this never loops.
       - name: Move the major tag
         if: steps.check.outputs.released == 'true'

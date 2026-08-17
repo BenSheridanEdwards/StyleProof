@@ -92,15 +92,6 @@ function homeMap(tone) {
       rect: [40, 200, 360, 150],
       style: { 'background-color': rgb(CARD) },
     },
-    // The property change is auditable, but the element is fully left of the
-    // screenshot canvas. The report must name that limitation instead of
-    // cropping unrelated visible content and presenting it as proof.
-    'body > aside:nth-child(3)': {
-      tag: 'aside',
-      cls: 'off-canvas-status',
-      rect: [-241, 400, 76, 37],
-      style: { opacity: tone === 'base' ? '0.85' : '1' },
-    },
   });
 }
 

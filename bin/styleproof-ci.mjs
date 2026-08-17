@@ -22,13 +22,6 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
-import {
-  browsersRequiredByCaptureConfig,
-  evaluateBrowserPreflight,
-  playwrightInstallRemedyCommand,
-  readCapturePlaywrightConfigText,
-  resolveBrowserExecutablePath,
-} from '../dist/browser-preflight.js';
 import { loadStyleProofConfig } from '../dist/config.js';
 import { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from '../dist/ci.js';
 import {
@@ -47,15 +40,7 @@ import {
   gitRepoRoot,
   worktreeRunCwd,
 } from '../dist/ci-worktree.js';
-import {
-  expectedCompatibilityKey,
-  isMapFile,
-  listMapStoreBundleShas,
-  restoreMapBundle,
-  writeBaselineProvenance,
-} from '../dist/map-store.js';
-import { planAncestorBaselineReuse } from '../dist/ancestor-baseline.js';
-import { decodeSpecPathEnv, harnessMissingAtRef, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
+import { isMapFile } from '../dist/map-store.js';
 
 const HELP = `styleproof-ci — restore or capture the base/head maps for a PR, cache-first
 
@@ -76,26 +61,14 @@ If the base capture itself fails, the command records a bare baseline and still
 captures the head. That degraded, head-only result is explicit in
 base-capture-failed=true; a failed head capture still fails the command.
 
-Before each capture, the pinned Playwright browser build is verified through
-the consumer's own Playwright (webkit too when the capture config mentions
-it): a missing build self-heals with one \`playwright install\`, and a failed
-heal exits non-zero immediately, naming the missing revision and the exact
-\`npx playwright install ...\` remedy. STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1
-skips the verification and always runs the unconditional install.
-
 options:
   --base <sha>        base commit (e.g. github.event.pull_request.base.sha)
   --head <sha>        head commit (e.g. github.event.pull_request.head.sha)
   --spec <path>       StyleProof spec (default: e2e/styleproof.spec.ts)
-  --spec-ref <ref>    Source the spec and its colocated harness from <ref> for both
-                      base and head. When the checkout has no dedicated StyleProof
-                      Playwright config, source that config from <ref> too. Product
-                      commits do not need to track the harness. App code and lockfiles
-                      stay pinned to --base/--head. Invalid refs or a missing spec at
-                      the ref fail loudly.
-  --spec-ref-if-missing <ref>
-                      Source that harness only when the base lacks the selected spec
-                      or playwright.styleproof.config.ts. Intended for first adoption.
+  --spec-ref <ref>    When a cold base capture runs and the base commit already has
+                      that spec, source the spec bytes from <ref>:<spec> for the base
+                      render only (app + lockfile stay at --base). Omitted keeps 4.5.0
+                      behavior. Invalid refs or a missing spec at the ref fail loudly.
   --base-dir <path>   map root; base/head land under it
                       (default: $RUNNER_TEMP/styleproof-maps, else .styleproof/ci-maps)
   --force             run outside CI (the flow may force-checkout --head in the consumer
@@ -105,26 +78,6 @@ options:
 
 Writes base-hit / head-hit / capture-needed / base-capture-failed to
 $GITHUB_OUTPUT when set, so workflow steps can branch on steps.<id>.outputs.*.
-
-Opt-in nearest-ancestor baseline reuse (issue #367, conservative):
-  STYLEPROOF_ANCESTOR_BASELINE=1        on a base miss, look for the nearest
-                                        first-parent ancestor of --base with a
-                                        stored bundle; if NO path changed between
-                                        them is capture-relevant, restore that
-                                        bundle as the baseline instead of a full
-                                        cold recapture. Any doubt or error falls
-                                        back to the full capture path.
-  STYLEPROOF_ANCESTOR_BASELINE_ROOTS    comma-separated repo-relative app source
-                                        directories (e.g. "src,styles") whose
-                                        changes are capture-relevant. REQUIRED
-                                        for reuse to fire on a non-empty diff:
-                                        with no roots declared every changed path
-                                        counts as relevant. The spec's directory,
-                                        styleproof.config.json, and package
-                                        manifests/lockfiles are always relevant.
-Reuse is never silent: the run log, base-restored-from-ancestor=<sha> in
-$GITHUB_OUTPUT, and a styleproof-baseline-provenance.json sidecar (surfaced in
-the report and diff --json) all record it, with the changed-path count as proof.
 
 exit codes:
   0  both maps present (restored or captured+published)
@@ -138,11 +91,9 @@ let base = '';
 let head = '';
 // '' = not set explicitly; resolved from project config AFTER the consumer is
 // checked out to --head (see below).
-let spec;
-let specProvided = false;
+let spec = '';
 let specRef = '';
 let specRefProvided = false;
-let specRefIfMissing = '';
 let baseDir = process.env.RUNNER_TEMP ? path.join(process.env.RUNNER_TEMP, 'styleproof-maps') : '.styleproof/ci-maps';
 let force = false;
 for (let i = 0; i < argv.length; i++) {
@@ -152,22 +103,14 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--base=')) base = a.slice(7);
   else if (a === '--head') head = argv[++i];
   else if (a.startsWith('--head=')) head = a.slice(7);
-  else if (a === '--spec') {
-    specProvided = true;
-    spec = argv[++i];
-  } else if (a.startsWith('--spec=')) {
-    specProvided = true;
-    spec = a.slice(7);
-  } else if (a === '--spec-ref') {
+  else if (a === '--spec') spec = argv[++i];
+  else if (a.startsWith('--spec=')) spec = a.slice(7);
+  else if (a === '--spec-ref') {
     specRefProvided = true;
     specRef = argv[++i];
   } else if (a.startsWith('--spec-ref=')) {
     specRefProvided = true;
     specRef = a.slice(11);
-  } else if (a === '--spec-ref-if-missing') {
-    specRefIfMissing = argv[++i];
-  } else if (a.startsWith('--spec-ref-if-missing=')) {
-    specRefIfMissing = a.slice(22);
   } else if (a === '--base-dir') baseDir = argv[++i];
   else if (a.startsWith('--base-dir=')) baseDir = a.slice(11);
   else if (a === '--force') force = true;
@@ -183,17 +126,6 @@ if (!base || !head) {
 }
 if (specRefProvided && (typeof specRef !== 'string' || !specRef.trim())) {
   console.error('styleproof-ci: --spec-ref requires a non-empty git ref');
-  process.exit(2);
-}
-if (
-  typeof specRefIfMissing !== 'string' ||
-  (argv.some((arg) => arg.startsWith('--spec-ref-if-missing')) && !specRefIfMissing.trim())
-) {
-  console.error('styleproof-ci: --spec-ref-if-missing requires a non-empty git ref');
-  process.exit(2);
-}
-if (specRefProvided && specRefIfMissing) {
-  console.error('styleproof-ci: --spec-ref and --spec-ref-if-missing are mutually exclusive');
   process.exit(2);
 }
 if (!process.env.CI && !force) {
@@ -240,44 +172,25 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 // a head commit that moves the spec via styleproof.config.json must govern this
 // run — children (styleproof-map) re-read config per-cwd and would otherwise
 // disagree with this driver inside one run.
-try {
-  if (!specProvided) spec = projectConfigOrExit('styleproof-ci').spec ?? decodeSpecPathEnv();
-  spec ??= 'e2e/styleproof.spec.ts';
-  spec = validateRepoRelativeSpecPath(spec);
-} catch (error) {
-  console.error(`styleproof-ci: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(2);
-}
+const specExplicit = Boolean(spec);
+if (!spec) spec = projectConfigOrExit('styleproof-ci').spec ?? 'e2e/styleproof.spec.ts';
 
 /** The spec governing one specific checkout: an explicit --spec everywhere,
  *  otherwise that checkout's OWN styleproof.config.json — after a config-only
  *  spec move, base-side probes and captures must use the base's path and
  *  head-side ones the head's, or the moved side fails "no StyleProof spec". */
 function specFor(cwd) {
-  if (specProvided) return spec;
+  if (specExplicit) return spec;
   try {
-    return validateRepoRelativeSpecPath(loadStyleProofConfig(cwd).spec ?? spec);
+    return loadStyleProofConfig(cwd).spec ?? 'e2e/styleproof.spec.ts';
   } catch (error) {
     console.error(`styleproof-ci: ${error instanceof Error ? error.message : String(error)}`);
     bail(2);
   }
 }
 
-// Resolve a symbolic harness ref to a SHA HERE, in the consumer checkout, before
-// any worktree exists. For first adoption, select it only when the base lacks
-// either required generated harness component.
-if (specRefIfMissing) {
-  const missingHarness = harnessMissingAtRef(
-    spec,
-    consumerRel,
-    (file) => spawnSync('git', ['cat-file', '-e', `${base}:${file}`], { cwd: repoRoot }).status === 0,
-  );
-  if (missingHarness) {
-    specRef = specRefIfMissing;
-    specRefProvided = true;
-  }
-}
-// Inside the detached base worktree HEAD is --base (so
+// Resolve a symbolic --spec-ref to a SHA HERE, in the consumer checkout, before
+// any worktree exists. Inside the detached base worktree HEAD is --base (so
 // `--spec-ref HEAD` would silently overlay the base's own spec) and
 // FETCH_HEAD/MERGE_HEAD are per-worktree pseudo-refs that don't resolve at all.
 if (specRefProvided) {
@@ -367,113 +280,12 @@ function restore(sha, dir, cwd) {
   return outcome === 'hit';
 }
 
-function playwrightCliName() {
-  return process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
-}
-
-function playwrightInstall(cwd = consumerCwd, browserNames = ['chromium']) {
-  runOrDie([playwrightCliName(), 'install', '--with-deps', ...browserNames], 'playwright install', {
+function playwrightInstall(cwd = consumerCwd) {
+  const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
+  runOrDie([command, 'install', '--with-deps', 'chromium'], 'playwright install', {
     cwd,
     extraEnv: { PATH: binFirstPath(cwd) },
   });
-}
-
-/** Like {@link playwrightInstall}, but reports failure instead of exiting so
- *  the preflight can attach the exact remedy command and missing revision. */
-function playwrightInstallSucceeded(cwd, browserNames) {
-  const result = spawnSync(playwrightCliName(), ['install', '--with-deps', ...browserNames], {
-    stdio: 'inherit',
-    cwd,
-    env: { ...env, PATH: binFirstPath(cwd) },
-  });
-  if (result.error) log(`could not run ${playwrightCliName()} install — ${result.error.message}`);
-  return !result.error && (result.status ?? 1) === 0;
-}
-
-function logVerifiedBrowsers(verdicts) {
-  for (const verdict of verdicts) {
-    log(`browser preflight: verified ${verdict.browserName} ${verdict.revisionDirectory} at ${verdict.executablePath}`);
-  }
-}
-
-function exitWithBrowserRemedy(missingVerdicts, cause) {
-  const revisionNames = missingVerdicts.map((verdict) => verdict.revisionDirectory).join(', ');
-  const remedyCommand = playwrightInstallRemedyCommand(missingVerdicts.map((verdict) => verdict.browserName));
-  console.error(
-    `styleproof-ci: ${cause} — missing browser build(s): ${revisionNames}.\n` +
-      `Next: run \`${remedyCommand}\` on this host (the CI runner or capture machine), then re-run.`,
-  );
-  bail(1);
-}
-
-/** The per-browser preflight verdicts for `cwd`, or null when the consumer's
- *  Playwright is not resolvable there (custom/global CLI installs) — the
- *  caller then falls back to the unconditional install. */
-function browserPreflightVerdicts(cwd, browserNames) {
-  const verdicts = [];
-  for (const browserName of browserNames) {
-    const resolution = resolveBrowserExecutablePath(cwd, browserName);
-    if (resolution.kind === 'unresolvable') {
-      log(`browser preflight: cannot resolve the ${browserName} executable path (${resolution.reason})`);
-      return null;
-    }
-    verdicts.push(evaluateBrowserPreflight(browserName, resolution.executablePath));
-  }
-  return verdicts;
-}
-
-/**
- * Verify the pinned Playwright browser builds exist BEFORE any capture, and
- * self-heal a missing build (issue #366). A re-provisioned runner comes up
- * with an empty ms-playwright cache, and without this check every capture
- * dies minutes into the run at `browserType.launch: Executable doesn't
- * exist`. Healthy hosts skip the install and log one `verified` line per
- * browser; a missing build gets one `playwright install`, and if that fails
- * or leaves the executable missing, the run exits non-zero immediately with
- * the exact remedy command and the missing revision name. Webkit is included
- * when the capture Playwright config mentions it; otherwise chromium only.
- *
- * Set STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1 to opt out of the executable
- * verification and unconditionally run `playwright install --with-deps
- * chromium` exactly as releases before the preflight did.
- */
-function ensurePlaywrightBrowsersOrDie(cwd) {
-  if (process.env.STYLEPROOF_SKIP_BROWSER_PREFLIGHT === '1') {
-    playwrightInstall(cwd);
-    return;
-  }
-  const browserNames = browsersRequiredByCaptureConfig(readCapturePlaywrightConfigText(cwd));
-  if (browserNames.includes('webkit')) {
-    log('browser preflight: the capture Playwright config mentions webkit — checking chromium and webkit');
-  }
-  const verdicts = browserPreflightVerdicts(cwd, browserNames);
-  if (verdicts === null) {
-    log('browser preflight skipped — running playwright install unconditionally');
-    playwrightInstall(cwd, browserNames);
-    return;
-  }
-  const missingVerdicts = verdicts.filter((verdict) => verdict.status === 'missing');
-  if (missingVerdicts.length === 0) {
-    logVerifiedBrowsers(verdicts);
-    return;
-  }
-  for (const verdict of missingVerdicts) {
-    log(
-      `browser preflight: ${verdict.browserName} build ${verdict.revisionDirectory} is missing at ` +
-        `${verdict.executablePath} — self-healing with \`playwright install\``,
-    );
-  }
-  if (!playwrightInstallSucceeded(cwd, browserNames)) {
-    exitWithBrowserRemedy(missingVerdicts, 'playwright install failed');
-  }
-  const healedVerdicts = missingVerdicts.map((verdict) =>
-    evaluateBrowserPreflight(verdict.browserName, verdict.executablePath),
-  );
-  const stillMissingVerdicts = healedVerdicts.filter((verdict) => verdict.status === 'missing');
-  if (stillMissingVerdicts.length > 0) {
-    exitWithBrowserRemedy(stillMissingVerdicts, 'playwright install completed but the executable is still missing');
-  }
-  logVerifiedBrowsers([...verdicts.filter((verdict) => verdict.status === 'verified'), ...healedVerdicts]);
 }
 
 function capture(args, cwd, extraEnv = {}) {
@@ -510,101 +322,15 @@ function countMaps(dir) {
 }
 
 function writeOutputs(baseCaptureFailed = false) {
-  const outputs = ciOutputLines(baseHit, headHit, baseCaptureFailed, baseRestoredFromAncestorSha);
+  const outputs = ciOutputLines(baseHit, headHit, baseCaptureFailed);
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
   log(outputs.join(' '));
 }
 
-// ── Nearest-ancestor baseline reuse (issue #367, conservative variant) ─────────
-// Opt-in via STYLEPROOF_ANCESTOR_BASELINE=1. On a base cache miss, restore the
-// nearest first-parent ancestor's stored bundle as the baseline — but ONLY when
-// no path changed between that ancestor and --base is capture-relevant. Every
-// error and every doubt falls back to the ordinary cold-capture path.
-
-function ancestorBaselineEnabled() {
-  return process.env.STYLEPROOF_ANCESTOR_BASELINE === '1';
-}
-
-/** Declared app source roots whose changes are capture-relevant (comma-separated). */
-function ancestorBaselineSourceRoots() {
-  return (process.env.STYLEPROOF_ANCESTOR_BASELINE_ROOTS ?? '')
-    .split(',')
-    .map((sourceRoot) => sourceRoot.trim())
-    .filter(Boolean);
-}
-
-/** Record where the baseline came from, so reuse (or its absence) is auditable in
- *  the report and diff --json. Only written when the feature is opted in, keeping
- *  default runs byte-identical; a sidecar write failure must never fail the run. */
-function recordBaselineProvenance(provenance) {
-  if (!ancestorBaselineEnabled()) return;
-  try {
-    writeBaselineProvenance(path.join(root, 'base'), { version: 1, requestedSha: base, ...provenance });
-  } catch (error) {
-    log(`could not record baseline provenance (${error instanceof Error ? error.message : String(error)})`);
-  }
-}
-
-/** Attempt the ancestor reuse; returns the restored ancestor SHA, or '' to take
- *  the ordinary cold path. FAIL-SAFE: any thrown error only logs and returns ''. */
-function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
-  if (!ancestorBaselineEnabled()) return '';
-  if (specRefProvided) {
-    log('ancestor baseline reuse: skipped — --spec-ref overlays the base spec, which reuse cannot prove against');
-    return '';
-  }
-  try {
-    const probeSpec = specFor(baseProbeCwd);
-    const projectConfigAtBase = loadStyleProofConfig(baseProbeCwd);
-    const cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfigAtBase.cacheBranch;
-    const cacheRemote = process.env.STYLEPROOF_REMOTE ?? projectConfigAtBase.remote;
-    const sourceRoots = ancestorBaselineSourceRoots();
-    const plan = planAncestorBaselineReuse({
-      requestedSha: base,
-      availableShas: listMapStoreBundleShas({ branch: cacheBranch, remote: cacheRemote, cwd: repoRoot }),
-      spec: probeSpec,
-      sourceRoots,
-      cwd: repoRoot,
-    });
-    if (plan.decision === 'capture') {
-      log(`ancestor baseline reuse: taking the full capture path — ${plan.reason}`);
-      return '';
-    }
-    // Restore the ancestor bundle byte-for-byte under the compatibility key the
-    // base worktree expects (same spec bytes + lockfile, or this misses and the
-    // cold path runs) — its manifest keeps naming the ancestor SHA it was
-    // verified at, so reuse never launders provenance.
-    restoreMapBundle({
-      sha: plan.ancestorSha,
-      outDir: path.join(root, 'base'),
-      branch: cacheBranch,
-      remote: cacheRemote,
-      cwd: baseProbeCwd,
-      compatibilityKey: expectedCompatibilityKey({ cwd: baseProbeCwd, spec: probeSpec }),
-    });
-    recordBaselineProvenance({
-      baseline: 'ancestor-reuse',
-      restoredSha: plan.ancestorSha,
-      ancestorDepth: plan.ancestorDepth,
-      changedPathCount: plan.changedPathCount,
-      sourceRoots,
-    });
-    log(
-      `base miss for ${base.slice(0, 12)} — reused the baseline of nearest ancestor ${plan.ancestorSha.slice(0, 12)} ` +
-        `(depth ${plan.ancestorDepth}; ${plan.changedPathCount} changed path(s), none capture-relevant)`,
-    );
-    return plan.ancestorSha;
-  } catch (error) {
-    log(
-      `ancestor baseline reuse: falling back to the full capture path — ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return '';
-  }
-}
-
-/** True when the spec-ref overlay applies in `cwd`: --spec-ref was given and the
- *  spec path did NOT move between base and head. The checkout does not need to
- *  contain the spec because the explicit ref owns the capture harness. */
+/** True when the spec-ref overlay applies in `cwd`: --spec-ref was given, the
+ *  spec exists there, and the spec path did NOT move between base and head — a
+ *  config-only spec move means the overlay concept doesn't apply (each side
+ *  renders its own spec) and must never hard-fail the run. */
 function overlayApplies(cwd, cwdSpec) {
   if (!shouldApplySpecRefOverlay(fs.existsSync(path.join(cwd, cwdSpec)), specRef)) return false;
   if (cwdSpec !== spec) {
@@ -642,29 +368,8 @@ function restoreBase(cwd) {
   }
 }
 
-function restoreHead(cwd) {
-  const probeSpec = specFor(cwd);
-  if (!overlayApplies(cwd, probeSpec)) return restore(head, 'head', cwd);
-  let overlay;
-  try {
-    overlay = applySpecRefOverlay({ spec: probeSpec, specRef, cwd });
-  } catch (error) {
-    exitSpecRefError(error);
-  }
-  try {
-    return restore(head, 'head', cwd);
-  } finally {
-    try {
-      overlay.restore();
-    } catch (error) {
-      exitSpecRefError(error);
-    }
-  }
-}
-
 let baseHit;
 let headHit;
-let baseRestoredFromAncestorSha = '';
 let exitCode = 0;
 
 try {
@@ -673,16 +378,10 @@ try {
   const baseWorktree = worktrees.addDetached(base, 'probe-base');
   const baseRunCwd = worktreeRunCwd(baseWorktree, consumerRel);
   baseHit = restoreBase(baseRunCwd);
-  if (baseHit) {
-    recordBaselineProvenance({ baseline: 'exact-restore', restoredSha: base });
-  } else {
-    baseRestoredFromAncestorSha = tryRestoreNearestAncestorBaseline(baseRunCwd);
-    if (baseRestoredFromAncestorSha) baseHit = true;
-  }
 
   const headWorktree = worktrees.addDetached(head, 'probe-head');
   const headRunCwd = worktreeRunCwd(headWorktree, consumerRel);
-  headHit = restoreHead(headRunCwd);
+  headHit = restore(head, 'head', headRunCwd);
 
   if (baseHit && headHit) {
     writeOutputs();
@@ -722,7 +421,6 @@ try {
         // adopter dependency.
         const isolatedPlaywrightTest = path.join(exactRuntimeRoot, 'node_modules', '@playwright', 'test');
         const adopterPlaywrightTest = path.join(coldBaseCwd, 'node_modules', '@playwright', 'test');
-        const consumerPlaywrightTest = path.join(consumerCwd, 'node_modules', '@playwright', 'test');
         // A custom/global Playwright CLI need not install this package in the
         // adopter. In that supported case the isolated runtime remains
         // self-contained; there is no adopter module instance to unify with.
@@ -730,23 +428,6 @@ try {
           fs.rmSync(isolatedPlaywrightTest, { recursive: true, force: true });
           fs.mkdirSync(path.dirname(isolatedPlaywrightTest), { recursive: true });
           fs.symlinkSync(adopterPlaywrightTest, isolatedPlaywrightTest, 'junction');
-        } else if (fs.existsSync(consumerPlaywrightTest)) {
-          // First adoption can add both StyleProof and its Playwright peer on the
-          // head. The base lockfile therefore has neither, but the overlaid head
-          // config still imports @playwright/test. Point both the isolated runner
-          // and base checkout at the consumer head's peer: the Playwright CLI on
-          // PATH comes from that same head install, so no second module instance
-          // can be loaded.
-          fs.rmSync(isolatedPlaywrightTest, { recursive: true, force: true });
-          fs.mkdirSync(path.dirname(isolatedPlaywrightTest), { recursive: true });
-          fs.symlinkSync(consumerPlaywrightTest, isolatedPlaywrightTest, 'junction');
-          fs.mkdirSync(path.dirname(adopterPlaywrightTest), { recursive: true });
-          fs.symlinkSync(consumerPlaywrightTest, adopterPlaywrightTest, 'junction');
-        } else if (fs.existsSync(isolatedPlaywrightTest)) {
-          // A custom/global Playwright CLI can leave the consumer without a local
-          // peer. The isolated install is still the only resolvable harness peer.
-          fs.mkdirSync(path.dirname(adopterPlaywrightTest), { recursive: true });
-          fs.symlinkSync(isolatedPlaywrightTest, adopterPlaywrightTest, 'junction');
         }
         const checkoutStyleProofPackage = path.join(coldBaseCwd, 'node_modules', 'styleproof');
         fs.mkdirSync(path.dirname(checkoutStyleProofPackage), { recursive: true });
@@ -757,10 +438,10 @@ try {
         if (tracked(file, coldBaseCwd))
           runOrDie(['git', 'checkout', '--', file], `restore ${file}`, { cwd: coldBaseCwd });
       }
-      ensurePlaywrightBrowsersOrDie(coldBaseCwd);
+      playwrightInstall(coldBaseCwd);
       const baseSpec = specFor(coldBaseCwd);
       const specPath = path.join(coldBaseCwd, baseSpec);
-      if (fs.existsSync(specPath) || overlayApplies(coldBaseCwd, baseSpec)) {
+      if (fs.existsSync(specPath)) {
         let overlay;
         if (overlayApplies(coldBaseCwd, baseSpec)) {
           try {
@@ -815,8 +496,6 @@ try {
           fs.rmSync(baseDirPath, { recursive: true, force: true });
           fs.mkdirSync(baseDirPath, { recursive: true });
           baseCaptureFailed = true;
-        } else {
-          recordBaselineProvenance({ baseline: 'captured' });
         }
       } else {
         // The base commit predates the spec (first adoption): an empty base dir means
@@ -826,52 +505,18 @@ try {
       ensureConsumerAtHead(repoRoot, head);
       const headPm = detectPackageManagerPlan(consumerCwd);
       runOrDie(headPm.install, `${headPm.name} install at head`, { cwd: consumerCwd });
-      ensurePlaywrightBrowsersOrDie(consumerCwd);
+      playwrightInstall(consumerCwd);
     } else {
       // A compatible base hit proves the current head environment. Keep that restored
       // base and capture only the missing head in the consumer checkout.
       log('head miss — capturing only the head');
       fs.rmSync(path.join(root, 'head'), { recursive: true, force: true });
       ensureConsumerAtHead(repoRoot, head);
-      ensurePlaywrightBrowsersOrDie(consumerCwd);
+      playwrightInstall(consumerCwd);
     }
 
     const replay = hasHarFiles(path.join(root, 'base')) ? { STYLEPROOF_REPLAY_FROM: path.join(root, 'base') } : {};
-    let headOverlay;
-    if (overlayApplies(consumerCwd, spec)) {
-      try {
-        headOverlay = applySpecRefOverlay({ spec, specRef, cwd: consumerCwd });
-        log(`overlaying ${headOverlay.paths.length} spec-harness file(s) from ${specRef} for head capture`);
-      } catch (error) {
-        exitSpecRefError(error);
-      }
-    }
-    try {
-      captureOrDie(
-        [
-          '--spec',
-          spec,
-          '--dir',
-          'head',
-          '--base-dir',
-          root,
-          '--sha',
-          head,
-          '--upload',
-          ...(headOverlay?.dirtyAllow ?? []).flatMap((allowedPath) => ['--dirty-allow', allowedPath]),
-        ],
-        consumerCwd,
-        replay,
-      );
-    } finally {
-      if (headOverlay) {
-        try {
-          headOverlay.restore();
-        } catch (error) {
-          exitSpecRefError(error);
-        }
-      }
-    }
+    captureOrDie(['--spec', spec, '--dir', 'head', '--base-dir', root, '--sha', head, '--upload'], consumerCwd, replay);
     writeOutputs(baseCaptureFailed);
   }
 } catch (error) {

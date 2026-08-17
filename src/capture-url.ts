@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from '@playwright/test';
-import { captureStyleMap, saveStyleMap, captureSurfaceScreenshots, trackInflightRequests } from './capture.js';
+import { captureStyleMap, saveStyleMap, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { runSetup, type SetupStep } from './crawl-surfaces.js';
 import { writeCaptureManifest } from './map-store.js';
@@ -82,10 +82,6 @@ export type CaptureUrlOptions = {
   /** crawl: also crawl every same-origin page the nav links to (default true).
    *  Off = the entry page's interactive surface only. */
   followLinks: boolean;
-  /** crawl: JSON file of auth-boundary exclusions (`key → non-empty reason`). */
-  authBoundaryExcludeFile?: string;
-  /** Loaded auth-boundary exclusions (set by the CLI from the file). */
-  authBoundaryExclude?: Record<string, string>;
 };
 
 const DEFAULTS = {
@@ -140,7 +136,6 @@ const VALUE_FLAGS: Record<string, (o: CaptureUrlOptions, v: string) => void> = {
   '--max-states': (o, v) => (o.maxStates = positiveNumber(v, '--max-states')),
   '--setup': (o, v) => (o.setupFile = v),
   '--workers': (o, v) => (o.workers = positiveNumber(v, '--workers')),
-  '--auth-boundary-exclude': (o, v) => (o.authBoundaryExcludeFile = v),
 };
 const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--screenshots': (o) => (o.screenshots = true),
@@ -205,8 +200,6 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
     dataStates: DEFAULTS.dataStates,
     workers: DEFAULTS.workers,
     followLinks: DEFAULTS.followLinks,
-    authBoundaryExcludeFile: undefined,
-    authBoundaryExclude: undefined,
   };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) i = applyArg(o, argv, i, positional);
@@ -262,9 +255,10 @@ export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Prom
       saveStyleMap(mapPath, map);
       const result: CaptureUrlResult = { width, map: mapPath };
       if (opts.screenshots) {
+        const shot = `${stem}.png`;
         // captureStyleMap froze animations, so the shot matches the mapped state.
-        await captureSurfaceScreenshots(page, stem, { ignore: opts.ignore });
-        result.screenshot = `${stem}.png`;
+        await page.screenshot({ path: shot, fullPage: true, animations: 'disabled' });
+        result.screenshot = shot;
       }
       results.push(result);
     } finally {
@@ -327,31 +321,4 @@ export function loadSetupSteps(file: string, env: NodeJS.ProcessEnv = process.en
       ...(step.value ? { value: interpolate(step.value) } : {}),
     };
   });
-}
-
-/**
- * Load a `--auth-boundary-exclude` JSON object (`key → reason`). Every reason
- * must be a non-empty string — empty reasons are rejected so silence cannot
- * clear a fail-closed authentication boundary.
- */
-export function loadAuthBoundaryExclude(file: string): Record<string, string> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (e) {
-    throw new UsageError(`--auth-boundary-exclude: cannot read ${file}: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new UsageError('--auth-boundary-exclude: the file must be a JSON object of key → reason');
-  }
-  const out: Record<string, string> = {};
-  for (const [rawKey, rawReason] of Object.entries(parsed as Record<string, unknown>)) {
-    const key = typeof rawKey === 'string' ? rawKey.trim() : '';
-    if (!key) throw new UsageError('--auth-boundary-exclude: exclusion key must be a non-empty string');
-    if (typeof rawReason !== 'string' || !rawReason.trim()) {
-      throw new UsageError(`--auth-boundary-exclude: exclusion for "${key}" needs a non-empty reason`);
-    }
-    out[key] = rawReason.trim();
-  }
-  return out;
 }
