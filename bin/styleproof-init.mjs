@@ -38,7 +38,8 @@ import { fileURLToPath } from 'node:url';
 // into a tiny scaffolder's load path, and that oversized concurrent module
 // graph is what made init's tests flake in CI. routes.js needs only fs + path.
 import { discoverNextRoutes } from '../dist/routes.js';
-import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
+import { isHelpArg, projectConfigOrExit, showHelpAndExit } from '../dist/cli-errors.js';
+import { decodeSpecPathEnv, encodeSpecPath, SPEC_PATH_ENV, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
 
 const HELP = `styleproof-init — scaffold a styleproof capture spec
 
@@ -84,7 +85,8 @@ To certify a refactor:
 
 const argv = process.argv.slice(2);
 const DEFAULT_SPEC_PATH = 'e2e/styleproof.spec.ts';
-let specPath = DEFAULT_SPEC_PATH;
+let specPath;
+let specPathProvided = false;
 let baseUrl = 'http://localhost:3000';
 let force = false;
 let hookOnly = false;
@@ -93,9 +95,13 @@ let checkOnly = false;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
-  else if (a === '--dir') specPath = argv[++i];
-  else if (a.startsWith('--dir=')) specPath = a.slice(6);
-  else if (a === '--base-url') baseUrl = argv[++i];
+  else if (a === '--dir') {
+    specPathProvided = true;
+    specPath = argv[++i];
+  } else if (a.startsWith('--dir=')) {
+    specPathProvided = true;
+    specPath = a.slice(6);
+  } else if (a === '--base-url') baseUrl = argv[++i];
   else if (a.startsWith('--base-url=')) baseUrl = a.slice(11);
   else if (a === '--force') force = true;
   else if (a === '--hook') hookOnly = true;
@@ -107,19 +113,22 @@ for (let i = 0; i < argv.length; i++) {
     process.exit(2);
   }
 }
-if (!specPath) {
-  console.error('--dir requires a path');
+if (!specPathProvided) {
+  const configuredSpec = projectConfigOrExit('styleproof-init').spec;
+  try {
+    specPath = configuredSpec ?? decodeSpecPathEnv() ?? DEFAULT_SPEC_PATH;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(2);
+  }
+}
+try {
+  specPath = validateRepoRelativeSpecPath(specPath);
+} catch (error) {
+  console.error(`--dir ${error instanceof Error ? error.message : String(error)}`);
   process.exit(2);
 }
-const hasControlCharacter = Array.from(specPath).some((character) => {
-  const codePoint = character.codePointAt(0);
-  return codePoint <= 0x1f || codePoint === 0x7f;
-});
-if (hasControlCharacter) {
-  console.error('--dir must not contain control characters');
-  process.exit(2);
-}
-const shellSpecPath = `'${specPath.replaceAll("'", `'"'"'`)}'`;
+const encodedSpecPath = encodeSpecPath(specPath);
 
 // Captures read whatever is in front of them, so the page must be settled and
 // deterministic first — this helper is shared by both spec variants below.
@@ -423,6 +432,8 @@ jobs:
     # Report on open/update; the prune jobs below handle close and the sweep.
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
+    env:
+      ${SPEC_PATH_ENV}: ${encodedSpecPath}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -432,7 +443,7 @@ ${PM.setup}
       - name: Verify StyleProof scaffold matches the installed release
         shell: bash
         run: |
-          node node_modules/styleproof/bin/styleproof-init.mjs --check --dir ${shellSpecPath}
+          node node_modules/styleproof/bin/styleproof-init.mjs --check
       - id: maps
         name: Restore or capture StyleProof maps
         shell: bash
@@ -448,15 +459,7 @@ ${PM.setup}
           # release directly.
           BASE_SHA="\${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          SPEC_REF_ARGS=()
-          # On an adoption PR the base commit may predate either part of the
-          # generated capture harness. Source the harness from the PR head while
-          # still rendering the base commit's application and dependency tree.
-          if ! git cat-file -e "$BASE_SHA:${specPath}" 2>/dev/null ||
-            ! git cat-file -e "$BASE_SHA:playwright.styleproof.config.ts" 2>/dev/null; then
-            SPEC_REF_ARGS=(--spec-ref "$HEAD_SHA")
-          fi
-          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec ${shellSpecPath} "\${SPEC_REF_ARGS[@]}" --base-dir "\${{ runner.temp }}/styleproof-maps"
+          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec-ref-if-missing "$HEAD_SHA" --base-dir "\${{ runner.temp }}/styleproof-maps"
       - uses: BenSheridanEdwards/StyleProof@v6
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
@@ -585,7 +588,6 @@ function ensureGitignoreLine(line) {
 // Only a NON-default spec path gets baked into the hook. With the default,
 // styleproof-prepush resolves the spec itself (flag > env > styleproof.config.json
 // > built-in), so a later config-only spec move doesn't strand a stale baked path.
-const hookSpecArgs = specPath === DEFAULT_SPEC_PATH ? '' : ` --spec ${specPath}`;
 const HOOK = `#!/bin/sh
 # StyleProof pre-push (generated by styleproof-init; refresh with: styleproof-init --hook).
 # Capture the pushed commit's map and publish it to the styleproof-maps branch, so CI
@@ -596,7 +598,9 @@ const HOOK = `#!/bin/sh
 # A skipped capture is always safe — CI just recaptures on a cache miss:
 #   STYLEPROOF_SKIP_CAPTURE=1 git push
 [ "\${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-exec ./node_modules/.bin/styleproof-prepush${hookSpecArgs}
+${SPEC_PATH_ENV}='${encodedSpecPath}'
+export ${SPEC_PATH_ENV}
+exec ./node_modules/.bin/styleproof-prepush
 `;
 const HOOK_OWNERSHIP_MARKER = '# StyleProof pre-push';
 
