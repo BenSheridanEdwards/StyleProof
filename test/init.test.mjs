@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkTmp, rmTmp } from './helpers.mjs';
+import { mkNonGitTmp, mkTmp, rmTmp } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
@@ -156,7 +156,7 @@ for (const manager of [
       // HAR replay it used to assert here are unit-tested in ci-cli.test.mjs.
       assert.match(
         workflow,
-        /if ! git cat-file -e "\$BASE_SHA:e2e\/styleproof\.spec\.ts" 2>\/dev\/null; then\n\s+SPEC_REF_ARGS=\(--spec-ref "\$HEAD_SHA"\)\n\s+fi/,
+        /if ! git cat-file -e "\$BASE_SHA:e2e\/styleproof\.spec\.ts" 2>\/dev\/null \|\|\n\s+! git cat-file -e "\$BASE_SHA:playwright\.styleproof\.config\.ts" 2>\/dev\/null; then\n\s+SPEC_REF_ARGS=\(--spec-ref "\$HEAD_SHA"\)\n\s+fi/,
       );
       assert.match(
         workflow,
@@ -202,6 +202,52 @@ for (const manager of [
     }
   });
 }
+
+test('styleproof-init: config-only first adoption sources the head harness', () => {
+  const root = mkNonGitTmp();
+  const git = (args) => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    git(['config', 'user.email', 'styleproof@example.test']);
+    git(['config', 'user.name', 'StyleProof Test']);
+    fs.writeFileSync(path.join(root, 'package.json'), '{"private":true}\n');
+    fs.mkdirSync(path.join(root, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'e2e', 'styleproof.spec.ts'), '// existing base spec\n');
+    git(['add', '-A']);
+    git(['commit', '-qm', 'test: base with spec only']);
+    const base = git(['rev-parse', 'HEAD']);
+
+    const initialized = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(initialized.status, 0, initialized.stderr);
+    git(['add', '-A']);
+    git(['commit', '-qm', 'test: head adds dedicated config']);
+    const head = git(['rev-parse', 'HEAD']);
+
+    const workflow = readFile(root, '.github/workflows/styleproof.yml');
+    const generatedMapScript = workflow
+      .match(/- id: maps[\s\S]*?run: \|\n([\s\S]*?)\n {6}- uses:/)?.[1]
+      ?.split('\n')
+      .map((line) => line.replace(/^ {10}/, ''))
+      .map((line) =>
+        line.includes('node node_modules/styleproof/bin/styleproof-ci.mjs')
+          ? `printf '%s\\n' "\${SPEC_REF_ARGS[@]}"`
+          : line,
+      )
+      .join('\n')
+      .replaceAll('${{ github.event.pull_request.base.sha }}', base)
+      .replaceAll('${{ github.event.pull_request.head.sha }}', head);
+    assert.ok(generatedMapScript, 'generated workflow exposes the map shell');
+
+    const result = spawnSync('/bin/bash', ['-c', generatedMapScript], { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), `--spec-ref\n${head}`);
+  } finally {
+    rmTmp(root);
+  }
+});
 
 test('styleproof-init: installs the approval workflow so require-approval is not left inert', () => {
   // The report workflow runs with `require-approval: true`; without the approval

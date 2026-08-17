@@ -89,11 +89,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- First-adoption workflows now detect when the base commit predates the capture
-  spec and source the PR head's generated harness for the base render. The
-  `--spec-ref` overlay also supplies `playwright.styleproof.config.ts` when the
-  checkout lacks it, so the first base capture uses the generated production
-  server without replacing an existing base config (#408).
+- First-adoption workflows now detect when the base commit predates either the
+  capture spec or the dedicated `playwright.styleproof.config.ts`, and source the
+  PR head's generated harness for the base render. The `--spec-ref` overlay uses
+  the generated production server without replacing an existing base config
+  (#408).
 - State recipes (#391): replace polynomial selector/label regex paths with
   bounded linear character scanners (slug builder, pseudo/arg validators,
   bracket equality scan, credential/scheme token scans, manual `:ident()`

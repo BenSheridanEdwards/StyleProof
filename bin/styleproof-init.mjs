@@ -435,10 +435,11 @@ ${PM.setup}
           BASE_SHA="\${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
           SPEC_REF_ARGS=()
-          # On the adoption PR the base commit predates the generated capture
-          # harness. Source that harness from the PR head while still rendering
-          # the base commit's application and dependency tree.
-          if ! git cat-file -e "$BASE_SHA:${specPath}" 2>/dev/null; then
+          # On an adoption PR the base commit may predate either part of the
+          # generated capture harness. Source the harness from the PR head while
+          # still rendering the base commit's application and dependency tree.
+          if ! git cat-file -e "$BASE_SHA:${specPath}" 2>/dev/null ||
+            ! git cat-file -e "$BASE_SHA:playwright.styleproof.config.ts" 2>/dev/null; then
             SPEC_REF_ARGS=(--spec-ref "$HEAD_SHA")
           fi
           PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec ${specPath} "\${SPEC_REF_ARGS[@]}" --base-dir "\${{ runner.temp }}/styleproof-maps"
