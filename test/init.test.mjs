@@ -156,7 +156,11 @@ for (const manager of [
       // HAR replay it used to assert here are unit-tested in ci-cli.test.mjs.
       assert.match(
         workflow,
-        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$\{\{ github\.event\.pull_request\.base\.sha \}\}" --head "\$\{\{ github\.event\.pull_request\.head\.sha \}\}" --spec e2e\/styleproof\.spec\.ts --base-dir "\$\{\{ runner\.temp \}\}\/styleproof-maps"/,
+        /if ! git cat-file -e "\$BASE_SHA:e2e\/styleproof\.spec\.ts" 2>\/dev\/null; then\n\s+SPEC_REF_ARGS=\(--spec-ref "\$HEAD_SHA"\)\n\s+fi/,
+      );
+      assert.match(
+        workflow,
+        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec e2e\/styleproof\.spec\.ts "\$\{SPEC_REF_ARGS\[@\]\}" --base-dir "\$\{\{ runner\.temp \}\}\/styleproof-maps"/,
       );
       assert.doesNotMatch(workflow, /styleproof-map\.mjs/);
       assert.doesNotMatch(workflow, /"styleproof@\$STYLEPROOF_VERSION"/);

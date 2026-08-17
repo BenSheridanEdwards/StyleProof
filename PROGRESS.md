@@ -1,3 +1,33 @@
+# First-adoption capture harness (#408)
+
+## Completed
+
+- Added a generated-workflow regression for an adoption PR whose base predates
+  the StyleProof capture spec.
+- Made the workflow opt into `--spec-ref` only for that missing-base-spec case.
+- Extended the overlay to supply the dedicated production Playwright config
+  only when the checkout does not already have one.
+- Made exact dirty allowances work when the generated harness directory is
+  wholly untracked.
+
+## Next
+
+- Run the full quality gates, review the fixed-point diff, and publish the PR.
+
+## Blockers
+
+- None.
+
+## Verification
+
+- `npm test` — 816 passed, 0 failed.
+- `npm run test:e2e` — 152 passed, 0 failed.
+- `npm run build`, `npm run typecheck`, `npm run lint`, and `npm run format:check` — passed.
+- `npm run privacy:check` — passed across 229 public text files.
+- `npm audit --audit-level=high` — 0 vulnerabilities.
+
+---
+
 # Report truth and major release
 
 ## Success

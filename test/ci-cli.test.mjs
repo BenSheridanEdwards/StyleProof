@@ -29,6 +29,7 @@ import { mkTmp, rmTmp } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CI = path.join(here, '..', 'bin', 'styleproof-ci.mjs');
+const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 
 function runCi(args, env = {}, cwd) {
   const merged = { ...process.env, ...env };
@@ -55,8 +56,11 @@ case " $* " in
       previous="$argument"
     done
     if [ -n "$prefix" ]; then
-      mkdir -p "$prefix/node_modules/styleproof"
-      printf '{"name":"styleproof","type":"module"}\\n' > "$prefix/node_modules/styleproof/package.json"
+      mkdir -p "$prefix/node_modules/styleproof" "$prefix/node_modules/@playwright/test"
+      printf '{"name":"styleproof","type":"module","main":"index.js"}\\n' > "$prefix/node_modules/styleproof/package.json"
+      printf 'export {}\\n' > "$prefix/node_modules/styleproof/index.js"
+      printf '{"name":"@playwright/test","main":"index.cjs"}\\n' > "$prefix/node_modules/@playwright/test/package.json"
+      printf 'module.exports = {}\\n' > "$prefix/node_modules/@playwright/test/index.cjs"
       exit 0
     fi
     ;;
@@ -433,13 +437,13 @@ test('styleproof-ci: invalid --spec-ref fails loudly before capture', () => {
 });
 
 test(
-  'styleproof-ci: --spec-ref overlays head spec bytes for base capture and restores before head',
+  'styleproof-init: generated first-adoption command captures a paired base with the head harness',
   { timeout: 30_000 },
   () => {
     const root = mkTmp('styleproof-ci-spec-ref-');
     const remote = path.join(root, 'remote.git');
     const repo = path.join(root, 'consumer');
-    const mapRoot = path.join(root, 'maps');
+    const mapRoot = path.join(root, 'styleproof-maps');
     const output = path.join(root, 'github-output');
     const pmLog = path.join(root, 'package-managers');
     const git = (cwd, args) => {
@@ -455,18 +459,18 @@ test(
       git(repo, ['config', 'user.name', 'StyleProof Test']);
       git(repo, ['remote', 'add', 'origin', remote]);
       fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
-      fs.mkdirSync(path.join(repo, 'tests', 'e2e'), { recursive: true });
-      fs.writeFileSync(path.join(repo, 'tests', 'e2e', 'styleproof.spec.ts'), 'SPEC_BYTES=BASE\n');
       fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
       fs.writeFileSync(path.join(repo, 'app.txt'), 'base-app\n');
       git(repo, ['add', '-A']);
       git(repo, ['commit', '-qm', 'test: base']);
       const base = git(repo, ['rev-parse', 'HEAD']);
-      fs.writeFileSync(
-        path.join(repo, 'tests', 'e2e', 'styleproof.spec.ts'),
-        "import './head-only-fixture';\nSPEC_BYTES=HEAD\n",
-      );
-      fs.writeFileSync(path.join(repo, 'tests', 'e2e', 'head-only-fixture.ts'), 'HEAD_ONLY_FIXTURE=true\n');
+      const initialized = spawnSync(process.execPath, [INIT], { cwd: repo, encoding: 'utf8' });
+      assert.equal(initialized.status, 0, initialized.stderr);
+      const generatedSpec = path.join(repo, 'e2e', 'styleproof.spec.ts');
+      fs.writeFileSync(generatedSpec, `import './head-only-fixture';\n${fs.readFileSync(generatedSpec, 'utf8')}`);
+      fs.writeFileSync(path.join(repo, 'e2e', 'head-only-fixture.ts'), 'HEAD_ONLY_FIXTURE=true\n');
+      const headSpec = fs.readFileSync(generatedSpec, 'utf8');
+      const headConfig = fs.readFileSync(path.join(repo, 'playwright.styleproof.config.ts'), 'utf8');
       fs.writeFileSync(path.join(repo, 'app.txt'), 'head-app\n');
       git(repo, ['add', '-A']);
       git(repo, ['commit', '-qm', 'test: head']);
@@ -481,67 +485,86 @@ test(
         `#!/bin/sh
 if [ "$1" = "install" ]; then exit 0; fi
 if [ "$(git rev-parse HEAD)" = "$BASE_FAIL_SHA" ]; then exit 1; fi
+node -e "require.resolve('@playwright/test'); require.resolve('styleproof')" || exit 43
+if [ "$(git rev-parse HEAD)" = "$FIRST_ADOPTION_BASE" ]; then
+  runtime_styleproof=$(realpath node_modules/styleproof)
+  runtime_node_modules=$(dirname "$runtime_styleproof")
+  if [ "$(realpath "$runtime_node_modules/@playwright/test")" != "$(realpath node_modules/@playwright/test)" ]; then
+    echo "first-adoption runner and generated config resolve different @playwright/test packages" >&2
+    exit 44
+  fi
+fi
 mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
 printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
-if [ -f tests/e2e/styleproof.spec.ts ]; then cp tests/e2e/styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"; fi
-if [ -f tests/e2e/head-only-fixture.ts ]; then cp tests/e2e/head-only-fixture.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-fixture.ts"; fi
+if [ -f e2e/styleproof.spec.ts ]; then cp e2e/styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"; fi
+if [ -f e2e/head-only-fixture.ts ]; then cp e2e/head-only-fixture.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-fixture.ts"; fi
+if [ -f playwright.styleproof.config.ts ]; then cp playwright.styleproof.config.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-config.ts"; fi
 if [ -f app.txt ]; then cp app.txt "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-app.txt"; fi
-git status --porcelain > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || true
+git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || true
 `,
       );
       const installedPlaywrightPackage = path.join(repo, 'node_modules', '@playwright', 'test', 'package.json');
       fs.mkdirSync(path.dirname(installedPlaywrightPackage), { recursive: true });
-      fs.writeFileSync(installedPlaywrightPackage, '{"name":"@playwright/test","version":"1.52.0"}\n');
+      fs.writeFileSync(
+        installedPlaywrightPackage,
+        '{"name":"@playwright/test","version":"1.52.0","main":"index.cjs"}\n',
+      );
+      fs.writeFileSync(path.join(path.dirname(installedPlaywrightPackage), 'index.cjs'), 'module.exports = {}\n');
+      fs.symlinkSync(path.join(here, '..'), path.join(repo, 'node_modules', 'styleproof'), 'dir');
       fs.chmodSync(path.join(bin, 'npm'), 0o755);
       fs.chmodSync(path.join(bin, 'playwright'), 0o755);
 
-      const result = runCi(
-        [
-          '--base',
-          base,
-          '--head',
-          head,
-          '--spec',
-          'tests/e2e/styleproof.spec.ts',
-          '--spec-ref',
-          head,
-          '--base-dir',
-          mapRoot,
-          '--force',
-        ],
-        {
+      const workflow = fs.readFileSync(path.join(repo, '.github', 'workflows', 'styleproof.yml'), 'utf8');
+      const generatedMapScript = workflow
+        .match(/- id: maps[\s\S]*?run: \|\n([\s\S]*?)\n {6}- uses:/)?.[1]
+        ?.split('\n')
+        .map((line) => line.replace(/^ {10}/, ''))
+        .join('\n')
+        .replaceAll('${{ github.event.pull_request.base.sha }}', base)
+        .replaceAll('${{ github.event.pull_request.head.sha }}', head)
+        .replaceAll('${{ runner.temp }}', root);
+      assert.ok(generatedMapScript, 'the generated workflow exposes an executable map step');
+      const result = spawnSync('/bin/bash', ['-c', generatedMapScript], {
+        cwd: repo,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
           CI: '1',
           PM_LOG: pmLog,
+          FIRST_ADOPTION_BASE: base,
           GITHUB_OUTPUT: output,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
         },
-        repo,
-      );
+      });
       assert.equal(result.status, 0, result.stderr + result.stdout);
       assert.equal(git(repo, ['rev-parse', 'HEAD']), head);
-      assert.equal(
-        fs.readFileSync(path.join(repo, 'tests', 'e2e', 'styleproof.spec.ts'), 'utf8'),
-        "import './head-only-fixture';\nSPEC_BYTES=HEAD\n",
+      assert.equal(fs.readFileSync(path.join(repo, 'e2e', 'styleproof.spec.ts'), 'utf8'), headSpec);
+      assert.ok(
+        fs.existsSync(path.join(mapRoot, 'base', 'captured-spec.ts')),
+        `cold base capture did not preserve the overlaid spec:\n${result.stderr}${result.stdout}`,
       );
-      assert.equal(
-        fs.readFileSync(path.join(mapRoot, 'base', 'captured-spec.ts'), 'utf8'),
-        "import './head-only-fixture';\nSPEC_BYTES=HEAD\n",
-      );
+      assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'captured-spec.ts'), 'utf8'), headSpec);
       assert.equal(
         fs.readFileSync(path.join(mapRoot, 'base', 'captured-fixture.ts'), 'utf8'),
         'HEAD_ONLY_FIXTURE=true\n',
         'cold base capture receives the head-only harness dependency',
       );
+      assert.equal(
+        fs.readFileSync(path.join(mapRoot, 'base', 'captured-config.ts'), 'utf8'),
+        headConfig,
+        'first-adoption base capture receives the head production Playwright config',
+      );
       assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'captured-app.txt'), 'utf8'), 'base-app\n');
       assert.match(
         fs.readFileSync(path.join(mapRoot, 'base', 'git-status.txt'), 'utf8'),
-        /tests\/e2e\/head-only-fixture\.ts/,
+        /e2e\/head-only-fixture\.ts/,
         'the head-only file is physically present while dirtyAllow keeps the map publishable',
       );
       const installedAt = fs.readFileSync(pmLog, 'utf8').trim().split('\n');
       assert.equal(installedAt[0], base, 'base install runs at the base commit');
       assert.equal(installedAt.at(-1), head, 'head install runs at the head commit');
-      assert.match(result.stderr, /overlaying 2 spec-harness file\(s\) from/);
+      assert.match(result.stderr, /overlaying 3 spec-harness file\(s\) from/);
+      assert.match(generatedMapScript, /SPEC_REF_ARGS=\(--spec-ref "\$HEAD_SHA"\)/);
 
       // The bundle the overlay run just published must be RESTORABLE: its spec
       // hash is the head spec's bytes, so the probe must apply the same overlay
@@ -549,28 +572,18 @@ git status --porcelain > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || t
       // every subsequent push silently repays the full cold rebuild.
       fs.rmSync(mapRoot, { recursive: true, force: true });
       const secondOutput = path.join(root, 'github-output-second');
-      const second = runCi(
-        [
-          '--base',
-          base,
-          '--head',
-          head,
-          '--spec',
-          'tests/e2e/styleproof.spec.ts',
-          '--spec-ref',
-          head,
-          '--base-dir',
-          mapRoot,
-          '--force',
-        ],
-        {
+      const second = spawnSync('/bin/bash', ['-c', generatedMapScript], {
+        cwd: repo,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
           CI: '1',
           PM_LOG: pmLog,
+          FIRST_ADOPTION_BASE: base,
           GITHUB_OUTPUT: secondOutput,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
         },
-        repo,
-      );
+      });
       assert.equal(second.status, 0, second.stderr + second.stdout);
       const secondOutputs = fs.readFileSync(secondOutput, 'utf8');
       assert.match(secondOutputs, /base-hit=true/, 'the overlay-published base bundle restores on the next run');
@@ -1180,11 +1193,13 @@ test('applySpecRefOverlay: includes head-only files beside the spec and restores
     const spec = path.join(harnessDirectory, 'styleproof.spec.ts');
     const existingFixture = path.join(harnessDirectory, 'existing-fixture.ts');
     const headOnlyFixture = path.join(harnessDirectory, 'head-only-fixture.ts');
+    const playwrightConfig = path.join(root, 'playwright.styleproof.config.ts');
     const baseApplication = path.join(root, 'src', 'application.ts');
     fs.mkdirSync(harnessDirectory, { recursive: true });
     fs.mkdirSync(path.dirname(baseApplication), { recursive: true });
     fs.writeFileSync(spec, "import './existing-fixture';\n");
     fs.writeFileSync(existingFixture, 'export const fixture = "base";\n');
+    fs.writeFileSync(playwrightConfig, 'CONFIG_BYTES=BASE\n');
     fs.writeFileSync(baseApplication, 'export const application = "base";\n');
     git(root, ['add', '-A']);
     git(root, ['commit', '-qm', 'test: base']);
@@ -1192,6 +1207,7 @@ test('applySpecRefOverlay: includes head-only files beside the spec and restores
     fs.writeFileSync(spec, "import './existing-fixture';\nimport './head-only-fixture';\n");
     fs.writeFileSync(existingFixture, 'export const fixture = "head";\n');
     fs.writeFileSync(headOnlyFixture, 'export const headOnlyFixture = true;\n');
+    fs.writeFileSync(playwrightConfig, 'CONFIG_BYTES=HEAD\n');
     fs.writeFileSync(baseApplication, 'export const application = "head";\n');
     git(root, ['add', '-A']);
     git(root, ['commit', '-qm', 'test: head']);
@@ -1201,6 +1217,11 @@ test('applySpecRefOverlay: includes head-only files beside the spec and restores
     const overlay = applySpecRefOverlay({ spec: 'tests/e2e/styleproof.spec.ts', specRef: head, cwd: root });
     assert.equal(fs.readFileSync(existingFixture, 'utf8'), 'export const fixture = "head";\n');
     assert.equal(fs.readFileSync(headOnlyFixture, 'utf8'), 'export const headOnlyFixture = true;\n');
+    assert.equal(
+      fs.readFileSync(playwrightConfig, 'utf8'),
+      'CONFIG_BYTES=BASE\n',
+      'an existing base Playwright config stays pinned to the base commit',
+    );
     assert.equal(
       fs.readFileSync(baseApplication, 'utf8'),
       'export const application = "base";\n',

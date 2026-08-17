@@ -1065,10 +1065,16 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
 
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
     // The whole restore → capture-on-miss → replay → publish orchestration is ONE
-    // packaged command invoked on the installed release — no inlined bash to drift.
+    // packaged command invoked on the installed release. The only local branch
+    // selects the head harness when the adoption base predates the generated spec.
     assert.match(
       ci,
-      /node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$\{\{ github\.event\.pull_request\.base\.sha \}\}" --head "\$\{\{ github\.event\.pull_request\.head\.sha \}\}"/,
+      /if ! git cat-file -e "\$BASE_SHA:e2e\/styleproof\.spec\.ts" 2>\/dev\/null; then\n\s+SPEC_REF_ARGS=\(--spec-ref "\$HEAD_SHA"\)/,
+      'first adoption sources the capture harness from the PR head',
+    );
+    assert.match(
+      ci,
+      /node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA"/,
       'CI delegates restore/capture to the packaged styleproof-ci',
     );
     assert.match(ci, /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs/);

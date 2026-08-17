@@ -99,6 +99,10 @@ function readSpecBlobAtRef(spec: string, specRef: string, cwd: string): Buffer {
   return r.stdout;
 }
 
+function pathExistsAtRef(relativePath: string, specRef: string, cwd: string): boolean {
+  return runGit(cwd, ['cat-file', '-e', specRevPath(specRef, relativePath)]).status === 0;
+}
+
 export type SpecRefOverlay = {
   spec: string;
   paths: string[];
@@ -146,7 +150,13 @@ export function applySpecRefOverlay(options: { spec: string; specRef: string; cw
           .filter(Boolean)
           .map((entry) => entry.replace(/\\/g, '/'))
           .map((entry) => (cwdPrefix && entry.startsWith(cwdPrefix) ? entry.slice(cwdPrefix.length) : entry));
-  const paths = [...new Set([spec, ...listed])].sort();
+  const playwrightConfig = 'playwright.styleproof.config.ts';
+  const firstAdoptionConfig =
+    !fs.existsSync(path.join(options.cwd, playwrightConfig)) &&
+    pathExistsAtRef(playwrightConfig, options.specRef, options.cwd)
+      ? [playwrightConfig]
+      : [];
+  const paths = [...new Set([spec, ...listed, ...firstAdoptionConfig])].sort();
   const trackedPaths: string[] = [];
   const headOnlyPaths: string[] = [];
 
