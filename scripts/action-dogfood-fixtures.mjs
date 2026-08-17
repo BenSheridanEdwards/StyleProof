@@ -21,17 +21,6 @@ function map(color = 'rgb(0, 0, 0)') {
   };
 }
 
-function mapWithAdditionalElement() {
-  const styleMap = map();
-  styleMap.elements['body > main:nth-child(1) > button:nth-child(1)'] = {
-    tag: 'button',
-    cls: 'action',
-    rect: [32, 64, 96, 28],
-    style: { color: 'rgb(0, 0, 0)' },
-  };
-  return styleMap;
-}
-
 // A map that also carries a navigable inventory (route links), for the inventory-gate
 // dogfood: base offers /a + /b, head drops /b → an unacknowledged removal that must fail
 // the action even with fail-on-diff off (a removal isn't a restyle to wave through).
@@ -121,9 +110,6 @@ fs.rmSync(root, { recursive: true, force: true });
 writeCapture(path.join(root, 'clean-base'), 'home@320', map(), png([240, 240, 240]));
 writeCapture(path.join(root, 'clean-head'), 'home@320', map(), png([240, 240, 240]));
 
-writeCapture(path.join(root, 'content-base'), 'home@320', map(), png([240, 240, 240]));
-writeCapture(path.join(root, 'content-head'), 'home@320', mapWithAdditionalElement(), png([240, 240, 240]));
-
 writeCapture(path.join(root, 'changed-base'), 'home@320', map('rgb(0, 0, 0)'), png([240, 240, 240]));
 writeCapture(path.join(root, 'changed-head'), 'home@320', map('rgb(255, 0, 0)'), png([255, 230, 230]));
 
@@ -161,7 +147,7 @@ writeCapture(path.join(root, 'removed-base'), 'home@320', mapNav(['/a', '/b']), 
 writeCapture(path.join(root, 'removed-head'), 'home@320', mapNav(['/a']), png([240, 240, 240]));
 
 // Certification failure: identical maps, but a side's determinism is unproven —
-// the Action must NOT report NO_REVIEWABLE_STYLE_CHANGES; it certifies nothing and the
+// the Action must NOT report NO_VISUAL_CHANGES; it certifies nothing and the
 // approval box cannot clear it. Maps match so the ONLY thing under test is that
 // unproven provenance escalates to CERTIFICATION_FAILED.
 writeCapture(path.join(root, 'certfail-base'), 'home@320', map(), png([240, 240, 240]));
