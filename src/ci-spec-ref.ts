@@ -99,10 +99,6 @@ function readSpecBlobAtRef(spec: string, specRef: string, cwd: string): Buffer {
   return r.stdout;
 }
 
-function pathExistsAtRef(relativePath: string, specRef: string, cwd: string): boolean {
-  return runGit(cwd, ['cat-file', '-e', specRevPath(specRef, relativePath)]).status === 0;
-}
-
 export type SpecRefOverlay = {
   spec: string;
   paths: string[];
@@ -110,9 +106,9 @@ export type SpecRefOverlay = {
   restore: () => void;
 };
 
-/** An explicit spec ref owns the capture harness, even when product commits do not track it. */
-export function shouldApplySpecRefOverlay(_specExistsAtCheckout: boolean, specRef: string): boolean {
-  return Boolean(specRef);
+/** Cold base capture only overlays when the base tree already contains the spec path. */
+export function shouldApplySpecRefOverlay(specExistsAtBase: boolean, specRef: string): boolean {
+  return Boolean(specRef && specExistsAtBase);
 }
 
 /**
@@ -150,13 +146,7 @@ export function applySpecRefOverlay(options: { spec: string; specRef: string; cw
           .filter(Boolean)
           .map((entry) => entry.replace(/\\/g, '/'))
           .map((entry) => (cwdPrefix && entry.startsWith(cwdPrefix) ? entry.slice(cwdPrefix.length) : entry));
-  const playwrightConfig = 'playwright.styleproof.config.ts';
-  const firstAdoptionConfig =
-    !fs.existsSync(path.join(options.cwd, playwrightConfig)) &&
-    pathExistsAtRef(playwrightConfig, options.specRef, options.cwd)
-      ? [playwrightConfig]
-      : [];
-  const paths = [...new Set([spec, ...listed, ...firstAdoptionConfig])].sort();
+  const paths = [...new Set([spec, ...listed])].sort();
   const trackedPaths: string[] = [];
   const headOnlyPaths: string[] = [];
 
