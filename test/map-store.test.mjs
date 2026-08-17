@@ -24,10 +24,10 @@ import {
   writeCaptureManifest,
   writeMapManifest,
 } from '../dist/map-store.js';
-import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+import { makeMap, mkNonGitTmp, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 test('currentGitSha binds pull-request captures to the real head, not the merge commit', () => {
-  const dir = mkTmp('styleproof-event-');
+  const dir = mkNonGitTmp('styleproof-event-');
   const headSha = 'b'.repeat(40);
   try {
     const eventPath = path.join(dir, 'event.json');
@@ -1062,7 +1062,7 @@ test('manifestlessError: names the side and points at re-capturing (v4 refuses)'
 test('writeCaptureManifest: stamps a compat manifest, degrading git fields outside a repo', () => {
   // A one-shot styleproof-capture output dir under a NON-git tmp path — the design-mockup
   // case. The manifest must still carry the fields the same-environment guard consumes.
-  const dir = mkTmp('styleproof-capture-manifest-');
+  const dir = mkNonGitTmp('styleproof-capture-manifest-');
   try {
     // cwd = the tmp dir itself (not a git repo) so the git fields degrade.
     const manifest = writeCaptureManifest({ dir, screenshots: true, cwd: dir });
