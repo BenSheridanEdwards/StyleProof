@@ -76,6 +76,7 @@ for (const manager of [
   {
     name: 'npm by default',
     lockfile: null,
+    installLine: '- run: npm ci',
     config: /npm run build && npm run start/,
     workflow: [
       /cache: npm/,
@@ -90,6 +91,7 @@ for (const manager of [
   {
     name: 'Yarn v1 lockfile',
     lockfile: 'yarn.lock',
+    installLine: '- run: npx -y yarn@1.22.22 install --frozen-lockfile --non-interactive',
     config: /npx -y yarn@1\.22\.22 build && npx -y yarn@1\.22\.22 start/,
     workflow: [
       /cache: yarn/,
@@ -103,6 +105,7 @@ for (const manager of [
   {
     name: 'pnpm lockfile',
     lockfile: 'pnpm-lock.yaml',
+    installLine: '- run: pnpm install --frozen-lockfile',
     config: /pnpm run build && pnpm run start/,
     workflow: [/cache: pnpm/, /corepack enable/, /pnpm install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v6/],
     absent: [/npm ci/],
@@ -112,6 +115,7 @@ for (const manager of [
   {
     name: 'Bun lockfile',
     lockfile: 'bun.lock',
+    installLine: '- run: bun install --frozen-lockfile',
     config: /bun run build && bun run start/,
     workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v6/],
     absent: [/npm ci/],
@@ -146,6 +150,17 @@ for (const manager of [
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
       for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(workflow, pattern);
+      const scaffoldCheck = 'node node_modules/styleproof/bin/styleproof-init.mjs --check';
+      assert.match(workflow, /- name: Verify StyleProof scaffold matches the installed release/);
+      assert.ok(workflow.includes(scaffoldCheck));
+      assert.ok(
+        workflow.indexOf(manager.installLine) < workflow.indexOf(scaffoldCheck),
+        'the installed StyleProof release owns the expected scaffold bytes',
+      );
+      assert.ok(
+        workflow.indexOf(scaffoldCheck) < workflow.indexOf('- id: maps'),
+        'scaffold freshness is enforced before capture orchestration',
+      );
 
       // The restore → capture-on-miss → replay → publish orchestration is ONE
       // packaged command (styleproof-ci), invoked on the installed release with the
@@ -154,13 +169,10 @@ for (const manager of [
       // the lockfile at RUN time, so an npm→pnpm migration needs no re-init). The
       // exit-code triage, cold-path exact-release install, metadata restore, and
       // HAR replay it used to assert here are unit-tested in ci-cli.test.mjs.
+      assert.match(workflow, /STYLEPROOF_SPEC_PATH_B64: ZTJlL3N0eWxlcHJvb2Yuc3BlYy50cw==/);
       assert.match(
         workflow,
-        /if ! git cat-file -e "\$BASE_SHA:e2e\/styleproof\.spec\.ts" 2>\/dev\/null \|\|\n\s+! git cat-file -e "\$BASE_SHA:playwright\.styleproof\.config\.ts" 2>\/dev\/null; then\n\s+SPEC_REF_ARGS=\(--spec-ref "\$HEAD_SHA"\)\n\s+fi/,
-      );
-      assert.match(
-        workflow,
-        /PATH="\$PWD\/node_modules\/\.bin:\$PATH" node node_modules\/styleproof\/bin\/styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec e2e\/styleproof\.spec\.ts "\$\{SPEC_REF_ARGS\[@\]\}" --base-dir "\$\{\{ runner\.temp \}\}\/styleproof-maps"/,
+        /styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec-ref-if-missing "\$HEAD_SHA" --base-dir/,
       );
       assert.doesNotMatch(workflow, /styleproof-map\.mjs/);
       assert.doesNotMatch(workflow, /"styleproof@\$STYLEPROOF_VERSION"/);
@@ -218,34 +230,151 @@ test('styleproof-init: config-only first adoption sources the head harness', () 
     fs.writeFileSync(path.join(root, 'e2e', 'styleproof.spec.ts'), '// existing base spec\n');
     git(['add', '-A']);
     git(['commit', '-qm', 'test: base with spec only']);
-    const base = git(['rev-parse', 'HEAD']);
 
     const initialized = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(initialized.status, 0, initialized.stderr);
     git(['add', '-A']);
     git(['commit', '-qm', 'test: head adds dedicated config']);
-    const head = git(['rev-parse', 'HEAD']);
 
     const workflow = readFile(root, '.github/workflows/styleproof.yml');
-    const generatedMapScript = workflow
-      .match(/- id: maps[\s\S]*?run: \|\n([\s\S]*?)\n {6}- uses:/)?.[1]
-      ?.split('\n')
-      .map((line) => line.replace(/^ {10}/, ''))
-      .map((line) =>
-        line.includes('node node_modules/styleproof/bin/styleproof-ci.mjs')
-          ? `printf '%s\\n' "\${SPEC_REF_ARGS[@]}"`
-          : line,
-      )
-      .join('\n')
-      .replaceAll('${{ github.event.pull_request.base.sha }}', base)
-      .replaceAll('${{ github.event.pull_request.head.sha }}', head);
-    assert.ok(generatedMapScript, 'generated workflow exposes the map shell');
-
-    const result = spawnSync('/bin/bash', ['-c', generatedMapScript], { cwd: root, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout.trim(), `--spec-ref\n${head}`);
+    assert.match(
+      workflow,
+      /styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec-ref-if-missing "\$HEAD_SHA"/,
+    );
+    assert.doesNotMatch(workflow, /SPEC_REF_ARGS|git cat-file -e/);
   } finally {
     rmTmp(root);
+  }
+});
+
+test('styleproof-init: generated scaffold check executes with a shell-hostile custom spec path', () => {
+  const root = mkTmp();
+  try {
+    const specPath = "tests/visual #proof/$draft's.spec.ts";
+    const res = runInit(root, ['--dir', specPath]);
+    assert.equal(res.status, 0, res.stderr);
+    const workflowPath = '.github/workflows/styleproof.yml';
+    const workflow = readFile(root, workflowPath);
+    const checkCommand = workflow.match(
+      /- name: Verify StyleProof scaffold matches the installed release\n\s+shell: bash\n\s+run: \|\n\s+(.+)/,
+    )?.[1];
+    assert.ok(checkCommand, 'generated workflow contains an executable freshness command');
+    const encodedSpecPath = workflow.match(/STYLEPROOF_SPEC_PATH_B64: ([A-Za-z0-9+/]+=*)/)?.[1];
+    assert.ok(encodedSpecPath, 'generated workflow carries only encoded spec data');
+    const commandEnv = { ...process.env, STYLEPROOF_SPEC_PATH_B64: encodedSpecPath };
+    fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+    fs.symlinkSync(path.join(here, '..'), path.join(root, 'node_modules', 'styleproof'), 'dir');
+
+    const clean = spawnSync('/bin/bash', ['-c', checkCommand], { cwd: root, encoding: 'utf8', env: commandEnv });
+    assert.equal(clean.status, 0, clean.stderr + clean.stdout);
+    assert.match(clean.stdout, /all machine-owned files match/);
+
+    fs.appendFileSync(path.join(root, workflowPath), '# stale release template\n');
+    const stale = spawnSync('/bin/bash', ['-c', checkCommand], { cwd: root, encoding: 'utf8', env: commandEnv });
+    assert.equal(stale.status, 1, stale.stderr + stale.stdout);
+    assert.match(stale.stdout, /stale {4}\.github\/workflows\/styleproof\.yml/);
+    assert.match(stale.stdout, /styleproof-init --upgrade/);
+
+    const upgraded = runInit(root, ['--upgrade', '--dir', specPath]);
+    assert.equal(upgraded.status, 0, upgraded.stderr);
+    const refreshed = spawnSync('/bin/bash', ['-c', checkCommand], { cwd: root, encoding: 'utf8', env: commandEnv });
+    assert.equal(refreshed.status, 0, refreshed.stderr + refreshed.stdout);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: rejects control characters that would invalidate generated YAML', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'tests/visual\u000bproof.spec.ts']);
+    assert.equal(res.status, 2);
+    assert.match(res.stderr, /--dir spec path must not contain control characters/);
+    assert.equal(fs.existsSync(path.join(root, '.github', 'workflows', 'styleproof.yml')), false);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: hostile custom spec paths remain encoded data, never generated source', () => {
+  const hostileSegments = [
+    "single'quote",
+    'double"quote',
+    'back`tick',
+    'command$(touch SHOULD_NOT_EXIST)',
+    'expression${{ github.token }}',
+    'next\u0085line',
+    'line\u2028separator',
+    'paragraph\u2029separator',
+    '-leading-dash',
+    'space and ; metachar',
+  ];
+
+  for (const segment of hostileSegments) {
+    const root = mkTmp();
+    try {
+      const specPath = `tests/${segment}/visual.spec.ts`;
+      const result = runInit(root, ['--dir', specPath]);
+      assert.equal(result.status, 0, `${JSON.stringify(segment)}: ${result.stderr}`);
+      const workflow = readFile(root, '.github/workflows/styleproof.yml');
+      const hook = readFile(root, '.githooks/pre-push');
+      assert.doesNotMatch(workflow, new RegExp(specPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      assert.doesNotMatch(hook, new RegExp(specPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      assert.match(workflow, /STYLEPROOF_SPEC_PATH_B64: [A-Za-z0-9+/]+=*/);
+      assert.match(hook, /STYLEPROOF_SPEC_PATH_B64='[A-Za-z0-9+/]+=*'/);
+      assert.equal(spawnSync('/bin/sh', ['-n', path.join(root, '.githooks/pre-push')]).status, 0);
+      assert.equal(fs.existsSync(path.join(root, 'SHOULD_NOT_EXIST')), false);
+    } finally {
+      rmTmp(root);
+    }
+  }
+});
+
+test('styleproof-init: explicit and config spec paths override encoded scaffold fallback', () => {
+  const explicitRoot = mkTmp();
+  try {
+    const explicit = runInit(explicitRoot, ['--dir', 'safe/explicit.spec.ts'], {
+      STYLEPROOF_SPEC_PATH_B64: '***not-base64***',
+    });
+    assert.equal(explicit.status, 0, explicit.stderr);
+    assert.equal(fs.existsSync(path.join(explicitRoot, 'safe', 'explicit.spec.ts')), true);
+  } finally {
+    rmTmp(explicitRoot);
+  }
+
+  const configRoot = mkTmp();
+  try {
+    assert.equal(runInit(configRoot, ['--dir', 'old/spec.ts']).status, 0);
+    fs.writeFileSync(path.join(configRoot, 'styleproof.config.json'), JSON.stringify({ spec: 'new/spec.ts' }));
+    const staleFallback = Buffer.from('old/spec.ts', 'utf8').toString('base64');
+    const check = runInit(configRoot, ['--check'], { STYLEPROOF_SPEC_PATH_B64: staleFallback });
+    assert.equal(check.status, 1, check.stdout + check.stderr);
+    const upgrade = runInit(configRoot, ['--upgrade'], { STYLEPROOF_SPEC_PATH_B64: staleFallback });
+    assert.equal(upgrade.status, 0, upgrade.stderr);
+    assert.match(
+      readFile(configRoot, '.github/workflows/styleproof.yml'),
+      new RegExp(Buffer.from('new/spec.ts').toString('base64')),
+    );
+  } finally {
+    rmTmp(configRoot);
+  }
+});
+
+test('styleproof-init: absolute, traversing, and control-bearing spec paths fail before writes', () => {
+  for (const specPath of [
+    '/tmp/outside.spec.ts',
+    '../outside.spec.ts',
+    'tests/new\nline.spec.ts',
+    'tests/return\r.spec.ts',
+  ]) {
+    const root = mkTmp();
+    try {
+      const result = runInit(root, ['--dir', specPath]);
+      assert.equal(result.status, 2, JSON.stringify(specPath));
+      assert.equal(fs.existsSync(path.join(root, '.github/workflows/styleproof.yml')), false);
+    } finally {
+      rmTmp(root);
+    }
   }
 });
 
@@ -381,18 +510,15 @@ test('styleproof-init --hook: refreshes ONLY the pre-push hook, overwriting a st
     assert.equal(res.status, 0, res.stderr);
     assert.match(res.stdout, /refreshed \.githooks\/pre-push/);
     const hook = readFile(root, '.githooks/pre-push');
-    // Default spec path: NOT baked into the hook — styleproof-prepush resolves it
-    // at run time (flag > env > styleproof.config.json > built-in), so moving the
-    // spec via config alone never strands a stale baked path.
+    // The path is always data, never appended to the executable command.
+    assert.match(hook, /STYLEPROOF_SPEC_PATH_B64='ZTJlL3N0eWxlcHJvb2Yuc3BlYy50cw=='/);
     assert.match(hook, /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m);
     assert.doesNotMatch(hook, /--spec/);
-    // A NON-default --dir still gets baked, since prepush can't guess it.
     const custom = runInit(root, ['--hook', '--dir', 'tests/visual.spec.ts']);
     assert.equal(custom.status, 0, custom.stderr);
-    assert.match(
-      readFile(root, '.githooks/pre-push'),
-      /exec \.\/node_modules\/\.bin\/styleproof-prepush --spec tests\/visual\.spec\.ts$/m,
-    );
+    const customHook = readFile(root, '.githooks/pre-push');
+    assert.match(customHook, /STYLEPROOF_SPEC_PATH_B64='dGVzdHMvdmlzdWFsLnNwZWMudHM='/);
+    assert.match(customHook, /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m);
     assert.equal(runInit(root, ['--hook', '--dir', 'e2e/styleproof.spec.ts']).status, 0);
     if (process.platform !== 'win32') {
       assert.ok(fs.statSync(path.join(root, '.githooks', 'pre-push')).mode & 0o111, 'hook is executable');

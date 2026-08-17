@@ -55,6 +55,7 @@ import {
   writeBaselineProvenance,
 } from '../dist/map-store.js';
 import { planAncestorBaselineReuse } from '../dist/ancestor-baseline.js';
+import { decodeSpecPathEnv, harnessMissingAtRef, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
 
 const HELP = `styleproof-ci — restore or capture the base/head maps for a PR, cache-first
 
@@ -92,6 +93,9 @@ options:
                       commits do not need to track the harness. App code and lockfiles
                       stay pinned to --base/--head. Invalid refs or a missing spec at
                       the ref fail loudly.
+  --spec-ref-if-missing <ref>
+                      Source that harness only when the base lacks the selected spec
+                      or playwright.styleproof.config.ts. Intended for first adoption.
   --base-dir <path>   map root; base/head land under it
                       (default: $RUNNER_TEMP/styleproof-maps, else .styleproof/ci-maps)
   --force             run outside CI (the flow may force-checkout --head in the consumer
@@ -134,9 +138,11 @@ let base = '';
 let head = '';
 // '' = not set explicitly; resolved from project config AFTER the consumer is
 // checked out to --head (see below).
-let spec = '';
+let spec;
+let specProvided = false;
 let specRef = '';
 let specRefProvided = false;
+let specRefIfMissing = '';
 let baseDir = process.env.RUNNER_TEMP ? path.join(process.env.RUNNER_TEMP, 'styleproof-maps') : '.styleproof/ci-maps';
 let force = false;
 for (let i = 0; i < argv.length; i++) {
@@ -146,14 +152,22 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--base=')) base = a.slice(7);
   else if (a === '--head') head = argv[++i];
   else if (a.startsWith('--head=')) head = a.slice(7);
-  else if (a === '--spec') spec = argv[++i];
-  else if (a.startsWith('--spec=')) spec = a.slice(7);
-  else if (a === '--spec-ref') {
+  else if (a === '--spec') {
+    specProvided = true;
+    spec = argv[++i];
+  } else if (a.startsWith('--spec=')) {
+    specProvided = true;
+    spec = a.slice(7);
+  } else if (a === '--spec-ref') {
     specRefProvided = true;
     specRef = argv[++i];
   } else if (a.startsWith('--spec-ref=')) {
     specRefProvided = true;
     specRef = a.slice(11);
+  } else if (a === '--spec-ref-if-missing') {
+    specRefIfMissing = argv[++i];
+  } else if (a.startsWith('--spec-ref-if-missing=')) {
+    specRefIfMissing = a.slice(22);
   } else if (a === '--base-dir') baseDir = argv[++i];
   else if (a.startsWith('--base-dir=')) baseDir = a.slice(11);
   else if (a === '--force') force = true;
@@ -169,6 +183,17 @@ if (!base || !head) {
 }
 if (specRefProvided && (typeof specRef !== 'string' || !specRef.trim())) {
   console.error('styleproof-ci: --spec-ref requires a non-empty git ref');
+  process.exit(2);
+}
+if (
+  typeof specRefIfMissing !== 'string' ||
+  (argv.some((arg) => arg.startsWith('--spec-ref-if-missing')) && !specRefIfMissing.trim())
+) {
+  console.error('styleproof-ci: --spec-ref-if-missing requires a non-empty git ref');
+  process.exit(2);
+}
+if (specRefProvided && specRefIfMissing) {
+  console.error('styleproof-ci: --spec-ref and --spec-ref-if-missing are mutually exclusive');
   process.exit(2);
 }
 if (!process.env.CI && !force) {
@@ -215,25 +240,44 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 // a head commit that moves the spec via styleproof.config.json must govern this
 // run — children (styleproof-map) re-read config per-cwd and would otherwise
 // disagree with this driver inside one run.
-const specExplicit = Boolean(spec);
-if (!spec) spec = projectConfigOrExit('styleproof-ci').spec ?? 'e2e/styleproof.spec.ts';
+try {
+  if (!specProvided) spec = projectConfigOrExit('styleproof-ci').spec ?? decodeSpecPathEnv();
+  spec ??= 'e2e/styleproof.spec.ts';
+  spec = validateRepoRelativeSpecPath(spec);
+} catch (error) {
+  console.error(`styleproof-ci: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(2);
+}
 
 /** The spec governing one specific checkout: an explicit --spec everywhere,
  *  otherwise that checkout's OWN styleproof.config.json — after a config-only
  *  spec move, base-side probes and captures must use the base's path and
  *  head-side ones the head's, or the moved side fails "no StyleProof spec". */
 function specFor(cwd) {
-  if (specExplicit) return spec;
+  if (specProvided) return spec;
   try {
-    return loadStyleProofConfig(cwd).spec ?? 'e2e/styleproof.spec.ts';
+    return validateRepoRelativeSpecPath(loadStyleProofConfig(cwd).spec ?? spec);
   } catch (error) {
     console.error(`styleproof-ci: ${error instanceof Error ? error.message : String(error)}`);
     bail(2);
   }
 }
 
-// Resolve a symbolic --spec-ref to a SHA HERE, in the consumer checkout, before
-// any worktree exists. Inside the detached base worktree HEAD is --base (so
+// Resolve a symbolic harness ref to a SHA HERE, in the consumer checkout, before
+// any worktree exists. For first adoption, select it only when the base lacks
+// either required generated harness component.
+if (specRefIfMissing) {
+  const missingHarness = harnessMissingAtRef(
+    spec,
+    consumerRel,
+    (file) => spawnSync('git', ['cat-file', '-e', `${base}:${file}`], { cwd: repoRoot }).status === 0,
+  );
+  if (missingHarness) {
+    specRef = specRefIfMissing;
+    specRefProvided = true;
+  }
+}
+// Inside the detached base worktree HEAD is --base (so
 // `--spec-ref HEAD` would silently overlay the base's own spec) and
 // FETCH_HEAD/MERGE_HEAD are per-worktree pseudo-refs that don't resolve at all.
 if (specRefProvided) {

@@ -1,30 +1,36 @@
-# First-adoption capture harness (#408)
+# Generated scaffold drift gate (#410)
 
 ## Completed
 
-- Added a generated-workflow regression for an adoption PR whose base predates
-  the StyleProof capture spec.
-- Made the workflow opt into `--spec-ref` only for that missing-base-spec case.
-- Extended the overlay to supply the dedicated production Playwright config
-  only when the checkout does not already have one.
-- Made exact dirty allowances work when the generated harness directory is
-  wholly untracked.
+- Added package-manager regressions for the installed-release scaffold check.
+- Kept generated workflow and hook source fixed while transporting custom spec
+  paths as canonical base64 data in `STYLEPROOF_SPEC_PATH_B64`.
+- Centralized UTF-8, canonical-base64, control-character, length, traversal, and
+  drive-prefix validation in the packaged Node consumer.
+- Positioned the fail-closed check after dependency installation and before map
+  restore or capture.
+- Moved first-adoption harness selection into `styleproof-ci`, treating the spec
+  and dedicated Playwright config as independent requirements.
 
 ## Next
 
-- Run the full quality gates, review the fixed-point diff, and publish the PR.
+- Require fresh required GitHub CI on the final exact head, then merge.
 
 ## Blockers
 
-- None.
+- Fresh remote CI must pass.
 
 ## Verification
 
-- `npm test` — 816 passed, 0 failed.
+- `node --test test/init.test.mjs` — 21 passed, 0 failed.
+- `npm test` — 828 passed, 0 failed.
 - `npm run test:e2e` — 152 passed, 0 failed.
 - `npm run build`, `npm run typecheck`, `npm run lint`, and `npm run format:check` — passed.
-- `npm run privacy:check` — passed across 229 public text files.
+- `npm run privacy:check` — passed.
 - `npm audit --audit-level=high` — 0 vulnerabilities.
+- `npm pack --dry-run --json` — packaged validator and CLI consumers present.
+- Independent final review fuzzed seven shell/YAML-hostile paths with no command
+  substitution or generated-source injection.
 
 ---
 

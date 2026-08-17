@@ -94,6 +94,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   PR head's generated harness for the base render. The `--spec-ref` overlay uses
   the generated production server without replacing an existing base config
   (#408).
+- First-adoption workflows now detect when the base commit predates the capture
+  spec and source the PR head's generated harness for the base render. The
+  `--spec-ref` overlay also supplies `playwright.styleproof.config.ts` when the
+  checkout lacks it, so the first base capture uses the generated production
+  server without replacing an existing base config (#408).
+- First-adoption harness selection now lives in packaged `styleproof-ci`, which
+  treats the capture spec and `playwright.styleproof.config.ts` as independent
+  requirements. When either is absent from the base, `--spec-ref-if-missing`
+  sources the complete PR-head harness while rendering the base application;
+  generated workflow shell carries no path-dependent inventory logic (#408).
+- Generated report workflows now run the installed release's
+  `styleproof-init --check` before capture. Custom spec paths travel only as
+  base64-encoded environment data, are decoded and repository-bound in Node,
+  and never become generated YAML expressions or shell command source. Package
+  upgrades fail CI with the existing `--upgrade` remedy when machine-owned
+  workflow, approval, or hook templates are stale (#410).
 - State recipes (#391): replace polynomial selector/label regex paths with
   bounded linear character scanners (slug builder, pseudo/arg validators,
   bracket equality scan, credential/scheme token scans, manual `:ident()`

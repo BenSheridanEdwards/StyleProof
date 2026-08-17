@@ -1064,14 +1064,12 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
     assert.match(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), /\.styleproof\//);
 
     const ci = fs.readFileSync(path.join(dir, '.github', 'workflows', 'styleproof.yml'), 'utf8');
-    // The whole restore → capture-on-miss → replay → publish orchestration is ONE
-    // packaged command invoked on the installed release. The only local branch
-    // selects the head harness when the adoption base predates either required
-    // generated harness file.
+    // Harness selection is packaged, not generated shell: the CLI treats the
+    // spec and dedicated Playwright config as independent requirements.
     assert.match(
       ci,
-      /if ! git cat-file -e "\$BASE_SHA:e2e\/styleproof\.spec\.ts" 2>\/dev\/null \|\|\n\s+! git cat-file -e "\$BASE_SHA:playwright\.styleproof\.config\.ts" 2>\/dev\/null; then\n\s+SPEC_REF_ARGS=\(--spec-ref "\$HEAD_SHA"\)/,
-      'first adoption sources the capture harness from the PR head',
+      /styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec-ref-if-missing "\$HEAD_SHA"/,
+      'first adoption delegates head-harness selection to styleproof-ci',
     );
     assert.match(
       ci,

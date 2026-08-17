@@ -90,6 +90,25 @@ test('choosePrePushCaptureSha: no refs on stdin falls back to HEAD (manual run /
   assert.equal(choosePrePushCaptureSha({ refs: [], headSha: undefined, changedFiles: () => [] }).sha, undefined);
 });
 
+test('styleproof-prepush: explicit spec is validated before a capture skip', () => {
+  for (const spec of ['../outside.spec.ts', '/tmp/outside.spec.ts']) {
+    const res = spawnSync(process.execPath, [PREPUSH, '--spec', spec], {
+      encoding: 'utf8',
+      input: '',
+      env: { ...process.env, STYLEPROOF_SKIP_CAPTURE: '1' },
+    });
+    assert.equal(res.status, 2, `${spec}: ${res.stderr}`);
+    assert.match(res.stderr, /spec path must stay inside the repository/);
+  }
+
+  const explicit = spawnSync(process.execPath, [PREPUSH, '--spec', 'safe/spec.ts'], {
+    encoding: 'utf8',
+    input: '',
+    env: { ...process.env, STYLEPROOF_SKIP_CAPTURE: '1', STYLEPROOF_SPEC_PATH_B64: '***not-base64***' },
+  });
+  assert.equal(explicit.status, 0, explicit.stderr);
+});
+
 test('styleproof-prepush: STYLEPROOF_SKIP_CAPTURE=1 exits 0 before touching git or the map store', () => {
   const res = spawnSync(process.execPath, [PREPUSH], {
     encoding: 'utf8',

@@ -364,6 +364,23 @@ test('styleproof-ci: --spec-ref requires a non-empty value', () => {
   assert.match(empty.stderr, /--spec-ref requires a non-empty git ref/);
 });
 
+test('styleproof-ci: --spec-ref-if-missing validates its value and exclusivity', () => {
+  const missing = runCi(['--base', 'x', '--head', 'y', '--spec-ref-if-missing']);
+  assert.equal(missing.status, 2);
+  assert.match(missing.stderr, /--spec-ref-if-missing requires a non-empty git ref/);
+
+  const conflicting = runCi(['--base', 'x', '--head', 'y', '--spec-ref', 'HEAD', '--spec-ref-if-missing', 'HEAD']);
+  assert.equal(conflicting.status, 2);
+  assert.match(conflicting.stderr, /mutually exclusive/);
+});
+
+test('styleproof-ci: explicit spec overrides malformed encoded scaffold fallback', () => {
+  const result = runCi(['--spec', 'safe/spec.ts'], { STYLEPROOF_SPEC_PATH_B64: '***not-base64***' });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /--base <sha> and --head <sha> are required/);
+  assert.doesNotMatch(result.stderr, /not valid base64/);
+});
+
 test('normalizeRepoRelativeSpec: rejects absolute and out-of-repo paths', () => {
   const root = mkTmp('styleproof-ci-spec-path-');
   try {
@@ -564,7 +581,7 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
       assert.equal(installedAt[0], base, 'base install runs at the base commit');
       assert.equal(installedAt.at(-1), head, 'head install runs at the head commit');
       assert.match(result.stderr, /overlaying 3 spec-harness file\(s\) from/);
-      assert.match(generatedMapScript, /SPEC_REF_ARGS=\(--spec-ref "\$HEAD_SHA"\)/);
+      assert.match(generatedMapScript, /--spec-ref-if-missing "\$HEAD_SHA"/);
 
       // The bundle the overlay run just published must be RESTORABLE: its spec
       // hash is the head spec's bytes, so the probe must apply the same overlay
