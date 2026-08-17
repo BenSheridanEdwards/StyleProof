@@ -3,12 +3,25 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
 
 /** Make a unique temp dir; returns its path. Caller removes via rmTmp. */
 export function mkTmp(prefix = 'styleproof-test-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+/**
+ * Make a temp directory that Git cannot accidentally attribute to an ancestor
+ * checkout when TMPDIR itself lives inside a repository. An initialized but
+ * unborn repository is a deterministic discovery boundary whose HEAD remains
+ * unresolved, matching the non-repository behavior these tests exercise.
+ */
+export function mkNonGitTmp(prefix = 'styleproof-non-git-test-') {
+  const dir = mkTmp(prefix);
+  execFileSync('git', ['init', '-q'], { cwd: dir, stdio: 'pipe' });
+  return dir;
 }
 
 export function rmTmp(dir) {
