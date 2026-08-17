@@ -1,6 +1,6 @@
 {
   "name": "styleproof",
-  "version": "6.0.5",
+  "version": "4.7.6",
   "description": "Catch every CSS change before it ships — review PRs and certify refactors by the browser's computed styles, not pixels. Works with any styling system.",
   "keywords": [
     "playwright",
@@ -76,7 +76,7 @@
     "demo:report": "npm run build && node scripts/demo-report.mjs",
     "demo:check": "npm run build && node scripts/demo-report.mjs --check",
     "init": "node ./bin/styleproof-init.mjs",
-    "prepare": "npm run build && node .husky/install.mjs",
+    "prepare": "npm run build && husky",
     "prepublishOnly": "npm run clean && npm run build && npm run typecheck && npm run lint && npm run format:check && npm run privacy:check && npm test && npm run test:e2e"
   },
   "peerDependencies": {
@@ -90,14 +90,14 @@
     "@commitlint/config-conventional": "^21.2.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.0.0",
     "@types/pngjs": "^6.0.5",
-    "eslint": "^10.8.1",
+    "eslint": "^10.5.0",
     "fallow": "3.14.0",
-    "globals": "^17.11.0",
+    "globals": "^17.6.0",
     "husky": "^9.1.7",
-    "prettier": "^3.9.6",
+    "prettier": "^3.4.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.67.0"
+    "typescript-eslint": "^8.18.0"
   }
 }

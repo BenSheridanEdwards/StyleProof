@@ -2,7 +2,7 @@
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.
 
-**3 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+**5 DOM change(s) · 4 computed-style difference(s)** across 3 distinct change(s) in 3 changed surface bases with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
 ## 🆕 New pages, states, or surfaces — review first
@@ -19,21 +19,46 @@ _No baseline to compare against — this surface is new. Review and approve it b
 
 ## Element-level changes
 
+### `button.duplicate-control` · 1 element added
+
+_duplicate-insertion @ 900_
+
+![before ◀ │ ▶ after](crops/duplicate-insertion-900-2-composite.png)
+
+<sub>◀ before  ·  after ▶ — duplicate-insertion @ 900</sub>
+
+![highlighted before ◀ │ ▶ after](crops/duplicate-insertion-900-2-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `button.duplicate-control`</sub>
+
+- **1** element added
+
+<details>
+<summary>Show the head-side style inventory</summary>
+
+**Added** `button.duplicate-control`
+
+Style inventory (head-side — no baseline):
+
+| Property | Value |
+| --- | --- |
+| `background-color` | `#2563eb` |
+
+</details>
+
 ### `span.caret` · 1 element restyled
 
 _home @ 900_
 
-`color` `#9ca3af` → `#2563eb`
-
-![before ◀ │ ▶ after](crops/home-900-2-composite.png)
+![before ◀ │ ▶ after](crops/home-900-3-composite.png)
 
 <sub>◀ before  ·  after ▶ — home @ 900</sub>
 
-![highlighted before ◀ │ ▶ after](crops/home-900-2-annotated.png)
+![highlighted before ◀ │ ▶ after](crops/home-900-3-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `span.caret`</sub>
 
-![zoomed before ◀ │ ▶ after](crops/home-900-2-zoom.png)
+![zoomed before ◀ │ ▶ after](crops/home-900-3-zoom.png)
 
 <sub>🔬 magnified 5× — change too small to see at 1:1 — changed: `span.caret`</sub>
 
@@ -56,13 +81,11 @@ Style:
 
 _home @ 900_
 
-`background-color` `#2563eb` → `#dc2626`
-
-![before ◀ │ ▶ after](crops/home-900-3-composite.png)
+![before ◀ │ ▶ after](crops/home-900-4-composite.png)
 
 <sub>◀ before  ·  after ▶ — home @ 900</sub>
 
-![highlighted before ◀ │ ▶ after](crops/home-900-3-annotated.png)
+![highlighted before ◀ │ ▶ after](crops/home-900-4-annotated.png)
 
 <sub>🔍 magenta boxes mark each change — changed: `button.cta`</sub>
 
@@ -81,25 +104,66 @@ Style:
 
 </details>
 
-### `aside.off-canvas-status` · 1 element restyled
+### `div.toolbar` + 2 more · 3 elements added, 1 element removed, 2 elements restyled
 
-_home @ 900_
+_sibling-insertion @ 900_
 
-`opacity` `0.85` → `1`
+![before ◀ │ ▶ after](crops/sibling-insertion-900-5-composite.png)
 
-_The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading._
+<sub>◀ before  ·  after ▶ — sibling-insertion @ 900</sub>
 
-- **`aside.off-canvas-status`** — opacity 0.85 → 1
+![highlighted before ◀ │ ▶ after](crops/sibling-insertion-900-5-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `div.scope-switch`</sub>
+
+- **1** element removed
+- **3** elements added
+- **`div.toolbar`** — background dark green (`#374151`) → dark indigo (`#581c87`)
+- **`div.grid`** — background white (`#e5e7eb`) → dark green (`#374151`)
 
 <details>
-<summary>Show the property change</summary>
+<summary>Show all 5 property changes</summary>
 
-**`aside.off-canvas-status`**
+**`div.toolbar`**
 
 Style:
 
 | Property | Before | After |
 | --- | --- | --- |
-| `opacity` | `0.85` | `1` |
+| `background-color` | `#374151` | `#581c87` |
+
+**`div.grid`**
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `background-color` | `#e5e7eb` | `#374151` |
+
+**Removed** `article.card`
+
+**Added** `button.filter`
+
+Style inventory (head-side — no baseline):
+
+| Property | Value |
+| --- | --- |
+| `color` | `#ffffff` |
+
+**Added** `div.grid`
+
+Style inventory (head-side — no baseline):
+
+| Property | Value |
+| --- | --- |
+| `background-color` | `#e5e7eb` |
+
+**Added** `article.card`
+
+Style inventory (head-side — no baseline):
+
+| Property | Value |
+| --- | --- |
+| `background-color` | `#ffffff` |
 
 </details>

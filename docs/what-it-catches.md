@@ -1,10 +1,8 @@
 # What StyleProof catches — and its honest boundary
 
-StyleProof's default promise on a PR: **every matched-element style and
-interaction-state change is surfaced.** Copy and DOM structure are a separate,
-opt-in advisory layer. This page states exactly what each mode catches, and,
-just as important, where the boundary is, so the confidence you place in a green
-check is earned rather than assumed.
+StyleProof's promise on a PR: **every visible change is surfaced.** This page states
+exactly what that means — what it catches, and, just as important, where the boundary
+is — so the confidence you place in a green check is earned, not assumed.
 
 These claims are executable. [`test/pr-surfacing.e2e.spec.ts`](../test/pr-surfacing.e2e.spec.ts)
 is a dogfood that runs the real capture → diff → report flow for each change class below
@@ -14,16 +12,17 @@ and fails if any one stops being surfaced.
 
 On every **captured surface**, base vs head:
 
-| Change                                                        | Surfaced as                                                                                  | Pinned by                       |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------- |
-| A computed style differs on a matched path (resting)          | `style` finding; headline "computed-style difference(s)" — not used for added-node inventory | pr-surfacing ✓                  |
-| A `:hover` / `:focus` / `:active` variant dropped or changed  | `state` finding                                                                              | pr-surfacing ✓                  |
-| A `::before` / `::after` style differs                        | `style` finding, pseudo tagged                                                               | pr-surfacing ✓                  |
-| An element is added, removed, or retagged                     | opt-in content/structure advisory; does not gate style certification                         | content boundary + report tests |
-| Content changes reflow an unchanged `auto` / `%` / `fr` value | ignored as used-value reflow; a changed CSS computed value still gates                       | unit + browser e2e              |
-| A nav item / route disappears                                 | inventory guard, named, **gates**                                                            | pr-surfacing ✓                  |
-| A surface exists on only one side                             | reported as a new / removed surface                                                          | pr-surfacing ✓                  |
-| Nothing changed                                               | zero findings (no false positives)                                                           | pr-surfacing ✓                  |
+| Change                                                       | Surfaced as                         | Pinned by      |
+| ------------------------------------------------------------ | ----------------------------------- | -------------- |
+| A computed style differs on a matched path (resting)         | `style` finding; headline "computed-style difference(s)" — not used for added-node inventory | pr-surfacing ✓ |
+| A `:hover` / `:focus` / `:active` variant dropped or changed | `state` finding                     | pr-surfacing ✓ |
+| A `::before` / `::after` style differs                       | `style` finding, pseudo tagged      | pr-surfacing ✓ |
+| An element is added or removed                               | `dom` finding (added / removed); report shows head-side style **inventory** (value-only, no baseline) — not a restyle | pr-surfacing ✓ |
+| Path churn with unique stable geometry (wrapper insert, …)   | report-only correspondence: pure moves collapse; true property deltas pair as restyles — raw path diff/gates unchanged | unit + report tests |
+| An element is retagged (`button` → `a`)                      | removed + added at that position    | pr-surfacing ✓ |
+| A nav item / route disappears                                | inventory guard, named, **gates**   | pr-surfacing ✓ |
+| A surface exists on only one side                            | reported as a new / removed surface | pr-surfacing ✓ |
+| Nothing changed                                              | zero findings (no false positives)  | pr-surfacing ✓ |
 
 The reachable set is kept complete by two guards that run _before_ the diff:
 

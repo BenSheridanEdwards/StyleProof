@@ -4,7 +4,6 @@ import path from 'node:path';
 import {
   captureStyleMap,
   saveStyleMap,
-  captureSurfaceScreenshots,
   trackInflightRequests,
   trackDataResidue,
   type CaptureMetadata,
@@ -21,31 +20,11 @@ import {
   type CoverageLedger,
   type DeterminismBasis,
 } from './coverage.js';
-import {
-  markFatalCaptureFailure,
-  writeBrowserBuildSidecar,
-  writeCaptureManifest,
-  recordSurfaceCaptureFailure,
-} from './map-store.js';
+import { writeBrowserBuildSidecar, writeCaptureManifest, recordSurfaceCaptureFailure } from './map-store.js';
 import { DEFAULT_CLOCK_TIME, frozenSpecClockInstant, realNow, restoreRealSpecClock } from './spec-clock.js';
-import {
-  captureTestBudgetMs,
-  formatSurfaceHeartbeat,
-  resolveSurfaceTimeoutMs,
-  runWithSurfaceTimeout,
-  type CapturePhase,
-} from './surface-progress.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
 import type { Page } from '@playwright/test';
-import {
-  applyStateRecipe,
-  classifyStateRecipe,
-  parseStateRecipes,
-  stateRecipeKey,
-  StateRecipeError,
-  type StateRecipe,
-} from './state-recipes.js';
 
 /**
  * A surface is one deterministic page state worth certifying: a route plus
@@ -85,14 +64,6 @@ export type Surface = {
    * variants so reports and diagnostics can explain why the capture was split.
    */
   liveStates?: SurfaceLiveState[];
-  /**
-   * Independent interaction state recipes for this surface (hover / focus / press /
-   * click). Each recipe becomes its own capture (`<surface>-<stateKey>@<width>`)
-   * after the parent `go`, never as multi-step choreography. Validated and
-   * key-sorted via {@link parseStateRecipes} at expansion time — unsafe declared
-   * labels and invalid selectors fail closed before browser tests register.
-   */
-  stateRecipes?: StateRecipe[];
   /**
    * Opt in to automatically opening visible click-triggered popups after the base
    * surface is captured. Captures persistent dialogs, popovers, menus, listboxes,
@@ -218,19 +189,6 @@ export type DefineOptions = {
    */
   selfCheck?: boolean;
   /**
-   * Per-surface capture ceiling in milliseconds (default 300000 — 5 minutes;
-   * STYLEPROOF_SURFACE_TIMEOUT_MS overrides when unset). Covers one surface at
-   * one width, navigate through self-check. On breach the capture fails LOUDLY,
-   * naming the surface and the phase in flight (navigate / settle / capture /
-   * self-check), so one stuck surface can't silently consume the whole job
-   * budget. Paired with the progress heartbeat — every completed surface logs
-   * `styleproof: surface 17/41 (factory@1280) captured in 42.1s (self-check
-   * 12.3s)` — a slow capture run stays distinguishable from a hung one.
-   * Automatic popup captures run after the timed window (each popup interaction
-   * is already bounded by `popups.timeoutMs`).
-   */
-  surfaceTimeoutMs?: number;
-  /**
    * Run the generated capture tests in PARALLEL across Playwright workers
    * (default true). Every capture test is independent, so parallel is safe and
    * ~workers× faster on a multi-surface spec — even when the project config
@@ -306,12 +264,8 @@ async function withSurfaceFailureTolerance(
     await run();
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
+    if (!settings.tolerateSurfaceFailures || isSelfCheckCaptureFailure(reason)) throw e;
     const outDir = resolveOutputDir(settings.baseDir, settings.dir);
-    if (isSelfCheckCaptureFailure(reason)) {
-      markFatalCaptureFailure(outDir, reason);
-      throw e;
-    }
-    if (!settings.tolerateSurfaceFailures) throw e;
     recordSurfaceCaptureFailure(outDir, { key: captureKey, reason, kind: 'capture' });
     // eslint-disable-next-line no-console
     console.warn(`styleproof: tolerated capture failure for ${captureKey} — ${reason}`);
@@ -556,9 +510,7 @@ async function markPopupCandidates(page: Page, options: ResolvedPopupCaptureOpti
   });
 }
 
-type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates' | 'stateRecipes'> & {
-  metadata?: CaptureMetadata;
-};
+type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates'> & { metadata?: CaptureMetadata };
 
 function expandOne(
   surface: Surface,
@@ -580,76 +532,20 @@ function expandOne(
   };
 }
 
-/**
- * Validate + sort surface recipes and fail closed on declared unsafe labels
- * before any browser test is registered. Live-label danger is still checked at
- * apply time (browser) via {@link applyStateRecipe}.
- */
-function resolveSurfaceStateRecipes(raw: unknown): StateRecipe[] {
-  const recipes = parseStateRecipes(raw);
-  for (const recipe of recipes) {
-    const classified = classifyStateRecipe(recipe);
-    if (!classified.ok) {
-      throw new StateRecipeError(`refusing unsafe state recipe (${classified.skip.label}): ${classified.skip.detail}`);
-    }
-  }
-  return recipes;
-}
-
-function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurface {
-  const stateKey = stateRecipeKey(recipe);
-  return {
-    key: `${surface.key}-${stateKey}`,
-    // Every recipe starts from the same base navigation — never choreography.
-    // Recipe-specific setup is not part of the recipe schema; optional setup
-    // belongs on a sibling variant/liveState if needed.
-    go: async (page) => {
-      await surface.go(page);
-      await applyStateRecipe(page, recipe);
-    },
-    ignore: surface.ignore,
-    widths: surface.widths,
-    height: surface.height,
-    popups: surface.popups,
-    metadata: {
-      surfaceKey: surface.key,
-      variantKey: stateKey,
-      variantKind: 'state-recipe',
-      stateRecipe: {
-        stateKey,
-        action: recipe.action,
-        selector: recipe.selector,
-        ...(recipe.key ? { key: recipe.key } : {}),
-        ...(recipe.label !== undefined ? { label: recipe.label } : {}),
-      },
-    },
-  };
-}
-
 export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
   const variants = surface.variants ?? [];
   const liveStates = surface.liveStates ?? [];
-  const { variants: _variants, liveStates: _liveStates, stateRecipes: rawStateRecipes, ...base } = surface;
-  const recipes = rawStateRecipes === undefined ? [] : resolveSurfaceStateRecipes(rawStateRecipes);
+  const { variants: _variants, liveStates: _liveStates, ...base } = surface;
   const baseSurface = { ...base, metadata: { surfaceKey: surface.key } };
   void _variants;
   void _liveStates;
-  if (!variants.length && !liveStates.length && !recipes.length) {
+  if (!variants.length && !liveStates.length) {
     return [baseSurface];
   }
   const expandedVariants = variants.map((variant) => expandOne(surface, variant, 'variant'));
-  const expandedRecipes = recipes.map((recipe) => expandStateRecipe(surface, recipe));
-  if (!liveStates.length) {
-    // Base retained for variants and/or state recipes (same as variants alone).
-    return [baseSurface, ...expandedVariants, ...expandedRecipes];
-  }
+  if (!liveStates.length) return [baseSurface, ...expandedVariants];
 
-  // liveStates drop the bare base (fuzzy live UI); variants + recipes still expand.
-  return [
-    ...expandedVariants,
-    ...liveStates.map((state) => expandOne(surface, state, 'live-state')),
-    ...expandedRecipes,
-  ];
+  return [...expandedVariants, ...liveStates.map((state) => expandOne(surface, state, 'live-state'))];
 }
 
 /** The identity fields of an expanded surface a collision check needs. */
@@ -659,29 +555,19 @@ type ExpandedKeyed = { key: string; metadata?: CaptureMetadata };
 function expandedOrigin(s: ExpandedKeyed): string {
   const surfaceKey = s.metadata?.surfaceKey ?? s.key;
   const variantKey = s.metadata?.variantKey;
-  if (!variantKey) return `surface '${surfaceKey}'`;
-  if (s.metadata?.variantKind === 'state-recipe') {
-    return `surface '${surfaceKey}' state-recipe '${variantKey}'`;
-  }
-  if (s.metadata?.variantKind === 'live-state') {
-    return `surface '${surfaceKey}' live-state '${variantKey}'`;
-  }
-  return `surface '${surfaceKey}' variant '${variantKey}'`;
+  return variantKey ? `surface '${surfaceKey}' variant '${variantKey}'` : `surface '${surfaceKey}'`;
 }
 
 /**
  * Fail LOUDLY on two expanded surfaces sharing a capture key.
  *
- * The expanded key is `surface.key-variant.key` (or `surface.key-stateKey` for
- * state recipes), and that key is the map filename (`<key>@<width>.json.gz`) and
- * the report identity — so it's public and can't change without breaking backward
- * compatibility. But the `-` join is ambiguous: surface `a` + variant `b-c` and
- * surface `a-b` + variant `c` both expand to `a-b-c`, and the second capture would
- * silently overwrite the first, dropping a surface with no error. The same collision
- * can arise between a recipe state key and a hand-named variant/liveState. Rather
- * than mangle the public key format, we assert uniqueness up front and name BOTH
- * origins so the author can rename one — without echoing recipe selectors or other
- * potentially secret-bearing fields.
+ * The expanded key is `surface.key-variant.key`, and that key is the map filename
+ * (`<key>@<width>.json.gz`) and the report identity — so it's public and can't
+ * change without breaking backward compatibility. But the `-` join is ambiguous:
+ * surface `a` + variant `b-c` and surface `a-b` + variant `c` both expand to
+ * `a-b-c`, and the second capture would silently overwrite the first, dropping a
+ * surface with no error. Rather than mangle the public key format, we assert
+ * uniqueness up front and name BOTH origins so the author can rename one.
  */
 export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
   const byKey = new Map<string, ExpandedKeyed>();
@@ -692,7 +578,7 @@ export function assertUniqueExpandedKeys(surfaces: ExpandedKeyed[]): void {
         `styleproof: capture key '${s.key}' is produced by two surfaces — ` +
           `${expandedOrigin(prior)} collides with ${expandedOrigin(s)}. ` +
           `Keys must expand uniquely (they name the map files and report entries); ` +
-          `rename one surface, variant, live state, or state recipe.`,
+          `rename one surface or variant.`,
       );
     }
     byKey.set(s.key, s);
@@ -976,7 +862,7 @@ async function capturePopupCandidate(
 
     const stem = path.join(resolveOutputDir(s.baseDir, s.dir), `${surface.key}-${popupId}@${width}`);
     saveStyleMap(`${stem}.json.gz`, map);
-    if (s.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
+    if (s.screenshots) await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
   } finally {
     requests.dispose();
   }
@@ -1002,32 +888,10 @@ async function capturePopupSurfaces(
   }
 }
 
-/** Static heartbeat ordinal of one capture unit — `index`/`total` over the run's
- *  declared unit set (assigned at define time, so it is stable across parallel
- *  workers; the heartbeat line count, not the ordinal order, shows liveness). */
-type HeartbeatOrdinal = { index: number; total: number };
-
-/** One heartbeat unit per declared surface×width. An auto-width surface is ONE
- *  unit — its band count is unknown until the page renders — so each of its
- *  width sweeps reports the same ordinal, with the width visible in the capture
- *  key (`factory@768`, `factory@1280`). */
-function heartbeatUnitCount(surfaces: ReadonlyArray<{ widths?: number[] }>): number {
-  return surfaces.reduce((sum, surface) => sum + (surface.widths?.length || 1), 0);
-}
-
 /** Drive one surface at one width to a settled state and save its style map (+ screenshot).
  *  The caller owns the test timeout (one-per-test for explicit surfaces, one budget for
- *  the whole crawl) so a multi-surface crawl can't reset its own deadline mid-loop; the
- *  per-surface ceiling (`surfaceTimeoutMs`) enforced HERE is what names the surface and
- *  the phase in flight when one surface hangs, and each completed capture logs one
- *  heartbeat line so a slow run is distinguishable from a hung one (issue #365). */
-async function captureSurface(
-  page: Page,
-  surface: ExpandedSurface,
-  width: number,
-  s: Settings,
-  ordinal: HeartbeatOrdinal,
-): Promise<void> {
+ *  the whole crawl) so a multi-surface crawl can't reset its own deadline mid-loop. */
+async function captureSurface(page: Page, surface: ExpandedSurface, width: number, s: Settings): Promise<void> {
   // Declared BEFORE go(): JS animation libraries (framer-motion, react-spring…)
   // read prefers-reduced-motion at mount, and their rAF-driven inline styles are
   // beyond FREEZE_CSS's reach — an entrance caught mid-flight is exactly the
@@ -1045,62 +909,28 @@ async function captureSurface(
   // must be seen. Keyed on the BASE surface key so a liveStates split (`-loading`/
   // `-loaded`) and every width dedupe to one `<surface>·<endpoint>` residue entry.
   const residue = trackDataResidue(page, s.replayUrl, surface.metadata?.surfaceKey ?? surface.key);
-  const captureKey = `${surface.key}@${width}`;
-  // realNow, not Date.now: the spec-process clock may be frozen (freezeClock),
-  // and a frozen clock would report every duration as 0.0s.
-  const startedAtMs = realNow();
-  let phase: CapturePhase = 'navigate';
-  let selfCheckMs: number | undefined;
   try {
-    await runWithSurfaceTimeout(
-      captureKey,
-      s.surfaceTimeoutMs,
-      () => phase,
-      async () => {
-        await surface.go(page);
-        const map = await captureStyleMap(page, {
-          ignore: surface.ignore ?? [],
-          captureText: s.captureText,
-          captureComponent: s.captureComponent,
-          inventory: s.inventory,
-          pendingRequests: requests.pending,
-          metadata: surface.metadata,
-          // captureStyleMap reports 'settle' → 'capture'; the self-check re-run
-          // below deliberately does NOT get this callback, so a breach during it
-          // is named 'self-check', not the inner phase of the second capture.
-          onPhase: (captureStylePhase) => {
-            phase = captureStylePhase;
-          },
-        });
-        if (s.selfCheck) {
-          phase = 'self-check';
-          const selfCheckStartedAtMs = realNow();
-          await assertDeterministic(page, surface, map, s.captureText, requests.pending);
-          selfCheckMs = realNow() - selfCheckStartedAtMs;
-          phase = 'capture';
-        }
-        // Attach data-residue AFTER the self-check re-run so both runs' failures are folded
-        // (deduped in the watcher). Warn always; the recorded residue is what the gate reads.
-        attachDataResidue(map, residue.residue());
+    await surface.go(page);
+    const map = await captureStyleMap(page, {
+      ignore: surface.ignore ?? [],
+      captureText: s.captureText,
+      captureComponent: s.captureComponent,
+      inventory: s.inventory,
+      pendingRequests: requests.pending,
+      metadata: surface.metadata,
+    });
+    if (s.selfCheck) await assertDeterministic(page, surface, map, s.captureText, requests.pending);
+    // Attach data-residue AFTER the self-check re-run so both runs' failures are folded
+    // (deduped in the watcher). Warn always; the recorded residue is what the gate reads.
+    attachDataResidue(map, residue.residue());
 
-        const stem = path.join(resolveOutputDir(s.baseDir, s.dir), captureKey);
-        saveStyleMap(`${stem}.json.gz`, map);
-        if (s.screenshots) {
-          // captureStyleMap froze animations/transitions, so this is the same settled
-          // state the map describes. State layers are hover/focus/active, not rest.
-          await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
-        }
-      },
-    );
-    // Heartbeat: one stable, greppable line per completed surface capture, so a
-    // watcher can tell progressing-slowly from dead. Emitted only on success —
-    // failures already name themselves loudly.
-    process.stderr.write(
-      `${formatSurfaceHeartbeat({ ...ordinal, captureKey, captureMs: realNow() - startedAtMs, selfCheckMs })}\n`,
-    );
-    // Popup discovery runs OUTSIDE the per-surface window: each interaction is
-    // already bounded by `popups.timeoutMs`, and a popup sweep's legitimate cost
-    // scales with the trigger count, which would force a much looser ceiling.
+    const stem = path.join(resolveOutputDir(s.baseDir, s.dir), `${surface.key}@${width}`);
+    saveStyleMap(`${stem}.json.gz`, map);
+    if (s.screenshots) {
+      // captureStyleMap froze animations/transitions, so this is the same settled
+      // state the map describes.
+      await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
+    }
     await capturePopupSurfaces(page, surface, width, height, s);
   } finally {
     requests.dispose();
@@ -1229,7 +1059,6 @@ function resolveSettings(c: CaptureConfig): Settings {
     freezeClock,
     clockTime,
     selfCheck: c.selfCheck ?? defaultSelfCheck(replayFrom),
-    surfaceTimeoutMs: resolveSurfaceTimeoutMs(c.surfaceTimeoutMs),
     captureText: c.captureText ?? false,
     captureComponent: c.captureComponent ?? false,
     popups: resolvePopupCaptureOptions(c.popups),
@@ -1400,34 +1229,27 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     if (options.parallel !== false) test.describe.configure({ mode: 'parallel' });
     writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
     writeBrowserBuildTest(settings, dir);
-    // Heartbeat ordinals are assigned at define time (stable across parallel
-    // workers); Playwright test budgets derive from the per-surface ceiling so
-    // the NAMED per-surface timeout always fires before the anonymous test one.
-    const totalHeartbeatUnits = heartbeatUnitCount(captureSurfaces);
-    let heartbeatUnitIndex = 0;
     for (const surface of captureSurfaces) {
       if (surface.widths && surface.widths.length > 0) {
         // Explicit widths: one parallelizable test per surface × width.
         for (const width of surface.widths) {
-          const ordinal: HeartbeatOrdinal = { index: ++heartbeatUnitIndex, total: totalHeartbeatUnits };
           test(`${surface.key} @ ${width}`, ({ page }) => {
-            test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs));
+            test.setTimeout(180_000);
             return withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
-              captureSurface(page, surface, width, settings, ordinal),
+              captureSurface(page, surface, width, settings),
             );
           });
         }
       } else {
         // Auto widths: the band set isn't known until the page renders its CSS, so a
         // single test loads once, detects the breakpoints, then sweeps each band.
-        const ordinal: HeartbeatOrdinal = { index: ++heartbeatUnitIndex, total: totalHeartbeatUnits };
         test(`${surface.key} @ auto`, async ({ page }) => {
           await surface.go(page);
           const widths = await detectViewportWidths(page);
-          test.setTimeout(captureTestBudgetMs(settings.surfaceTimeoutMs, widths.length));
+          test.setTimeout(Math.max(180_000, widths.length * 60_000));
           for (const width of widths)
             await withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
-              captureSurface(page, surface, width, settings, ordinal),
+              captureSurface(page, surface, width, settings),
             );
         });
       }
@@ -1462,8 +1284,6 @@ export type CrawlOptions = CaptureConfig & {
   variants?: SurfaceVariant[];
   /** First-class live product states captured for every discovered link surface. */
   liveStates?: SurfaceLiveState[];
-  /** Independent interaction state recipes captured for every discovered link surface. */
-  stateRecipes?: StateRecipe[];
   /** Opt-in automatic popup/modal capture for every discovered link surface. */
   popups?: boolean | PopupCaptureOptions;
   /** Max ms to wait for the crawl root's links to render before reading them
@@ -1550,12 +1370,7 @@ function handleCrawlCaptureFailure(
   failureLabel: string,
   failures: string[],
 ): void {
-  if (isSelfCheckCaptureFailure(reason)) {
-    markFatalCaptureFailure(resolveOutputDir(settings.baseDir, settings.dir), reason);
-    failures.push(`${failureLabel}: ${reason}`);
-    return;
-  }
-  if (settings.tolerateSurfaceFailures) {
+  if (settings.tolerateSurfaceFailures && !isSelfCheckCaptureFailure(reason)) {
     recordSurfaceCaptureFailure(resolveOutputDir(settings.baseDir, settings.dir), {
       key,
       reason,
@@ -1593,21 +1408,12 @@ async function crawlSweepWidths(
  */
 async function sweepCrawlSurfaces(page: Page, captureSurfaces: ExpandedSurface[], settings: Settings): Promise<void> {
   const failures: string[] = [];
-  const totalHeartbeatUnits = heartbeatUnitCount(captureSurfaces);
-  let heartbeatUnitIndex = 0;
   for (const surface of captureSurfaces) {
-    // Same unit semantics as the spec-driven path: one ordinal per declared
-    // surface×width; an auto-width surface is one unit for its whole sweep.
-    const explicitWidths = Boolean(surface.widths?.length);
-    const autoOrdinal: HeartbeatOrdinal | undefined = explicitWidths
-      ? undefined
-      : { index: ++heartbeatUnitIndex, total: totalHeartbeatUnits };
     const sweep = await crawlSweepWidths(page, surface, settings, failures);
     if (!sweep) continue;
     for (const width of sweep) {
-      const ordinal = autoOrdinal ?? { index: ++heartbeatUnitIndex, total: totalHeartbeatUnits };
       try {
-        await captureSurface(page, surface, width, settings, ordinal);
+        await captureSurface(page, surface, width, settings);
       } catch (e) {
         handleCrawlCaptureFailure(
           settings,
@@ -1634,7 +1440,6 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     ignore,
     variants,
     liveStates,
-    stateRecipes,
     popups,
     linkTimeout = 15_000,
     dir,
@@ -1660,7 +1465,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     // `expected` key with this crawl's variants/liveStates to get the keys captured to
     // disk, so a liveStates crawl's ledger is pre-translated like the spec-driven one.
     const ledgerSurfaces = (expected ?? []).flatMap((key) =>
-      expandSurfaceVariants({ key, go: async () => {}, variants, liveStates, stateRecipes }),
+      expandSurfaceVariants({ key, go: async () => {}, variants, liveStates }),
     );
     writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, ledgerSurfaces);
     writeBrowserBuildTest(settings, dir);
@@ -1703,7 +1508,6 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           height,
           variants,
           liveStates,
-          stateRecipes,
           popups,
         }),
       );
@@ -1711,14 +1515,9 @@ export function defineCrawlCapture(options: CrawlOptions): void {
       // Budget the whole sweep up front: one test captures every surface, and
       // captureSurface no longer sets its own timeout, so size it to the work found.
       // With auto-width the band count isn't known until each surface renders, so
-      // assume up to 4 bands per surface. Sized from the per-surface ceiling so a
-      // breach is always reported by the NAMED per-surface timeout, never by the
-      // anonymous whole-sweep one.
+      // assume up to 4 bands per surface.
       test.setTimeout(
-        captureTestBudgetMs(
-          settings.surfaceTimeoutMs,
-          captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0),
-        ),
+        Math.max(180_000, captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0) * 60_000),
       );
       // 2. Capture each discovered surface, aggregating per-surface failures.
       await sweepCrawlSurfaces(page, captureSurfaces, settings);

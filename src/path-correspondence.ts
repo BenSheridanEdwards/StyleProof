@@ -1,13 +1,14 @@
 import type { ElementEntry, StyleMap } from './capture.js';
-import { diffStyleMaps, type DiffStyleOptions, type Finding } from './diff.js';
+import { diffStyleMaps, type Finding } from './diff.js';
 
 /**
  * Report-only structural correspondence between base and head captures.
  *
- * The low-level differ can still inventory concrete structural paths for
- * settle and variant tooling. Certification excludes structure, while report
- * presentation may remap a one-sided before path onto a uniquely corresponding
- * after path so path churn collapses into real paired property deltas.
+ * Certification still diffs by concrete structural path. Presentation may
+ * remap a one-sided before path onto a uniquely corresponding after path so
+ * path churn (wrapper insert, nth-child shift with stable geometry) collapses
+ * into real paired property deltas — or disappears when nothing changed —
+ * without touching raw findings, exit codes, or approval gates.
  *
  * Matching is intentionally conservative:
  * - candidates are only DOM-removed (before) vs DOM-added (after) paths
@@ -140,14 +141,10 @@ export function presentationBeforeMap(before: StyleMap, after: StyleMap): StyleM
 }
 
 /**
- * Presentation findings on a before map whose uniquely corresponded paths have
- * been rewritten to the head path. Callers choose whether low-level structural
- * inventory is included; production certification always passes false.
+ * Presentation findings: same differ as certification, but on a before map whose
+ * uniquely corresponded paths have been rewritten to the head path. Raw
+ * `diffStyleMaps(before, after)` is unchanged for gates.
  */
-export function presentationDiffStyleMaps(
-  before: StyleMap,
-  after: StyleMap,
-  options: DiffStyleOptions = {},
-): Finding[] {
-  return diffStyleMaps(presentationBeforeMap(before, after), after, options);
+export function presentationDiffStyleMaps(before: StyleMap, after: StyleMap): Finding[] {
+  return diffStyleMaps(presentationBeforeMap(before, after), after);
 }

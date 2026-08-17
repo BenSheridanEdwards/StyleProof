@@ -60,8 +60,7 @@ export type AffectedSurfaces = Set<string> | 'all';
 
 // A stylesheet whose scope escapes the file that imports it. Any of these means
 // a change cascades beyond the import graph's reach.
-const GLOBAL_CSS =
-  /(^|[{},(])\s*(:root|html|body|\*)(?=\s|[,.#:[\]{}()>+~])|@tailwind\b|@layer\s+base\b|@theme\b|@font-face\b/i;
+const GLOBAL_CSS = /(^|\})\s*(:root|html|body|\*)[\s,{]|@tailwind\b|@layer\s+base\b|@theme\b|@font-face\b/;
 // CSS-in-JS global APIs. NOTE: soundness depends on this list being complete for
 // the libraries in use — an unlisted global API in a .tsx would be misread as a
 // scoped (local) change. Extend deliberately; when unsure, the caller should
