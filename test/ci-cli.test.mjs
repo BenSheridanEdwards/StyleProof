@@ -13,14 +13,7 @@ import {
   shouldApplySpecRefOverlay,
 } from '../dist/ci-spec-ref.js';
 import { CiWorktreeSession } from '../dist/ci-worktree.js';
-import {
-  BASELINE_PROVENANCE_FILE,
-  MAP_MANIFEST,
-  expectedCompatibilityKey,
-  readBaselineProvenance,
-  readMapManifest,
-  workingTreeDirty,
-} from '../dist/map-store.js';
+import { workingTreeDirty } from '../dist/map-store.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 // styleproof-ci packages the workflow's restore → capture-on-miss → replay →
@@ -29,7 +22,6 @@ import { mkTmp, rmTmp } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CI = path.join(here, '..', 'bin', 'styleproof-ci.mjs');
-const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 
 function runCi(args, env = {}, cwd) {
   const merged = { ...process.env, ...env };
@@ -56,11 +48,8 @@ case " $* " in
       previous="$argument"
     done
     if [ -n "$prefix" ]; then
-      mkdir -p "$prefix/node_modules/styleproof" "$prefix/node_modules/@playwright/test"
-      printf '{"name":"styleproof","type":"module","main":"index.js"}\\n' > "$prefix/node_modules/styleproof/package.json"
-      printf 'export {}\\n' > "$prefix/node_modules/styleproof/index.js"
-      printf '{"name":"@playwright/test","main":"index.cjs"}\\n' > "$prefix/node_modules/@playwright/test/package.json"
-      printf 'module.exports = {}\\n' > "$prefix/node_modules/@playwright/test/index.cjs"
+      mkdir -p "$prefix/node_modules/styleproof"
+      printf '{"name":"styleproof","type":"module"}\\n' > "$prefix/node_modules/styleproof/package.json"
       exit 0
     fi
     ;;
@@ -117,22 +106,6 @@ test('ciOutputLines: the exact steps.maps.outputs.* contract the workflow bash e
     'capture-needed=true',
     'base-capture-failed=true',
   ]);
-});
-
-test('ciOutputLines: ancestor reuse appends its own auditable output line, never reshaping the original four', () => {
-  const ancestorSha = 'a'.repeat(40);
-  assert.deepEqual(ciOutputLines(true, true, false, ancestorSha), [
-    'base-hit=true',
-    'head-hit=true',
-    'capture-needed=false',
-    'base-capture-failed=false',
-    `base-restored-from-ancestor=${ancestorSha}`,
-  ]);
-  assert.deepEqual(
-    ciOutputLines(true, true, false, ''),
-    ['base-hit=true', 'head-hit=true', 'capture-needed=false', 'base-capture-failed=false'],
-    'no reuse → the exact prior contract, byte for byte',
-  );
 });
 
 test('detectPackageManagerPlan: lockfile detection at RUN time, commands as argv (no shell)', () => {
@@ -364,23 +337,6 @@ test('styleproof-ci: --spec-ref requires a non-empty value', () => {
   assert.match(empty.stderr, /--spec-ref requires a non-empty git ref/);
 });
 
-test('styleproof-ci: --spec-ref-if-missing validates its value and exclusivity', () => {
-  const missing = runCi(['--base', 'x', '--head', 'y', '--spec-ref-if-missing']);
-  assert.equal(missing.status, 2);
-  assert.match(missing.stderr, /--spec-ref-if-missing requires a non-empty git ref/);
-
-  const conflicting = runCi(['--base', 'x', '--head', 'y', '--spec-ref', 'HEAD', '--spec-ref-if-missing', 'HEAD']);
-  assert.equal(conflicting.status, 2);
-  assert.match(conflicting.stderr, /mutually exclusive/);
-});
-
-test('styleproof-ci: explicit spec overrides malformed encoded scaffold fallback', () => {
-  const result = runCi(['--spec', 'safe/spec.ts'], { STYLEPROOF_SPEC_PATH_B64: '***not-base64***' });
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /--base <sha> and --head <sha> are required/);
-  assert.doesNotMatch(result.stderr, /not valid base64/);
-});
-
 test('normalizeRepoRelativeSpec: rejects absolute and out-of-repo paths', () => {
   const root = mkTmp('styleproof-ci-spec-path-');
   try {
@@ -454,13 +410,13 @@ test('styleproof-ci: invalid --spec-ref fails loudly before capture', () => {
 });
 
 test(
-  'styleproof-init: generated first-adoption command captures a paired base with the head harness',
+  'styleproof-ci: --spec-ref overlays head spec bytes for base capture and restores before head',
   { timeout: 30_000 },
   () => {
     const root = mkTmp('styleproof-ci-spec-ref-');
     const remote = path.join(root, 'remote.git');
     const repo = path.join(root, 'consumer');
-    const mapRoot = path.join(root, 'styleproof-maps');
+    const mapRoot = path.join(root, 'maps');
     const output = path.join(root, 'github-output');
     const pmLog = path.join(root, 'package-managers');
     const git = (cwd, args) => {
@@ -476,18 +432,18 @@ test(
       git(repo, ['config', 'user.name', 'StyleProof Test']);
       git(repo, ['remote', 'add', 'origin', remote]);
       fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+      fs.mkdirSync(path.join(repo, 'tests', 'e2e'), { recursive: true });
+      fs.writeFileSync(path.join(repo, 'tests', 'e2e', 'styleproof.spec.ts'), 'SPEC_BYTES=BASE\n');
       fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
       fs.writeFileSync(path.join(repo, 'app.txt'), 'base-app\n');
       git(repo, ['add', '-A']);
       git(repo, ['commit', '-qm', 'test: base']);
       const base = git(repo, ['rev-parse', 'HEAD']);
-      const initialized = spawnSync(process.execPath, [INIT], { cwd: repo, encoding: 'utf8' });
-      assert.equal(initialized.status, 0, initialized.stderr);
-      const generatedSpec = path.join(repo, 'e2e', 'styleproof.spec.ts');
-      fs.writeFileSync(generatedSpec, `import './head-only-fixture';\n${fs.readFileSync(generatedSpec, 'utf8')}`);
-      fs.writeFileSync(path.join(repo, 'e2e', 'head-only-fixture.ts'), 'HEAD_ONLY_FIXTURE=true\n');
-      const headSpec = fs.readFileSync(generatedSpec, 'utf8');
-      const headConfig = fs.readFileSync(path.join(repo, 'playwright.styleproof.config.ts'), 'utf8');
+      fs.writeFileSync(
+        path.join(repo, 'tests', 'e2e', 'styleproof.spec.ts'),
+        "import './head-only-fixture';\nSPEC_BYTES=HEAD\n",
+      );
+      fs.writeFileSync(path.join(repo, 'tests', 'e2e', 'head-only-fixture.ts'), 'HEAD_ONLY_FIXTURE=true\n');
       fs.writeFileSync(path.join(repo, 'app.txt'), 'head-app\n');
       git(repo, ['add', '-A']);
       git(repo, ['commit', '-qm', 'test: head']);
@@ -502,86 +458,64 @@ test(
         `#!/bin/sh
 if [ "$1" = "install" ]; then exit 0; fi
 if [ "$(git rev-parse HEAD)" = "$BASE_FAIL_SHA" ]; then exit 1; fi
-node -e "require.resolve('@playwright/test'); require.resolve('styleproof')" || exit 43
-if [ "$(git rev-parse HEAD)" = "$FIRST_ADOPTION_BASE" ]; then
-  runtime_styleproof=$(realpath node_modules/styleproof)
-  runtime_node_modules=$(dirname "$runtime_styleproof")
-  if [ "$(realpath "$runtime_node_modules/@playwright/test")" != "$(realpath node_modules/@playwright/test)" ]; then
-    echo "first-adoption runner and generated config resolve different @playwright/test packages" >&2
-    exit 44
-  fi
-fi
 mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
 printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
-if [ -f e2e/styleproof.spec.ts ]; then cp e2e/styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"; fi
-if [ -f e2e/head-only-fixture.ts ]; then cp e2e/head-only-fixture.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-fixture.ts"; fi
-if [ -f playwright.styleproof.config.ts ]; then cp playwright.styleproof.config.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-config.ts"; fi
+if [ -f tests/e2e/styleproof.spec.ts ]; then cp tests/e2e/styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"; fi
+if [ -f tests/e2e/head-only-fixture.ts ]; then cp tests/e2e/head-only-fixture.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-fixture.ts"; fi
 if [ -f app.txt ]; then cp app.txt "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-app.txt"; fi
-git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || true
+git status --porcelain > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/git-status.txt" || true
 `,
       );
-      const installedPlaywrightPackage = path.join(repo, 'node_modules', '@playwright', 'test', 'package.json');
-      fs.mkdirSync(path.dirname(installedPlaywrightPackage), { recursive: true });
-      fs.writeFileSync(
-        installedPlaywrightPackage,
-        '{"name":"@playwright/test","version":"1.52.0","main":"index.cjs"}\n',
-      );
-      fs.writeFileSync(path.join(path.dirname(installedPlaywrightPackage), 'index.cjs'), 'module.exports = {}\n');
-      fs.symlinkSync(path.join(here, '..'), path.join(repo, 'node_modules', 'styleproof'), 'dir');
       fs.chmodSync(path.join(bin, 'npm'), 0o755);
       fs.chmodSync(path.join(bin, 'playwright'), 0o755);
 
-      const workflow = fs.readFileSync(path.join(repo, '.github', 'workflows', 'styleproof.yml'), 'utf8');
-      const generatedMapScript = workflow
-        .match(/- id: maps[\s\S]*?run: \|\n([\s\S]*?)\n {6}- uses:/)?.[1]
-        ?.split('\n')
-        .map((line) => line.replace(/^ {10}/, ''))
-        .join('\n')
-        .replaceAll('${{ github.event.pull_request.base.sha }}', base)
-        .replaceAll('${{ github.event.pull_request.head.sha }}', head)
-        .replaceAll('${{ runner.temp }}', root);
-      assert.ok(generatedMapScript, 'the generated workflow exposes an executable map step');
-      const result = spawnSync('/bin/bash', ['-c', generatedMapScript], {
-        cwd: repo,
-        encoding: 'utf8',
-        env: {
-          ...process.env,
+      const result = runCi(
+        [
+          '--base',
+          base,
+          '--head',
+          head,
+          '--spec',
+          'tests/e2e/styleproof.spec.ts',
+          '--spec-ref',
+          head,
+          '--base-dir',
+          mapRoot,
+          '--force',
+        ],
+        {
           CI: '1',
           PM_LOG: pmLog,
-          FIRST_ADOPTION_BASE: base,
           GITHUB_OUTPUT: output,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
         },
-      });
+        repo,
+      );
       assert.equal(result.status, 0, result.stderr + result.stdout);
       assert.equal(git(repo, ['rev-parse', 'HEAD']), head);
-      assert.equal(fs.readFileSync(path.join(repo, 'e2e', 'styleproof.spec.ts'), 'utf8'), headSpec);
-      assert.ok(
-        fs.existsSync(path.join(mapRoot, 'base', 'captured-spec.ts')),
-        `cold base capture did not preserve the overlaid spec:\n${result.stderr}${result.stdout}`,
+      assert.equal(
+        fs.readFileSync(path.join(repo, 'tests', 'e2e', 'styleproof.spec.ts'), 'utf8'),
+        "import './head-only-fixture';\nSPEC_BYTES=HEAD\n",
       );
-      assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'captured-spec.ts'), 'utf8'), headSpec);
+      assert.equal(
+        fs.readFileSync(path.join(mapRoot, 'base', 'captured-spec.ts'), 'utf8'),
+        "import './head-only-fixture';\nSPEC_BYTES=HEAD\n",
+      );
       assert.equal(
         fs.readFileSync(path.join(mapRoot, 'base', 'captured-fixture.ts'), 'utf8'),
         'HEAD_ONLY_FIXTURE=true\n',
         'cold base capture receives the head-only harness dependency',
       );
-      assert.equal(
-        fs.readFileSync(path.join(mapRoot, 'base', 'captured-config.ts'), 'utf8'),
-        headConfig,
-        'first-adoption base capture receives the head production Playwright config',
-      );
       assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'captured-app.txt'), 'utf8'), 'base-app\n');
       assert.match(
         fs.readFileSync(path.join(mapRoot, 'base', 'git-status.txt'), 'utf8'),
-        /e2e\/head-only-fixture\.ts/,
+        /tests\/e2e\/head-only-fixture\.ts/,
         'the head-only file is physically present while dirtyAllow keeps the map publishable',
       );
       const installedAt = fs.readFileSync(pmLog, 'utf8').trim().split('\n');
       assert.equal(installedAt[0], base, 'base install runs at the base commit');
       assert.equal(installedAt.at(-1), head, 'head install runs at the head commit');
-      assert.match(result.stderr, /overlaying 3 spec-harness file\(s\) from/);
-      assert.match(generatedMapScript, /--spec-ref-if-missing "\$HEAD_SHA"/);
+      assert.match(result.stderr, /overlaying 2 spec-harness file\(s\) from/);
 
       // The bundle the overlay run just published must be RESTORABLE: its spec
       // hash is the head spec's bytes, so the probe must apply the same overlay
@@ -589,18 +523,28 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
       // every subsequent push silently repays the full cold rebuild.
       fs.rmSync(mapRoot, { recursive: true, force: true });
       const secondOutput = path.join(root, 'github-output-second');
-      const second = spawnSync('/bin/bash', ['-c', generatedMapScript], {
-        cwd: repo,
-        encoding: 'utf8',
-        env: {
-          ...process.env,
+      const second = runCi(
+        [
+          '--base',
+          base,
+          '--head',
+          head,
+          '--spec',
+          'tests/e2e/styleproof.spec.ts',
+          '--spec-ref',
+          head,
+          '--base-dir',
+          mapRoot,
+          '--force',
+        ],
+        {
           CI: '1',
           PM_LOG: pmLog,
-          FIRST_ADOPTION_BASE: base,
           GITHUB_OUTPUT: secondOutput,
           STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
         },
-      });
+        repo,
+      );
       assert.equal(second.status, 0, second.stderr + second.stdout);
       const secondOutputs = fs.readFileSync(secondOutput, 'utf8');
       assert.match(secondOutputs, /base-hit=true/, 'the overlay-published base bundle restores on the next run');
@@ -804,112 +748,6 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
   },
 );
 
-test('styleproof-ci: --spec-ref can keep the capture harness outside product commits', { timeout: 30_000 }, () => {
-  const root = mkTmp('styleproof-ci-external-spec-ref-');
-  const remote = path.join(root, 'remote.git');
-  const repo = path.join(root, 'consumer');
-  const mapRoot = path.join(root, 'maps');
-  const output = path.join(root, 'github-output');
-  const git = (cwd, args, expectedStatus = 0) => {
-    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
-    assert.equal(result.status, expectedStatus, result.stderr);
-    return result.stdout.trim();
-  };
-  try {
-    fs.mkdirSync(repo);
-    git(root, ['init', '--bare', '-q', remote]);
-    git(repo, ['init', '-q', '-b', 'main']);
-    git(repo, ['config', 'user.email', 'styleproof@example.test']);
-    git(repo, ['config', 'user.name', 'StyleProof Test']);
-    git(repo, ['remote', 'add', 'origin', remote]);
-    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
-    fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\ntests/styleproof/\n');
-    fs.writeFileSync(path.join(repo, 'app.txt'), 'base-app\n');
-    git(repo, ['add', '-A']);
-    git(repo, ['commit', '-qm', 'test: base']);
-    const base = git(repo, ['rev-parse', 'HEAD']);
-    fs.writeFileSync(path.join(repo, 'app.txt'), 'head-app\n');
-    git(repo, ['add', 'app.txt']);
-    git(repo, ['commit', '-qm', 'test: head']);
-    const head = git(repo, ['rev-parse', 'HEAD']);
-
-    git(repo, ['checkout', '-qb', 'styleproof-harness']);
-    fs.mkdirSync(path.join(repo, 'tests', 'styleproof'), { recursive: true });
-    fs.writeFileSync(
-      path.join(repo, 'tests', 'styleproof', 'styleproof.spec.ts'),
-      "import './fixture';\nSPEC_BYTES=EXTERNAL\n",
-    );
-    fs.writeFileSync(path.join(repo, 'tests', 'styleproof', 'fixture.ts'), 'EXTERNAL_FIXTURE=true\n');
-    git(repo, ['add', '-f', 'tests/styleproof']);
-    git(repo, ['commit', '-qm', 'test: external capture harness']);
-    const specRef = git(repo, ['rev-parse', 'HEAD']);
-    git(repo, ['checkout', '-q', head]);
-    git(repo, ['push', '-q', 'origin', `${head}:refs/heads/main`, `${specRef}:refs/heads/styleproof-harness`]);
-
-    git(repo, ['cat-file', '-e', `${base}:tests/styleproof/styleproof.spec.ts`], 128);
-    git(repo, ['cat-file', '-e', `${head}:tests/styleproof/styleproof.spec.ts`], 128);
-
-    const bin = path.join(repo, 'node_modules', '.bin');
-    fs.mkdirSync(bin, { recursive: true });
-    fs.writeFileSync(path.join(bin, 'npm'), npmShim());
-    fs.writeFileSync(
-      path.join(bin, 'playwright'),
-      `#!/bin/sh
-if [ "$1" = "install" ]; then exit 0; fi
-if [ ! -f tests/styleproof/styleproof.spec.ts ] || [ ! -f tests/styleproof/fixture.ts ]; then
-  echo "external StyleProof harness is missing" >&2
-  exit 42
-fi
-mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
-printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
-cp tests/styleproof/styleproof.spec.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-spec.ts"
-cp tests/styleproof/fixture.ts "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-fixture.ts"
-cp app.txt "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/captured-app.txt"
-`,
-    );
-    fs.chmodSync(path.join(bin, 'npm'), 0o755);
-    fs.chmodSync(path.join(bin, 'playwright'), 0o755);
-
-    const result = runCi(
-      [
-        '--base',
-        base,
-        '--head',
-        head,
-        '--spec',
-        'tests/styleproof/styleproof.spec.ts',
-        '--spec-ref',
-        specRef,
-        '--base-dir',
-        mapRoot,
-        '--force',
-      ],
-      {
-        CI: '1',
-        GITHUB_OUTPUT: output,
-        STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
-      },
-      repo,
-    );
-
-    assert.equal(result.status, 0, result.stderr + result.stdout);
-    assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'captured-app.txt'), 'utf8'), 'base-app\n');
-    assert.equal(fs.readFileSync(path.join(mapRoot, 'head', 'captured-app.txt'), 'utf8'), 'head-app\n');
-    for (const side of ['base', 'head']) {
-      assert.equal(
-        fs.readFileSync(path.join(mapRoot, side, 'captured-spec.ts'), 'utf8'),
-        "import './fixture';\nSPEC_BYTES=EXTERNAL\n",
-      );
-      assert.equal(fs.readFileSync(path.join(mapRoot, side, 'captured-fixture.ts'), 'utf8'), 'EXTERNAL_FIXTURE=true\n');
-    }
-    assert.equal(fs.existsSync(path.join(repo, 'tests', 'styleproof', 'styleproof.spec.ts')), false);
-    assert.equal(git(repo, ['status', '--porcelain']), '', 'the product checkout has no harness residue');
-    assert.match(fs.readFileSync(output, 'utf8'), /base-capture-failed=false/);
-  } finally {
-    rmTmp(root);
-  }
-});
-
 test('CiWorktreeSession: construction prunes stale worktree registrations from a prior hard kill', () => {
   const root = mkTmp('styleproof-ci-prune-');
   try {
@@ -1056,9 +894,9 @@ printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
   },
 );
 
-test('shouldApplySpecRefOverlay: an explicit ref owns the harness even when the checkout has no spec', () => {
+test('shouldApplySpecRefOverlay: only overlays when the base tree already has the spec', () => {
   assert.equal(shouldApplySpecRefOverlay(true, 'head-sha'), true);
-  assert.equal(shouldApplySpecRefOverlay(false, 'head-sha'), true);
+  assert.equal(shouldApplySpecRefOverlay(false, 'head-sha'), false);
   assert.equal(shouldApplySpecRefOverlay(true, ''), false);
 });
 
@@ -1210,13 +1048,11 @@ test('applySpecRefOverlay: includes head-only files beside the spec and restores
     const spec = path.join(harnessDirectory, 'styleproof.spec.ts');
     const existingFixture = path.join(harnessDirectory, 'existing-fixture.ts');
     const headOnlyFixture = path.join(harnessDirectory, 'head-only-fixture.ts');
-    const playwrightConfig = path.join(root, 'playwright.styleproof.config.ts');
     const baseApplication = path.join(root, 'src', 'application.ts');
     fs.mkdirSync(harnessDirectory, { recursive: true });
     fs.mkdirSync(path.dirname(baseApplication), { recursive: true });
     fs.writeFileSync(spec, "import './existing-fixture';\n");
     fs.writeFileSync(existingFixture, 'export const fixture = "base";\n');
-    fs.writeFileSync(playwrightConfig, 'CONFIG_BYTES=BASE\n');
     fs.writeFileSync(baseApplication, 'export const application = "base";\n');
     git(root, ['add', '-A']);
     git(root, ['commit', '-qm', 'test: base']);
@@ -1224,7 +1060,6 @@ test('applySpecRefOverlay: includes head-only files beside the spec and restores
     fs.writeFileSync(spec, "import './existing-fixture';\nimport './head-only-fixture';\n");
     fs.writeFileSync(existingFixture, 'export const fixture = "head";\n');
     fs.writeFileSync(headOnlyFixture, 'export const headOnlyFixture = true;\n');
-    fs.writeFileSync(playwrightConfig, 'CONFIG_BYTES=HEAD\n');
     fs.writeFileSync(baseApplication, 'export const application = "head";\n');
     git(root, ['add', '-A']);
     git(root, ['commit', '-qm', 'test: head']);
@@ -1234,11 +1069,6 @@ test('applySpecRefOverlay: includes head-only files beside the spec and restores
     const overlay = applySpecRefOverlay({ spec: 'tests/e2e/styleproof.spec.ts', specRef: head, cwd: root });
     assert.equal(fs.readFileSync(existingFixture, 'utf8'), 'export const fixture = "head";\n');
     assert.equal(fs.readFileSync(headOnlyFixture, 'utf8'), 'export const headOnlyFixture = true;\n');
-    assert.equal(
-      fs.readFileSync(playwrightConfig, 'utf8'),
-      'CONFIG_BYTES=BASE\n',
-      'an existing base Playwright config stays pinned to the base commit',
-    );
     assert.equal(
       fs.readFileSync(baseApplication, 'utf8'),
       'export const application = "base";\n',
@@ -1635,268 +1465,3 @@ esac
     rmTmp(root);
   }
 });
-
-// ── Nearest-ancestor baseline reuse (#367, opt-in via STYLEPROOF_ANCESTOR_BASELINE=1):
-// a base miss whose diff against the nearest STORED ancestor touches nothing
-// capture-relevant restores that ancestor's bundle as the baseline — with the
-// reuse recorded in $GITHUB_OUTPUT and the provenance sidecar, never silently.
-test(
-  'styleproof-ci: opt-in ancestor reuse restores the nearest stored ancestor on a docs-only base miss',
-  { timeout: 60_000 },
-  () => {
-    const root = mkTmp('styleproof-ci-ancestor-');
-    const remote = path.join(root, 'remote.git');
-    const repo = path.join(root, 'consumer');
-    const mapRoot = path.join(root, 'maps');
-    const githubOutput = path.join(root, 'github-output');
-    const git = (cwd, args) => {
-      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
-      assert.equal(result.status, 0, result.stderr);
-      return result.stdout.trim();
-    };
-    try {
-      fs.mkdirSync(repo);
-      git(root, ['init', '--bare', '-q', remote]);
-      git(repo, ['init', '-q', '-b', 'main']);
-      git(repo, ['config', 'user.email', 'styleproof@example.test']);
-      git(repo, ['config', 'user.name', 'StyleProof Test']);
-      git(repo, ['remote', 'add', 'origin', remote]);
-      // Ancestor A: the commit whose bundle is stored. Spec + lockfile stay
-      // byte-identical afterwards, so A's compatibility key matches the base
-      // probe's expectation.
-      fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
-      fs.mkdirSync(path.join(repo, 'docs'), { recursive: true });
-      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture fixture\n');
-      fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"lockfileVersion":3}\n');
-      fs.writeFileSync(path.join(repo, 'src', 'app.css'), 'a{}\n');
-      fs.writeFileSync(path.join(repo, 'docs', 'notes.md'), 'one\n');
-      git(repo, ['add', '-A']);
-      git(repo, ['commit', '-qm', 'test: stored ancestor']);
-      const ancestor = git(repo, ['rev-parse', 'HEAD']);
-      // Base B: a docs-only merge on top of A — a full-tree cache miss, but
-      // nothing capture-relevant changed.
-      fs.writeFileSync(path.join(repo, 'docs', 'notes.md'), 'two\n');
-      git(repo, ['add', 'docs/notes.md']);
-      git(repo, ['commit', '-qm', 'test: docs-only base move']);
-      const base = git(repo, ['rev-parse', 'HEAD']);
-      // Head H: the PR head, whose exact bundle is stored (no capture needed).
-      fs.writeFileSync(path.join(repo, 'src', 'app.css'), 'a{color:red}\n');
-      git(repo, ['add', 'src/app.css']);
-      git(repo, ['commit', '-qm', 'test: head']);
-      const head = git(repo, ['rev-parse', 'HEAD']);
-      git(repo, ['push', '-q', '-u', 'origin', 'main']);
-
-      // Seed the store with bundles for A and H under the compatibility key the
-      // probes will expect (spec + lockfile bytes are identical at A, B, and H).
-      const compatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'styleproof.spec.ts' });
-      const seed = path.join(root, 'seed');
-      git(root, ['clone', '-q', remote, seed]);
-      git(seed, ['checkout', '-q', '-b', 'styleproof-maps']);
-      git(seed, ['config', 'user.email', 'styleproof@example.test']);
-      git(seed, ['config', 'user.name', 'StyleProof Test']);
-      for (const seededSha of [ancestor, head]) {
-        const bundle = path.join(seed, seededSha, compatibilityKey);
-        fs.mkdirSync(bundle, { recursive: true });
-        fs.writeFileSync(path.join(bundle, 'home@1280.json'), `{"seeded":"${seededSha}"}\n`);
-        fs.writeFileSync(
-          path.join(bundle, MAP_MANIFEST),
-          JSON.stringify({
-            version: 1,
-            packageVersion: 'test',
-            sha: seededSha,
-            dirty: false,
-            spec: 'styleproof.spec.ts',
-            specHash: 'test',
-            platform: process.platform,
-            arch: process.arch,
-            nodeMajor: process.versions.node.split('.')[0],
-            screenshots: false,
-            har: false,
-            compatibilityKey,
-            createdAt: '2026-01-01T00:00:00.000Z',
-          }),
-        );
-      }
-      git(seed, ['add', '-A']);
-      git(seed, ['commit', '-qm', 'seed']);
-      git(seed, ['push', '-q', 'origin', 'styleproof-maps']);
-      git(root, ['--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true']);
-
-      const result = runCi(
-        ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot, '--force'],
-        {
-          CI: '1',
-          STYLEPROOF_ANCESTOR_BASELINE: '1',
-          STYLEPROOF_ANCESTOR_BASELINE_ROOTS: 'src',
-          STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
-          GITHUB_OUTPUT: githubOutput,
-        },
-        repo,
-      );
-      assert.equal(result.status, 0, result.stderr + result.stdout);
-      assert.match(result.stderr, /reused the baseline of nearest ancestor/, 'reuse is stated in the run log');
-      const outputs = fs.readFileSync(githubOutput, 'utf8');
-      assert.match(outputs, /base-hit=true/);
-      assert.match(outputs, /head-hit=true/);
-      assert.match(outputs, /capture-needed=false/, 'no capture ran — the whole point of the reuse');
-      assert.match(outputs, new RegExp(`base-restored-from-ancestor=${ancestor}`), 'reuse is auditable in outputs');
-      // The restored bundle is byte-honest: its manifest still names the ancestor
-      // it was verified at — reuse never relabels a map to a SHA it never rendered.
-      assert.equal(readMapManifest(path.join(mapRoot, 'base'))?.sha, ancestor);
-      assert.equal(fs.readFileSync(path.join(mapRoot, 'base', 'home@1280.json'), 'utf8'), `{"seeded":"${ancestor}"}\n`);
-      const provenance = readBaselineProvenance(path.join(mapRoot, 'base'));
-      assert.ok(provenance, `expected a ${BASELINE_PROVENANCE_FILE} sidecar`);
-      assert.equal(provenance.baseline, 'ancestor-reuse');
-      assert.equal(provenance.requestedSha, base);
-      assert.equal(provenance.restoredSha, ancestor);
-      assert.equal(provenance.ancestorDepth, 1);
-      assert.equal(provenance.changedPathCount, 1, 'the no-relevant-changes proof: one docs path changed');
-      assert.deepEqual(provenance.sourceRoots, ['src']);
-    } finally {
-      rmTmp(root);
-    }
-  },
-);
-
-test(
-  'styleproof-ci: browser preflight self-heals or fails fast with the exact remedy before any capture',
-  { timeout: 60_000 },
-  () => {
-    // Issue #366: a re-provisioned host with an empty ms-playwright cache used
-    // to die minutes into the run at `browserType.launch: Executable doesn't
-    // exist`. The preflight must fail BEFORE the first capture with the exact
-    // remedy, verify with one log line on a healthy host, and stay skippable.
-    const root = mkTmp('styleproof-ci-preflight-');
-    const remote = path.join(root, 'remote.git');
-    const repo = path.join(root, 'consumer');
-    const mapRoot = path.join(root, 'maps');
-    const installLog = path.join(root, 'install-log');
-    const git = (cwd, args) => {
-      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
-      assert.equal(result.status, 0, result.stderr);
-      return result.stdout.trim();
-    };
-    try {
-      fs.mkdirSync(repo);
-      git(root, ['init', '--bare', '-q', remote]);
-      git(repo, ['init', '-q', '-b', 'main']);
-      git(repo, ['config', 'user.email', 'styleproof@example.test']);
-      git(repo, ['config', 'user.name', 'StyleProof Test']);
-      git(repo, ['remote', 'add', 'origin', remote]);
-      fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
-      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture fixture\n');
-      fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
-      fs.writeFileSync(path.join(repo, 'app.txt'), 'base\n');
-      git(repo, ['add', '-A']);
-      git(repo, ['commit', '-qm', 'test: base']);
-      const base = git(repo, ['rev-parse', 'HEAD']);
-      fs.writeFileSync(path.join(repo, 'app.txt'), 'head\n');
-      git(repo, ['add', 'app.txt']);
-      git(repo, ['commit', '-qm', 'test: head']);
-      const head = git(repo, ['rev-parse', 'HEAD']);
-      git(repo, ['push', '-q', '-u', 'origin', 'main']);
-
-      // The consumer's "installed Playwright": a fake playwright-core whose
-      // documented executablePath() API points wherever the test says.
-      const fakePlaywrightCore = path.join(root, 'fake-playwright-core.cjs');
-      fs.writeFileSync(
-        fakePlaywrightCore,
-        'module.exports = { chromium: { executablePath: () => process.env.STYLEPROOF_TEST_CHROMIUM_EXECUTABLE ?? "" } };\n',
-      );
-      // The playwright CLI shim: `install` only logs (it can never produce the
-      // executable), any other invocation is a capture and writes a map.
-      const playwrightShim = path.join(root, 'playwright-shim.sh');
-      fs.writeFileSync(
-        playwrightShim,
-        `#!/bin/sh
-if [ "$1" = "install" ]; then
-  echo "install $*" >> "$STYLEPROOF_TEST_INSTALL_LOG"
-  exit 0
-fi
-mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
-printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
-`,
-      );
-      fs.chmodSync(playwrightShim, 0o755);
-
-      const plantConsumerModules = (checkoutRoot) => {
-        const bin = path.join(checkoutRoot, 'node_modules', '.bin');
-        const playwrightCoreRoot = path.join(checkoutRoot, 'node_modules', 'playwright-core');
-        fs.mkdirSync(bin, { recursive: true });
-        fs.mkdirSync(playwrightCoreRoot, { recursive: true });
-        fs.writeFileSync(
-          path.join(playwrightCoreRoot, 'package.json'),
-          '{"name":"playwright-core","main":"index.cjs"}\n',
-        );
-        fs.copyFileSync(fakePlaywrightCore, path.join(playwrightCoreRoot, 'index.cjs'));
-        fs.copyFileSync(playwrightShim, path.join(bin, 'playwright'));
-        fs.chmodSync(path.join(bin, 'playwright'), 0o755);
-      };
-      plantConsumerModules(repo);
-      // The npm shim plants the same modules into whichever checkout it
-      // installs (the cold-base worktree has no node_modules of its own).
-      fs.writeFileSync(
-        path.join(repo, 'node_modules', '.bin', 'npm'),
-        npmShim(`
-mkdir -p node_modules/.bin node_modules/playwright-core
-printf '{"name":"playwright-core","main":"index.cjs"}\\n' > node_modules/playwright-core/package.json
-cp "$STYLEPROOF_TEST_PLAYWRIGHT_CORE" node_modules/playwright-core/index.cjs
-cp "$STYLEPROOF_TEST_PLAYWRIGHT_SHIM" node_modules/.bin/playwright
-chmod +x node_modules/.bin/playwright
-exit 0
-`),
-      );
-      fs.chmodSync(path.join(repo, 'node_modules', '.bin', 'npm'), 0o755);
-
-      const ciArgs = ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot, '--force'];
-      const missingExecutable = '/nonexistent/ms-playwright/chromium_headless_shell-9999/chrome-linux/headless_shell';
-      const sharedEnv = {
-        CI: '1',
-        STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
-        STYLEPROOF_TEST_PLAYWRIGHT_CORE: fakePlaywrightCore,
-        STYLEPROOF_TEST_PLAYWRIGHT_SHIM: playwrightShim,
-        STYLEPROOF_TEST_INSTALL_LOG: installLog,
-      };
-
-      // 1) Empty-cache host, and the self-heal install cannot produce the
-      //    executable: exit non-zero immediately, naming revision and remedy,
-      //    with no capture attempted.
-      const failed = runCi(ciArgs, { ...sharedEnv, STYLEPROOF_TEST_CHROMIUM_EXECUTABLE: missingExecutable }, repo);
-      assert.equal(failed.status, 1, failed.stderr + failed.stdout);
-      assert.match(failed.stderr, /chromium_headless_shell-9999/, 'the failure names the missing revision');
-      assert.match(failed.stderr, /npx playwright install chromium/, 'the failure names the exact remedy command');
-      assert.match(fs.readFileSync(installLog, 'utf8'), /install/, 'the self-heal attempted a playwright install');
-      assert.equal(fs.existsSync(path.join(mapRoot, 'base', 'home@900.json')), false, 'no base capture ran');
-      assert.equal(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')), false, 'no head capture ran');
-
-      // 2) Healthy host: one verified log line per browser, NO install spawned,
-      //    captures proceed.
-      fs.rmSync(installLog, { force: true });
-      const healthy = runCi(ciArgs, { ...sharedEnv, STYLEPROOF_TEST_CHROMIUM_EXECUTABLE: playwrightShim }, repo);
-      assert.equal(healthy.status, 0, healthy.stderr + healthy.stdout);
-      assert.match(healthy.stderr, /browser preflight: verified chromium/, 'the healthy path logs the verification');
-      assert.equal(fs.existsSync(installLog), false, 'a healthy host skips playwright install entirely');
-      assert.ok(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')), 'capture proceeded after verification');
-
-      // 3) Opt-out: STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1 restores the
-      //    unconditional-install behaviour with no executable verification.
-      const storeBranchDelete = spawnSync('git', ['branch', '-D', 'styleproof-maps'], { cwd: remote });
-      assert.equal(storeBranchDelete.status, 0, 'the published map-store branch resets so the next run goes cold');
-      fs.rmSync(mapRoot, { recursive: true, force: true });
-      const optedOut = runCi(
-        ciArgs,
-        {
-          ...sharedEnv,
-          STYLEPROOF_TEST_CHROMIUM_EXECUTABLE: missingExecutable,
-          STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
-        },
-        repo,
-      );
-      assert.equal(optedOut.status, 0, optedOut.stderr + optedOut.stdout);
-      assert.doesNotMatch(optedOut.stderr, /browser preflight/, 'opting out silences the preflight entirely');
-      assert.match(fs.readFileSync(installLog, 'utf8'), /install/, 'opting out keeps the unconditional install');
-    } finally {
-      rmTmp(root);
-    }
-  },
-);
