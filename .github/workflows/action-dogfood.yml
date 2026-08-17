@@ -38,27 +38,8 @@ jobs:
       - name: Assert clean output
         run: |
           test '${{ steps.clean.outputs.changed }}' = 'false'
-          test '${{ steps.clean.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
-          test '${{ steps.clean.outputs.content-changes }}' = '0'
+          test '${{ steps.clean.outputs.trust-state }}' = 'NO_VISUAL_CHANGES'
           test -n '${{ steps.clean.outputs.report-url }}'
-
-      - id: content-advisory
-        uses: ./
-        with:
-          baseline-dir: action-dogfood/content-base
-          fresh-dir: action-dogfood/content-head
-          include-content: 'true'
-          report-branch: styleproof-action-dogfood
-
-      - name: Assert advisory content evidence is durable but non-gating
-        run: |
-          test '${{ steps.content-advisory.outputs.changed }}' = 'false'
-          test '${{ steps.content-advisory.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
-          test '${{ steps.content-advisory.outputs.content-changes }}' = '1'
-          grep -F 'No reviewable computed-style changes among semantically matched elements' styleproof-report/report.md
-          grep -F 'Content and structure changes (advisory)' styleproof-report/report.md
-          grep -F '"evaluated": true' styleproof-report/report.json
-          grep -F '"changes": 1' styleproof-report/report.json
 
       - id: changed
         uses: ./
@@ -71,7 +52,7 @@ jobs:
       - name: Assert changed output
         run: |
           test '${{ steps.changed.outputs.changed }}' = 'true'
-          test '${{ steps.changed.outputs.trust-state }}' = 'STYLE_REVIEW_REQUIRED'
+          test '${{ steps.changed.outputs.trust-state }}' = 'VISUAL_APPROVAL_REQUIRED'
           test -n '${{ steps.changed.outputs.report-url }}'
 
       - id: new-surface
@@ -85,7 +66,7 @@ jobs:
       - name: Assert new-surface-only output
         run: |
           test '${{ steps.new-surface.outputs.changed }}' = 'true'
-          test '${{ steps.new-surface.outputs.trust-state }}' = 'STYLE_REVIEW_REQUIRED'
+          test '${{ steps.new-surface.outputs.trust-state }}' = 'VISUAL_APPROVAL_REQUIRED'
           test -n '${{ steps.new-surface.outputs.report-url }}'
 
       - id: partial-baseline
@@ -167,7 +148,7 @@ jobs:
       - name: Assert unproven provenance certifies nothing and cannot be approved away
         run: |
           # Identical maps, but a side's determinism is unproven. This must NOT read as
-          # NO_REVIEWABLE_STYLE_CHANGES: the run certifies nothing, and CERTIFICATION_FAILED is the
+          # NO_VISUAL_CHANGES: the run certifies nothing, and CERTIFICATION_FAILED is the
           # one state the approval box cannot clear. This is the exact state 4.6.2's
           # content-geometry bug hid in — undetected precisely because it was never
           # dogfooded here.
@@ -193,30 +174,3 @@ jobs:
           done
           echo "StyleProof report file missing at ${REPORT_BRANCH}/${report_path}" >&2
           exit 1
-
-      - name: Label published report as synthetic dogfood evidence
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v9
-        with:
-          github-token: ${{ github.token }}
-          retries: 3
-          script: |
-            const marker = '<!-- styleproof-report -->';
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              ...context.repo,
-              issue_number: context.issue.number,
-              per_page: 100,
-            });
-            const comment = [...comments].reverse().find(({ body }) => body?.includes(marker));
-            if (!comment) throw new Error('Action dogfood report comment was not found');
-
-            const notice = [
-              '> [!NOTE]',
-              '> **Synthetic action dogfood receipt.** This report is the final deliberately failing fixture in the action contract suite. It proves that unproven evidence is rejected; it does not certify this pull request.',
-            ].join('\n');
-            const body = comment.body ?? '';
-            await github.rest.issues.updateComment({
-              ...context.repo,
-              comment_id: comment.id,
-              body: body.startsWith(notice) ? body : `${notice}\n\n${body}`,
-            });

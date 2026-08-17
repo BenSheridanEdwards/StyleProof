@@ -393,9 +393,7 @@ function restyleLines(els: ElementChange[], ctx: DescribeCtx): string[] {
  */
 export function describeChange(els: ElementChange[], ctx: DescribeCtx = {}, maxBullets = 6): string[] {
   const lines = [...domVerbLines(els), ...restyleLines(els, ctx)];
-  // Interaction-state *changes* only on matched-path elements. Added/removed nodes
-  // carry head- or base-side state inventory (no baseline pair) — the DOM verb covers them.
-  const states = [...new Set(els.filter((e) => !e.added && !e.removed).flatMap((e) => e.states ?? []))];
+  const states = [...new Set(els.flatMap((e) => e.states ?? []))];
   if (states.length) lines.push(`interaction states changed: ${states.map((s) => `\`:${s}\``).join(', ')}`);
   if (lines.length <= maxBullets) return lines;
   return [...lines.slice(0, maxBullets - 1), `…and ${lines.length - (maxBullets - 1)} more change(s)`];

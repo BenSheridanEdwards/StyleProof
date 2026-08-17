@@ -5,14 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests, captureUrlToDir } from '../dist/index.js';
-import {
-  diffContentMaps,
-  diffStyleMapDirs,
-  diffStyleMaps,
-  selectCrawlLinks,
-  detectViewportWidths,
-  crawlAndCapture,
-} from '../dist/index.js';
+import { diffStyleMaps, selectCrawlLinks, detectViewportWidths, crawlAndCapture } from '../dist/index.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
 // Every test here builds its own fixture (mkdtemp / own page); none reads another
@@ -110,131 +103,6 @@ test('capture persists zero own-text length without persisting rendered copy', a
   expect(filled?.ownTextLength).toBe(4);
   expect(empty?.text).toBeUndefined();
   expect(filled?.text).toBeUndefined();
-});
-
-test('a semantic row replacement is advisory content, not a positional restyle', async ({ page }) => {
-  const tableWithRows = (rows: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
-    tr { color: rgb(0, 0, 0); }
-    tr[data-style="account-summary"] { color: rgb(0, 90, 180); cursor: pointer; }
-  </style></head><body><table><tbody>${rows}</tbody></table></body></html>`;
-  const before = await withPage(
-    page,
-    tableWithRows('<tr><td>first credential</td></tr><tr><td>second credential</td></tr>'),
-    () => captureStyleMap(page, { captureText: true, captureStates: false }),
-  );
-  const after = await withPage(
-    page,
-    tableWithRows('<tr data-style="account-summary"><td>two credentials</td></tr>'),
-    () => captureStyleMap(page, { captureText: true, captureStates: false }),
-  );
-
-  const beforeRowPaths = Object.entries(before.elements)
-    .filter(([, element]) => element.tag === 'tr')
-    .map(([elementPath]) => elementPath);
-  const afterRowPath = Object.entries(after.elements).find(([, element]) => element.tag === 'tr')?.[0];
-  expect(afterRowPath).toContain(':sp-key(');
-  expect(beforeRowPaths).not.toContain(afterRowPath);
-  expect(diffStyleMaps(before, after, { includeStructure: false })).toEqual([]);
-  expect(diffContentMaps(before, after)).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ kind: 'structure', change: 'removed' }),
-      expect.objectContaining({ kind: 'structure', change: 'added' }),
-    ]),
-  );
-});
-
-test('content correspondence cannot pair different semantic row identities', async ({ page }) => {
-  const rowWith = (rowAttribute: string, rowRule: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
-    tr { color: rgb(0, 0, 0); cursor: auto; }
-    tr[data-style="account-summary"] { color: rgb(0, 90, 180); cursor: pointer; }
-  </style></head><body><table><tbody><tr${rowAttribute}><td>${rowRule}</td></tr></tbody></table></body></html>`;
-  const before = await withPage(page, rowWith(' data-style="account-summary"', 'credential'), () =>
-    captureStyleMap(page, { captureText: true, captureStates: false }),
-  );
-  const after = await withPage(page, rowWith('', 'credential'), () =>
-    captureStyleMap(page, { captureText: true, captureStates: false }),
-  );
-  const temporaryCaptureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-semantic-correspondence-'));
-
-  try {
-    saveStyleMap(path.join(temporaryCaptureRoot, 'before', 'table@800.json.gz'), before);
-    saveStyleMap(path.join(temporaryCaptureRoot, 'after', 'table@800.json.gz'), after);
-    expect(
-      diffStyleMapDirs(path.join(temporaryCaptureRoot, 'before'), path.join(temporaryCaptureRoot, 'after')).counts,
-    ).toEqual({
-      dom: 0,
-      style: 0,
-      state: 0,
-    });
-    expect(diffContentMaps(before, after)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: 'structure', change: 'removed' }),
-        expect.objectContaining({ kind: 'structure', change: 'added' }),
-      ]),
-    );
-  } finally {
-    fs.rmSync(temporaryCaptureRoot, { recursive: true, force: true });
-  }
-});
-
-test('dynamic data-style suffixes keep one identity so real state restyles still gate', async ({ page }) => {
-  const statusWith = (state: string, color: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
-    [data-style~="${state}"] { color: ${color}; }
-  </style></head><body><span data-style="status ${state}">state</span></body></html>`;
-  const before = await withPage(page, statusWith('ok', 'rgb(0, 120, 60)'), () =>
-    captureStyleMap(page, { captureStates: false }),
-  );
-  const after = await withPage(page, statusWith('warn', 'rgb(180, 90, 0)'), () =>
-    captureStyleMap(page, { captureStates: false }),
-  );
-  const beforeStatusPath = Object.entries(before.elements).find(([, element]) => element.tag === 'span')?.[0];
-  const afterStatusPath = Object.entries(after.elements).find(([, element]) => element.tag === 'span')?.[0];
-
-  expect(beforeStatusPath).toBe(afterStatusPath);
-  expect(beforeStatusPath).toContain(':sp-key(');
-  expect(diffStyleMaps(before, after, { includeStructure: false })).toEqual([
-    expect.objectContaining({
-      kind: 'style',
-      path: beforeStatusPath,
-      props: expect.arrayContaining([expect.objectContaining({ prop: 'color' })]),
-    }),
-  ]);
-});
-
-test('capture distinguishes layout-used reflow from a genuine computed-value change', async ({ page }) => {
-  const fixtureWith = (
-    extraItem: string,
-    trailingMargin: string,
-  ) => `<!doctype html><html><head><meta charset="utf-8"><style>
-    body { margin: 0; }
-    .row { display: flex; width: 600px; }
-    .item { width: 100px; }
-    .trailing { margin-left: ${trailingMargin}; color: rgb(0, 0, 0); }
-  </style></head><body><main><div class="row"><span class="item">one</span>${extraItem}<span id="trailing" class="trailing">label</span></div></main></body></html>`;
-
-  const before = await withPage(page, fixtureWith('', 'auto'), () =>
-    captureStyleMap(page, { stabilize: false, captureStates: false }),
-  );
-  const contentReflow = await withPage(page, fixtureWith('<span class="item">two</span>', 'auto'), () =>
-    captureStyleMap(page, { stabilize: false, captureStates: false }),
-  );
-  const genuineRestyle = await withPage(page, fixtureWith('<span class="item">two</span>', '24px'), () =>
-    captureStyleMap(page, { stabilize: false, captureStates: false }),
-  );
-  const trailingPath = Object.keys(before.elements).find(
-    (elementPath) => before.elements[elementPath]?.cls === 'trailing',
-  );
-  expect(trailingPath).toBeTruthy();
-  expect(before.elements[trailingPath!]?.computedValueStyle?.['margin-left']).toBe('auto');
-  expect(contentReflow.elements[trailingPath!]?.computedValueStyle?.['margin-left']).toBe('auto');
-
-  expect(diffStyleMaps(before, contentReflow, { includeStructure: false })).toEqual([]);
-  const genuineFinding = diffStyleMaps(before, genuineRestyle, { includeStructure: false }).find(
-    (finding) => finding.kind === 'style' && finding.path === trailingPath,
-  );
-  expect(genuineFinding && genuineFinding.kind === 'style' ? genuineFinding.props : []).toContainEqual(
-    expect.objectContaining({ prop: 'margin-left', after: '24px' }),
-  );
 });
 
 test('capture declares prefers-reduced-motion so JS animation libraries render final states', async ({ page }) => {
@@ -595,11 +463,11 @@ test('auto-excludes a perpetual live region', async ({ page }) => {
   expect(buttonCaptured, 'the static button is still captured').toBe(true);
 });
 
-test('ignored live-region reflow does not leak into unchanged ancestor styles', async ({ page }) => {
-  // Ignoring the live subtree removes that content from the diff. Its size can
-  // still move ancestor CSSOM used pixels, but CSS Typed OM proves those
-  // ancestors kept the same computed value (`auto`), so content reflow must not
-  // escape the ignored boundary as a phantom style regression.
+test('ignored live regions can still reveal root layout drift', async ({ page }) => {
+  // Ignoring the live subtree removes that element from the diff, but it does not
+  // freeze the document flow it participates in. If the live state should be
+  // certified, capture both states as surface variants instead of expecting
+  // `ignore` to hide the ancestor geometry.
   const html = (height: number) => `<!doctype html><html><head><meta charset="utf-8"><style>
     html, body { margin: 0; }
     .live { display: block; width: 100%; height: ${height}px; background: rgb(1,2,3); }
@@ -619,7 +487,14 @@ test('ignored live-region reflow does not leak into unchanged ancestor styles', 
     'ignored live subtree is not captured directly',
   ).toBe(false);
 
-  expect(diffStyleMaps(short, tall, { includeStructure: false })).toEqual([]);
+  const findings = diffStyleMaps(short, tall);
+  const rootLayout = findings.find(
+    (f) =>
+      f.kind === 'style' &&
+      (f.path === 'html' || f.path === 'body') &&
+      f.props.some((p) => p.prop === 'block-size' || p.prop === 'height'),
+  );
+  expect(rootLayout, 'ancestor/root layout still changes when ignored live content changes size').toBeTruthy();
 });
 
 test('auto-detects semantic live-state candidates without excluding stable product UI', async ({ page }) => {
@@ -1477,8 +1352,6 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
   // A data-driven page: skeleton until the fetch resolves, error render on 500.
   // The crawl must capture loaded (base), loading, and error — with no config.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-data-'));
-  const outside = path.join(path.dirname(dir), `styleproof-outside-${Math.random().toString(36).slice(2)}.txt`);
-  fs.writeFileSync(outside, 'outside fixture root');
   fs.writeFileSync(path.join(dir, 'data.json'), JSON.stringify({ items: ['a', 'b'] }));
   fs.writeFileSync(
     path.join(dir, 'index.html'),
@@ -1499,10 +1372,7 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
   );
   const server = http.createServer((req, res) => {
     const clean = (req.url ?? '').split('?')[0]; // the fetch cache-busts — serve by pathname
-    const fileName =
-      clean === '/' || clean === '/index.html' ? 'index.html' : clean === '/data.json' ? 'data.json' : null;
-    if (!fileName) return void res.writeHead(404).end();
-    const f = path.join(dir, fileName);
+    const f = path.join(dir, clean === '/' ? 'index.html' : clean);
     if (!fs.existsSync(f)) return void res.writeHead(404).end();
     res.writeHead(200, { 'content-type': f.endsWith('.json') ? 'application/json' : 'text/html' });
     res.end(fs.readFileSync(f));
@@ -1511,19 +1381,6 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
   const port = (server.address() as { port: number }).port;
   const out = path.join(os.tmpdir(), `styleproof-data-out-${Math.random().toString(36).slice(2)}`);
   try {
-    const traversal = await new Promise<{ status: number; body: string }>((resolve, reject) => {
-      const request = http.get({ hostname: '127.0.0.1', port, path: `/../${path.basename(outside)}` }, (response) => {
-        const chunks: Buffer[] = [];
-        response.on('data', (chunk: Buffer) => chunks.push(chunk));
-        response.on('end', () =>
-          resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }),
-        );
-      });
-      request.on('error', reject);
-    });
-    expect(traversal.status, 'the fixture server rejects paths outside its root').toBe(404);
-    expect(traversal.body).not.toContain('outside fixture root');
-
     const report = await crawlAndCapture(page, {
       url: `http://127.0.0.1:${port}/index.html`,
       out,
@@ -1542,7 +1399,6 @@ test('automatic data states: loading (stalled) and error (500) captured out of t
     expect(report.coverage.missing, 'loaded + loading + error all rendered somewhere').toEqual([]);
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
-    fs.rmSync(outside, { force: true });
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(out, { recursive: true, force: true });
   }
