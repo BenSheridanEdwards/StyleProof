@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { CiWorktreeSession, consumerRelativeFromRepoRoot, gitRepoRoot, worktreeRunCwd } from './ci-worktree.js';
 import { inferBaseRef } from './gitref.js';
 import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
@@ -16,8 +15,6 @@ export const DEFAULT_REMOTE = 'origin';
 export const MAP_MANIFEST = 'styleproof-manifest.json';
 /** Per-surface capture failures recorded when baseline-only tolerate mode is on. */
 export const SURFACE_CAPTURE_FAILURES_DIR = 'styleproof-surface-capture-failures';
-/** Run-level marker proving that capture hit a fatal determinism/self-check failure. */
-export const FATAL_CAPTURE_MARKER = 'styleproof-fatal-capture.flag';
 
 export type SurfaceCaptureFailure = {
   /** Capture key (`<surface>@<width>` or crawl label). */
@@ -45,17 +42,6 @@ const GIT_REPOSITORY_ENVIRONMENT_VARIABLES = [
   'GIT_WORK_TREE',
 ] as const;
 
-/** Sidecar recording where a run's BASELINE maps came from — restored from the
- *  exact base SHA, restored from a nearest ancestor (with the no-relevant-changes
- *  proof), or captured fresh (#367: reuse must never be silent). Written locally
- *  by the CI driver into its base dir; never a surface map. */
-export const BASELINE_PROVENANCE_FILE = 'styleproof-baseline-provenance.json';
-
-/** The confidence ledger (#399) — per-surface trust statuses bundled with the
- *  maps. Defined here (not in confidence-ledger.ts, its owning module, which
- *  re-exports it) so {@link RESERVED_BUNDLE_FILES} needs no import cycle. */
-export const CONFIDENCE_LEDGER = 'styleproof-confidence.json';
-
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
  *  these, or a sidecar reads as a phantom "new surface". */
@@ -63,42 +49,11 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
   MAP_MANIFEST,
   COVERAGE_LEDGER,
   BROWSER_BUILD_SIDECAR,
-  BASELINE_PROVENANCE_FILE,
-  CONFIDENCE_LEDGER,
 ]);
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */
 export function isMapFile(name: string): boolean {
   return !RESERVED_BUNDLE_FILES.has(name) && /\.json(\.gz)?$/.test(name);
-}
-
-const CRAWL_BUNDLE_FILES = new Set([...RESERVED_BUNDLE_FILES, FATAL_CAPTURE_MARKER]);
-const GENERATED_CAPTURE_ARTIFACT = /@\d+\.(?:json(?:\.gz)?|png|(?:hover|focus|active)\.png)$/;
-
-/** Clear only artifacts that a crawl owns when refreshing a reused output directory.
- * Generated sidecars and the `<surface>@<width>` namespace are reserved StyleProof output;
- * unrelated names are preserved. Preflight before removal so malformed state cannot
- * leave a half-cleared bundle. */
-export function clearCaptureOutput(dir: string): void {
-  fs.mkdirSync(dir, { recursive: true });
-  const candidates = fs
-    .readdirSync(dir)
-    .filter(
-      (name) =>
-        CRAWL_BUNDLE_FILES.has(name) || name === SURFACE_CAPTURE_FAILURES_DIR || GENERATED_CAPTURE_ARTIFACT.test(name),
-    );
-  const classified = candidates.map((name) => {
-    const target = path.join(dir, name);
-    const stat = fs.lstatSync(target);
-    if (name !== SURFACE_CAPTURE_FAILURES_DIR && stat.isDirectory()) {
-      throw new MapStoreError(`generated capture artifact is a directory: ${target}`);
-    }
-    return { name, target, stat };
-  });
-  for (const { name, target, stat } of classified) {
-    const recursive = name === SURFACE_CAPTURE_FAILURES_DIR && stat.isDirectory() && !stat.isSymbolicLink();
-    fs.rmSync(target, { force: true, recursive });
-  }
 }
 
 export class MapStoreError extends Error {}
@@ -420,25 +375,16 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
   };
 }
 
-/** Hash only inputs available both during capture and in a detached restore probe.
- *  The installed Playwright package remains manifest evidence, but detached probe
- *  worktrees intentionally have no node_modules. The lockfile hash already binds
- *  the resolved dependency graph, so hashing the installed lookup made every
- *  capture key differ from its later restore key. */
-function compatibilityKeyForInput(input: ReturnType<typeof compatibilityInput>): string {
-  const { playwrightVersion: recordedPlaywrightVersion, ...stableCompatibilityInput } = input;
-  void recordedPlaywrightVersion;
-  return hash(JSON.stringify(stableCompatibilityInput)).slice(0, 16);
-}
-
 export function expectedCompatibilityKey(options: { cwd?: string; spec?: string; baseUrl?: string } = {}): string {
-  return compatibilityKeyForInput(
-    compatibilityInput({
-      cwd: options.cwd ?? process.cwd(),
-      spec: options.spec ?? 'e2e/styleproof.spec.ts',
-      baseUrl: options.baseUrl,
-    }),
-  );
+  return hash(
+    JSON.stringify(
+      compatibilityInput({
+        cwd: options.cwd ?? process.cwd(),
+        spec: options.spec ?? 'e2e/styleproof.spec.ts',
+        baseUrl: options.baseUrl,
+      }),
+    ),
+  ).slice(0, 16);
 }
 
 export function currentGitSha(cwd = process.cwd(), env: NodeJS.ProcessEnv = process.env): string {
@@ -499,10 +445,7 @@ export function refSha(ref: string, cwd = process.cwd()): string {
  * (the ambient equivalent of the built-in next-env.d.ts allowance).
  */
 export function workingTreeDirty(cwd = process.cwd(), ignore?: string | readonly string[]): boolean {
-  // Enumerate every untracked file. Git otherwise collapses a wholly untracked
-  // directory to `dir/`, which makes an exact dirty allowance for generated
-  // first-adoption harness files impossible to honor.
-  const r = runGit(cwd, ['status', '--porcelain', '--untracked-files=all']);
+  const r = runGit(cwd, ['status', '--porcelain']);
   const status = r.status === 0 ? r.stdout.trimEnd() : '';
   if (!status) return false;
   const prefixes = (typeof ignore === 'string' ? [ignore] : (ignore ?? []))
@@ -563,21 +506,6 @@ export function readSurfaceCaptureFailures(dir: string): SurfaceCaptureFailure[]
     .filter((name) => name.endsWith('.json'))
     .map((name) => JSON.parse(fs.readFileSync(path.join(sub, name), 'utf8')) as SurfaceCaptureFailure)
     .sort((a, b) => a.key.localeCompare(b.key));
-}
-
-/** Record a run-level capture failure that must never be tolerated or published. */
-export function markFatalCaptureFailure(dir: string, reason: string): void {
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, FATAL_CAPTURE_MARKER), reason);
-}
-
-/** Read the fatal marker written by a capture worker, if one exists. */
-export function readFatalCaptureFailure(dir: string): string | undefined {
-  try {
-    return fs.readFileSync(path.join(dir, FATAL_CAPTURE_MARKER), 'utf8').trim() || 'unknown fatal capture failure';
-  } catch {
-    return undefined;
-  }
 }
 
 /** Split a capture key at the last `@` (`home@1280` → `home` + `1280`). */
@@ -648,7 +576,7 @@ function buildManifest(options: {
     ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
     screenshots: options.screenshots,
     har: hasHar(dir),
-    compatibilityKey: compatibilityKeyForInput(input),
+    compatibilityKey: hash(JSON.stringify(input)).slice(0, 16),
     // Real wall clock even when the spec-process clock is frozen — a manifest
     // stamped with the frozen instant would misreport when the capture ran.
     createdAt: new Date(realNow()).toISOString(),
@@ -719,43 +647,6 @@ export function writeCaptureManifest(options: {
 export function readMapManifest(dir: string): MapManifest | null {
   try {
     return JSON.parse(fs.readFileSync(path.join(dir, MAP_MANIFEST), 'utf8')) as MapManifest;
-  } catch {
-    return null;
-  }
-}
-
-/** Where a run's baseline maps came from (#367). `ancestor-reuse` carries the
- *  no-relevant-changes proof: how many paths changed between the restored
- *  ancestor and the requested base commit (all of them capture-irrelevant),
- *  and the declared app source roots the relevance gate ran against. The
- *  restored bundle itself stays byte-identical to what was verified at capture
- *  time — this sidecar only records the reuse decision, it never rewrites the
- *  bundle's own manifest or SHA. */
-export type BaselineProvenance = {
-  version: 1;
-  baseline: 'exact-restore' | 'ancestor-reuse' | 'captured';
-  /** The base commit this run needed a baseline for. */
-  requestedSha: string;
-  /** The commit whose stored bundle was restored (absent for `captured`). */
-  restoredSha?: string;
-  /** 1 = the base commit's direct first-parent parent. */
-  ancestorDepth?: number;
-  /** `git diff --name-only <restoredSha> <requestedSha>` path count — the proof. */
-  changedPathCount?: number;
-  /** The app source roots the relevance gate was declared with. */
-  sourceRoots?: string[];
-};
-
-/** Record the baseline-provenance sidecar into a base map dir (#367: no silent reuse). */
-export function writeBaselineProvenance(dir: string, provenance: BaselineProvenance): void {
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, BASELINE_PROVENANCE_FILE), JSON.stringify(provenance, null, 2));
-}
-
-/** Read the baseline-provenance sidecar; `null` when absent or unreadable. */
-export function readBaselineProvenance(dir: string): BaselineProvenance | null {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(dir, BASELINE_PROVENANCE_FILE), 'utf8')) as BaselineProvenance;
   } catch {
     return null;
   }
@@ -863,13 +754,7 @@ function checkoutSparseSegment(tmp: string, branch: string, segment: string): vo
   }
 }
 
-function checkoutMapStore(
-  cwd: string,
-  remote: string,
-  branch: string,
-  sparseSegment?: string,
-  sparseFilter = 'blob:none',
-): string {
+function checkoutMapStore(cwd: string, remote: string, branch: string, sparseSegment?: string): string {
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
   const remoteUrl = gitOutput(cwd, ['remote', 'get-url', remote]);
   const httpExtraHeaders = effectiveGitHttpExtraHeaders(cwd);
@@ -883,17 +768,7 @@ function checkoutMapStore(
   const branchExists = branchLookup.status === 0;
   if (branchExists) {
     const cloneArguments = sparseSegment
-      ? [
-          'clone',
-          '-q',
-          `--filter=${sparseFilter}`,
-          '--no-checkout',
-          '--depth',
-          '1',
-          '--single-branch',
-          '--branch',
-          branch,
-        ]
+      ? ['clone', '-q', '--filter=blob:none', '--no-checkout', '--depth', '1', '--single-branch', '--branch', branch]
       : ['clone', '-q', '--depth', '1', '--branch', branch];
     const clone = runMapStoreNetworkGit(cwd, [...authenticationArguments, ...cloneArguments, remoteUrl, tmp]);
     if (clone.status !== 0) {
@@ -1134,9 +1009,7 @@ function restoreMapStoreAttempt(options: {
   try {
     // checkoutMapStore throws only on infra (clone/checkout/network) — a bundle simply
     // being absent surfaces below as an empty tree, not an exception.
-    // Restore needs one exact-SHA subtree. Avoid downloading every tree on a
-    // long-lived map-store branch before sparse checkout narrows the request.
-    tmp = checkoutMapStore(cwd, remote, branch, sha, 'tree:0');
+    tmp = checkoutMapStore(cwd, remote, branch, sha);
   } catch (error) {
     return { status: 'infra', message: errorMessage(error) };
   }
@@ -1202,63 +1075,6 @@ export function restoreMapBundle(options: {
   );
 }
 
-/**
- * The commit SHAs that currently have at least one stored bundle on the map
- * store branch — the top-level directory names at the branch tip. One bounded
- * network operation: a `tree:0` no-checkout clone plus one root `ls-tree`, so
- * no map blob (and no subtree) is downloaded. A missing branch is an EMPTY set
- * (nothing stored yet, not a fault); any network/clone failure throws a plain
- * {@link MapStoreError} so the caller can fall back rather than trust a
- * partial listing. Used by the nearest-ancestor baseline reuse (#367).
- */
-export function listMapStoreBundleShas(options: { branch?: string; remote?: string; cwd?: string } = {}): Set<string> {
-  const cwd = options.cwd ?? process.cwd();
-  const branch = options.branch ?? DEFAULT_MAP_STORE_BRANCH;
-  const remote = options.remote ?? DEFAULT_REMOTE;
-  if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
-  const branchLookup = runMapStoreNetworkGit(cwd, ['ls-remote', '--exit-code', '--heads', remote, branch], 1 << 20);
-  if (branchLookup.status === 2) return new Set();
-  if (branchLookup.status !== 0) {
-    throw new MapStoreError(gitFailureMessage(branchLookup, 'could not query map store branch'));
-  }
-  const remoteUrl = gitOutput(cwd, ['remote', 'get-url', remote]);
-  const httpExtraHeaders = effectiveGitHttpExtraHeaders(cwd);
-  const authenticationArguments = httpExtraHeaders.flatMap(({ key, value }) => ['-c', `${key}=${value}`]);
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-map-store-list-'));
-  try {
-    const clone = runMapStoreNetworkGit(cwd, [
-      ...authenticationArguments,
-      'clone',
-      '-q',
-      '--filter=tree:0',
-      '--no-checkout',
-      '--depth',
-      '1',
-      '--single-branch',
-      '--branch',
-      branch,
-      remoteUrl,
-      tmp,
-    ]);
-    if (clone.status !== 0) throw new MapStoreError(gitFailureMessage(clone, 'could not clone map store branch'));
-    // The lazy root-tree fetch below goes back through the promisor remote, so the
-    // clone's checkout must carry the same auth the clone itself used.
-    for (const { key, value } of httpExtraHeaders) runGit(tmp, ['config', '--local', '--add', key, value]);
-    const listing = runMapStoreNetworkGit(tmp, ['ls-tree', '--name-only', 'HEAD'], 1 << 20);
-    if (listing.status !== 0) {
-      throw new MapStoreError(gitFailureMessage(listing, 'could not list map store bundles'));
-    }
-    return new Set(
-      listing.stdout
-        .split('\n')
-        .map((name) => name.trim())
-        .filter((name) => /^[0-9a-f]{7,40}$/i.test(name)),
-    );
-  } finally {
-    removeTempWorkspace(tmp);
-  }
-}
-
 export function resolveCachedCaptureDirs(options: {
   command: string;
   args: string[];
@@ -1281,24 +1097,14 @@ export function resolveCachedCaptureDirs(options: {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cache-'));
   const beforeDir = path.join(tmpRoot, 'base');
   const afterDir = path.join(tmpRoot, 'head');
-  let worktrees: CiWorktreeSession | undefined;
   try {
-    const repoRoot = gitRepoRoot(cwd);
-    const consumerRel = consumerRelativeFromRepoRoot(repoRoot, cwd);
-    worktrees = new CiWorktreeSession(repoRoot);
-    const baseWorktree = worktrees.addDetached(baseSha, 'cache-base');
-    const baseCompatibilityKey = expectedCompatibilityKey({
-      cwd: worktreeRunCwd(baseWorktree, consumerRel),
-      spec: options.spec,
-      baseUrl: options.baseUrl,
-    });
     restoreMapBundle({
       sha: baseSha,
       outDir: beforeDir,
       branch: options.branch,
       remote: options.remote,
       cwd,
-      compatibilityKey: baseCompatibilityKey,
+      compatibilityKey,
     });
     restoreMapBundle({
       sha: headSha,
@@ -1312,8 +1118,6 @@ export function resolveCachedCaptureDirs(options: {
   } catch (e) {
     removeTempWorkspace(tmpRoot);
     throw e;
-  } finally {
-    worktrees?.dispose();
   }
 }
 

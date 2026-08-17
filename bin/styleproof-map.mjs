@@ -25,7 +25,6 @@ import {
 } from '../dist/cli-errors.js';
 import {
   BROWSER_BUILD_SIDECAR,
-  FATAL_CAPTURE_MARKER,
   SURFACE_CAPTURE_FAILURES_DIR,
   DEFAULT_MAP_DIR,
   DEFAULT_MAP_LABEL,
@@ -38,7 +37,6 @@ import {
   expectedCompatibilityKey,
   isMapFile,
   publishMapBundle,
-  readFatalCaptureFailure,
   restoreMapBundle,
   readSurfaceCaptureFailures,
   workingTreeDirty,
@@ -369,8 +367,6 @@ fs.rmSync(path.join(targetDir, BROWSER_BUILD_SIDECAR), { force: true });
 // recapture would publish a phantom "partial baseline" that every later diff then
 // blocks on with repair-base guidance no repair can satisfy.
 fs.rmSync(path.join(targetDir, SURFACE_CAPTURE_FAILURES_DIR), { recursive: true, force: true });
-// A reused output directory must never inherit a fatal result from a prior run.
-fs.rmSync(path.join(targetDir, FATAL_CAPTURE_MARKER), { force: true });
 
 const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const configArgs =
@@ -402,14 +398,6 @@ if (result.error) {
 let status = result.status ?? 1;
 const captured = fs.existsSync(targetDir) ? fs.readdirSync(targetDir).filter(isMapFile).length : 0;
 const toleratedFailures = readSurfaceCaptureFailures(targetDir);
-const fatalCaptureFailure = readFatalCaptureFailure(targetDir);
-if (status !== 0 && fatalCaptureFailure) {
-  console.error(
-    `styleproof-map: fatal self-check failure; discarding ${captured} captured surface map(s) and refusing publication — ${fatalCaptureFailure}`,
-  );
-  fs.rmSync(targetDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-  process.exit(status);
-}
 // Promote to a publishable partial baseline ONLY when the failures are actually
 // LEDGERED. Self-check/nondeterminism failures are deliberately never recorded —
 // promoting a run that failed for an unrecorded reason would publish a "partial

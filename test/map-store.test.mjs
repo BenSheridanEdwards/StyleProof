@@ -7,13 +7,9 @@ import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {
   assertCompatibleMapDirs,
-  BASELINE_PROVENANCE_FILE,
   expectedCompatibilityKey,
   BROWSER_BUILD_SIDECAR,
-  clearCaptureOutput,
-  CONFIDENCE_LEDGER,
   currentGitSha,
-  FATAL_CAPTURE_MARKER,
   manifestlessError,
   manifestlessSide,
   MAP_MANIFEST,
@@ -22,63 +18,16 @@ import {
   publishMapBundle,
   readMapManifest,
   restoreMapBundle,
-  SURFACE_CAPTURE_FAILURES_DIR,
   workflowTokenCredentialArguments,
   workingTreeDirty,
   writeBrowserBuildSidecar,
   writeCaptureManifest,
   writeMapManifest,
 } from '../dist/map-store.js';
-import { COVERAGE_LEDGER } from '../dist/coverage.js';
-import { makeMap, mkNonGitTmp, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
-
-test('clearCaptureOutput removes complete generated bundle state without following symlinks', () => {
-  const dir = mkNonGitTmp('styleproof-clear-capture-');
-  const outside = mkNonGitTmp('styleproof-clear-outside-');
-  try {
-    for (const name of [
-      MAP_MANIFEST,
-      COVERAGE_LEDGER,
-      BROWSER_BUILD_SIDECAR,
-      BASELINE_PROVENANCE_FILE,
-      CONFIDENCE_LEDGER,
-      FATAL_CAPTURE_MARKER,
-      'base@800.json',
-      'base@800.png',
-    ])
-      fs.writeFileSync(path.join(dir, name), 'generated');
-    fs.mkdirSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR));
-    fs.writeFileSync(path.join(dir, SURFACE_CAPTURE_FAILURES_DIR, 'base.json'), '{}');
-    fs.writeFileSync(path.join(dir, 'notes.txt'), 'user');
-    const outsideFile = path.join(outside, 'keep.json');
-    fs.writeFileSync(outsideFile, 'outside');
-    fs.symlinkSync(outsideFile, path.join(dir, 'linked@800.json'));
-
-    clearCaptureOutput(dir);
-
-    assert.deepEqual(fs.readdirSync(dir), ['.git', 'notes.txt']);
-    assert.equal(fs.readFileSync(outsideFile, 'utf8'), 'outside');
-  } finally {
-    rmTmp(dir);
-    rmTmp(outside);
-  }
-});
-
-test('clearCaptureOutput preflights malformed generated-file directories before deleting anything', () => {
-  const dir = mkNonGitTmp('styleproof-clear-preflight-');
-  try {
-    fs.writeFileSync(path.join(dir, 'a@800.json'), 'map');
-    fs.mkdirSync(path.join(dir, 'z@800.json'));
-    assert.throws(() => clearCaptureOutput(dir), /generated capture artifact.*directory/i);
-    assert.equal(fs.readFileSync(path.join(dir, 'a@800.json'), 'utf8'), 'map');
-    assert.equal(fs.statSync(path.join(dir, 'z@800.json')).isDirectory(), true);
-  } finally {
-    rmTmp(dir);
-  }
-});
+import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 test('currentGitSha binds pull-request captures to the real head, not the merge commit', () => {
-  const dir = mkNonGitTmp('styleproof-event-');
+  const dir = mkTmp('styleproof-event-');
   const headSha = 'b'.repeat(40);
   try {
     const eventPath = path.join(dir, 'event.json');
@@ -982,8 +931,8 @@ test('restoreMapBundle retrieves only the requested SHA from a large map store',
     const invocations = fs.readFileSync(invocationLog, 'utf8');
     assert.match(
       invocations,
-      /clone -q --filter=tree:0 --no-checkout --depth 1 --single-branch --branch styleproof-maps/,
-      'restore fetches only the sparse target tree instead of every cached bundle tree',
+      /clone -q --filter=blob:none --no-checkout --depth 1 --single-branch --branch styleproof-maps/,
+      'restore clones tree metadata without checking out every cached bundle',
     );
     assert.match(invocations, new RegExp(`sparse-checkout set ${requestedSha}`));
     assert.match(invocations, /checkout -q styleproof-maps/);
@@ -1113,7 +1062,7 @@ test('manifestlessError: names the side and points at re-capturing (v4 refuses)'
 test('writeCaptureManifest: stamps a compat manifest, degrading git fields outside a repo', () => {
   // A one-shot styleproof-capture output dir under a NON-git tmp path — the design-mockup
   // case. The manifest must still carry the fields the same-environment guard consumes.
-  const dir = mkNonGitTmp('styleproof-capture-manifest-');
+  const dir = mkTmp('styleproof-capture-manifest-');
   try {
     // cwd = the tmp dir itself (not a git repo) so the git fields degrade.
     const manifest = writeCaptureManifest({ dir, screenshots: true, cwd: dir });
@@ -1321,45 +1270,12 @@ test('restoreMapBundle retries an infrastructure fault and fails as a plain MapS
   }
 });
 
-// A relative cwd changes the resolved spec and lockfile paths unless it is
-// normalized first, which would stamp different keys for the same checkout.
+// A relative cwd made createRequire throw inside playwrightVersion, silently
+// dropping the field from the compatibility key — publish (hook, relative cwd)
+// and restore (CLI, absolute cwd) then stamped DIFFERENT keys for the same
+// environment, so every cache lookup missed and CI paid a full recapture.
 test('expectedCompatibilityKey is identical for relative and absolute cwd', () => {
   const relative = expectedCompatibilityKey({ cwd: '.', spec: 'e2e/styleproof.spec.ts' });
   const absolute = expectedCompatibilityKey({ cwd: process.cwd(), spec: 'e2e/styleproof.spec.ts' });
   assert.equal(relative, absolute);
-});
-
-test('expectedCompatibilityKey is stable when a detached restore probe has no node_modules', () => {
-  const consumer = mkTmp('styleproof-detached-probe-');
-  const capture = path.join(consumer, 'maps');
-  const spec = path.join(consumer, 'e2e/styleproof.spec.ts');
-  try {
-    fs.mkdirSync(path.dirname(spec), { recursive: true });
-    fs.mkdirSync(capture, { recursive: true });
-    fs.writeFileSync(path.join(consumer, 'package.json'), '{"private":true}\n');
-    fs.writeFileSync(path.join(consumer, 'package-lock.json'), '{"lockfileVersion":3}\n');
-    fs.writeFileSync(spec, 'export default {};\n');
-
-    const detachedProbeKey = expectedCompatibilityKey({ cwd: consumer, spec: 'e2e/styleproof.spec.ts' });
-
-    const installedPlaywrightPackage = path.join(consumer, 'node_modules/@playwright/test/package.json');
-    fs.mkdirSync(path.dirname(installedPlaywrightPackage), { recursive: true });
-    fs.writeFileSync(installedPlaywrightPackage, '{"name":"@playwright/test","version":"1.52.0"}\n');
-
-    const captureKey = expectedCompatibilityKey({ cwd: consumer, spec: 'e2e/styleproof.spec.ts' });
-    const manifest = writeMapManifest({
-      dir: capture,
-      spec: 'e2e/styleproof.spec.ts',
-      sha: 'a'.repeat(40),
-      screenshots: false,
-      dirty: false,
-      cwd: consumer,
-    });
-
-    assert.equal(captureKey, detachedProbeKey, 'an install must not change the cache lookup key');
-    assert.equal(manifest.compatibilityKey, detachedProbeKey, 'capture and detached restore use the same key');
-    assert.equal(manifest.playwrightVersion, '1.52.0', 'runtime evidence still records the installed version');
-  } finally {
-    rmTmp(consumer);
-  }
 });

@@ -31,7 +31,6 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 // Import from the leaf module, not the barrel: styleproof-init only scaffolds
 // files and never captures. Pulling `../dist/index.js` here dragged the whole
@@ -39,8 +38,7 @@ import { fileURLToPath } from 'node:url';
 // into a tiny scaffolder's load path, and that oversized concurrent module
 // graph is what made init's tests flake in CI. routes.js needs only fs + path.
 import { discoverNextRoutes } from '../dist/routes.js';
-import { isHelpArg, projectConfigOrExit, showHelpAndExit } from '../dist/cli-errors.js';
-import { decodeSpecPathEnv, encodeSpecPath, SPEC_PATH_ENV, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
+import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
 
 const HELP = `styleproof-init — scaffold a styleproof capture spec
 
@@ -58,8 +56,7 @@ options:
                       templates; never touches the spec or playwright config
   --check             report drift between the machine-owned files and this
                       release's templates without writing; exit 1 if any differ —
-                      the generated workflow runs it before capture so upgrades
-                      fail with the --upgrade remedy instead of silently drifting
+                      run it in CI to learn when --upgrade is due
   -h, --help          show this help
 
 --upgrade/--check interpolate the spec path into the templates: pass the same
@@ -75,9 +72,6 @@ What it writes:
   - .github/workflows/styleproof.yml, a cache-first PR report workflow
   - .github/workflows/styleproof-approve.yml, the "Approve all changes" gate
     (active once merged to your default branch)
-  - .githooks/pre-push and, when the effective core.hooksPath is unset and no
-    default pre-push hook exists, activates .githooks for this repository.
-    Existing default/custom hooks and Husky remain untouched.
 
 After running, build and upload this commit's map outside CI when possible:
   npx styleproof-map
@@ -89,8 +83,7 @@ To certify a refactor:
 
 const argv = process.argv.slice(2);
 const DEFAULT_SPEC_PATH = 'e2e/styleproof.spec.ts';
-let specPath;
-let specPathProvided = false;
+let specPath = DEFAULT_SPEC_PATH;
 let baseUrl = 'http://localhost:3000';
 let force = false;
 let hookOnly = false;
@@ -99,13 +92,9 @@ let checkOnly = false;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
-  else if (a === '--dir') {
-    specPathProvided = true;
-    specPath = argv[++i];
-  } else if (a.startsWith('--dir=')) {
-    specPathProvided = true;
-    specPath = a.slice(6);
-  } else if (a === '--base-url') baseUrl = argv[++i];
+  else if (a === '--dir') specPath = argv[++i];
+  else if (a.startsWith('--dir=')) specPath = a.slice(6);
+  else if (a === '--base-url') baseUrl = argv[++i];
   else if (a.startsWith('--base-url=')) baseUrl = a.slice(11);
   else if (a === '--force') force = true;
   else if (a === '--hook') hookOnly = true;
@@ -117,22 +106,10 @@ for (let i = 0; i < argv.length; i++) {
     process.exit(2);
   }
 }
-if (!specPathProvided) {
-  const configuredSpec = projectConfigOrExit('styleproof-init').spec;
-  try {
-    specPath = configuredSpec ?? decodeSpecPathEnv() ?? DEFAULT_SPEC_PATH;
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exit(2);
-  }
-}
-try {
-  specPath = validateRepoRelativeSpecPath(specPath);
-} catch (error) {
-  console.error(`--dir ${error instanceof Error ? error.message : String(error)}`);
+if (!specPath) {
+  console.error('--dir requires a path');
   process.exit(2);
 }
-const encodedSpecPath = encodeSpecPath(specPath);
 
 // Captures read whatever is in front of them, so the page must be settled and
 // deterministic first — this helper is shared by both spec variants below.
@@ -436,18 +413,12 @@ jobs:
     # Report on open/update; the prune jobs below handle close and the sweep.
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
-    env:
-      ${SPEC_PATH_ENV}: ${encodedSpecPath}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # need base/head commits for cache fallback capture
 ${PM.setup}
       - run: ${PM.install}
-      - name: Verify StyleProof scaffold matches the installed release
-        shell: bash
-        run: |
-          node node_modules/styleproof/bin/styleproof-init.mjs --check
       - id: maps
         name: Restore or capture StyleProof maps
         shell: bash
@@ -461,10 +432,8 @@ ${PM.setup}
           # sets base-hit / head-hit / capture-needed / base-capture-failed for
           # steps that branch on steps.maps.outputs.*, and it invokes the installed
           # release directly.
-          BASE_SHA="\${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec-ref-if-missing "$HEAD_SHA" --base-dir "\${{ runner.temp }}/styleproof-maps"
-      - uses: BenSheridanEdwards/StyleProof@v6
+          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "\${{ github.event.pull_request.base.sha }}" --head "\${{ github.event.pull_request.head.sha }}" --spec ${specPath} --base-dir "\${{ runner.temp }}/styleproof-maps"
+      - uses: BenSheridanEdwards/StyleProof@v4
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
@@ -565,83 +534,20 @@ ${PM.setup}
 `;
 
 function writeFileSafe(file, contents, { force: f } = {}) {
-  const state = generatedPathState(file);
-  const exists = state.kind !== 'missing';
-  if (state.kind !== 'missing' && state.kind !== 'file') return { wrote: false, exists: true, unmanaged: true };
-  if (state.kind === 'file') {
-    try {
-      fs.accessSync(file, fs.constants.R_OK);
-    } catch {
-      return { wrote: false, exists: true, unmanaged: true };
-    }
-  }
+  const exists = fs.existsSync(file);
   if (exists && !f) return { wrote: false, exists: true };
-  if (!generatedPathIsWritable(file, state)) return { wrote: false, exists, unmanaged: true };
-  try {
-    fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
-    fs.writeFileSync(file, contents);
-  } catch {
-    return { wrote: false, exists, unmanaged: true };
-  }
+  fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+  fs.writeFileSync(file, contents);
   return { wrote: true, exists };
 }
 
-function generatedPathIsWritable(file, state = generatedPathState(file)) {
-  try {
-    if (state.kind === 'file') {
-      fs.accessSync(file, fs.constants.R_OK | fs.constants.W_OK);
-      return true;
-    }
-    if (state.kind !== 'missing') return false;
-
-    let parent = path.dirname(path.resolve(file));
-    while (true) {
-      const parentState = hookPathState(parent);
-      if (parentState.kind === 'directory') {
-        fs.accessSync(parent, fs.constants.W_OK | fs.constants.X_OK);
-        return true;
-      }
-      if (parentState.kind !== 'missing') return false;
-      const next = path.dirname(parent);
-      if (next === parent) return false;
-      parent = next;
-    }
-  } catch {
-    return false;
-  }
-}
-
-function decodeUtf8Exact(bytes) {
-  const text = bytes.toString('utf8');
-  return Buffer.from(text, 'utf8').equals(bytes) ? text : undefined;
-}
-
-function reportUnmanagedGeneratedPath(file) {
-  console.log(`unmanaged ${file} (left unchanged; generated destination is unsafe or non-regular)`);
-}
-
-function ensureGitignoreLines(lines) {
+function ensureGitignoreLine(line) {
   const file = '.gitignore';
-  const state = generatedPathState(file);
-  if (state.kind !== 'missing' && state.kind !== 'file') return { added: [], unmanaged: true };
-
-  let existing = '';
-  if (state.kind === 'file') {
-    try {
-      fs.accessSync(file, fs.constants.R_OK | fs.constants.W_OK);
-      existing = decodeUtf8Exact(fs.readFileSync(file));
-      if (existing === undefined) return { added: [], unmanaged: true };
-    } catch {
-      return { added: [], unmanaged: true };
-    }
-  }
-
-  const present = new Set(existing.split(/\r?\n/));
-  const added = lines.filter((line) => !present.has(line));
-  if (!added.length) return { added, unmanaged: false };
+  const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  if (existing.split(/\r?\n/).includes(line)) return false;
   const prefix = existing && !existing.endsWith('\n') ? '\n' : '';
-  const result = writeFileSafe(file, `${existing}${prefix}${added.join('\n')}\n`, { force: true });
-  return result.unmanaged ? { added: [], unmanaged: true } : { added, unmanaged: false };
+  fs.writeFileSync(file, `${existing}${prefix}${line}\n`);
+  return true;
 }
 
 // Pre-push publish hook — the default fast path. Capture locally at push time and
@@ -655,6 +561,7 @@ function ensureGitignoreLines(lines) {
 // Only a NON-default spec path gets baked into the hook. With the default,
 // styleproof-prepush resolves the spec itself (flag > env > styleproof.config.json
 // > built-in), so a later config-only spec move doesn't strand a stale baked path.
+const hookSpecArgs = specPath === DEFAULT_SPEC_PATH ? '' : ` --spec ${specPath}`;
 const HOOK = `#!/bin/sh
 # StyleProof pre-push (generated by styleproof-init; refresh with: styleproof-init --hook).
 # Capture the pushed commit's map and publish it to the styleproof-maps branch, so CI
@@ -665,251 +572,9 @@ const HOOK = `#!/bin/sh
 # A skipped capture is always safe — CI just recaptures on a cache miss:
 #   STYLEPROOF_SKIP_CAPTURE=1 git push
 [ "\${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-if [ ! -x ./node_modules/.bin/styleproof-prepush ]; then
-  echo "StyleProof: styleproof-prepush is unavailable; CI will capture on cache miss." >&2
-  exit 0
-fi
-${SPEC_PATH_ENV}='${encodedSpecPath}'
-export ${SPEC_PATH_ENV}
-exec ./node_modules/.bin/styleproof-prepush
+exec ./node_modules/.bin/styleproof-prepush${hookSpecArgs}
 `;
 const HOOK_OWNERSHIP_MARKER = '# StyleProof pre-push';
-
-function isExecutableFile(file) {
-  try {
-    const stat = fs.lstatSync(file);
-    return stat.isFile() && (process.platform === 'win32' || (stat.mode & 0o111) !== 0);
-  } catch {
-    return false;
-  }
-}
-
-function hookPathState(file) {
-  try {
-    const stat = fs.lstatSync(file);
-    if (stat.isSymbolicLink()) return { kind: 'symlink' };
-    if (stat.isFile()) return { kind: 'file' };
-    if (stat.isDirectory()) return { kind: 'directory' };
-    return { kind: 'other' };
-  } catch (error) {
-    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return { kind: 'missing' };
-    return { kind: 'unreadable' };
-  }
-}
-
-function pathStateWithin(file, trustedRoot) {
-  const root = path.resolve(trustedRoot);
-  const absolute = path.resolve(file);
-  const relative = path.relative(root, absolute);
-  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    return { kind: 'outside' };
-  }
-
-  let current = root;
-  for (const part of relative.split(path.sep).slice(0, -1)) {
-    current = path.join(current, part);
-    try {
-      const stat = fs.lstatSync(current);
-      if (stat.isSymbolicLink()) return { kind: 'symlink-parent' };
-      if (!stat.isDirectory()) return { kind: 'non-directory-parent' };
-    } catch (error) {
-      if (error?.code === 'ENOENT') break;
-      return { kind: 'unreadable-parent' };
-    }
-  }
-  return hookPathState(absolute);
-}
-
-/** Classify a repository-generated destination without following symlinked parents. */
-function generatedPathState(file) {
-  return pathStateWithin(file, '.');
-}
-
-function defaultHookPathState(file) {
-  const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { encoding: 'utf8' });
-  const commonPath = common.status === 0 ? common.stdout.trim() : '';
-  if (!commonPath || commonPath.includes('\n') || commonPath.includes('\r')) return { kind: 'unreadable-parent' };
-  return pathStateWithin(file, commonPath);
-}
-
-function readRegularTextFile(file) {
-  try {
-    if (generatedPathState(file).kind !== 'file') return undefined;
-    return fs.readFileSync(file, 'utf8');
-  } catch {
-    return undefined;
-  }
-}
-
-function hookConfigScope() {
-  const listed = spawnSync('git', ['worktree', 'list', '--porcelain'], { encoding: 'utf8' });
-  if (listed.status !== 0) return undefined;
-  const worktreeCount = listed.stdout.split('\n').filter((line) => line.startsWith('worktree ')).length;
-  if (worktreeCount <= 1) return { flag: '--local', label: 'local repository' };
-
-  const enabled = spawnSync('git', ['config', '--bool', '--get', 'extensions.worktreeConfig'], {
-    encoding: 'utf8',
-  });
-  if (enabled.status === 0 && enabled.stdout.trim() === 'true') {
-    return { flag: '--worktree', label: 'current worktree' };
-  }
-  return undefined;
-}
-
-function reportHuskyHookStatus({ hookPath, configuredPath, activeHookPath, activeHookAbsolute }) {
-  const huskyRoot = path.resolve('.husky');
-  const activeState = generatedPathState(activeHookAbsolute);
-  const executable = activeState.kind === 'file' && isExecutableFile(activeHookAbsolute);
-  if (activeHookAbsolute.startsWith(`${huskyRoot}${path.sep}`) && executable) {
-    console.log(`  Husky manages hook activation via core.hooksPath=${configuredPath}`);
-    return;
-  }
-
-  let reason = 'the active shim is outside Husky';
-  if (activeState.kind === 'missing') reason = 'that active shim does not exist';
-  else if (activeState.kind === 'symlink') reason = 'that active shim is a symlink';
-  else if (activeState.kind !== 'file') reason = `that active shim is ${activeState.kind}`;
-  else if (!executable) reason = 'that active shim is not executable';
-  console.warn(
-    `generated ${hookPath} is inactive: Git resolves pre-push to ${activeHookPath}; ${reason}; ` +
-      `core.hooksPath left unchanged for Husky to manage`,
-  );
-}
-
-function reportMatchingHookStatus({ hookPath, configuredPath, activeHookAbsolute, managed }) {
-  const activeState = generatedPathState(activeHookAbsolute);
-  if (!managed && activeState.kind !== 'file' && activeState.kind !== 'missing') {
-    console.warn(`unmanaged ${hookPath} (left unchanged; hook destination is ${activeState.kind})`);
-    return;
-  }
-  if (activeState.kind !== 'file' || !isExecutableFile(activeHookAbsolute)) {
-    console.warn(
-      `generated ${hookPath} is inactive: Git resolves pre-push there, but the hook ` +
-        `${activeState.kind === 'missing' ? 'does not exist' : 'is not executable'}`,
-    );
-    return;
-  }
-  console.log(
-    managed
-      ? `  ${hookPath} is active via core.hooksPath=${configuredPath}`
-      : `  repository-owned ${hookPath} is active; StyleProof left it unchanged`,
-  );
-}
-
-function activateGeneratedHook(hookPath, generatedHookAbsolute) {
-  const scope = hookConfigScope();
-  if (!scope) {
-    console.warn(
-      `generated ${hookPath} is inactive: multiple linked worktrees require worktree-scoped Git config; ` +
-        `enable it explicitly with: git config extensions.worktreeConfig true && ` +
-        `git config --worktree core.hooksPath .githooks`,
-    );
-    return;
-  }
-  const activated = spawnSync('git', ['config', scope.flag, 'core.hooksPath', '.githooks'], {
-    encoding: 'utf8',
-  });
-  if (activated.status === 0) {
-    const verified = spawnSync('git', ['rev-parse', '--git-path', 'hooks/pre-push'], { encoding: 'utf8' });
-    const verifiedPath = verified.status === 0 ? path.resolve(verified.stdout.trim()) : undefined;
-    if (verifiedPath === generatedHookAbsolute && isExecutableFile(generatedHookAbsolute)) {
-      console.log(`  activated ${hookPath} for the ${scope.label} via core.hooksPath=.githooks`);
-      return;
-    }
-    spawnSync('git', ['config', scope.flag, '--unset', 'core.hooksPath'], { encoding: 'utf8' });
-  }
-  console.warn(`generated ${hookPath} is inactive: could not set worktree-safe core.hooksPath`);
-}
-
-function handleUnconfiguredHook({ hookPath, generatedHookAbsolute, activate, managed }) {
-  if (!managed) {
-    const state = generatedPathState(generatedHookAbsolute);
-    if (state.kind !== 'file') {
-      console.warn(`unmanaged ${hookPath} (left unchanged; hook destination is ${state.kind})`);
-      return;
-    }
-    console.warn(`repository-owned ${hookPath} was left unchanged and inactive; StyleProof did not activate it`);
-    return;
-  }
-  if (!isExecutableFile(generatedHookAbsolute)) {
-    console.warn(
-      `generated ${hookPath} is inactive: the hook is not executable; refresh it with: styleproof-init --hook`,
-    );
-    return;
-  }
-  if (!activate) {
-    console.warn(
-      `generated ${hookPath} is inactive in this checkout; activate with: git config --local core.hooksPath .githooks`,
-    );
-    return;
-  }
-  activateGeneratedHook(hookPath, generatedHookAbsolute);
-}
-
-function reportOrActivateHook(hookDir, hookPath, { activate = true, managed = true } = {}) {
-  const worktree = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' });
-  if (worktree.status !== 0 || worktree.stdout.trim() !== 'true') {
-    console.warn(
-      `generated ${hookPath} is inactive outside a Git worktree; after git init run: git config --local core.hooksPath .githooks`,
-    );
-    return;
-  }
-
-  const configured = spawnSync('git', ['config', '--get', 'core.hooksPath'], { encoding: 'utf8' });
-  const active = spawnSync('git', ['rev-parse', '--git-path', 'hooks/pre-push'], { encoding: 'utf8' });
-  if (active.status !== 0) {
-    console.warn(`generated ${hookPath} is inactive: could not resolve Git's active pre-push hook path`);
-    return;
-  }
-  const activeHookPath = active.stdout.trim();
-  if (!activeHookPath || activeHookPath.includes('\n') || activeHookPath.includes('\r')) {
-    console.warn(`generated ${hookPath} is inactive: Git returned an ambiguous active pre-push hook path`);
-    return;
-  }
-  const activeHookAbsolute = path.resolve(activeHookPath);
-  const generatedHookAbsolute = path.resolve(hookPath);
-  const configuredPath = configured.stdout.trim();
-
-  if (hookDir === '.husky') {
-    reportHuskyHookStatus({ hookPath, configuredPath, activeHookPath, activeHookAbsolute });
-    return;
-  }
-
-  if (activeHookAbsolute === generatedHookAbsolute) {
-    reportMatchingHookStatus({ hookPath, configuredPath, activeHookAbsolute, managed });
-    return;
-  }
-
-  if (configured.status !== 0 && configured.status !== 1) {
-    console.warn(`generated ${hookPath} is inactive: could not read core.hooksPath`);
-    return;
-  }
-
-  if (configured.status === 1) {
-    const activeState = defaultHookPathState(activeHookAbsolute);
-    if (activeState.kind === 'missing') {
-      handleUnconfiguredHook({ hookPath, generatedHookAbsolute, activate, managed });
-      return;
-    }
-    if (activeState.kind === 'file' && isExecutableFile(activeHookAbsolute)) {
-      console.warn(
-        `generated ${hookPath} is inactive: existing active hook at ${activeHookPath} was left unchanged; ` +
-          `integrate styleproof-prepush there or explicitly run: git config --local core.hooksPath .githooks`,
-      );
-      return;
-    }
-    console.warn(
-      `generated ${hookPath} is inactive: default hook at ${activeHookPath} is ${activeState.kind} or not a readable executable; ` +
-        `core.hooksPath left unchanged`,
-    );
-    return;
-  }
-
-  console.warn(
-    `generated ${hookPath} is inactive: core.hooksPath is ${configuredPath} (active hook: ${activeHookPath}); left unchanged. ` +
-      `If you intend to replace it, run: git config --local core.hooksPath .githooks`,
-  );
-}
 
 function installPrePushHook({ force: f = false } = {}) {
   const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
@@ -920,13 +585,10 @@ function installPrePushHook({ force: f = false } = {}) {
     console.log(
       `${hook.exists ? 'refreshed' : 'created'} ${hookPath} (pre-push capture → publish via styleproof-prepush; maps never land on the PR branch)`,
     );
-  } else if (hook.unmanaged) {
-    console.log(`unmanaged ${hookPath} (left unchanged; generated destination is unsafe or non-regular)`);
+    if (hookDir === '.githooks') console.log('  activate with: git config core.hooksPath .githooks');
   } else {
     console.log(`${hookPath} already exists — left untouched (refresh it with: styleproof-init --hook)`);
   }
-  const managed = readRegularTextFile(hookPath) === HOOK;
-  reportOrActivateHook(hookDir, hookPath, { activate: managed, managed });
   return { ...hook, hookPath };
 }
 
@@ -985,31 +647,18 @@ function machineOwnedFiles() {
 // "a styleproof upgrade changed the generated files — run styleproof-init --upgrade".
 if (checkOnly) {
   let stale = 0;
-  const ownedFiles = machineOwnedFiles();
-  for (const { file, contents, ownershipMarker } of ownedFiles) {
-    const state = generatedPathState(file);
-    const existing = readRegularTextFile(file);
-    if (state.kind === 'missing') {
+  for (const { file, contents, ownershipMarker } of machineOwnedFiles()) {
+    if (!fs.existsSync(file)) {
       console.log(`missing  ${file}`);
       stale++;
-    } else if (existing === undefined) {
+    } else if (ownershipMarker && !fs.readFileSync(file, 'utf8').includes(ownershipMarker)) {
       console.log(`unmanaged ${file} (left to the repository owner)`);
-    } else if (
-      ownershipMarker &&
-      (ownershipMarker === HOOK_OWNERSHIP_MARKER ? existing !== contents : !existing.includes(ownershipMarker))
-    ) {
-      console.log(`unmanaged ${file} (left to the repository owner)`);
-    } else if (existing !== contents) {
+    } else if (fs.readFileSync(file, 'utf8') !== contents) {
       console.log(`stale    ${file}`);
       stale++;
     } else {
       console.log(`current  ${file}`);
     }
-  }
-  const hookFile = ownedFiles.find(({ ownershipMarker }) => ownershipMarker === HOOK_OWNERSHIP_MARKER)?.file;
-  if (hookFile) {
-    const managed = readRegularTextFile(hookFile) === HOOK;
-    reportOrActivateHook(path.dirname(hookFile), hookFile, { activate: false, managed });
   }
   if (stale) {
     console.log(
@@ -1025,15 +674,9 @@ if (checkOnly) {
 // the user-owned spec and playwright config alone. Idempotent — an already-current
 // file is reported, not rewritten.
 if (upgrade) {
-  const ownedFiles = machineOwnedFiles();
-  for (const { file, contents, executable, ownershipMarker } of ownedFiles) {
-    const exists = generatedPathState(file).kind !== 'missing';
-    const existing = readRegularTextFile(file);
-    const managed =
-      existing !== undefined &&
-      (!ownershipMarker ||
-        (ownershipMarker === HOOK_OWNERSHIP_MARKER ? existing === contents : existing.includes(ownershipMarker)));
-    if (exists && !managed) {
+  for (const { file, contents, executable, ownershipMarker } of machineOwnedFiles()) {
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
+    if (existing !== undefined && ownershipMarker && !existing.includes(ownershipMarker)) {
       console.log(`unmanaged ${file} (left unchanged; delete it and rerun --upgrade to adopt the packaged template)`);
       continue;
     }
@@ -1042,13 +685,8 @@ if (upgrade) {
       continue;
     }
     const wrote = writeFileSafe(file, contents, { force: true });
-    if (wrote.wrote && executable) fs.chmodSync(file, 0o755);
-    if (wrote.wrote) console.log(`${wrote.exists ? 'refreshed' : 'created'} ${file}`);
-    else console.log(`unmanaged ${file} (left unchanged; destination is not a regular file)`);
-  }
-  const hookFile = ownedFiles.find(({ ownershipMarker }) => ownershipMarker === HOOK_OWNERSHIP_MARKER)?.file;
-  if (hookFile && readRegularTextFile(hookFile) === HOOK) {
-    reportOrActivateHook(path.dirname(hookFile), hookFile, { activate: true, managed: true });
+    if (executable) fs.chmodSync(file, 0o755);
+    console.log(`${wrote.exists ? 'refreshed' : 'created'} ${file}`);
   }
   console.log('\nmachine-owned files now match this styleproof release (spec and playwright config untouched)');
   process.exit(0);
@@ -1081,8 +719,6 @@ if (spec.wrote) {
     console.log('  surface your nav links to from / (nothing to hand-list; the inventory guard is on)');
   }
   wroteSomething = true;
-} else if (spec.unmanaged) {
-  reportUnmanagedGeneratedPath(specPath);
 } else {
   console.log(`${specPath} already exists — left untouched (use --force to overwrite)`);
 }
@@ -1093,8 +729,6 @@ if (config.wrote) {
   touched.push(configPath);
   console.log(`${config.exists ? 'overwrote' : 'created'} ${configPath} (dedicated StyleProof capture config)`);
   wroteSomething = true;
-} else if (config.unmanaged) {
-  reportUnmanagedGeneratedPath(configPath);
 } else {
   console.log(`${configPath} already exists — left untouched (use --force to overwrite)`);
 }
@@ -1104,12 +738,10 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
   );
 }
 
-const gitignore = ensureGitignoreLines(['.styleproof/', 'test-results/', 'playwright-report/']);
-if (gitignore.unmanaged) {
-  reportUnmanagedGeneratedPath('.gitignore');
-} else if (gitignore.added.length) {
+const ignored = ['.styleproof/', 'test-results/', 'playwright-report/'].filter((line) => ensureGitignoreLine(line));
+if (ignored.length) {
   touched.push('.gitignore');
-  console.log(`updated .gitignore (${gitignore.added.join(', ')})`);
+  console.log(`updated .gitignore (${ignored.join(', ')})`);
   wroteSomething = true;
 }
 
@@ -1119,8 +751,6 @@ if (ci.wrote) {
   touched.push(CI_PATH);
   console.log(`created ${CI_PATH} (cache-first StyleProof report)`);
   wroteSomething = true;
-} else if (ci.unmanaged) {
-  reportUnmanagedGeneratedPath(CI_PATH);
 } else {
   console.log(`${CI_PATH} already exists — left untouched`);
 }
@@ -1139,8 +769,6 @@ if (approveWorkflow !== undefined) {
     touched.push(APPROVE_PATH);
     console.log(`created ${APPROVE_PATH} (approval gate — active once merged to your default branch)`);
     wroteSomething = true;
-  } else if (approve.unmanaged) {
-    reportUnmanagedGeneratedPath(APPROVE_PATH);
   } else {
     console.log(`${APPROVE_PATH} already exists — left untouched`);
   }

@@ -1,4 +1,4 @@
-import type { CDPSession, Frame, Page, Request, Response } from '@playwright/test';
+import type { CDPSession, Page, Request, Response } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
@@ -18,9 +18,8 @@ import { isMapFile } from './map-store.js';
  *              plus ::before / ::after / ::marker / ::placeholder.
  *   states   — for interactive elements, what :hover, :focus(-visible) and
  *              :active change (forced via CDP, no mouse involved), captured
- *              as a delta over the element's subtree. Rest screenshots cannot
- *              see these; the `*.hover.png` / `*.focus.png` / `*.active.png`
- *              layers can. This is where dropped `hover:` variants get caught.
+ *              as a delta over the element's subtree. Screenshots cannot see
+ *              these; this is where dropped `hover:` variants get caught.
  *   motion   — transition/animation longhands are captured before the
  *              freeze-CSS below nulls them, so declared motion is verified
  *              too, while every other captured value is a settled end state.
@@ -42,15 +41,6 @@ export type ElementEntry = {
   cls: string;
   rect?: Rect;
   style: Props;
-  /**
-   * CSS Typed OM computed values only where they differ from the legacy CSSOM
-   * used value in `style` (for example `auto` versus a layout-resolved pixel
-   * margin, `20%` versus a used pixel width, or `1fr` versus grid track pixels).
-   * This compact signal lets the differ discard layout reflow while preserving
-   * a real declaration/computed-value change. Absent on legacy captures, which
-   * deliberately remain fail-closed.
-   */
-  computedValueStyle?: Props;
   pseudo?: Record<string, Props>;
   /**
    * Length of the element's own rendered text after whitespace normalization.
@@ -78,28 +68,10 @@ export type ElementEntry = {
    */
   component?: { name: string; props?: Record<string, string> };
 };
-/** Report-only provenance for a surface expanded from {@link import('./state-recipes.js').StateRecipe}. Ignored by the certification diff. */
-export type StateRecipeCaptureProvenance = {
-  /** Stable recipe key (`hover-plan-card`, …) — same fragment joined into the capture key. */
-  stateKey: string;
-  action: 'hover' | 'focus' | 'press' | 'click';
-  /** Validated value-free CSS selector (never attribute-equality / secret-bearing). */
-  selector: string;
-  /** Press key when action is `press`. */
-  key?: string;
-  /** Declared label when provided (not a live DOM label rewrite). */
-  label?: string;
-};
-
 export type CaptureMetadata = {
   surfaceKey?: string;
   variantKey?: string;
-  variantKind?: 'variant' | 'live-state' | 'popup' | 'state-recipe';
-  /**
-   * Provenance for `variantKind: 'state-recipe'` expansions. Report-only —
-   * ignored by the certification diff (same as other metadata fields).
-   */
-  stateRecipe?: StateRecipeCaptureProvenance;
+  variantKind?: 'variant' | 'live-state' | 'popup';
 };
 export type LiveRegionCandidate = {
   path: string;
@@ -274,14 +246,6 @@ export type CaptureOptions = {
    * in flight when you called it (arm one yourself before `goto` if that matters).
    */
   pendingRequests?: () => number;
-  /**
-   * Advanced/internal: capture-phase callback for the per-surface progress and
-   * timeout layer. Called with `'settle'` when the settle wait begins and with
-   * `'capture'` once the page has settled and the style reads start, so a
-   * per-surface timeout can name the phase actually in flight.
-   * `defineStyleMapCapture` wires this; omit it for a direct call.
-   */
-  onPhase?: (phase: 'settle' | 'capture') => void;
   /** Advanced/internal: metadata to persist with the capture for report context. */
   metadata?: CaptureMetadata;
 };
@@ -356,11 +320,6 @@ function injectPathOf(): void {
         ['id', element.getAttribute('id')],
         ['testid', element.getAttribute('data-testid')],
         ['test', element.getAttribute('data-test')],
-        // `data-style` is a developer-authored semantic styling hook. Its first
-        // token is the stable identity; later tokens commonly carry dynamic
-        // state (`status ok` → `status warn`) and must not churn the path or a
-        // real restyle would disappear. The token is hashed before capture.
-        ['style', element.getAttribute('data-style')?.trim().split(/\s+/)[0] ?? null],
         ...(tag === 'a' ? ([['href', element.getAttribute('href')]] as Array<[string, string | null]>) : []),
         ...(['input', 'select', 'textarea'].includes(tag)
           ? ([['name', element.getAttribute('name')]] as Array<[string, string | null]>)
@@ -457,7 +416,6 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
     cls: string;
     rect?: [number, number, number, number];
     style: Props;
-    computedValueStyle?: Props;
     pseudo?: Record<string, Props>;
     ownTextLength?: number;
     text?: string;
@@ -534,24 +492,12 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
         // cross-origin: genuinely untraversable, not counted
       }
     }
-    const usedStyle = getComputedStyle(el);
     const entry: Entry = {
       tag,
       cls: el.getAttribute('class') || '',
-      style: snap(usedStyle, defaultFor(tag)),
+      style: snap(getComputedStyle(el), defaultFor(tag)),
     };
     if (!motionOnly) {
-      const typedComputedStyle = el.computedStyleMap?.();
-      if (typedComputedStyle) {
-        const computedValueStyle: Props = {};
-        for (let propertyIndex = 0; propertyIndex < usedStyle.length; propertyIndex++) {
-          const propertyName = usedStyle.item(propertyIndex);
-          const usedValue = usedStyle.getPropertyValue(propertyName);
-          const computedValue = typedComputedStyle.get(propertyName)?.toString();
-          if (computedValue && computedValue !== usedValue) computedValueStyle[propertyName] = computedValue;
-        }
-        if (Object.keys(computedValueStyle).length > 0) entry.computedValueStyle = computedValueStyle;
-      }
       // Document-space box so report crops can locate the element in a
       // full-page screenshot regardless of scroll position at capture time.
       const r = el.getBoundingClientRect();
@@ -847,84 +793,6 @@ async function captureForcedStates(
   return { states, skipped: truncated };
 }
 
-export const STATE_LAYER_NAMES = ['hover', 'focus', 'active'] as const;
-export type StateLayerName = (typeof STATE_LAYER_NAMES)[number];
-
-/** `<stem>.hover.png` — the full-page shot with every interactive node forced. */
-export function stateLayerScreenshotPath(stem: string, state: string): string {
-  return `${stem}.${state}.png`;
-}
-
-function markInteractiveForShot({ selector, skipSel, attr }: MarkArgs): string[] {
-  let i = 0;
-  const ids: string[] = [];
-  for (const el of document.querySelectorAll(selector)) {
-    if (skipSel && (el as Element).matches(skipSel)) continue;
-    const id = `sp-${i++}`;
-    el.setAttribute(attr, id);
-    ids.push(id);
-  }
-  return ids;
-}
-
-/**
- * Force every interactive element into :hover, then :focus, then :active, and
- * write one full-page screenshot per state next to the rest shot. The report
- * crops those layers so a hover change is hover-versus-hover, not rest-versus-rest.
- */
-export async function captureStateLayerScreenshots(
-  page: Page,
-  stem: string,
-  options: { ignore?: string[]; maxInteractive?: number } = {},
-): Promise<string[]> {
-  const ignore = options.ignore ?? [];
-  const maxInteractive = options.maxInteractive ?? 800;
-  const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
-  const ids = (
-    await page.evaluate(markInteractiveForShot, { selector: INTERACTIVE, skipSel, attr: STATE_ID_ATTR })
-  ).slice(0, maxInteractive);
-  const written: string[] = [];
-  const client = await page.context().newCDPSession(page);
-  try {
-    await client.send('DOM.enable');
-    await client.send('CSS.enable');
-    const { root } = await client.send('DOM.getDocument');
-    const nodeIds: number[] = [];
-    for (const id of ids) {
-      const { nodeId } = await client.send('DOM.querySelector', {
-        nodeId: root.nodeId,
-        selector: `[${STATE_ID_ATTR}="${id}"]`,
-      });
-      if (nodeId) nodeIds.push(nodeId);
-    }
-    for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
-      for (const nodeId of nodeIds) {
-        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses });
-      }
-      const dest = stateLayerScreenshotPath(stem, stateName);
-      await page.screenshot({ path: dest, fullPage: true, animations: 'disabled' });
-      written.push(dest);
-      for (const nodeId of nodeIds) {
-        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
-      }
-    }
-  } finally {
-    await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
-    await client.detach().catch(() => undefined);
-  }
-  return written;
-}
-
-/** Rest screenshot plus the three forced-state layers. */
-export async function captureSurfaceScreenshots(
-  page: Page,
-  stem: string,
-  options: { ignore?: string[]; maxInteractive?: number } = {},
-): Promise<void> {
-  await page.screenshot({ path: `${stem}.png`, fullPage: true, animations: 'disabled' });
-  await captureStateLayerScreenshots(page, stem, options);
-}
-
 type Elements = Record<string, ElementEntry>;
 /** Element paths that differ between two captures (added, removed, or restyled). */
 function changedElementPaths(a: Elements, b: Elements): string[] {
@@ -1065,94 +933,32 @@ export function trackInflightRequests(page: Page): { pending: () => number; disp
  *
  * ONLY failures are recorded — never a 2xx that merely wasn't fixtured: in recording mode
  * every live 2xx is legitimately recorded, so a blanket "uncontrolled" flag would fire on
- * every healthy record run (issue #205, "deliberately out of scope"). EventSource's HTTP
- * 204 is also a protocol-level terminal success, even when Chromium follows its response
- * event with `requestfailed(ERR_ABORTED)`; real aborts without that response remain residue.
- *
- * ATTRIBUTION (issue #364): the walk shares ONE page across surfaces, so a request
- * started by surface N can still be in flight when the walk hands off to surface N+1 —
- * the handoff navigation aborts it, and Chromium reports the failure while N+1's watcher
- * is armed. Which surface caught the event was a timing lottery. A failure is charged to
- * THIS surface only when the request was INITIATED inside this surface's window: its
- * `request` event fired while this watcher was armed (the watcher stamps it with the
- * current document epoch), and no cross-document main-frame commit has replaced that
- * document since (each commit advances the epoch). A leftover from a previous surface
- * (never stamped) or from a torn-down document (stale epoch) is a handoff artifact and
- * is excluded — never residue for the successor. Same-document navigations (pushState)
- * fire `framenavigated` too but issue no document request, so the epoch holds and an
- * SPA surface's own failing fetches still count.
+ * every healthy record run (issue #205, "deliberately out of scope").
  */
 export function trackDataResidue(
   page: Page,
   url: string,
   surface: string,
 ): { residue: () => DataResidueEntry[]; dispose: () => void } {
-  // Keep observations per request until readout. Chromium can emit
-  // `response(204)` and then `requestfailed(ERR_ABORTED)` for EventSource's
-  // protocol-level terminal response. Request identity lets the later event
-  // cancel only that false failure without hiding another failed attempt to the
-  // same surface endpoint.
-  const byRequest = new Map<Request, DataResidueEntry>();
-  const terminalEventSources = new WeakSet<Request>();
+  const byKey = new Map<string, DataResidueEntry>();
   const inBoundary = urlMatcher(url);
-  // Ownership ledger: which document epoch each observed request was initiated in.
-  // Requests already in flight when the watcher armed have no entry and never match.
-  let documentEpoch = 0;
-  let mainFrameDocumentRequestSeen = false;
-  const epochByRequest = new Map<Request, number>();
-  const onRequest = (request: Request): void => {
-    epochByRequest.set(request, documentEpoch);
-    // A main-frame document request is the tell of a coming CROSS-document commit;
-    // `frame()` is only safe to read on navigation requests (service-worker requests
-    // have no frame), and only navigation requests matter here.
-    if (request.isNavigationRequest() && !request.frame().parentFrame()) mainFrameDocumentRequestSeen = true;
-  };
-  const onFrameNavigated = (frame: Frame): void => {
-    // Only a main-frame CROSS-document commit orphans the in-flight requests of the
-    // outgoing document. `framenavigated` also fires for same-document navigations
-    // (pushState/hash), which load no document request — the epoch must hold there.
-    if (frame.parentFrame() || !mainFrameDocumentRequestSeen) return;
-    mainFrameDocumentRequestSeen = false;
-    documentEpoch += 1;
-  };
   const record = (request: Request, reason: string): void => {
-    // Failures already recorded stay recorded: the epoch gates NEW attributions only,
-    // so a genuine pre-handoff failure is not erased by a later commit.
-    if (epochByRequest.get(request) !== documentEpoch) return;
     if (!inBoundary(request.url())) return;
     const endpoint = endpointOf(request.url());
     const key = residueKey(surface, endpoint);
-    if (!byRequest.has(request)) byRequest.set(request, { key, surface, endpoint, reason });
+    if (!byKey.has(key)) byKey.set(key, { key, surface, endpoint, reason });
   };
-  const onFailed = (request: Request): void => {
-    if (terminalEventSources.has(request)) return;
-    record(request, request.failure()?.errorText ?? 'request failed');
-  };
+  const onFailed = (r: Request): void => record(r, r.failure()?.errorText ?? 'request failed');
   // A completed response's status is synchronous here, so a 4xx/5xx is recorded before
   // capture reads the residue. A >=400 is a fallback-branch trigger just like a net failure.
   const onResponse = (resp: Response): void => {
-    const request = resp.request();
-    if (resp.status() === 204 && request.resourceType() === 'eventsource') {
-      terminalEventSources.add(request);
-      // Be independent of Playwright's response/requestfailed event order.
-      byRequest.delete(request);
-      return;
-    }
-    if (resp.status() >= 400) record(request, `HTTP ${resp.status()}`);
+    if (resp.status() >= 400) record(resp.request(), `HTTP ${resp.status()}`);
   };
-  page.on('request', onRequest);
-  page.on('framenavigated', onFrameNavigated);
   page.on('requestfailed', onFailed);
   page.on('response', onResponse);
   return {
-    residue: (): DataResidueEntry[] => {
-      const byKey = new Map<string, DataResidueEntry>();
-      for (const entry of byRequest.values()) if (!byKey.has(entry.key)) byKey.set(entry.key, entry);
-      return Array.from(byKey.values()).sort((a, b) => a.key.localeCompare(b.key));
-    },
+    residue: (): DataResidueEntry[] => Array.from(byKey.values()).sort((a, b) => a.key.localeCompare(b.key)),
     dispose: (): void => {
-      page.off('request', onRequest);
-      page.off('framenavigated', onFrameNavigated);
       page.off('requestfailed', onFailed);
       page.off('response', onResponse);
     },
@@ -1168,88 +974,25 @@ export function trackDataResidue(
  * A plain (glob-char-free) string is treated as a substring match, matching Playwright's
  * own "contains" fallback for non-glob route URLs.
  */
-const URL_GLOB_REGEX_CHARS = new Set(['$', '^', '+', '.', '*', '(', ')', '|', '\\', '?', '{', '}', '[', ']']);
-
-function urlGlobLiteral(char: string): string {
-  return URL_GLOB_REGEX_CHARS.has(char) ? `\\${char}` : char;
-}
-
-function urlGlobStar(glob: string, index: number): { token: string; endIndex: number } {
-  let endIndex = index;
-  while (glob[endIndex + 1] === '*') endIndex++;
-  if (endIndex === index) return { token: '([^/]*)', endIndex };
-
-  if (glob[endIndex + 1] !== '/') return { token: '(.*)', endIndex };
-  const token = glob[index - 1] === '/' ? '((.+/)|)' : '(.*/)';
-  return { token, endIndex: endIndex + 1 };
-}
-
-function invalidUrlGlob(glob: string, reason: string): never {
-  throw new Error(`Invalid glob pattern ${JSON.stringify(glob)}: ${reason}`);
-}
-
-function urlGlobEscapedLiteral(glob: string, index: number): { token: string; endIndex: number } {
-  const next = glob[index + 1];
-  return {
-    token: urlGlobLiteral(next ?? glob[index]),
-    endIndex: next === undefined ? index : index + 1,
-  };
-}
-
-function openUrlGlobGroup(glob: string, inGroup: boolean): string {
-  if (inGroup) invalidUrlGlob(glob, "nested '{' is not supported");
-  return '(';
-}
-
-function closeUrlGlobGroup(glob: string, inGroup: boolean): string {
-  if (!inGroup) invalidUrlGlob(glob, "unmatched '}'");
-  return ')';
-}
-
-function compileUrlGlob(glob: string): RegExp {
-  // Kept in lockstep with Playwright's public URL-glob micro-syntax without
-  // reaching into its private bundle. Regex punctuation is literal unless the
-  // glob syntax assigns it meaning; commas alternate only inside `{a,b}`.
-  const tokens = ['^'];
-  let inGroup = false;
+export function urlMatcher(glob: string): (url: string) => boolean {
+  if (!/[*?{}[\]]/.test(glob)) return (url) => url.includes(glob);
+  const specials = new Set(['.', '+', '^', '$', '|', '(', ')']);
+  let re = '';
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
-    switch (c) {
-      case '\\': {
-        const escaped = urlGlobEscapedLiteral(glob, i);
-        tokens.push(escaped.token);
-        i = escaped.endIndex;
-        break;
-      }
-      case '*': {
-        const star = urlGlobStar(glob, i);
-        tokens.push(star.token);
-        i = star.endIndex;
-        break;
-      }
-      case '{':
-        tokens.push(openUrlGlobGroup(glob, inGroup));
-        inGroup = true;
-        break;
-      case '}':
-        tokens.push(closeUrlGlobGroup(glob, inGroup));
-        inGroup = false;
-        break;
-      case ',':
-        tokens.push(inGroup ? '|' : c);
-        break;
-      default:
-        tokens.push(urlGlobLiteral(c));
-    }
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        re += '.*';
+        i++;
+      } else re += '[^/]*';
+    } else if (c === '?') re += '\\?';
+    else if (c === '{') re += '(';
+    else if (c === '}') re += ')';
+    else if (c === ',') re += '|';
+    else if (specials.has(c)) re += `\\${c}`;
+    else re += c;
   }
-  if (inGroup) invalidUrlGlob(glob, "unmatched '{'");
-  tokens.push('$');
-  return new RegExp(tokens.join(''));
-}
-
-export function urlMatcher(glob: string): (url: string) => boolean {
-  if (!/[*?{}[\]\\]/.test(glob)) return (url) => url.includes(glob);
-  const compiled = compileUrlGlob(glob);
+  const compiled = new RegExp(`^${re}$`);
   return (url) => compiled.test(url);
 }
 
@@ -1390,10 +1133,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // the same loaded state, and collect any region still changing on its own
   // (a live stream/ticker) to exclude — animations are frozen above, so only
   // real content/layout churn lands here.
-  options.onPhase?.('settle');
   const volatile = await detectVolatile(page, ignore, stabilize, captureText, options.pendingRequests);
-  // Settled: everything from here on is the style/state read work.
-  options.onPhase?.('capture');
   // Detect semantic live-state candidates automatically, but don't exclude them
   // merely for being live regions. Stable status/alert/log UI is product UI and
   // should still be captured; this metadata only improves reports and diagnostics.
