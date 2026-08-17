@@ -57,6 +57,20 @@ test('resolveSpecClockFreeze fails loudly on an unparseable instant', () => {
   );
 });
 
+test('resolveSpecClockFreeze rejects a digit string too large for a finite instant', () => {
+  // Number('999999999999999999999999') is Infinity: a silently-accepted
+  // non-finite instant would freeze the clock at a moment that is not a moment.
+  assert.throws(
+    () => resolveSpecClockFreeze({ STYLEPROOF_FREEZE_SPEC_CLOCK: '1', STYLEPROOF_CLOCK_TIME: '999999999999999999999999' }),
+    /STYLEPROOF_CLOCK_TIME is not a date/,
+  );
+  // A negative overflow is equally non-finite and equally not a moment.
+  assert.throws(
+    () => resolveSpecClockFreeze({ STYLEPROOF_FREEZE_SPEC_CLOCK: '1', STYLEPROOF_CLOCK_TIME: '-999999999999999999999999' }),
+    /STYLEPROOF_CLOCK_TIME is not a date/,
+  );
+});
+
 test('the frozen twin pins zero-argument reads and leaves everything else real', () => {
   installFrozenSpecClock(FIXED);
   assert.equal(frozenSpecClockInstant(), FIXED);

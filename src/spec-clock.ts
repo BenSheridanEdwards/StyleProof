@@ -50,7 +50,7 @@ export function resolveSpecClockFreeze(env: NodeJS.ProcessEnv = process.env): nu
   // into `STYLEPROOF_CLOCK_TIME=`) means "default", not "crash every capture".
   const configured = env.STYLEPROOF_CLOCK_TIME || DEFAULT_CLOCK_TIME;
   const instant = /^-?\d+$/.test(configured) ? Number(configured) : RealDate.parse(configured);
-  if (Number.isNaN(instant)) {
+  if (!Number.isFinite(instant)) {
     throw new Error(
       `styleproof: STYLEPROOF_CLOCK_TIME is not a date: ${JSON.stringify(configured)} — ` +
         `pass an ISO instant (like ${DEFAULT_CLOCK_TIME}) or epoch milliseconds.`,
