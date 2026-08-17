@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isSelfCheckCaptureFailure } from '../dist/runner.js';
+import { removeSurfaceCaptureArtifacts } from '../dist/crawl-surfaces.js';
 import {
   MAP_MANIFEST,
   recordSurfaceCaptureFailure,
@@ -49,6 +50,25 @@ function writeManifest(dir, sha, compatibilityKey, extra = {}) {
     ),
   );
 }
+
+test('removeSurfaceCaptureArtifacts deletes partial widths and state screenshots only for the failed surface', () => {
+  const root = mkTmp();
+  try {
+    for (const file of [
+      'failed@900.json.gz',
+      'failed@900.png',
+      'failed@900.hover.png',
+      'failed@1440.json',
+      'failed@1440.active.png',
+      'good@900.json.gz',
+    ])
+      fs.writeFileSync(path.join(root, file), 'partial');
+    removeSurfaceCaptureArtifacts(root, 'failed', [900, 1440]);
+    assert.deepEqual(fs.readdirSync(root), ['good@900.json.gz']);
+  } finally {
+    rmTmp(root);
+  }
+});
 
 test('isSelfCheckCaptureFailure distinguishes nondeterminism from ordinary capture errors', () => {
   assert.equal(isSelfCheckCaptureFailure('styleproof self-check failed: home is non-deterministic'), true);

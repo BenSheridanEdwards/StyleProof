@@ -45,6 +45,7 @@ import { auditRunInventory, readAckFile } from './inventory.js';
 import { auditRunResidue, readResidueAckFile } from './data-residue.js';
 import {
   bundleSurfaceKeys,
+  CONFIDENCE_LEDGER,
   readCoverageLedgerLenient,
   resolveBundleConfidence,
   summarizeConfidence,
@@ -1202,10 +1203,18 @@ function dataResidueLine(res: ReturnType<typeof auditRunResidue>): string {
 // One confidence clause (#399): the completeness badge, always separate from the
 // visual verdict in the headline — never one green. Counts only, no percentages;
 // a bundle from before the ledger existed reads ⚠ unknown and never blocks.
-function confidenceLine(ledger: ConfidenceLedgerFile | null, summary: ConfidenceSummary): string {
+function confidenceLine(
+  ledger: ConfidenceLedgerFile | null,
+  summary: ConfidenceSummary,
+  confidenceSidecarPresent = false,
+): string {
   const { counts, completeness } = summary;
-  if (completeness === 'unknown')
-    return '- **Confidence** — ⚠ unknown (capture predates the confidence ledger; not blocking retroactively)';
+  if (completeness === 'unknown') {
+    const reason = confidenceSidecarPresent
+      ? 'confidence sidecar is missing or malformed; not blocking retroactively'
+      : 'capture predates the confidence ledger; not blocking retroactively';
+    return `- **Confidence** — ⚠ unknown (${reason})`;
+  }
   const parts = [
     `${counts.captured} captured`,
     ...(counts['excluded-with-reason'] ? [`${counts['excluded-with-reason']} excluded-with-reason`] : []),
@@ -1239,19 +1248,24 @@ function certificationLines(
   const res = auditRunResidue(readResidue(afterDir), readAcknowledgedResidue(), headLedger?.dataResidue === 'gate');
 
   const hasLedger = baseLedger !== null || headLedger !== null || confidence.ledger !== null;
+  const confidenceSidecarPresent = fs.existsSync(path.join(afterDir, CONFIDENCE_LEDGER));
+  const hasConfidence = hasLedger || confidenceSidecarPresent;
   const hasInvChange = inv.delta.removed.length > 0 || inv.delta.added.length > 0;
   const hasResidue = res.residue.length > 0 || res.armed;
-  if (!hasLedger && !hasInvChange && !hasResidue) return [];
+  if (!hasConfidence && !hasInvChange && !hasResidue) return [];
 
   return [
     '**Certification**',
-    coverageLine(auditCoverage(bundleSurfaceKeys(afterDir), headLedger), explicitExclusionCount(headLedger)),
+    coverageLine(
+      auditCoverage(bundleSurfaceKeys(afterDir, headLedger?.expected ?? null), headLedger),
+      explicitExclusionCount(headLedger),
+    ),
     determinismLine(auditDeterminism(baseLedger, headLedger)),
     inventoryLine(inv),
     // Only add the residue line when there's residue or the gate was armed — an ordinary
     // bundle (no failing endpoint, not armed) keeps its exact prior 3-line block.
     ...(hasResidue ? [dataResidueLine(res)] : []),
-    confidenceLine(confidence.ledger, confidence.summary),
+    confidenceLine(confidence.ledger, confidence.summary, confidenceSidecarPresent),
     '',
   ];
 }

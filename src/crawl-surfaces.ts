@@ -877,10 +877,21 @@ async function captureAndReport(
     await captureInPlace(page, surface.key, opts);
     st.captured++;
   } catch {
+    removeSurfaceCaptureArtifacts(opts.out, surface.key, opts.widths);
     st.failed.push(surface.key);
     ok = false;
   }
   opts.onSurface?.(surface, ok);
+}
+
+/** Remove every artifact a failed multi-width capture may have written before a
+ * later width failed. The producer ledger and filesystem must tell one story. */
+export function removeSurfaceCaptureArtifacts(out: string, key: string, widths: readonly number[]): void {
+  const names = fs.existsSync(out) ? fs.readdirSync(out) : [];
+  const prefixes = widths.map((width) => `${key}@${width}.`);
+  for (const name of names) {
+    if (prefixes.some((prefix) => name.startsWith(prefix))) fs.rmSync(path.join(out, name), { force: true });
+  }
 }
 
 /** Click one candidate where the page stands; classify the outcome. */

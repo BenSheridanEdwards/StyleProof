@@ -25,7 +25,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { COVERAGE_LEDGER, type CoverageLedger } from './coverage.js';
-import { CONFIDENCE_LEDGER, isMapFile } from './map-store.js';
+import { surfaceKeyByCaptureKey } from './capture.js';
+import { CONFIDENCE_LEDGER } from './map-store.js';
 
 /** Bundled next to the maps, like the coverage ledger, so confidence travels with the capture. */
 export { CONFIDENCE_LEDGER };
@@ -90,8 +91,29 @@ const STATUS_PRECEDENCE: Record<ConfidenceStatus, number> = {
 };
 
 const STATUSES = Object.keys(STATUS_PRECEDENCE) as ConfidenceStatus[];
+const PRODUCERS: ReadonlySet<ConfidenceProducer> = new Set([
+  'capture',
+  'coverage',
+  'determinism',
+  'auth-boundary',
+  'incomplete-ui',
+]);
+const STATUS_PRODUCERS: Record<ConfidenceStatus, ReadonlySet<ConfidenceProducer>> = {
+  captured: new Set(['capture']),
+  'excluded-with-reason': new Set(['coverage', 'auth-boundary']),
+  inaccessible: new Set(['auth-boundary', 'incomplete-ui']),
+  unknown: new Set(['coverage', 'capture']),
+  'unproven-determinism': new Set(['determinism']),
+};
+
+function isConfidenceStatus(value: unknown): value is ConfidenceStatus {
+  return typeof value === 'string' && Object.hasOwn(STATUS_PRECEDENCE, value);
+}
 
 function addEntry(byKey: Map<string, ConfidenceEntry>, entry: ConfidenceEntry): void {
+  if (typeof entry.surface !== 'string' || entry.surface.trim() === '') {
+    throw new Error('confidence ledger: every entry needs a non-empty surface');
+  }
   if (entry.status !== 'captured' && !entry.reason?.trim()) {
     throw new Error(`confidence ledger: "${entry.surface}" (${entry.status}) needs a non-empty reason`);
   }
@@ -104,7 +126,9 @@ function addEntry(byKey: Map<string, ConfidenceEntry>, entry: ConfidenceEntry): 
 // each stays well under the complexity gate (mirrors the certification renderers).
 
 function capturedEntries(captured: ReadonlySet<string>, coverage: CoverageLedger | null): ConfidenceEntry[] {
-  const unproven = coverage?.determinism === 'unproven';
+  // A missing basis is legacy provenance, not proof. Keep the confidence badge
+  // limited until the capture records a self-check or replay basis explicitly.
+  const unproven = coverage?.determinism !== 'self-checked' && coverage?.determinism !== 'replayed';
   return [...captured].map((surface) =>
     unproven
       ? {
@@ -129,7 +153,7 @@ function coverageEntries(captured: ReadonlySet<string>, coverage: CoverageLedger
       reason,
     }));
   const uncovered = (coverage?.expected ?? [])
-    .filter((key) => !captured.has(key) && !(key in exclude))
+    .filter((key) => !captured.has(key) && !Object.hasOwn(exclude, key))
     .map((surface) => ({
       surface,
       status: 'unknown' as const,
@@ -186,6 +210,8 @@ export function buildConfidenceLedger(input: {
   auth?: ConfidenceAuthInput;
   /** Blocked-continuation residue (#398). */
   incompleteUi?: ConfidenceIncompleteUiInput[];
+  /** Discovered crawl surfaces that did not produce a complete map sweep. */
+  captureGaps?: Array<{ surface: string; reason: string }>;
 }): ConfidenceLedgerFile {
   const captured = new Set(input.capturedKeys);
   const byKey = new Map<string, ConfidenceEntry>();
@@ -194,6 +220,12 @@ export function buildConfidenceLedger(input: {
     ...coverageEntries(captured, input.coverage),
     ...authEntries(input.auth),
     ...incompleteUiEntries(input.incompleteUi),
+    ...(input.captureGaps ?? []).map((gap) => ({
+      surface: gap.surface,
+      status: 'unknown' as const,
+      producer: 'capture' as const,
+      reason: gap.reason,
+    })),
   ]) {
     addEntry(byKey, entry);
   }
@@ -213,7 +245,12 @@ export function buildConfidenceLedger(input: {
 export function summarizeConfidence(ledger: ConfidenceLedgerFile | null): ConfidenceSummary {
   const counts = Object.fromEntries(STATUSES.map((s) => [s, 0])) as Record<ConfidenceStatus, number>;
   if (!ledger) return { counts, completeness: 'unknown' };
-  for (const e of ledger.entries) counts[e.status] += 1;
+  for (const e of ledger.entries) {
+    if (!isConfidenceStatus(e.status)) {
+      throw new Error(`confidence ledger: invalid status "${String(e.status)}"`);
+    }
+    counts[e.status] += 1;
+  }
   // A named gap always outranks the basis badge: a crawl bundle (unasserted
   // universe) that hit an auth wall must read "limited", not merely "unasserted".
   if (ledger.entries.some((e) => e.status !== 'captured')) return { counts, completeness: 'limited' };
@@ -240,13 +277,16 @@ export function readConfidenceLedger(dir: string): ConfidenceLedgerFile | null {
     const parsed = JSON.parse(fs.readFileSync(p, 'utf8')) as ConfidenceLedgerFile;
     if (parsed?.version !== 1 || !Array.isArray(parsed.entries)) return null;
     if (parsed.basis !== 'asserted' && parsed.basis !== 'unasserted') return null;
-    const ok = parsed.entries.every(
-      (e) =>
-        typeof e?.surface === 'string' &&
-        typeof e?.status === 'string' &&
-        e.status in STATUS_PRECEDENCE &&
-        (e.status === 'captured' || (typeof e.reason === 'string' && e.reason.trim() !== '')),
-    );
+    const seen = new Set<string>();
+    const ok = parsed.entries.every((e) => {
+      if (typeof e?.surface !== 'string' || e.surface.trim() === '' || seen.has(e.surface)) return false;
+      if (typeof e.producer !== 'string' || !PRODUCERS.has(e.producer)) return false;
+      if (!isConfidenceStatus(e.status)) return false;
+      if (!STATUS_PRODUCERS[e.status].has(e.producer)) return false;
+      if (e.status !== 'captured' && (typeof e.reason !== 'string' || e.reason.trim() === '')) return false;
+      seen.add(e.surface);
+      return true;
+    });
     return ok ? parsed : null;
   } catch {
     return null;
@@ -261,10 +301,18 @@ export function readConfidenceLedger(dir: string): ConfidenceLedgerFile | null {
  * A bundle with neither source returns null → the `unknown` badge.
  */
 export function resolveBundleConfidence(dir: string): ConfidenceLedgerFile | null {
+  const confidenceExists = fs.existsSync(path.join(dir, CONFIDENCE_LEDGER));
+  const coverageExists = fs.existsSync(path.join(dir, COVERAGE_LEDGER));
   const persisted = readConfidenceLedger(dir);
   const coverage = readCoverageLedgerLenient(dir);
+  // Present-but-malformed provenance is not "absent". Returning null renders an
+  // unknown badge; deriving from maps would silently turn corruption into complete.
+  if ((confidenceExists && !persisted) || (coverageExists && !coverage)) return null;
   if (!persisted && !coverage) return null;
-  const derived = buildConfidenceLedger({ capturedKeys: bundleSurfaceKeys(dir), coverage });
+  // A crawl's persisted producer ledger is authoritative. Re-deriving from files
+  // can launder a partial map written before a later viewport failed.
+  if (persisted && !coverage) return persisted;
+  const derived = buildConfidenceLedger({ capturedKeys: bundleSurfaceKeys(dir, coverage?.expected), coverage });
   if (!persisted) return derived;
   // Merge: re-add persisted entries over the derived set (strongest status wins),
   // and let an asserted registry on either side keep completeness assertable.
@@ -287,20 +335,39 @@ export function readCoverageLedgerLenient(dir: string): CoverageLedger | null {
   const p = path.join(dir, COVERAGE_LEDGER);
   if (!fs.existsSync(p)) return null;
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf8')) as CoverageLedger;
+    const parsed = JSON.parse(fs.readFileSync(p, 'utf8')) as CoverageLedger;
+    if (parsed?.version !== 1) return null;
+    if (parsed.expected !== null && !stringArray(parsed.expected)) return null;
+    if (!plainReasonMap(parsed.exclude)) return null;
+    if (parsed.determinism !== undefined && !['self-checked', 'replayed', 'unproven'].includes(parsed.determinism))
+      return null;
+    if (parsed.dataResidue !== undefined && parsed.dataResidue !== 'warn' && parsed.dataResidue !== 'gate') return null;
+    return parsed;
   } catch {
     return null;
   }
 }
 
 /** Deduped surface keys captured in a bundle dir (`<key>@<width>.json[.gz]` → `<key>`). */
-export function bundleSurfaceKeys(dir: string): string[] {
+export function bundleSurfaceKeys(dir: string, expected: readonly string[] | null = null): string[] {
+  const registry = expected ? new Set(expected) : null;
   return [
     ...new Set(
-      fs
-        .readdirSync(dir)
-        .filter(isMapFile)
-        .map((f) => f.replace(/@\d+\.json(\.gz)?$/, '')),
+      [...surfaceKeyByCaptureKey(dir)].map(([captureKey, surfaceKey]) => {
+        const capturedKey = captureKey.replace(/@\d+$/, '');
+        return registry?.has(capturedKey) ? capturedKey : (surfaceKey ?? capturedKey);
+      }),
     ),
   ];
+}
+
+function stringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string' && item.trim() !== '');
+}
+
+function plainReasonMap(value: unknown): value is Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.entries(value).every(
+    ([key, reason]) => key.trim() !== '' && typeof reason === 'string' && reason.trim() !== '',
+  );
 }

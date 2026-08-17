@@ -25,7 +25,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   retroactively; no coverage percentage is ever invented for un-enumerable
   surfaces. New exports: `CONFIDENCE_LEDGER`, `buildConfidenceLedger`,
   `summarizeConfidence`, `writeConfidenceLedger`, `readConfidenceLedger`,
-  `resolveBundleConfidence` (+ types).
+  `resolveBundleConfidence` (+ types). Resolution now validates advisory coverage
+  and confidence sidecars structurally, treats present-but-malformed provenance
+  as `unknown` rather than deriving a false complete result, renders that malformed
+  sidecar state explicitly in Markdown, and requires an explicit `self-checked` or
+  `replayed` determinism basis before a captured surface can claim complete confidence.
+  It follows the asserted registry vocabulary for expanded captures in both report
+  coverage and confidence, rejects empty producer surfaces, prototype-key statuses,
+  inherited exclusions, and impossible producer/status pairs, and marks crawl maps
+  without self-check/replay provenance as `unproven-determinism`. It trusts persisted
+  crawl producer truth over partial files, preflights and clears every crawl-owned
+  sidecar plus the reserved `@<width>` artifact namespace before refreshing a reused
+  output directory without following symlinks, while preserving non-reserved files.
+  It derives the captured set from complete maps written by that run, keeps every
+  discovered-but-uncaptured crawl surface as a named `unknown`, records linked pages
+  that fail or remain queued at `--max-states` as explicit scope gaps, and removes
+  partial multi-width artifacts when a later width fails.
 
 - **State recipe capture integration** (#391): `Surface.stateRecipes` (and the
   same field on `defineCrawlCapture` options) expands each validated recipe into

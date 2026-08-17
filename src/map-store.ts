@@ -72,6 +72,35 @@ export function isMapFile(name: string): boolean {
   return !RESERVED_BUNDLE_FILES.has(name) && /\.json(\.gz)?$/.test(name);
 }
 
+const CRAWL_BUNDLE_FILES = new Set([...RESERVED_BUNDLE_FILES, FATAL_CAPTURE_MARKER]);
+const GENERATED_CAPTURE_ARTIFACT = /@\d+\.(?:json(?:\.gz)?|png|(?:hover|focus|active)\.png)$/;
+
+/** Clear only artifacts that a crawl owns when refreshing a reused output directory.
+ * Generated sidecars and the `<surface>@<width>` namespace are reserved StyleProof output;
+ * unrelated names are preserved. Preflight before removal so malformed state cannot
+ * leave a half-cleared bundle. */
+export function clearCaptureOutput(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true });
+  const candidates = fs
+    .readdirSync(dir)
+    .filter(
+      (name) =>
+        CRAWL_BUNDLE_FILES.has(name) || name === SURFACE_CAPTURE_FAILURES_DIR || GENERATED_CAPTURE_ARTIFACT.test(name),
+    );
+  const classified = candidates.map((name) => {
+    const target = path.join(dir, name);
+    const stat = fs.lstatSync(target);
+    if (name !== SURFACE_CAPTURE_FAILURES_DIR && stat.isDirectory()) {
+      throw new MapStoreError(`generated capture artifact is a directory: ${target}`);
+    }
+    return { name, target, stat };
+  });
+  for (const { name, target, stat } of classified) {
+    const recursive = name === SURFACE_CAPTURE_FAILURES_DIR && stat.isDirectory() && !stat.isSymbolicLink();
+    fs.rmSync(target, { force: true, recursive });
+  }
+}
+
 export class MapStoreError extends Error {}
 
 /** A restore that failed because the requested bundle is genuinely absent — the map

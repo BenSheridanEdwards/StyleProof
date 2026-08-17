@@ -57,6 +57,34 @@ test('a healthy bundle leads with all-green certification', () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('expanded captures satisfy the expanded registry in both coverage and confidence', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-cert-expanded-'));
+  const base = path.join(root, 'base');
+  const head = path.join(root, 'head');
+  const out = path.join(root, 'out');
+  fs.mkdirSync(base);
+  fs.mkdirSync(head);
+  const expected = ['home-loading', 'home-loaded'];
+  for (const dir of [base, head]) {
+    for (const key of expected) {
+      fs.writeFileSync(
+        path.join(dir, `${key}@1440.json`),
+        JSON.stringify({ defaults: {}, elements: {}, states: {}, metadata: { surfaceKey: 'home' } }),
+      );
+    }
+    fs.writeFileSync(
+      path.join(dir, COVERAGE_LEDGER),
+      JSON.stringify({ version: 1, expected, exclude: {}, determinism: 'self-checked' }),
+    );
+  }
+  const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(md, /Coverage.*✓ complete \(all 2 registered surface\(s\) captured\)/);
+  assert.doesNotMatch(md, /INCOMPLETE/);
+  assert.equal(result.confidence.completeness, 'complete');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('complete coverage distinguishes captures from explicit exclusions', () => {
   const { root, base, head, out } = bundle({
     captured: ['home', 'pricing'],
@@ -302,7 +330,7 @@ test('a persisted crawl ledger with an auth wall renders limited and names the i
   const md = readMd(out);
   assert.match(
     md,
-    /\*\*Confidence\*\* — ⚠ limited \(1 captured, 1 inaccessible\); inaccessible: \/login·password-input/,
+    /\*\*Confidence\*\* — ⚠ limited \(0 captured, 1 inaccessible, 1 unproven-determinism\); inaccessible: \/login·password-input/,
   );
   assert.equal(result.confidence.counts.inaccessible, 1);
   fs.rmSync(root, { recursive: true, force: true });
@@ -329,19 +357,21 @@ test('a bundle predating the confidence ledger degrades to ⚠ unknown when the 
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('a corrupt confidence file degrades to derived/unknown instead of disarming or throwing', () => {
-  const { root, base, head, out } = bundle({
-    captured: ['home'],
-    baseNav: ['home'],
-    headNav: ['home'],
-    expected: ['home'],
-    baseDet: 'self-checked',
-    headDet: 'self-checked',
-  });
+test('a malformed confidence sidecar still renders an explicit unknown warning', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-cert-conf-malformed-only-'));
+  const base = path.join(root, 'base');
+  const head = path.join(root, 'head');
+  const out = path.join(root, 'out');
+  fs.mkdirSync(base);
+  fs.mkdirSync(head);
+  fs.writeFileSync(path.join(base, 'home@1440.json'), mapWith(null));
+  fs.writeFileSync(path.join(head, 'home@1440.json'), mapWith(null));
   fs.writeFileSync(path.join(head, CONFIDENCE_LEDGER), '{corrupt');
   const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
-  // The coverage ledger still derives a real verdict; the corrupt file cannot disarm it.
-  assert.match(readMd(out), /\*\*Confidence\*\* — ✓ complete \(1 captured\)/);
-  assert.equal(result.confidence.completeness, 'complete');
+  assert.match(
+    readMd(out),
+    /\*\*Confidence\*\* — ⚠ unknown \(confidence sidecar is missing or malformed; not blocking retroactively\)/,
+  );
+  assert.equal(result.confidence.completeness, 'unknown');
   fs.rmSync(root, { recursive: true, force: true });
 });

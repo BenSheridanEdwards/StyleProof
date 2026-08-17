@@ -65,6 +65,16 @@ test('unproven determinism downgrades every captured surface — a green without
   assert.equal(summarizeConfidence(ledger).completeness, 'limited');
 });
 
+test('an asserted coverage ledger without determinism proof cannot claim complete confidence', () => {
+  const ledger = buildConfidenceLedger({
+    capturedKeys: ['home'],
+    coverage: coverage({ expected: ['home'] }),
+  });
+  assert.equal(ledger.entries[0].status, 'unproven-determinism');
+  assert.equal(ledger.entries[0].producer, 'determinism');
+  assert.equal(summarizeConfidence(ledger).completeness, 'limited');
+});
+
 test('auth producer (#390): unacknowledged walls are inaccessible, acknowledged ones excluded-with-reason', () => {
   const ledger = buildConfidenceLedger({
     capturedKeys: ['landing'],
@@ -117,10 +127,10 @@ test('a non-captured entry without a reason is rejected — silence cannot mark 
   );
 });
 
-test('no registry means unasserted — completeness is never claimed for an un-enumerable universe', () => {
+test('no registry and no determinism proof stays limited without claiming an enumerable universe', () => {
   const ledger = buildConfidenceLedger({ capturedKeys: ['page'], coverage: null });
   assert.equal(ledger.basis, 'unasserted');
-  assert.equal(summarizeConfidence(ledger).completeness, 'unasserted');
+  assert.equal(summarizeConfidence(ledger).completeness, 'limited');
 });
 
 test('a bundle without the ledger degrades to unknown — advisory, never a retroactive block', () => {
@@ -150,6 +160,27 @@ test('write/read roundtrip; missing and malformed files degrade to null instead 
   }
 });
 
+test('malformed producer, empty surface, and duplicate rows degrade to null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-conf-invalid-schema-'));
+  const write = (entries) =>
+    fs.writeFileSync(path.join(dir, CONFIDENCE_LEDGER), JSON.stringify({ version: 1, basis: 'asserted', entries }));
+  try {
+    write([{ surface: 'home', status: 'captured', producer: 'invented' }]);
+    assert.equal(readConfidenceLedger(dir), null);
+
+    write([{ surface: '', status: 'captured', producer: 'capture' }]);
+    assert.equal(readConfidenceLedger(dir), null);
+
+    write([
+      { surface: 'home', status: 'captured', producer: 'capture' },
+      { surface: 'home', status: 'inaccessible', producer: 'auth-boundary', reason: 'Authentication boundary.' },
+    ]);
+    assert.equal(readConfidenceLedger(dir), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('resolveBundleConfidence derives from the coverage ledger + maps when no file was persisted', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-conf-derive-'));
   try {
@@ -168,6 +199,30 @@ test('resolveBundleConfidence derives from the coverage ledger + maps when no fi
   }
 });
 
+test('derived confidence maps expanded capture keys through the asserted registry vocabulary', () => {
+  for (const expected of ['home', 'home-loaded']) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-conf-expanded-'));
+    try {
+      fs.writeFileSync(
+        path.join(dir, 'home-loaded@1440.json'),
+        JSON.stringify({ defaults: {}, elements: {}, states: {}, metadata: { surfaceKey: 'home' } }),
+      );
+      fs.writeFileSync(
+        path.join(dir, COVERAGE_LEDGER),
+        JSON.stringify(coverage({ expected: [expected], determinism: 'self-checked' })),
+      );
+      const ledger = resolveBundleConfidence(dir);
+      assert.deepEqual(
+        ledger.entries.map((e) => [e.surface, e.status]),
+        [[expected, 'captured']],
+      );
+      assert.equal(summarizeConfidence(ledger).completeness, 'complete');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
 test('resolveBundleConfidence merges a persisted producer file over the derived set', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-conf-merge-'));
   try {
@@ -182,12 +237,144 @@ test('resolveBundleConfidence merges a persisted producer file over the derived 
     );
     const ledger = resolveBundleConfidence(dir);
     const byKey = Object.fromEntries(ledger.entries.map((e) => [e.surface, e.status]));
-    assert.equal(byKey.landing, 'captured');
+    assert.equal(byKey.landing, 'unproven-determinism');
     assert.equal(byKey['/login·password-input'], 'inaccessible');
     assert.equal(summarizeConfidence(ledger).completeness, 'limited');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('malformed persisted or coverage ledgers cannot overstate confidence or crash reports', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-conf-malformed-resolve-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'home@1440.json'), JSON.stringify({ defaults: {}, elements: {}, states: {} }));
+    fs.writeFileSync(
+      path.join(dir, COVERAGE_LEDGER),
+      JSON.stringify(coverage({ expected: ['home'], determinism: 'self-checked' })),
+    );
+    fs.writeFileSync(
+      path.join(dir, CONFIDENCE_LEDGER),
+      JSON.stringify({
+        version: 1,
+        basis: 'asserted',
+        entries: [{ surface: 'home', status: 'captured', producer: 'invented' }],
+      }),
+    );
+    assert.equal(resolveBundleConfidence(dir), null, 'present malformed confidence must not derive complete');
+
+    fs.rmSync(path.join(dir, CONFIDENCE_LEDGER));
+    fs.writeFileSync(path.join(dir, COVERAGE_LEDGER), JSON.stringify({ version: 1, expected: {}, exclude: {} }));
+    assert.doesNotThrow(() => resolveBundleConfidence(dir));
+    assert.equal(resolveBundleConfidence(dir), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('persisted confidence rejects producer/status contradictions', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-conf-producer-status-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, CONFIDENCE_LEDGER),
+      JSON.stringify({
+        version: 1,
+        basis: 'asserted',
+        entries: [{ surface: 'home', status: 'captured', producer: 'auth-boundary' }],
+      }),
+    );
+    assert.equal(readConfidenceLedger(dir), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('crawl captures without determinism provenance are explicitly unproven', () => {
+  const ledger = buildConfidenceLedger({ capturedKeys: ['home'], coverage: null });
+  assert.deepEqual(ledger.entries, [
+    {
+      surface: 'home',
+      status: 'unproven-determinism',
+      producer: 'determinism',
+      reason: 'captured without self-check or replay — the styles could have drifted unnoticed',
+    },
+  ]);
+});
+
+test('prototype-named expected surfaces cannot disappear through inherited exclusions', () => {
+  const ledger = buildConfidenceLedger({
+    capturedKeys: [],
+    coverage: coverage({ expected: ['toString', '__proto__'], exclude: {} }),
+  });
+  assert.deepEqual(
+    ledger.entries.map(({ surface, status, producer }) => ({ surface, status, producer })),
+    [
+      { surface: '__proto__', status: 'unknown', producer: 'coverage' },
+      { surface: 'toString', status: 'unknown', producer: 'coverage' },
+    ],
+  );
+});
+
+test('persisted crawl producer truth ignores partial map artifacts for failed surfaces', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-conf-partial-crawl-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'good@1440.json'), JSON.stringify({ defaults: {}, elements: {}, states: {} }));
+    fs.writeFileSync(path.join(dir, 'failed@1440.json'), JSON.stringify({ defaults: {}, elements: {}, states: {} }));
+    writeConfidenceLedger(dir, buildConfidenceLedger({ capturedKeys: ['good'], coverage: null }));
+    const ledger = resolveBundleConfidence(dir);
+    assert.deepEqual(
+      ledger.entries.map((entry) => entry.surface),
+      ['good'],
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('ledger builders reject empty producer surface keys', () => {
+  assert.throws(() => buildConfidenceLedger({ capturedKeys: [''], coverage: null }), /non-empty surface/);
+  assert.throws(
+    () =>
+      buildConfidenceLedger({
+        capturedKeys: [],
+        coverage: null,
+        auth: { acknowledged: [], unacknowledged: [{ key: '   ' }] },
+      }),
+    /non-empty surface/,
+  );
+});
+
+test('discovered crawl surfaces that were not fully captured stay named and limited', () => {
+  const ledger = buildConfidenceLedger({
+    capturedKeys: ['home'],
+    coverage: null,
+    captureGaps: [
+      {
+        surface: 'menu-open',
+        reason: 'crawl stopped before this discovered surface was captured',
+      },
+    ],
+  });
+  assert.deepEqual(
+    ledger.entries.map(({ surface, status, producer }) => ({ surface, status, producer })),
+    [
+      { surface: 'home', status: 'unproven-determinism', producer: 'determinism' },
+      { surface: 'menu-open', status: 'unknown', producer: 'capture' },
+    ],
+  );
+  assert.equal(summarizeConfidence(ledger).completeness, 'limited');
+});
+
+test('prototype keys are not valid confidence statuses', () => {
+  assert.throws(
+    () =>
+      summarizeConfidence({
+        version: 1,
+        basis: 'asserted',
+        entries: [{ surface: 'home', status: 'toString', producer: 'capture', reason: 'x' }],
+      }),
+    /invalid status/,
+  );
 });
 
 test('resolveBundleConfidence returns null for a bundle with neither source (old capture)', () => {
