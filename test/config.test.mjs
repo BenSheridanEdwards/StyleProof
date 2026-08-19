@@ -187,67 +187,32 @@ test('loadStyleProofConfig: crawl block rejects bad types and warns on unknown c
   });
 });
 
-test('styleproof-map: projects crawl.setup and authBoundaryExclude from config and fails loud on missing files', () => {
-  withConfig(
-    {
-      crawl: {
-        baseUrl: 'http://127.0.0.1:9',
-        routes: ['/'],
-        setup: 'missing-setup.json',
-      },
-    },
-    (dir) => {
-      fs.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
-      fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
-      const map = spawnSync(process.execPath, [MAP, '--crawl-base-url', 'http://127.0.0.1:9', '--crawl-route', '/'], {
-        cwd: dir,
-        encoding: 'utf8',
-      });
-      assert.equal(map.status, 2, map.stderr);
-      assert.match(map.stderr, /crawl setup file not found/);
-      assert.match(map.stderr, /crawl\.setup/);
-    },
-  );
-
+test('styleproof-map: refuses crawl.setup / authBoundaryExclude (auth belongs on styleproof-capture)', () => {
   withConfig(
     {
       crawl: {
         baseUrl: 'http://127.0.0.1:9',
         routes: ['/'],
         setup: 'styleproof.setup.json',
-        authBoundaryExclude: 'styleproof.auth-boundary-exclude.json',
       },
     },
     (dir) => {
       fs.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
       fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
       fs.writeFileSync(path.join(dir, 'styleproof.setup.json'), '[]\n');
-      fs.writeFileSync(
-        path.join(dir, 'styleproof.auth-boundary-exclude.json'),
-        JSON.stringify({ account: 'login wall — fixture pending' }),
-      );
-      // Fake variants so crawl projection is exercised without a browser.
-      const bin = path.join(dir, 'bin');
-      fs.mkdirSync(bin);
-      fs.writeFileSync(
-        path.join(bin, 'styleproof-variants'),
-        '#!/bin/sh\necho "fake-variants $*" >&2\nprintf "%s\\n" "$STYLEPROOF_SETUP" > setup.path\nprintf "%s\\n" "$STYLEPROOF_AUTH_BOUNDARY_EXCLUDE" > exclude.path\n',
-      );
-      fs.chmodSync(path.join(bin, 'styleproof-variants'), 0o755);
-      const map = spawnSync(process.execPath, [MAP], {
-        cwd: dir,
-        encoding: 'utf8',
-        env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` },
-      });
-      // Capture will fail later without real playwright/spec graph; projection must happen first.
-      assert.match(map.stderr, /crawl setup →/);
-      assert.match(map.stderr, /auth-boundary exclude →/);
-      if (fs.existsSync(path.join(dir, 'setup.path'))) {
-        assert.match(fs.readFileSync(path.join(dir, 'setup.path'), 'utf8'), /styleproof\.setup\.json/);
-        assert.match(fs.readFileSync(path.join(dir, 'exclude.path'), 'utf8'), /auth-boundary-exclude\.json/);
-      }
+      const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+      assert.equal(map.status, 2, map.stderr);
+      assert.match(map.stderr, /does not run auth setup|styleproof-capture/);
     },
   );
+
+  withConfig({ spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    fs.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
+    const map = spawnSync(process.execPath, [MAP, '--setup', 'x.json'], { cwd: dir, encoding: 'utf8' });
+    assert.equal(map.status, 2, map.stderr);
+    assert.match(map.stderr, /not supported on the spec-driven map path/);
+  });
 });
 
 test('loadStyleProofConfig: unknown keys warn loudly instead of silently dropping', () => {

@@ -72,9 +72,6 @@ options:
   --crawl-width <px>  pre-map crawl viewport width (default: 1280)
   --crawl-height <px> pre-map crawl viewport height (default: 800)
   --crawl-strict      fail if live-state fixtures or skipped candidates remain
-  --setup <file>      JSON setup steps for protected UI (flag > env > config.crawl.setup)
-  --auth-boundary-exclude <file>
-                      reasoned auth exclusions (flag > env > config.crawl.authBoundaryExclude)
   --cache-branch <b>  map store branch (default: ${DEFAULT_MAP_STORE_BRANCH})
   --remote <name>     git remote for the map store (default: ${DEFAULT_REMOTE})
   --dirty-allow <path>
@@ -139,16 +136,16 @@ let crawlHeight =
   process.env.STYLEPROOF_CRAWL_HEIGHT ??
   (projectConfig.crawl?.height != null ? String(projectConfig.crawl.height) : '');
 let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1' || projectConfig.crawl?.strict === true;
-// Setup / auth-boundary exclusions: flag > env > config. Paths resolve from repo cwd
-// (same root as styleproof.config.json) so detached CI worktrees stay consistent.
-let crawlSetup = process.env.STYLEPROOF_CRAWL_SETUP ?? process.env.STYLEPROOF_SETUP ?? projectConfig.crawl?.setup ?? '';
-let crawlAuthBoundaryExclude =
-  process.env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE ??
-  process.env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE ??
-  projectConfig.crawl?.authBoundaryExclude ??
+// Auth setup / boundary exclusions are NOT consumed by the spec-driven map path
+// (variants + Playwright runner ignore STYLEPROOF_SETUP). They belong on
+// styleproof-capture. Detect config/env/flag so we fail closed instead of lying.
+const configuredAuthSetup =
+  process.env.STYLEPROOF_CRAWL_SETUP || process.env.STYLEPROOF_SETUP || projectConfig.crawl?.setup || '';
+const configuredAuthExclude =
+  process.env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE ||
+  process.env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE ||
+  projectConfig.crawl?.authBoundaryExclude ||
   '';
-let crawlSetupFromFlag = false;
-let crawlAuthExcludeFromFlag = false;
 let tolerateSurfaceFailures =
   process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
   process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true';
@@ -196,24 +193,22 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--crawl-height') crawlHeight = argv[++i];
   else if (a.startsWith('--crawl-height=')) crawlHeight = a.slice(15);
   else if (a === '--crawl-strict') crawlStrict = true;
-  else if (a === '--crawl-setup' || a === '--setup') {
-    crawlSetup = argv[++i];
-    crawlSetupFromFlag = true;
-  } else if (a.startsWith('--crawl-setup=')) {
-    crawlSetup = a.slice(14);
-    crawlSetupFromFlag = true;
-  } else if (a.startsWith('--setup=')) {
-    crawlSetup = a.slice(8);
-    crawlSetupFromFlag = true;
-  } else if (a === '--crawl-auth-boundary-exclude' || a === '--auth-boundary-exclude') {
-    crawlAuthBoundaryExclude = argv[++i];
-    crawlAuthExcludeFromFlag = true;
-  } else if (a.startsWith('--crawl-auth-boundary-exclude=')) {
-    crawlAuthBoundaryExclude = a.slice(30);
-    crawlAuthExcludeFromFlag = true;
-  } else if (a.startsWith('--auth-boundary-exclude=')) {
-    crawlAuthBoundaryExclude = a.slice(24);
-    crawlAuthExcludeFromFlag = true;
+  else if (
+    a === '--crawl-setup' ||
+    a === '--setup' ||
+    a.startsWith('--crawl-setup=') ||
+    a.startsWith('--setup=') ||
+    a === '--crawl-auth-boundary-exclude' ||
+    a === '--auth-boundary-exclude' ||
+    a.startsWith('--crawl-auth-boundary-exclude=') ||
+    a.startsWith('--auth-boundary-exclude=')
+  ) {
+    console.error(
+      'styleproof-map: --setup / --auth-boundary-exclude are not supported on the spec-driven map path.\n' +
+        '  Auth setup and boundary exclusions apply to styleproof-capture (and styleproof.config.json crawl.* for that CLI).\n' +
+        '  Next: styleproof-capture <url> --crawl --setup <file> [--auth-boundary-exclude <file>]',
+    );
+    process.exit(2);
   } else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
   else if (a.startsWith('--dirty-allow=')) dirtyAllow.push(a.slice(14));
   else if (a === '--tolerate-surface-failures') tolerateSurfaceFailures = true;
@@ -248,6 +243,15 @@ if (!fs.existsSync(spec)) {
   process.exit(2);
 }
 const crawlEnabled = Boolean(crawlBaseUrl || crawlRoutes.length);
+if (configuredAuthSetup || configuredAuthExclude) {
+  console.error(
+    'styleproof-map: crawl.setup / crawl.authBoundaryExclude (or STYLEPROOF_SETUP / STYLEPROOF_AUTH_BOUNDARY_EXCLUDE)\n' +
+      '  are configured, but the spec-driven map path does not run auth setup or boundary exclusions.\n' +
+      '  Those apply only to styleproof-capture. Remove them from the map invocation/config for this CLI,\n' +
+      '  or use: styleproof-capture <url> --crawl (config crawl.setup / crawl.authBoundaryExclude are honored there).',
+  );
+  process.exit(2);
+}
 if (crawlEnabled && !crawlBaseUrl) {
   console.error('styleproof-map: --crawl-base-url is required when --crawl-route is set');
   process.exit(2);
@@ -311,11 +315,6 @@ function hasPlaywrightConfigArg(args) {
   return args.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
 }
 
-function resolveConfigPath(filePath) {
-  if (!filePath) return '';
-  return path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
-}
-
 function variantCrawlArgs() {
   const args = ['--base-url', crawlBaseUrl, '--out', crawlOut];
   for (const route of crawlRoutes) args.push('--route', route);
@@ -328,36 +327,7 @@ function variantCrawlArgs() {
 
 function runVariantCrawl(env) {
   if (!crawlEnabled) return;
-  // Pre-map variant crawl discovers routes; setup/auth-boundary exclusions apply to
-  // the capture stage (styleproof-capture --crawl or the generated crawl capture path).
-  // Surface them as env so CI/automation can re-use the same resolved paths.
-  const setupPath = resolveConfigPath(crawlSetup);
-  const excludePath = resolveConfigPath(crawlAuthBoundaryExclude);
-  if (setupPath) {
-    if (!fs.existsSync(setupPath)) {
-      console.error(
-        `styleproof-map: crawl setup file not found: ${setupPath}` +
-          (crawlSetupFromFlag ? '' : ' (from styleproof.config.json crawl.setup)'),
-      );
-      process.exit(2);
-    }
-    env.STYLEPROOF_SETUP = setupPath;
-    env.STYLEPROOF_CRAWL_SETUP = setupPath;
-  }
-  if (excludePath) {
-    if (!fs.existsSync(excludePath)) {
-      console.error(
-        `styleproof-map: crawl auth-boundary exclude file not found: ${excludePath}` +
-          (crawlAuthExcludeFromFlag ? '' : ' (from styleproof.config.json crawl.authBoundaryExclude)'),
-      );
-      process.exit(2);
-    }
-    env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE = excludePath;
-    env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE = excludePath;
-  }
   console.error('styleproof-map: crawling UI variants before capture');
-  if (setupPath) console.error(`styleproof-map: crawl setup → ${setupPath}`);
-  if (excludePath) console.error(`styleproof-map: auth-boundary exclude → ${excludePath}`);
   const command = process.platform === 'win32' ? 'styleproof-variants.cmd' : 'styleproof-variants';
   let result = spawnSync(command, variantCrawlArgs(), { stdio: 'inherit', env });
   if (result.error?.code === 'ENOENT') {

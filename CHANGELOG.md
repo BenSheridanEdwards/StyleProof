@@ -53,11 +53,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `MAP_STORE_PRUNE_SIDECAR`).
 - **Single-config crawl setup and auth-boundary exclusions:** `styleproof.config.json`
   accepts a closed-world `crawl` block (`baseUrl`, `routes`, `setup`,
-  `authBoundaryExclude`, `strict`, viewport/out knobs). `styleproof-map` and
-  `styleproof-capture` project those paths with precedence flag > env > config,
-  resolve them from the repo/config root, and fail loudly on missing files.
-  Setup files still use `${ENV_VAR}` placeholders only — no secrets in config.
-  Example config documents the out-of-box auth-blocker shape.
+  `authBoundaryExclude`, `strict`, viewport/out knobs). **`styleproof-capture`**
+  projects `setup` / `authBoundaryExclude` with precedence flag > env > config,
+  resolves paths from the repo/config root, and fails loudly on missing files.
+  **`styleproof-map` refuses those auth knobs** (exit 2 with a pointer to capture) —
+  the spec-driven path does not run setup/exclusions. Setup files still use
+  `${ENV_VAR}` placeholders only. Example ships companion setup/exclude files.
   CLI e2e proves config-only setup unlocks a password wall and config-only
   reasoned exclusion yields limited (never secret-bearing) evidence.
 

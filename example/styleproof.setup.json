@@ -1,0 +1,5 @@
+[
+  { "action": "fill", "selector": "#password", "value": "${APP_PASSWORD}" },
+  { "action": "click", "selector": "button[type=submit]" },
+  { "action": "waitFor", "selector": "main:not(.login)" }
+]
