@@ -89,6 +89,19 @@ jobs:
         if: matrix.node == '22'
         run: npm run test:e2e
 
+      - name: Print determinism oracle receipt
+        if: matrix.node == '22'
+        run: node -e "const fs=require('node:fs');const p='test-results/determinism-oracle.json';if(!fs.existsSync(p))throw new Error('missing determinism oracle receipt');process.stdout.write(fs.readFileSync(p,'utf8'))"
+
+      - name: Upload determinism oracle receipt
+        if: matrix.node == '22'
+        uses: actions/upload-artifact@v6
+        with:
+          name: determinism-oracle-node-22
+          path: test-results/determinism-oracle.json
+          if-no-files-found: error
+          retention-days: 30
+
   cli-smoke:
     name: cli smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

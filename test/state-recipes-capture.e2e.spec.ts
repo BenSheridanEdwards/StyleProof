@@ -23,6 +23,8 @@ import {
  */
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-state-recipe-capture-'));
+const DETERMINISM_RECEIPT_PATH =
+  process.env.STYLEPROOF_DETERMINISM_RECEIPT ?? path.resolve('test-results/determinism-oracle.json');
 const WIDTH = 900;
 
 const FIXTURE_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
@@ -185,11 +187,16 @@ test('state-recipe capture: five fresh-context runs have identical ordered keys 
   });
 
   const verdict = assessDeterminismOracle(runs);
-  test.info().annotations.push({
-    type: 'determinism-oracle',
-    description: JSON.stringify(verdict),
-  });
+  const receipt = {
+    schemaVersion: 1,
+    fixture: 'state-recipes-capture',
+    runLabels: [...CAPTURE_DIRS],
+    verdict,
+  };
+  fs.mkdirSync(path.dirname(DETERMINISM_RECEIPT_PATH), { recursive: true });
+  fs.writeFileSync(DETERMINISM_RECEIPT_PATH, `${JSON.stringify(receipt, null, 2)}\n`);
 
+  expect(JSON.parse(fs.readFileSync(DETERMINISM_RECEIPT_PATH, 'utf8'))).toEqual(receipt);
   expect(verdict).toEqual({
     status: 'deterministic',
     requiredRuns: 5,

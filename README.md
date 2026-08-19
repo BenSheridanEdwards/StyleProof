@@ -928,10 +928,14 @@ const verdict = assessDeterminismOracle(runs);
 if (verdict.status !== 'deterministic') throw new Error(JSON.stringify(verdict));
 ```
 
-`deterministic` means every observed run matches and at least five were supplied.
-`flake` means five or more were supplied but their ordered keys or canonical map
-hashes differ. `insufficient` means fewer than five runs. Do not retry or weaken
-the assertion until a `flake` turns green; diagnose the unstable input.
+`deterministic` means exactly five valid runs were supplied and all five match.
+Every other result is `flake`, with a machine-readable reason: `run-count`,
+`invalid-receipt`, or `mismatch`. Receipts require unique non-empty ordered state
+keys, an exact matching hash-key set, and 64-character SHA-256 hexadecimal map
+hashes. CI prints and uploads `test-results/determinism-oracle.json`; use that
+artifact as the review receipt instead of inferring determinism from a green test
+count. Do not retry or weaken the assertion until a `flake` turns green; diagnose
+the unstable or malformed input.
 
 ### Live UI states: capture each state, not an average
 
