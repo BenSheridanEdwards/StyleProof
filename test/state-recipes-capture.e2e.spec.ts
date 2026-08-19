@@ -2,17 +2,24 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { defineStyleMapCapture, diffStyleMaps, loadStyleMap, parseStateRecipes } from '../dist/index.js';
+import {
+  assessDeterminismOracle,
+  defineStyleMapCapture,
+  diffStyleMaps,
+  hashDeterminismMap,
+  loadStyleMap,
+  parseStateRecipes,
+} from '../dist/index.js';
 
 /**
  * #391 capture integration: Surface.stateRecipes expand into independent
  * styleproof captures with variantKind 'state-recipe' and exact safe provenance.
  * Sticky CSS mirrors real interaction (same fixture pattern as state-recipes.e2e).
  *
- * Determinism is proven by two independent capture dirs (fresh contexts), not
+ * Determinism is proven by five independent capture dirs (fresh contexts), not
  * in-test selfCheck: full captureStyleMap (forced-state layer + hover-sink) can
- * disagree with sticky mouseenter fixtures on a second pass of the same page —
- * dual-dir compare matches the existing state-recipes E2E contract.
+ * disagree with sticky mouseenter fixtures on a second pass of the same page.
+ * The five-run canonical hash oracle is the promotion gate required by #400.
  */
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-state-recipe-capture-'));
@@ -86,28 +93,21 @@ function recipeSurface() {
   };
 }
 
-test.describe('state-recipe surface capture', () => {
-  defineStyleMapCapture({
-    parallel: false,
-    surfaces: [recipeSurface()],
-    dir: 'maps',
-    baseDir: ROOT,
-    screenshots: false,
-    // Determinism asserted via maps vs maps-repeat below (fresh contexts).
-    selfCheck: false,
-  });
-});
+const CAPTURE_DIRS = ['maps-1', 'maps-2', 'maps-3', 'maps-4', 'maps-5'] as const;
 
-test.describe('state-recipe surface capture repeat', () => {
-  defineStyleMapCapture({
-    parallel: false,
-    surfaces: [recipeSurface()],
-    dir: 'maps-repeat',
-    baseDir: ROOT,
-    screenshots: false,
-    selfCheck: false,
+for (const dir of CAPTURE_DIRS) {
+  test.describe(`state-recipe surface capture ${dir}`, () => {
+    defineStyleMapCapture({
+      parallel: false,
+      surfaces: [recipeSurface()],
+      dir,
+      baseDir: ROOT,
+      screenshots: false,
+      // Cross-directory canonical hashes are the determinism oracle.
+      selfCheck: false,
+    });
   });
-});
+}
 
 test.afterAll(() => {
   fs.rmSync(ROOT, { recursive: true, force: true });
@@ -158,11 +158,11 @@ const EXPECTED = [
 ];
 
 test('state-recipe capture: maps carry variantKind and exact safe provenance', () => {
-  const base = loadStyleMap(mapPath('maps', 'demo'));
+  const base = loadStyleMap(mapPath(CAPTURE_DIRS[0], 'demo'));
   expect(base.metadata).toEqual({ surfaceKey: 'demo' });
 
   for (const exp of EXPECTED) {
-    const map = loadStyleMap(mapPath('maps', exp.key));
+    const map = loadStyleMap(mapPath(CAPTURE_DIRS[0], exp.key));
     expect(map.metadata).toEqual({
       surfaceKey: 'demo',
       variantKey: exp.provenance.stateKey,
@@ -174,14 +174,28 @@ test('state-recipe capture: maps carry variantKind and exact safe provenance', (
   }
 });
 
-test('state-recipe capture: repeated fresh-context runs match on style maps', () => {
-  for (const exp of EXPECTED) {
-    const a = loadStyleMap(mapPath('maps', exp.key));
-    const b = loadStyleMap(mapPath('maps-repeat', exp.key));
-    expect(diffStyleMaps(a, b), `${exp.key} repeat must be style-identical`).toEqual([]);
-    expect(a.metadata).toEqual(b.metadata);
-  }
-  expect(diffStyleMaps(loadStyleMap(mapPath('maps', 'demo')), loadStyleMap(mapPath('maps-repeat', 'demo')))).toEqual(
-    [],
-  );
+test('state-recipe capture: five fresh-context runs have identical ordered keys and canonical map hashes', () => {
+  const surfaceKeys = ['demo', ...EXPECTED.map((entry) => entry.key)];
+  const stateKeys = surfaceKeys.map((key) => `${key}@${WIDTH}`);
+  const runs = CAPTURE_DIRS.map((dir) => {
+    const mapHashes = Object.fromEntries(
+      surfaceKeys.map((key) => [`${key}@${WIDTH}`, hashDeterminismMap(loadStyleMap(mapPath(dir, key)))]),
+    );
+    return { stateKeys, mapHashes };
+  });
+
+  const verdict = assessDeterminismOracle(runs);
+  test.info().annotations.push({
+    type: 'determinism-oracle',
+    description: JSON.stringify(verdict),
+  });
+
+  expect(verdict).toEqual({
+    status: 'deterministic',
+    requiredRuns: 5,
+    observedRuns: 5,
+    matchingRuns: 5,
+    stateKeys,
+    mapHashes: runs[0].mapHashes,
+  });
 });
