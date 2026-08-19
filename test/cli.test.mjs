@@ -196,6 +196,44 @@ test('styleproof-map writes no manifest when the capture produced zero surfaces'
   }
 });
 
+test('styleproof-map clears stale surface maps from a reused capture directory', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    const maps = path.join(root, '.styleproof', 'maps', 'current');
+    fs.mkdirSync(maps, { recursive: true });
+    fs.writeFileSync(path.join(maps, 'old@900.json'), '{"stale":true}');
+    fs.writeFileSync(path.join(maps, 'old@900.png'), 'png');
+    fs.writeFileSync(path.join(maps, MAP_MANIFEST), '{"version":1}');
+    fs.writeFileSync(path.join(maps, 'notes.txt'), 'keep-me');
+
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; printf \'{}\' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/new@900.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+
+    const r = spawnSync(process.execPath, [MAP], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.existsSync(path.join(maps, 'old@900.json')), false, 'stale surface map must not survive reuse');
+    assert.equal(fs.existsSync(path.join(maps, 'old@900.png')), false, 'stale screenshot must not survive reuse');
+    assert.equal(fs.existsSync(path.join(maps, 'new@900.json')), true);
+    assert.equal(fs.readFileSync(path.join(maps, 'notes.txt'), 'utf8'), 'keep-me');
+    assert.ok(fs.existsSync(path.join(maps, MAP_MANIFEST)));
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-map --upload warns on a non-Linux capture and honours suppression', () => {
   // A map's compatibility key is platform-specific, so a bundle captured off Linux
   // can't be restored by the ubuntu-latest CI. Warn (don't block) so the pre-push

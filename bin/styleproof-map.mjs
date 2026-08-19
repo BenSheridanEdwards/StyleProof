@@ -24,9 +24,6 @@ import {
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
 import {
-  BROWSER_BUILD_SIDECAR,
-  FATAL_CAPTURE_MARKER,
-  SURFACE_CAPTURE_FAILURES_DIR,
   DEFAULT_MAP_DIR,
   DEFAULT_MAP_LABEL,
   DEFAULT_MAP_STORE_BRANCH,
@@ -34,6 +31,7 @@ import {
   MapStoreError,
   MapStorePreconditionError,
   MapStoreNotFoundError,
+  clearCaptureOutput,
   currentGitSha,
   expectedCompatibilityKey,
   isMapFile,
@@ -357,20 +355,19 @@ if (restore) {
   }
 }
 
-// Clear any prior run's browser-build sidecar before Playwright runs, so ONLY this
-// run can have written it. The default dir (.styleproof/maps/current) is reused across
-// runs; if this run records no browser version (the capture test not reached, or the
-// handle unavailable), a stale sidecar would otherwise be read into the manifest and
-// stamp a WRONG browser build that the compatibility guard then trusts as a fingerprint.
-fs.rmSync(path.join(targetDir, BROWSER_BUILD_SIDECAR), { force: true });
-// Same reuse hazard for the surface-capture-failures ledger: writeMapManifest reads
-// back whatever is on disk, so a failure recorded by a PRIOR run into this reused dir
-// (or restored from the store) would be stamped into THIS run's manifest — a healthy
-// recapture would publish a phantom "partial baseline" that every later diff then
-// blocks on with repair-base guidance no repair can satisfy.
-fs.rmSync(path.join(targetDir, SURFACE_CAPTURE_FAILURES_DIR), { recursive: true, force: true });
-// A reused output directory must never inherit a fatal result from a prior run.
-fs.rmSync(path.join(targetDir, FATAL_CAPTURE_MARKER), { force: true });
+// Clear the complete reserved generated namespace before Playwright runs. The
+// default dir (.styleproof/maps/current) is reused across runs; if this run
+// captures a smaller surface set, prior maps/screenshots/sidecars would otherwise
+// remain current-looking evidence and launder removed surfaces as still present.
+// clearCaptureOutput preserves unrelated user files and fails closed on malformed
+// reserved paths. Restore mode never reaches here.
+try {
+  clearCaptureOutput(targetDir);
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`styleproof-map: cannot reuse capture directory ${targetDir}\n${message}`);
+  process.exit(2);
+}
 
 const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const configArgs =
