@@ -58,6 +58,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   resolve them from the repo/config root, and fail loudly on missing files.
   Setup files still use `${ENV_VAR}` placeholders only — no secrets in config.
   Example config documents the out-of-box auth-blocker shape.
+  CLI e2e proves config-only setup unlocks a password wall and config-only
+  reasoned exclusion yields limited (never secret-bearing) evidence.
 
 - **First-class confidence ledger** (#399): `styleproof-confidence.json` is
   bundled next to the maps and assigns every surface one status — `captured`,
