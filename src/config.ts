@@ -30,6 +30,28 @@ export type AffectedConfig = {
   base?: string;
 };
 
+/** Pre-map / crawl adoption knobs a consumer can pin once in styleproof.config.json. */
+export type CrawlConfig = {
+  /** Running app origin for pre-map crawl / one-shot crawl (e.g. http://127.0.0.1:3000). */
+  baseUrl?: string;
+  /** Route paths or key=path entries for the crawl. */
+  routes?: string[];
+  /** JSON setup steps file (env-interpolated). Never put secrets here — use ${ENV}. */
+  setup?: string;
+  /** JSON auth-boundary exclusion file (key → reason). Limited evidence only. */
+  authBoundaryExclude?: string;
+  /** Fail when live-state fixtures or skipped candidates remain. */
+  strict?: boolean;
+  /** Variant crawl manifest output path. */
+  out?: string;
+  /** Max attempted actions per route. */
+  maxActions?: number;
+  /** Crawl viewport width. */
+  width?: number;
+  /** Crawl viewport height. */
+  height?: number;
+};
+
 export type StyleProofConfig = {
   /** Review-gate failures block the Action unless explicitly false. */
   blocking?: boolean;
@@ -44,6 +66,8 @@ export type StyleProofConfig = {
   /** Git remote for the map store (default origin). */
   remote?: string;
   affected?: AffectedConfig;
+  /** Closed-world crawl / auth-boundary adoption block. */
+  crawl?: CrawlConfig;
 };
 
 export class StyleProofConfigError extends Error {}
@@ -113,8 +137,53 @@ function parseAffected(value: unknown): AffectedConfig | undefined {
   };
 }
 
-const KNOWN_KEYS = ['blocking', 'gateInventoryRemovals', 'spec', 'dirtyAllow', 'cacheBranch', 'remote', 'affected'];
+function optionalPositiveNumber(value: unknown, key: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    fail(`"${key}" must be a positive number`);
+  }
+  return value;
+}
+
+function parseCrawl(value: unknown): CrawlConfig | undefined {
+  if (value === undefined) return undefined;
+  const c = plainObject(value, '"crawl"');
+  warnUnknownKeys(c, KNOWN_CRAWL_KEYS, '"crawl" ');
+  return {
+    baseUrl: optionalString(c.baseUrl, 'crawl.baseUrl'),
+    routes: optionalStringArray(c.routes, 'crawl.routes'),
+    setup: optionalString(c.setup, 'crawl.setup'),
+    authBoundaryExclude: optionalString(c.authBoundaryExclude, 'crawl.authBoundaryExclude'),
+    strict: optionalBoolean(c.strict, 'crawl.strict'),
+    out: optionalString(c.out, 'crawl.out'),
+    maxActions: optionalPositiveNumber(c.maxActions, 'crawl.maxActions'),
+    width: optionalPositiveNumber(c.width, 'crawl.width'),
+    height: optionalPositiveNumber(c.height, 'crawl.height'),
+  };
+}
+
+const KNOWN_KEYS = [
+  'blocking',
+  'gateInventoryRemovals',
+  'spec',
+  'dirtyAllow',
+  'cacheBranch',
+  'remote',
+  'affected',
+  'crawl',
+];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
+const KNOWN_CRAWL_KEYS = [
+  'baseUrl',
+  'routes',
+  'setup',
+  'authBoundaryExclude',
+  'strict',
+  'out',
+  'maxActions',
+  'width',
+  'height',
+];
 
 /** Unknown keys are a LOUD stderr warning, not an error: a typo'd `dirtyallow`
  *  silently reverting to defaults is exactly the failure this file's contract
@@ -147,5 +216,6 @@ export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
     cacheBranch: optionalString(record.cacheBranch, 'cacheBranch'),
     remote: optionalString(record.remote, 'remote'),
     affected: parseAffected(record.affected),
+    crawl: parseCrawl(record.crawl),
   };
 }

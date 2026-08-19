@@ -72,6 +72,9 @@ options:
   --crawl-width <px>  pre-map crawl viewport width (default: 1280)
   --crawl-height <px> pre-map crawl viewport height (default: 800)
   --crawl-strict      fail if live-state fixtures or skipped candidates remain
+  --setup <file>      JSON setup steps for protected UI (flag > env > config.crawl.setup)
+  --auth-boundary-exclude <file>
+                      reasoned auth exclusions (flag > env > config.crawl.authBoundaryExclude)
   --cache-branch <b>  map store branch (default: ${DEFAULT_MAP_STORE_BRANCH})
   --remote <name>     git remote for the map store (default: ${DEFAULT_REMOTE})
   --dirty-allow <path>
@@ -118,16 +121,34 @@ let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBran
 let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
 let uploadMode =
   process.env.STYLEPROOF_UPLOAD === '1' ? 'required' : process.env.STYLEPROOF_UPLOAD === '0' ? 'off' : 'auto';
-let crawlBaseUrl = process.env.STYLEPROOF_CRAWL_BASE_URL ?? '';
-const crawlRoutes = (process.env.STYLEPROOF_CRAWL_ROUTES ?? '')
-  .split(',')
-  .map((route) => route.trim())
-  .filter(Boolean);
-let crawlOut = process.env.STYLEPROOF_CRAWL_OUT ?? 'styleproof.variants.generated.json';
-let crawlMaxActions = process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ?? '';
-let crawlWidth = process.env.STYLEPROOF_CRAWL_WIDTH ?? '';
-let crawlHeight = process.env.STYLEPROOF_CRAWL_HEIGHT ?? '';
-let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1';
+let crawlBaseUrl = process.env.STYLEPROOF_CRAWL_BASE_URL ?? projectConfig.crawl?.baseUrl ?? '';
+const crawlRoutes = [
+  ...(projectConfig.crawl?.routes ?? []),
+  ...(process.env.STYLEPROOF_CRAWL_ROUTES ?? '')
+    .split(',')
+    .map((route) => route.trim())
+    .filter(Boolean),
+];
+let crawlOut = process.env.STYLEPROOF_CRAWL_OUT ?? projectConfig.crawl?.out ?? 'styleproof.variants.generated.json';
+let crawlMaxActions =
+  process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ??
+  (projectConfig.crawl?.maxActions != null ? String(projectConfig.crawl.maxActions) : '');
+let crawlWidth =
+  process.env.STYLEPROOF_CRAWL_WIDTH ?? (projectConfig.crawl?.width != null ? String(projectConfig.crawl.width) : '');
+let crawlHeight =
+  process.env.STYLEPROOF_CRAWL_HEIGHT ??
+  (projectConfig.crawl?.height != null ? String(projectConfig.crawl.height) : '');
+let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1' || projectConfig.crawl?.strict === true;
+// Setup / auth-boundary exclusions: flag > env > config. Paths resolve from repo cwd
+// (same root as styleproof.config.json) so detached CI worktrees stay consistent.
+let crawlSetup = process.env.STYLEPROOF_CRAWL_SETUP ?? process.env.STYLEPROOF_SETUP ?? projectConfig.crawl?.setup ?? '';
+let crawlAuthBoundaryExclude =
+  process.env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE ??
+  process.env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE ??
+  projectConfig.crawl?.authBoundaryExclude ??
+  '';
+let crawlSetupFromFlag = false;
+let crawlAuthExcludeFromFlag = false;
 let tolerateSurfaceFailures =
   process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
   process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true';
@@ -175,7 +196,25 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--crawl-height') crawlHeight = argv[++i];
   else if (a.startsWith('--crawl-height=')) crawlHeight = a.slice(15);
   else if (a === '--crawl-strict') crawlStrict = true;
-  else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
+  else if (a === '--crawl-setup' || a === '--setup') {
+    crawlSetup = argv[++i];
+    crawlSetupFromFlag = true;
+  } else if (a.startsWith('--crawl-setup=')) {
+    crawlSetup = a.slice(14);
+    crawlSetupFromFlag = true;
+  } else if (a.startsWith('--setup=')) {
+    crawlSetup = a.slice(8);
+    crawlSetupFromFlag = true;
+  } else if (a === '--crawl-auth-boundary-exclude' || a === '--auth-boundary-exclude') {
+    crawlAuthBoundaryExclude = argv[++i];
+    crawlAuthExcludeFromFlag = true;
+  } else if (a.startsWith('--crawl-auth-boundary-exclude=')) {
+    crawlAuthBoundaryExclude = a.slice(30);
+    crawlAuthExcludeFromFlag = true;
+  } else if (a.startsWith('--auth-boundary-exclude=')) {
+    crawlAuthBoundaryExclude = a.slice(24);
+    crawlAuthExcludeFromFlag = true;
+  } else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
   else if (a.startsWith('--dirty-allow=')) dirtyAllow.push(a.slice(14));
   else if (a === '--tolerate-surface-failures') tolerateSurfaceFailures = true;
   else if (a === '--cache-branch' || a === '--remote') {
@@ -272,6 +311,11 @@ function hasPlaywrightConfigArg(args) {
   return args.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
 }
 
+function resolveConfigPath(filePath) {
+  if (!filePath) return '';
+  return path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+}
+
 function variantCrawlArgs() {
   const args = ['--base-url', crawlBaseUrl, '--out', crawlOut];
   for (const route of crawlRoutes) args.push('--route', route);
@@ -284,7 +328,36 @@ function variantCrawlArgs() {
 
 function runVariantCrawl(env) {
   if (!crawlEnabled) return;
+  // Pre-map variant crawl discovers routes; setup/auth-boundary exclusions apply to
+  // the capture stage (styleproof-capture --crawl or the generated crawl capture path).
+  // Surface them as env so CI/automation can re-use the same resolved paths.
+  const setupPath = resolveConfigPath(crawlSetup);
+  const excludePath = resolveConfigPath(crawlAuthBoundaryExclude);
+  if (setupPath) {
+    if (!fs.existsSync(setupPath)) {
+      console.error(
+        `styleproof-map: crawl setup file not found: ${setupPath}` +
+          (crawlSetupFromFlag ? '' : ' (from styleproof.config.json crawl.setup)'),
+      );
+      process.exit(2);
+    }
+    env.STYLEPROOF_SETUP = setupPath;
+    env.STYLEPROOF_CRAWL_SETUP = setupPath;
+  }
+  if (excludePath) {
+    if (!fs.existsSync(excludePath)) {
+      console.error(
+        `styleproof-map: crawl auth-boundary exclude file not found: ${excludePath}` +
+          (crawlAuthExcludeFromFlag ? '' : ' (from styleproof.config.json crawl.authBoundaryExclude)'),
+      );
+      process.exit(2);
+    }
+    env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE = excludePath;
+    env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE = excludePath;
+  }
   console.error('styleproof-map: crawling UI variants before capture');
+  if (setupPath) console.error(`styleproof-map: crawl setup → ${setupPath}`);
+  if (excludePath) console.error(`styleproof-map: auth-boundary exclude → ${excludePath}`);
   const command = process.platform === 'win32' ? 'styleproof-variants.cmd' : 'styleproof-variants';
   let result = spawnSync(command, variantCrawlArgs(), { stdio: 'inherit', env });
   if (result.error?.code === 'ENOENT') {

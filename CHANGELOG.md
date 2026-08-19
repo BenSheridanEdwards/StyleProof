@@ -51,6 +51,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   next run recaptures), and accepted by design. New export:
   `compactMapStoreBranch` (+ `selectMapBundlesToRetain`,
   `MAP_STORE_PRUNE_SIDECAR`).
+- **Single-config crawl setup and auth-boundary exclusions:** `styleproof.config.json`
+  accepts a closed-world `crawl` block (`baseUrl`, `routes`, `setup`,
+  `authBoundaryExclude`, `strict`, viewport/out knobs). `styleproof-map` and
+  `styleproof-capture` project those paths with precedence flag > env > config,
+  resolve them from the repo/config root, and fail loudly on missing files.
+  Setup files still use `${ENV_VAR}` placeholders only — no secrets in config.
+  Example config documents the out-of-box auth-blocker shape.
+
 - **First-class confidence ledger** (#399): `styleproof-confidence.json` is
   bundled next to the maps and assigns every surface one status — `captured`,
   `excluded-with-reason`, `inaccessible`, `unknown`, or `unproven-determinism` —
