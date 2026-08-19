@@ -18,7 +18,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   PR-controlled code. Close/sweep maintenance jobs keep write access but check
   out the repository default branch, not the PR head. `styleproof-ci` gains
   `--no-upload` so cold-path capture can stay local when the job must not hold
-  map-store write credentials.
+  map-store write credentials. Capture also writes `styleproof-ci-outputs.json` so the
+  trusted report stage can still honor `base-capture-failed` without job-output bridging.
+  Init guidance states the report workflow only publishes after the scaffold reaches
+  the default branch.
 
 ### Added
 

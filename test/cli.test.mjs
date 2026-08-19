@@ -1084,13 +1084,21 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
       /"styleproof@\$STYLEPROOF_VERSION"/,
       'the exact-release pin lives inside styleproof-ci now',
     );
-    assert.match(ci, /BenSheridanEdwards\/StyleProof@v6/, 'workflow uses the current report action');
-    assert.match(ci, /require-approval: true/, 'workflow enables the approval report gate');
+    assert.doesNotMatch(ci, /BenSheridanEdwards\/StyleProof@v6/, 'capture workflow never holds the report action');
+    assert.doesNotMatch(ci, /require-approval: true/, 'approval gate lives on the trusted report workflow');
+    const report = fs.readFileSync(path.join(dir, '.github/workflows/styleproof-report.yml'), 'utf8');
+    assert.match(report, /BenSheridanEdwards\/StyleProof@v6/, 'report workflow uses the current report action');
+    assert.match(report, /require-approval: true/, 'report workflow enables the approval report gate');
+    assert.match(report, /base-capture-failed:/, 'report workflow forwards the durable base-capture-failed sidecar');
     assert.doesNotMatch(ci, /git add stylemaps/);
     assert.doesNotMatch(ci, /core\.hooksPath/);
 
-    assert.match(r.stdout, /it runs on your first PR with no extra steps/, 'guidance leads with zero-config');
-    assert.match(r.stdout, /pre-push hook restores an existing exact-SHA map/, 'the least-work hook is the default');
+    assert.match(r.stdout, /Merge this scaffold PR first/, 'guidance states default-branch report activation');
+    assert.match(
+      r.stdout,
+      /pre-push hook can still restore or publish exact-SHA maps/,
+      'the least-work hook is the default',
+    );
   } finally {
     rmTmp(dir);
   }

@@ -516,6 +516,18 @@ function countMaps(dir) {
 function writeOutputs(baseCaptureFailed = false) {
   const outputs = ciOutputLines(baseHit, headHit, baseCaptureFailed, baseRestoredFromAncestorSha);
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
+  // Durable sidecar travels with the artifact into the trusted report stage. The
+  // untrusted capture job cannot pass job outputs across workflow_run, so the
+  // report action must read this file (or stay stuck on the default false).
+  try {
+    fs.mkdirSync(baseDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(baseDir, 'styleproof-ci-outputs.json'),
+      `${JSON.stringify({ version: 1, baseCaptureFailed: Boolean(baseCaptureFailed), baseHit, headHit }, null, 2)}\n`,
+    );
+  } catch (error) {
+    log(`could not write styleproof-ci-outputs.json: ${error instanceof Error ? error.message : error}`);
+  }
   log(outputs.join(' '));
 }
 
