@@ -61,6 +61,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `${ENV_VAR}` placeholders only. Example ships companion setup/exclude files.
   CLI e2e proves config-only setup unlocks a password wall and config-only
   reasoned exclusion yields limited (never secret-bearing) evidence.
+- **Five-run state-class determinism oracle** (#400): new public
+  `hashDeterminismMap` canonicalizes object-key order before SHA-256 hashing, and
+  `assessDeterminismOracle` returns an explicit `deterministic`, `flake`, or
+  `insufficient` receipt from ordered state keys and map hashes. The promoted
+  hover/focus/press/click capture fixture now runs in five fresh browser contexts
+  and records exact 5/5 keys and hashes; one to four matching runs cannot certify.
 
 - **First-class confidence ledger** (#399): `styleproof-confidence.json` is
   bundled next to the maps and assigns every surface one status — `captured`,

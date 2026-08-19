@@ -913,6 +913,26 @@ Automatic discovery, config-file recipe parsing, transient observation windows,
 network-state recipes, live-region promotion, and state-coverage UI are **not**
 wired in this release — those remain follow-up slices.
 
+Before promoting a new state class, capture it in at least five fresh browser
+contexts and pass the public determinism oracle:
+
+```ts
+import { assessDeterminismOracle, hashDeterminismMap } from 'styleproof';
+
+const runs = captureDirs.map((dir) => ({
+  stateKeys: orderedKeys,
+  mapHashes: Object.fromEntries(orderedKeys.map((key) => [key, hashDeterminismMap(loadMap(dir, key))])),
+}));
+
+const verdict = assessDeterminismOracle(runs);
+if (verdict.status !== 'deterministic') throw new Error(JSON.stringify(verdict));
+```
+
+`deterministic` means every observed run matches and at least five were supplied.
+`flake` means five or more were supplied but their ordered keys or canonical map
+hashes differ. `insufficient` means fewer than five runs. Do not retry or weaken
+the assertion until a `flake` turns green; diagnose the unstable input.
+
 ### Live UI states: capture each state, not an average
 
 StyleProof automatically detects semantic live-state candidates (`aria-live`,

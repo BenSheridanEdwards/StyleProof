@@ -151,6 +151,9 @@ export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affe
 export { classifyAuthBoundary, isAuthPath } from './auth-boundary.js';
 export type { AuthBoundaryMetadata, AuthBoundaryDiagnostic } from './auth-boundary.js';
 
+export { assessDeterminismOracle, hashDeterminismMap } from './determinism-oracle.js';
+export type { DeterminismRunReceipt, DeterminismOracleVerdict } from './determinism-oracle.js';
+
 export { classifyIncompleteUi } from './incomplete-ui.js';
 export type { IncompleteUiMetadata, IncompleteUiDiagnostic } from './incomplete-ui.js';
 
