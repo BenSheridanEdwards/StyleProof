@@ -11,8 +11,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **Five-run state-class determinism oracle** (#400): new public
   `hashDeterminismMap` canonicalizes object-key order before SHA-256 hashing, and
-  `assessDeterminismOracle` returns an explicit `deterministic`, `flake`, or
-  `insufficient` receipt from ordered state keys and map hashes. The promoted
+  `assessDeterminismOracle` returns `deterministic` only for exactly five valid,
+  matching receipts; every wrong-count, malformed, or divergent input is an
+  explicit `flake` with a machine-readable reason. The promoted
   hover/focus/press/click capture fixture now runs in five fresh browser contexts
   and records exact 5/5 keys and hashes; one to four matching runs cannot certify.
 
