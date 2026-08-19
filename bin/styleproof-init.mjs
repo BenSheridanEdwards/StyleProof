@@ -592,10 +592,23 @@ jobs:
           path: \${{ runner.temp }}/styleproof-maps
           run-id: \${{ github.event.workflow_run.id }}
           github-token: \${{ github.token }}
+      - id: capture-meta
+        name: Read capture-stage outputs sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          meta="\${{ runner.temp }}/styleproof-maps/styleproof-ci-outputs.json"
+          if [ -f "$meta" ]; then
+            failed="$(node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(j.baseCaptureFailed===true?'true':'false')" "$meta")"
+          else
+            failed=false
+          fi
+          echo "base-capture-failed=$failed" >> "$GITHUB_OUTPUT"
       - uses: BenSheridanEdwards/StyleProof@v6
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
+          base-capture-failed: \${{ steps.capture-meta.outputs.base-capture-failed }}
           require-approval: true
 `;
 
@@ -1208,15 +1221,16 @@ if (touched.length) {
   console.log('It did NOT modify package.json or your lockfile (that was your package manager’s install).');
 }
 
-console.log('\nHow the gate works — it runs on your first PR with no extra steps:');
-console.log('  1. Commit and open a PR. The read-only capture workflow installs and captures');
-console.log('     under contents: read only, then uploads the style maps as an artifact.');
-console.log('  2. A trusted default-branch report workflow downloads that artifact, diffs,');
+console.log('\nHow the gate works:');
+console.log('  1. Merge this scaffold PR first. workflow_run report + approve only run from your');
+console.log('     default branch — the first PR captures maps but cannot publish the trusted report');
+console.log('     until styleproof-report.yml (and styleproof-approve.yml) are on default.');
+console.log('  2. On later PRs, the read-only capture workflow installs and captures under');
+console.log('     contents: read only, then uploads style maps as an artifact.');
+console.log('  3. The trusted default-branch report workflow downloads that artifact, diffs,');
 console.log('     comments, and sets status — without ever checking out PR-controlled code.');
-console.log('  3. The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
+console.log('  4. The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
 console.log('     Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
-console.log('  4. Merge this PR. The approval workflow only runs from your default branch, so');
-console.log('     the "Approve all changes" checkbox goes live once styleproof-approve.yml is there.');
 
 if (!wroteSomething) console.log('\nnothing to write — project already scaffolded.');
 process.exit(0);

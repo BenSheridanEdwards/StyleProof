@@ -431,6 +431,8 @@ test('styleproof-init: untrusted PR capture never receives write credentials', (
     assert.match(report, /actions:\s*read/);
     assert.match(report, /actions\/download-artifact@/);
     assert.match(report, /BenSheridanEdwards\/StyleProof@v6/);
+    assert.match(report, /base-capture-failed:/);
+    assert.match(report, /styleproof-ci-outputs\.json/);
     assert.doesNotMatch(report, /actions\/checkout@/);
     assert.doesNotMatch(report, /npm ci|pnpm install|yarn install|bun install/);
     assert.doesNotMatch(report, /styleproof-ci\.mjs/);
