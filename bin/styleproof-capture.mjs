@@ -28,6 +28,9 @@ import {
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { selectCrawlLinks, dedupIdentity } from '../dist/crawl.js';
 import { clearCaptureOutput, writeCaptureManifest } from '../dist/map-store.js';
+import { loadStyleProofConfig } from '../dist/config.js';
+import path from 'node:path';
+import fs from 'node:fs';
 import { cliSafeLine, crawlCaptureExitCode } from '../dist/crawl-confidence.js';
 import {
   buildConfidenceLedger,
@@ -110,6 +113,34 @@ let setupSteps;
 let authBoundaryExclude;
 try {
   opts = parseCaptureUrlArgs(argv);
+  // Config projection: flag > env > styleproof.config.json crawl block.
+  // Paths resolve from the repo/config root so head and detached base worktrees agree.
+  const projectConfig = loadStyleProofConfig(process.cwd());
+  const resolveCfg = (filePath) =>
+    !filePath ? '' : path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+  if (!opts.setupFile) {
+    opts.setupFile =
+      process.env.STYLEPROOF_SETUP || process.env.STYLEPROOF_CRAWL_SETUP || projectConfig.crawl?.setup || undefined;
+  }
+  if (!opts.authBoundaryExcludeFile) {
+    opts.authBoundaryExcludeFile =
+      process.env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE ||
+      process.env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE ||
+      projectConfig.crawl?.authBoundaryExclude ||
+      undefined;
+  }
+  if (opts.setupFile) opts.setupFile = resolveCfg(opts.setupFile);
+  if (opts.authBoundaryExcludeFile) opts.authBoundaryExcludeFile = resolveCfg(opts.authBoundaryExcludeFile);
+  if (opts.setupFile && !fs.existsSync(opts.setupFile)) {
+    throw new UsageError(`--setup: cannot read ${opts.setupFile}`);
+  }
+  if (opts.authBoundaryExcludeFile && !fs.existsSync(opts.authBoundaryExcludeFile)) {
+    throw new UsageError(`--auth-boundary-exclude: cannot read ${opts.authBoundaryExcludeFile}`);
+  }
+  // Config can also enable crawl defaults when the user only points at a URL.
+  if (!opts.crawl && projectConfig.crawl?.baseUrl && opts.url) {
+    // leave crawl false unless user asked; config setup/exclude still apply
+  }
   setupSteps = opts.setupFile ? loadSetupSteps(opts.setupFile) : undefined;
   opts.setup = setupSteps; // one-shot capture honours setup steps too
   authBoundaryExclude = opts.authBoundaryExcludeFile

@@ -1,3 +1,10 @@
 {
-  "blocking": true
+  "blocking": true,
+  "crawl": {
+    "baseUrl": "http://127.0.0.1:3000",
+    "routes": ["/", "account=/account"],
+    "setup": "styleproof.setup.json",
+    "authBoundaryExclude": "styleproof.auth-boundary-exclude.json",
+    "strict": true
+  }
 }
