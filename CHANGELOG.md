@@ -25,6 +25,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   when the run would exit 0 (coverage complete, determinism proven, and no
   inventory/residue/style/DOM/new-surface failures). This closes the filtered
   one-surface false-green path where a grepped capture warned then exited 0.
+### Security
+
+- **Untrusted PR capture no longer receives write credentials (P0):** generated
+  `styleproof-init` CI is split into a read-only `StyleProof capture` workflow
+  (`contents: read`, `actions: read`, `persist-credentials: false`,
+  `styleproof-ci --no-upload`, artifact upload only) and a trusted default-branch
+  `StyleProof report` workflow (`workflow_run`) that downloads the artifact and
+  publishes with write permissions without checking out or installing
+  PR-controlled code. Close/sweep maintenance jobs keep write access but check
+  out the repository default branch, not the PR head. `styleproof-ci` gains
+  `--no-upload` so cold-path capture can stay local when the job must not hold
+  map-store write credentials.
 
 ### Added
 
