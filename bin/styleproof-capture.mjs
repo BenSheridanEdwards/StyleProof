@@ -41,9 +41,12 @@ import {
 
 const COMMAND = 'styleproof-capture';
 
-const HELP = `${COMMAND} — capture a page's computed-style map(s) (no spec, no config)
+const HELP = `${COMMAND} — capture a page's computed-style map(s) (no Playwright spec)
 
 usage: ${COMMAND} <url> [options]
+
+Honors optional repo-root styleproof.config.json crawl.setup / crawl.authBoundaryExclude
+(flag > env > config). Secrets stay in env via \${ENV} placeholders in the setup file.
 
 one state (default): capture the page as it loads
   --key <name>      capture file prefix, <key>@<width>.json.gz (default: page)
@@ -136,10 +139,6 @@ try {
   }
   if (opts.authBoundaryExcludeFile && !fs.existsSync(opts.authBoundaryExcludeFile)) {
     throw new UsageError(`--auth-boundary-exclude: cannot read ${opts.authBoundaryExcludeFile}`);
-  }
-  // Config can also enable crawl defaults when the user only points at a URL.
-  if (!opts.crawl && projectConfig.crawl?.baseUrl && opts.url) {
-    // leave crawl false unless user asked; config setup/exclude still apply
   }
   setupSteps = opts.setupFile ? loadSetupSteps(opts.setupFile) : undefined;
   opts.setup = setupSteps; // one-shot capture honours setup steps too
