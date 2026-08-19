@@ -692,6 +692,19 @@ function writeManifest(dir, sha, compatibilityKey) {
       2,
     ),
   );
+  // Certifying fixtures need asserted coverage + proven determinism ledgers.
+  const expected = [
+    ...new Set(
+      fs
+        .readdirSync(dir)
+        .filter((name) => /@\d+\.json(?:\.gz)?$/.test(name))
+        .map((name) => name.replace(/@\d+\.json(?:\.gz)?$/, '')),
+    ),
+  ];
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-coverage.json'),
+    JSON.stringify({ version: 1, expected, exclude: {}, determinism: 'self-checked' }),
+  );
 }
 
 function seedMapStore(repo, bundles) {

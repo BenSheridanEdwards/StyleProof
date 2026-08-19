@@ -474,10 +474,13 @@ report leads with their verdicts:
 - **Coverage** — the `expected` registry travels with the captured bundle as a
   ledger, so the gate states its completeness basis: `✓ coverage complete`,
   `✗ coverage INCOMPLETE` (blocks — a registered surface wasn't captured, even
-  on an empty diff), or `⚠ completeness NOT asserted` (no registry declared).
+  on an empty diff), or `✗ completeness NOT asserted` (no registry / filtered
+  capture — blocks certification unless `--allow-unasserted` diagnostic mode).
 - **Determinism** — the ledger records how each capture proved itself
-  (`self-checked` / `replayed`); a green from an `unproven` capture blocks,
-  because a clean diff of two nondeterministic reads could just be luck.
+  (`self-checked` / `replayed`); a green from an `unproven` **or unknown**
+  capture blocks, because a clean diff of two nondeterministic (or pre-ledger)
+  reads could just be luck. Pass `--allow-unasserted` only for explicit
+  diagnostic compares (`certifiesFully: false` in JSON).
 - **Inventory** — with `inventory: true` (on in `styleproof-init` scaffolds),
   each capture harvests the surface's navigable affordances (links, tabs, menu
   items, keyed by stable identity, not label text). A removal that makes a

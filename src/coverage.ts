@@ -143,7 +143,8 @@ export type CoverageLedger = {
 export type DeterminismVerdict = {
   /** `proven` — both sides self-checked or replayed; `unproven` — a side was neither, so
    *  a clean diff might just be two matching NONDETERMINISTIC captures; `unknown` — an
-   *  older bundle with no determinism field (degrade, don't block). */
+   *  older bundle with no determinism field (fail closed at the gate unless diagnostic
+   *  `--allow-unasserted`). */
   status: 'proven' | 'unproven' | 'unknown';
   base: DeterminismBasis | 'unknown';
   head: DeterminismBasis | 'unknown';
@@ -161,8 +162,8 @@ export function auditDeterminism(base: CoverageLedger | null, head: CoverageLedg
 
 export type CoverageVerdict = {
   /** `complete` — every registered surface captured; `incomplete` — a registered
-   *  surface is missing (gates); `unasserted` — no registry, so a green can only
-   *  certify the captured surfaces, not that they are all of them. */
+   *  surface is missing (gates); `unasserted` — no registry (gates certification
+   *  unless `--allow-unasserted` diagnostic mode). */
   basis: 'complete' | 'incomplete' | 'unasserted';
   /** Size of the declared registry, or null when unasserted. */
   registrySize: number | null;
