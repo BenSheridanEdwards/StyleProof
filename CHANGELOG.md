@@ -13,7 +13,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof-diff` now fails closed (exit 1) when completeness is unasserted or
   determinism is unknown/unproven, matching incomplete coverage. Pass
   `--allow-unasserted` only for explicit diagnostic compares; JSON then reports
-  `certifiesFully: false` and `diagnostic: true`. This closes the filtered
+  `certifiesFully: false` and `diagnostic: true`. `certifiesFully` is true only
+  when the run would exit 0 (coverage complete, determinism proven, and no
+  inventory/residue/style/DOM/new-surface failures). This closes the filtered
   one-surface false-green path where a grepped capture warned then exited 0.
 
 ### Added

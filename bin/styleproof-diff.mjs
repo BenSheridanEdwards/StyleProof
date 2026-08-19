@@ -395,6 +395,7 @@ let surfacePaths = new Map();
 let surfaceKeyOf = () => undefined;
 let baselineSurfaceFailures = [];
 let baselineProvenance = null;
+let baseMapCount = 0;
 try {
   // v4: a side without a manifest is unsupported — the same-environment guard can't be
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
@@ -425,6 +426,9 @@ try {
   // Baseline provenance (#367) — same "read while the dirs exist" rule. `null`
   // when the run recorded none (every run before the opt-in ancestor reuse).
   baselineProvenance = readBaselineProvenance(dirA);
+  // First-adoption bare base: zero maps on the before side. Used so exit 3 is not
+  // swallowed by unasserted/unknown fail-closed (filtered pairs still have maps).
+  baseMapCount = fs.existsSync(dirA) ? fs.readdirSync(dirA).filter(isMapFile).length : 0;
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -552,12 +556,38 @@ const invRemovals = printInventoryAudit(inventoryAudit);
 const residueFails = printResidueAudit(residueAudit);
 const coverageFails = printCoverageVerdict(coverageVerdict, { allowUnasserted });
 const determinismFails = printDeterminismVerdict(determinismVerdict, { allowUnasserted });
+const total = counts.dom + counts.style + counts.state;
+const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
+const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;
+const greenfieldNewSurfaces = surfaces.filter(
+  (s) => s.missing === 'before' && !surfaceMissingMatchesBaselineFailure(s.surface, baselineSurfaceFailures),
+).length;
+// One SurfaceDiff per distinct surface across both sides (incl. missing-on-one-side).
+const surfaceCount = surfaces.length;
+// True first-adoption: bare before dir, only greenfield head surfaces. Keep exit 3 —
+// do not let unasserted/unknown swallow it. Filtered pairs still have base maps.
+const firstAdoptionBareBase =
+  baseMapCount === 0 &&
+  greenfieldNewSurfaces > 0 &&
+  removedSurfaces === 0 &&
+  total === 0 &&
+  invRemovals === 0 &&
+  residueFails === 0;
+const coverageBlocks = coverageFails && !(firstAdoptionBareBase && coverageVerdict?.basis === 'unasserted');
+const determinismBlocks = determinismFails && !(firstAdoptionBareBase && determinismVerdict?.status === 'unknown');
+// True only when the run would exit 0 as a full certification (not diagnostic).
 const certifiesFully =
   !allowUnasserted &&
+  !truth.rawOnlyNoReviewable &&
+  total === 0 &&
+  removedSurfaces === 0 &&
+  invRemovals === 0 &&
+  residueFails === 0 &&
+  !coverageBlocks &&
+  !determinismBlocks &&
+  greenfieldNewSurfaces === 0 &&
   coverageVerdict?.basis === 'complete' &&
-  determinismVerdict?.status === 'proven' &&
-  !coverageFails &&
-  !determinismFails;
+  determinismVerdict?.status === 'proven';
 
 if (jsonOut) {
   // A write failure (bad --json path, unwritable dir) is a usage/setup error, not a
@@ -639,14 +669,8 @@ if (jsonOut) {
   }
 }
 
-const total = counts.dom + counts.style + counts.state;
-const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
-const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;
-const greenfieldNewSurfaces = surfaces.filter(
-  (s) => s.missing === 'before' && !surfaceMissingMatchesBaselineFailure(s.surface, baselineSurfaceFailures),
-).length;
-// One SurfaceDiff per distinct surface across both sides (incl. missing-on-one-side).
-const surfaceCount = surfaces.length;
+// newSurfaces / removedSurfaces / greenfieldNewSurfaces / surfaceCount / total
+// computed above with certifiesFully
 if (volatile > 0)
   console.log(
     `\n⚠ ${volatile} auto-detected volatile subtree(s) excluded from the comparison (still mutating at capture\n` +
@@ -662,15 +686,23 @@ const removedNote = removedSurfaces ? ` + ${removedSurfaces} REMOVED surface(s)`
 const invNote = invRemovals ? ` + ${invRemovals} inventory gate failure(s) (unacknowledged or stale)` : '';
 // residueFails counts unacknowledged failing endpoints AND stale acknowledgements (both gate).
 const resNote = residueFails ? ` + ${residueFails} data-residue gate failure(s) (unacknowledged or stale)` : '';
-const covNote = coverageFails ? ` + ${coverageVerdict.uncovered.length} uncaptured registered surface(s)` : '';
-const detNote = determinismFails ? ' + determinism unproven' : '';
+const covNote = coverageBlocks
+  ? coverageVerdict?.basis === 'unasserted'
+    ? ' + completeness unasserted'
+    : ` + ${coverageVerdict.uncovered.length} uncaptured registered surface(s)`
+  : '';
+const detNote = determinismBlocks
+  ? determinismVerdict?.status === 'unknown'
+    ? ' + determinism unknown'
+    : ' + determinism unproven'
+  : '';
 const clean =
   total === 0 &&
   removedSurfaces === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
-  !coverageFails &&
-  !determinismFails;
+  !coverageBlocks &&
+  !determinismBlocks;
 if (truth.rawOnlyNoReviewable) {
   // Derived-only style findings now render (cleanFindingsForDisplay), so the one
   // shape left here is a delta with no displayable form at all — e.g. a forced-
@@ -690,11 +722,12 @@ console.log(
         : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${covNote}${detNote}`,
 );
-// 0 = identical, 1 = reviewable differences (incl. a REMOVED surface, inventory/residue gate
-// failures — unacknowledged or stale — an incomplete coverage registry, or an
-// unproven-determinism capture), 3 = ONLY new surfaces (no baseline). 2 = usage.
+// 0 = identical certified, 1 = reviewable differences or non-certifying evidence
+// (unasserted completeness, unknown/unproven determinism, incomplete registry,
+// inventory/residue failures, removed surfaces), 3 = ONLY new surfaces on a true
+// first-adoption bare base (or greenfield with proven ledgers). 2 = usage.
 process.exit(
-  total > 0 || removedSurfaces > 0 || invRemovals > 0 || residueFails > 0 || coverageFails || determinismFails
+  total > 0 || removedSurfaces > 0 || invRemovals > 0 || residueFails > 0 || coverageBlocks || determinismBlocks
     ? 1
     : greenfieldNewSurfaces > 0
       ? 3
