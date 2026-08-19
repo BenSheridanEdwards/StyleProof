@@ -227,8 +227,8 @@ function readLedger(dir) {
   }
 }
 
-// Print the completeness verdict; return true if it BLOCKS (a registered surface is missing).
-function printCoverageVerdict(v) {
+// Print the completeness verdict; return true if it BLOCKS certification.
+function printCoverageVerdict(v, { allowUnasserted = false } = {}) {
   if (v.basis === 'complete') {
     console.log(`\n✓ coverage complete — all ${v.registrySize} registered surface(s) captured or explicitly excluded`);
     for (const k of v.staleExclusions ?? [])
@@ -236,11 +236,19 @@ function printCoverageVerdict(v) {
     return false;
   }
   if (v.basis === 'unasserted') {
+    if (allowUnasserted) {
+      console.log(
+        '\n⚠ completeness NOT asserted — diagnostic mode (--allow-unasserted): comparing captured surfaces only.\n' +
+          '  This run does NOT certify fully. Declare `expected` for certifying captures.',
+      );
+      return false;
+    }
     console.log(
-      '\n⚠ completeness NOT asserted — the spec declared no `expected` registry, so this certifies only the\n' +
-        '  surfaces that were captured, not that they are all of them. Declare `expected` to certify completeness.',
+      '\n✗ completeness NOT asserted — refusing certification. A filtered, crawl, or registry-less\n' +
+        '  capture cannot share exit 0 with a complete asserted capture. Declare `expected`, or pass\n' +
+        '  --allow-unasserted for an explicit diagnostic comparison (certifiesFully: false).',
     );
-    return false;
+    return true;
   }
   console.log(
     `\n✗ coverage INCOMPLETE — ${v.uncovered.length} registered surface(s) not captured (of ${v.registrySize}):`,
@@ -252,21 +260,26 @@ function printCoverageVerdict(v) {
   return true;
 }
 
-// Print the determinism verdict; return true if it BLOCKS (a side's capture was unproven).
-function printDeterminismVerdict(v) {
+// Print the determinism verdict; return true if it BLOCKS certification.
+function printDeterminismVerdict(v, { allowUnasserted = false } = {}) {
   if (v.status === 'proven') {
     console.log(`\n✓ determinism proven — base ${v.base}, head ${v.head}`);
     return false;
   }
   if (v.status === 'unknown') {
-    // No ledger at all = an ad-hoc `styleproof-capture` output (which doesn't
-    // self-check) or a pre-3.10 bundle; a spec capture records the basis.
+    if (allowUnasserted) {
+      console.log(
+        '\n⚠ determinism basis unknown — diagnostic mode (--allow-unasserted): comparing as-is.\n' +
+          '  This run does NOT certify fully. Spec-driven captures self-check and record the basis.',
+      );
+      return false;
+    }
     console.log(
-      '\n⚠ determinism basis unknown — a side carries no determinism ledger (an ad-hoc styleproof-capture\n' +
-        '  output, or a capture from before the ledger existed). A spec-driven capture (styleproof-map)\n' +
-        '  self-checks and records it; ad-hoc captures are compared as-is.',
+      '\n✗ determinism basis unknown — refusing certification. A side carries no proven determinism\n' +
+        '  ledger (filtered map, ad-hoc capture, or pre-ledger bundle). Spec-driven styleproof-map\n' +
+        '  self-checks and records it; pass --allow-unasserted only for explicit diagnostic compares.',
     );
-    return false;
+    return true;
   }
   console.log(
     `\n✗ determinism NOT proven — base ${v.base}, head ${v.head}. An unproven capture can drift, so a clean\n` +
@@ -289,9 +302,16 @@ options:
   --remote <name>   git remote for the map store (default: ${DEFAULT_REMOTE})
   --max <n>        max lines printed per surface before truncating (default: 40)
   --json <file>    also write the full structured diff to <file>
+  --allow-unasserted
+                   diagnostic mode: permit unasserted completeness / unknown
+                   determinism without exit 1. JSON marks certifiesFully=false.
+                   Default certification still requires asserted coverage and
+                   proven determinism.
   -h, --help       show this help
 
-exit: 0 identical (certified), 1 differences found, 2 usage/capture error,
+exit: 0 identical (certified), 1 differences found OR non-certifying evidence
+      (unasserted completeness, unknown/unproven determinism, incomplete registry,
+      inventory/residue failures, removed surfaces), 2 usage/capture error,
       3 only NEW surfaces (present only on the head side, no baseline to diff
       against); a REMOVED surface (present only on the base side) exits 1
 `;
@@ -300,6 +320,7 @@ const argv = process.argv.slice(2);
 const args = [];
 let MAX = 40;
 let jsonOut = null;
+let allowUnasserted = false;
 // Repo config is the lowest-precedence default layer (flag > env > file > built-in),
 // matching styleproof-map/-prepush/-ci — without it, a repo whose config moves the
 // spec or store branch computed a different compatibility key here than the capture
@@ -320,6 +341,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i].startsWith('--cache-branch=')) cacheBranch = argv[i].slice(15);
   else if (argv[i] === '--remote') remote = argv[++i];
   else if (argv[i].startsWith('--remote=')) remote = argv[i].slice(9);
+  else if (argv[i] === '--allow-unasserted') allowUnasserted = true;
   else if (argv[i].startsWith('--')) {
     console.error(unknownFlagMessage(COMMAND, argv[i]));
     process.exit(2);
@@ -528,8 +550,14 @@ for (const cg of rest) printGroup(cg);
 
 const invRemovals = printInventoryAudit(inventoryAudit);
 const residueFails = printResidueAudit(residueAudit);
-const coverageFails = printCoverageVerdict(coverageVerdict);
-const determinismFails = printDeterminismVerdict(determinismVerdict);
+const coverageFails = printCoverageVerdict(coverageVerdict, { allowUnasserted });
+const determinismFails = printDeterminismVerdict(determinismVerdict, { allowUnasserted });
+const certifiesFully =
+  !allowUnasserted &&
+  coverageVerdict?.basis === 'complete' &&
+  determinismVerdict?.status === 'proven' &&
+  !coverageFails &&
+  !determinismFails;
 
 if (jsonOut) {
   // A write failure (bad --json path, unwritable dir) is a usage/setup error, not a
@@ -570,6 +598,8 @@ if (jsonOut) {
           statesUncertified,
           coverage: coverageVerdict,
           determinism: determinismVerdict,
+          certifiesFully,
+          diagnostic: allowUnasserted,
           // The inventory verdict, machine-readable — parallel to coverage/determinism and
           // to the report's certification block. `null` when no capture carried inventory.
           // `unacknowledged` is the gating set: a CI can hard-fail on `unacknowledged.length`.

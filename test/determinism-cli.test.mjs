@@ -39,8 +39,8 @@ function stampManifest(dir, sha) {
 }
 
 // base+head both capture one identical surface (clean style diff), each with a ledger
-// carrying its determinism basis. `expected: null` keeps coverage "unasserted" so only
-// determinism is under test. `undefined` = no field (an older bundle).
+// carrying its determinism basis. `expected: ['home']` keeps coverage complete so only
+// determinism is under test. `undefined` det = no field (an older bundle).
 function fixture(baseDet, headDet) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-det-'));
   const base = path.join(root, 'base');
@@ -49,7 +49,7 @@ function fixture(baseDet, headDet) {
   fs.mkdirSync(head);
   fs.writeFileSync(path.join(base, 'home@1440.json'), map());
   fs.writeFileSync(path.join(head, 'home@1440.json'), map());
-  const ledger = (d) => ({ version: 1, expected: null, exclude: {}, ...(d ? { determinism: d } : {}) });
+  const ledger = (d) => ({ version: 1, expected: ['home'], exclude: {}, ...(d ? { determinism: d } : {}) });
   fs.writeFileSync(path.join(base, COVERAGE_LEDGER), JSON.stringify(ledger(baseDet)));
   fs.writeFileSync(path.join(head, COVERAGE_LEDGER), JSON.stringify(ledger(headDet)));
   stampManifest(base, 'base-sha');
@@ -95,10 +95,46 @@ test('an unproven BASE capture BLOCKS too (exit 1)', () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('an older bundle with no determinism field degrades to "unknown" (exit 0, not a false red)', () => {
+test('an older bundle with no determinism field blocks certification (exit 1)', () => {
   const { root, base, head } = fixture(undefined, undefined);
   const { code, out } = run(base, head);
-  assert.equal(code, 0, `absent field degrades gracefully\n${out}`);
+  assert.equal(code, 1, `unknown determinism must not share exit 0 with certified greens\n${out}`);
   assert.match(out, /determinism basis unknown/);
+  assert.match(out, /refusing certification|--allow-unasserted/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('--allow-unasserted permits diagnostic compare when determinism is unknown', () => {
+  const { root, base, head } = fixture(undefined, undefined);
+  let code = 0;
+  let out;
+  const jsonPath = path.join(root, 'out.json');
+  try {
+    out = execFileSync('node', [BIN, base, head, '--allow-unasserted', '--json', jsonPath], { encoding: 'utf8' });
+  } catch (e) {
+    code = e.status;
+    out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+  }
+  assert.equal(code, 0, `diagnostic mode must stay non-blocking\n${out}`);
+  const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(json.certifiesFully, false);
+  assert.equal(json.diagnostic, true);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('missing coverage ledger (filtered one-surface bundle) fails closed', () => {
+  // Exact dogfood shape: maps + manifest only, no styleproof-coverage.json.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-filtered-'));
+  const base = path.join(root, 'base');
+  const head = path.join(root, 'head');
+  fs.mkdirSync(base);
+  fs.mkdirSync(head);
+  fs.writeFileSync(path.join(base, 'home@1440.json'), map());
+  fs.writeFileSync(path.join(head, 'home@1440.json'), map());
+  stampManifest(base, 'base-sha');
+  stampManifest(head, 'head-sha');
+  const { code, out } = run(base, head);
+  assert.equal(code, 1, `filtered unasserted pair must not certify\n${out}`);
+  assert.match(out, /completeness NOT asserted|determinism basis unknown/);
   fs.rmSync(root, { recursive: true, force: true });
 });

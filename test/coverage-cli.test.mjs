@@ -39,7 +39,9 @@ function stampManifest(dir, sha) {
 }
 
 // base+head both capture `captured` (so the STYLE diff is empty — isolating coverage).
-// head carries the coverage ledger { expected, exclude }.
+// head carries the coverage ledger { expected, exclude }. Both sides record proven
+// determinism so completeness is the only variable under test (unknown determinism
+// is fail-closed on its own).
 function fixture(captured, expected, exclude = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-cov-'));
   const base = path.join(root, 'base');
@@ -50,7 +52,9 @@ function fixture(captured, expected, exclude = {}) {
     fs.writeFileSync(path.join(base, `${k}@1440.json`), map());
     fs.writeFileSync(path.join(head, `${k}@1440.json`), map());
   }
-  fs.writeFileSync(path.join(head, COVERAGE_LEDGER), JSON.stringify({ version: 1, expected, exclude }));
+  const ledger = (exp) => ({ version: 1, expected: exp, exclude, determinism: 'self-checked' });
+  fs.writeFileSync(path.join(base, COVERAGE_LEDGER), JSON.stringify(ledger(expected)));
+  fs.writeFileSync(path.join(head, COVERAGE_LEDGER), JSON.stringify(ledger(expected)));
   stampManifest(base, 'base-sha');
   stampManifest(head, 'head-sha');
   return { root, base, head };
@@ -90,10 +94,31 @@ test('an excluded surface counts as covered (exit 0)', () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('no registry → "completeness NOT asserted" (green, but honest about its basis)', () => {
+test('no registry → completeness NOT asserted blocks certification (exit 1)', () => {
   const { root, base, head } = fixture(['home'], null); // expected: null = the crawl / no-registry case
   const { code, out } = run(base, head);
-  assert.equal(code, 0, `no registry still greens, but says so\n${out}`);
+  assert.equal(code, 1, `unasserted completeness must not share exit 0 with certified greens\n${out}`);
   assert.match(out, /completeness NOT asserted/);
+  assert.match(out, /refusing certification|--allow-unasserted/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('--allow-unasserted permits diagnostic compare of registry-less bundles (exit 0, certifiesFully false)', () => {
+  const { root, base, head } = fixture(['home'], null);
+  let code = 0;
+  let out;
+  try {
+    out = execFileSync('node', [BIN, base, head, '--allow-unasserted', '--json', path.join(root, 'out.json')], {
+      encoding: 'utf8',
+    });
+  } catch (e) {
+    code = e.status;
+    out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+  }
+  assert.equal(code, 0, `diagnostic mode must stay non-blocking\n${out}`);
+  assert.match(out, /diagnostic mode/);
+  const json = JSON.parse(fs.readFileSync(path.join(root, 'out.json'), 'utf8'));
+  assert.equal(json.certifiesFully, false);
+  assert.equal(json.diagnostic, true);
   fs.rmSync(root, { recursive: true, force: true });
 });

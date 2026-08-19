@@ -61,8 +61,10 @@ function fixture(baseKeys, headKeys) {
 }
 
 function runDiff(a, b, cwd) {
+  // Inventory fixtures deliberately omit full coverage/determinism ledgers; isolate
+  // the inventory gate under explicit diagnostic mode.
   try {
-    return { code: 0, out: execFileSync('node', [BIN, a, b], { cwd, encoding: 'utf8' }) };
+    return { code: 0, out: execFileSync('node', [BIN, a, b, '--allow-unasserted'], { cwd, encoding: 'utf8' }) };
   } catch (e) {
     return { code: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
   }
@@ -103,7 +105,7 @@ test('styleproof-diff --json exposes the inventory verdict (the CI gating signal
   const { root, a, b } = fixture(['agents', 'model-config', 'faults'], ['agents', 'faults']);
   const jsonPath = path.join(root, 'diff.json');
   assert.throws(
-    () => execFileSync('node', [BIN, a, b, '--json', jsonPath], { cwd: root, encoding: 'utf8' }),
+    () => execFileSync('node', [BIN, a, b, '--allow-unasserted', '--json', jsonPath], { cwd: root, encoding: 'utf8' }),
     (e) => e.status === 1, // the removal still gates via exit code
   );
   const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
@@ -126,7 +128,7 @@ test('styleproof-diff --json inventory is null when no capture carried inventory
   stampManifest(a, 'base-sha');
   stampManifest(b, 'head-sha');
   const jsonPath = path.join(root, 'diff.json');
-  execFileSync('node', [BIN, a, b, '--json', jsonPath], { cwd: root, encoding: 'utf8' });
+  execFileSync('node', [BIN, a, b, '--allow-unasserted', '--json', jsonPath], { cwd: root, encoding: 'utf8' });
   const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
   assert.equal(j.inventory, null, 'no inventory in the maps → null verdict, nothing to gate on');
   // Armed-but-empty note: distinguish "null because no map carried inventory" from

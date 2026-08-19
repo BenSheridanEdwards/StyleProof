@@ -15,6 +15,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   non-restore capture, so a smaller second run cannot leave prior
   `surface@width` maps, screenshots, or reserved sidecars looking current.
   Unrelated user files remain preserved; malformed reserved paths fail closed.
+### Fixed
+
+- **Unasserted / unknown evidence no longer shares exit 0 with certified greens:**
+  `styleproof-diff` now fails closed (exit 1) when completeness is unasserted or
+  determinism is unknown/unproven, matching incomplete coverage. Pass
+  `--allow-unasserted` only for explicit diagnostic compares; JSON then reports
+  `certifiesFully: false` and `diagnostic: true`. This closes the filtered
+  one-surface false-green path where a grepped capture warned then exited 0.
 
 ### Added
 
