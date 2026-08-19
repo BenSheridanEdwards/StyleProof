@@ -8,6 +8,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ## [6.1.0] - 2026-08-25
+### Fixed
+
+- **Reused capture directories no longer retain stale surface maps:**
+  `styleproof-map` now runs `clearCaptureOutput` before Playwright on every
+  non-restore capture, so a smaller second run cannot leave prior
+  `surface@width` maps, screenshots, or reserved sidecars looking current.
+  Unrelated user files remain preserved; malformed reserved paths fail closed.
 
 ### Added
 
