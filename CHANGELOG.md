@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unasserted / unknown evidence no longer shares exit 0 with certified greens:**
+  `styleproof-diff` now fails closed (exit 1) when completeness is unasserted or
+  determinism is unknown/unproven, matching incomplete coverage. Pass
+  `--allow-unasserted` only for explicit diagnostic compares; JSON then reports
+  `certifiesFully: false` and `diagnostic: true`. This closes the filtered
+  one-surface false-green path where a grepped capture warned then exited 0.
+
 ### Added
 
 - **First-class confidence ledger** (#399): `styleproof-confidence.json` is

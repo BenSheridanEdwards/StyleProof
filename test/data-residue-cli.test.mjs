@@ -81,7 +81,7 @@ function fixture({ residue, gate }) {
 
 function runDiff(a, b, cwd) {
   try {
-    return { code: 0, out: execFileSync('node', [BIN, a, b], { cwd, encoding: 'utf8' }) };
+    return { code: 0, out: execFileSync('node', [BIN, a, b, '--allow-unasserted'], { cwd, encoding: 'utf8' }) };
   } catch (e) {
     return { code: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
   }
@@ -156,7 +156,7 @@ test('--json carries an additive dataResidue field with the gating set', () => {
   const { root, a, b } = fixture({ residue: [failing('dashboard', '/api/probe')], gate: true });
   const jsonPath = path.join(root, 'out.json');
   try {
-    execFileSync('node', [BIN, a, b, '--json', jsonPath], { cwd: root, encoding: 'utf8' });
+    execFileSync('node', [BIN, a, b, '--allow-unasserted', '--json', jsonPath], { cwd: root, encoding: 'utf8' });
   } catch {
     // exit 1 expected; the JSON is still written before exit.
   }
