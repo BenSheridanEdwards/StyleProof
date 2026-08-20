@@ -1,0 +1,108 @@
+# StyleProof approval gate — copy to .github/workflows/ on your DEFAULT branch.
+#
+# issue_comment workflows only ever run from the default branch, so this must
+# live on main (not on the feature branch) to take effect. It flips the
+# `StyleProof` commit status when a write-access reviewer ticks the single
+# "Approve all changes" box in the StyleProof report comment — one tick signs
+# off every changed or new surface. Pair it with the Action's `require-approval: true` input and
+# either a branch-protection rule requiring the `StyleProof` status, or
+# `styleproof.config.json`'s `"blocking": true` to fail the job on unapproved
+# changes (the blocking option for repos without branch protection).
+name: StyleProof approve
+
+on:
+  issue_comment:
+    types: [edited] # ticking a checkbox edits the comment
+
+# statuses:write to flip the gate; pull-requests:read to resolve the PR head SHA;
+# issues:write only for the "needs write access" reply on an unauthorized tick.
+permissions:
+  statuses: write
+  pull-requests: read
+  issues: write
+
+jobs:
+  approve:
+    # A HUMAN editing the BOT's own StyleProof report comment on a PR. This is the
+    # trust gate, not the marker: it excludes the bot's own upsert-edits
+    # (sender is a Bot) and any attacker-authored comment (comment.user is a User),
+    # so the only edits that reach the logic are humans ticking boxes in our comment.
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.user.type == 'Bot' &&
+      github.event.sender.type == 'User' &&
+      contains(github.event.comment.body, '<!-- styleproof-report -->')
+    # ubuntu-latest is fine where you have GitHub-hosted Actions minutes. On a
+    # PRIVATE repo without them, this job silently fails to start — point it at
+    # the same self-hosted runner your CI uses, e.g. runs-on: [self-hosted, …].
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const STATUS = 'StyleProof'; // must match the Action's status-context input
+
+            // Re-fetch the comment so concurrent ticks all compute from the LATEST
+            // body and converge (the event payload is the body as of one edit). The
+            // body is untrusted — only ever pattern-matched here, never evaluated.
+            const fresh = await github.rest.issues.getComment({ ...context.repo, comment_id: context.payload.comment.id });
+            const body = fresh.data.body || '';
+
+            // Bind approval to the exact commit the report was generated for. A
+            // push after the report leaves this stale, so a new render can never
+            // inherit a green status.
+            const shaMatch = body.match(/<!-- styleproof-sha:([0-9a-f]{40}) -->/i);
+            if (!shaMatch) return;
+            const reportSha = shaMatch[1];
+
+            // One "Approve all changes" box signs off every changed or new surface.
+            // No box means nothing to approve, leave the status as the Action set it.
+            const allBox = body.split('\n').find((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*/.test(l));
+            if (!allBox) return;
+            const approved = /\[[xX]\]/.test(allBox);
+
+            // The human who toggled the box must have write access. (`sender` on an
+            // edited event is the editor; combined with the bot-authored + non-bot
+            // guards in `if:`, that's the person who ticked.)
+            const actor = context.payload.sender.login;
+            let perm = 'none';
+            try {
+              perm = (await github.rest.repos.getCollaboratorPermissionLevel({ ...context.repo, username: actor })).data.permission;
+            } catch {
+              /* not a collaborator → stays 'none', fails closed */
+            }
+            if (!['admin', 'maintain', 'write'].includes(perm)) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.payload.issue.number,
+                body: `@${actor} — approving the StyleProof gate needs write access to this repo, so the check stays red.`,
+              });
+              return;
+            }
+
+            // Only ever stamp the exact reviewed commit. If the PR moved since the
+            // report was posted, do nothing — the Action re-posts (red) for the new SHA.
+            const pr = await github.rest.pulls.get({ ...context.repo, pull_number: context.payload.issue.number });
+            const headSha = pr.data.head.sha;
+            if (headSha !== reportSha) return;
+
+            // The status description is the source of truth for WHO approved, so a
+            // later report re-run (e.g. to clear a blocking check) can reconstruct
+            // "approved by @x" without this workflow having run again.
+            await github.rest.repos.createCommitStatus({
+              ...context.repo,
+              sha: headSha,
+              context: STATUS,
+              state: approved ? 'success' : 'failure',
+              description: approved ? `Approved by @${actor}` : 'Tick "Approve all changes" to sign off',
+            });
+
+            // Reflect the approver in the comment itself for instant feedback. Rebuild
+            // the box line from scratch (dropping any prior "approved by" suffix) so a
+            // re-tick by someone else updates it and an untick clears it. Editing our
+            // own comment via GITHUB_TOKEN never retriggers this workflow.
+            const boxRe = /^(\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*).*$/m;
+            const newBody = body.replace(boxRe, (_, head) => (approved ? `${head} — _approved by @${actor}_` : head));
+            if (newBody !== body) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: context.payload.comment.id, body: newBody });
+            }
