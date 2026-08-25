@@ -155,14 +155,49 @@ function parsePruneSidecar(content: string): Map<string, number> {
   try {
     const parsed = JSON.parse(content) as Partial<PruneSidecar>;
     const dates = new Map<string, number>();
-    for (const [bundleDirectoryName, epochSeconds] of Object.entries(
-      parsed.lastPublishedEpochSecondsByBundle ?? {},
-    )) {
+    for (const [bundleDirectoryName, epochSeconds] of Object.entries(parsed.lastPublishedEpochSecondsByBundle ?? {})) {
       if (Number.isFinite(epochSeconds)) dates.set(bundleDirectoryName, Number(epochSeconds));
     }
     return dates;
   } catch {
     return new Map();
+  }
+}
+
+/** Dates carried by the previous squash's sidecar; empty when there is none. */
+async function readSidecarDates(
+  api: ReturnType<typeof buildClient>['api'],
+  sidecarBlobSha: string | undefined,
+): Promise<Map<string, number>> {
+  if (!sidecarBlobSha) return new Map();
+  const sidecarBlob = await api<{ content: string; encoding: string }>('GET', `/git/blobs/${sidecarBlobSha}`);
+  const decoded =
+    sidecarBlob.encoding === 'base64'
+      ? Buffer.from(sidecarBlob.content, 'base64').toString('utf8')
+      : sidecarBlob.content;
+  return parsePruneSidecar(decoded);
+}
+
+type ListedCommit = { commit: { message: string; committer: { date: string } | null } };
+
+/** Fold one commit-log page's publish subjects into the running date map,
+ *  keeping the newest date per bundle (any log date beats the sidecar's
+ *  squash-time snapshot). */
+function mergeLogPageDates(
+  page: readonly ListedCommit[],
+  directoryByPrefix: (shaPrefix: string) => string | undefined,
+  dates: Map<string, number>,
+): void {
+  for (const listedCommit of page) {
+    const subjectMatch = MAP_PUBLISH_COMMIT_SUBJECT.exec(listedCommit.commit.message);
+    if (!subjectMatch || !listedCommit.commit.committer?.date) continue;
+    const bundleDirectoryName = directoryByPrefix(subjectMatch[1]);
+    if (!bundleDirectoryName) continue;
+    const publishedEpochSeconds = Math.floor(Date.parse(listedCommit.commit.committer.date) / 1000);
+    const alreadyRecorded = dates.get(bundleDirectoryName);
+    if (alreadyRecorded === undefined || publishedEpochSeconds > alreadyRecorded) {
+      dates.set(bundleDirectoryName, publishedEpochSeconds);
+    }
   }
 }
 
@@ -175,15 +210,7 @@ async function readBundleDates(
   bundleDirectoryNames: readonly string[],
   sidecarBlobSha: string | undefined,
 ): Promise<{ lastPublishedEpochSecondsByDirectoryName: Map<string, number>; commitCount: number }> {
-  const dates = new Map<string, number>();
-  if (sidecarBlobSha) {
-    const sidecarBlob = await api<{ content: string; encoding: string }>('GET', `/git/blobs/${sidecarBlobSha}`);
-    const decoded =
-      sidecarBlob.encoding === 'base64' ? Buffer.from(sidecarBlob.content, 'base64').toString('utf8') : sidecarBlob.content;
-    for (const [bundleDirectoryName, epochSeconds] of parsePruneSidecar(decoded)) {
-      dates.set(bundleDirectoryName, epochSeconds);
-    }
-  }
+  const dates = await readSidecarDates(api, sidecarBlobSha);
 
   // Publish stamps the FIRST 12 characters of the bundle SHA into the commit
   // subject while the directory carries the full SHA, so match by prefix.
@@ -193,27 +220,108 @@ async function readBundleDates(
   const maximumCommitPages = options.maximumCommitPages ?? 30;
   let commitCount = 0;
   for (let pageNumber = 1; pageNumber <= maximumCommitPages; pageNumber += 1) {
-    const page = await api<Array<{ commit: { message: string; committer: { date: string } | null } }>>(
+    const page = await api<ListedCommit[]>(
       'GET',
       `/commits?sha=${encodeURIComponent(options.branch)}&per_page=100&page=${pageNumber}`,
     );
     commitCount += page.length;
-    for (const listedCommit of page) {
-      const subjectMatch = MAP_PUBLISH_COMMIT_SUBJECT.exec(listedCommit.commit.message);
-      if (!subjectMatch || !listedCommit.commit.committer?.date) continue;
-      const bundleDirectoryName = directoryByPrefix(subjectMatch[1]);
-      if (!bundleDirectoryName) continue;
-      const publishedEpochSeconds = Math.floor(Date.parse(listedCommit.commit.committer.date) / 1000);
-      // The log pages newest-first; keep the newest date per bundle, and let
-      // any log date beat the sidecar's squash-time snapshot.
-      const alreadyRecorded = dates.get(bundleDirectoryName);
-      if (alreadyRecorded === undefined || publishedEpochSeconds > alreadyRecorded) {
-        dates.set(bundleDirectoryName, publishedEpochSeconds);
-      }
-    }
+    mergeLogPageDates(page, directoryByPrefix, dates);
     if (page.length < 100) break;
   }
   return { lastPublishedEpochSecondsByDirectoryName: dates, commitCount };
+}
+
+type BranchState = {
+  tipCommitSha: string;
+  rootTreeEntries: GitTreeEntry[];
+  bundleEntries: GitTreeEntry[];
+  readmeBlobSha: string | undefined;
+  sidecarBlobSha: string | undefined;
+};
+
+/** Read the branch tip and its ROOT tree — never a recursive listing, which
+ *  truncates on a legacy map branch (200k+ entries), and selection must never
+ *  run on partial data. `null` when the branch does not exist yet. */
+async function readBranchState(
+  api: ReturnType<typeof buildClient>['api'],
+  branch: string,
+): Promise<BranchState | null> {
+  let tipCommitSha: string;
+  try {
+    const tipReference = await api<{ object: { sha: string } }>(
+      'GET',
+      `/git/ref/${encodeURIComponent(`heads/${branch}`)}`,
+    );
+    tipCommitSha = tipReference.object.sha;
+  } catch (error) {
+    if (error instanceof MapStorePruneApiError && error.status === 404) return null;
+    throw error;
+  }
+  const tipCommit = await api<{ tree: { sha: string } }>('GET', `/git/commits/${tipCommitSha}`);
+  const rootTree = await api<{ tree: GitTreeEntry[] }>('GET', `/git/trees/${tipCommit.tree.sha}`);
+  const blobShaAt = (path: string): string | undefined =>
+    rootTree.tree.find((entry) => entry.type === 'blob' && entry.path === path)?.sha ?? undefined;
+  return {
+    tipCommitSha,
+    rootTreeEntries: rootTree.tree,
+    bundleEntries: rootTree.tree.filter(isBundleDirectoryEntry),
+    readmeBlobSha: blobShaAt('README.md'),
+    sidecarBlobSha: blobShaAt(MAP_STORE_PRUNE_SIDECAR),
+  };
+}
+
+const MAP_STORE_README =
+  '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n';
+
+async function createBlob(api: ReturnType<typeof buildClient>['api'], content: string): Promise<string> {
+  const blob = await api<{ sha: string }>('POST', '/git/blobs', {
+    content: Buffer.from(content).toString('base64'),
+    encoding: 'base64',
+  });
+  return blob.sha;
+}
+
+/** Write the squashed branch: a full new root tree (retained bundles + foreign
+ *  entries by their existing SHAs, so nothing re-uploads), an orphan commit,
+ *  and a forced ref update — an orphan commit is never a fast-forward. */
+async function writeCompactedBranch(
+  api: ReturnType<typeof buildClient>['api'],
+  options: MapStorePruneApiOptions,
+  branchState: BranchState,
+  selection: MapBundlePruneSelection,
+  refreshedSidecarContent: string,
+): Promise<void> {
+  const sidecarBlobSha = await createBlob(api, refreshedSidecarContent);
+  const readmeBlobSha = branchState.readmeBlobSha ?? (await createBlob(api, MAP_STORE_README));
+  const retainedEntrySet = new Set(selection.retainedDirectoryNames);
+  // Consumers park operational files on the artifact branch (deployment
+  // suppression guards, CI markers). The squash must never delete anything it
+  // does not own: every root entry that is not a bundle directory or one of
+  // this tool's own files rides across unchanged.
+  const foreignRootEntries = branchState.rootTreeEntries.filter(
+    (entry) => !isBundleDirectoryEntry(entry) && entry.path !== 'README.md' && entry.path !== MAP_STORE_PRUNE_SIDECAR,
+  );
+  const compactedTree = await api<{ sha: string }>('POST', '/git/trees', {
+    tree: [
+      ...branchState.bundleEntries
+        .filter((entry) => retainedEntrySet.has(entry.path))
+        .map((entry) => ({ path: entry.path, mode: '040000', type: 'tree', sha: entry.sha })),
+      ...foreignRootEntries.map((entry) => ({ path: entry.path, mode: entry.mode, type: entry.type, sha: entry.sha })),
+      { path: 'README.md', mode: '100644', type: 'blob', sha: readmeBlobSha },
+      { path: MAP_STORE_PRUNE_SIDECAR, mode: '100644', type: 'blob', sha: sidecarBlobSha },
+    ],
+  });
+  const compactionCommit = await api<{ sha: string }>('POST', '/git/commits', {
+    message:
+      `StyleProof map store compaction: ${selection.retainedDirectoryNames.length} bundles retained, ` +
+      `${selection.prunedDirectoryNames.length} pruned`,
+    tree: compactedTree.sha,
+    parents: [],
+  });
+  await api('PATCH', `/git/refs/${encodeURIComponent(`heads/${options.branch}`)}`, {
+    sha: compactionCommit.sha,
+    force: true,
+  });
 }
 
 async function compactOnce(
@@ -221,43 +329,25 @@ async function compactOnce(
   api: ReturnType<typeof buildClient>['api'],
   log: (line: string) => void,
 ): Promise<MapStorePruneResult> {
-  let tipCommitSha: string;
-  try {
-    const tipReference = await api<{ object: { sha: string } }>(
-      'GET',
-      `/git/ref/${encodeURIComponent(`heads/${options.branch}`)}`,
-    );
-    tipCommitSha = tipReference.object.sha;
-  } catch (error) {
-    if (error instanceof MapStorePruneApiError && error.status === 404) {
-      log(`no ${options.branch} branch yet — nothing to prune`);
-      return { compacted: false, retainedDirectoryNames: [], prunedDirectoryNames: [] };
-    }
-    throw error;
+  const branchState = await readBranchState(api, options.branch);
+  if (branchState === null) {
+    log(`no ${options.branch} branch yet — nothing to prune`);
+    return { compacted: false, retainedDirectoryNames: [], prunedDirectoryNames: [] };
   }
 
-  const tipCommit = await api<{ tree: { sha: string } }>('GET', `/git/commits/${tipCommitSha}`);
-  // The ROOT tree only — a recursive listing of a legacy map branch (200k+
-  // entries) truncates, and selection must never run on partial data.
-  const rootTree = await api<{ tree: GitTreeEntry[] }>('GET', `/git/trees/${tipCommit.tree.sha}`);
-  const bundleEntries = rootTree.tree.filter(isBundleDirectoryEntry);
-  const readmeEntry = rootTree.tree.find((entry) => entry.type === 'blob' && entry.path === 'README.md');
-  const sidecarEntry = rootTree.tree.find((entry) => entry.type === 'blob' && entry.path === MAP_STORE_PRUNE_SIDECAR);
-
-  const bundleDirectoryNames = bundleEntries.map((entry) => entry.path);
+  const bundleDirectoryNames = branchState.bundleEntries.map((entry) => entry.path);
   const { lastPublishedEpochSecondsByDirectoryName, commitCount } = await readBundleDates(
     api,
     options,
     bundleDirectoryNames,
-    sidecarEntry?.sha ?? undefined,
+    branchState.sidecarBlobSha,
   );
 
   const nowEpochSeconds = options.nowEpochSeconds ?? Math.floor(Date.now() / 1000);
-  const retentionDays = options.retentionDays ?? 14;
   const selection = selectMapBundlesToRetain({
     bundleDirectoryNames,
     lastPublishedEpochSecondsByDirectoryName,
-    retentionCutoffEpochSeconds: nowEpochSeconds - retentionDays * 86400,
+    retentionCutoffEpochSeconds: nowEpochSeconds - (options.retentionDays ?? 14) * 86400,
     maximumBundleCount: options.maximumBundleCount ?? 40,
   });
 
@@ -270,7 +360,7 @@ async function compactOnce(
     return { compacted: false, ...selection };
   }
 
-  const sidecar: PruneSidecar = {
+  const refreshedSidecar: PruneSidecar = {
     version: 1,
     prunedAt: new Date(nowEpochSeconds * 1000).toISOString(),
     lastPublishedEpochSecondsByBundle: Object.fromEntries(
@@ -280,51 +370,14 @@ async function compactOnce(
       ]),
     ),
   };
-  const sidecarBlob = await api<{ sha: string }>('POST', '/git/blobs', {
-    content: Buffer.from(`${JSON.stringify(sidecar, null, 2)}\n`).toString('base64'),
-    encoding: 'base64',
-  });
-  const readmeBlobSha =
-    readmeEntry?.sha ??
-    (
-      await api<{ sha: string }>('POST', '/git/blobs', {
-        content: Buffer.from(
-          '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n',
-        ).toString('base64'),
-        encoding: 'base64',
-      })
-    ).sha;
-
-  const retainedEntrySet = new Set(selection.retainedDirectoryNames);
-  const compactedTree = await api<{ sha: string }>('POST', '/git/trees', {
-    // No base_tree: this IS the whole new root. Retained bundle subtrees are
-    // referenced by their existing tree SHAs, so no bundle content re-uploads.
-    tree: [
-      ...bundleEntries
-        .filter((entry) => retainedEntrySet.has(entry.path))
-        .map((entry) => ({ path: entry.path, mode: '040000', type: 'tree', sha: entry.sha })),
-      { path: 'README.md', mode: '100644', type: 'blob', sha: readmeBlobSha },
-      { path: MAP_STORE_PRUNE_SIDECAR, mode: '100644', type: 'blob', sha: sidecarBlob.sha },
-    ],
-  });
-  const compactionCommit = await api<{ sha: string }>('POST', '/git/commits', {
-    message:
-      `StyleProof map store compaction: ${selection.retainedDirectoryNames.length} bundles retained, ` +
-      `${selection.prunedDirectoryNames.length} pruned`,
-    tree: compactedTree.sha,
-    parents: [],
-  });
-  // force: an orphan commit is never a fast-forward. A publish landing between
-  // the tip read above and this update is discarded with the old tip — log the
-  // replaced tip so that (harmless, self-healing) loss is observable.
-  await api('PATCH', `/git/refs/${encodeURIComponent(`heads/${options.branch}`)}`, {
-    sha: compactionCommit.sha,
-    force: true,
-  });
+  await writeCompactedBranch(api, options, branchState, selection, `${JSON.stringify(refreshedSidecar, null, 2)}\n`);
+  // A publish landing between the tip read and the forced ref update is
+  // discarded with the old tip — log the replaced tip so that (harmless,
+  // self-healing) loss is observable.
   log(
     `compacted ${options.branch}: ${selection.retainedDirectoryNames.length} bundles retained, ` +
       `${selection.prunedDirectoryNames.length} pruned, history squashed to one commit ` +
-      `(replaced tip ${tipCommitSha.slice(0, 12)} — a publish racing this window is recaptured on its next run)`,
+      `(replaced tip ${branchState.tipCommitSha.slice(0, 12)} — a publish racing this window is recaptured on its next run)`,
   );
   return { compacted: true, ...selection };
 }
@@ -344,7 +397,10 @@ export async function compactMapStoreBranch(options: MapStorePruneApiOptions): P
     } catch (error) {
       lastError = error;
       const retryable =
-        !(error instanceof MapStorePruneApiError) || error.status === 422 || error.status === 409 || error.status >= 500;
+        !(error instanceof MapStorePruneApiError) ||
+        error.status === 422 ||
+        error.status === 409 ||
+        error.status >= 500;
       if (!retryable || attemptNumber === maximumAttempts) throw error;
       log(`map store prune attempt ${attemptNumber} failed (${String(error)}); retrying`);
       await sleep(attemptNumber * 2000);

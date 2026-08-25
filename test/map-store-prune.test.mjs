@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  MAP_STORE_PRUNE_SIDECAR,
-  compactMapStoreBranch,
-  selectMapBundlesToRetain,
-} from '../dist/map-store-prune.js';
+import { MAP_STORE_PRUNE_SIDECAR, compactMapStoreBranch, selectMapBundlesToRetain } from '../dist/map-store-prune.js';
 
 const DAY_IN_SECONDS = 86400;
 const NOW = 1_800_000_000;
@@ -204,7 +200,14 @@ test('sidecar dates survive a squash and keep previously retained bundles alive'
     ],
     blobContentsBySha: { 'sidecar-blob': sidecarContent },
     commitPages: [
-      [{ commit: { message: 'StyleProof map store compaction: 1 bundles retained, 2 pruned', committer: { date: new Date(NOW * 1000).toISOString() } } }],
+      [
+        {
+          commit: {
+            message: 'StyleProof map store compaction: 1 bundles retained, 2 pruned',
+            committer: { date: new Date(NOW * 1000).toISOString() },
+          },
+        },
+      ],
     ],
   });
   const result = await compactMapStoreBranch({ ...apiOptions, fetchImplementation: fake.fetchImplementation });
@@ -281,6 +284,30 @@ test('transient server faults are retried', async () => {
   const result = await compactMapStoreBranch({ ...apiOptions, fetchImplementation: fake.fetchImplementation });
   assert.equal(result.compacted, true);
   assert.deepEqual(result.prunedDirectoryNames, [LEGACY_SHA]);
+});
+
+test('foreign root entries (deployment guards) survive the squash untouched', async () => {
+  // Consumers park operational files on the artifact branch — e.g. a nested
+  // hud/vercel.json suppressing preview deployments. The squash owns only the
+  // bundle directories, README, and its own sidecar; everything else must ride
+  // across by its existing SHA.
+  const fake = buildFakeGitHub({
+    rootTreeEntries: [
+      { path: FRESH_SHA, type: 'tree', mode: '040000', sha: 'fresh-tree' },
+      { path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' },
+      { path: 'hud', type: 'tree', mode: '040000', sha: 'guard-tree' },
+      { path: '.vercelignore', type: 'blob', mode: '100644', sha: 'ignore-blob' },
+      { path: 'README.md', type: 'blob', mode: '100644', sha: 'readme-blob' },
+    ],
+    commitPages: [[publishCommit(FRESH_SHA.slice(0, 12), 1)]],
+  });
+  const result = await compactMapStoreBranch({ ...apiOptions, fetchImplementation: fake.fetchImplementation });
+  assert.equal(result.compacted, true);
+  const [treePayload] = fake.state.createdTrees;
+  const entryByPath = new Map(treePayload.tree.map((entry) => [entry.path, entry]));
+  assert.equal(entryByPath.get('hud').sha, 'guard-tree', 'a non-bundle tree survives by its existing SHA');
+  assert.equal(entryByPath.get('.vercelignore').sha, 'ignore-blob', 'a non-bundle blob survives by its existing SHA');
+  assert.equal(entryByPath.has(LEGACY_SHA), false, 'pruned bundles are still dropped');
 });
 
 test('a malformed sidecar degrades to undated — prunes more, never resurrects', async () => {
