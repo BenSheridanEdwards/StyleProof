@@ -9,6 +9,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`styleproof-prune-maps`** (#423): bound the sha-keyed map store branch,
+  which was append-only in both dimensions — every publish added a bundle
+  folder nothing ever deleted, and a commit nothing ever squashed (measured on
+  a real consumer: 1,475 map commits and 12+ GiB of branch history carried by
+  every clone fetching `refs/heads/*`). The new CLI prunes stale bundles by
+  `--retention-days` (default 14) and a `--max-bundles` cap (default 40),
+  newest first, then rewrites the branch as a **single orphan commit** holding
+  only the retained bundle trees — the map store is a cache keyed by commit
+  SHA, so bundles for commits the base branch moved past can never be restored
+  again, and nothing links into the branch's history (unlike the report
+  branch, whose history PR comments pin into and which therefore keeps its
+  fast-forward-only prune). All through the GitHub git-data API, never a
+  clone; retained bundles are referenced by their existing tree SHAs so no
+  content re-uploads. Bundle ages come from the publish commit log merged over
+  a `styleproof-map-store-prune.json` sidecar that carries retained-bundle
+  dates across squashes; undated (pre-tool legacy) bundles sort oldest and
+  prune first. A quiet, already-compact branch (`--history-limit`, default 30
+  commits) is left untouched, so a scheduled run never force-pushes for
+  nothing. A publish landing in the seconds between the tip read and the
+  forced ref update loses that one cache entry — logged, self-healing (the
+  next run recaptures), and accepted by design. New export:
+  `compactMapStoreBranch` (+ `selectMapBundlesToRetain`,
+  `MAP_STORE_PRUNE_SIDECAR`).
 - **First-class confidence ledger** (#399): `styleproof-confidence.json` is
   bundled next to the maps and assigns every surface one status — `captured`,
   `excluded-with-reason`, `inaccessible`, `unknown`, or `unproven-determinism` —
