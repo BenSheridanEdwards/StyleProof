@@ -174,3 +174,5 @@ export type {
   StateRecipeSkip,
   StateRecipeSkipReason,
 } from './state-recipes.js';
+export { compactMapStoreBranch, selectMapBundlesToRetain, MAP_STORE_PRUNE_SIDECAR } from './map-store-prune.js';
+export type { MapBundlePruneSelection, MapStorePruneApiOptions, MapStorePruneResult } from './map-store-prune.js';
