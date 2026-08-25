@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-08-25
+
 ### Added
 
 - **`styleproof-prune-maps`** (#423): bound the sha-keyed map store branch,
@@ -3305,7 +3307,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.5...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.0...HEAD
+[6.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.5...v6.1.0
 [6.0.5]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.4...v6.0.5
 [6.0.4]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.3...v6.0.4
 [6.0.3]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.2...v6.0.3
