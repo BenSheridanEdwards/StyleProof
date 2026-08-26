@@ -55,6 +55,7 @@
     "bin",
     "example/styleproof-approve.yml",
     "docs/demo-composite.png",
+    "docs/evidence-store-v2.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"

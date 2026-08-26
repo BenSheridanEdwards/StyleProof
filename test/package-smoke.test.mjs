@@ -58,6 +58,7 @@ function stagePackageDir(dest) {
     'bin',
     'example/styleproof-approve.yml',
     'docs/demo-composite.png',
+    'docs/evidence-store-v2.md',
     'README.md',
     'CHANGELOG.md',
     'LICENSE',
@@ -96,6 +97,11 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       },
     );
     assert.equal(install.status, 0, commandFailure(install));
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/docs/evidence-store-v2.md')),
+      true,
+      'README-linked evidence-store architecture must ship in the tarball',
+    );
 
     const importCheck = run(
       process.execPath,
