@@ -205,12 +205,12 @@ test('composite action exposes one precedence-ordered machine-readable trust ver
   assert.match(actionYml, /data-residue-keys:[\s\S]*?steps\.verdict\.outputs\.data-residue-keys/);
   const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
   assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
-  const residue = verdict[0].indexOf('DATA_RESIDUE_UNACKNOWLEDGED');
-  const inventory = verdict[0].indexOf('INVENTORY_REMOVAL_UNACKNOWLEDGED');
-  const certification = verdict[0].indexOf('CERTIFICATION_FAILED');
-  const partial = verdict[0].indexOf('PARTIAL_BASELINE');
-  const degraded = verdict[0].indexOf('DEGRADED_BASELINE');
-  const styleReview = verdict[0].indexOf('STYLE_REVIEW_REQUIRED');
+  const residue = verdict[0].indexOf("state = 'DATA_RESIDUE_UNACKNOWLEDGED'");
+  const inventory = verdict[0].indexOf("state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED'");
+  const certification = verdict[0].indexOf("state = 'CERTIFICATION_FAILED'");
+  const partial = verdict[0].indexOf("state = 'PARTIAL_BASELINE'");
+  const degraded = verdict[0].indexOf("state = 'DEGRADED_BASELINE'");
+  const styleReview = verdict[0].indexOf("state = 'STYLE_REVIEW_REQUIRED'");
   assert.ok(
     residue > 0 &&
       inventory > residue &&
