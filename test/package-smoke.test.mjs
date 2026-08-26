@@ -58,6 +58,7 @@ function stagePackageDir(dest) {
     'bin',
     'example/styleproof-approve.yml',
     'docs/demo-composite.png',
+    'docs/evidence-store-v2.md',
     'README.md',
     'CHANGELOG.md',
     'LICENSE',
@@ -96,18 +97,30 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       },
     );
     assert.equal(install.status, 0, commandFailure(install));
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/docs/evidence-store-v2.md')),
+      true,
+      'README-linked evidence-store architecture must ship in the tarball',
+    );
+
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/bin/platform-command.mjs')),
+      true,
+      'setup platform-command runtime dependency must ship in the tarball',
+    );
 
     const importCheck = run(
       process.execPath,
       [
         '-e',
-        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function') process.exit(1); })",
+        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function' || typeof m.createEvidenceCapture !== 'function' || typeof m.writeEvidenceRef !== 'function') process.exit(1); })",
       ],
       { cwd: app },
     );
     assert.equal(importCheck.status, 0, importCheck.stderr);
 
     for (const bin of [
+      'styleproof',
       'styleproof-init',
       'styleproof-map',
       'styleproof-capture',
@@ -131,13 +144,17 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
 
     const scaffold = path.join(tmp, 'scaffold');
     fs.mkdirSync(scaffold);
-    const init = run(process.execPath, [path.join(app, 'node_modules/styleproof/bin/styleproof-init.mjs')], {
-      cwd: scaffold,
-    });
-    assert.equal(init.status, 0, commandFailure(init));
+    fs.writeFileSync(path.join(scaffold, 'package.json'), JSON.stringify({ name: 'consumer', private: true }, null, 2));
+    const setup = run(
+      process.execPath,
+      [path.join(app, 'node_modules/styleproof/bin/styleproof.mjs'), 'setup', '--skip-install', '--skip-browser'],
+      { cwd: scaffold },
+    );
+    assert.equal(setup.status, 0, commandFailure(setup));
+    assert.match(setup.stdout, /StyleProof setup complete/);
     assert.ok(
       fs.existsSync(path.join(scaffold, '.github/workflows/styleproof-approve.yml')),
-      'the packed approval-workflow template is missing',
+      'the packed setup command did not scaffold the approval workflow',
     );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

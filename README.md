@@ -264,22 +264,66 @@ each merge forces every other open PR to rebase. `.styleproof/` and
 
 ## Quickstart
 
-### 0. Install
+### 0. Set up everything
 
 ```bash
-npm install -D styleproof @playwright/test
-npx playwright install chromium
+npx styleproof setup
 ```
 
-Requires **Node ≥ 18** (ESM), **`@playwright/test` ≥ 1.40** (peer dep). Forced states are Chromium-only.
-
-### 1. Scaffold the gate
+That one command detects npm, pnpm, Yarn, or Bun; installs StyleProof and
+Playwright; installs Chromium; scaffolds the capture spec, dedicated Playwright
+config, split GitHub workflows, and pre-push integration; then verifies every
+machine-owned file against the installed release. Preview the exact operations
+without writing with `npx styleproof setup --dry-run`. Existing installations
+can use `styleproof setup --skip-install --skip-browser` to refresh scaffolding
+without network work. In a monorepo, target the consumer application explicitly:
 
 ```bash
-npx styleproof-init
+styleproof setup --project-dir apps/web
 ```
 
-`styleproof-init` detects your app and wires **surface discovery** for you — there is nothing to hand-list for the first capture:
+`--project-dir` changes where dependencies are installed and all setup commands
+run. `--dir` remains the capture-spec path inside that project, for example
+`--project-dir apps/web --dir e2e/styleproof.custom.spec.ts`.
+
+Requires **Node ≥ 18** (ESM). Forced states are Chromium-only.
+
+### 1. Understand the one CLI
+
+```bash
+styleproof capture          # capture this commit from the generated spec
+styleproof crawl <url>       # direct URL or rendered-nav crawl
+styleproof compare [base]    # fail-closed base/head comparison
+styleproof report [base]     # generate the review report on command
+styleproof variants          # inspect surface/state variants
+styleproof affected          # resolve surfaces affected by source changes
+styleproof ci                # cache-aware CI orchestration
+styleproof store import ...  # migrate a v1 bundle into immutable evidence
+styleproof store verify ...  # verify a ref and every referenced byte
+styleproof store restore ... # atomically restore a verified ref
+```
+
+Run `styleproof --help` for the whole journey or `styleproof <command> --help`
+for command-specific options. The existing `styleproof-*` binaries remain as
+backwards-compatible aliases.
+
+The experimental v2 evidence store separates immutable bytes from mutable refs:
+
+```bash
+styleproof store import .styleproof/maps/current --json
+styleproof store verify commits/<sha>/<compatibility-key> --json
+styleproof store restore commits/<sha>/<compatibility-key> ./restored-maps
+```
+
+Import derives coverage and determinism from the bundle's own ledgers, excludes
+HAR and unrelated user files by default, and fails on malformed trust evidence.
+`verify` hashes the capture manifest and every referenced object. `restore`
+verifies first, writes into a temporary directory, then exposes the result with
+one atomic rename. Git-backed remote publication still uses the v1 adapter while
+the dual-write and remote CAS migration is completed; see
+[`docs/evidence-store-v2.md`](docs/evidence-store-v2.md).
+
+`styleproof setup` detects your app and wires **surface discovery** for you — there is nothing to hand-list for the first capture:
 
 - **Next.js** — it discovers your routes (`app/` + `pages/`) at run time and derives _both_ the captured surfaces and the coverage guard from them, so a route you add later is captured automatically, never a guard failure.
 - **Any other app** — it scaffolds a **nav crawl**: StyleProof loads `/`, reads the rendered `<a href>` links, and captures every same-origin surface they point to. The surface set _is_ the visible nav, so it cannot drift from that nav.
