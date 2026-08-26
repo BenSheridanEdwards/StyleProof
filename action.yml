@@ -231,12 +231,12 @@ runs:
           let state = 'NO_REVIEWABLE_STYLE_CHANGES';
           if ((diff.dataResidue?.blocking ?? 0) > 0) state = 'DATA_RESIDUE_UNACKNOWLEDGED';
           else if (inventoryFailures > 0) state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED';
+          // A declared base-capture failure is the specific cause of missing trust
+          // evidence. Preserve that actionable state instead of masking it with the
+          // generic closed-set certification fallback below.
+          else if ('${{ inputs.base-capture-failed }}'.toLowerCase() === 'true') state = 'DEGRADED_BASELINE';
           else if (certificationFailed || rawOnlyNoReviewable) state = 'CERTIFICATION_FAILED';
           else if (partialBaseline) state = 'PARTIAL_BASELINE';
-          // Case-tolerant like the GitHub-expression `==` the block step uses, so a
-          // consumer passing 'True' can't get DEGRADED skipped here (a green status)
-          // while the block step still fails the job.
-          else if ('${{ inputs.base-capture-failed }}'.toLowerCase() === 'true') state = 'DEGRADED_BASELINE';
           else if ('${{ steps.diff.outputs.changed }}' === 'true') state = 'STYLE_REVIEW_REQUIRED';
           core.setOutput('state', state);
           core.setOutput('data-residue-keys', JSON.stringify(residueKeys));

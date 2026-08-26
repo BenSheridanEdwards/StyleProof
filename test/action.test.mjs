@@ -214,10 +214,10 @@ test('composite action exposes one precedence-ordered machine-readable trust ver
   assert.ok(
     residue > 0 &&
       inventory > residue &&
-      certification > inventory &&
+      degraded > inventory &&
+      certification > degraded &&
       partial > certification &&
-      degraded > partial &&
-      styleReview > degraded,
+      styleReview > partial,
   );
   // The verdict's degraded-baseline check must accept the same values the
   // GitHub-expression gate downstream accepts (case-insensitive 'true').
