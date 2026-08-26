@@ -8,6 +8,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ## [6.1.0] - 2026-08-25
+
 ### Fixed
 
 - **Reused capture directories no longer retain stale surface maps:**
@@ -15,6 +16,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   non-restore capture, so a smaller second run cannot leave prior
   `surface@width` maps, screenshots, or reserved sidecars looking current.
   Unrelated user files remain preserved; malformed reserved paths fail closed.
+
 ### Fixed
 
 - **Unasserted / unknown evidence no longer shares exit 0 with certified greens:**
@@ -25,6 +27,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   when the run would exit 0 (coverage complete, determinism proven, and no
   inventory/residue/style/DOM/new-surface failures). This closes the filtered
   one-surface false-green path where a grepped capture warned then exited 0.
+
 ### Security
 
 - **Untrusted PR capture no longer receives write credentials (P0):** generated

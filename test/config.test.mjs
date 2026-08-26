@@ -274,3 +274,11 @@ test('styleproof-diff / styleproof-report: a malformed config is a usage error (
     }
   });
 });
+
+test('README documents every top-level one-config adoption block', () => {
+  const readme = fs.readFileSync(path.join(here, '..', 'README.md'), 'utf8');
+  const configReference = readme.slice(readme.indexOf('**Config file `styleproof.config.json`'));
+  assert.match(configReference, /\| `crawl`\s+\|/);
+  assert.match(configReference, /`setup`/);
+  assert.match(configReference, /`authBoundaryExclude`/);
+});
