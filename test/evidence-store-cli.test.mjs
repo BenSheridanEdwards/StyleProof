@@ -9,6 +9,9 @@ import { mkTmp, rmTmp } from './helpers.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const cli = path.join(root, 'bin', 'styleproof.mjs');
+// The complete Node suite runs hundreds of tests concurrently; leave enough
+// room for process startup while still bounding a FIFO-open hang.
+const fifoProbeTimeoutMs = 5_000;
 
 function run(args, cwd) {
   return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8' });
@@ -77,6 +80,49 @@ test('styleproof store import creates an immutable capture and idempotent commit
     rmTmp(workspace);
   }
 });
+
+test(
+  'styleproof store import rejects a FIFO manifest before opening it',
+  { skip: process.platform === 'win32' },
+  () => {
+    const workspace = mkTmp('styleproof-store-fifo-');
+    try {
+      const bundle = path.join(workspace, 'bundle');
+      const store = path.join(workspace, 'evidence');
+      fs.mkdirSync(bundle, { recursive: true });
+      const manifest = path.join(bundle, 'styleproof-manifest.json');
+      const fifo = spawnSync('mkfifo', [manifest], { encoding: 'utf8' });
+      assert.equal(fifo.status, 0, fifo.stderr);
+
+      const direct = spawnSync(process.execPath, [cli, 'store', 'import', bundle, '--root', store], {
+        cwd: workspace,
+        encoding: 'utf8',
+        timeout: fifoProbeTimeoutMs,
+      });
+      assert.equal(direct.error, undefined, direct.error?.message);
+      assert.equal(direct.status, 2, direct.stderr);
+      assert.match(direct.stderr, /refusing non-regular map bundle entry: styleproof-manifest\.json/);
+      assert.equal(fs.existsSync(store), false, 'rejected input created evidence-store state');
+
+      fs.rmSync(manifest);
+      const targetFifo = path.join(workspace, 'outside-manifest-fifo');
+      const target = spawnSync('mkfifo', [targetFifo], { encoding: 'utf8' });
+      assert.equal(target.status, 0, target.stderr);
+      fs.symlinkSync(targetFifo, manifest);
+      const linked = spawnSync(process.execPath, [cli, 'store', 'import', bundle, '--root', store], {
+        cwd: workspace,
+        encoding: 'utf8',
+        timeout: fifoProbeTimeoutMs,
+      });
+      assert.equal(linked.error, undefined, linked.error?.message);
+      assert.equal(linked.status, 2, linked.stderr);
+      assert.match(linked.stderr, /refusing symbolic link in map bundle: styleproof-manifest\.json/);
+      assert.equal(fs.existsSync(store), false, 'symlink rejection created evidence-store state');
+    } finally {
+      rmTmp(workspace);
+    }
+  },
+);
 
 test('styleproof store is discoverable through the primary CLI', () => {
   const result = run(['store', '--help'], root);

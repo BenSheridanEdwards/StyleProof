@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 export class EvidenceStoreError extends Error {}
 
@@ -272,6 +272,124 @@ function sameObjectReference(first: EvidenceObjectRef | null, second: EvidenceOb
   return first.algorithm === second.algorithm && first.digest === second.digest && first.size === second.size;
 }
 
+type EvidenceLockOwner = {
+  version: 1;
+  pid: number;
+  createdAt: string;
+  token: string;
+};
+
+type EvidenceLockSnapshot = {
+  owner: EvidenceLockOwner;
+  raw: string;
+  stat: fs.Stats;
+};
+
+function sameFile(first: fs.Stats, second: fs.Stats): boolean {
+  return first.dev === second.dev && first.ino === second.ino;
+}
+
+function readEvidenceLockSnapshot(lockPath: string): EvidenceLockSnapshot | null {
+  let descriptor: number | undefined;
+  try {
+    const readFlags = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0) | (fs.constants.O_NOFOLLOW ?? 0);
+    descriptor = fs.openSync(lockPath, readFlags);
+    const before = fs.fstatSync(descriptor);
+    if (!before.isFile()) return null;
+    const raw = fs.readFileSync(descriptor, 'utf8');
+    const after = fs.fstatSync(descriptor);
+    if (!sameFile(before, after)) return null;
+    const parsed = JSON.parse(raw) as Partial<EvidenceLockOwner>;
+    if (
+      parsed.version !== 1 ||
+      !Number.isSafeInteger(parsed.pid) ||
+      Number(parsed.pid) <= 0 ||
+      typeof parsed.createdAt !== 'string' ||
+      !Number.isFinite(Date.parse(parsed.createdAt)) ||
+      typeof parsed.token !== 'string' ||
+      !/^[0-9a-f-]{16,}$/.test(parsed.token)
+    ) {
+      return null;
+    }
+    return { owner: parsed as EvidenceLockOwner, raw, stat: after };
+  } catch {
+    return null;
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+  }
+}
+
+function publisherIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? error.code : undefined;
+    return code !== 'ESRCH';
+  }
+}
+
+function recoverDeadPublisherLock(lockPath: string): boolean {
+  const snapshot = readEvidenceLockSnapshot(lockPath);
+  if (!snapshot || publisherIsAlive(snapshot.owner.pid)) return false;
+  const recoveryPath = `${lockPath}.recover-${process.pid}-${randomUUID()}`;
+  try {
+    fs.linkSync(lockPath, recoveryPath);
+    const recoveryStat = fs.lstatSync(recoveryPath);
+    if (!sameFile(snapshot.stat, recoveryStat) || fs.readFileSync(recoveryPath, 'utf8') !== snapshot.raw) return false;
+    const currentStat = fs.lstatSync(lockPath);
+    if (!sameFile(currentStat, recoveryStat)) return false;
+    fs.unlinkSync(lockPath);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(recoveryPath, { force: true });
+  }
+}
+
+function createEvidenceLock(lockPath: string): { descriptor: number; owner: EvidenceLockOwner } {
+  const descriptor = fs.openSync(lockPath, 'wx');
+  const owner: EvidenceLockOwner = {
+    version: 1,
+    pid: process.pid,
+    createdAt: new Date().toISOString(),
+    token: randomUUID(),
+  };
+  try {
+    fs.writeFileSync(descriptor, JSON.stringify(owner));
+    return { descriptor, owner };
+  } catch (error) {
+    fs.closeSync(descriptor);
+    fs.rmSync(lockPath, { force: true });
+    throw error;
+  }
+}
+
+function acquireEvidenceLock(lockPath: string, key: string): { descriptor: number; owner: EvidenceLockOwner } {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return createEvidenceLock(lockPath);
+    } catch (error) {
+      const code = error instanceof Error && 'code' in error ? error.code : undefined;
+      if (code !== 'EEXIST') throw error;
+      if (attempt === 0 && recoverDeadPublisherLock(lockPath)) continue;
+      throw new EvidenceStoreError(`evidence ref ${key} is locked by another publisher`);
+    }
+  }
+  throw new EvidenceStoreError(`evidence ref ${key} is locked by another publisher`);
+}
+
+function lockIsStillOwned(lockPath: string, descriptor: number, owner: EvidenceLockOwner): boolean {
+  const snapshot = readEvidenceLockSnapshot(lockPath);
+  if (!snapshot || snapshot.owner.token !== owner.token) return false;
+  try {
+    return sameFile(fs.fstatSync(descriptor), snapshot.stat);
+  } catch {
+    return false;
+  }
+}
+
 export function readEvidenceRef(storeRoot: string, key: string): EvidenceObjectRef | null {
   const referencePath = evidenceRefPath(storeRoot, key);
   let parsed: unknown;
@@ -305,15 +423,11 @@ export function writeEvidenceRef(
   fs.mkdirSync(path.dirname(referencePath), { recursive: true });
 
   let lockDescriptor: number | undefined;
+  let lockOwner: EvidenceLockOwner | undefined;
   try {
-    try {
-      lockDescriptor = fs.openSync(lockPath, 'wx');
-      fs.writeFileSync(lockDescriptor, `${process.pid}\n`);
-    } catch (error) {
-      const code = error instanceof Error && 'code' in error ? error.code : undefined;
-      if (code === 'EEXIST') throw new EvidenceStoreError(`evidence ref ${key} is locked by another publisher`);
-      throw error;
-    }
+    const lock = acquireEvidenceLock(lockPath, key);
+    lockDescriptor = lock.descriptor;
+    lockOwner = lock.owner;
 
     const currentCapture = readEvidenceRef(storeRoot, key);
     if (!sameObjectReference(currentCapture, expectedCapture)) {
@@ -336,9 +450,10 @@ export function writeEvidenceRef(
       `could not update evidence ref ${key}: ${error instanceof Error ? error.message : String(error)}`,
     );
   } finally {
-    if (lockDescriptor !== undefined) {
+    if (lockDescriptor !== undefined && lockOwner !== undefined) {
+      const removeOwnedLock = lockIsStillOwned(lockPath, lockDescriptor, lockOwner);
       fs.closeSync(lockDescriptor);
-      fs.rmSync(lockPath, { force: true });
+      if (removeOwnedLock) fs.rmSync(lockPath, { force: true });
     }
   }
 }

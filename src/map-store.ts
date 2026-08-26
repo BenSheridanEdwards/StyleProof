@@ -74,10 +74,16 @@ export function isMapFile(name: string): boolean {
 
 const CRAWL_BUNDLE_FILES = new Set([...RESERVED_BUNDLE_FILES, FATAL_CAPTURE_MARKER]);
 const GENERATED_CAPTURE_ARTIFACT = /@\d+\.(?:json(?:\.gz)?|png|(?:hover|focus|active)\.png)$/;
+const SURFACE_CAPTURE_FAILURE_ARTIFACT = /^[a-zA-Z0-9@._-]+-[0-9a-f]{8}\.json$/;
 
 /** True when a top-level entry is owned by StyleProof capture generation. */
 export function isOwnedCaptureArtifact(name: string): boolean {
   return CRAWL_BUNDLE_FILES.has(name) || name === SURFACE_CAPTURE_FAILURES_DIR || GENERATED_CAPTURE_ARTIFACT.test(name);
+}
+
+/** True when a flat failure receipt name could have been emitted by StyleProof. */
+export function isSurfaceCaptureFailureArtifact(name: string): boolean {
+  return SURFACE_CAPTURE_FAILURE_ARTIFACT.test(name);
 }
 
 /** Clear only artifacts that a crawl owns when refreshing a reused output directory.

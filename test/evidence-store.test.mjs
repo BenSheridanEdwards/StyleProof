@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import {
   createEvidenceCapture,
   materializeEvidenceCapture,
@@ -90,6 +91,46 @@ test('capture identity is canonical and materialization verifies an immutable ma
   }
 });
 
+test('evidence refs recover a stale lock owned by a dead publisher', () => {
+  const root = mkTmp('styleproof-evidence-stale-lock-');
+  try {
+    const source = { sha: 'e'.repeat(40), compatibilityKey: 'compat-stale-lock' };
+    const trust = { coverageBasis: 'complete', determinismStatus: 'proven' };
+    const first = createEvidenceCapture(root, {
+      source,
+      trust,
+      files: [{ path: 'home@1280.json', bytes: Buffer.from('first') }],
+    }).capture;
+    const second = createEvidenceCapture(root, {
+      source,
+      trust,
+      files: [{ path: 'home@1280.json', bytes: Buffer.from('second') }],
+    }).capture;
+    const key = `commits/${source.sha}/${source.compatibilityKey}`;
+    writeEvidenceRef(root, key, first, null);
+
+    const lockPath = path.join(root, 'refs', 'commits', source.sha, `${source.compatibilityKey}.json.lock`);
+    const deadPublisher = spawnSync(process.execPath, ['-e', '']);
+    assert.equal(deadPublisher.status, 0, deadPublisher.stderr?.toString());
+    assert.equal(Number.isSafeInteger(deadPublisher.pid), true);
+    fs.writeFileSync(
+      lockPath,
+      JSON.stringify({
+        version: 1,
+        pid: deadPublisher.pid,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        token: 'deadbeefdeadbeefdeadbeefdeadbeef',
+      }),
+    );
+
+    writeEvidenceRef(root, key, second, first);
+    assert.deepEqual(readEvidenceRef(root, key), second);
+    assert.equal(fs.existsSync(lockPath), false);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('evidence refs use compare-and-swap instead of silently losing concurrent publication', () => {
   const root = mkTmp('styleproof-evidence-refs-');
   try {
@@ -127,6 +168,20 @@ test('evidence refs use compare-and-swap instead of silently losing concurrent p
       (error) => error instanceof EvidenceStoreError && /locked by another publisher/.test(error.message),
     );
     assert.equal(fs.readFileSync(lockPath, 'utf8'), 'other-publisher');
+
+    fs.rmSync(lockPath);
+    const liveLock = JSON.stringify({
+      version: 1,
+      pid: process.pid,
+      createdAt: '2000-01-01T00:00:00.000Z',
+      token: 'feedfacefeedfacefeedfacefeedface',
+    });
+    fs.writeFileSync(lockPath, liveLock);
+    assert.throws(
+      () => writeEvidenceRef(root, key, first, second),
+      (error) => error instanceof EvidenceStoreError && /locked by another publisher/.test(error.message),
+    );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), liveLock, 'live lock was stolen because it looked old');
   } finally {
     rmTmp(root);
   }

@@ -3,7 +3,13 @@ import path from 'node:path';
 import { auditCoverage, COVERAGE_LEDGER, type CoverageLedger } from './coverage.js';
 import { bundleSurfaceKeys, readCoverageLedgerLenient } from './confidence-ledger.js';
 import { createEvidenceCapture, EvidenceStoreError } from './evidence-store.js';
-import { isOwnedCaptureArtifact, MAP_MANIFEST, readMapManifest, SURFACE_CAPTURE_FAILURES_DIR } from './map-store.js';
+import {
+  isOwnedCaptureArtifact,
+  isSurfaceCaptureFailureArtifact,
+  MAP_MANIFEST,
+  readMapManifest,
+  SURFACE_CAPTURE_FAILURES_DIR,
+} from './map-store.js';
 
 export type ImportMapBundleOptions = {
   bundleDirectory: string;
@@ -14,6 +20,19 @@ export type ImportMapBundleOptions = {
 function pathIsInside(parent: string, candidate: string): boolean {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function assertOwnedTopLevelEntriesAreReadableFiles(bundleDirectory: string, includeHar: boolean): void {
+  for (const entry of fs.readdirSync(bundleDirectory, { withFileTypes: true })) {
+    const ownedHar = includeHar && /@\d+\.har$/i.test(entry.name);
+    if (!isOwnedCaptureArtifact(entry.name) && !ownedHar) continue;
+    const relative = entry.name;
+    const absolute = path.join(bundleDirectory, entry.name);
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink()) throw new EvidenceStoreError(`refusing symbolic link in map bundle: ${relative}`);
+    if (stat.isDirectory() && entry.name === SURFACE_CAPTURE_FAILURES_DIR) continue;
+    if (!stat.isFile()) throw new EvidenceStoreError(`refusing non-regular map bundle entry: ${relative}`);
+  }
 }
 
 function readCoverageStrict(bundleDirectory: string): CoverageLedger | null {
@@ -29,14 +48,11 @@ function listBundleFiles(bundleDirectory: string, includeHar: boolean): Array<{ 
   const readOwnedDirectory = (directory: string, prefix: string): void => {
     for (const entry of fs
       .readdirSync(directory, { withFileTypes: true })
+      .filter((candidate) => isSurfaceCaptureFailureArtifact(candidate.name))
       .sort((a, b) => a.name.localeCompare(b.name))) {
       const absolute = path.join(directory, entry.name);
       const relative = `${prefix}/${entry.name}`;
       if (entry.isSymbolicLink()) throw new EvidenceStoreError(`refusing symbolic link in map bundle: ${relative}`);
-      if (entry.isDirectory()) {
-        readOwnedDirectory(absolute, relative);
-        continue;
-      }
       if (!entry.isFile()) throw new EvidenceStoreError(`refusing non-regular map bundle entry: ${relative}`);
       files.push({ path: relative, bytes: fs.readFileSync(absolute) });
     }
@@ -71,6 +87,8 @@ export function importMapBundleToEvidenceStore(options: ImportMapBundleOptions) 
   if (pathIsInside(bundleDirectory, storeRoot)) {
     throw new EvidenceStoreError('evidence store root must not be inside the imported map bundle');
   }
+  const includeHar = options.includeHar === true;
+  assertOwnedTopLevelEntriesAreReadableFiles(bundleDirectory, includeHar);
 
   const manifestPath = path.join(bundleDirectory, MAP_MANIFEST);
   const manifest = readMapManifest(bundleDirectory);
@@ -104,6 +122,6 @@ export function importMapBundleToEvidenceStore(options: ImportMapBundleOptions) 
       coverageBasis: coverage.basis,
       determinismStatus,
     },
-    files: listBundleFiles(bundleDirectory, options.includeHar === true),
+    files: listBundleFiles(bundleDirectory, includeHar),
   });
 }
