@@ -7,6 +7,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **One-command setup and unified CLI:** `npx styleproof setup` now detects npm,
+  pnpm, Yarn, or Bun; installs StyleProof, Playwright, and Chromium; runs the
+  existing project-aware scaffold; then verifies generated-file drift. A new
+  primary `styleproof` binary exposes setup, capture, crawl, compare, report,
+  variants, affected, CI, pre-push, publication, maintenance, and store
+  workflows while preserving every existing `styleproof-*` binary as a
+  backwards-compatible alias. `styleproof report` generates `report.md` and
+  `report.json` explicitly on command.
+- **Experimental content-addressed evidence store v2:** immutable SHA-256
+  objects, canonical capture manifests, closed-set coverage/determinism trust,
+  atomic verified restoration, and compare-and-swap refs separate evidence
+  identity from Git transport. `styleproof store import` migrates an existing
+  v1 bundle without persisting HAR or unrelated user files by default;
+  `styleproof store verify` re-hashes every referenced object; and
+  `styleproof store restore` atomically materializes a verified ref. Current
+  remote publication remains on the v1 Git adapter pending dual-write and
+  remote-CAS migration.
+
 ## [6.1.0] - 2026-08-25
 
 ### Fixed

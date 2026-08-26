@@ -290,11 +290,30 @@ styleproof report [base]     # generate the review report on command
 styleproof variants          # inspect surface/state variants
 styleproof affected          # resolve surfaces affected by source changes
 styleproof ci                # cache-aware CI orchestration
+styleproof store import ...  # migrate a v1 bundle into immutable evidence
+styleproof store verify ...  # verify a ref and every referenced byte
+styleproof store restore ... # atomically restore a verified ref
 ```
 
 Run `styleproof --help` for the whole journey or `styleproof <command> --help`
 for command-specific options. The existing `styleproof-*` binaries remain as
 backwards-compatible aliases.
+
+The experimental v2 evidence store separates immutable bytes from mutable refs:
+
+```bash
+styleproof store import .styleproof/maps/current --json
+styleproof store verify commits/<sha>/<compatibility-key> --json
+styleproof store restore commits/<sha>/<compatibility-key> ./restored-maps
+```
+
+Import derives coverage and determinism from the bundle's own ledgers, excludes
+HAR and unrelated user files by default, and fails on malformed trust evidence.
+`verify` hashes the capture manifest and every referenced object. `restore`
+verifies first, writes into a temporary directory, then exposes the result with
+one atomic rename. Git-backed remote publication still uses the v1 adapter while
+the dual-write and remote CAS migration is completed; see
+[`docs/evidence-store-v2.md`](docs/evidence-store-v2.md).
 
 `styleproof setup` detects your app and wires **surface discovery** for you — there is nothing to hand-list for the first capture:
 

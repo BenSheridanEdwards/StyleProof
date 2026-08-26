@@ -221,6 +221,12 @@ export function createEvidenceCapture(
   return { capture, manifest };
 }
 
+export function verifyEvidenceCapture(storeRoot: string, capture: EvidenceObjectRef): EvidenceCaptureManifest {
+  const manifest = parseCaptureManifest(readEvidenceObject(storeRoot, capture));
+  for (const file of manifest.files) readEvidenceObject(storeRoot, file.object);
+  return manifest;
+}
+
 export function materializeEvidenceCapture(
   storeRoot: string,
   capture: EvidenceObjectRef,

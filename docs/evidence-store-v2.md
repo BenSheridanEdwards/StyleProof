@@ -123,8 +123,8 @@ Git remains useful for migration and perhaps a small ref ledger. It is no longer
 
 ```bash
 styleproof store import .styleproof/maps/current
-styleproof store verify <capture-id-or-ref>
-styleproof store materialize <capture-id-or-ref> --out <dir>
+styleproof store verify commits/<sha>/<compatibility-key>
+styleproof store restore commits/<sha>/<compatibility-key> <out-dir>
 styleproof store refs
 styleproof store gc --dry-run
 styleproof store migrate --from git-branch
@@ -167,8 +167,10 @@ The current branch implements and tests:
 - compare-and-swap local refs;
 - lock ownership under contending publication;
 - packed-package API exposure;
-- strict v1 bundle import with fail-closed trust mapping and HAR exclusion by default;
-- `styleproof store import <bundle> [--json]` with an idempotent commit/compatibility ref.
+- strict v1 bundle import with fail-closed trust mapping, HAR exclusion, and unrelated-file exclusion by default;
+- `styleproof store import <bundle> [--json]` with an idempotent commit/compatibility ref;
+- `styleproof store verify <ref>` full-object verification;
+- `styleproof store restore <ref> <out-dir>` verified atomic restoration.
 
 Not yet implemented:
 

@@ -93,6 +93,9 @@ test('README leads with one-command setup and the unified CLI workflow', () => {
   for (const command of ['capture', 'crawl', 'compare', 'report', 'variants', 'affected', 'ci']) {
     assert.match(readme, new RegExp(`styleproof ${command}`), `README omitted styleproof ${command}`);
   }
+  for (const command of ['import', 'verify', 'restore']) {
+    assert.match(readme, new RegExp(`styleproof store ${command}`), `README omitted styleproof store ${command}`);
+  }
 });
 
 test('styleproof rejects unknown commands with discoverable help', () => {

@@ -60,6 +60,19 @@ test('styleproof store import creates an immutable capture and idempotent commit
     assert.equal(second.status, 0, second.stderr);
     assert.deepEqual(JSON.parse(second.stdout), receipt);
     assert.equal(fs.existsSync(path.join(store, 'refs', 'commits', 'd'.repeat(40), 'compat-cli.json')), true);
+
+    const verified = run(['store', 'verify', receipt.ref, '--root', store, '--json'], workspace);
+    assert.equal(verified.status, 0, verified.stderr);
+    const verification = JSON.parse(verified.stdout);
+    assert.equal(verification.status, 'verified');
+    assert.equal(verification.files, 3);
+    assert.deepEqual(verification.capture, receipt.capture);
+
+    const restored = path.join(workspace, 'restored');
+    const restore = run(['store', 'restore', receipt.ref, restored, '--root', store, '--json'], workspace);
+    assert.equal(restore.status, 0, restore.stderr);
+    assert.equal(JSON.parse(restore.stdout).status, 'restored');
+    assert.equal(fs.readFileSync(path.join(restored, 'home@1280.json'), 'utf8'), '{}');
   } finally {
     rmTmp(workspace);
   }
@@ -69,5 +82,7 @@ test('styleproof store is discoverable through the primary CLI', () => {
   const result = run(['store', '--help'], root);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /usage: styleproof store import/);
+  assert.match(result.stdout, /styleproof store verify/);
+  assert.match(result.stdout, /styleproof store restore/);
   assert.match(run(['--help'], root).stdout, /\bstore\b/);
 });

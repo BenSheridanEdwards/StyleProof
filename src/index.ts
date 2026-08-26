@@ -186,6 +186,7 @@ export {
   putEvidenceObject,
   readEvidenceObject,
   readEvidenceRef,
+  verifyEvidenceCapture,
   writeEvidenceRef,
   EvidenceStoreError,
 } from './evidence-store.js';
