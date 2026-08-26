@@ -155,9 +155,16 @@ test('styleproof-init → styleproof-map → styleproof-diff works in a generate
     const headMap = run(app, process.execPath, [MAP], { STYLEPROOF_UPLOAD: '1' });
     expect(headMap.status, headMap.stderr + headMap.stdout).toBe(0);
 
-    const diff = run(app, process.execPath, [DIFF]);
+    const blocked = run(app, process.execPath, [DIFF]);
+    expect(blocked.status, blocked.stderr + blocked.stdout).toBe(1);
+    expect(blocked.stdout).toContain('completeness NOT asserted');
+
+    const diagnosticJson = path.join(app, 'styleproof-diagnostic.json');
+    const diff = run(app, process.execPath, [DIFF, '--allow-unasserted', '--json', diagnosticJson]);
     expect(diff.status, diff.stderr + diff.stdout).toBe(0);
-    expect(diff.stdout).toContain('0 reviewable computed-style changes across 1 paired capture(s)');
+    const diagnostic = JSON.parse(fs.readFileSync(diagnosticJson, 'utf8'));
+    expect(diagnostic.certifiesFully).toBe(false);
+    expect(diagnostic.diagnostic).toBe(true);
     expect(diff.stdout).toContain('content/structure not evaluated');
   } finally {
     fs.rmSync(app, { recursive: true, force: true });
@@ -863,12 +870,19 @@ test('pre-push hook dogfood: capture→publish→docs-skip→fresh-clone restore
 
     // ...and the restored bundle diffs CLEAN against what the hook captured —
     // the store roundtrip changed nothing (exit 0, not merely "compatible").
+    const diagnosticJson = path.join(ciApp, 'styleproof-store-diagnostic.json');
     const diff = run(ciApp, process.execPath, [
       DIFF,
       path.join(app, '.styleproof/maps/current'),
       path.join(mapRoot, 'head'),
+      '--allow-unasserted',
+      '--json',
+      diagnosticJson,
     ]);
     expect(diff.status, diff.stderr + diff.stdout).toBe(0);
+    const diagnostic = JSON.parse(fs.readFileSync(diagnosticJson, 'utf8'));
+    expect(diagnostic.certifiesFully).toBe(false);
+    expect(diagnostic.diagnostic).toBe(true);
     expect(diff.stdout).toContain('0 reviewable computed-style changes');
   } finally {
     fs.rmSync(app, { recursive: true, force: true });

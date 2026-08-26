@@ -279,10 +279,12 @@ Requires **Node ≥ 18** (ESM), **`@playwright/test` ≥ 1.40** (peer dep). Forc
 npx styleproof-init
 ```
 
-`styleproof-init` detects your app and wires **surface discovery** for you — there is nothing to hand-list:
+`styleproof-init` detects your app and wires **surface discovery** for you — there is nothing to hand-list for the first capture:
 
 - **Next.js** — it discovers your routes (`app/` + `pages/`) at run time and derives _both_ the captured surfaces and the coverage guard from them, so a route you add later is captured automatically, never a guard failure.
-- **Any other app** — it scaffolds a **nav crawl**: StyleProof loads `/`, reads the rendered `<a href>` links, and captures every same-origin surface they point to. The surface set _is_ the nav, so it can't drift from it.
+- **Any other app** — it scaffolds a **nav crawl**: StyleProof loads `/`, reads the rendered `<a href>` links, and captures every same-origin surface they point to. The surface set _is_ the visible nav, so it cannot drift from that nav.
+
+The distinction matters. Next.js supplies an enumerable route registry, so the generated gate can certify completeness immediately. A generic nav crawl cannot prove that invisible, auth-gated, or no-longer-linked routes do not exist. Its first comparison therefore fails closed with `completeness NOT asserted` until you add the generated spec's `expected` registry (and reasoned `exclude` entries). Use `--allow-unasserted` only for an explicit diagnostic comparison; its JSON receipt says `certifiesFully: false`.
 
 Either way the generated spec runs as-is. It also wires everything around it so the gate behaves the same locally and in CI:
 
