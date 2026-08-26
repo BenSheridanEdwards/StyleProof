@@ -623,6 +623,7 @@ test('publishMapBundle consumer fallback survives a partial isolated clone that 
     // cannot serve the seeded historic bundle back to the consumer.
     git(root, 'init', '--bare', '-q', remote);
     git(root, '--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true');
+    git(root, '--git-dir', remote, 'config', 'uploadpack.allowReachableSHA1InWant', 'true');
     git(root, 'clone', '-q', remote, seed);
     git(seed, 'checkout', '-q', '-b', 'styleproof-maps');
     git(seed, 'config', 'user.email', 'styleproof@example.test');
@@ -816,6 +817,7 @@ test('publishMapBundle preserves unseen bundles without downloading their blobs'
     git(seed, 'commit', '-qm', 'seed large map store');
     git(seed, 'push', '-q', 'origin', 'styleproof-maps');
     git(root, '--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true');
+    git(root, '--git-dir', remote, 'config', 'uploadpack.allowReachableSHA1InWant', 'true');
 
     fs.mkdirSync(consumer);
     git(consumer, 'init', '-q', '-b', 'main');
@@ -839,7 +841,7 @@ test('publishMapBundle preserves unseen bundles without downloading their blobs'
     });
 
     fs.mkdirSync(shimDirectory);
-    const sshShim = path.join(shimDirectory, 'ssh');
+    const sshShim = path.join(shimDirectory, 'ssh.cjs');
     fs.writeFileSync(
       sshShim,
       `#!/usr/bin/env node
@@ -947,6 +949,7 @@ test('restoreMapBundle retrieves only the requested SHA from a large map store',
     git(seed, 'commit', '-qm', 'seed map store');
     git(seed, 'push', '-q', 'origin', 'styleproof-maps');
     git(root, '--git-dir', remote, 'config', 'uploadpack.allowFilter', 'true');
+    git(root, '--git-dir', remote, 'config', 'uploadpack.allowReachableSHA1InWant', 'true');
 
     fs.mkdirSync(consumer);
     git(consumer, 'init', '-q', '-b', 'main');
@@ -959,7 +962,7 @@ test('restoreMapBundle retrieves only the requested SHA from a large map store',
       '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
     );
     fs.chmodSync(gitShim, 0o755);
-    const sshShim = path.join(shimDirectory, 'ssh');
+    const sshShim = path.join(shimDirectory, 'ssh.cjs');
     fs.writeFileSync(
       sshShim,
       '#!/bin/sh\nfor argument do remote_command="$argument"; done\nsh -c "$remote_command" | tee -a "$STYLEPROOF_TEST_UPLOAD_LOG"\n',
