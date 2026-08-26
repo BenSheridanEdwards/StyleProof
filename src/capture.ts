@@ -6,6 +6,7 @@ import { classifyInventory, collectNavAffordances, type NavigableItem } from './
 import { realNow } from './spec-clock.js';
 import { endpointOf, residueKey, type DataResidueEntry } from './data-residue.js';
 import { isMapFile } from './map-store.js';
+import { readRegularFileNoFollow } from './safe-filesystem.js';
 
 /**
  * Computed-style capture: the browser's final resolved value for every CSS
@@ -1467,7 +1468,7 @@ export function saveStyleMap(filePath: string, map: StyleMap): void {
 export function loadStyleMap(filePath: string): StyleMap {
   let raw: Buffer;
   try {
-    raw = fs.readFileSync(filePath);
+    raw = readRegularFileNoFollow(filePath);
   } catch (e) {
     throw new Error(`styleproof: cannot read capture ${filePath}: ${(e as Error).message}`, { cause: e });
   }

@@ -131,6 +131,36 @@ test('evidence refs recover a stale lock owned by a dead publisher', () => {
   }
 });
 
+test('evidence refs recover a legacy PID-line lock owned by a dead publisher', () => {
+  const root = mkTmp('styleproof-evidence-legacy-lock-');
+  try {
+    const source = { sha: 'f'.repeat(40), compatibilityKey: 'compat-legacy-lock' };
+    const trust = { coverageBasis: 'complete', determinismStatus: 'proven' };
+    const first = createEvidenceCapture(root, {
+      source,
+      trust,
+      files: [{ path: 'home@1280.json', bytes: Buffer.from('first') }],
+    }).capture;
+    const second = createEvidenceCapture(root, {
+      source,
+      trust,
+      files: [{ path: 'home@1280.json', bytes: Buffer.from('second') }],
+    }).capture;
+    const key = `commits/${source.sha}/${source.compatibilityKey}`;
+    writeEvidenceRef(root, key, first, null);
+    const lockPath = path.join(root, 'refs', 'commits', source.sha, `${source.compatibilityKey}.json.lock`);
+    const deadPublisher = spawnSync(process.execPath, ['-e', '']);
+    assert.equal(deadPublisher.status, 0, deadPublisher.stderr?.toString());
+    fs.writeFileSync(lockPath, `${deadPublisher.pid}\n`);
+
+    writeEvidenceRef(root, key, second, first);
+    assert.deepEqual(readEvidenceRef(root, key), second);
+    assert.equal(fs.existsSync(lockPath), false);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('evidence refs use compare-and-swap instead of silently losing concurrent publication', () => {
   const root = mkTmp('styleproof-evidence-refs-');
   try {

@@ -124,6 +124,34 @@ test(
   },
 );
 
+test(
+  'styleproof store import rejects every map-reader FIFO before opening it',
+  { skip: process.platform === 'win32' },
+  () => {
+    const workspace = mkTmp('styleproof-store-map-fifo-');
+    try {
+      const bundle = path.join(workspace, 'bundle');
+      const store = path.join(workspace, 'evidence');
+      writeBundle(bundle);
+      const unexpectedMap = path.join(bundle, 'x.json');
+      const fifo = spawnSync('mkfifo', [unexpectedMap], { encoding: 'utf8' });
+      assert.equal(fifo.status, 0, fifo.stderr);
+
+      const result = spawnSync(process.execPath, [cli, 'store', 'import', bundle, '--root', store], {
+        cwd: workspace,
+        encoding: 'utf8',
+        timeout: fifoProbeTimeoutMs,
+      });
+      assert.equal(result.error, undefined, result.error?.message);
+      assert.equal(result.status, 2, result.stderr);
+      assert.match(result.stderr, /refusing non-regular map bundle entry: x\.json/);
+      assert.equal(fs.existsSync(store), false, 'rejected map-reader input created evidence-store state');
+    } finally {
+      rmTmp(workspace);
+    }
+  },
+);
+
 test('styleproof store is discoverable through the primary CLI', () => {
   const result = run(['store', '--help'], root);
   assert.equal(result.status, 0, result.stderr);

@@ -80,7 +80,7 @@ refs/releases/<release>.json
 
 Only refs may move. Every update is compare-and-swap against an expected previous capture or explicit absence. Concurrent publication cannot silently overwrite another result.
 
-The local adapter uses a versioned owner lock plus atomic file replacement. A lock is recoverable only when its recorded publisher PID is no longer alive; age alone never authorizes lock theft. Recovery hard-links and rechecks the exact lock inode before removal, while malformed or live-owner locks fail closed. Remote adapters must use their native conditional-write primitive, generation match, ETag, or Git ref lease.
+The local adapter uses a versioned owner lock plus atomic file replacement. Legacy PID-line locks remain recoverable during upgrades. A lock is recoverable only when its recorded publisher PID is no longer alive; age alone never authorizes lock theft. Recovery hard-links and rechecks exact owner bytes plus file identity before removal, with a zero-inode fallback for Windows, while malformed or live-owner locks fail closed. Remote adapters must use their native conditional-write primitive, generation match, ETag, or Git ref lease.
 
 ### 4. Atomic verified materialization
 
@@ -151,7 +151,7 @@ No flag day.
 - Credentials and setup secrets are never objects.
 - Object reads always verify digest and size.
 - Manifest paths are treated as hostile input.
-- V1 import rejects owned FIFOs, sockets, devices, and symlinks before metadata readers can open them.
+- V1 import routes every manifest, coverage, confidence, provenance, and map read through one no-follow regular-file primitive; FIFOs, sockets, devices, and symlinks are refused before bytes are read.
 - Only canonical flat StyleProof failure receipts are imported from the managed failures directory; unknown files and nested directories remain excluded.
 - Remote refs require authenticated conditional writes.
 - Encryption belongs in adapters, while hashes remain over a clearly versioned plaintext or ciphertext policy.

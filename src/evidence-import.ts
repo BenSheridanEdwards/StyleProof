@@ -4,12 +4,14 @@ import { auditCoverage, COVERAGE_LEDGER, type CoverageLedger } from './coverage.
 import { bundleSurfaceKeys, readCoverageLedgerLenient } from './confidence-ledger.js';
 import { createEvidenceCapture, EvidenceStoreError } from './evidence-store.js';
 import {
+  isMapFile,
   isOwnedCaptureArtifact,
   isSurfaceCaptureFailureArtifact,
   MAP_MANIFEST,
   readMapManifest,
   SURFACE_CAPTURE_FAILURES_DIR,
 } from './map-store.js';
+import { readRegularFileNoFollow } from './safe-filesystem.js';
 
 export type ImportMapBundleOptions = {
   bundleDirectory: string;
@@ -25,7 +27,7 @@ function pathIsInside(parent: string, candidate: string): boolean {
 function assertOwnedTopLevelEntriesAreReadableFiles(bundleDirectory: string, includeHar: boolean): void {
   for (const entry of fs.readdirSync(bundleDirectory, { withFileTypes: true })) {
     const ownedHar = includeHar && /@\d+\.har$/i.test(entry.name);
-    if (!isOwnedCaptureArtifact(entry.name) && !ownedHar) continue;
+    if (!isOwnedCaptureArtifact(entry.name) && !isMapFile(entry.name) && !ownedHar) continue;
     const relative = entry.name;
     const absolute = path.join(bundleDirectory, entry.name);
     const stat = fs.lstatSync(absolute);
@@ -54,7 +56,7 @@ function listBundleFiles(bundleDirectory: string, includeHar: boolean): Array<{ 
       const relative = `${prefix}/${entry.name}`;
       if (entry.isSymbolicLink()) throw new EvidenceStoreError(`refusing symbolic link in map bundle: ${relative}`);
       if (!entry.isFile()) throw new EvidenceStoreError(`refusing non-regular map bundle entry: ${relative}`);
-      files.push({ path: relative, bytes: fs.readFileSync(absolute) });
+      files.push({ path: relative, bytes: readRegularFileNoFollow(absolute) });
     }
   };
 
@@ -73,7 +75,7 @@ function listBundleFiles(bundleDirectory: string, includeHar: boolean): Array<{ 
       continue;
     }
     if (!entry.isFile()) throw new EvidenceStoreError(`refusing non-regular map bundle entry: ${entry.name}`);
-    files.push({ path: entry.name, bytes: fs.readFileSync(absolute) });
+    files.push({ path: entry.name, bytes: readRegularFileNoFollow(absolute) });
   }
   return files;
 }

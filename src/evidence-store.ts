@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+import { sameFileIdentity } from './safe-filesystem.js';
 
 export class EvidenceStoreError extends Error {}
 
@@ -279,14 +280,50 @@ type EvidenceLockOwner = {
   token: string;
 };
 
+type LegacyEvidenceLockOwner = {
+  version: 0;
+  pid: number;
+};
+
+type ParsedEvidenceLockOwner = EvidenceLockOwner | LegacyEvidenceLockOwner;
+
 type EvidenceLockSnapshot = {
-  owner: EvidenceLockOwner;
+  owner: ParsedEvidenceLockOwner;
   raw: string;
   stat: fs.Stats;
 };
 
-function sameFile(first: fs.Stats, second: fs.Stats): boolean {
-  return first.dev === second.dev && first.ino === second.ino;
+function parseVersionedEvidenceLockOwner(raw: string): EvidenceLockOwner | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!parsed || typeof parsed !== 'object') return undefined;
+  const candidate = parsed as Partial<EvidenceLockOwner>;
+  if (
+    candidate.version !== 1 ||
+    !Number.isSafeInteger(candidate.pid) ||
+    Number(candidate.pid) <= 0 ||
+    typeof candidate.createdAt !== 'string' ||
+    !Number.isFinite(Date.parse(candidate.createdAt)) ||
+    typeof candidate.token !== 'string' ||
+    !/^[0-9a-f-]{16,}$/.test(candidate.token)
+  ) {
+    return undefined;
+  }
+  return candidate as EvidenceLockOwner;
+}
+
+function parseLegacyEvidenceLockOwner(raw: string): LegacyEvidenceLockOwner | undefined {
+  const legacy = raw.match(/^([1-9]\d*)\n?$/);
+  const pid = legacy ? Number(legacy[1]) : Number.NaN;
+  return Number.isSafeInteger(pid) && pid > 0 ? { version: 0, pid } : undefined;
+}
+
+function parseEvidenceLockOwner(raw: string): ParsedEvidenceLockOwner | undefined {
+  return parseVersionedEvidenceLockOwner(raw) ?? parseLegacyEvidenceLockOwner(raw);
 }
 
 function readEvidenceLockSnapshot(lockPath: string): EvidenceLockSnapshot | null {
@@ -298,20 +335,9 @@ function readEvidenceLockSnapshot(lockPath: string): EvidenceLockSnapshot | null
     if (!before.isFile()) return null;
     const raw = fs.readFileSync(descriptor, 'utf8');
     const after = fs.fstatSync(descriptor);
-    if (!sameFile(before, after)) return null;
-    const parsed = JSON.parse(raw) as Partial<EvidenceLockOwner>;
-    if (
-      parsed.version !== 1 ||
-      !Number.isSafeInteger(parsed.pid) ||
-      Number(parsed.pid) <= 0 ||
-      typeof parsed.createdAt !== 'string' ||
-      !Number.isFinite(Date.parse(parsed.createdAt)) ||
-      typeof parsed.token !== 'string' ||
-      !/^[0-9a-f-]{16,}$/.test(parsed.token)
-    ) {
-      return null;
-    }
-    return { owner: parsed as EvidenceLockOwner, raw, stat: after };
+    if (!sameFileIdentity(before, after)) return null;
+    const owner = parseEvidenceLockOwner(raw);
+    return owner ? { owner, raw, stat: after } : null;
   } catch {
     return null;
   } finally {
@@ -336,9 +362,10 @@ function recoverDeadPublisherLock(lockPath: string): boolean {
   try {
     fs.linkSync(lockPath, recoveryPath);
     const recoveryStat = fs.lstatSync(recoveryPath);
-    if (!sameFile(snapshot.stat, recoveryStat) || fs.readFileSync(recoveryPath, 'utf8') !== snapshot.raw) return false;
-    const currentStat = fs.lstatSync(lockPath);
-    if (!sameFile(currentStat, recoveryStat)) return false;
+    if (!sameFileIdentity(snapshot.stat, recoveryStat) || fs.readFileSync(recoveryPath, 'utf8') !== snapshot.raw)
+      return false;
+    const current = readEvidenceLockSnapshot(lockPath);
+    if (!current || current.raw !== snapshot.raw || !sameFileIdentity(current.stat, recoveryStat)) return false;
     fs.unlinkSync(lockPath);
     return true;
   } catch {
@@ -382,9 +409,9 @@ function acquireEvidenceLock(lockPath: string, key: string): { descriptor: numbe
 
 function lockIsStillOwned(lockPath: string, descriptor: number, owner: EvidenceLockOwner): boolean {
   const snapshot = readEvidenceLockSnapshot(lockPath);
-  if (!snapshot || snapshot.owner.token !== owner.token) return false;
+  if (!snapshot || snapshot.owner.version !== 1 || snapshot.owner.token !== owner.token) return false;
   try {
-    return sameFile(fs.fstatSync(descriptor), snapshot.stat);
+    return sameFileIdentity(fs.fstatSync(descriptor), snapshot.stat);
   } catch {
     return false;
   }
@@ -411,6 +438,30 @@ export function readEvidenceRef(storeRoot: string, key: string): EvidenceObjectR
   return reference.capture;
 }
 
+function publishEvidenceRefWithCas(
+  storeRoot: string,
+  key: string,
+  referencePath: string,
+  capture: EvidenceObjectRef,
+  expectedCapture: EvidenceObjectRef | null,
+): void {
+  const currentCapture = readEvidenceRef(storeRoot, key);
+  if (!sameObjectReference(currentCapture, expectedCapture)) {
+    throw new EvidenceStoreError(
+      `evidence ref ${key} compare-and-swap failed: expected ${expectedCapture?.digest ?? 'absent'}, ` +
+        `found ${currentCapture?.digest ?? 'absent'}`,
+    );
+  }
+  const content = canonicalJson({ kind: 'styleproof.ref', version: 2, capture });
+  const temporaryPath = `${referencePath}.tmp-${process.pid}-${Math.random().toString(16).slice(2)}`;
+  try {
+    fs.writeFileSync(temporaryPath, content, { flag: 'wx' });
+    fs.renameSync(temporaryPath, referencePath);
+  } finally {
+    fs.rmSync(temporaryPath, { force: true });
+  }
+}
+
 export function writeEvidenceRef(
   storeRoot: string,
   key: string,
@@ -429,21 +480,7 @@ export function writeEvidenceRef(
     lockDescriptor = lock.descriptor;
     lockOwner = lock.owner;
 
-    const currentCapture = readEvidenceRef(storeRoot, key);
-    if (!sameObjectReference(currentCapture, expectedCapture)) {
-      throw new EvidenceStoreError(
-        `evidence ref ${key} compare-and-swap failed: expected ${expectedCapture?.digest ?? 'absent'}, ` +
-          `found ${currentCapture?.digest ?? 'absent'}`,
-      );
-    }
-    const content = canonicalJson({ kind: 'styleproof.ref', version: 2, capture });
-    const temporaryPath = `${referencePath}.tmp-${process.pid}-${Math.random().toString(16).slice(2)}`;
-    try {
-      fs.writeFileSync(temporaryPath, content, { flag: 'wx' });
-      fs.renameSync(temporaryPath, referencePath);
-    } finally {
-      fs.rmSync(temporaryPath, { force: true });
-    }
+    publishEvidenceRefWithCas(storeRoot, key, referencePath, capture, expectedCapture);
   } catch (error) {
     if (error instanceof EvidenceStoreError) throw error;
     throw new EvidenceStoreError(
@@ -453,7 +490,12 @@ export function writeEvidenceRef(
     if (lockDescriptor !== undefined && lockOwner !== undefined) {
       const removeOwnedLock = lockIsStillOwned(lockPath, lockDescriptor, lockOwner);
       fs.closeSync(lockDescriptor);
-      if (removeOwnedLock) fs.rmSync(lockPath, { force: true });
+      if (removeOwnedLock) {
+        const current = readEvidenceLockSnapshot(lockPath);
+        if (current?.owner.version === 1 && current.owner.token === lockOwner.token) {
+          fs.rmSync(lockPath, { force: true });
+        }
+      }
     }
   }
 }
