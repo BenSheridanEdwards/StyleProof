@@ -276,7 +276,15 @@ config, split GitHub workflows, and pre-push integration; then verifies every
 machine-owned file against the installed release. Preview the exact operations
 without writing with `npx styleproof setup --dry-run`. Existing installations
 can use `styleproof setup --skip-install --skip-browser` to refresh scaffolding
-without network work.
+without network work. In a monorepo, target the consumer application explicitly:
+
+```bash
+styleproof setup --project-dir apps/web
+```
+
+`--project-dir` changes where dependencies are installed and all setup commands
+run. `--dir` remains the capture-spec path inside that project, for example
+`--project-dir apps/web --dir e2e/styleproof.custom.spec.ts`.
 
 Requires **Node ≥ 18** (ESM). Forced states are Chromium-only.
 

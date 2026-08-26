@@ -87,9 +87,90 @@ test('styleproof setup dry-run plans installation, browser, scaffold, and verifi
   }
 });
 
+test('styleproof setup targets a nested project without conflating it with the capture spec path', () => {
+  const workspace = mkTmp('styleproof-setup-project-');
+  const project = path.join(workspace, 'apps/web');
+  try {
+    fs.mkdirSync(project, { recursive: true });
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
+
+    const result = run(
+      ['setup', '--dry-run', '--project-dir=apps/web', '--dir=e2e/styleproof.custom.spec.ts'],
+      workspace,
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, new RegExp(`Project: ${fs.realpathSync(project).replaceAll('\\', '\\\\')}`));
+    assert.match(result.stdout, /npm install .*styleproof@6\.1\.0.*@playwright\/test/);
+    assert.match(result.stdout, /styleproof-init --dir=e2e\/styleproof\.custom\.spec\.ts$/m);
+    assert.match(result.stdout, /styleproof-init --dir=e2e\/styleproof\.custom\.spec\.ts --check$/m);
+  } finally {
+    rmTmp(workspace);
+  }
+});
+
+test('styleproof setup refuses ambiguous package-manager lockfiles without an explicit packageManager field', () => {
+  const project = mkTmp('styleproof-setup-ambiguous-');
+  try {
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
+    fs.writeFileSync(path.join(project, 'pnpm-lock.yaml'), 'lockfileVersion: 9');
+
+    const result = run(['setup', '--dry-run'], project);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /multiple package-manager lockfiles/i);
+    assert.match(result.stderr, /packageManager/);
+  } finally {
+    rmTmp(project);
+  }
+});
+
+test('styleproof setup plans exact commands for npm, pnpm, Yarn, and Bun', () => {
+  const fixtures = [
+    ['package-lock.json', '{}', /npm install --save-dev/, /npm exec playwright install chromium/],
+    ['pnpm-lock.yaml', 'lockfileVersion: 9', /pnpm add --save-dev/, /pnpm exec playwright install chromium/],
+    ['yarn.lock', '', /yarn add --dev/, /yarn exec playwright install chromium/],
+    ['bun.lockb', '', /bun add --dev/, /bunx playwright install chromium/],
+  ];
+
+  for (const [lockfile, contents, installPattern, browserPattern] of fixtures) {
+    const project = mkTmp(`styleproof-setup-${lockfile.replaceAll('.', '-')}-`);
+    try {
+      fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+      fs.writeFileSync(path.join(project, lockfile), contents);
+      const result = run(['setup', '--dry-run'], project);
+      assert.equal(result.status, 0, `${lockfile}\n${result.stderr}`);
+      assert.match(result.stdout, installPattern, lockfile);
+      assert.match(result.stdout, browserPattern, lockfile);
+    } finally {
+      rmTmp(project);
+    }
+  }
+});
+
+test('styleproof setup uses packageManager to resolve intentionally mixed lockfiles', () => {
+  const project = mkTmp('styleproof-setup-declared-manager-');
+  try {
+    fs.writeFileSync(
+      path.join(project, 'package.json'),
+      JSON.stringify({ name: 'consumer', private: true, packageManager: 'pnpm@10.0.0' }),
+    );
+    fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
+    fs.writeFileSync(path.join(project, 'pnpm-lock.yaml'), 'lockfileVersion: 9');
+
+    const result = run(['setup', '--dry-run'], project);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /pnpm add --save-dev/);
+    assert.doesNotMatch(result.stdout, /npm install --save-dev/);
+  } finally {
+    rmTmp(project);
+  }
+});
+
 test('README leads with one-command setup and the unified CLI workflow', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
   assert.match(readme, /npx styleproof setup/);
+  assert.match(readme, /--project-dir/);
   for (const command of ['capture', 'crawl', 'compare', 'report', 'variants', 'affected', 'ci']) {
     assert.match(readme, new RegExp(`styleproof ${command}`), `README omitted styleproof ${command}`);
   }

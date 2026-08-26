@@ -14,7 +14,8 @@ const HELP = `styleproof setup — install, scaffold, and verify StyleProof in o
 usage: styleproof setup [options]
 
 options:
-  --dir <path>       capture spec path (default: e2e/styleproof.spec.ts)
+  --project-dir <path> consumer project root (default: current directory)
+  --dir <path>       capture spec path inside the project (default: e2e/styleproof.spec.ts)
   --base-url <url>   application URL (default: http://localhost:3000)
   --force            overwrite the existing capture spec
   --skip-install     do not add StyleProof and Playwright to the project
@@ -37,6 +38,7 @@ const argv = process.argv.slice(2);
 let dryRun = false;
 let skipInstall = false;
 let skipBrowser = false;
+let projectDirectory = '.';
 const initArgs = [];
 const checkArgs = [];
 for (let i = 0; i < argv.length; i++) {
@@ -48,7 +50,20 @@ for (let i = 0; i < argv.length; i++) {
   if (arg === '--dry-run') dryRun = true;
   else if (arg === '--skip-install') skipInstall = true;
   else if (arg === '--skip-browser') skipBrowser = true;
-  else if (arg === '--force') initArgs.push(arg);
+  else if (arg === '--project-dir') {
+    const value = argv[++i];
+    if (!value) {
+      process.stderr.write('styleproof setup: --project-dir requires a value\n');
+      process.exit(2);
+    }
+    projectDirectory = value;
+  } else if (arg.startsWith('--project-dir=')) {
+    projectDirectory = arg.slice('--project-dir='.length);
+    if (!projectDirectory) {
+      process.stderr.write('styleproof setup: --project-dir requires a value\n');
+      process.exit(2);
+    }
+  } else if (arg === '--force') initArgs.push(arg);
   else if (arg === '--dir' || arg === '--base-url') {
     const value = argv[++i];
     if (!value) {
@@ -67,20 +82,57 @@ for (let i = 0; i < argv.length; i++) {
   }
 }
 
-const cwd = process.cwd();
+const cwd = path.resolve(process.cwd(), projectDirectory);
 if (!fs.existsSync(path.join(cwd, 'package.json'))) {
-  process.stderr.write('styleproof setup: package.json was not found in the current directory\n');
+  process.stderr.write(`styleproof setup: package.json was not found in project directory ${cwd}\n`);
   process.exit(2);
 }
+if (dryRun) process.stdout.write(`Project: ${cwd}\n`);
 
 function detectPackageManager(root) {
-  if (fs.existsSync(path.join(root, 'bun.lock')) || fs.existsSync(path.join(root, 'bun.lockb'))) return 'bun';
-  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (fs.existsSync(path.join(root, 'yarn.lock'))) return 'yarn';
-  return 'npm';
+  let consumerManifest;
+  try {
+    consumerManifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`could not read package.json: ${detail}`, { cause: error });
+  }
+
+  const supported = new Set(['npm', 'pnpm', 'yarn', 'bun']);
+  if (consumerManifest.packageManager !== undefined) {
+    if (typeof consumerManifest.packageManager !== 'string') {
+      throw new Error('package.json#packageManager must be a string');
+    }
+    const declared = consumerManifest.packageManager.split('@', 1)[0];
+    if (!supported.has(declared)) {
+      throw new Error(`unsupported package.json#packageManager: ${consumerManifest.packageManager}`);
+    }
+    return declared;
+  }
+
+  const detected = [];
+  if (fs.existsSync(path.join(root, 'package-lock.json'))) detected.push('npm');
+  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) detected.push('pnpm');
+  if (fs.existsSync(path.join(root, 'yarn.lock'))) detected.push('yarn');
+  if (fs.existsSync(path.join(root, 'bun.lock')) || fs.existsSync(path.join(root, 'bun.lockb'))) {
+    detected.push('bun');
+  }
+  if (detected.length > 1) {
+    throw new Error(
+      `multiple package-manager lockfiles found (${detected.join(', ')}); set package.json#packageManager explicitly`,
+    );
+  }
+  return detected[0] ?? 'npm';
 }
 
-const manager = detectPackageManager(cwd);
+let manager;
+try {
+  manager = detectPackageManager(cwd);
+} catch (error) {
+  const detail = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`styleproof setup: ${detail}\n`);
+  process.exit(2);
+}
 const plans = {
   npm: {
     install: ['npm', ['install', '--save-dev', `styleproof@${version}`, '@playwright/test@>=1.40']],

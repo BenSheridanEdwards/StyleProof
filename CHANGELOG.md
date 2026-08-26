@@ -11,7 +11,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **One-command setup and unified CLI:** `npx styleproof setup` now detects npm,
   pnpm, Yarn, or Bun; installs StyleProof, Playwright, and Chromium; runs the
-  existing project-aware scaffold; then verifies generated-file drift. A new
+  existing project-aware scaffold; then verifies generated-file drift. It supports
+  explicit monorepo project roots with `--project-dir`, respects
+  `package.json#packageManager`, and refuses ambiguous mixed lockfiles rather
+  than guessing. A new
   primary `styleproof` binary exposes setup, capture, crawl, compare, report,
   variants, affected, CI, pre-push, publication, maintenance, and store
   workflows while preserving every existing `styleproof-*` binary as a
