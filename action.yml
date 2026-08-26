@@ -214,9 +214,12 @@ runs:
             ? (diff.inventory?.unacknowledged || []).length +
               (diff.inventory?.staleAcknowledgements || []).length
             : 0;
+          // Certification is a closed set: only explicitly complete coverage and
+          // proven determinism may avoid CERTIFICATION_FAILED. Unasserted, unknown,
+          // malformed, or missing evidence is not a style change a reviewer can approve.
           const certificationFailed =
-            diff.coverage?.basis === 'incomplete' ||
-            diff.determinism?.status === 'unproven';
+            diff.coverage?.basis !== 'complete' ||
+            diff.determinism?.status !== 'proven';
           // Raw certification deltas that cleanFindings strips entirely: the durable
           // report has no crops/sections. Never map this to style review.
           const rawOnlyNoReviewable =

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
@@ -134,6 +136,30 @@ test('composite action marks certify-mode comments with their source head SHA', 
   assert.match(commentStep[0], /\.\.\.\(headSha \? \[`<!-- styleproof-sha:\$\{headSha\} -->`\] : \[\]\)/);
 });
 
+test('action dogfood fixtures are asserted and deterministic unless the scenario overrides trust', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-dogfood-'));
+  try {
+    const generated = spawnSync(
+      process.execPath,
+      [path.join(here, '..', 'scripts/action-dogfood-fixtures.mjs'), root],
+      {
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(generated.status, 0, generated.stderr);
+    const clean = JSON.parse(fs.readFileSync(path.join(root, 'clean-base', 'styleproof-coverage.json'), 'utf8'));
+    assert.deepEqual(clean.expected, ['home']);
+    assert.equal(clean.determinism, 'self-checked');
+    const newHead = JSON.parse(fs.readFileSync(path.join(root, 'new-head', 'styleproof-coverage.json'), 'utf8'));
+    assert.deepEqual(newHead.expected, ['home', 'pricing']);
+    const certfail = JSON.parse(fs.readFileSync(path.join(root, 'certfail-head', 'styleproof-coverage.json'), 'utf8'));
+    assert.deepEqual(certfail.expected, ['home']);
+    assert.equal(certfail.determinism, 'unproven');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('dogfood workflow runs the local composite action against every trust-state class', () => {
   assert.match(dogfoodYml, /uses: \.\/\n/g);
   assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 9);
@@ -163,6 +189,15 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /action-dogfood\/certfail-base/);
   assert.match(dogfoodYml, /steps\.certfail\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /steps\.certfail\.outcome }}' = 'failure'/);
+});
+
+test('composite action classifies every non-certifying coverage/determinism basis as CERTIFICATION_FAILED', () => {
+  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
+  assert.match(verdict[0], /diff\.coverage\?\.basis !== 'complete'/);
+  assert.match(verdict[0], /diff\.determinism\?\.status !== 'proven'/);
+  assert.doesNotMatch(verdict[0], /basis === 'incomplete'/);
+  assert.doesNotMatch(verdict[0], /status === 'unproven'/);
 });
 
 test('composite action exposes one precedence-ordered machine-readable trust verdict', () => {

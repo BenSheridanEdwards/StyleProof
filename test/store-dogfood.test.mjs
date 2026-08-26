@@ -21,8 +21,12 @@ test('store dogfood runs the whole chain: capture+publish → restore → certif
   const missIndex = workflow.indexOf('--restore --sha "0000000000000000000000000000000000000001"');
   assert.ok(captureIndex > 0, 'captures at the real head SHA and requires upload');
   assert.ok(restoreIndex > captureIndex, 'restores the published bundle after capture');
-  assert.ok(certifyIndex > restoreIndex, 'certifies restored == captured after restore');
+  assert.ok(certifyIndex > restoreIndex, 'diagnostically compares restored == captured after restore');
   assert.ok(missIndex > certifyIndex, 'checks the miss taxonomy last');
+  // Store dogfood proves round-trip fidelity, not application completeness. It must
+  // opt into diagnostic mode and verify the receipt cannot be mistaken for certification.
+  assert.match(workflow, /styleproof-diff\.mjs[\s\S]*?--allow-unasserted --json "\$MAP_ROOT\/round-trip\.json"/);
+  assert.match(workflow, /receipt\.certifiesFully !== false \|\| receipt\.diagnostic !== true/);
   // The capture binds to the CHECKED-OUT commit, not event metadata.
   assert.match(workflow, /HEAD_SHA="\$\(git rev-parse HEAD\)"/);
   // A miss must surface as exit 4 — a fake hit or an infra code fails the job.

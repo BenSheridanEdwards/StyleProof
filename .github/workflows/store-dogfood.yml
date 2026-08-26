@@ -7,7 +7,8 @@ name: Map store dogfood
 #     → published to a scratch map-store branch on the REAL GitHub remote
 #       (auth, sparse clone, bot identity, retries — the production publish path)
 #     → restored into a clean directory by that SHA + compatibility key
-#     → certified byte-identical by styleproof-diff (exit 0)
+#     → compared byte-identically by styleproof-diff in explicit diagnostic mode
+#       (store fidelity is proven; application completeness is not claimed)
 #   plus the miss taxonomy: restoring an absent SHA must stay exit 4, never a
 #   fake hit and never an infra-fault code.
 #
@@ -65,10 +66,18 @@ jobs:
             --dir restored --base-dir "$MAP_ROOT" \
             --spec example/styleproof.spec.ts
 
-      - name: Certify restored == captured
+      - name: Compare restored == captured without claiming application completeness
         run: |
           set -euo pipefail
-          node bin/styleproof-diff.mjs "$MAP_ROOT/captured" "$MAP_ROOT/restored"
+          node bin/styleproof-diff.mjs "$MAP_ROOT/captured" "$MAP_ROOT/restored" \
+            --allow-unasserted --json "$MAP_ROOT/round-trip.json"
+          node - <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.env.MAP_ROOT + '/round-trip.json', 'utf8'));
+          if (receipt.certifiesFully !== false || receipt.diagnostic !== true) {
+            throw new Error('store round-trip must remain diagnostic, never masquerade as full certification');
+          }
+          NODE
 
       - name: A genuine miss stays exit 4 (never a fake hit, never an infra code)
         run: |
