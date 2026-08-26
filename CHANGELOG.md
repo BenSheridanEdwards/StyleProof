@@ -13,8 +13,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   pnpm, Yarn, or Bun; installs StyleProof, Playwright, and Chromium; runs the
   existing project-aware scaffold; then verifies generated-file drift. It supports
   explicit monorepo project roots with `--project-dir`, respects
-  `package.json#packageManager`, and refuses ambiguous mixed lockfiles rather
-  than guessing. A new
+  `package.json#packageManager`, rejects malformed option values, resolves
+  shell-free package-manager shims on Windows, verifies custom base URLs with
+  the same arguments used to scaffold them, and refuses ambiguous mixed
+  lockfiles rather than guessing. A new
   primary `styleproof` binary exposes setup, capture, crawl, compare, report,
   variants, affected, CI, pre-push, publication, maintenance, and store
   workflows while preserving every existing `styleproof-*` binary as a

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resolveSpawnCommand } from './platform-command.mjs';
 
 const binDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(binDir, '..');
@@ -41,6 +42,14 @@ let skipBrowser = false;
 let projectDirectory = '.';
 const initArgs = [];
 const checkArgs = [];
+function requireOptionValue(option, index) {
+  const value = argv[index + 1];
+  if (!value || value.startsWith('--')) {
+    process.stderr.write(`styleproof setup: ${option} requires a value\n`);
+    process.exit(2);
+  }
+  return value;
+}
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i];
   if (arg === '-h' || arg === '--help') {
@@ -51,12 +60,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (arg === '--skip-install') skipInstall = true;
   else if (arg === '--skip-browser') skipBrowser = true;
   else if (arg === '--project-dir') {
-    const value = argv[++i];
-    if (!value) {
-      process.stderr.write('styleproof setup: --project-dir requires a value\n');
-      process.exit(2);
-    }
-    projectDirectory = value;
+    projectDirectory = requireOptionValue(arg, i);
+    i++;
   } else if (arg.startsWith('--project-dir=')) {
     projectDirectory = arg.slice('--project-dir='.length);
     if (!projectDirectory) {
@@ -65,18 +70,25 @@ for (let i = 0; i < argv.length; i++) {
     }
   } else if (arg === '--force') initArgs.push(arg);
   else if (arg === '--dir' || arg === '--base-url') {
-    const value = argv[++i];
-    if (!value) {
-      process.stderr.write(`styleproof setup: ${arg} requires a value\n`);
+    const value = requireOptionValue(arg, i);
+    i++;
+    initArgs.push(arg, value);
+    checkArgs.push(arg, value);
+  } else if (arg.startsWith('--dir=')) {
+    if (!arg.slice('--dir='.length)) {
+      process.stderr.write('styleproof setup: --dir requires a value\n');
       process.exit(2);
     }
-    initArgs.push(arg, value);
-    if (arg === '--dir') checkArgs.push(arg, value);
-  } else if (arg.startsWith('--dir=')) {
     initArgs.push(arg);
     checkArgs.push(arg);
-  } else if (arg.startsWith('--base-url=')) initArgs.push(arg);
-  else {
+  } else if (arg.startsWith('--base-url=')) {
+    if (!arg.slice('--base-url='.length)) {
+      process.stderr.write('styleproof setup: --base-url requires a value\n');
+      process.exit(2);
+    }
+    initArgs.push(arg);
+    checkArgs.push(arg);
+  } else {
     process.stderr.write(`styleproof setup: unknown option: ${arg}\nNext: run styleproof setup --help.\n`);
     process.exit(2);
   }
@@ -162,7 +174,7 @@ function run(command, args, label, display = printable(command, args)) {
     return;
   }
   process.stdout.write(`\nStyleProof: ${label}\n`);
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
+  const result = spawnSync(resolveSpawnCommand(command), args, { cwd, stdio: 'inherit' });
   if (result.error) {
     process.stderr.write(`styleproof setup: ${label} failed: ${result.error.message}\n`);
     process.exit(5);

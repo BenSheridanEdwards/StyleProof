@@ -103,6 +103,12 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       'README-linked evidence-store architecture must ship in the tarball',
     );
 
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/bin/platform-command.mjs')),
+      true,
+      'setup platform-command runtime dependency must ship in the tarball',
+    );
+
     const importCheck = run(
       process.execPath,
       [

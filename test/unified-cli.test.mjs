@@ -96,14 +96,26 @@ test('styleproof setup targets a nested project without conflating it with the c
     fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
 
     const result = run(
-      ['setup', '--dry-run', '--project-dir=apps/web', '--dir=e2e/styleproof.custom.spec.ts'],
+      [
+        'setup',
+        '--dry-run',
+        '--project-dir=apps/web',
+        '--dir=e2e/styleproof.custom.spec.ts',
+        '--base-url=http://127.0.0.1:4173',
+      ],
       workspace,
     );
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, new RegExp(`Project: ${fs.realpathSync(project).replaceAll('\\', '\\\\')}`));
     assert.match(result.stdout, /npm install .*styleproof@6\.1\.0.*@playwright\/test/);
-    assert.match(result.stdout, /styleproof-init --dir=e2e\/styleproof\.custom\.spec\.ts$/m);
-    assert.match(result.stdout, /styleproof-init --dir=e2e\/styleproof\.custom\.spec\.ts --check$/m);
+    assert.match(
+      result.stdout,
+      /styleproof-init --dir=e2e\/styleproof\.custom\.spec\.ts --base-url=http:\/\/127\.0\.0\.1:4173$/m,
+    );
+    assert.match(
+      result.stdout,
+      /styleproof-init --dir=e2e\/styleproof\.custom\.spec\.ts --base-url=http:\/\/127\.0\.0\.1:4173 --check$/m,
+    );
   } finally {
     rmTmp(workspace);
   }
@@ -162,6 +174,26 @@ test('styleproof setup uses packageManager to resolve intentionally mixed lockfi
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /pnpm add --save-dev/);
     assert.doesNotMatch(result.stdout, /npm install --save-dev/);
+  } finally {
+    rmTmp(project);
+  }
+});
+
+test('styleproof setup refuses another option where a path or URL value is required', () => {
+  const project = mkTmp('styleproof-setup-option-value-');
+  try {
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+
+    for (const option of ['--project-dir', '--dir', '--base-url']) {
+      const result = run(['setup', '--skip-install', '--skip-browser', option, '--dry-run'], project);
+      assert.equal(result.status, 2, `${option}\n${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, new RegExp(`${option} requires a value`));
+    }
+    for (const option of ['--project-dir=', '--dir=', '--base-url=']) {
+      const result = run(['setup', '--skip-install', '--skip-browser', option], project);
+      assert.equal(result.status, 2, `${option}\n${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, /requires a value/);
+    }
   } finally {
     rmTmp(project);
   }
