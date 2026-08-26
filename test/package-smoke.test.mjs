@@ -101,7 +101,7 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       process.execPath,
       [
         '-e',
-        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function') process.exit(1); })",
+        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function' || typeof m.createEvidenceCapture !== 'function' || typeof m.writeEvidenceRef !== 'function') process.exit(1); })",
       ],
       { cwd: app },
     );

@@ -75,12 +75,12 @@ test('styleproof setup dry-run plans installation, browser, scaffold, and verifi
     fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
     fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
 
-    const result = run(['setup', '--dry-run'], project);
+    const result = run(['setup', '--dry-run', '--dir=apps/web'], project);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /npm install .*styleproof@6\.1\.0.*@playwright\/test/);
     assert.match(result.stdout, /npm exec playwright install chromium/);
-    assert.match(result.stdout, /styleproof-init/);
-    assert.match(result.stdout, /styleproof-init --check/);
+    assert.match(result.stdout, /styleproof-init --dir=apps\/web$/m);
+    assert.match(result.stdout, /styleproof-init --dir=apps\/web --check$/m);
     assert.equal(fs.existsSync(path.join(project, 'e2e/styleproof.spec.ts')), false);
   } finally {
     rmTmp(project);

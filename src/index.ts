@@ -179,3 +179,22 @@ export type {
 } from './state-recipes.js';
 export { compactMapStoreBranch, selectMapBundlesToRetain, MAP_STORE_PRUNE_SIDECAR } from './map-store-prune.js';
 export type { MapBundlePruneSelection, MapStorePruneApiOptions, MapStorePruneResult } from './map-store-prune.js';
+
+export {
+  createEvidenceCapture,
+  materializeEvidenceCapture,
+  putEvidenceObject,
+  readEvidenceObject,
+  readEvidenceRef,
+  writeEvidenceRef,
+  EvidenceStoreError,
+} from './evidence-store.js';
+export type {
+  EvidenceCaptureInput,
+  EvidenceCaptureManifest,
+  EvidenceCoverageBasis,
+  EvidenceDeterminismStatus,
+  EvidenceObjectRef,
+} from './evidence-store.js';
+export { importMapBundleToEvidenceStore } from './evidence-import.js';
+export type { ImportMapBundleOptions } from './evidence-import.js';
