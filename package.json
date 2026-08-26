@@ -36,6 +36,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
+    "styleproof": "./bin/styleproof.mjs",
     "styleproof-init": "./bin/styleproof-init.mjs",
     "styleproof-map": "./bin/styleproof-map.mjs",
     "styleproof-capture": "./bin/styleproof-capture.mjs",

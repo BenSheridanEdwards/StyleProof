@@ -108,6 +108,7 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
     assert.equal(importCheck.status, 0, importCheck.stderr);
 
     for (const bin of [
+      'styleproof',
       'styleproof-init',
       'styleproof-map',
       'styleproof-capture',
@@ -131,13 +132,17 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
 
     const scaffold = path.join(tmp, 'scaffold');
     fs.mkdirSync(scaffold);
-    const init = run(process.execPath, [path.join(app, 'node_modules/styleproof/bin/styleproof-init.mjs')], {
-      cwd: scaffold,
-    });
-    assert.equal(init.status, 0, commandFailure(init));
+    fs.writeFileSync(path.join(scaffold, 'package.json'), JSON.stringify({ name: 'consumer', private: true }, null, 2));
+    const setup = run(
+      process.execPath,
+      [path.join(app, 'node_modules/styleproof/bin/styleproof.mjs'), 'setup', '--skip-install', '--skip-browser'],
+      { cwd: scaffold },
+    );
+    assert.equal(setup.status, 0, commandFailure(setup));
+    assert.match(setup.stdout, /StyleProof setup complete/);
     assert.ok(
       fs.existsSync(path.join(scaffold, '.github/workflows/styleproof-approve.yml')),
-      'the packed approval-workflow template is missing',
+      'the packed setup command did not scaffold the approval workflow',
     );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
