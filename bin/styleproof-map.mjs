@@ -24,9 +24,6 @@ import {
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
 import {
-  BROWSER_BUILD_SIDECAR,
-  FATAL_CAPTURE_MARKER,
-  SURFACE_CAPTURE_FAILURES_DIR,
   DEFAULT_MAP_DIR,
   DEFAULT_MAP_LABEL,
   DEFAULT_MAP_STORE_BRANCH,
@@ -34,6 +31,7 @@ import {
   MapStoreError,
   MapStorePreconditionError,
   MapStoreNotFoundError,
+  clearCaptureOutput,
   currentGitSha,
   expectedCompatibilityKey,
   isMapFile,
@@ -120,16 +118,34 @@ let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBran
 let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
 let uploadMode =
   process.env.STYLEPROOF_UPLOAD === '1' ? 'required' : process.env.STYLEPROOF_UPLOAD === '0' ? 'off' : 'auto';
-let crawlBaseUrl = process.env.STYLEPROOF_CRAWL_BASE_URL ?? '';
-const crawlRoutes = (process.env.STYLEPROOF_CRAWL_ROUTES ?? '')
-  .split(',')
-  .map((route) => route.trim())
-  .filter(Boolean);
-let crawlOut = process.env.STYLEPROOF_CRAWL_OUT ?? 'styleproof.variants.generated.json';
-let crawlMaxActions = process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ?? '';
-let crawlWidth = process.env.STYLEPROOF_CRAWL_WIDTH ?? '';
-let crawlHeight = process.env.STYLEPROOF_CRAWL_HEIGHT ?? '';
-let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1';
+let crawlBaseUrl = process.env.STYLEPROOF_CRAWL_BASE_URL ?? projectConfig.crawl?.baseUrl ?? '';
+const crawlRoutes = [
+  ...(projectConfig.crawl?.routes ?? []),
+  ...(process.env.STYLEPROOF_CRAWL_ROUTES ?? '')
+    .split(',')
+    .map((route) => route.trim())
+    .filter(Boolean),
+];
+let crawlOut = process.env.STYLEPROOF_CRAWL_OUT ?? projectConfig.crawl?.out ?? 'styleproof.variants.generated.json';
+let crawlMaxActions =
+  process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ??
+  (projectConfig.crawl?.maxActions != null ? String(projectConfig.crawl.maxActions) : '');
+let crawlWidth =
+  process.env.STYLEPROOF_CRAWL_WIDTH ?? (projectConfig.crawl?.width != null ? String(projectConfig.crawl.width) : '');
+let crawlHeight =
+  process.env.STYLEPROOF_CRAWL_HEIGHT ??
+  (projectConfig.crawl?.height != null ? String(projectConfig.crawl.height) : '');
+let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1' || projectConfig.crawl?.strict === true;
+// Auth setup / boundary exclusions are NOT consumed by the spec-driven map path
+// (variants + Playwright runner ignore STYLEPROOF_SETUP). They belong on
+// styleproof-capture. Detect config/env/flag so we fail closed instead of lying.
+const configuredAuthSetup =
+  process.env.STYLEPROOF_CRAWL_SETUP || process.env.STYLEPROOF_SETUP || projectConfig.crawl?.setup || '';
+const configuredAuthExclude =
+  process.env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE ||
+  process.env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE ||
+  projectConfig.crawl?.authBoundaryExclude ||
+  '';
 let tolerateSurfaceFailures =
   process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
   process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true';
@@ -177,7 +193,23 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--crawl-height') crawlHeight = argv[++i];
   else if (a.startsWith('--crawl-height=')) crawlHeight = a.slice(15);
   else if (a === '--crawl-strict') crawlStrict = true;
-  else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
+  else if (
+    a === '--crawl-setup' ||
+    a === '--setup' ||
+    a.startsWith('--crawl-setup=') ||
+    a.startsWith('--setup=') ||
+    a === '--crawl-auth-boundary-exclude' ||
+    a === '--auth-boundary-exclude' ||
+    a.startsWith('--crawl-auth-boundary-exclude=') ||
+    a.startsWith('--auth-boundary-exclude=')
+  ) {
+    console.error(
+      'styleproof-map: --setup / --auth-boundary-exclude are not supported on the spec-driven map path.\n' +
+        '  Auth setup and boundary exclusions apply to styleproof-capture (and styleproof.config.json crawl.* for that CLI).\n' +
+        '  Next: styleproof-capture <url> --crawl --setup <file> [--auth-boundary-exclude <file>]',
+    );
+    process.exit(2);
+  } else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
   else if (a.startsWith('--dirty-allow=')) dirtyAllow.push(a.slice(14));
   else if (a === '--tolerate-surface-failures') tolerateSurfaceFailures = true;
   else if (a === '--cache-branch' || a === '--remote') {
@@ -211,6 +243,15 @@ if (!fs.existsSync(spec)) {
   process.exit(2);
 }
 const crawlEnabled = Boolean(crawlBaseUrl || crawlRoutes.length);
+if (configuredAuthSetup || configuredAuthExclude) {
+  console.error(
+    'styleproof-map: crawl.setup / crawl.authBoundaryExclude (or STYLEPROOF_SETUP / STYLEPROOF_AUTH_BOUNDARY_EXCLUDE)\n' +
+      '  are configured, but the spec-driven map path does not run auth setup or boundary exclusions.\n' +
+      '  Those apply only to styleproof-capture. Remove them from the map invocation/config for this CLI,\n' +
+      '  or use: styleproof-capture <url> --crawl (config crawl.setup / crawl.authBoundaryExclude are honored there).',
+  );
+  process.exit(2);
+}
 if (crawlEnabled && !crawlBaseUrl) {
   console.error('styleproof-map: --crawl-base-url is required when --crawl-route is set');
   process.exit(2);
@@ -357,20 +398,19 @@ if (restore) {
   }
 }
 
-// Clear any prior run's browser-build sidecar before Playwright runs, so ONLY this
-// run can have written it. The default dir (.styleproof/maps/current) is reused across
-// runs; if this run records no browser version (the capture test not reached, or the
-// handle unavailable), a stale sidecar would otherwise be read into the manifest and
-// stamp a WRONG browser build that the compatibility guard then trusts as a fingerprint.
-fs.rmSync(path.join(targetDir, BROWSER_BUILD_SIDECAR), { force: true });
-// Same reuse hazard for the surface-capture-failures ledger: writeMapManifest reads
-// back whatever is on disk, so a failure recorded by a PRIOR run into this reused dir
-// (or restored from the store) would be stamped into THIS run's manifest — a healthy
-// recapture would publish a phantom "partial baseline" that every later diff then
-// blocks on with repair-base guidance no repair can satisfy.
-fs.rmSync(path.join(targetDir, SURFACE_CAPTURE_FAILURES_DIR), { recursive: true, force: true });
-// A reused output directory must never inherit a fatal result from a prior run.
-fs.rmSync(path.join(targetDir, FATAL_CAPTURE_MARKER), { force: true });
+// Clear the complete reserved generated namespace before Playwright runs. The
+// default dir (.styleproof/maps/current) is reused across runs; if this run
+// captures a smaller surface set, prior maps/screenshots/sidecars would otherwise
+// remain current-looking evidence and launder removed surfaces as still present.
+// clearCaptureOutput preserves unrelated user files and fails closed on malformed
+// reserved paths. Restore mode never reaches here.
+try {
+  clearCaptureOutput(targetDir);
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`styleproof-map: cannot reuse capture directory ${targetDir}\n${message}`);
+  process.exit(2);
+}
 
 const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 const configArgs =

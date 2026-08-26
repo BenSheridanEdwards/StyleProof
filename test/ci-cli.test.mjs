@@ -31,6 +31,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const CI = path.join(here, '..', 'bin', 'styleproof-ci.mjs');
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 
+test('styleproof-ci --help documents --no-upload for untrusted capture', () => {
+  const res = runCi(['--help']);
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /--no-upload/);
+  assert.match(res.stdout, /untrusted PR jobs|write credentials/i);
+});
+
 function runCi(args, env = {}, cwd) {
   const merged = { ...process.env, ...env };
   // The driver keys its CI guard on this exact variable.
@@ -582,11 +589,10 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
       assert.equal(installedAt.at(-1), head, 'head install runs at the head commit');
       assert.match(result.stderr, /overlaying 3 spec-harness file\(s\) from/);
       assert.match(generatedMapScript, /--spec-ref-if-missing "\$HEAD_SHA"/);
+      assert.match(generatedMapScript, /--no-upload/, 'untrusted PR capture must not publish to the map store');
 
-      // The bundle the overlay run just published must be RESTORABLE: its spec
-      // hash is the head spec's bytes, so the probe must apply the same overlay
-      // before hashing — a probe hashing the base's own spec can never hit, and
-      // every subsequent push silently repays the full cold rebuild.
+      // Untrusted generated capture intentionally leaves maps local (artifact-only).
+      // A second generated run therefore cannot restore from styleproof-maps.
       fs.rmSync(mapRoot, { recursive: true, force: true });
       const secondOutput = path.join(root, 'github-output-second');
       const second = spawnSync('/bin/bash', ['-c', generatedMapScript], {
@@ -603,10 +609,55 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
       });
       assert.equal(second.status, 0, second.stderr + second.stdout);
       const secondOutputs = fs.readFileSync(secondOutput, 'utf8');
-      assert.match(secondOutputs, /base-hit=true/, 'the overlay-published base bundle restores on the next run');
-      assert.match(secondOutputs, /head-hit=true/);
-      assert.match(secondOutputs, /capture-needed=false/);
-      assert.doesNotMatch(second.stderr, /rebuilding the pair cold/, 'no silent repeat of the cold rebuild');
+      assert.match(
+        secondOutputs,
+        /base-hit=false/,
+        'no-upload capture must not leave a map-store hit for the next PR job',
+      );
+      assert.match(secondOutputs, /head-hit=false/);
+      assert.match(secondOutputs, /capture-needed=true/);
+
+      // The publish/restore contract still holds when upload is allowed (trusted
+      // local/pre-push or a future trusted publisher). Prove it with the same
+      // first-adoption args minus the generated --no-upload flag.
+      fs.rmSync(mapRoot, { recursive: true, force: true });
+      const publishOutput = path.join(root, 'github-output-publish');
+      const publishScript = generatedMapScript.replace(/ --no-upload\b/g, '');
+      assert.doesNotMatch(publishScript, /--no-upload/);
+      const published = spawnSync('/bin/bash', ['-c', publishScript], {
+        cwd: repo,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          CI: '1',
+          PM_LOG: pmLog,
+          FIRST_ADOPTION_BASE: base,
+          GITHUB_OUTPUT: publishOutput,
+          STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        },
+      });
+      assert.equal(published.status, 0, published.stderr + published.stdout);
+
+      fs.rmSync(mapRoot, { recursive: true, force: true });
+      const restoreOutput = path.join(root, 'github-output-restore');
+      const restored = spawnSync('/bin/bash', ['-c', publishScript], {
+        cwd: repo,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          CI: '1',
+          PM_LOG: pmLog,
+          FIRST_ADOPTION_BASE: base,
+          GITHUB_OUTPUT: restoreOutput,
+          STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        },
+      });
+      assert.equal(restored.status, 0, restored.stderr + restored.stdout);
+      const restoreOutputs = fs.readFileSync(restoreOutput, 'utf8');
+      assert.match(restoreOutputs, /base-hit=true/, 'the overlay-published base bundle restores on the next run');
+      assert.match(restoreOutputs, /head-hit=true/);
+      assert.match(restoreOutputs, /capture-needed=false/);
+      assert.doesNotMatch(restored.stderr, /rebuilding the pair cold/, 'no silent repeat of the cold rebuild');
     } finally {
       rmTmp(root);
     }

@@ -327,3 +327,134 @@ test('styleproof-capture --until-covered keeps discovered-but-uncaptured surface
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('styleproof-capture reads crawl setup + authBoundaryExclude from styleproof.config.json only', async () => {
+  // One-config out-of-box contract: no --setup / --auth-boundary-exclude flags.
+  // Secrets stay in env (${AUTH_E2E_PASS}); config only names the setup/exclude files.
+  const secret = 'open-sesame';
+  const wallHtml = `<!doctype html><html><head><meta charset="utf-8"><style>
+    .gate{padding:8px;background:rgb(240,240,245)} .vault{display:none;background:rgb(220,245,220);padding:8px}
+    .vault.open{display:block}
+  </style></head><body>
+    <main class="gate" id="gate"><form action="/login" method="post">
+      <input id="pw" type="password" autocomplete="current-password" name="pw">
+      <button type="button" id="unlock">Sign in</button>
+    </form></main>
+    <div class="vault" id="v">vault content</div>
+    <script>
+      document.getElementById('unlock').onclick = () => {
+        if (document.getElementById('pw').value === 'open-sesame') {
+          document.getElementById('gate').remove();
+          document.getElementById('v').classList.add('open');
+        }
+      };
+    </script>
+  </body></html>`;
+  const server = http.createServer((_req, res) => {
+    res.statusCode = 200;
+    res.setHeader('content-type', 'text/html; charset=utf-8');
+    res.end(wallHtml);
+  });
+  const port = await listen(server);
+  const base = `http://127.0.0.1:${port}`;
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-config-auth-'));
+  const outBlind = path.join(work, 'blind');
+  const outSetup = path.join(work, 'setup');
+  const outExclude = path.join(work, 'exclude');
+  const setupFile = path.join(work, 'styleproof.setup.json');
+  const excludeFile = path.join(work, 'styleproof.auth-boundary-exclude.json');
+  fs.writeFileSync(
+    setupFile,
+    JSON.stringify([
+      { action: 'fill', selector: '#pw', value: '${AUTH_E2E_PASS}' },
+      { action: 'click', selector: '#unlock' },
+      { action: 'waitFor', selector: '.vault.open' },
+    ]),
+  );
+  const common = [
+    '--crawl',
+    '--no-follow-links',
+    '--no-data-states',
+    '--workers',
+    '1',
+    '--max-depth',
+    '1',
+    '--no-screenshots',
+    '--widths',
+    '800',
+  ];
+  const runFromWork = (args: string[], env: NodeJS.ProcessEnv = {}) =>
+    new Promise<{ status: number; stdout: string; stderr: string }>((resolve) => {
+      const child = spawn(process.execPath, [CAPTURE, ...args], {
+        env: commandEnv({ AUTH_E2E_PASS: secret, ...env }),
+        stdio: ['ignore', 'pipe', 'pipe'],
+        cwd: work,
+      });
+      let stdout = '';
+      let stderr = '';
+      const timer = setTimeout(() => {
+        child.kill('SIGKILL');
+        resolve({ status: 124, stdout, stderr: stderr + '\n[test timeout]' });
+      }, 120_000);
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
+      child.stdout.on('data', (d) => {
+        stdout += d;
+      });
+      child.stderr.on('data', (d) => {
+        stderr += d;
+      });
+      child.on('close', (status) => {
+        clearTimeout(timer);
+        resolve({ status: status ?? 1, stdout, stderr });
+      });
+    });
+  try {
+    // 1) No setup in config → wall blocks (exit 5).
+    fs.writeFileSync(path.join(work, 'styleproof.config.json'), JSON.stringify({ blocking: true }));
+    const blind = await runFromWork([`${base}/`, ...common, '--out', outBlind]);
+    expect(blind.status, blind.stderr + blind.stdout).toBe(5);
+    expect(blind.stdout).toMatch(/incomplete-auth/);
+    expect(blind.stdout + blind.stderr).not.toContain(secret);
+
+    // 2) Config-only setup (no --setup flag) unlocks vault.
+    fs.writeFileSync(
+      path.join(work, 'styleproof.config.json'),
+      JSON.stringify({ crawl: { setup: 'styleproof.setup.json' } }),
+    );
+    const unlocked = await runFromWork([`${base}/`, ...common, '--out', outSetup]);
+    expect(unlocked.status, unlocked.stderr + unlocked.stdout).toBe(0);
+    expect(fs.readFileSync(setupFile, 'utf8')).toContain('${AUTH_E2E_PASS}');
+    expect(fs.readFileSync(setupFile, 'utf8')).not.toContain(secret);
+    expect(unlocked.stdout + unlocked.stderr).not.toContain(secret);
+    const setupMaps = fs.readdirSync(outSetup).filter((n) => /@\d+\.json(\.gz)?$/.test(n));
+    expect(setupMaps.length).toBeGreaterThan(0);
+
+    // 3) Config-only reasoned exclusion → limited/acknowledged, not fail-closed unack.
+    const wallKeyMatch = blind.stdout.match(/unacknowledged:\s+(\S+)/);
+    const wallKey = wallKeyMatch ? wallKeyMatch[1].replace(/\($/, '') : '/';
+    fs.writeFileSync(
+      excludeFile,
+      JSON.stringify({
+        [wallKey]: 'login wall outside certification scope — fixture',
+        '/': 'login wall outside certification scope — fixture',
+      }),
+    );
+    fs.writeFileSync(
+      path.join(work, 'styleproof.config.json'),
+      JSON.stringify({ crawl: { authBoundaryExclude: 'styleproof.auth-boundary-exclude.json' } }),
+    );
+    const excluded = await runFromWork([`${base}/`, ...common, '--out', outExclude]);
+    expect(excluded.status, excluded.stderr + excluded.stdout).toBe(0);
+    expect(excluded.stdout).toMatch(/incomplete-auth|acknowledged/);
+    expect(excluded.stdout).not.toMatch(/unacknowledged \(fail closed\)/);
+    const conf = JSON.parse(fs.readFileSync(path.join(outExclude, 'styleproof-confidence.json'), 'utf8'));
+    const excludedEntries = conf.entries.filter((e: { status: string }) => e.status === 'excluded-with-reason');
+    expect(excludedEntries.length).toBeGreaterThan(0);
+    expect(excludedEntries[0].producer).toBe('auth-boundary');
+    expect(JSON.stringify(conf)).not.toContain(secret);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+});

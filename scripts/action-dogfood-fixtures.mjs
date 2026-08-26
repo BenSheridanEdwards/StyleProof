@@ -86,22 +86,28 @@ const MANIFEST = {
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
+function writeSyntheticCoverage(dir, surface, overrides = {}) {
+  const file = path.join(dir, 'styleproof-coverage.json');
+  const prior = fs.existsSync(file)
+    ? JSON.parse(fs.readFileSync(file, 'utf8'))
+    : { version: 1, expected: [], exclude: {}, determinism: 'self-checked', dataResidue: 'off' };
+  const surfaceKey = surface.replace(/@[^@]+$/, '');
+  const expected = [...new Set([...(prior.expected ?? []), surfaceKey])].sort();
+  fs.writeFileSync(file, JSON.stringify({ ...prior, expected, ...overrides }, null, 2));
+}
+
 function writeCapture(dir, surface, styleMap, image) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, `${surface}.json.gz`), gzipSync(JSON.stringify(styleMap)));
   fs.writeFileSync(path.join(dir, `${surface}.png`), image);
   fs.writeFileSync(path.join(dir, 'styleproof-manifest.json'), JSON.stringify(MANIFEST, null, 2));
+  writeSyntheticCoverage(dir, surface);
 }
 
 function armResidueGate(dir) {
-  fs.writeFileSync(
-    path.join(dir, 'styleproof-coverage.json'),
-    JSON.stringify(
-      { version: 1, expected: null, exclude: {}, determinism: 'self-checked', dataResidue: 'gate' },
-      null,
-      2,
-    ),
-  );
+  const file = path.join(dir, 'styleproof-coverage.json');
+  const coverage = JSON.parse(fs.readFileSync(file, 'utf8'));
+  fs.writeFileSync(file, JSON.stringify({ ...coverage, dataResidue: 'gate' }, null, 2));
 }
 
 // A side whose capture was neither self-checked nor replayed: the styles could
@@ -110,10 +116,9 @@ function armResidueGate(dir) {
 // the state the approval box cannot clear (and the exact state 4.6.2's
 // content-geometry bug hid in, undetected because it was never dogfooded).
 function armUnprovenDeterminism(dir) {
-  fs.writeFileSync(
-    path.join(dir, 'styleproof-coverage.json'),
-    JSON.stringify({ version: 1, expected: null, exclude: {}, determinism: 'unproven', dataResidue: 'off' }, null, 2),
-  );
+  const file = path.join(dir, 'styleproof-coverage.json');
+  const coverage = JSON.parse(fs.readFileSync(file, 'utf8'));
+  fs.writeFileSync(file, JSON.stringify({ ...coverage, determinism: 'unproven' }, null, 2));
 }
 
 fs.rmSync(root, { recursive: true, force: true });

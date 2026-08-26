@@ -279,10 +279,12 @@ Requires **Node ≥ 18** (ESM), **`@playwright/test` ≥ 1.40** (peer dep). Forc
 npx styleproof-init
 ```
 
-`styleproof-init` detects your app and wires **surface discovery** for you — there is nothing to hand-list:
+`styleproof-init` detects your app and wires **surface discovery** for you — there is nothing to hand-list for the first capture:
 
 - **Next.js** — it discovers your routes (`app/` + `pages/`) at run time and derives _both_ the captured surfaces and the coverage guard from them, so a route you add later is captured automatically, never a guard failure.
-- **Any other app** — it scaffolds a **nav crawl**: StyleProof loads `/`, reads the rendered `<a href>` links, and captures every same-origin surface they point to. The surface set _is_ the nav, so it can't drift from it.
+- **Any other app** — it scaffolds a **nav crawl**: StyleProof loads `/`, reads the rendered `<a href>` links, and captures every same-origin surface they point to. The surface set _is_ the visible nav, so it cannot drift from that nav.
+
+The distinction matters. Next.js supplies an enumerable route registry, so the generated gate can certify completeness immediately. A generic nav crawl cannot prove that invisible, auth-gated, or no-longer-linked routes do not exist. Its first comparison therefore fails closed with `completeness NOT asserted` until you add the generated spec's `expected` registry (and reasoned `exclude` entries). Use `--allow-unasserted` only for an explicit diagnostic comparison; its JSON receipt says `certifiesFully: false`.
 
 Either way the generated spec runs as-is. It also wires everything around it so the gate behaves the same locally and in CI:
 
@@ -474,10 +476,13 @@ report leads with their verdicts:
 - **Coverage** — the `expected` registry travels with the captured bundle as a
   ledger, so the gate states its completeness basis: `✓ coverage complete`,
   `✗ coverage INCOMPLETE` (blocks — a registered surface wasn't captured, even
-  on an empty diff), or `⚠ completeness NOT asserted` (no registry declared).
+  on an empty diff), or `✗ completeness NOT asserted` (no registry / filtered
+  capture — blocks certification unless `--allow-unasserted` diagnostic mode).
 - **Determinism** — the ledger records how each capture proved itself
-  (`self-checked` / `replayed`); a green from an `unproven` capture blocks,
-  because a clean diff of two nondeterministic reads could just be luck.
+  (`self-checked` / `replayed`); a green from an `unproven` **or unknown**
+  capture blocks, because a clean diff of two nondeterministic (or pre-ledger)
+  reads could just be luck. Pass `--allow-unasserted` only for explicit
+  diagnostic compares (`certifiesFully: false` in JSON).
 - **Inventory** — with `inventory: true` (on in `styleproof-init` scaffolds),
   each capture harvests the surface's navigable affordances (links, tabs, menu
   items, keyed by stable identity, not label text). A removal that makes a
@@ -910,6 +915,30 @@ Automatic discovery, config-file recipe parsing, transient observation windows,
 network-state recipes, live-region promotion, and state-coverage UI are **not**
 wired in this release — those remain follow-up slices.
 
+Before promoting a new state class, capture it in at least five fresh browser
+contexts and pass the public determinism oracle:
+
+```ts
+import { assessDeterminismOracle, hashDeterminismMap } from 'styleproof';
+
+const runs = captureDirs.map((dir) => ({
+  stateKeys: orderedKeys,
+  mapHashes: Object.fromEntries(orderedKeys.map((key) => [key, hashDeterminismMap(loadMap(dir, key))])),
+}));
+
+const verdict = assessDeterminismOracle(runs);
+if (verdict.status !== 'deterministic') throw new Error(JSON.stringify(verdict));
+```
+
+`deterministic` means exactly five valid runs were supplied and all five match.
+Every other result is `flake`, with a machine-readable reason: `run-count`,
+`invalid-receipt`, or `mismatch`. Receipts require unique non-empty ordered state
+keys, an exact matching hash-key set, and 64-character SHA-256 hexadecimal map
+hashes. CI prints and uploads `test-results/determinism-oracle.json`; use that
+artifact as the review receipt instead of inferring determinism from a green test
+count. Do not retry or weaken the assertion until a `flake` turns green; diagnose
+the unstable or malformed input.
+
 ### Live UI states: capture each state, not an average
 
 StyleProof automatically detects semantic live-state candidates (`aria-live`,
@@ -1296,15 +1325,31 @@ Outputs include `changed`, `content-changes`, `report-url`, `trust-state`, and `
 
 **Config file `styleproof.config.json`** (optional, at the repo root) — the one place a project declares its facts. The Action reads the gate-policy keys; every CLI reads the project-default keys as its lowest-precedence layer (explicit flag > environment variable > this file > built-in default). A malformed file or wrongly-typed key fails loudly — config you wrote is never silently dropped:
 
-| Key                     | Default                  | Purpose                                                                                                                                                                                                                                                  |
-| ----------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `blocking`              | `true`                   | Review-gate mode only: on **unapproved** visual changes, also **fail the job** (red ✗), so the check blocks even without a branch-protection rule requiring the status. On by default; set `false` for advisory-only (status red, job green). See below. |
-| `gateInventoryRemovals` | `true`                   | Fail the Action on an **unacknowledged navigable removal** (see [What a green certifies](#what-a-green-certifies)). Set `false` to make inventory advisory.                                                                                              |
-| `spec`                  | `e2e/styleproof.spec.ts` | Capture spec path, used by `styleproof-map`/`-prepush`/`-ci` when no `--spec` is passed.                                                                                                                                                                 |
-| `dirtyAllow`            | `[]`                     | Tracked files/dirs a dev tool rewrites on every run (e.g. a regenerated `tsconfig.json`) that must never mark a capture dirty. Accumulates with `--dirty-allow` flags and `STYLEPROOF_DIRTY_ALLOW`.                                                      |
-| `cacheBranch`           | `styleproof-maps`        | Map store branch.                                                                                                                                                                                                                                        |
-| `remote`                | `origin`                 | Git remote for the map store.                                                                                                                                                                                                                            |
-| `affected`              | —                        | `{ "surfaces": { key: entryModulePath }, "graph": "dc.json", "base": "origin/main" }` — pins `styleproof-affected`'s inputs so a configured repo runs it bare, with no flags.                                                                            |
+| Key                     | Default                  | Purpose                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blocking`              | `true`                   | Review-gate mode only: on **unapproved** visual changes, also **fail the job** (red ✗), so the check blocks even without a branch-protection rule requiring the status. On by default; set `false` for advisory-only (status red, job green). See below.                                                                                                                                                         |
+| `gateInventoryRemovals` | `true`                   | Fail the Action on an **unacknowledged navigable removal** (see [What a green certifies](#what-a-green-certifies)). Set `false` to make inventory advisory.                                                                                                                                                                                                                                                      |
+| `spec`                  | `e2e/styleproof.spec.ts` | Capture spec path, used by `styleproof-map`/`-prepush`/`-ci` when no `--spec` is passed.                                                                                                                                                                                                                                                                                                                         |
+| `dirtyAllow`            | `[]`                     | Tracked files/dirs a dev tool rewrites on every run (e.g. a regenerated `tsconfig.json`) that must never mark a capture dirty. Accumulates with `--dirty-allow` flags and `STYLEPROOF_DIRTY_ALLOW`.                                                                                                                                                                                                              |
+| `cacheBranch`           | `styleproof-maps`        | Map store branch.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `remote`                | `origin`                 | Git remote for the map store.                                                                                                                                                                                                                                                                                                                                                                                    |
+| `affected`              | —                        | `{ "surfaces": { key: entryModulePath }, "graph": "dc.json", "base": "origin/main" }` — pins `styleproof-affected`'s inputs so a configured repo runs it bare, with no flags.                                                                                                                                                                                                                                    |
+| `crawl`                 | —                        | One-config crawl/auth defaults for `styleproof-capture`: `{ "baseUrl", "routes", "setup", "authBoundaryExclude", "strict", "out", "maxActions", "width", "height" }`. `setup` and `authBoundaryExclude` are repo-relative JSON files; setup values use `${ENV_VAR}` interpolation so secrets never enter config. `styleproof-map` refuses these auth knobs because its Playwright spec path cannot execute them. |
+
+Example for a protected app:
+
+```json
+{
+  "blocking": true,
+  "crawl": {
+    "baseUrl": "http://127.0.0.1:3000",
+    "routes": ["/", "account=/account"],
+    "setup": "styleproof.setup.json",
+    "authBoundaryExclude": "styleproof.auth-boundary-exclude.json",
+    "strict": true
+  }
+}
+```
 
 ### Blocking without branch protection
 
@@ -1366,7 +1411,7 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 
 **CLIs** (every flag accepts `--flag value` and `--flag=value`; `--help` lists all):
 
-- `styleproof-init` — scaffold the gate: the capture spec (inventory guard on; Next.js repos get route discovery + the coverage guard, others a crawl-by-default spec), a dedicated `playwright.styleproof.config.ts` (production-build `webServer`, parallel capture), `.gitignore` cache entries, the restore-first report workflow, the approval workflow, and the restore-or-publish pre-push hook. One command. In a Git worktree with no effective local, worktree, global, or system `core.hooksPath` and no existing default pre-push hook, init activates the generated `.githooks/pre-push` shim automatically. A matching `.githooks` path is reported active; an existing default or custom path is preserved and reported with an explicit inactive warning and opt-in replacement command; Husky is reported active only when Git's resolved shim exists. Repository-owned hook bytes are never replaced or silently activated. The CI hot path restores exact-SHA maps and runs no browser; a compatible base hit plus head miss captures only the head; a base miss captures the pair; every fallback is published for reuse. On the first adoption PR, if the base commit lacks either the capture spec or dedicated Playwright config, packaged `styleproof-ci` temporarily sources the complete harness from the PR head while still rendering the base application's code and dependencies. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default), respect pnpm/Corepack version pins, and detect Vite/Next production preview commands instead of assuming every repo has `start`. Generated files carrying StyleProof's ownership marker are **machine-owned** thin wrappers over packaged commands: after upgrading styleproof, `styleproof-init --check` reports whether they drifted from the release's templates (exit 1 — wire it into CI), and `styleproof-init --upgrade` refreshes them in place without touching your spec, playwright config, or a repository-owned Husky hook. Custom spec paths are canonical-base64 data decoded and repository-bound by packaged Node code; generated YAML and shell remain fixed source. The generated workflow performs its freshness check immediately after dependency installation. Use the explicit `--hook` command only when you intend to replace that hook.
+- `styleproof-init` — scaffold the gate: the capture spec (inventory guard on; Next.js repos get route discovery + the coverage guard, others a crawl-by-default spec), a dedicated `playwright.styleproof.config.ts` (production-build `webServer`, parallel capture), `.gitignore` cache entries, the read-only capture workflow, the trusted report workflow, the approval workflow, and the restore-or-publish pre-push hook. One command. In a Git worktree with no effective local, worktree, global, or system `core.hooksPath` and no existing default pre-push hook, init activates the generated `.githooks/pre-push` shim automatically. A matching `.githooks` path is reported active; an existing default or custom path is preserved and reported with an explicit inactive warning and opt-in replacement command; Husky is reported active only when Git's resolved shim exists. Repository-owned hook bytes are never replaced or silently activated. The CI hot path restores exact-SHA maps and runs no browser; a compatible base hit plus head miss captures only the head; a base miss captures the pair; every fallback is published for reuse. On the first adoption PR, if the base commit lacks either the capture spec or dedicated Playwright config, packaged `styleproof-ci` temporarily sources the complete harness from the PR head while still rendering the base application's code and dependencies. Generated commands follow the repo's lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default), respect pnpm/Corepack version pins, and detect Vite/Next production preview commands instead of assuming every repo has `start`. Generated files carrying StyleProof's ownership marker are **machine-owned** thin wrappers over packaged commands: after upgrading styleproof, `styleproof-init --check` reports whether they drifted from the release's templates (exit 1 — wire it into CI), and `styleproof-init --upgrade` refreshes them in place without touching your spec, playwright config, or a repository-owned Husky hook. Custom spec paths are canonical-base64 data decoded and repository-bound by packaged Node code; generated YAML and shell remain fixed source. The generated workflow performs its freshness check immediately after dependency installation. Use the explicit `--hook` command only when you intend to replace that hook.
 - `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote exists. Pass `--crawl-base-url` plus repeated `--crawl-route` to run `styleproof-variants` before capture, `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, `--no-screenshots`, or repeated `--dirty-allow <path>` (a tracked file a dev tool rewrites on every run — e.g. `next dev` regenerating a `tsconfig.json` — that must not mark the capture dirty) for custom flows.
 - `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical); `1` on a reviewable diff — matched-element computed-style/state differences, and equally an unacknowledged inventory removal, an unacknowledged failing data endpoint under an armed `dataResidue: 'gate'`, an incomplete coverage registry, or an unproven-determinism capture; `2` on a usage/capture error (including a **manifest-less side** — since **v4**, a two-directory compare where a side ships maps but no `styleproof-manifest.json` is refused loudly, naming the bare side(s), because the same-environment guard can't be enforced without one; re-capture with current StyleProof; **and** a **missing map** — a bundle that claims to exist yet holds zero captures, i.e. a `styleproof-manifest.json` present with no maps, on either side, or a head capture that produced nothing; refused loudly rather than mislabelled as all-new — **and** the no-args case where the cached base map can't be restored at all: no map-store remote, no cached bundle, nothing to compare. A "nothing was compared" outcome always exits `2`, never a soft `0` that would read as certified; the error names the two ways forward — run in CI where the base is restorable, or use the two-directory form); `3` when only new surfaces are present — surfaces captured only on the **head** side (a surface present only on the **base** side is a **removed** surface, a reviewable change: exit `1`) — (no baseline for _those_ surfaces to diff against — new surfaces against an existing baseline, or a base dir with no maps at all (and hence no manifest), meaning no baseline was ever captured: the first-adoption review path; approval policy decides whether to gate). Element additions, removals, and retags inside a paired surface belong to the advisory content layer and do not affect these exits. A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`. The human output **groups the same way the report does**: surfaces that changed identically collapse into one finding (with the per-surface count on its header), longhands fold into shorthands, and size/position-derived longhands fold behind a `(+N derived longhands)` count — so one real change reads as one entry, not dozens of raw lines. A change that rode the shared frame every view draws (a persistent nav/header/footer) is promoted to a "🧱 Global chrome change" callout up top. `--json` stays the complete, unchanged machine contract — every surface and every raw longhand — regardless of the human grouping.
 - `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content and structure section (see above). Shares the same comparison truth as `styleproof-diff` (`reviewableCounts` / `reportConsistency` in `report.json`): raw-only style evidence never claims “all surfaces identical.” Content/structure evidence remains separate and never affects the verdict.

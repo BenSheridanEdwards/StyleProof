@@ -49,6 +49,18 @@ function writeManifest(dir, sha, compatibilityKey, extra = {}) {
       2,
     ),
   );
+  const expected = [
+    ...new Set(
+      fs
+        .readdirSync(dir)
+        .filter((name) => /@\d+\.json(?:\.gz)?$/.test(name))
+        .map((name) => name.replace(/@\d+\.json(?:\.gz)?$/, '')),
+    ),
+  ];
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-coverage.json'),
+    JSON.stringify({ version: 1, expected, exclude: {}, determinism: 'self-checked' }),
+  );
 }
 
 test('removeSurfaceCaptureArtifacts deletes partial widths and state screenshots only for the failed surface', () => {

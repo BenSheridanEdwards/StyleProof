@@ -104,29 +104,39 @@ test('readCapturePlaywrightConfigText: prefers the dedicated styleproof config, 
 });
 
 test('resolveBrowserExecutablePath: unresolvable without a consumer Playwright, resolved with one', () => {
-  const consumerRoot = mkTmp('styleproof-preflight-resolve-');
+  const emptyConsumerRoot = mkTmp('styleproof-preflight-empty-');
+  const resolvedConsumerRoot = mkTmp('styleproof-preflight-resolved-');
+  const writeModule = (root, moduleName, source) => {
+    const moduleRoot = path.join(root, 'node_modules', ...moduleName.split('/'));
+    fs.mkdirSync(moduleRoot, { recursive: true });
+    fs.writeFileSync(path.join(moduleRoot, 'package.json'), JSON.stringify({ name: moduleName, main: 'index.cjs' }));
+    fs.writeFileSync(path.join(moduleRoot, 'index.cjs'), source);
+  };
   try {
-    const unresolvable = resolveBrowserExecutablePath(consumerRoot, 'chromium');
+    // Shadow any Playwright dependency available from an ancestor workspace. The
+    // consumer boundary is the fixture's node_modules, not wherever TMPDIR happens
+    // to live on this host.
+    for (const moduleName of ['playwright-core', '@playwright/test']) {
+      writeModule(emptyConsumerRoot, moduleName, 'module.exports = {};\n');
+    }
+    const unresolvable = resolveBrowserExecutablePath(emptyConsumerRoot, 'chromium');
     assert.equal(unresolvable.kind, 'unresolvable');
     assert.match(unresolvable.reason, /playwright-core/);
 
-    const fakePlaywrightCoreRoot = path.join(consumerRoot, 'node_modules', 'playwright-core');
-    fs.mkdirSync(fakePlaywrightCoreRoot, { recursive: true });
-    fs.writeFileSync(
-      path.join(fakePlaywrightCoreRoot, 'package.json'),
-      '{"name":"playwright-core","main":"index.cjs"}\n',
-    );
-    fs.writeFileSync(
-      path.join(fakePlaywrightCoreRoot, 'index.cjs'),
+    writeModule(
+      resolvedConsumerRoot,
+      'playwright-core',
       'module.exports = { chromium: { executablePath: () => "/fake/ms-playwright/chromium-1187/chrome" } };\n',
     );
-    const resolved = resolveBrowserExecutablePath(consumerRoot, 'chromium');
+    writeModule(resolvedConsumerRoot, '@playwright/test', 'module.exports = {};\n');
+    const resolved = resolveBrowserExecutablePath(resolvedConsumerRoot, 'chromium');
     assert.equal(resolved.kind, 'resolved');
     assert.equal(resolved.executablePath, '/fake/ms-playwright/chromium-1187/chrome');
 
-    const noWebkit = resolveBrowserExecutablePath(consumerRoot, 'webkit');
+    const noWebkit = resolveBrowserExecutablePath(resolvedConsumerRoot, 'webkit');
     assert.equal(noWebkit.kind, 'unresolvable', 'a module without the browser type is unresolvable, not a crash');
   } finally {
-    rmTmp(consumerRoot);
+    rmTmp(emptyConsumerRoot);
+    rmTmp(resolvedConsumerRoot);
   }
 });

@@ -98,6 +98,8 @@ options:
                       or playwright.styleproof.config.ts. Intended for first adoption.
   --base-dir <path>   map root; base/head land under it
                       (default: $RUNNER_TEMP/styleproof-maps, else .styleproof/ci-maps)
+  --no-upload         capture without publishing to the map-store branch (required for
+                      untrusted PR jobs that must not hold write credentials)
   --force             run outside CI (the flow may force-checkout --head in the consumer
                       tree and uses ephemeral worktrees for --base — uncommitted changes
                       can still be lost on the head checkout)
@@ -145,6 +147,7 @@ let specRefProvided = false;
 let specRefIfMissing = '';
 let baseDir = process.env.RUNNER_TEMP ? path.join(process.env.RUNNER_TEMP, 'styleproof-maps') : '.styleproof/ci-maps';
 let force = false;
+let noUpload = false;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
@@ -170,6 +173,7 @@ for (let i = 0; i < argv.length; i++) {
     specRefIfMissing = a.slice(22);
   } else if (a === '--base-dir') baseDir = argv[++i];
   else if (a.startsWith('--base-dir=')) baseDir = a.slice(11);
+  else if (a === '--no-upload') noUpload = true;
   else if (a === '--force') force = true;
   else {
     console.error(unknownFlagMessage('styleproof-ci', a));
@@ -512,6 +516,18 @@ function countMaps(dir) {
 function writeOutputs(baseCaptureFailed = false) {
   const outputs = ciOutputLines(baseHit, headHit, baseCaptureFailed, baseRestoredFromAncestorSha);
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
+  // Durable sidecar travels with the artifact into the trusted report stage. The
+  // untrusted capture job cannot pass job outputs across workflow_run, so the
+  // report action must read this file (or stay stuck on the default false).
+  try {
+    fs.mkdirSync(baseDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(baseDir, 'styleproof-ci-outputs.json'),
+      `${JSON.stringify({ version: 1, baseCaptureFailed: Boolean(baseCaptureFailed), baseHit, headHit }, null, 2)}\n`,
+    );
+  } catch (error) {
+    log(`could not write styleproof-ci-outputs.json: ${error instanceof Error ? error.message : error}`);
+  }
   log(outputs.join(' '));
 }
 
@@ -783,7 +799,7 @@ try {
               '--keep-har',
               '--sha',
               base,
-              '--upload',
+              ...(noUpload ? ['--no-upload'] : ['--upload']),
               '--tolerate-surface-failures',
               ...(overlay?.dirtyAllow ?? []).flatMap((allowedPath) => ['--dirty-allow', allowedPath]),
             ],
@@ -857,7 +873,7 @@ try {
           root,
           '--sha',
           head,
-          '--upload',
+          ...(noUpload ? ['--no-upload'] : ['--upload']),
           ...(headOverlay?.dirtyAllow ?? []).flatMap((allowedPath) => ['--dirty-allow', allowedPath]),
         ],
         consumerCwd,

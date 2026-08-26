@@ -196,6 +196,44 @@ test('styleproof-map writes no manifest when the capture produced zero surfaces'
   }
 });
 
+test('styleproof-map clears stale surface maps from a reused capture directory', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    const maps = path.join(root, '.styleproof', 'maps', 'current');
+    fs.mkdirSync(maps, { recursive: true });
+    fs.writeFileSync(path.join(maps, 'old@900.json'), '{"stale":true}');
+    fs.writeFileSync(path.join(maps, 'old@900.png'), 'png');
+    fs.writeFileSync(path.join(maps, MAP_MANIFEST), '{"version":1}');
+    fs.writeFileSync(path.join(maps, 'notes.txt'), 'keep-me');
+
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; printf \'{}\' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/new@900.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+
+    const r = spawnSync(process.execPath, [MAP], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.existsSync(path.join(maps, 'old@900.json')), false, 'stale surface map must not survive reuse');
+    assert.equal(fs.existsSync(path.join(maps, 'old@900.png')), false, 'stale screenshot must not survive reuse');
+    assert.equal(fs.existsSync(path.join(maps, 'new@900.json')), true);
+    assert.equal(fs.readFileSync(path.join(maps, 'notes.txt'), 'utf8'), 'keep-me');
+    assert.ok(fs.existsSync(path.join(maps, MAP_MANIFEST)));
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-map --upload warns on a non-Linux capture and honours suppression', () => {
   // A map's compatibility key is platform-specific, so a bundle captured off Linux
   // can't be restored by the ubuntu-latest CI. Warn (don't block) so the pre-push
@@ -654,6 +692,19 @@ function writeManifest(dir, sha, compatibilityKey) {
       2,
     ),
   );
+  // Certifying fixtures need asserted coverage + proven determinism ledgers.
+  const expected = [
+    ...new Set(
+      fs
+        .readdirSync(dir)
+        .filter((name) => /@\d+\.json(?:\.gz)?$/.test(name))
+        .map((name) => name.replace(/@\d+\.json(?:\.gz)?$/, '')),
+    ),
+  ];
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-coverage.json'),
+    JSON.stringify({ version: 1, expected, exclude: {}, determinism: 'self-checked' }),
+  );
 }
 
 function seedMapStore(repo, bundles) {
@@ -1084,13 +1135,21 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
       /"styleproof@\$STYLEPROOF_VERSION"/,
       'the exact-release pin lives inside styleproof-ci now',
     );
-    assert.match(ci, /BenSheridanEdwards\/StyleProof@v6/, 'workflow uses the current report action');
-    assert.match(ci, /require-approval: true/, 'workflow enables the approval report gate');
+    assert.doesNotMatch(ci, /BenSheridanEdwards\/StyleProof@v6/, 'capture workflow never holds the report action');
+    assert.doesNotMatch(ci, /require-approval: true/, 'approval gate lives on the trusted report workflow');
+    const report = fs.readFileSync(path.join(dir, '.github/workflows/styleproof-report.yml'), 'utf8');
+    assert.match(report, /BenSheridanEdwards\/StyleProof@v6/, 'report workflow uses the current report action');
+    assert.match(report, /require-approval: true/, 'report workflow enables the approval report gate');
+    assert.match(report, /base-capture-failed:/, 'report workflow forwards the durable base-capture-failed sidecar');
     assert.doesNotMatch(ci, /git add stylemaps/);
     assert.doesNotMatch(ci, /core\.hooksPath/);
 
-    assert.match(r.stdout, /it runs on your first PR with no extra steps/, 'guidance leads with zero-config');
-    assert.match(r.stdout, /pre-push hook restores an existing exact-SHA map/, 'the least-work hook is the default');
+    assert.match(r.stdout, /Merge this scaffold PR first/, 'guidance states default-branch report activation');
+    assert.match(
+      r.stdout,
+      /pre-push hook can still restore or publish exact-SHA maps/,
+      'the least-work hook is the default',
+    );
   } finally {
     rmTmp(dir);
   }

@@ -28,6 +28,9 @@ import {
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { selectCrawlLinks, dedupIdentity } from '../dist/crawl.js';
 import { clearCaptureOutput, writeCaptureManifest } from '../dist/map-store.js';
+import { loadStyleProofConfig } from '../dist/config.js';
+import path from 'node:path';
+import fs from 'node:fs';
 import { cliSafeLine, crawlCaptureExitCode } from '../dist/crawl-confidence.js';
 import {
   buildConfidenceLedger,
@@ -38,9 +41,12 @@ import {
 
 const COMMAND = 'styleproof-capture';
 
-const HELP = `${COMMAND} — capture a page's computed-style map(s) (no spec, no config)
+const HELP = `${COMMAND} — capture a page's computed-style map(s) (no Playwright spec)
 
 usage: ${COMMAND} <url> [options]
+
+Honors optional repo-root styleproof.config.json crawl.setup / crawl.authBoundaryExclude
+(flag > env > config). Secrets stay in env via \${ENV} placeholders in the setup file.
 
 one state (default): capture the page as it loads
   --key <name>      capture file prefix, <key>@<width>.json.gz (default: page)
@@ -110,6 +116,30 @@ let setupSteps;
 let authBoundaryExclude;
 try {
   opts = parseCaptureUrlArgs(argv);
+  // Config projection: flag > env > styleproof.config.json crawl block.
+  // Paths resolve from the repo/config root so head and detached base worktrees agree.
+  const projectConfig = loadStyleProofConfig(process.cwd());
+  const resolveCfg = (filePath) =>
+    !filePath ? '' : path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+  if (!opts.setupFile) {
+    opts.setupFile =
+      process.env.STYLEPROOF_SETUP || process.env.STYLEPROOF_CRAWL_SETUP || projectConfig.crawl?.setup || undefined;
+  }
+  if (!opts.authBoundaryExcludeFile) {
+    opts.authBoundaryExcludeFile =
+      process.env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE ||
+      process.env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE ||
+      projectConfig.crawl?.authBoundaryExclude ||
+      undefined;
+  }
+  if (opts.setupFile) opts.setupFile = resolveCfg(opts.setupFile);
+  if (opts.authBoundaryExcludeFile) opts.authBoundaryExcludeFile = resolveCfg(opts.authBoundaryExcludeFile);
+  if (opts.setupFile && !fs.existsSync(opts.setupFile)) {
+    throw new UsageError(`--setup: cannot read ${opts.setupFile}`);
+  }
+  if (opts.authBoundaryExcludeFile && !fs.existsSync(opts.authBoundaryExcludeFile)) {
+    throw new UsageError(`--auth-boundary-exclude: cannot read ${opts.authBoundaryExcludeFile}`);
+  }
   setupSteps = opts.setupFile ? loadSetupSteps(opts.setupFile) : undefined;
   opts.setup = setupSteps; // one-shot capture honours setup steps too
   authBoundaryExclude = opts.authBoundaryExcludeFile

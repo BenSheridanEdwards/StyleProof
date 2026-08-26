@@ -9,6 +9,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [6.1.0] - 2026-08-25
 
+### Fixed
+
+- **Reused capture directories no longer retain stale surface maps:**
+  `styleproof-map` now runs `clearCaptureOutput` before Playwright on every
+  non-restore capture, so a smaller second run cannot leave prior
+  `surface@width` maps, screenshots, or reserved sidecars looking current.
+  Unrelated user files remain preserved; malformed reserved paths fail closed.
+
+### Fixed
+
+- **Unasserted / unknown evidence no longer shares exit 0 with certified greens:**
+  `styleproof-diff` now fails closed (exit 1) when completeness is unasserted or
+  determinism is unknown/unproven, matching incomplete coverage. Pass
+  `--allow-unasserted` only for explicit diagnostic compares; JSON then reports
+  `certifiesFully: false` and `diagnostic: true`. `certifiesFully` is true only
+  when the run would exit 0 (coverage complete, determinism proven, and no
+  inventory/residue/style/DOM/new-surface failures). This closes the filtered
+  one-surface false-green path where a grepped capture warned then exited 0.
+
+### Security
+
+- **Untrusted PR capture no longer receives write credentials (P0):** generated
+  `styleproof-init` CI is split into a read-only `StyleProof capture` workflow
+  (`contents: read`, `actions: read`, `persist-credentials: false`,
+  `styleproof-ci --no-upload`, artifact upload only) and a trusted default-branch
+  `StyleProof report` workflow (`workflow_run`) that downloads the artifact and
+  publishes with write permissions without checking out or installing
+  PR-controlled code. Close/sweep maintenance jobs keep write access but check
+  out the repository default branch, not the PR head. `styleproof-ci` gains
+  `--no-upload` so cold-path capture can stay local when the job must not hold
+  map-store write credentials. Capture also writes `styleproof-ci-outputs.json` so the
+  trusted report stage can still honor `base-capture-failed` without job-output bridging.
+  Init guidance states the report workflow only publishes after the scaffold reaches
+  the default branch.
+
 ### Added
 
 - **`styleproof-prune-maps`** (#423): bound the sha-keyed map store branch,
@@ -34,6 +69,24 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   next run recaptures), and accepted by design. New export:
   `compactMapStoreBranch` (+ `selectMapBundlesToRetain`,
   `MAP_STORE_PRUNE_SIDECAR`).
+- **Single-config crawl setup and auth-boundary exclusions:** `styleproof.config.json`
+  accepts a closed-world `crawl` block (`baseUrl`, `routes`, `setup`,
+  `authBoundaryExclude`, `strict`, viewport/out knobs). **`styleproof-capture`**
+  projects `setup` / `authBoundaryExclude` with precedence flag > env > config,
+  resolves paths from the repo/config root, and fails loudly on missing files.
+  **`styleproof-map` refuses those auth knobs** (exit 2 with a pointer to capture) —
+  the spec-driven path does not run setup/exclusions. Setup files still use
+  `${ENV_VAR}` placeholders only. Example ships companion setup/exclude files.
+  CLI e2e proves config-only setup unlocks a password wall and config-only
+  reasoned exclusion yields limited (never secret-bearing) evidence.
+- **Five-run state-class determinism oracle** (#400): new public
+  `hashDeterminismMap` canonicalizes object-key order before SHA-256 hashing, and
+  `assessDeterminismOracle` returns `deterministic` only for exactly five valid,
+  matching receipts; every wrong-count, malformed, or divergent input is an
+  explicit `flake` with a machine-readable reason. The promoted
+  hover/focus/press/click capture fixture now runs in five fresh browser contexts
+  and records exact 5/5 keys and hashes; one to four matching runs cannot certify.
+
 - **First-class confidence ledger** (#399): `styleproof-confidence.json` is
   bundled next to the maps and assigns every surface one status — `captured`,
   `excluded-with-reason`, `inaccessible`, `unknown`, or `unproven-determinism` —

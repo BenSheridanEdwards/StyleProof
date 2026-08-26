@@ -82,11 +82,11 @@ for (const manager of [
     workflow: [
       /cache: npm/,
       /npm ci/,
-      /BenSheridanEdwards\/StyleProof@v6/,
-      /baseline-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/base/,
-      /fresh-dir: \$\{\{ runner\.temp \}\}\/styleproof-maps\/head/,
+      /actions\/upload-artifact@/,
+      /--no-upload/,
+      /path: \$\{\{ runner\.temp \}\}\/styleproof-maps/,
     ],
-    workflowAbsent: [/npx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
+    workflowAbsent: [/npx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v6/],
     hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
   },
   {
@@ -97,10 +97,15 @@ for (const manager of [
     workflow: [
       /cache: yarn/,
       /npx -y yarn@1\.22\.22 install --frozen-lockfile --non-interactive/,
-      /BenSheridanEdwards\/StyleProof@v6/,
+      /actions\/upload-artifact@/,
+      /--no-upload/,
     ],
     absent: [/npm ci/],
-    workflowAbsent: [/npx -y yarn@1\.22\.22 styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
+    workflowAbsent: [
+      /npx -y yarn@1\.22\.22 styleproof-map/,
+      /STYLEPROOF_MAP_STORE_TOKEN/,
+      /BenSheridanEdwards\/StyleProof@v6/,
+    ],
     hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
   },
   {
@@ -108,9 +113,15 @@ for (const manager of [
     lockfile: 'pnpm-lock.yaml',
     installLine: '- run: pnpm install --frozen-lockfile',
     config: /pnpm run build && pnpm run start/,
-    workflow: [/cache: pnpm/, /corepack enable/, /pnpm install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v6/],
+    workflow: [
+      /cache: pnpm/,
+      /corepack enable/,
+      /pnpm install --frozen-lockfile/,
+      /actions\/upload-artifact@/,
+      /--no-upload/,
+    ],
     absent: [/npm ci/],
-    workflowAbsent: [/pnpm exec styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
+    workflowAbsent: [/pnpm exec styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v6/],
     hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
   },
   {
@@ -118,9 +129,9 @@ for (const manager of [
     lockfile: 'bun.lock',
     installLine: '- run: bun install --frozen-lockfile',
     config: /bun run build && bun run start/,
-    workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /BenSheridanEdwards\/StyleProof@v6/],
+    workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /actions\/upload-artifact@/, /--no-upload/],
     absent: [/npm ci/],
-    workflowAbsent: [/bunx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/],
+    workflowAbsent: [/bunx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v6/],
     hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
   },
 ]) {
@@ -148,9 +159,12 @@ for (const manager of [
       assert.match(readFile(root, '.gitignore'), /\.styleproof\//);
 
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
+      const reportWorkflow = readFile(root, '.github/workflows/styleproof-report.yml');
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
       for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(workflow, pattern);
+      assert.match(reportWorkflow, /BenSheridanEdwards\/StyleProof@v6/);
+      assert.match(reportWorkflow, /workflow_run:/);
       const scaffoldCheck = 'node node_modules/styleproof/bin/styleproof-init.mjs --check';
       assert.match(workflow, /- name: Verify StyleProof scaffold matches the installed release/);
       assert.ok(workflow.includes(scaffoldCheck));
@@ -163,18 +177,15 @@ for (const manager of [
         'scaffold freshness is enforced before capture orchestration',
       );
 
-      // The restore → capture-on-miss → replay → publish orchestration is ONE
-      // packaged command (styleproof-ci), invoked on the installed release with the
-      // consumer's bin dir on PATH — the workflow carries no orchestration bash to
-      // drift, and no scaffold-time package-manager commands (styleproof-ci detects
-      // the lockfile at RUN time, so an npm→pnpm migration needs no re-init). The
-      // exit-code triage, cold-path exact-release install, metadata restore, and
-      // HAR replay it used to assert here are unit-tested in ci-cli.test.mjs.
+      // The restore → capture-on-miss → replay orchestration is ONE packaged
+      // command (styleproof-ci), invoked on the installed release with the
+      // consumer's bin dir on PATH — the untrusted job never publishes.
       assert.match(workflow, /STYLEPROOF_SPEC_PATH_B64: ZTJlL3N0eWxlcHJvb2Yuc3BlYy50cw==/);
       assert.match(
         workflow,
         /styleproof-ci\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --spec-ref-if-missing "\$HEAD_SHA" --base-dir/,
       );
+      assert.match(workflow, /--no-upload/);
       assert.doesNotMatch(workflow, /styleproof-map\.mjs/);
       assert.doesNotMatch(workflow, /"styleproof@\$STYLEPROOF_VERSION"/);
       assert.doesNotMatch(workflow, /playwright install/);
@@ -182,7 +193,7 @@ for (const manager of [
 
       // Report branch self-prunes on PR close (out of the box) — manager-independent.
       assert.match(workflow, /types: \[opened, synchronize, reopened, closed\]/);
-      // The report job must not fire on the scheduled sweep event.
+      // The capture job must not fire on the scheduled sweep event.
       assert.match(workflow, /if: github\.event_name == 'pull_request' && github\.event\.action != 'closed'/);
       assert.match(workflow, /^\s{2}prune:/m);
       assert.match(workflow, /if: github\.event_name == 'pull_request' && github\.event\.action == 'closed'/);
@@ -376,6 +387,57 @@ test('styleproof-init: absolute, traversing, and control-bearing spec paths fail
     } finally {
       rmTmp(root);
     }
+  }
+});
+
+test('styleproof-init: untrusted PR capture never receives write credentials', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+
+    const captureFile = readFile(root, '.github/workflows/styleproof.yml');
+    const report = readFile(root, '.github/workflows/styleproof-report.yml');
+    const captureJob = captureFile.slice(captureFile.indexOf('\n  capture:'), captureFile.indexOf('\n  prune:'));
+    const pruneJob = captureFile.slice(captureFile.indexOf('\n  prune:'), captureFile.indexOf('\n  report-sweep:'));
+    const sweepJob = captureFile.slice(captureFile.indexOf('\n  report-sweep:'));
+
+    // Capture may execute PR-controlled install/capture code. It must stay read-only.
+    assert.match(captureFile, /name: StyleProof capture/);
+    assert.match(captureFile, /on:\s*\n\s*pull_request:/);
+    assert.match(captureJob, /permissions:\s*\n\s*contents: read\s*\n\s*actions: read/);
+    assert.doesNotMatch(captureJob, /contents:\s*write/);
+    assert.doesNotMatch(captureJob, /issues:\s*write/);
+    assert.doesNotMatch(captureJob, /pull-requests:\s*write/);
+    assert.doesNotMatch(captureJob, /statuses:\s*write/);
+    assert.match(captureJob, /persist-credentials:\s*false/);
+    assert.match(captureJob, /styleproof-ci\.mjs[\s\S]*--no-upload/);
+    assert.doesNotMatch(captureJob, /BenSheridanEdwards\/StyleProof@v6/);
+    assert.match(captureJob, /actions\/upload-artifact@/);
+    assert.match(captureJob, /name: styleproof-stylemaps/);
+
+    // Maintenance jobs may write, but they must never check out PR-controlled code.
+    assert.match(pruneJob, /contents:\s*write/);
+    assert.match(pruneJob, /ref:\s*\$\{\{\s*github\.event\.repository\.default_branch\s*\}\}/);
+    assert.match(sweepJob, /contents:\s*write/);
+
+    // Publication runs later from the default branch and never executes PR code.
+    assert.match(report, /name: StyleProof report/);
+    assert.match(report, /workflow_run:/);
+    assert.match(report, /workflows:\s*\[['"]StyleProof capture['"]\]/);
+    assert.match(report, /contents:\s*write/);
+    assert.match(report, /pull-requests:\s*write/);
+    assert.match(report, /statuses:\s*write/);
+    assert.match(report, /actions:\s*read/);
+    assert.match(report, /actions\/download-artifact@/);
+    assert.match(report, /BenSheridanEdwards\/StyleProof@v6/);
+    assert.match(report, /base-capture-failed:/);
+    assert.match(report, /styleproof-ci-outputs\.json/);
+    assert.doesNotMatch(report, /actions\/checkout@/);
+    assert.doesNotMatch(report, /npm ci|pnpm install|yarn install|bun install/);
+    assert.doesNotMatch(report, /styleproof-ci\.mjs/);
+  } finally {
+    rmTmp(root);
   }
 });
 

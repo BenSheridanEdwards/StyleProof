@@ -143,6 +143,78 @@ test('styleproof-affected: a fully configured repo runs with no input flags at a
   }
 });
 
+test('loadStyleProofConfig: reads the closed-world crawl block for one-config auth adoption', () => {
+  withConfig(
+    {
+      crawl: {
+        baseUrl: 'http://127.0.0.1:3000',
+        routes: ['/', 'account=/account'],
+        setup: 'styleproof.setup.json',
+        authBoundaryExclude: 'styleproof.auth-boundary-exclude.json',
+        strict: true,
+        maxActions: 20,
+        width: 1440,
+        height: 900,
+      },
+    },
+    (dir) => {
+      const config = loadStyleProofConfig(dir);
+      assert.deepEqual(config.crawl, {
+        baseUrl: 'http://127.0.0.1:3000',
+        routes: ['/', 'account=/account'],
+        setup: 'styleproof.setup.json',
+        authBoundaryExclude: 'styleproof.auth-boundary-exclude.json',
+        strict: true,
+        out: undefined,
+        maxActions: 20,
+        width: 1440,
+        height: 900,
+      });
+    },
+  );
+});
+
+test('loadStyleProofConfig: crawl block rejects bad types and warns on unknown crawl keys', () => {
+  withConfig({ crawl: { setup: 7 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"crawl\.setup" must be a non-empty string/);
+  });
+  withConfig({ crawl: { maxActions: 0 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"crawl\.maxActions" must be a positive number/);
+  });
+  withConfig({ crawl: { baseUrl: 'http://x', seutup: 'typo.json' } }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.match(map.stderr, /unknown "crawl" key\(s\) ignored: seutup/);
+  });
+});
+
+test('styleproof-map: refuses crawl.setup / authBoundaryExclude (auth belongs on styleproof-capture)', () => {
+  withConfig(
+    {
+      crawl: {
+        baseUrl: 'http://127.0.0.1:9',
+        routes: ['/'],
+        setup: 'styleproof.setup.json',
+      },
+    },
+    (dir) => {
+      fs.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
+      fs.writeFileSync(path.join(dir, 'styleproof.setup.json'), '[]\n');
+      const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+      assert.equal(map.status, 2, map.stderr);
+      assert.match(map.stderr, /does not run auth setup|styleproof-capture/);
+    },
+  );
+
+  withConfig({ spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    fs.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
+    const map = spawnSync(process.execPath, [MAP, '--setup', 'x.json'], { cwd: dir, encoding: 'utf8' });
+    assert.equal(map.status, 2, map.stderr);
+    assert.match(map.stderr, /not supported on the spec-driven map path/);
+  });
+});
+
 test('loadStyleProofConfig: unknown keys warn loudly instead of silently dropping', () => {
   // A typo'd key silently reverting to defaults is the exact failure the
   // loader's contract forbids — but it must stay a WARNING so a config written
@@ -201,4 +273,12 @@ test('styleproof-diff / styleproof-report: a malformed config is a usage error (
       assert.match(res.stderr, /styleproof\.config\.json: invalid JSON/);
     }
   });
+});
+
+test('README documents every top-level one-config adoption block', () => {
+  const readme = fs.readFileSync(path.join(here, '..', 'README.md'), 'utf8');
+  const configReference = readme.slice(readme.indexOf('**Config file `styleproof.config.json`'));
+  assert.match(configReference, /\| `crawl`\s+\|/);
+  assert.match(configReference, /`setup`/);
+  assert.match(configReference, /`authBoundaryExclude`/);
 });
