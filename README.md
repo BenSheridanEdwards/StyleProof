@@ -1335,6 +1335,43 @@ identity boundary and compare two different semantic roles as a restyle.
 
 Notes: only an element's _own_ text is recorded (so a parent and child never double-report the same string); text churn in a live region is auto-excluded by the same settle pass that guards styles; and the certification CLI (`styleproof-diff`) is deliberately left content-blind.
 
+## Typed component manifests and catalog coverage
+
+Capture isolated component states without putting a framework adapter in
+StyleProof's production package. Scaffold explicit declarations from local
+component roots:
+
+```sh
+npx styleproof-init --manifest styleproof.components.json \
+  --component-roots src/components,src/widgets
+```
+
+The starter creates one `default` variant per discovered file and invents no
+props or providers. Your development catalog statically imports the declared
+modules, owns providers and committed serializable fixture data, and exposes a
+registry to `collectManifestDiagnostics`. Stable
+`componentManifestCatalogSurfaces` routes turn each declared variant into a
+capture surface.
+
+Audit completeness with:
+
+```sh
+npx styleproof-components --manifest styleproof.components.json \
+  --component-root src/components --component-root src/widgets
+```
+
+Its JSON keeps `declared`, `excludedWithReason`, and `uncovered` separate. The
+default exit is `1` while uncovered files remain; `--uncovered-ok` changes only
+the exit code, never the evidence. Missing exports/providers, invalid props,
+duplicate keys, malformed manifests, overlaps, and duplicate discovered paths
+are explicit diagnostics, not silent omissions.
+
+React is development-fixture-only. It is neither a runtime nor peer dependency,
+and production-bundle plus packed-tarball oracles prove the catalog stays out
+unless a consumer explicitly imports it. See the packaged
+[component manifest guide](docs/component-manifest.md) for the full contract and
+reference fixture.
+
 ## Optional: React component layer (advisory)
 
 For a React app, knowing _which component_ rendered an element is often the fastest way to read a change. Off by default, opt in with `captureComponent`:
