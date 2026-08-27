@@ -131,6 +131,7 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       'styleproof-capture',
       'styleproof-diff',
       'styleproof-report',
+      'styleproof-components',
       'styleproof-variants',
       'styleproof-prepush',
       'styleproof-affected',

@@ -136,6 +136,12 @@ export type {
   ManifestDiagnostic,
   CollectManifestDiagnosticsOptions,
 } from './manifest-harness.js';
+export { componentManifestInventory, ComponentInventoryError } from './component-inventory.js';
+export type {
+  DeclaredComponentInventoryEntry,
+  ExcludedComponentInventoryEntry,
+  ComponentManifestInventory,
+} from './component-inventory.js';
 export { selectCrawlLinks, defaultLinkKey, crawlCoverageGaps, crawlCoverageError } from './crawl.js';
 export type { CrawlLink, LinkMatch, SelectLinksOptions, CrawlCoverageGaps } from './crawl.js';
 export { harvestStyleVariants } from './variant-crawler.js';
