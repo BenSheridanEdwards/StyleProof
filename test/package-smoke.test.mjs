@@ -102,6 +102,11 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       true,
       'README-linked evidence-store architecture must ship in the tarball',
     );
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/test/fixtures/react-catalog')),
+      false,
+      'the React catalog reference fixture must never ship in the package tarball',
+    );
 
     assert.equal(
       fs.existsSync(path.join(app, 'node_modules/styleproof/bin/platform-command.mjs')),
