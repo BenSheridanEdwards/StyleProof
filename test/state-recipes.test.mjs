@@ -76,6 +76,66 @@ test('validateStateRecipe: every action requires selector; press requires key', 
   assert.throws(() => validateStateRecipe({ action: 'hover', selector: '   ' }), /privacy policy/);
 });
 
+test('validateStateRecipe: transient observation is bounded, structural, and explicitly keyed', () => {
+  assert.deepEqual(
+    validateStateRecipe({
+      action: 'click',
+      selector: '#notify',
+      stateKey: 'toast-visible',
+      observeSelector: '[role]',
+      observeMs: 250,
+    }),
+    {
+      action: 'click',
+      selector: '#notify',
+      stateKey: 'toast-visible',
+      observeSelector: '[role]',
+      observeMs: 250,
+    },
+  );
+
+  assert.throws(
+    () => validateStateRecipe({ action: 'click', selector: '#notify', observeSelector: '[role]', observeMs: 250 }),
+    /observation requires an explicit stateKey/,
+  );
+  assert.throws(
+    () => validateStateRecipe({ action: 'click', selector: '#notify', stateKey: 'toast', observeSelector: '[role]' }),
+    /observeSelector and observeMs must be provided together/,
+  );
+  assert.throws(
+    () => validateStateRecipe({ action: 'click', selector: '#notify', stateKey: 'toast', observeMs: 250 }),
+    /observeSelector and observeMs must be provided together/,
+  );
+  for (const observeMs of [49, 5001, 100.5, Number.NaN, Number.POSITIVE_INFINITY, '250']) {
+    assert.throws(
+      () =>
+        validateStateRecipe({
+          action: 'click',
+          selector: '#notify',
+          stateKey: 'toast',
+          observeSelector: '[role]',
+          observeMs,
+        }),
+      /observeMs must be an integer from 50 to 5000 milliseconds/,
+    );
+  }
+
+  const secret = 'transient-secret-value';
+  try {
+    validateStateRecipe({
+      action: 'click',
+      selector: '#notify',
+      stateKey: 'toast',
+      observeSelector: `[data-token=${secret}]`,
+      observeMs: 250,
+    });
+    assert.fail('expected observation selector policy rejection');
+  } catch (e) {
+    assert.match(String(e.message), /privacy policy/);
+    assert.equal(`${e.message}\n${e.stack ?? ''}`.includes(secret), false);
+  }
+});
+
 test('validateStateRecipe: closed-world — rejects unknown keys including typos and deferred fields', () => {
   const unknown = [
     'seletor',

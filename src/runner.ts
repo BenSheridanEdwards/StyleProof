@@ -559,6 +559,7 @@ async function markPopupCandidates(page: Page, options: ResolvedPopupCaptureOpti
 
 type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates' | 'stateRecipes'> & {
   metadata?: CaptureMetadata;
+  requiredVisibleState?: { selector: string; stateKey: string };
 };
 
 function expandOne(
@@ -612,6 +613,7 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
     widths: surface.widths,
     height: surface.height,
     popups: surface.popups,
+    ...(recipe.observeSelector ? { requiredVisibleState: { selector: recipe.observeSelector, stateKey } } : {}),
     metadata: {
       surfaceKey: surface.key,
       variantKey: stateKey,
@@ -622,6 +624,7 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
         selector: recipe.selector,
         ...(recipe.key ? { key: recipe.key } : {}),
         ...(recipe.label !== undefined ? { label: recipe.label } : {}),
+        ...(recipe.observeMs !== undefined ? { observationMs: recipe.observeMs } : {}),
       },
     },
   };
@@ -766,7 +769,12 @@ async function assertDeterministic(
   pending: () => number,
 ): Promise<void> {
   await surface.go(page);
-  const again = await captureStyleMap(page, { ignore: surface.ignore ?? [], captureText, pendingRequests: pending });
+  const again = await captureStyleMap(page, {
+    ignore: surface.ignore ?? [],
+    captureText,
+    pendingRequests: pending,
+    requiredVisibleState: surface.requiredVisibleState,
+  });
   const drift = diffStyleMaps(first, again);
   if (drift.length) {
     const liveCandidates = [...(first.liveCandidates ?? []), ...(again.liveCandidates ?? [])];
@@ -1068,6 +1076,7 @@ async function captureSurface(
           captureComponent: s.captureComponent,
           inventory: s.inventory,
           pendingRequests: requests.pending,
+          requiredVisibleState: surface.requiredVisibleState,
           metadata: surface.metadata,
           // captureStyleMap reports 'settle' → 'capture'; the self-check re-run
           // below deliberately does NOT get this callback, so a breach during it

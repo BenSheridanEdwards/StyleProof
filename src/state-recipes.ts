@@ -61,7 +61,15 @@ export type AllowedPressKey = (typeof ALLOWED_PRESS_KEYS)[number];
 const ALLOWED_PRESS_KEY_SET: ReadonlySet<string> = new Set(ALLOWED_PRESS_KEYS);
 
 /** Closed-world recipe fields — anything else is rejected. */
-const ALLOWED_RECIPE_FIELDS = new Set(['action', 'selector', 'key', 'label', 'stateKey']);
+const ALLOWED_RECIPE_FIELDS = new Set([
+  'action',
+  'selector',
+  'key',
+  'label',
+  'stateKey',
+  'observeSelector',
+  'observeMs',
+]);
 
 /**
  * Max accepted selector length. Keeps provenance/keys bounded and blocks
@@ -74,6 +82,10 @@ export const MAX_RECIPE_LABEL_LENGTH = 160;
 
 /** Explicit stable state-key fragments before slugging. */
 export const MAX_RECIPE_STATE_KEY_LENGTH = 80;
+
+/** Bounded continuous-visibility observation window for transient states. */
+export const MIN_RECIPE_OBSERVE_MS = 50;
+export const MAX_RECIPE_OBSERVE_MS = 5_000;
 
 /**
  * Safe CSS structural / presence-only pseudo-classes (optional simple numeric args).
@@ -156,6 +168,14 @@ export type StateRecipe = {
    * Bounded, control-sanitized, and must slug to a non-empty fragment.
    */
   stateKey?: string;
+  /**
+   * Optional value-free structural selector whose visibility proves a transient
+   * state was reached. Runtime-only: never persisted in capture metadata.
+   * Requires `observeMs` and an explicit `stateKey`.
+   */
+  observeSelector?: string;
+  /** Continuous visibility required after the observed target appears. */
+  observeMs?: number;
 };
 
 /** Provenance returned after a recipe is successfully applied. */
@@ -167,6 +187,8 @@ export type AppliedStateRecipe = {
   selector: string;
   key?: AllowedPressKey;
   label?: string;
+  /** Bounded transient visibility window proven before settle. */
+  observationMs?: number;
 };
 
 export type StateRecipeSkipReason = 'unsafe-label';
@@ -873,6 +895,34 @@ function requirePressKey(action: StateRecipeAction, key: string | undefined): vo
   }
 }
 
+function parseObservation(
+  record: Record<string, unknown>,
+  stateKey: string | undefined,
+): { observeSelector?: string; observeMs?: number } {
+  const hasSelector = record.observeSelector !== undefined;
+  const hasMs = record.observeMs !== undefined;
+  if (hasSelector !== hasMs) {
+    throw new StateRecipeError('state recipe observeSelector and observeMs must be provided together');
+  }
+  if (!hasSelector) return {};
+  if (!stateKey) {
+    throw new StateRecipeError('state recipe transient observation requires an explicit stateKey');
+  }
+  const observeSelector = assertSafeRecipeSelector(record.observeSelector);
+  const observeMs = record.observeMs;
+  if (
+    typeof observeMs !== 'number' ||
+    !Number.isInteger(observeMs) ||
+    observeMs < MIN_RECIPE_OBSERVE_MS ||
+    observeMs > MAX_RECIPE_OBSERVE_MS
+  ) {
+    throw new StateRecipeError(
+      `state recipe observeMs must be an integer from ${MIN_RECIPE_OBSERVE_MS} to ${MAX_RECIPE_OBSERVE_MS} milliseconds`,
+    );
+  }
+  return { observeSelector, observeMs };
+}
+
 /**
  * Pure shape validation. Does **not** apply the destructive guard — use
  * {@link classifyStateRecipe} / {@link applyStateRecipe} for that so discovery
@@ -889,6 +939,7 @@ export function validateStateRecipe(raw: unknown): StateRecipe {
   const key = keyRaw !== undefined && isAllowedPressKey(keyRaw) ? keyRaw : undefined;
   const stateKey = optionalStateKey(r.stateKey);
   const label = optionalLabel(r.label);
+  const observation = parseObservation(r, stateKey);
 
   return {
     action,
@@ -896,6 +947,7 @@ export function validateStateRecipe(raw: unknown): StateRecipe {
     ...(key ? { key } : {}),
     ...(label !== undefined ? { label } : {}),
     ...(stateKey ? { stateKey } : {}),
+    ...observation,
   };
 }
 
@@ -1071,7 +1123,31 @@ function applied(recipe: StateRecipe, label?: string): AppliedStateRecipe {
     selector: recipe.selector,
     ...(recipe.key ? { key: recipe.key } : {}),
     ...(resolvedLabel !== undefined ? { label: resolvedLabel } : {}),
+    ...(recipe.observeMs !== undefined ? { observationMs: recipe.observeMs } : {}),
   };
+}
+
+const RECIPE_OBSERVE_APPEAR_TIMEOUT_MS = 1_000;
+
+function observationFailure(recipe: StateRecipe, phase: 'appearance' | 'continuous-visibility'): StateRecipeError {
+  return new StateRecipeError(
+    `state recipe ${deriveValidatedStateRecipeKey(recipe)} observation phase ${phase} failed`,
+  );
+}
+
+async function observeTransientState(page: Page, recipe: StateRecipe): Promise<void> {
+  if (recipe.observeSelector === undefined || recipe.observeMs === undefined) return;
+  const observed = page.locator(recipe.observeSelector).first();
+  try {
+    await observed.waitFor({ state: 'visible', timeout: RECIPE_OBSERVE_APPEAR_TIMEOUT_MS });
+  } catch {
+    throw observationFailure(recipe, 'appearance');
+  }
+  const deadline = realNow() + recipe.observeMs;
+  while (realNow() < deadline) {
+    await page.waitForTimeout(Math.min(25, Math.max(1, deadline - realNow())));
+    if (!(await observed.isVisible())) throw observationFailure(recipe, 'continuous-visibility');
+  }
 }
 
 /**
@@ -1096,7 +1172,6 @@ async function executeStateRecipe(page: Page, recipe: StateRecipe): Promise<void
     await target.focus({ timeout: 5_000 });
     await page.keyboard.press(recipe.key!);
   }
-  await settleAfterRecipe(page);
 }
 
 export async function applyStateRecipe(page: Page, raw: unknown): Promise<AppliedStateRecipe> {
@@ -1117,6 +1192,8 @@ export async function applyStateRecipe(page: Page, raw: unknown): Promise<Applie
       );
     }
     await executeStateRecipe(page, recipe);
+    await observeTransientState(page, recipe);
+    await settleAfterRecipe(page);
   } catch (e) {
     if (e instanceof StateRecipeError) throw e;
     // Privacy: name action + stable key only. Do not echo selector or nested

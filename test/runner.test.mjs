@@ -323,6 +323,34 @@ test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach pro
   assert.deepEqual(calls, ['surface', 'hover']);
 });
 
+test('expandSurfaceVariants: transient observation is wired at runtime without persisting its selector', () => {
+  const surfaces = expandSurfaceVariants({
+    key: 'alerts',
+    go: async () => {},
+    stateRecipes: [
+      {
+        action: 'click',
+        selector: '#notify',
+        stateKey: 'toast-visible',
+        observeSelector: '#private-runtime-toast',
+        observeMs: 250,
+      },
+    ],
+  });
+  const transient = surfaces[1];
+  assert.deepEqual(transient.requiredVisibleState, {
+    selector: '#private-runtime-toast',
+    stateKey: 'toast-visible',
+  });
+  assert.deepEqual(transient.metadata?.stateRecipe, {
+    stateKey: 'toast-visible',
+    action: 'click',
+    selector: '#notify',
+    observationMs: 250,
+  });
+  assert.equal(JSON.stringify(transient.metadata).includes('#private-runtime-toast'), false);
+});
+
 test('expandSurfaceVariants: absent stateRecipes preserves variants/liveStates exactly', () => {
   const withVariants = expandSurfaceVariants({
     key: 'dashboard',

@@ -90,6 +90,8 @@ export type StateRecipeCaptureProvenance = {
   key?: string;
   /** Declared label when provided (not a live DOM label rewrite). */
   label?: string;
+  /** Bounded transient visibility window proven before capture. */
+  observationMs?: number;
 };
 
 export type CaptureMetadata = {
@@ -283,9 +285,27 @@ export type CaptureOptions = {
    * `defineStyleMapCapture` wires this; omit it for a direct call.
    */
   onPhase?: (phase: 'settle' | 'capture') => void;
+  /**
+   * Advanced/internal: fail closed unless a recipe-observed transient remains
+   * visible throughout map extraction. The selector is runtime-only and is not
+   * persisted; diagnostics expose only the stable state key.
+   */
+  requiredVisibleState?: { selector: string; stateKey: string };
   /** Advanced/internal: metadata to persist with the capture for report context. */
   metadata?: CaptureMetadata;
 };
+
+async function assertRequiredVisibleState(page: Page, required: CaptureOptions['requiredVisibleState']): Promise<void> {
+  if (!required) return;
+  const visible = await page
+    .locator(required.selector)
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (!visible) {
+    throw new Error(`styleproof: state recipe ${required.stateKey} observation phase pre-capture failed`);
+  }
+}
 
 const INTERACTIVE = 'a, button, input, textarea, select, summary, [role="button"], [tabindex]';
 // Freeze motion so every captured value is a settled end state, not a frame
@@ -1395,6 +1415,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const volatile = await detectVolatile(page, ignore, stabilize, captureText, options.pendingRequests);
   // Settled: everything from here on is the style/state read work.
   options.onPhase?.('capture');
+  await assertRequiredVisibleState(page, options.requiredVisibleState);
   // Detect semantic live-state candidates automatically, but don't exclude them
   // merely for being live regions. Stable status/alert/log UI is product UI and
   // should still be captured; this metadata only improves reports and diagnostics.
@@ -1422,6 +1443,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   // page clean, not just the happy path.
   const refreezeTag = await page.addStyleTag({ content: FREEZE_CSS });
   try {
+    await assertRequiredVisibleState(page, options.requiredVisibleState);
     const base = await page.evaluate(capturePage, { ignore, motionOnly: false, captureText, captureComponent });
     dropVolatile(base.elements, volatile);
     const overlays = (await page.evaluate(detectOverlayCandidates, { ignore })).filter(
@@ -1438,6 +1460,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     }
     const tokens = await page.evaluate(capturePageTokens);
     const inventory = await harvestInventoryFor(page, options.inventory);
+    await assertRequiredVisibleState(page, options.requiredVisibleState);
     return {
       ...(options.metadata ? { metadata: options.metadata } : {}),
       ...(viewport ? { viewport } : {}),
