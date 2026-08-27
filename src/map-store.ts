@@ -8,6 +8,7 @@ import { CiWorktreeSession, consumerRelativeFromRepoRoot, gitRepoRoot, worktreeR
 import { inferBaseRef } from './gitref.js';
 import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
+import { readRegularFileNoFollow } from './safe-filesystem.js';
 
 export const DEFAULT_MAP_DIR = '.styleproof/maps';
 export const DEFAULT_MAP_LABEL = 'current';
@@ -74,10 +75,16 @@ export function isMapFile(name: string): boolean {
 
 const CRAWL_BUNDLE_FILES = new Set([...RESERVED_BUNDLE_FILES, FATAL_CAPTURE_MARKER]);
 const GENERATED_CAPTURE_ARTIFACT = /@\d+\.(?:json(?:\.gz)?|png|(?:hover|focus|active)\.png)$/;
+const SURFACE_CAPTURE_FAILURE_ARTIFACT = /^[a-zA-Z0-9@._-]+-[0-9a-f]{8}\.json$/;
 
 /** True when a top-level entry is owned by StyleProof capture generation. */
 export function isOwnedCaptureArtifact(name: string): boolean {
   return CRAWL_BUNDLE_FILES.has(name) || name === SURFACE_CAPTURE_FAILURES_DIR || GENERATED_CAPTURE_ARTIFACT.test(name);
+}
+
+/** True when a flat failure receipt name could have been emitted by StyleProof. */
+export function isSurfaceCaptureFailureArtifact(name: string): boolean {
+  return SURFACE_CAPTURE_FAILURE_ARTIFACT.test(name);
 }
 
 /** Clear only artifacts that a crawl owns when refreshing a reused output directory.
@@ -379,7 +386,7 @@ export function writeBrowserBuildSidecar(dir: string, browserVersion: string | u
 
 function readBrowserBuildSidecar(dir: string): string | undefined {
   try {
-    const parsed = JSON.parse(fs.readFileSync(path.join(dir, BROWSER_BUILD_SIDECAR), 'utf8')) as {
+    const parsed = JSON.parse(readRegularFileNoFollow(path.join(dir, BROWSER_BUILD_SIDECAR)).toString('utf8')) as {
       browserVersion?: string;
     };
     return parsed.browserVersion;
@@ -574,7 +581,10 @@ export function markFatalCaptureFailure(dir: string, reason: string): void {
 /** Read the fatal marker written by a capture worker, if one exists. */
 export function readFatalCaptureFailure(dir: string): string | undefined {
   try {
-    return fs.readFileSync(path.join(dir, FATAL_CAPTURE_MARKER), 'utf8').trim() || 'unknown fatal capture failure';
+    return (
+      readRegularFileNoFollow(path.join(dir, FATAL_CAPTURE_MARKER)).toString('utf8').trim() ||
+      'unknown fatal capture failure'
+    );
   } catch {
     return undefined;
   }
@@ -718,7 +728,7 @@ export function writeCaptureManifest(options: {
 
 export function readMapManifest(dir: string): MapManifest | null {
   try {
-    return JSON.parse(fs.readFileSync(path.join(dir, MAP_MANIFEST), 'utf8')) as MapManifest;
+    return JSON.parse(readRegularFileNoFollow(path.join(dir, MAP_MANIFEST)).toString('utf8')) as MapManifest;
   } catch {
     return null;
   }
@@ -755,7 +765,9 @@ export function writeBaselineProvenance(dir: string, provenance: BaselineProvena
 /** Read the baseline-provenance sidecar; `null` when absent or unreadable. */
 export function readBaselineProvenance(dir: string): BaselineProvenance | null {
   try {
-    return JSON.parse(fs.readFileSync(path.join(dir, BASELINE_PROVENANCE_FILE), 'utf8')) as BaselineProvenance;
+    return JSON.parse(
+      readRegularFileNoFollow(path.join(dir, BASELINE_PROVENANCE_FILE)).toString('utf8'),
+    ) as BaselineProvenance;
   } catch {
     return null;
   }

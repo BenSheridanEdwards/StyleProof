@@ -69,6 +69,40 @@ test('v1 map import creates verified complete/proven v2 evidence and excludes HA
   }
 });
 
+test('v1 map import includes only canonical flat surface-failure receipts', () => {
+  const workspace = mkTmp('styleproof-evidence-import-failures-');
+  try {
+    const bundle = path.join(workspace, 'bundle');
+    const failures = path.join(bundle, 'styleproof-surface-capture-failures');
+    writeBundle(bundle);
+    fs.mkdirSync(failures, { recursive: true });
+    fs.writeFileSync(
+      path.join(failures, 'about@900-deadbeef.json'),
+      JSON.stringify({ key: 'about@900', reason: 'capture failed', kind: 'capture' }),
+    );
+    fs.writeFileSync(path.join(failures, 'secret.env'), 'DO_NOT_IMPORT');
+    fs.mkdirSync(path.join(failures, 'nested'));
+    fs.writeFileSync(path.join(failures, 'nested', 'looks-owned-deadbeef.json'), '{}');
+
+    const imported = importMapBundleToEvidenceStore({
+      bundleDirectory: bundle,
+      storeRoot: path.join(workspace, 'store'),
+    });
+    const paths = imported.manifest.files.map((file) => file.path);
+    assert.equal(paths.includes('styleproof-surface-capture-failures/about@900-deadbeef.json'), true);
+    assert.equal(
+      paths.some((file) => file.includes('secret.env')),
+      false,
+    );
+    assert.equal(
+      paths.some((file) => file.includes('/nested/')),
+      false,
+    );
+  } finally {
+    rmTmp(workspace);
+  }
+});
+
 test('v1 map import preserves missing trust as unasserted/unknown and rejects malformed ledgers', () => {
   const workspace = mkTmp('styleproof-evidence-import-trust-');
   try {

@@ -32,6 +32,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   remote publication remains on the v1 Git adapter pending dual-write and
   remote-CAS migration.
 
+### Security
+
+- **Evidence import now rejects hostile filesystem entries before reading metadata:**
+  every path reachable by manifest, coverage, confidence, provenance, or map readers
+  is checked through one no-follow regular-file primitive. FIFOs, sockets, devices,
+  and symlinks fail closed before bytes are read. The managed surface-failures
+  directory imports only canonical flat StyleProof receipts, excluding unknown
+  files and nested directories.
+- **Local evidence refs recover only locks owned by dead publishers:** lock files
+  now carry versioned PID, timestamp, and random-token ownership while legacy PID-line
+  locks remain recoverable during upgrade. Recovery hard-links and rechecks the exact
+  owner bytes and file identity before removal, including a zero-inode fallback for
+  Windows; live and malformed locks remain untouched, and age alone never authorizes
+  stealing.
+
 ## [6.1.0] - 2026-08-25
 
 ### Fixed

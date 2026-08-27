@@ -27,6 +27,7 @@ import * as path from 'node:path';
 import { COVERAGE_LEDGER, type CoverageLedger } from './coverage.js';
 import { surfaceKeyByCaptureKey } from './capture.js';
 import { CONFIDENCE_LEDGER } from './map-store.js';
+import { readRegularFileNoFollow } from './safe-filesystem.js';
 
 /** Bundled next to the maps, like the coverage ledger, so confidence travels with the capture. */
 export { CONFIDENCE_LEDGER };
@@ -274,7 +275,7 @@ export function readConfidenceLedger(dir: string): ConfidenceLedgerFile | null {
   const p = path.join(dir, CONFIDENCE_LEDGER);
   if (!fs.existsSync(p)) return null;
   try {
-    const parsed = JSON.parse(fs.readFileSync(p, 'utf8')) as ConfidenceLedgerFile;
+    const parsed = JSON.parse(readRegularFileNoFollow(p).toString('utf8')) as ConfidenceLedgerFile;
     if (parsed?.version !== 1 || !Array.isArray(parsed.entries)) return null;
     if (parsed.basis !== 'asserted' && parsed.basis !== 'unasserted') return null;
     const seen = new Set<string>();
@@ -335,7 +336,7 @@ export function readCoverageLedgerLenient(dir: string): CoverageLedger | null {
   const p = path.join(dir, COVERAGE_LEDGER);
   if (!fs.existsSync(p)) return null;
   try {
-    const parsed = JSON.parse(fs.readFileSync(p, 'utf8')) as CoverageLedger;
+    const parsed = JSON.parse(readRegularFileNoFollow(p).toString('utf8')) as CoverageLedger;
     if (parsed?.version !== 1) return null;
     if (parsed.expected !== null && !stringArray(parsed.expected)) return null;
     if (!plainReasonMap(parsed.exclude)) return null;
