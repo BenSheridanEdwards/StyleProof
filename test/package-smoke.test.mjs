@@ -59,6 +59,7 @@ function stagePackageDir(dest) {
     'example/styleproof-approve.yml',
     'docs/demo-composite.png',
     'docs/evidence-store-v2.md',
+    'docs/component-manifest.md',
     'README.md',
     'CHANGELOG.md',
     'LICENSE',
@@ -102,6 +103,16 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       true,
       'README-linked evidence-store architecture must ship in the tarball',
     );
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/docs/component-manifest.md')),
+      true,
+      'README-linked component-manifest guide must ship in the tarball',
+    );
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/test/fixtures/react-catalog')),
+      false,
+      'the React catalog reference fixture must never ship in the package tarball',
+    );
 
     assert.equal(
       fs.existsSync(path.join(app, 'node_modules/styleproof/bin/platform-command.mjs')),
@@ -126,6 +137,7 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       'styleproof-capture',
       'styleproof-diff',
       'styleproof-report',
+      'styleproof-components',
       'styleproof-variants',
       'styleproof-prepush',
       'styleproof-affected',

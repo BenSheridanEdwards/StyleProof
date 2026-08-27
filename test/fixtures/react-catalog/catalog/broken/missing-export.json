@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "id": "button",
+      "module": "test/fixtures/react-catalog/catalog/components/Button.jsx",
+      "export": "NeverExported",
+      "variants": [{ "key": "default", "props": { "label": "Save" } }]
+    }
+  ]
+}

@@ -16,6 +16,7 @@ capture:
   capture     capture this repository state from a StyleProof spec
   crawl       capture a URL or crawled application directly
   variants    inspect and generate surface variants
+  components  audit component-manifest coverage
   affected    resolve surfaces affected by changed source files
 
 review:
@@ -49,6 +50,7 @@ const commands = new Map([
   ['compare', 'styleproof-diff.mjs'],
   ['report', 'styleproof-report.mjs'],
   ['variants', 'styleproof-variants.mjs'],
+  ['components', 'styleproof-components.mjs'],
   ['affected', 'styleproof-affected.mjs'],
   ['ci', 'styleproof-ci.mjs'],
   ['prepush', 'styleproof-prepush.mjs'],

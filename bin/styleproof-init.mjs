@@ -21,6 +21,8 @@
  *     styleproof-maps branch and only captures in CI when the maps are missing.
  *   - .github/workflows/styleproof-approve.yml: the issue_comment handler that
  *     flips the StyleProof status when a reviewer ticks "Approve all changes".
+ *   - --manifest <path> with --component-roots: a typed starter component
+ *     manifest with one explicit default variant per discovered file.
  *     The report workflow runs with `require-approval: true`, so without this the
  *     approval checkbox is inert. GitHub only runs issue_comment workflows from the
  *     default branch, so it takes effect once the init PR merges.
@@ -39,6 +41,8 @@ import { fileURLToPath } from 'node:url';
 // into a tiny scaffolder's load path, and that oversized concurrent module
 // graph is what made init's tests flake in CI. routes.js needs only fs + path.
 import { discoverNextRoutes } from '../dist/routes.js';
+import { discoverComponentFiles } from '../dist/components.js';
+import { validateComponentManifest } from '../dist/component-manifest.js';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit } from '../dist/cli-errors.js';
 import { decodeSpecPathEnv, encodeSpecPath, SPEC_PATH_ENV, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
 
@@ -50,6 +54,9 @@ options:
   --dir <path>        spec output path (default: e2e/styleproof.spec.ts)
   --base-url <url>    baseURL for a generated playwright.styleproof.config.ts
                       (default: http://localhost:3000)
+  --manifest <path>   write a typed starter component manifest
+  --component-roots <dirs>
+                      comma-separated component roots; repeatable
   --force             overwrite the spec if it already exists
   --hook              (re)write ONLY the pre-push hook, overwriting an existing one —
                       the upgrade path after a styleproof release changes the hook
@@ -66,6 +73,8 @@ options:
 --dir you scaffolded with if your spec is not at the default location.
 
 What it writes:
+  - with --manifest + --component-roots, a typed starter component manifest;
+    one default variant per file, with no inferred props or providers
   - the spec at --dir, with a minimal settle() helper (scroll-reveal only).
     In a Next.js app it discovers your routes at run time and derives both the
     surfaces and the \`expected\` coverage guard from that one call, so a new static
@@ -96,6 +105,8 @@ let force = false;
 let hookOnly = false;
 let upgrade = false;
 let checkOnly = false;
+let manifestPath;
+const componentRoots = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
@@ -107,6 +118,10 @@ for (let i = 0; i < argv.length; i++) {
     specPath = a.slice(6);
   } else if (a === '--base-url') baseUrl = argv[++i];
   else if (a.startsWith('--base-url=')) baseUrl = a.slice(11);
+  else if (a === '--manifest') manifestPath = argv[++i];
+  else if (a.startsWith('--manifest=')) manifestPath = a.slice('--manifest='.length);
+  else if (a === '--component-roots') componentRoots.push(...String(argv[++i] ?? '').split(','));
+  else if (a.startsWith('--component-roots=')) componentRoots.push(...a.slice('--component-roots='.length).split(','));
   else if (a === '--force') force = true;
   else if (a === '--hook') hookOnly = true;
   else if (a === '--upgrade') upgrade = true;
@@ -114,6 +129,23 @@ for (let i = 0; i < argv.length; i++) {
   else {
     console.error(`unknown argument: ${a}\n`);
     process.stderr.write(HELP);
+    process.exit(2);
+  }
+}
+if (Boolean(manifestPath) !== Boolean(componentRoots.length)) {
+  console.error('styleproof-init: --manifest and --component-roots must be provided together');
+  process.exit(2);
+}
+if (manifestPath) {
+  try {
+    manifestPath = validateRepoRelativeSpecPath(manifestPath);
+    for (let index = 0; index < componentRoots.length; index++) {
+      componentRoots[index] = validateRepoRelativeSpecPath(componentRoots[index].trim());
+    }
+  } catch (error) {
+    console.error(
+      `styleproof-init: invalid component manifest input: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exit(2);
   }
 }
@@ -1114,6 +1146,37 @@ let wroteSomething = false;
 // it touched — and, by omission, what it did NOT (init never writes package.json or a
 // lockfile; that's the package manager's `install`, not this scaffolder).
 const touched = [];
+
+if (manifestPath) {
+  try {
+    const discovered = discoverComponentFiles({ cwd: process.cwd(), roots: componentRoots });
+    const starterManifest = validateComponentManifest(
+      {
+        version: 1,
+        components: discovered.map((component) => ({
+          module: component.path,
+          variants: [{ key: 'default' }],
+        })),
+      },
+      { cwd: process.cwd() },
+    );
+    const manifest = writeFileSafe(manifestPath, `${JSON.stringify(starterManifest, null, 2)}\n`, { force });
+    if (manifest.wrote) {
+      touched.push(manifestPath);
+      console.log(
+        `${manifest.exists ? 'overwrote' : 'created'} ${manifestPath} (${discovered.length} component file(s))`,
+      );
+      wroteSomething = true;
+    } else if (manifest.unmanaged) {
+      reportUnmanagedGeneratedPath(manifestPath);
+    } else {
+      console.log(`${manifestPath} already exists — left untouched (use --force to overwrite)`);
+    }
+  } catch (error) {
+    console.error(`styleproof-init: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(2);
+  }
+}
 
 const spec = writeFileSafe(specPath, SPEC, { force });
 if (spec.wrote) {

@@ -42,6 +42,7 @@
     "styleproof-capture": "./bin/styleproof-capture.mjs",
     "styleproof-diff": "./bin/styleproof-diff.mjs",
     "styleproof-report": "./bin/styleproof-report.mjs",
+    "styleproof-components": "./bin/styleproof-components.mjs",
     "styleproof-variants": "./bin/styleproof-variants.mjs",
     "styleproof-prepush": "./bin/styleproof-prepush.mjs",
     "styleproof-affected": "./bin/styleproof-affected.mjs",
@@ -56,6 +57,7 @@
     "example/styleproof-approve.yml",
     "docs/demo-composite.png",
     "docs/evidence-store-v2.md",
+    "docs/component-manifest.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -95,11 +97,16 @@
     "@playwright/test": "^1.60.0",
     "@types/node": "^26.2.0",
     "@types/pngjs": "^6.0.5",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "esbuild": "^0.28.2",
     "eslint": "^10.8.1",
     "fallow": "3.19.0",
     "globals": "^17.11.0",
     "husky": "^9.1.7",
     "prettier": "^3.9.6",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.67.0"
   }

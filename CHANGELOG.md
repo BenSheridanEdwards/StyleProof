@@ -206,13 +206,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `validateStateRecipe`, `parseStateRecipes`, `stateRecipeKey`,
   `classifyStateRecipe`, `applyStateRecipe`, `stateRecipeGo`,
   `isUnsafeStateLabel`, `StateRecipeError`.
-- Framework-neutral component manifest (#392 slice 1): typed document for
-  module path, export name, variant keys, serializable props, optional
-  provider modules, viewports, and exclusions-with-reason. Validation
-  rejects remote URLs, traversal, non-JSON props, empty reasons, and
-  duplicate surface keys. Valid manifests expand into
-  `componentCatalogSurfaces` routes. No React runtime, no eval, no
-  invented props.
+- Framework-neutral component manifest and catalog coverage (#392): typed
+  declarations for module/export, deterministic variants, serializable props,
+  optional providers, viewports, and exclusions-with-reason; static-registry
+  diagnostics for missing exports/providers; exact declared / excluded /
+  uncovered inventory through `styleproof-components`; and
+  `styleproof-init --manifest --component-roots` scaffolding with one explicit
+  default variant and no invented props. The React reference catalog remains a
+  development-only fixture. Bundle and packed-tarball oracles prove React and
+  the fixture stay out of production unless the consumer imports them.
 - Public `classifyAuthBoundary` helper classifies password fields, credential
   autocomplete, auth form actions, and auth redirects from redacted DOM
   metadata. It never records field values, cookies, or query strings, and it

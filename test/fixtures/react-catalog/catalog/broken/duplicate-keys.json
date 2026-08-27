@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "id": "modal",
+      "module": "test/fixtures/react-catalog/catalog/components/Modal.jsx",
+      "export": "Modal",
+      "variants": [
+        { "key": "open", "props": { "title": "First" } },
+        { "key": "open", "props": { "title": "Second" } }
+      ]
+    }
+  ]
+}
