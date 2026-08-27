@@ -37,12 +37,24 @@ jobs:
             2> fallow-linux.stderr
           printf '%s\n' "$?" > fallow-linux.exit
           exit 0
+      - name: Run official Fallow Action without gating the diagnostic
+        continue-on-error: true
+        uses: fallow-rs/fallow@v3
+        with:
+          command: health
+          no-cache: true
+          production: true
+          changed-since: 1384a4ba3305d774116611d4b830e17a06cb206b
+          baseline: .fallow/health-baseline.json
+          fail-on-issues: true
       - uses: actions/upload-artifact@v4
         with:
-          name: fallow-linux-ac9248b
+          name: fallow-linux-action-ac9248b
           path: |
             fallow-linux.json
             fallow-linux.stderr
             fallow-linux.exit
+            fallow-results.json
+            fallow-results-scoped.json
           if-no-files-found: error
           retention-days: 1
