@@ -6,8 +6,10 @@ import {
   stateRecipeKey,
   captureStyleMap,
   diffStyleMaps,
+  hashDeterminismMap,
   StateRecipeError,
 } from '../dist/index.js';
+import { expandSurfaceVariants } from '../dist/runner.js';
 
 /**
  * Sticky interaction fixture: pure CSS :hover/:focus is intentionally neutralised
@@ -40,6 +42,8 @@ function fixture(): string {
     }
     body.list-open [role="listbox"] { display: block; color: rgb(146, 64, 14); }
     body.menu-clicked #menu { background: rgb(254, 226, 226); border: 2px solid rgb(220, 38, 38); }
+    .toast { margin: 16px; padding: 12px; color: white; background: rgb(190, 24, 93); }
+    .network-error { margin: 16px; padding: 12px; color: white; background: rgb(185, 28, 28); }
     button { margin: 16px; }
   </style></head><body>
     <div class="card" id="card" aria-label="Plan card" tabindex="0">Plan card</div>
@@ -47,6 +51,8 @@ function fixture(): string {
     <label>Email <input id="email" aria-label="Email" /></label>
     <button id="menu" aria-label="Open menu" aria-haspopup="listbox">Menu</button>
     <button id="danger" aria-label="Delete account">Delete</button>
+    <button id="notify" aria-label="Show notification">Notify</button>
+    <button id="flash" aria-label="Show brief notification">Flash</button>
     <ul role="listbox" id="list" aria-label="Plan options">
       <li role="option">Free</li>
       <li role="option">Pro</li>
@@ -71,6 +77,32 @@ function fixture(): string {
         document.body.classList.add('menu-clicked');
         document.body.classList.add('list-open');
       });
+      function showToast(id, removeAfterMs) {
+        document.getElementById(id)?.remove();
+        const toast = document.createElement('div');
+        toast.id = id;
+        toast.className = 'toast';
+        toast.textContent = 'private rendered toast copy';
+        document.body.append(toast);
+        if (removeAfterMs) setTimeout(() => toast.remove(), removeAfterMs);
+      }
+      document.getElementById('notify').addEventListener('click', () => showToast('toast', 0));
+      document.getElementById('flash').addEventListener('click', () => showToast('flash-toast', 75));
+      fetch('/api/plans')
+        .then((response) => {
+          if (!response.ok) throw new Error('request failed');
+          return response.json();
+        })
+        .then(() => {
+          document.body.dataset.plans = 'loaded';
+        })
+        .catch(() => {
+          const error = document.createElement('div');
+          error.id = 'network-error';
+          error.className = 'network-error';
+          error.textContent = 'private network error copy';
+          document.body.append(error);
+        });
     </script>
   </body></html>`;
 }
@@ -79,7 +111,12 @@ async function withFixture(
   browser: import('@playwright/test').Browser,
   run: (page: import('@playwright/test').Page, baseUrl: string) => Promise<void>,
 ) {
-  const server = http.createServer((_req, res) => {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/api/plans') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"plans":[]}');
+      return;
+    }
     res.writeHead(200, { 'content-type': 'text/html' });
     res.end(fixture());
   });
@@ -190,6 +227,106 @@ test('state recipes: hover/focus/press/click change computed maps with stable ke
     expect(driven).toBeInstanceOf(Promise);
     await expect(driven).resolves.toBeUndefined();
     await expect(page.locator('body')).toHaveClass(/email-focused/);
+  });
+});
+
+test('state recipes: transient observation requires continuous visibility and emits privacy-safe diagnostics', async ({
+  browser,
+}) => {
+  await withFixture(browser, async (page) => {
+    const applied = await applyStateRecipe(page, {
+      action: 'click',
+      selector: '#notify',
+      stateKey: 'held-toast',
+      observeSelector: '#toast',
+      observeMs: 100,
+    });
+    expect(applied).toEqual(expect.objectContaining({ stateKey: 'held-toast', observationMs: 100 }));
+    await expect(page.locator('#toast')).toBeVisible();
+
+    await page.goto(page.url(), { waitUntil: 'load' });
+    const error = await applyStateRecipe(page, {
+      action: 'click',
+      selector: '#flash',
+      stateKey: 'brief-toast',
+      observeSelector: '#flash-toast',
+      observeMs: 150,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StateRecipeError);
+    expect(String((error as Error).message)).toMatch(/brief-toast.*continuous-visibility/);
+    expect(String((error as Error).message)).not.toContain('#flash-toast');
+    expect(String((error as Error).message)).not.toContain('private rendered toast copy');
+
+    await page.goto(page.url(), { waitUntil: 'load' });
+    await applyStateRecipe(page, {
+      action: 'click',
+      selector: '#flash',
+      stateKey: 'brief-toast',
+      observeSelector: '#flash-toast',
+      observeMs: 50,
+    });
+    await expect(
+      captureStyleMap(page, {
+        captureStates: false,
+        requiredVisibleState: { selector: '#flash-toast', stateKey: 'brief-toast' },
+      }),
+    ).rejects.toThrow(/brief-toast.*pre-capture/);
+  });
+});
+
+test('state recipes: route setup captures a deterministic mocked network-error state with bounded provenance', async ({
+  browser,
+}) => {
+  await withFixture(browser, async (page, baseUrl) => {
+    await expect(page.locator('body')).toHaveAttribute('data-plans', 'loaded');
+    const baseline = await captureStyleMap(page, { captureStates: false });
+
+    const surfaces = expandSurfaceVariants({
+      key: 'plans',
+      go: async (surfacePage) => {
+        await surfacePage.goto(baseUrl, { waitUntil: 'load' });
+      },
+      stateRecipes: [
+        {
+          action: 'route',
+          stateKey: 'plans-network-error',
+          urlPattern: '**/api/plans',
+          status: 503,
+        },
+      ],
+    });
+    const networkError = surfaces[1];
+    const hashes: string[] = [];
+    for (let run = 0; run < 3; run++) {
+      await networkError.go(page);
+      await expect(page.locator('#network-error')).toBeVisible();
+      const captured = await captureStyleMap(page, {
+        captureStates: false,
+        metadata: networkError.metadata,
+      });
+
+      expect(diffStyleMaps(baseline, captured).length).toBeGreaterThan(0);
+      expect(captured.metadata).toEqual({
+        surfaceKey: 'plans',
+        variantKey: 'plans-network-error',
+        variantKind: 'state-recipe',
+        stateRecipe: {
+          stateKey: 'plans-network-error',
+          action: 'route',
+          status: 503,
+        },
+      });
+      const persisted = JSON.stringify(captured.metadata);
+      expect(persisted).not.toContain('**/api/plans');
+      expect(persisted).not.toContain('private network error copy');
+      hashes.push(hashDeterminismMap(captured));
+
+      // The one-shot route must not poison the reused page's next ordinary surface.
+      await page.goto(baseUrl, { waitUntil: 'load' });
+      await expect(page.locator('body')).toHaveAttribute('data-plans', 'loaded');
+      await expect(page.locator('#network-error')).toHaveCount(0);
+    }
+    expect(new Set(hashes).size).toBe(1);
   });
 });
 

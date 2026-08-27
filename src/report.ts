@@ -664,6 +664,7 @@ function surfaceContext(...maps: Array<StyleMap | undefined>): string {
   if (!metadata?.variantKey) return '';
   if (metadata.variantKind === 'live-state') return `live state \`${metadata.variantKey}\``;
   if (metadata.variantKind === 'popup') return `popup \`${metadata.variantKey}\``;
+  if (metadata.variantKind === 'state-recipe') return `state recipe \`${metadata.variantKey}\``;
   return `variant \`${metadata.variantKey}\``;
 }
 
@@ -2342,6 +2343,55 @@ function writeReportArtifacts(
   return { reportMdPath, reportJsonPath };
 }
 
+function stateCoverageLines(afterDir: string): string[] {
+  const entries = new Map<string, { surface: string; state: string; action: string; evidence: string }>();
+  for (const captureKey of captureKeysIn(afterDir)) {
+    const metadata = loadStyleMap(findCapture(afterDir, captureKey)).metadata;
+    const recipe = metadata?.stateRecipe;
+    if (metadata?.variantKind !== 'state-recipe' || !recipe) continue;
+    const action = ['hover', 'focus', 'press', 'click', 'route'].includes(recipe.action) ? recipe.action : 'unknown';
+    const surface = safeKey(metadata.surfaceKey || surfaceBase(captureKey)).slice(0, 120);
+    const state = safeKey(recipe.stateKey || metadata.variantKey || captureKey).slice(0, 120);
+    let evidence = 'captured';
+    if (
+      typeof recipe.observationMs === 'number' &&
+      Number.isInteger(recipe.observationMs) &&
+      recipe.observationMs >= 50 &&
+      recipe.observationMs <= 5_000
+    ) {
+      evidence = `observation ${recipe.observationMs} ms`;
+    } else if (
+      action === 'route' &&
+      typeof recipe.status === 'number' &&
+      Number.isInteger(recipe.status) &&
+      recipe.status >= 400 &&
+      recipe.status <= 599
+    ) {
+      evidence = `response ${recipe.status}`;
+    }
+    entries.set(`${surface}\u0000${state}\u0000${action}\u0000${evidence}`, { surface, state, action, evidence });
+  }
+  if (entries.size === 0) return [];
+  const ordered = [...entries.values()].sort(
+    (a, b) => a.surface.localeCompare(b.surface) || a.state.localeCompare(b.state) || a.action.localeCompare(b.action),
+  );
+  const surfaceCount = new Set(ordered.map((entry) => entry.surface)).size;
+  return [
+    '',
+    '## State coverage',
+    '',
+    `Captured recipe states: ${ordered.length} across ${surfaceCount} surface${surfaceCount === 1 ? '' : 's'}.`,
+    '',
+    '| Surface | State | Action | Evidence |',
+    '| --- | --- | --- | --- |',
+    ...ordered.map(
+      (entry) => `| \`${entry.surface}\` | \`${entry.state}\` | \`${entry.action}\` | ${entry.evidence} |`,
+    ),
+    '',
+    '_Discovery outcomes such as skipped, deduplicated, timed out, or requires fixture are recorded by the state harvester; this capture report does not infer them._',
+  ];
+}
+
 function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: boolean): ReportResult {
   const {
     beforeDir,
@@ -2463,6 +2513,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       confidenceBlocked: confidence.counts.inaccessible > 0,
     }),
   );
+  md.push(...stateCoverageLines(afterDir));
   md.push(...incomparableStateLines(incomparable));
   let totalFindings = 0;
   let cropSeq = 0;

@@ -559,6 +559,7 @@ async function markPopupCandidates(page: Page, options: ResolvedPopupCaptureOpti
 
 type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates' | 'stateRecipes'> & {
   metadata?: CaptureMetadata;
+  requiredVisibleState?: { selector: string; stateKey: string };
 };
 
 function expandOne(
@@ -601,17 +602,27 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
   const stateKey = stateRecipeKey(recipe);
   return {
     key: `${surface.key}-${stateKey}`,
-    // Every recipe starts from the same base navigation — never choreography.
-    // Recipe-specific setup is not part of the recipe schema; optional setup
-    // belongs on a sibling variant/liveState if needed.
+    // Interaction recipes start from the parent baseline. Route recipes install
+    // their deterministic network outcome first, so the parent's own fetch sees it.
     go: async (page) => {
-      await surface.go(page);
-      await applyStateRecipe(page, recipe);
+      if (recipe.action === 'route') {
+        await applyStateRecipe(page, recipe);
+        // Navigation can dispatch native mouseenter at the pointer's old coordinates.
+        // Park first so route-state setup cannot inherit a sticky hover side effect.
+        await page.mouse.move(-1, -1);
+        await surface.go(page);
+      } else {
+        await surface.go(page);
+        await applyStateRecipe(page, recipe);
+      }
     },
     ignore: surface.ignore,
     widths: surface.widths,
     height: surface.height,
     popups: surface.popups,
+    ...(recipe.action !== 'route' && recipe.observeSelector
+      ? { requiredVisibleState: { selector: recipe.observeSelector, stateKey } }
+      : {}),
     metadata: {
       surfaceKey: surface.key,
       variantKey: stateKey,
@@ -619,9 +630,9 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
       stateRecipe: {
         stateKey,
         action: recipe.action,
-        selector: recipe.selector,
+        ...(recipe.action === 'route' ? { status: recipe.status } : { selector: recipe.selector }),
         ...(recipe.key ? { key: recipe.key } : {}),
-        ...(recipe.label !== undefined ? { label: recipe.label } : {}),
+        ...(recipe.observeMs !== undefined ? { observationMs: recipe.observeMs } : {}),
       },
     },
   };
@@ -766,7 +777,12 @@ async function assertDeterministic(
   pending: () => number,
 ): Promise<void> {
   await surface.go(page);
-  const again = await captureStyleMap(page, { ignore: surface.ignore ?? [], captureText, pendingRequests: pending });
+  const again = await captureStyleMap(page, {
+    ignore: surface.ignore ?? [],
+    captureText,
+    pendingRequests: pending,
+    requiredVisibleState: surface.requiredVisibleState,
+  });
   const drift = diffStyleMaps(first, again);
   if (drift.length) {
     const liveCandidates = [...(first.liveCandidates ?? []), ...(again.liveCandidates ?? [])];
@@ -1068,6 +1084,7 @@ async function captureSurface(
           captureComponent: s.captureComponent,
           inventory: s.inventory,
           pendingRequests: requests.pending,
+          requiredVisibleState: surface.requiredVisibleState,
           metadata: surface.metadata,
           // captureStyleMap reports 'settle' → 'capture'; the self-check re-run
           // below deliberately does NOT get this callback, so a breach during it

@@ -19,6 +19,7 @@ options:
   --route <route>        route path, absolute URL, or key=path. Repeatable.
   --out <file>           manifest output (default: styleproof.variants.generated.json)
   --max-actions <n>      max attempted actions per route (default: 40)
+  --max-state-actions <n> max attempted hover/focus candidates per route (default: 40)
   --width <px>           viewport width (default: 1280)
   --height <px>          viewport height (default: 800)
   --strict               exit 1 if live-state fixtures or skipped candidates remain
@@ -29,6 +30,7 @@ const argv = process.argv.slice(2);
 let baseUrl = '';
 let out = 'styleproof.variants.generated.json';
 let maxActions = 40;
+let maxStateActions = 40;
 let width = 1280;
 let height = 800;
 let strict = false;
@@ -45,6 +47,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--out=')) out = a.slice(6);
   else if (a === '--max-actions') maxActions = Number(argv[++i]);
   else if (a.startsWith('--max-actions=')) maxActions = Number(a.slice(14));
+  else if (a === '--max-state-actions') maxStateActions = Number(argv[++i]);
+  else if (a.startsWith('--max-state-actions=')) maxStateActions = Number(a.slice(20));
   else if (a === '--width') width = Number(argv[++i]);
   else if (a.startsWith('--width=')) width = Number(a.slice(8));
   else if (a === '--height') height = Number(argv[++i]);
@@ -66,8 +70,11 @@ if (!routeArgs.length) {
   console.error('styleproof-variants: at least one --route is required');
   process.exit(2);
 }
-if (![maxActions, width, height].every(Number.isFinite)) {
-  console.error('styleproof-variants: --max-actions, --width, and --height must be numbers');
+if (
+  ![maxActions, maxStateActions, width, height].every(Number.isFinite) ||
+  ![maxActions, maxStateActions].every((value) => Number.isInteger(value) && value >= 0 && value <= 200)
+) {
+  console.error('styleproof-variants: action limits must be integers from 0 to 200; width and height must be numbers');
   process.exit(2);
 }
 
@@ -84,14 +91,24 @@ try {
     baseUrl,
     routes: routeArgs.map(parseRoute),
     maxActionsPerRoute: maxActions,
+    maxStateActionsPerRoute: maxStateActions,
   });
   fs.writeFileSync(out, JSON.stringify(harvest, null, 2) + '\n');
   const variants = harvest.routes.reduce((sum, route) => sum + route.variants.length, 0);
   const liveStates = harvest.routes.reduce((sum, route) => sum + route.liveStates.length, 0);
   const skipped = harvest.routes.reduce((sum, route) => sum + route.skipped.length, 0);
+  const stateOutcomes = harvest.routes.flatMap((route) => route.stateCoverage);
+  const unresolvedStates = stateOutcomes.filter((entry) =>
+    ['skipped', 'timed-out', 'requires-fixture'].includes(entry.outcome),
+  ).length;
   console.log(`styleproof-variants: wrote ${out}`);
   console.log(`${variants} variant(s), ${liveStates} live-state candidate(s), ${skipped} skipped candidate(s)`);
-  if (strict && (liveStates || skipped)) process.exit(1);
+  console.log(
+    `state coverage: ${['captured', 'deduplicated', 'skipped', 'timed-out', 'requires-fixture']
+      .map((outcome) => `${stateOutcomes.filter((entry) => entry.outcome === outcome).length} ${outcome}`)
+      .join(', ')}`,
+  );
+  if (strict && (liveStates || skipped || unresolvedStates)) process.exit(1);
 } finally {
   await browser.close();
 }

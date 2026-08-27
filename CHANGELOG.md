@@ -10,6 +10,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - **Incomplete-UI certification now fails closed across capture, diff, reports, and the GitHub Action:** exhaustive crawls detect privacy-safe form, empty-required-field, disabled/inert/ARIA-disabled, pointer-blocked control, and closed-disclosure residue; persist it in the confidence ledger; exit 6 when unacknowledged; and map downstream inaccessible evidence to `CERTIFICATION_FAILED`. `--incomplete-ui-exclude` and `crawl.incompleteUiExclude` accept surface-to-reason JSON for explicit limited scope. Hidden DOM leftovers are ignored, raw values/text are never stored, and report guidance favors deterministic fixtures that increase certified area.
+- **Deterministic state recipes now cover interaction, transient, and network-error UI:** typed hover, focus, press, click, and one-shot route recipes carry stable map provenance; transient observation fails closed if the state vanishes before extraction; mocked 400–599 outcomes are installed before navigation without persisting URL patterns; the report lists exact captured state coverage separately from route coverage; and `styleproof variants` emits a bounded privacy-safe hover/focus ledger with captured, deduplicated, skipped, timed-out, and live-region `requires-fixture` outcomes.
 
 - **One-command setup and unified CLI:** `npx styleproof setup` now detects npm,
   pnpm, Yarn, or Bun; installs StyleProof, Playwright, and Chromium; runs the

@@ -7,6 +7,8 @@ function fixture(): string {
     body { margin: 0; font-family: system-ui, sans-serif; }
     nav { display: flex; gap: 8px; padding: 16px; }
     button, input, select { font: inherit; }
+    button:hover { outline: 3px solid rgb(14, 165, 233); }
+    input:focus { box-shadow: 0 0 0 4px rgb(167, 139, 250); }
     .drawer { display: none; padding: 20px; background: rgb(12, 74, 110); color: white; }
     body.drawer-open .drawer { display: block; }
     .panel { display: none; padding: 12px; color: rgb(75, 85, 99); }
@@ -101,6 +103,33 @@ async function replayComputedMapDiff(
   return diffStyleMaps(before, after);
 }
 
+test('state discovery uses capture identity paths for identity-bearing controls', async ({ browser }) => {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end(`<!doctype html><html><head><style>
+      button:hover { outline: 4px solid rgb(14, 165, 233); }
+    </style></head><body><button data-testid="private-control-name">Open</button></body></html>`);
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as import('node:net').AddressInfo;
+  const ctx = await browser.newContext({ viewport: { width: 900, height: 700 } });
+  try {
+    const page = await ctx.newPage();
+    const harvest = await harvestStyleVariants(page, {
+      baseUrl: `http://127.0.0.1:${port}`,
+      routes: [{ key: 'identity', url: '/' }],
+      maxActionsPerRoute: 0,
+      maxStateActionsPerRoute: 2,
+    });
+    const hover = harvest.routes[0]!.stateCoverage.find((entry) => entry.action === 'hover');
+    expect(hover).toEqual(expect.objectContaining({ outcome: 'captured', reason: 'semantic-control' }));
+    expect(JSON.stringify(harvest)).not.toContain('private-control-name');
+  } finally {
+    await ctx.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test('harvestStyleVariants discovers one-step computed-style variants', async ({ browser }) => {
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html' });
@@ -120,6 +149,7 @@ test('harvestStyleVariants discovers one-step computed-style variants', async ({
       baseUrl,
       routes: [{ key: 'home', url: '/' }],
       maxActionsPerRoute: 20,
+      maxStateActionsPerRoute: 20,
     });
     const route = harvest.routes[0]!;
     expect(route.key).toBe('home');
@@ -141,6 +171,33 @@ test('harvestStyleVariants discovers one-step computed-style variants', async ({
         ariaBusy: 'true',
       }),
     ]);
+    expect(route.stateCoverage).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: 'hover', outcome: 'captured', reason: 'semantic-control' }),
+        expect.objectContaining({ action: 'focus', outcome: 'captured', reason: 'semantic-control' }),
+        expect.objectContaining({ outcome: 'skipped', reason: 'unsafe-label' }),
+        expect.objectContaining({ outcome: 'requires-fixture', reason: 'live-region' }),
+      ]),
+    );
+    for (const entry of route.stateCoverage) {
+      expect(entry.stateKey).toMatch(/^(hover|focus|live-region)-[0-9a-f]{12}$/);
+      if (entry.selector) {
+        expect(entry.selector).toMatch(/^[a-z0-9(): >+~*._#-]+$/);
+        expect(entry.selector).not.toContain('=');
+        expect(entry.selector).not.toContain('"');
+      }
+    }
+    const stateLedgerJson = JSON.stringify(route.stateCoverage);
+    for (const forbidden of ['Delete account', 'Revoke access', 'Loading', 'polite', 'status']) {
+      expect(stateLedgerJson).not.toContain(forbidden);
+    }
+    const repeated = await harvestStyleVariants(page, {
+      baseUrl,
+      routes: [{ key: 'home', url: '/' }],
+      maxActionsPerRoute: 20,
+      maxStateActionsPerRoute: 20,
+    });
+    expect(repeated.routes[0]!.stateCoverage).toEqual(route.stateCoverage);
     expect(route.skipped).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

@@ -276,7 +276,6 @@ test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach pro
       stateKey: 'hover-plan-card',
       action: 'hover',
       selector: '#card',
-      label: 'Plan card',
     },
   });
   assert.deepEqual(surfaces[4].metadata?.stateRecipe, {
@@ -284,8 +283,9 @@ test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach pro
     action: 'press',
     selector: '#menu',
     key: 'ArrowDown',
-    label: 'Open menu',
   });
+  assert.equal(JSON.stringify(surfaces.map((surface) => surface.metadata)).includes('Plan card'), false);
+  assert.equal(JSON.stringify(surfaces.map((surface) => surface.metadata)).includes('Open menu'), false);
 
   // Recipe execution is parent go then apply — no setup choreography.
   const fakePage = {
@@ -321,6 +321,56 @@ test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach pro
   };
   await surfaces[3].go(fakePage);
   assert.deepEqual(calls, ['surface', 'hover']);
+});
+
+test('expandSurfaceVariants: route recipes park the pointer before parent navigation', async () => {
+  const calls = [];
+  const surfaces = expandSurfaceVariants({
+    key: 'plans',
+    go: async () => calls.push('navigate'),
+    stateRecipes: [{ action: 'route', stateKey: 'network-error', urlPattern: '**/api/plans', status: 503 }],
+  });
+  const fakePage = {
+    async route() {
+      calls.push('mock');
+    },
+    mouse: {
+      async move() {
+        calls.push('park');
+      },
+    },
+  };
+
+  await surfaces[1].go(fakePage);
+  assert.deepEqual(calls, ['mock', 'park', 'navigate']);
+});
+
+test('expandSurfaceVariants: transient observation is wired at runtime without persisting its selector', () => {
+  const surfaces = expandSurfaceVariants({
+    key: 'alerts',
+    go: async () => {},
+    stateRecipes: [
+      {
+        action: 'click',
+        selector: '#notify',
+        stateKey: 'toast-visible',
+        observeSelector: '#private-runtime-toast',
+        observeMs: 250,
+      },
+    ],
+  });
+  const transient = surfaces[1];
+  assert.deepEqual(transient.requiredVisibleState, {
+    selector: '#private-runtime-toast',
+    stateKey: 'toast-visible',
+  });
+  assert.deepEqual(transient.metadata?.stateRecipe, {
+    stateKey: 'toast-visible',
+    action: 'click',
+    selector: '#notify',
+    observationMs: 250,
+  });
+  assert.equal(JSON.stringify(transient.metadata).includes('#private-runtime-toast'), false);
 });
 
 test('expandSurfaceVariants: absent stateRecipes preserves variants/liveStates exactly', () => {

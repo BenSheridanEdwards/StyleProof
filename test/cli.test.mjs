@@ -388,7 +388,12 @@ test('styleproof-variants documents the required running-app input', () => {
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /--base-url <url>/);
   assert.match(r.stdout, /--route <route>/);
+  assert.match(r.stdout, /--max-state-actions <n>/);
   assert.match(r.stdout, /--strict/);
+
+  const invalid = run(VARIANTS, ['--base-url', 'http://127.0.0.1:1', '--route', '/', '--max-state-actions', '201']);
+  assert.equal(invalid.status, 2);
+  assert.match(invalid.stderr, /integers from 0 to 200/);
 });
 
 // ---------------------------------------------------------------- styleproof-diff

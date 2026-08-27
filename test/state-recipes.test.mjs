@@ -76,6 +76,124 @@ test('validateStateRecipe: every action requires selector; press requires key', 
   assert.throws(() => validateStateRecipe({ action: 'hover', selector: '   ' }), /privacy policy/);
 });
 
+test('validateStateRecipe: transient observation is bounded, structural, and explicitly keyed', () => {
+  assert.deepEqual(
+    validateStateRecipe({
+      action: 'click',
+      selector: '#notify',
+      stateKey: 'toast-visible',
+      observeSelector: '[role]',
+      observeMs: 250,
+    }),
+    {
+      action: 'click',
+      selector: '#notify',
+      stateKey: 'toast-visible',
+      observeSelector: '[role]',
+      observeMs: 250,
+    },
+  );
+
+  assert.throws(
+    () => validateStateRecipe({ action: 'click', selector: '#notify', observeSelector: '[role]', observeMs: 250 }),
+    /observation requires an explicit stateKey/,
+  );
+  assert.throws(
+    () => validateStateRecipe({ action: 'click', selector: '#notify', stateKey: 'toast', observeSelector: '[role]' }),
+    /observeSelector and observeMs must be provided together/,
+  );
+  assert.throws(
+    () => validateStateRecipe({ action: 'click', selector: '#notify', stateKey: 'toast', observeMs: 250 }),
+    /observeSelector and observeMs must be provided together/,
+  );
+  for (const observeMs of [49, 5001, 100.5, Number.NaN, Number.POSITIVE_INFINITY, '250']) {
+    assert.throws(
+      () =>
+        validateStateRecipe({
+          action: 'click',
+          selector: '#notify',
+          stateKey: 'toast',
+          observeSelector: '[role]',
+          observeMs,
+        }),
+      /observeMs must be an integer from 50 to 5000 milliseconds/,
+    );
+  }
+
+  const secret = 'transient-secret-value';
+  try {
+    validateStateRecipe({
+      action: 'click',
+      selector: '#notify',
+      stateKey: 'toast',
+      observeSelector: `[data-token=${secret}]`,
+      observeMs: 250,
+    });
+    assert.fail('expected observation selector policy rejection');
+  } catch (e) {
+    assert.match(String(e.message), /privacy policy/);
+    assert.equal(`${e.message}\n${e.stack ?? ''}`.includes(secret), false);
+  }
+});
+
+test('validateStateRecipe: route recipes install bounded value-free network errors only', () => {
+  assert.deepEqual(
+    validateStateRecipe({ action: 'route', stateKey: 'plans-network-error', urlPattern: '**/api/plans', status: 503 }),
+    { action: 'route', stateKey: 'plans-network-error', urlPattern: '**/api/plans', status: 503 },
+  );
+  assert.equal(
+    stateRecipeKey({ action: 'route', stateKey: 'plans-network-error', urlPattern: '**/api/plans', status: 503 }),
+    'plans-network-error',
+  );
+  assert.throws(
+    () => validateStateRecipe({ action: 'route', urlPattern: '**/api/plans', status: 503 }),
+    /route requires an explicit stateKey/,
+  );
+  for (const status of [399, 600, 503.5, Number.NaN, '503']) {
+    assert.throws(
+      () => validateStateRecipe({ action: 'route', stateKey: 'network-error', urlPattern: '**/api/plans', status }),
+      /status must be an integer from 400 to 599/,
+    );
+  }
+  for (const extra of [{ selector: '#button' }, { key: 'Enter' }, { observeSelector: '#toast', observeMs: 100 }]) {
+    assert.throws(
+      () =>
+        validateStateRecipe({
+          action: 'route',
+          stateKey: 'network-error',
+          urlPattern: '**/api/plans',
+          status: 503,
+          ...extra,
+        }),
+      /route must not include interaction fields/,
+    );
+  }
+
+  const secret = 'network-secret-value';
+  for (const urlPattern of [`**/api/plans?token=${secret}`, `**/api/${secret}=x`, `**/api/${secret}\n`]) {
+    try {
+      validateStateRecipe({ action: 'route', stateKey: 'network-error', urlPattern, status: 503 });
+      assert.fail('expected URL-pattern policy rejection');
+    } catch (e) {
+      assert.match(String(e.message), /privacy policy/);
+      assert.equal(`${e.message}\n${e.stack ?? ''}`.includes(secret), false);
+    }
+  }
+  assert.throws(
+    () => validateStateRecipe({ action: 'click', selector: '#button', urlPattern: '**/api/plans', status: 503 }),
+    /interaction recipe must not include route fields/,
+  );
+
+  const destructive = classifyStateRecipe({
+    action: 'route',
+    stateKey: 'delete-account-network-error',
+    urlPattern: '**/api/account',
+    status: 503,
+  });
+  assert.equal(destructive.ok, false);
+  assert.equal(destructive.skip.reason, 'unsafe-label');
+});
+
 test('validateStateRecipe: closed-world — rejects unknown keys including typos and deferred fields', () => {
   const unknown = [
     'seletor',
@@ -126,8 +244,14 @@ test('validateStateRecipe: closed-world — rejects unknown keys including typos
     assert.equal(String(e.message).includes('\n'), false);
     assert.equal(String(e.stack ?? '').includes(nlField), false);
   }
-  assert.throws(() => validateStateRecipe({ action: 'route' }), /one of hover, focus, press, click/);
-  assert.throws(() => validateStateRecipe({ action: 'dblclick', selector: '#x' }), /one of hover, focus, press, click/);
+  assert.throws(
+    () => validateStateRecipe({ action: 'navigate', selector: '#x' }),
+    /one of hover, focus, press, click, route/,
+  );
+  assert.throws(
+    () => validateStateRecipe({ action: 'dblclick', selector: '#x' }),
+    /one of hover, focus, press, click, route/,
+  );
   assert.throws(() => validateStateRecipe(null), /plain object/);
   assert.throws(() => validateStateRecipe('hover'), /plain object/);
   // key only allowed on press
