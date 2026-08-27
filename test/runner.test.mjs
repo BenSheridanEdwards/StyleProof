@@ -242,6 +242,61 @@ test('expandSurfaceVariants: liveStates carry live-state metadata', () => {
   });
 });
 
+test('expandSurfaceVariants: productState reaches base, variant, live-state, and state-recipe metadata', () => {
+  const parentState = { id: 'checkout-ready', revision: 'fixture-v3' };
+  const variantState = { id: 'checkout-dialog-open', revision: 'fixture-v4' };
+  const expanded = expandSurfaceVariants({
+    key: 'checkout',
+    go: async () => {},
+    productState: parentState,
+    variants: [{ key: 'dialog-open', productState: variantState }],
+    liveStates: [{ key: 'loaded' }],
+    stateRecipes: [{ action: 'hover', selector: '#summary', stateKey: 'summary-hover' }],
+  });
+
+  assert.deepEqual(
+    expanded.map((surface) => [surface.key, surface.metadata?.productState]),
+    [
+      ['checkout-dialog-open', variantState],
+      ['checkout-loaded', parentState],
+      ['checkout-summary-hover', parentState],
+    ],
+  );
+  assert.notEqual(expanded[0].metadata?.productState, variantState, 'persist a validated copy, not caller-owned data');
+});
+
+test('expandSurfaceVariants: malformed or privacy-hostile productState fails closed without echoing input', () => {
+  const hostile = 'private[value=customer-secret]';
+  for (const productState of [
+    { id: '', revision: 'v1' },
+    { id: hostile, revision: 'v1' },
+    { id: 'checkout-ready', revision: 'https://fixture.invalid/state' },
+    { id: 'checkout-ready', revision: 'v1', label: hostile },
+    { id: 'x'.repeat(129), revision: 'v1' },
+  ]) {
+    assert.throws(
+      () => expandSurfaceVariants({ key: 'checkout', go: async () => {}, productState }),
+      (error) => {
+        assert.equal(error.name, 'ProductStateIdentityError');
+        assert.match(error.message, /productState|product state/i);
+        assert.equal(error.message.includes(hostile), false);
+        assert.equal(error.message.includes('https://fixture.invalid/state'), false);
+        return true;
+      },
+    );
+  }
+
+  assert.throws(
+    () =>
+      expandSurfaceVariants({
+        key: 'checkout',
+        go: async () => {},
+        variants: [{ key: 'dialog-open', productState: { id: 'checkout dialog open', revision: 'v1' } }],
+      }),
+    { name: 'ProductStateIdentityError' },
+  );
+});
+
 test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach provenance', async () => {
   const calls = [];
   const surfaces = expandSurfaceVariants({

@@ -26,10 +26,13 @@ import { fillRect, type RGB } from './png-util.js';
 import {
   diffStyleMapDirs,
   diffContentDirs,
+  summarizeComparability,
+  type ComparabilitySummary,
   type ContentChange,
   type DiffCounts,
   type Finding,
   type PropChange,
+  type SurfaceComparability,
   type SurfaceDiff,
 } from './diff.js';
 import { presentationBeforeMap, presentationDiffStyleMaps } from './path-correspondence.js';
@@ -54,11 +57,7 @@ import {
 } from './confidence-ledger.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
-import {
-  incomparableProductStates,
-  incomparableSurfaceBaseSet,
-  type IncomparableProductState,
-} from './product-state.js';
+
 import {
   cleanFindingsForDisplay,
   groupByPath,
@@ -146,6 +145,8 @@ export type ReportOptions = {
    * restyle still certify.
    */
   includeContent?: boolean;
+  /** Require explicit matching productState identity on every paired capture. */
+  requireStateIdentity?: boolean;
   /**
    * Byte ceiling for report.md so GitHub can always render it (its markdown viewer
    * refuses to render files past ~512 KB). Once the accumulated report would exceed
@@ -156,6 +157,8 @@ export type ReportOptions = {
    */
   maxReportBytes?: number;
 };
+
+export type ReportComparison = ComparisonTruth & ComparabilitySummary;
 
 export type ReportResult = {
   /** Surfaces carrying a reviewable change (excludes new, one-sided surfaces). */
@@ -170,7 +173,9 @@ export type ReportResult = {
    * `rawOnlyNoReviewable` is true the report has no crops/sections but raw
    * computed-style deltas exist — callers must fail closed, never approve.
    */
-  comparison: ComparisonTruth;
+  comparison: ReportComparison;
+  /** Bounded per-capture receipts; identity values and page observations are never included. */
+  comparability: SurfaceComparability[];
   /** Presentation-vs-certification coherence. Any false value must fail closed. */
   reportConsistency: ReportConsistency;
   /**
@@ -1525,12 +1530,31 @@ function missingSurfaceSummaryLines(
   return md;
 }
 
-function incomparableStateLines(states: IncomparableProductState[]): string[] {
-  if (states.length === 0) return [];
+function comparabilityLines(comparison: ComparabilitySummary): string[] {
+  const counts = comparison.counts;
+  if (comparison.status === 'comparable') {
+    return [
+      `**Product-state comparison** — ✓ comparable on ${counts.comparable} paired capture(s) using explicit consumer-owned identity.`,
+      '',
+    ];
+  }
+  if (comparison.status === 'not-required') {
+    return ['**Product-state comparison** — not required; there are no paired capture obligations.', ''];
+  }
+  if (!comparison.blocksCertification) {
+    return [
+      `⚠️ **Product-state comparison** — unproven on ${counts.unproven} undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.`,
+      '',
+    ];
+  }
+  const reasons = [
+    counts.incomparable ? `${counts.incomparable} incomparable` : '',
+    counts.requiredUnproven ? `${counts.requiredUnproven} required-unproven` : '',
+    counts.globalRequiredUnproven ? `${counts.globalRequiredUnproven} globally required-unproven` : '',
+  ].filter(Boolean);
   return [
+    `⛔ **Product-state comparison** — ${comparison.status}; ${reasons.join(', ')} paired capture(s). Raw detector evidence is diagnostic only, is not approval evidence, and cannot certify this comparison.`,
     '',
-    `⚠️ **${states.length} surface(s) not certified** — the two captures are different product states, not a style restyle. Do not approve these as if the product painted them.`,
-    ...states.map((state) => `- \`${state.surfaceBase}\`: ${state.evidence.join('; ')}`),
   ];
 }
 
@@ -1586,6 +1610,7 @@ function summaryLines(args: {
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
   confidenceBlocked: boolean;
+  comparisonBlocked: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -1598,6 +1623,7 @@ function summaryLines(args: {
     rawCounts,
     baselineSurfaceFailures,
     confidenceBlocked,
+    comparisonBlocked,
   } = args;
   // Greenfield/broken-base classification applies to surfaces missing a BASE map
   // (missing 'before'); a surface missing on HEAD is a removal, handled separately.
@@ -1617,7 +1643,11 @@ function summaryLines(args: {
           ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
           : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
         : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.';
-      return [confidenceBlocked ? scopedSummary.replace(/^✓ /, 'Computed-style scope only: ') : scopedSummary];
+      return [
+        confidenceBlocked || comparisonBlocked
+          ? scopedSummary.replace(/^✓ /, 'Computed-style scope only: ')
+          : scopedSummary,
+      ];
     }
   }
   const md = [
@@ -1644,6 +1674,7 @@ function reportHeadline(args: {
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
   confidenceBlocked: boolean;
+  comparisonBlocked: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -1658,6 +1689,7 @@ function reportHeadline(args: {
     rawCounts,
     baselineSurfaceFailures,
     confidenceBlocked,
+    comparisonBlocked,
   } = args;
   const md: string[] = summaryLines({
     changeGroups,
@@ -1670,6 +1702,7 @@ function reportHeadline(args: {
     rawCounts,
     baselineSurfaceFailures,
     confidenceBlocked,
+    comparisonBlocked,
   });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
@@ -2267,14 +2300,24 @@ function comparisonForReport(
  */
 function prepareReportSurfaces(
   surfaces: ReturnType<typeof diffStyleMapDirs>['surfaces'],
+  comparability: SurfaceComparability[],
+  requireStateIdentity: boolean,
   includeNoise: boolean,
   includeStructure: boolean,
   beforeDir: string,
   afterDir: string,
 ): PreparedSurface[] {
+  const comparisonBySurface = new Map(comparability.map((entry) => [entry.surface, entry]));
   return surfaces
     .map((sd) => {
       if (sd.missing) return { sd, findings: sd.findings };
+      const receipt = comparisonBySurface.get(sd.surface);
+      if (
+        receipt?.status === 'incomparable' ||
+        (receipt?.status === 'unproven' && (receipt.required || requireStateIdentity))
+      ) {
+        return { sd, findings: [] };
+      }
       const beforeMap = loadStyleMap(findCapture(beforeDir, sd.surface));
       const afterMap = loadStyleMap(findCapture(afterDir, sd.surface));
       const corresponded = presentationDiffStyleMaps(beforeMap, afterMap, { includeStructure });
@@ -2309,7 +2352,8 @@ function writeReportArtifacts(
   outDir: string,
   md: string[],
   shown: DiffCounts,
-  comparison: ComparisonTruth,
+  comparison: ReportComparison,
+  comparability: SurfaceComparability[],
   reportConsistency: ReportConsistency,
   content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
@@ -2326,6 +2370,8 @@ function writeReportArtifacts(
         counts: shown,
         rawCounts: comparison.rawCounts,
         reviewableCounts: comparison.reviewableCounts,
+        comparison,
+        comparability,
         reportConsistency,
         content,
         surfaces: surfacesJson,
@@ -2410,6 +2456,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     maxCrops = 8,
     foldDetailsAt = 0,
     maxReportBytes = 400_000,
+    requireStateIdentity = false,
   } = opts;
 
   const includeNoise = opts.includeLayoutNoise === true;
@@ -2421,11 +2468,13 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     surfaces,
     volatile: volatileCount,
     counts: rawCounts,
+    comparability,
   } = diffStyleMapDirs(beforeDir, afterDir, { includeStructure });
   // Canonical truth shared with styleproof-diff / action trust: when raw
   // certification deltas exist but cleanFindings leaves nothing reviewable,
   // never claim "identical" and never enable visual approval.
-  const rawComparison = assessComparisonTruth(surfaces, rawCounts);
+  const rawComparison = assessComparisonTruth(surfaces, rawCounts, comparability, { requireStateIdentity });
+  const comparabilitySummary = summarizeComparability(comparability, requireStateIdentity);
   const liveCandidateLabels = volatileCount === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
 
@@ -2433,10 +2482,15 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // forced-state echoes of base changes, and remove non-value noise (see
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
-  const prepared = prepareReportSurfaces(surfaces, includeNoise, includeStructure, beforeDir, afterDir);
-  const incomparable = includeContent ? incomparableProductStates(diffContentDirs(beforeDir, afterDir).surfaces) : [];
-  const incomparableBases = incomparableSurfaceBaseSet(incomparable);
-  const preparedCertified = prepared.filter((p) => p.sd.missing || !incomparableBases.has(surfaceBase(p.sd.surface)));
+  const preparedCertified = prepareReportSurfaces(
+    surfaces,
+    comparability,
+    requireStateIdentity,
+    includeNoise,
+    includeStructure,
+    beforeDir,
+    afterDir,
+  );
 
   const missing = preparedCertified.filter((p) => p.sd.missing);
   const changeGroups = groupBySignature(
@@ -2457,11 +2511,11 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
   const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
-  const comparison = comparisonForReport(rawComparison, includeNoise, preparedCertified.length - missing.length);
-  const reportConsistency = assessReportConsistency(
-    comparison,
-    changeGroups.length > 0 || missing.length > 0 || incomparable.length > 0,
-  );
+  const comparison: ReportComparison = {
+    ...comparisonForReport(rawComparison, includeNoise, preparedCertified.length - missing.length),
+    ...comparabilitySummary,
+  };
+  const reportConsistency = assessReportConsistency(comparison, changeGroups.length > 0 || missing.length > 0);
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -2497,6 +2551,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // from, say so up front — an ancestor reuse must be visible, never inferred.
   const baselineProvenance = readBaselineProvenance(beforeDir);
   md.push(...baselineProvenanceLines(baselineProvenance));
+  md.push(...comparabilityLines(comparison));
   md.push(
     ...reportHeadline({
       changeGroups,
@@ -2511,10 +2566,10 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
       confidenceBlocked: confidence.counts.inaccessible > 0,
+      comparisonBlocked: comparison.blocksCertification,
     }),
   );
   md.push(...stateCoverageLines(afterDir));
-  md.push(...incomparableStateLines(incomparable));
   let totalFindings = 0;
   let cropSeq = 0;
   // report.md must stay renderable — GitHub refuses to render markdown past ~512 KB.
@@ -2575,6 +2630,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     md,
     shown,
     comparison,
+    comparability,
     reportConsistency,
     { evaluated: includeContent, changes: contentSection.count, advisory: true },
     json,
@@ -2587,6 +2643,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     totalFindings,
     contentChanges: contentSection.count,
     comparison,
+    comparability,
     reportConsistency,
     confidence,
     reportMdPath,

@@ -7,8 +7,10 @@ import {
   captureSurfaceScreenshots,
   trackInflightRequests,
   trackDataResidue,
+  validateProductStateIdentity,
   type CaptureMetadata,
   type LiveRegionCandidate,
+  type ProductStateIdentity,
   type StyleMap,
 } from './capture.js';
 import type { DataResidueEntry } from './data-residue.js';
@@ -62,6 +64,8 @@ export type Surface = {
    * before reading, so you don't hand-roll `networkidle`/`fonts.ready` waits here.
    */
   go: (page: Page) => Promise<void>;
+  /** Explicit consumer-owned semantic state identity; never inferred from page observations. */
+  productState?: ProductStateIdentity;
   /** Selectors for nondeterministic regions (live data, third-party embeds); skipped entirely. */
   ignore?: string[];
   /**
@@ -105,6 +109,8 @@ export type Surface = {
 export type SurfaceVariant = {
   /** Capture key suffix, joined as `<surface.key>-<variant.key>`. */
   key: string;
+  /** Override the parent surface's semantic state identity for this variant. */
+  productState?: ProductStateIdentity;
   /**
    * Seed the state before the parent surface navigates: route mocks, fixture data,
    * localStorage/sessionStorage, feature flags, etc.
@@ -557,7 +563,7 @@ async function markPopupCandidates(page: Page, options: ResolvedPopupCaptureOpti
   });
 }
 
-type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates' | 'stateRecipes'> & {
+type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates' | 'stateRecipes' | 'productState'> & {
   metadata?: CaptureMetadata;
   requiredVisibleState?: { selector: string; stateKey: string };
 };
@@ -567,6 +573,7 @@ function expandOne(
   variant: SurfaceVariant,
   variantKind: CaptureMetadata['variantKind'],
 ): ExpandedSurface {
+  const productState = validateProductStateIdentity(variant.productState ?? surface.productState);
   return {
     key: `${surface.key}-${variant.key}`,
     go: async (page) => {
@@ -578,7 +585,12 @@ function expandOne(
     widths: variant.widths ?? surface.widths,
     height: variant.height ?? surface.height,
     popups: surface.popups,
-    metadata: { surfaceKey: surface.key, variantKey: variant.key, variantKind },
+    metadata: {
+      surfaceKey: surface.key,
+      variantKey: variant.key,
+      variantKind,
+      ...(productState ? { productState } : {}),
+    },
   };
 }
 
@@ -600,6 +612,7 @@ function resolveSurfaceStateRecipes(raw: unknown): StateRecipe[] {
 
 function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurface {
   const stateKey = stateRecipeKey(recipe);
+  const productState = validateProductStateIdentity(surface.productState);
   return {
     key: `${surface.key}-${stateKey}`,
     // Interaction recipes start from the parent baseline. Route recipes install
@@ -634,6 +647,7 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
         ...(recipe.key ? { key: recipe.key } : {}),
         ...(recipe.observeMs !== undefined ? { observationMs: recipe.observeMs } : {}),
       },
+      ...(productState ? { productState } : {}),
     },
   };
 }
@@ -641,9 +655,19 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
 export function expandSurfaceVariants(surface: Surface): ExpandedSurface[] {
   const variants = surface.variants ?? [];
   const liveStates = surface.liveStates ?? [];
-  const { variants: _variants, liveStates: _liveStates, stateRecipes: rawStateRecipes, ...base } = surface;
+  const {
+    variants: _variants,
+    liveStates: _liveStates,
+    stateRecipes: rawStateRecipes,
+    productState: rawProductState,
+    ...base
+  } = surface;
   const recipes = rawStateRecipes === undefined ? [] : resolveSurfaceStateRecipes(rawStateRecipes);
-  const baseSurface = { ...base, metadata: { surfaceKey: surface.key } };
+  const productState = validateProductStateIdentity(rawProductState);
+  const baseSurface = {
+    ...base,
+    metadata: { surfaceKey: surface.key, ...(productState ? { productState } : {}) },
+  };
   void _variants;
   void _liveStates;
   if (!variants.length && !liveStates.length && !recipes.length) {
@@ -878,6 +902,7 @@ function popupMetadata(surface: ExpandedSurface, popupId: string): CaptureMetada
     surfaceKey: surface.metadata?.surfaceKey ?? surface.key,
     variantKey: surface.metadata?.variantKey ? `${surface.metadata.variantKey}/${popupId}` : popupId,
     variantKind: 'popup',
+    ...(surface.metadata?.productState ? { productState: surface.metadata.productState } : {}),
   };
 }
 

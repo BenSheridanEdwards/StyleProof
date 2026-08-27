@@ -18,6 +18,9 @@ inputs:
   include-content:
     description: 'Render advisory content and DOM-structure evidence in the durable report. This evidence never changes the style gate verdict.'
     default: 'false'
+  require-state-identity:
+    description: 'Require explicit matching product-state identity on every paired capture. Missing, malformed, or mismatched identity is non-certifying and cannot be approved.'
+    default: 'false'
   base-capture-failed:
     description: 'Set true when the baseline capture failed with zero maps and baseline-dir is intentionally bare. Partial baselines with tolerated per-surface failures keep this false. Produces DEGRADED_BASELINE when true.'
     default: 'false'
@@ -134,9 +137,17 @@ runs:
 
     - id: diff
       shell: bash
+      env:
+        STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
       run: |
+        state_identity_arguments=()
+        case "$STYLEPROOF_REQUIRE_STATE_IDENTITY" in
+          true) state_identity_arguments+=(--require-state-identity) ;;
+          false) ;;
+          *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
+        esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json | tee styleproof-diff.txt
+        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json "${state_identity_arguments[@]}" | tee styleproof-diff.txt
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
@@ -159,17 +170,24 @@ runs:
       shell: bash
       env:
         STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
+        STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
       run: |
         set -euo pipefail
         rm -rf styleproof-report
         report_content_arguments=()
+        state_identity_arguments=()
         case "$STYLEPROOF_INCLUDE_CONTENT" in
           true) report_content_arguments+=(--include-content) ;;
           false) ;;
           *) echo "include-content must be true or false" >&2; exit 2 ;;
         esac
+        case "$STYLEPROOF_REQUIRE_STATE_IDENTITY" in
+          true) state_identity_arguments+=(--require-state-identity) ;;
+          false) ;;
+          *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
+        esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report "${report_content_arguments[@]}"
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report "${report_content_arguments[@]}" "${state_identity_arguments[@]}"
         report_exit_code=$?
         set -e
         if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
@@ -195,6 +213,8 @@ runs:
         }
         diff.reportConsistency = generated.reportConsistency;
         diff.confidence = generated.confidence;
+        diff.comparison = generated.comparison;
+        diff.comparability = generated.comparability;
         fs.writeFileSync('styleproof-diff.json', `${JSON.stringify(diff, null, 2)}\n`);
         fs.appendFileSync(process.env.GITHUB_OUTPUT, `content-changes=${generated.content.changes}\n`);
         NODE
@@ -226,7 +246,8 @@ runs:
           const certificationFailed =
             diff.coverage?.basis !== 'complete' ||
             diff.determinism?.status !== 'proven' ||
-            (diff.confidence?.counts?.inaccessible ?? 0) > 0;
+            (diff.confidence?.counts?.inaccessible ?? 0) > 0 ||
+            diff.comparison?.blocksCertification === true;
           // Raw certification deltas that cleanFindings strips entirely: the durable
           // report has no crops/sections. Never map this to style review.
           const rawOnlyNoReviewable =

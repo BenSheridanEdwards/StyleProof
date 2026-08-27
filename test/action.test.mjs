@@ -441,3 +441,30 @@ test('composite action verdict honors the gateInventoryRemovals opt-out end to e
     /gateInventoryRemovals\s*\n?\s*\? \(diff\.inventory|gateInventoryRemovals[\s\S]{0,120}inventory/,
   );
 });
+
+test('composite action makes required product-state identity a closed-set certification gate', () => {
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  const reportStep = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
+  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.match(actionYml, /require-state-identity:[\s\S]*?default: 'false'/);
+  assert.ok(diffStep);
+  assert.ok(reportStep);
+  assert.ok(verdict);
+  assert.match(diffStep[0], /--require-state-identity/);
+  assert.match(reportStep[0], /--require-state-identity/);
+  assert.match(reportStep[0], /diff\.comparison = generated\.comparison/);
+  assert.match(reportStep[0], /diff\.comparability = generated\.comparability/);
+  assert.match(verdict[0], /diff\.comparison\?\.blocksCertification === true/);
+  assert.ok(
+    verdict[0].indexOf('diff.comparison?.blocksCertification === true') <
+      verdict[0].indexOf("state = 'STYLE_REVIEW_REQUIRED'"),
+    'comparison failure must be classified before approval-required evidence',
+  );
+});
+
+test('report CLI exposes strict product-state identity mode and passes it to report generation', () => {
+  const reportCli = fs.readFileSync(path.join(here, '..', 'bin', 'styleproof-report.mjs'), 'utf8');
+  assert.match(reportCli, /--require-state-identity/);
+  assert.match(reportCli, /requireStateIdentity/);
+  assert.match(reportCli, /generateStyleMapReport\([\s\S]*?requireStateIdentity/);
+});

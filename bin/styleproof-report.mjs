@@ -12,13 +12,8 @@
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
 import { generateStyleMapReport } from '../dist/report.js';
-import {
-  cachedMapsUnavailableMessage,
-  isHelpArg,
-  projectConfigOrExit,
-  showHelpAndExit,
-  unknownFlagMessage,
-} from '../dist/cli-errors.js';
+import { cachedMapsUnavailableMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
 import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
@@ -57,6 +52,7 @@ options:
                             of elements whose text changed, each with a
                             before/after crop. Needs captures taken with
                             captureText:true; never affects the check (off by default)
+  --require-state-identity require explicit matching product-state identity for every paired surface
   -h, --help                show this help
 
 exit: 0 no changes, 1 report generated, 2 usage error.
@@ -72,14 +68,17 @@ let minWidth;
 let minHeight;
 let includeLayoutNoise = false;
 let includeContent = false;
+let requireStateIdentity = false;
 // Repo config is the lowest-precedence default layer (flag > env > file > built-in),
 // matching every other CLI — see the identical block in styleproof-diff.
-const projectConfig = projectConfigOrExit('styleproof-report');
-let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
-let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
-let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
+const captureSource = captureSourceDefaults(COMMAND);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
+  const captureSourceIndex = consumeCaptureSourceOption(argv, i, captureSource);
+  if (captureSourceIndex !== undefined) {
+    i = captureSourceIndex;
+    continue;
+  }
   if (isHelpArg(a)) showHelpAndExit(HELP);
   else if (a === '--out') flags.out = argv[++i];
   else if (a.startsWith('--out=')) flags.out = a.slice(6);
@@ -99,12 +98,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--include-layout-noise=')) includeLayoutNoise = a.slice(23) !== 'false';
   else if (a === '--include-content') includeContent = true;
   else if (a.startsWith('--include-content=')) includeContent = a.slice(18) !== 'false';
-  else if (a === '--spec') spec = argv[++i];
-  else if (a.startsWith('--spec=')) spec = a.slice(7);
-  else if (a === '--cache-branch') cacheBranch = argv[++i];
-  else if (a.startsWith('--cache-branch=')) cacheBranch = a.slice(15);
-  else if (a === '--remote') remote = argv[++i];
-  else if (a.startsWith('--remote=')) remote = a.slice(9);
+  else if (a === '--require-state-identity') requireStateIdentity = true;
+  else if (a.startsWith('--require-state-identity=')) requireStateIdentity = a.slice(25) !== 'false';
   else if (a.startsWith('--')) {
     console.error(unknownFlagMessage(COMMAND, a));
     process.exit(2);
@@ -118,9 +113,9 @@ if (args.length <= 1) {
     cacheCapture = resolveCachedCaptureDirs({
       command: COMMAND,
       args,
-      spec,
-      branch: cacheBranch,
-      remote,
+      spec: captureSource.spec,
+      branch: captureSource.cacheBranch,
+      remote: captureSource.remote,
       baseUrl: process.env.BASE_URL,
       usage: 'usage: styleproof-report [baseRef] [--out <dir>] [options]',
     });
@@ -174,6 +169,7 @@ try {
     minHeight,
     includeLayoutNoise,
     includeContent,
+    requireStateIdentity,
   });
 } catch (e) {
   console.error(e.message);
@@ -184,6 +180,7 @@ try {
 
 const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';
 const consistencyFailed = result.reportConsistency?.ok === false;
+const comparisonFailed = result.comparison?.blocksCertification === true;
 if (consistencyFailed) {
   console.log(`⚠ report consistency: ${result.reportConsistency.reason} — not a clean no-change (fail closed)`);
 }
@@ -206,4 +203,6 @@ if (includeContent && result.contentChanges > 0) {
 }
 // Exit 1 when there is anything to review OR any report-consistency failure (never
 // exit 0 for "identical" when certification evidence was hidden by presentation).
-process.exit(result.changedSurfaces === 0 && result.newSurfaces === 0 && !consistencyFailed ? 0 : 1);
+process.exit(
+  result.changedSurfaces === 0 && result.newSurfaces === 0 && !consistencyFailed && !comparisonFailed ? 0 : 1,
+);
