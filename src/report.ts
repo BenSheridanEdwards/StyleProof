@@ -30,6 +30,7 @@ import {
   type DiffCounts,
   type Finding,
   type PropChange,
+  type ProductStateSummary,
   type SurfaceDiff,
 } from './diff.js';
 import { presentationBeforeMap, presentationDiffStyleMaps } from './path-correspondence.js';
@@ -159,6 +160,8 @@ export type ReportResult = {
   totalFindings: number;
   /** Advisory content-layer changes rendered (0 unless includeContent + captured text). Never gates. */
   contentChanges: number;
+  /** Semantic comparability of the captured product state. */
+  productState: ProductStateSummary;
   /**
    * Canonical comparison truth vs the certification differ. When
    * `rawOnlyNoReviewable` is true the report has no crops/sections but raw
@@ -2259,6 +2262,7 @@ function writeReportArtifacts(
   shown: DiffCounts,
   comparison: ComparisonTruth,
   reportConsistency: ReportConsistency,
+  productState: ProductStateSummary,
   content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
   baselineProvenance: BaselineProvenance | null = null,
@@ -2275,6 +2279,7 @@ function writeReportArtifacts(
         rawCounts: comparison.rawCounts,
         reviewableCounts: comparison.reviewableCounts,
         reportConsistency,
+        productState,
         content,
         surfaces: surfacesJson,
         // Additive (#399): the completeness badge, machine-readable — a consumer
@@ -2320,6 +2325,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     surfaces,
     volatile: volatileCount,
     counts: rawCounts,
+    productState,
   } = diffStyleMapDirs(beforeDir, afterDir, { includeStructure });
   // Canonical truth shared with styleproof-diff / action trust: when raw
   // certification deltas exist but cleanFindings leaves nothing reviewable,
@@ -2382,6 +2388,32 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const confidenceLedger = resolveBundleConfidence(afterDir);
   const confidence = summarizeConfidence(confidenceLedger);
   md.push(...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }));
+  if (productState.status === 'incomparable') {
+    md.push(
+      '',
+      '## ⛔ Product state incomparable',
+      '',
+      '_The captures contain different semantic landmarks, so the visual delta may compare different modes or views. Reviewer approval cannot clear this certification failure._',
+      '',
+    );
+    for (const surface of productState.surfaces) {
+      md.push(`- **${safeKey(surface.surface)}**`);
+      for (const reason of surface.reasons) {
+        if (reason.kind === 'legacy-map') continue;
+        if (reason.kind === 'capture-schema-mismatch') {
+          md.push('  - capture-schema-mismatch: recapture the baseline with the current StyleProof version');
+          continue;
+        }
+        if (reason.kind === 'invalid-semantic') {
+          md.push(`  - invalid-semantic: ${reason.side} map`);
+          continue;
+        }
+        md.push(
+          `  - ${reason.kind}: base-only \`${reason.beforeOnly.join(', ') || 'none'}\`; head-only \`${reason.afterOnly.join(', ') || 'none'}\``,
+        );
+      }
+    }
+  }
   // Baseline provenance (#367): when the run recorded where the base maps came
   // from, say so up front — an ancestor reuse must be visible, never inferred.
   const baselineProvenance = readBaselineProvenance(beforeDir);
@@ -2463,6 +2495,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     shown,
     comparison,
     reportConsistency,
+    productState,
     { evaluated: includeContent, changes: contentSection.count, advisory: true },
     json,
     baselineProvenance,
@@ -2473,6 +2506,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     newSurfaces: missing.length,
     totalFindings,
     contentChanges: contentSection.count,
+    productState,
     comparison,
     reportConsistency,
     confidence,

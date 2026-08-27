@@ -60,6 +60,12 @@ export type ElementEntry = {
    * change without enabling the opt-in content layer.
    */
   ownTextLength?: number;
+  /** Privacy-safe semantic landmarks used to prove both maps represent the
+   * same product state before a style delta can be certified. */
+  semantic?: {
+    roleHash?: string;
+    dataStyleHashes?: string[];
+  };
   /**
    * The element's OWN rendered text (direct text-node children only, whitespace
    * collapsed) — present only when capture ran with `captureText: true` (the
@@ -122,6 +128,9 @@ export type CapturedOverlay = {
   text?: string;
 };
 export type StyleMap = {
+  /** Presence proves semantic landmarks were captured, including an empty
+   * inventory. Absent on legacy maps, which remain comparability-unknown. */
+  semanticIdentityVersion?: 1;
   /** Optional runner-supplied context; ignored by the certification diff. */
   metadata?: CaptureMetadata;
   /** Browser viewport used for this capture. Report-only; ignored by the certification diff. */
@@ -347,7 +356,17 @@ export function isUnder(path: string, roots: string[]): boolean {
 // implementation — page.evaluate can't reference a module-scope helper, so the
 // alternative is an identical copy in each. Injected at the top of captureStyleMap.
 function injectPathOf(): void {
-  (window as unknown as { __spPathOf?: (el: Element) => string }).__spPathOf = (el: Element): string => {
+  const privacySafeHash = (value: string): string => {
+    let hash = 2166136261;
+    for (let characterIndex = 0; characterIndex < value.length; characterIndex++) {
+      hash ^= value.charCodeAt(characterIndex);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+  };
+  const injectedWindow = window as unknown as WithPathOf;
+  injectedWindow.__spPrivacySafeHash = privacySafeHash;
+  injectedWindow.__spPathOf = (el: Element): string => {
     if (el === document.documentElement) return 'html';
     if (el === document.body) return 'body';
     const identityCandidates = (element: Element): string[] => {
@@ -369,14 +388,6 @@ function injectPathOf(): void {
       ];
       return attributes.flatMap(([name, value]) => (value ? [`${name}:${value}`] : []));
     };
-    const privacySafeHash = (value: string): string => {
-      let hash = 2166136261;
-      for (let characterIndex = 0; characterIndex < value.length; characterIndex++) {
-        hash ^= value.charCodeAt(characterIndex);
-        hash = Math.imul(hash, 16777619);
-      }
-      return (hash >>> 0).toString(36);
-    };
     const stableSegment = (element: Element, parent: Element): string => {
       const candidate = identityCandidates(element).find(
         (identity) =>
@@ -397,7 +408,10 @@ function injectPathOf(): void {
   };
 }
 /** In-page shape of the window after {@link injectPathOf} runs. */
-type WithPathOf = { __spPathOf: (el: Element) => string };
+type WithPathOf = {
+  __spPathOf: (el: Element) => string;
+  __spPrivacySafeHash: (value: string) => string;
+};
 
 type CaptureArgs = { ignore: string[]; motionOnly: boolean; captureText: boolean; captureComponent?: boolean };
 
@@ -410,7 +424,7 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
   const PSEUDOS = ['::before', '::after', '::marker', '::placeholder'];
   const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
 
-  const pathOf = (window as unknown as WithPathOf).__spPathOf;
+  const { __spPathOf: pathOf, __spPrivacySafeHash: privacySafeHash } = window as unknown as WithPathOf;
 
   // Per-tag (and per-tag-per-pseudo) UA defaults from a stylesheet-free iframe,
   // used to prune the maps. A pseudo-element's UA defaults are NOT the host
@@ -461,6 +475,7 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
     computedValueStyle?: Props;
     pseudo?: Record<string, Props>;
     ownTextLength?: number;
+    semantic?: { roleHash?: string; dataStyleHashes?: string[] };
     text?: string;
     component?: { name: string; props?: Record<string, string> };
   };
@@ -541,6 +556,22 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
       cls: el.getAttribute('class') || '',
       style: snap(usedStyle, defaultFor(tag)),
     };
+    const role = el.getAttribute('role')?.trim().toLowerCase().replace(/\s+/g, ' ');
+    const roleHash = role ? privacySafeHash(role) : undefined;
+    const dataStyleHashes = [
+      ...new Set(
+        (el.getAttribute('data-style') ?? '')
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((token) => privacySafeHash(token)),
+      ),
+    ].sort();
+    if (roleHash || dataStyleHashes.length > 0) {
+      entry.semantic = {
+        ...(roleHash ? { roleHash } : {}),
+        ...(dataStyleHashes.length > 0 ? { dataStyleHashes } : {}),
+      };
+    }
     if (!motionOnly) {
       const typedComputedStyle = el.computedStyleMap?.();
       if (typedComputedStyle) {
@@ -593,7 +624,7 @@ function capturePage({ ignore, motionOnly, captureText, captureComponent }: Capt
     elements[pathOf(el)] = entry;
   }
   frame.remove();
-  return { defaults, elements, shadowHosts, sameOriginFrames };
+  return { semanticIdentityVersion: 1 as const, defaults, elements, shadowHosts, sameOriginFrames };
 }
 
 type LiveCandidateArgs = { ignore: string[] };
@@ -1439,6 +1470,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     const tokens = await page.evaluate(capturePageTokens);
     const inventory = await harvestInventoryFor(page, options.inventory);
     return {
+      semanticIdentityVersion: base.semanticIdentityVersion,
       ...(options.metadata ? { metadata: options.metadata } : {}),
       ...(viewport ? { viewport } : {}),
       defaults: base.defaults,

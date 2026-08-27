@@ -33,7 +33,7 @@ export function rmTmp(dir) {
  * pseudo? } } with sensible defaults so tests stay terse. `defaults` and
  * `states` default to empty.
  */
-export function makeMap({ elements = {}, defaults = {}, states = {} } = {}) {
+export function makeMap({ elements = {}, defaults = {}, states = {}, semanticIdentityVersion } = {}) {
   const els = {};
   for (const [p, e] of Object.entries(elements)) {
     els[p] = {
@@ -44,11 +44,17 @@ export function makeMap({ elements = {}, defaults = {}, states = {} } = {}) {
       ...(e.computedValueStyle ? { computedValueStyle: e.computedValueStyle } : {}),
       ...(e.pseudo ? { pseudo: e.pseudo } : {}),
       ...(e.ownTextLength !== undefined ? { ownTextLength: e.ownTextLength } : {}),
+      ...(e.semantic ? { semantic: e.semantic } : {}),
       ...(e.text !== undefined ? { text: e.text } : {}),
       ...(e.component ? { component: e.component } : {}),
     };
   }
-  return { defaults, elements: els, states };
+  return {
+    ...(semanticIdentityVersion !== undefined ? { semanticIdentityVersion } : {}),
+    defaults,
+    elements: els,
+    states,
+  };
 }
 
 /** A solid-fill, fully opaque PNG of the given size — a real, decodable image. */

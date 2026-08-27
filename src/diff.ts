@@ -97,6 +97,104 @@ export type DiffStyleOptions = {
   includeStructure?: boolean;
 };
 
+export type ProductStateComparabilityReason =
+  | { kind: 'legacy-map' }
+  | { kind: 'capture-schema-mismatch' }
+  | { kind: 'invalid-semantic'; side: 'before' | 'after' | 'both' }
+  | { kind: 'data-style' | 'role'; beforeOnly: string[]; afterOnly: string[] };
+
+export type ProductStateComparability = {
+  status: 'comparable' | 'incomparable' | 'unknown';
+  reasons: ProductStateComparabilityReason[];
+};
+
+export type ProductStateSummary = {
+  status: ProductStateComparability['status'];
+  surfaces: { surface: string; reasons: ProductStateComparabilityReason[] }[];
+};
+
+const SEMANTIC_HASH = /^[a-z0-9]{1,16}$/;
+
+type SemanticInventory = { dataStyle: string[]; roles: string[]; invalid: boolean };
+type ParsedSemantic = { roleHash?: string; dataStyleHashes: string[] };
+
+function parseSemantic(value: unknown): ParsedSemantic | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const semantic = value as Record<string, unknown>;
+  if (Object.keys(semantic).some((key) => key !== 'roleHash' && key !== 'dataStyleHashes')) return null;
+  const roleHash = semantic.roleHash;
+  if (roleHash !== undefined && (typeof roleHash !== 'string' || !SEMANTIC_HASH.test(roleHash))) return null;
+  const hashes = semantic.dataStyleHashes ?? [];
+  if (
+    !Array.isArray(hashes) ||
+    hashes.length > 64 ||
+    !hashes.every((hash) => typeof hash === 'string' && SEMANTIC_HASH.test(hash))
+  ) {
+    return null;
+  }
+  return { ...(roleHash ? { roleHash } : {}), dataStyleHashes: hashes as string[] };
+}
+
+function semanticInventory(map: StyleMap): SemanticInventory {
+  const dataStyle = new Set<string>();
+  const roleCounts = new Map<string, number>();
+  let invalid = false;
+  for (const element of Object.values(map.elements)) {
+    if (element.semantic === undefined) continue;
+    const semantic = parseSemantic(element.semantic);
+    invalid ||= semantic === null;
+    if (!semantic) continue;
+    for (const hash of semantic.dataStyleHashes) dataStyle.add(hash);
+    if (semantic.roleHash) roleCounts.set(semantic.roleHash, (roleCounts.get(semantic.roleHash) ?? 0) + 1);
+  }
+  return {
+    dataStyle: [...dataStyle].sort(),
+    roles: [...roleCounts].sort(([a], [b]) => a.localeCompare(b)).map(([role, count]) => `${role}×${count}`),
+    invalid,
+  };
+}
+
+function onlyIn(left: string[], right: string[]): string[] {
+  const rightSet = new Set(right);
+  return left.filter((value) => !rightSet.has(value));
+}
+
+function inventoryReason(
+  kind: 'data-style' | 'role',
+  before: string[],
+  after: string[],
+): ProductStateComparabilityReason | null {
+  const beforeOnly = onlyIn(before, after);
+  const afterOnly = onlyIn(after, before);
+  return beforeOnly.length || afterOnly.length ? { kind, beforeOnly, afterOnly } : null;
+}
+
+function invalidSemanticReason(before: SemanticInventory, after: SemanticInventory): ProductStateComparabilityReason {
+  const side = before.invalid && after.invalid ? 'both' : before.invalid ? 'before' : 'after';
+  return { kind: 'invalid-semantic', side };
+}
+
+/** Prove two captures carry the same privacy-safe semantic state landmarks. */
+export function assessProductStateComparability(a: StyleMap, b: StyleMap): ProductStateComparability {
+  const beforeCurrent = a.semanticIdentityVersion === 1;
+  const afterCurrent = b.semanticIdentityVersion === 1;
+  if (beforeCurrent !== afterCurrent) {
+    return { status: 'incomparable', reasons: [{ kind: 'capture-schema-mismatch' }] };
+  }
+  if (!beforeCurrent) return { status: 'unknown', reasons: [{ kind: 'legacy-map' }] };
+
+  const before = semanticInventory(a);
+  const after = semanticInventory(b);
+  if (before.invalid || after.invalid) {
+    return { status: 'incomparable', reasons: [invalidSemanticReason(before, after)] };
+  }
+  const reasons = [
+    inventoryReason('data-style', before.dataStyle, after.dataStyle),
+    inventoryReason('role', before.roles, after.roles),
+  ].filter((reason): reason is ProductStateComparabilityReason => reason !== null);
+  return { status: reasons.length ? 'incomparable' : 'comparable', reasons };
+}
+
 /** Content and structural changes are an opt-in advisory layer. Kept out of
  *  `Finding`/`DiffCounts` on purpose: neither affects style certification or
  *  blocking counts when content comparison is disabled. */
@@ -508,13 +606,41 @@ function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): Style
   };
 }
 
+type ProductStateAggregate = {
+  incomparableSurfaces: ProductStateSummary['surfaces'];
+  unknown: boolean;
+};
+
+function recordProductState(
+  aggregate: ProductStateAggregate,
+  surface: string,
+  comparability: ProductStateComparability,
+): void {
+  if (comparability.status === 'incomparable') {
+    aggregate.incomparableSurfaces.push({ surface, reasons: comparability.reasons });
+  }
+  aggregate.unknown ||= comparability.status === 'unknown';
+}
+
+function summarizeProductState(aggregate: ProductStateAggregate): ProductStateSummary {
+  const status = aggregate.incomparableSurfaces.length ? 'incomparable' : aggregate.unknown ? 'unknown' : 'comparable';
+  return { status, surfaces: aggregate.incomparableSurfaces };
+}
+
 /** Diff every same-named capture between two directories. `volatile` is the
  *  count of live regions auto-excluded across all surfaces (union per surface). */
 export function diffStyleMapDirs(
   dirA: string,
   dirB: string,
   options: DiffStyleOptions = { includeStructure: false },
-): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number; statesUncertified: number; compared: number } {
+): {
+  surfaces: SurfaceDiff[];
+  counts: DiffCounts;
+  volatile: number;
+  statesUncertified: number;
+  compared: number;
+  productState: ProductStateSummary;
+} {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
@@ -540,6 +666,7 @@ export function diffStyleMapDirs(
   const surfaces: SurfaceDiff[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
   const uncompared = { volatile: 0, statesUncertified: 0 };
+  const productStateAggregate: ProductStateAggregate = { incomparableSurfaces: [], unknown: false };
   for (const surface of names) {
     if (!indexA[surface] || !indexB[surface]) {
       // A surface present on only one side has no baseline to diff against — it's
@@ -549,11 +676,13 @@ export function diffStyleMapDirs(
       surfaces.push({ surface, missing: indexA[surface] ? 'after' : 'before', findings: [] });
       continue;
     }
-    const findings = diffSurfacePair(indexA[surface], indexB[surface], uncompared, options);
+    const { findings, comparability } = diffSurfacePair(indexA[surface], indexB[surface], uncompared, options);
+    recordProductState(productStateAggregate, surface, comparability);
     tallyCounts(findings, counts);
     if (findings.length) surfaces.push({ surface, findings });
   }
-  return { surfaces, counts, ...uncompared, compared: names.length };
+  const productState = summarizeProductState(productStateAggregate);
+  return { surfaces, counts, ...uncompared, compared: names.length, productState };
 }
 
 /** Diff one paired surface, tallying what was NOT compared (volatile subtrees;
@@ -563,13 +692,16 @@ function diffSurfacePair(
   fileB: string,
   uncompared: { volatile: number; statesUncertified: number },
   options: DiffStyleOptions,
-): Finding[] {
+): { findings: Finding[]; comparability: ProductStateComparability } {
   const mapA = loadStyleMap(fileA);
   const mapB = loadStyleMap(fileB);
   uncompared.volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
   if (mapA.statesSkipped && mapB.statesSkipped) uncompared.statesUncertified++;
   const comparableBase = options.includeStructure === false ? correspondContentShiftedPaths(mapA, mapB) : mapA;
-  return diffStyleMaps(comparableBase, mapB, options);
+  return {
+    findings: diffStyleMaps(comparableBase, mapB, options),
+    comparability: assessProductStateComparability(mapA, mapB),
+  };
 }
 
 /**

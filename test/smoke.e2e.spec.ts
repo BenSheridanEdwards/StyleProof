@@ -112,6 +112,23 @@ test('capture persists zero own-text length without persisting rendered copy', a
   expect(filled?.text).toBeUndefined();
 });
 
+test('capture persists privacy-safe semantic product-state landmarks', async ({ page }) => {
+  const html =
+    '<!doctype html><html><body><section class="guardian" role="status" data-style="chat-guardian auto-driving">running</section></body></html>';
+  const map = await captureFixture(page, html);
+  const guardian = Object.values(map.elements).find((entry) => entry.cls === 'guardian');
+
+  expect(map.semanticIdentityVersion).toBe(1);
+  expect(guardian?.semantic).toEqual({
+    roleHash: '1fouhgv',
+    dataStyleHashes: ['1deb4v5', '7p92c4'],
+  });
+  const semanticSerialized = JSON.stringify(guardian?.semantic);
+  expect(semanticSerialized).not.toContain('status');
+  expect(semanticSerialized).not.toContain('chat-guardian');
+  expect(semanticSerialized).not.toContain('auto-driving');
+});
+
 test('a semantic row replacement is advisory content, not a positional restyle', async ({ page }) => {
   const tableWithRows = (rows: string) => `<!doctype html><html><head><meta charset="utf-8"><style>
     tr { color: rgb(0, 0, 0); }

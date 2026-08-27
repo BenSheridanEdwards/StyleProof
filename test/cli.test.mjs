@@ -62,6 +62,40 @@ function identicalPair({ bare = false } = {}) {
   return { root, A, B };
 }
 
+function productStateMismatchPair() {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const element = (token, color) => ({
+    tag: 'section',
+    cls: 'guardian',
+    ownTextLength: 0,
+    semantic: { roleHash: 'r1', dataStyleHashes: ['c1', token] },
+    style: { color },
+  });
+  writeCapture(
+    A,
+    'guardian@1280',
+    makeMap({
+      semanticIdentityVersion: 1,
+      elements: { 'body > section': element('a1', 'rgb(0, 0, 0)') },
+    }),
+    null,
+  );
+  writeCapture(
+    B,
+    'guardian@1280',
+    makeMap({
+      semanticIdentityVersion: 1,
+      elements: { 'body > section': element('b1', 'rgb(255, 0, 0)') },
+    }),
+    null,
+  );
+  writeManifest(A, 'base-sha', 'same-env-key');
+  writeManifest(B, 'head-sha', 'same-env-key');
+  return { root, A, B };
+}
+
 function correspondenceCollapsedPair() {
   const root = mkTmp();
   const A = path.join(root, 'a');
@@ -511,6 +545,32 @@ test('diff CLI --json writes the structured diff to a file', () => {
   const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
   assert.equal(parsed.counts.style, 1);
   assert.ok(Array.isArray(parsed.surfaces));
+  rmTmp(root);
+});
+
+test('diff CLI fails certification when product-state landmarks are incomparable', () => {
+  const { root, A, B } = productStateMismatchPair();
+  const jsonPath = path.join(root, 'out.json');
+  const r = run(DIFF, [A, B, '--json', jsonPath]);
+  assert.equal(r.status, 1, `expected exit 1, got ${r.status}: ${r.stderr}\n${r.stdout}`);
+  assert.match(r.stdout, /product state.*incomparable/i);
+  const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(parsed.certifiesFully, false);
+  assert.deepEqual(parsed.productState, {
+    status: 'incomparable',
+    surfaces: [
+      {
+        surface: 'guardian@1280',
+        reasons: [
+          {
+            kind: 'data-style',
+            beforeOnly: ['a1'],
+            afterOnly: ['b1'],
+          },
+        ],
+      },
+    ],
+  });
   rmTmp(root);
 });
 

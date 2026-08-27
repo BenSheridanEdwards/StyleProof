@@ -2870,3 +2870,38 @@ test('end-to-end: a surface captured only on base renders as REMOVED, never as a
   assert.equal(removedEntry.isNew, false);
   rmTmp(root);
 });
+
+test('report persists and explains incomparable product-state evidence', () => {
+  const { root, beforeDir, afterDir, outDir } = tmpDirs();
+  const semanticMap = (token, color) =>
+    makeMap({
+      semanticIdentityVersion: 1,
+      elements: {
+        'body > section': {
+          tag: 'section',
+          cls: 'guardian',
+          rect: [10, 10, 180, 80],
+          ownTextLength: 0,
+          semantic: { roleHash: 'r1', dataStyleHashes: ['c1', token] },
+          style: { color },
+        },
+      },
+    });
+  try {
+    writeCapture(beforeDir, 'guardian@1280', semanticMap('a1', 'rgb(0, 0, 0)'), solidPng(220, 120));
+    writeCapture(afterDir, 'guardian@1280', semanticMap('b1', 'rgb(255, 0, 0)'), solidPng(220, 120));
+
+    const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+    assert.equal(result.productState.status, 'incomparable');
+    const receipt = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+    assert.equal(receipt.productState.status, 'incomparable');
+    assert.equal(receipt.productState.surfaces[0].surface, 'guardian@1280');
+    const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+    assert.match(markdown, /Product state incomparable/i);
+    assert.match(markdown, /a1/);
+    assert.match(markdown, /b1/);
+    assert.match(markdown, /reviewer approval cannot clear/i);
+  } finally {
+    rmTmp(root);
+  }
+});

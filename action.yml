@@ -225,6 +225,7 @@ runs:
           const rawOnlyNoReviewable =
             diff.reportConsistency?.ok === false ||
             diff.reportConsistency?.reason === 'raw_only_no_reviewable';
+          const productStateIncomparable = diff.productState?.status === 'incomparable';
           const partialBaseline = (diff.partialBaseline === true) ||
             (Array.isArray(diff.explainedMissingBaselineSurfaces) &&
               diff.explainedMissingBaselineSurfaces.length > 0);
@@ -235,7 +236,7 @@ runs:
           // evidence. Preserve that actionable state instead of masking it with the
           // generic closed-set certification fallback below.
           else if ('${{ inputs.base-capture-failed }}'.toLowerCase() === 'true') state = 'DEGRADED_BASELINE';
-          else if (certificationFailed || rawOnlyNoReviewable) state = 'CERTIFICATION_FAILED';
+          else if (certificationFailed || rawOnlyNoReviewable || productStateIncomparable) state = 'CERTIFICATION_FAILED';
           else if (partialBaseline) state = 'PARTIAL_BASELINE';
           else if ('${{ steps.diff.outputs.changed }}' === 'true') state = 'STYLE_REVIEW_REQUIRED';
           core.setOutput('state', state);
@@ -367,7 +368,7 @@ runs:
           const trustGuidance = {
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — repair the capture or reflow source; reviewer approval cannot clear this failure._',
+            CERTIFICATION_FAILED: '_Coverage, determinism, product-state comparability, or report/diff consistency evidence failed — repair the capture, pin both sides to the same state, or fix the reflow source; reviewer approval cannot clear this failure._',
             PARTIAL_BASELINE: '_Base capture is incomplete — repair baseline capture on the base branch; reviewer approval cannot clear missing baseline surfaces._',
             DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; reviewer approval cannot clear this failure._',
           }[trustState];
@@ -429,7 +430,7 @@ runs:
               : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
-            CERTIFICATION_FAILED: 'Coverage, determinism, or report/diff consistency evidence is incomplete',
+            CERTIFICATION_FAILED: 'Coverage, determinism, product-state comparability, or report/diff consistency failed',
             PARTIAL_BASELINE: 'Base capture incomplete — repair baseline on the base branch',
             DEGRADED_BASELINE: 'Base capture failed — head-only evidence cannot certify this change',
           };
@@ -534,6 +535,9 @@ runs:
           if (j.coverage?.basis === 'incomplete') out.push('coverage incomplete: ' + (j.coverage.uncovered || []).join(', '));
           if (j.determinism?.status === 'unproven') out.push('determinism unproven (base ' + j.determinism.base + ', head ' + j.determinism.head + ')');
           if ((j.dataResidue?.blocking ?? 0) > 0) out.push('data-residue gate: ' + j.dataResidue.blocking + ' blocking failure(s)');
+          if (j.productState?.status === 'incomparable') {
+            out.push('product state incomparable: ' + (j.productState.surfaces || []).map((surface) => surface.surface).join(', '));
+          }
           if (j.reportConsistency && j.reportConsistency.ok === false) {
             out.push('report/diff consistency: ' + (j.reportConsistency.reason || 'raw_only_no_reviewable') + ' — certification deltas without reviewable report crops (not visual-approval)');
           }
@@ -544,7 +548,7 @@ runs:
           echo "$fails"
           exit 1
         fi
-        echo "✓ certification: coverage, determinism, data-residue, and report consistency verdicts are approvable or clean"
+        echo "✓ certification: coverage, determinism, product-state, data-residue, and report consistency verdicts are approvable or clean"
 
     # Always expose a terminal trust classification, even when a later gate fails.
     # Publication failure outranks every diff verdict because reviewers have no

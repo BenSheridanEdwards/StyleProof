@@ -435,7 +435,7 @@ try {
 } finally {
   cleanupCachedCaptureDirs(cacheCapture);
 }
-const { surfaces, counts, compared, volatile, statesUncertified } = result;
+const { surfaces, counts, compared, volatile, statesUncertified, productState } = result;
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned)
 // findings the report/crops can show. Prevents STYLE_REVIEW_REQUIRED without
 // evidence when only derived/reflow longhands differ.
@@ -575,6 +575,7 @@ const firstAdoptionBareBase =
   residueFails === 0;
 const coverageBlocks = coverageFails && !(firstAdoptionBareBase && coverageVerdict?.basis === 'unasserted');
 const determinismBlocks = determinismFails && !(firstAdoptionBareBase && determinismVerdict?.status === 'unknown');
+const productStateBlocks = productState.status === 'incomparable';
 // True only when the run would exit 0 as a full certification (not diagnostic).
 const certifiesFully =
   !allowUnasserted &&
@@ -585,6 +586,7 @@ const certifiesFully =
   residueFails === 0 &&
   !coverageBlocks &&
   !determinismBlocks &&
+  !productStateBlocks &&
   greenfieldNewSurfaces === 0 &&
   coverageVerdict?.basis === 'complete' &&
   determinismVerdict?.status === 'proven';
@@ -626,6 +628,7 @@ if (jsonOut) {
           // Surfaces whose forced-state layer was skipped on BOTH sides — the
           // :hover/:focus/:active layer compared {} vs {} and certifies nothing.
           statesUncertified,
+          productState,
           coverage: coverageVerdict,
           determinism: determinismVerdict,
           certifiesFully,
@@ -681,6 +684,29 @@ if (statesUncertified > 0)
     `\n⚠ forced-state layer uncertified on ${statesUncertified} surface(s): BOTH captures skipped it, so\n` +
       '  :hover/:focus/:active differences there were never compared.',
   );
+if (productStateBlocks) {
+  console.log(
+    `\n✗ product state incomparable on ${productState.surfaces.length} surface(s) — refusing visual certification.`,
+  );
+  for (const surface of productState.surfaces) {
+    console.log(`  ${surface.surface}`);
+    for (const reason of surface.reasons) {
+      if (reason.kind === 'legacy-map') continue;
+      if (reason.kind === 'capture-schema-mismatch') {
+        console.log('    capture-schema-mismatch: recapture the baseline with the current StyleProof version');
+        continue;
+      }
+      if (reason.kind === 'invalid-semantic') {
+        console.log(`    invalid-semantic: ${reason.side} map`);
+        continue;
+      }
+      console.log(
+        `    ${reason.kind}: base-only [${reason.beforeOnly.join(', ') || 'none'}]; head-only [${reason.afterOnly.join(', ') || 'none'}]`,
+      );
+    }
+  }
+  console.log('  Pin both captures to the same product state or recapture a matching baseline.');
+}
 const newNote = greenfieldNewSurfaces > 0 ? ` (+${greenfieldNewSurfaces} new surface(s) with no baseline)` : '';
 const removedNote = removedSurfaces ? ` + ${removedSurfaces} REMOVED surface(s)` : '';
 const invNote = invRemovals ? ` + ${invRemovals} inventory gate failure(s) (unacknowledged or stale)` : '';
@@ -696,13 +722,17 @@ const detNote = determinismBlocks
     ? ' + determinism unknown'
     : ' + determinism unproven'
   : '';
+const productStateNote = productStateBlocks
+  ? ` + ${productState.surfaces.length} incomparable product-state surface(s)`
+  : '';
 const clean =
   total === 0 &&
   removedSurfaces === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
   !coverageBlocks &&
-  !determinismBlocks;
+  !determinismBlocks &&
+  !productStateBlocks;
 if (truth.rawOnlyNoReviewable) {
   // Derived-only style findings now render (cleanFindingsForDisplay), so the one
   // shape left here is a delta with no displayable form at all — e.g. a forced-
@@ -720,14 +750,20 @@ console.log(
       : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
         ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
         : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${covNote}${detNote}`,
+    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${covNote}${detNote}${productStateNote}`,
 );
 // 0 = identical certified, 1 = reviewable differences or non-certifying evidence
 // (unasserted completeness, unknown/unproven determinism, incomplete registry,
 // inventory/residue failures, removed surfaces), 3 = ONLY new surfaces on a true
 // first-adoption bare base (or greenfield with proven ledgers). 2 = usage.
 process.exit(
-  total > 0 || removedSurfaces > 0 || invRemovals > 0 || residueFails > 0 || coverageBlocks || determinismBlocks
+  total > 0 ||
+    removedSurfaces > 0 ||
+    invRemovals > 0 ||
+    residueFails > 0 ||
+    coverageBlocks ||
+    determinismBlocks ||
+    productStateBlocks
     ? 1
     : greenfieldNewSurfaces > 0
       ? 3

@@ -200,6 +200,21 @@ test('composite action classifies every non-certifying coverage/determinism basi
   assert.doesNotMatch(verdict[0], /status === 'unproven'/);
 });
 
+test('composite action makes incomparable product state an unapprovable certification failure', () => {
+  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
+  assert.match(verdict[0], /diff\.productState\?\.status === 'incomparable'/);
+  assert.match(verdict[0], /productStateIncomparable/);
+  assert.match(verdict[0], /productStateIncomparable\) state = 'CERTIFICATION_FAILED'/);
+
+  const gate = actionYml.match(
+    /- name: Block on unapprovable certification failures[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/,
+  );
+  assert.ok(gate, 'action.yml should hard-gate product-state mismatch in both modes');
+  assert.match(gate[0], /productState\?\.status === 'incomparable'/);
+  assert.match(gate[0], /exit 1/);
+});
+
 test('composite action exposes one precedence-ordered machine-readable trust verdict', () => {
   assert.match(actionYml, /trust-state:[\s\S]*?steps\.trust\.outputs\.state/);
   assert.match(actionYml, /data-residue-keys:[\s\S]*?steps\.verdict\.outputs\.data-residue-keys/);
@@ -305,7 +320,10 @@ test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILE
     certAssign > 0 && styleReviewAssign > certAssign,
     'CERTIFICATION_FAILED assignment must outrank style review',
   );
-  assert.match(verdict[0], /rawOnlyNoReviewable\) state = 'CERTIFICATION_FAILED'/);
+  assert.match(
+    verdict[0],
+    /certificationFailed \|\| rawOnlyNoReviewable \|\| productStateIncomparable\) state = 'CERTIFICATION_FAILED'/,
+  );
   // Approval checkbox only for STYLE_REVIEW_REQUIRED — never for consistency failure.
   const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
   assert.ok(commentStep, 'PR comment step present');

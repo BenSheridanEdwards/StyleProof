@@ -17,6 +17,7 @@ On every **captured surface**, base vs head:
 | Change                                                        | Surfaced as                                                                                  | Pinned by                       |
 | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------- |
 | A computed style differs on a matched path (resting)          | `style` finding; headline "computed-style difference(s)" — not used for added-node inventory | pr-surfacing ✓                  |
+| Semantic product state differs (`role` / `data-style`)        | incomparable product-state receipt; **unapprovable certification failure**                   | unit + browser + action tests   |
 | A `:hover` / `:focus` / `:active` variant dropped or changed  | `state` finding                                                                              | pr-surfacing ✓                  |
 | A `::before` / `::after` style differs                        | `style` finding, pseudo tagged                                                               | pr-surfacing ✓                  |
 | An element is added, removed, or retagged                     | opt-in content/structure advisory; does not gate style certification                         | content boundary + report tests |
@@ -40,6 +41,16 @@ complete`, `✗ coverage INCOMPLETE`, or `✗ completeness NOT asserted` (no reg
   from an `unproven` **or unknown** (pre-ledger) capture — because a clean diff of two
   nondeterministic reads could just be luck. A green now certifies both _"I looked
   everywhere"_ and _"my look was stable."_
+- **Product-state comparability** — every new map carries a versioned inventory
+  of privacy-safe semantic landmarks: hashes of normalized `role` values and
+  `data-style` tokens. The semantic inventory introduces no new raw attribute
+  values. If those inventories differ, the captures may represent different
+  modes or views; StyleProof emits `productState: incomparable` and fails
+  certification. This is not a visual change a reviewer can approve. Pin
+  both captures to the same state or recapture a matching baseline. Maps written
+  before the inventory existed remain explicitly `unknown` when compared with
+  another legacy map. A legacy/current pair fails as a schema mismatch and tells
+  the operator to recapture the baseline.
 
 ## The boundary (stated plainly)
 

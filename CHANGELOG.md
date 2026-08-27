@@ -9,6 +9,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Product-state comparability gate:** captures now persist privacy-safe semantic
+  landmarks from hashed, normalized ARIA roles and hashed `data-style` tokens.
+  `styleproof-diff` compares those inventories before certification and marks
+  divergent surfaces `productState: incomparable`, which the CLI, durable
+  report, and GitHub Action classify as unapprovable `CERTIFICATION_FAILED`.
+  This prevents a coincidental computed-style delta between different modes or
+  views from being approved as a real restyle. Legacy maps remain explicitly
+  `unknown`; new captures stamp `semanticIdentityVersion: 1` even when their
+  landmark inventory is empty.
 - **One-command setup and unified CLI:** `npx styleproof setup` now detects npm,
   pnpm, Yarn, or Bun; installs StyleProof, Playwright, and Chromium; runs the
   existing project-aware scaffold; then verifies generated-file drift. It supports
