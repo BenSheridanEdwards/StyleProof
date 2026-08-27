@@ -309,32 +309,28 @@ function collectClickable(dangerSource: string): RawCandidate[] {
   // Semantic controls first (stable, meaningful), then anything styled clickable.
   // `grab` counts too: a draggable card is routinely ALSO a click target (open on
   // click, drag to move), and we never drag — el.click() fires no drag gesture.
-  const pool = new Set<Element>([...document.querySelectorAll(SEMANTIC)]);
-  for (const el of document.querySelectorAll('body *')) {
-    if (pool.has(el)) continue;
-    const cursor = getComputedStyle(el).cursor;
-    if (cursor !== 'pointer' && cursor !== 'grab') continue;
-    // `cursor` is an INHERITED property: a clickable card makes every descendant
-    // compute cursor:pointer, and clicking any descendant just bubbles to the
-    // card's own handler — the SAME surface. Left unchecked, a card with N
-    // children becomes N+1 candidates, each paying a drive + verified reset to
-    // map one surface (the dominant cost of a large crawl). Add only the
-    // OUTERMOST clickable in an inherited-cursor subtree: skip when an ancestor
-    // is already a candidate. Semantic controls (button, a, [role]) are seeded
-    // above and skipped by the guard at the top of the loop, so a real button
-    // nested inside a clickable card is never dropped. (querySelectorAll walks
-    // document order, so an ancestor is always pooled before its descendants.)
-    let anc = el.parentElement;
-    let nested = false;
-    while (anc && anc !== document.body) {
-      if (pool.has(anc)) {
-        nested = true;
-        break;
-      }
-      anc = anc.parentElement;
+  const collectPointerElements = (pool: Set<Element>): void => {
+    for (const el of document.querySelectorAll('body *')) {
+      if (pool.has(el)) continue;
+      const cursor = getComputedStyle(el).cursor;
+      if (cursor !== 'pointer' && cursor !== 'grab') continue;
+      // `cursor` is an INHERITED property: a clickable card makes every descendant
+      // compute cursor:pointer, and clicking any descendant just bubbles to the
+      // card's own handler — the SAME surface. Left unchecked, a card with N
+      // children becomes N+1 candidates, each paying a drive + verified reset to
+      // map one surface (the dominant cost of a large crawl). Add only the
+      // OUTERMOST clickable in an inherited-cursor subtree: skip when an ancestor
+      // is already a candidate. Semantic controls (button, a, [role]) are seeded
+      // above and skipped by the guard at the top of the loop, so a real button
+      // nested inside a clickable card is never dropped. (querySelectorAll walks
+      // document order, so an ancestor is always pooled before its descendants.)
+      let anc = el.parentElement;
+      while (anc && anc !== document.body && !pool.has(anc)) anc = anc.parentElement;
+      if (!anc || anc === document.body) pool.add(el);
     }
-    if (!nested) pool.add(el);
-  }
+  };
+  const pool = new Set<Element>([...document.querySelectorAll(SEMANTIC)]);
+  collectPointerElements(pool);
 
   // Neutral text inputs are typed automatically with a deterministic value —
   // a search box or filter needs no secrets. Credential-semantic fields
@@ -352,15 +348,20 @@ function collectClickable(dangerSource: string): RawCandidate[] {
 
   const seen = new Set<string>();
   const out: RawCandidate[] = [];
-  for (const el of document.querySelectorAll(FILLABLE)) {
-    if (CRED_AUTOCOMPLETE.test(el.getAttribute('autocomplete') ?? '')) continue;
-    if (el.closest(':disabled,[aria-disabled="true"]') || (el as HTMLInputElement).readOnly) continue;
-    if (!visible(el)) continue;
+  const uniqueSelector = (el: Element): string | null => {
     const selector = selectorFor(el);
-    if (seen.has(selector)) continue;
+    if (seen.has(selector)) return null;
     seen.add(selector);
+    return selector;
+  };
+  const fillableCandidate = (el: Element): RawCandidate | null => {
+    if (CRED_AUTOCOMPLETE.test(el.getAttribute('autocomplete') ?? '')) return null;
+    if (el.closest(':disabled,[aria-disabled="true"]') || (el as HTMLInputElement).readOnly) return null;
+    if (!visible(el)) return null;
+    const selector = uniqueSelector(el);
+    if (!selector) return null;
     const kind = el.getAttribute('type') ?? 'text';
-    out.push({
+    return {
       action: 'fill-input',
       selector,
       identity: identityFor(el),
@@ -368,40 +369,46 @@ function collectClickable(dangerSource: string): RawCandidate[] {
       reason: 'auto-fill',
       value: AUTO_VALUE[kind] ?? 'sample text',
       unsafe: false,
-    });
-  }
-  for (const el of pool) {
-    if (el instanceof HTMLAnchorElement && el.href) continue; // links navigate — handled by link crawl, not here
-    if (el.closest(':disabled,[aria-disabled="true"]')) continue;
-    if (!visible(el)) continue;
-    const selector = selectorFor(el);
-    if (seen.has(selector)) continue;
-    seen.add(selector);
+    };
+  };
+  const controlCandidate = (el: Element): RawCandidate | null => {
+    if (el instanceof HTMLAnchorElement && el.href) return null; // links navigate — handled by link crawl, not here
+    if (el.closest(':disabled,[aria-disabled="true"]') || !visible(el)) return null;
+    const selector = uniqueSelector(el);
+    if (!selector) return null;
     const label = labelFor(el);
     const unsafe = DANGER.test(label);
     if (el instanceof HTMLSelectElement) {
       const next = [...el.options].find((o) => !o.disabled && o.value !== el.value);
-      if (next)
-        out.push({
-          action: 'select-option',
-          selector,
-          identity: identityFor(el),
-          label,
-          reason: 'select-option',
-          value: next.value,
-          unsafe,
-        });
-    } else {
-      out.push({
-        action: 'click',
-        selector,
-        identity: identityFor(el),
-        label,
-        reason: el.getAttribute('role') === 'tab' ? 'tab' : 'click',
-        unsafe,
-      });
+      return next
+        ? {
+            action: 'select-option',
+            selector,
+            identity: identityFor(el),
+            label,
+            reason: 'select-option',
+            value: next.value,
+            unsafe,
+          }
+        : null;
     }
-  }
+    return {
+      action: 'click',
+      selector,
+      identity: identityFor(el),
+      label,
+      reason: el.getAttribute('role') === 'tab' ? 'tab' : 'click',
+      unsafe,
+    };
+  };
+  const appendCandidates = (elements: Iterable<Element>, candidateFor: (el: Element) => RawCandidate | null): void => {
+    for (const el of elements) {
+      const candidate = candidateFor(el);
+      if (candidate) out.push(candidate);
+    }
+  };
+  appendCandidates(document.querySelectorAll(FILLABLE), fillableCandidate);
+  appendCandidates(pool, controlCandidate);
   return out;
 }
 /* c8 ignore stop */
