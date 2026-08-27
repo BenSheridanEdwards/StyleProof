@@ -4,8 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { STYLEPROOF_CONFIG_FILE, StyleProofConfigError, loadStyleProofConfig } from '../dist/config.js';
+import { loadStyleProofConfig } from '../dist/config.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
+
+const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const AFFECTED = path.join(here, '..', 'bin', 'styleproof-affected.mjs');
@@ -70,7 +72,6 @@ test("loadStyleProofConfig: validates the Action's gate-policy keys in the share
 
 test('loadStyleProofConfig: written-but-broken config fails LOUDLY, never silently drops', () => {
   withConfig('{ not json', (dir) => {
-    assert.throws(() => loadStyleProofConfig(dir), StyleProofConfigError);
     assert.throws(() => loadStyleProofConfig(dir), /invalid JSON/);
   });
   withConfig({ dirtyAllow: 'hud/tsconfig.json' }, (dir) => {
@@ -143,7 +144,7 @@ test('styleproof-affected: a fully configured repo runs with no input flags at a
   }
 });
 
-test('loadStyleProofConfig: reads the closed-world crawl block for one-config auth adoption', () => {
+test('loadStyleProofConfig: reads the closed-world crawl block for confidence exclusions', () => {
   withConfig(
     {
       crawl: {
@@ -151,6 +152,7 @@ test('loadStyleProofConfig: reads the closed-world crawl block for one-config au
         routes: ['/', 'account=/account'],
         setup: 'styleproof.setup.json',
         authBoundaryExclude: 'styleproof.auth-boundary-exclude.json',
+        incompleteUiExclude: 'styleproof.incomplete-ui-exclude.json',
         strict: true,
         maxActions: 20,
         width: 1440,
@@ -164,6 +166,7 @@ test('loadStyleProofConfig: reads the closed-world crawl block for one-config au
         routes: ['/', 'account=/account'],
         setup: 'styleproof.setup.json',
         authBoundaryExclude: 'styleproof.auth-boundary-exclude.json',
+        incompleteUiExclude: 'styleproof.incomplete-ui-exclude.json',
         strict: true,
         out: undefined,
         maxActions: 20,

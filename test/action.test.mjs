@@ -200,6 +200,16 @@ test('composite action classifies every non-certifying coverage/determinism basi
   assert.doesNotMatch(verdict[0], /status === 'unproven'/);
 });
 
+test('composite action treats inaccessible confidence as CERTIFICATION_FAILED', () => {
+  const report = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
+  assert.ok(report, 'report step should merge confidence into the machine diff payload');
+  assert.match(report[0], /diff\.confidence = generated\.confidence/);
+  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(verdict);
+  assert.match(verdict[0], /diff\.confidence\?\.counts\?\.inaccessible/);
+  assert.match(verdict[0], /CERTIFICATION_FAILED/);
+});
+
 test('composite action exposes one precedence-ordered machine-readable trust verdict', () => {
   assert.match(actionYml, /trust-state:[\s\S]*?steps\.trust\.outputs\.state/);
   assert.match(actionYml, /data-residue-keys:[\s\S]*?steps\.verdict\.outputs\.data-residue-keys/);
@@ -343,7 +353,9 @@ test('composite action blocks unapproved changes by default (opt out with "block
   const configStep = actionYml.match(/- id: config[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:)/);
 
   assert.ok(configStep, 'action.yml should include a config step');
-  assert.match(configStep[0], /loadStyleProofConfig/);
+  assert.match(configStep[0], /const \{ loadStyleProofConfig \} = await import/);
+  assert.doesNotMatch(configStep[0], /STYLEPROOF_CONFIG_FILE/);
+  assert.match(configStep[0], /StyleProof: loaded styleproof\.config\.json policy/);
   assert.doesNotMatch(configStep[0], /ignoring unreadable styleproof\.config\.json/);
   assert.match(
     configStep[0],

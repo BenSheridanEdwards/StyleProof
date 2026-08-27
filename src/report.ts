@@ -483,37 +483,56 @@ function oneSidedDomPaths(findings: Finding[]): Set<string> {
 }
 
 type Group = { paths: string[]; before: Box | null; after: Box | null };
+type GroupPair = { left: number; right: number };
+
+function groupForPath(pathKey: string, a: StyleMap, b: StyleMap, padBy: number): Group {
+  const beforeRect = a.elements[pathKey]?.rect;
+  const afterRect = b.elements[pathKey]?.rect;
+  const before = beforeRect ? pad(rectToBox(beforeRect), padBy) : null;
+  const after = afterRect ? pad(rectToBox(afterRect), padBy) : null;
+  return {
+    paths: [pathKey],
+    before: visible(before) ? before : null,
+    after: visible(after) ? after : null,
+  };
+}
+
+function boxesOverlap(left: Box | null, right: Box | null): boolean {
+  return visible(left) && visible(right) && intersects(left, right);
+}
+
+function groupsOverlap(left: Group, right: Group): boolean {
+  return boxesOverlap(left.after, right.after) || boxesOverlap(left.before, right.before);
+}
+
+function firstOverlappingPair(groups: Group[]): GroupPair | null {
+  for (let left = 0; left < groups.length; left++) {
+    for (let right = left + 1; right < groups.length; right++) {
+      if (groupsOverlap(groups[left], groups[right])) return { left, right };
+    }
+  }
+  return null;
+}
+
+function unionVisibleBoxes(left: Box | null, right: Box | null): Box | null {
+  return visible(left) && visible(right) ? union(left, right) : (left ?? right);
+}
+
+function mergeGroupPair(groups: Group[], pair: GroupPair): void {
+  const left = groups[pair.left];
+  const right = groups[pair.right];
+  left.paths.push(...right.paths);
+  left.before = unionVisibleBoxes(left.before, right.before);
+  left.after = unionVisibleBoxes(left.after, right.after);
+  groups.splice(pair.right, 1);
+}
 
 function groupRegions(paths: string[], a: StyleMap, b: StyleMap, padBy: number): Group[] {
-  const groups: Group[] = paths.map((p) => {
-    const ra = a.elements[p]?.rect;
-    const rb = b.elements[p]?.rect;
-    const before = ra ? pad(rectToBox(ra), padBy) : null;
-    const after = rb ? pad(rectToBox(rb), padBy) : null;
-    return { paths: [p], before: visible(before) ? before : null, after: visible(after) ? after : null };
-  });
+  const groups = paths.map((pathKey) => groupForPath(pathKey, a, b, padBy));
 
-  // Merge groups whose regions overlap on either side, to a fixpoint.
-  let merged = true;
-  while (merged) {
-    merged = false;
-    outer: for (let i = 0; i < groups.length; i++) {
-      for (let j = i + 1; j < groups.length; j++) {
-        const gi = groups[i];
-        const gj = groups[j];
-        const hit =
-          (visible(gi.after) && visible(gj.after) && intersects(gi.after, gj.after)) ||
-          (visible(gi.before) && visible(gj.before) && intersects(gi.before, gj.before));
-        if (hit) {
-          gi.paths.push(...gj.paths);
-          gi.before = visible(gi.before) && visible(gj.before) ? union(gi.before, gj.before) : (gi.before ?? gj.before);
-          gi.after = visible(gi.after) && visible(gj.after) ? union(gi.after, gj.after) : (gi.after ?? gj.after);
-          groups.splice(j, 1);
-          merged = true;
-          break outer;
-        }
-      }
-    }
+  // Merge the first overlapping pair, then restart until the groups reach a fixpoint.
+  for (let pair = firstOverlappingPair(groups); pair; pair = firstOverlappingPair(groups)) {
+    mergeGroupPair(groups, pair);
   }
   return groups;
 }
@@ -1233,7 +1252,20 @@ function confidenceLine(
     return `- **Confidence** — ⚠ unasserted (no \`expected\` registry — certifies only the ${counts.captured} captured surface(s), not that they are all of them)`;
   const inaccessible = (ledger?.entries ?? []).filter((e) => e.status === 'inaccessible');
   const named = inaccessible.length ? `; inaccessible: ${keyList(inaccessible.map((e) => ({ key: e.surface })))}` : '';
-  return `- **Confidence** — ⚠ limited (${parts})${named}`;
+  const blockerDetails = inaccessible
+    .slice(0, 8)
+    .map(
+      (entry) =>
+        `  - \`${safeKey(entry.surface)}\`: ${escapeMarkdownFailureReason(entry.reason ?? 'blocked continuation reason unavailable')}`,
+    );
+  const incompleteUiPresent = inaccessible.some((entry) => entry.producer === 'incomplete-ui');
+  const guidance = incompleteUiPresent
+    ? [
+        '  - **Next:** fixture the blocked state to increase the certified area, or exclude the surface with a non-empty reason when it is intentionally outside scope.',
+      ]
+    : [];
+  const details = [...blockerDetails, ...guidance];
+  return `- **Confidence** — ⚠ limited (${parts})${named}${details.length ? `\n${details.join('\n')}` : ''}`;
 }
 
 /**
@@ -1552,6 +1584,7 @@ function summaryLines(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
+  confidenceBlocked: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -1563,6 +1596,7 @@ function summaryLines(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    confidenceBlocked,
   } = args;
   // Greenfield/broken-base classification applies to surfaces missing a BASE map
   // (missing 'before'); a surface missing on HEAD is a removal, handled separately.
@@ -1577,13 +1611,12 @@ function summaryLines(args: {
     const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineSurfaceFailures);
     if (failureSummary) return failureSummary;
     if (baselineSurfaceFailures.length === 0) {
-      return [
-        contentEvaluated
-          ? contentCount > 0
-            ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
-            : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
-          : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.',
-      ];
+      const scopedSummary = contentEvaluated
+        ? contentCount > 0
+          ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
+          : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
+        : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.';
+      return [confidenceBlocked ? scopedSummary.replace(/^✓ /, 'Computed-style scope only: ') : scopedSummary];
     }
   }
   const md = [
@@ -1609,6 +1642,7 @@ function reportHeadline(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
+  confidenceBlocked: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -1622,6 +1656,7 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    confidenceBlocked,
   } = args;
   const md: string[] = summaryLines({
     changeGroups,
@@ -1633,6 +1668,7 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    confidenceBlocked,
   });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
@@ -2424,6 +2460,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       reportConsistency,
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
+      confidenceBlocked: confidence.counts.inaccessible > 0,
     }),
   );
   md.push(...incomparableStateLines(incomparable));

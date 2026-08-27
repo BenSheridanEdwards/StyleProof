@@ -18,7 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
+const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
 
 /** `styleproof-affected` inputs a consumer can pin once instead of per-invocation. */
 export type AffectedConfig = {
@@ -40,6 +40,8 @@ export type CrawlConfig = {
   setup?: string;
   /** JSON auth-boundary exclusion file (key → reason). Limited evidence only. */
   authBoundaryExclude?: string;
+  /** JSON incomplete-UI exclusion file (surface → reason). Limited evidence only. */
+  incompleteUiExclude?: string;
   /** Fail when live-state fixtures or skipped candidates remain. */
   strict?: boolean;
   /** Variant crawl manifest output path. */
@@ -70,7 +72,7 @@ export type StyleProofConfig = {
   crawl?: CrawlConfig;
 };
 
-export class StyleProofConfigError extends Error {}
+class StyleProofConfigError extends Error {}
 
 function fail(message: string): never {
   throw new StyleProofConfigError(`${STYLEPROOF_CONFIG_FILE}: ${message}`);
@@ -154,6 +156,7 @@ function parseCrawl(value: unknown): CrawlConfig | undefined {
     routes: optionalStringArray(c.routes, 'crawl.routes'),
     setup: optionalString(c.setup, 'crawl.setup'),
     authBoundaryExclude: optionalString(c.authBoundaryExclude, 'crawl.authBoundaryExclude'),
+    incompleteUiExclude: optionalString(c.incompleteUiExclude, 'crawl.incompleteUiExclude'),
     strict: optionalBoolean(c.strict, 'crawl.strict'),
     out: optionalString(c.out, 'crawl.out'),
     maxActions: optionalPositiveNumber(c.maxActions, 'crawl.maxActions'),
@@ -178,6 +181,7 @@ const KNOWN_CRAWL_KEYS = [
   'routes',
   'setup',
   'authBoundaryExclude',
+  'incompleteUiExclude',
   'strict',
   'out',
   'maxActions',

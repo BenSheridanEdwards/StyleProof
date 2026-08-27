@@ -78,6 +78,8 @@ export type ConfidenceIncompleteUiInput = {
   surface: string;
   /** Deterministic classifier reasons (e.g. `form-present`) — never field values. */
   reasons: string[];
+  /** Explicit consumer reason when this blocked continuation is outside scope. */
+  acknowledgedReason?: string;
 };
 
 // One row per surface: when several producers speak about the same surface, the
@@ -101,7 +103,7 @@ const PRODUCERS: ReadonlySet<ConfidenceProducer> = new Set([
 ]);
 const STATUS_PRODUCERS: Record<ConfidenceStatus, ReadonlySet<ConfidenceProducer>> = {
   captured: new Set(['capture']),
-  'excluded-with-reason': new Set(['coverage', 'auth-boundary']),
+  'excluded-with-reason': new Set(['coverage', 'auth-boundary', 'incomplete-ui']),
   inaccessible: new Set(['auth-boundary', 'incomplete-ui']),
   unknown: new Set(['coverage', 'capture']),
   'unproven-determinism': new Set(['determinism']),
@@ -190,12 +192,20 @@ function incompleteUiEntries(blockedSurfaces: ConfidenceIncompleteUiInput[] | un
       // past the non-empty-reason rule — silence cannot mark scope limited.
       throw new Error(`confidence ledger: "${blocked.surface}" (inaccessible) needs a non-empty reason`);
     }
-    return {
-      surface: blocked.surface,
-      status: 'inaccessible' as const,
-      producer: 'incomplete-ui' as const,
-      reason: `blocked continuation (${reasonList.join(', ')}) — the states behind it were not captured`,
-    };
+    const acknowledgedReason = blocked.acknowledgedReason?.trim();
+    return acknowledgedReason
+      ? {
+          surface: blocked.surface,
+          status: 'excluded-with-reason' as const,
+          producer: 'incomplete-ui' as const,
+          reason: acknowledgedReason,
+        }
+      : {
+          surface: blocked.surface,
+          status: 'inaccessible' as const,
+          producer: 'incomplete-ui' as const,
+          reason: `blocked continuation (${reasonList.join(', ')}) — the states behind it were not captured`,
+        };
   });
 }
 

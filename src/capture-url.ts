@@ -86,6 +86,10 @@ export type CaptureUrlOptions = {
   authBoundaryExcludeFile?: string;
   /** Loaded auth-boundary exclusions (set by the CLI from the file). */
   authBoundaryExclude?: Record<string, string>;
+  /** crawl: JSON file of incomplete-UI exclusions (`surface → non-empty reason`). */
+  incompleteUiExcludeFile?: string;
+  /** Loaded incomplete-UI exclusions (set by the CLI from the file). */
+  incompleteUiExclude?: Record<string, string>;
 };
 
 const DEFAULTS = {
@@ -141,6 +145,7 @@ const VALUE_FLAGS: Record<string, (o: CaptureUrlOptions, v: string) => void> = {
   '--setup': (o, v) => (o.setupFile = v),
   '--workers': (o, v) => (o.workers = positiveNumber(v, '--workers')),
   '--auth-boundary-exclude': (o, v) => (o.authBoundaryExcludeFile = v),
+  '--incomplete-ui-exclude': (o, v) => (o.incompleteUiExcludeFile = v),
 };
 const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--screenshots': (o) => (o.screenshots = true),
@@ -207,6 +212,8 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
     followLinks: DEFAULTS.followLinks,
     authBoundaryExcludeFile: undefined,
     authBoundaryExclude: undefined,
+    incompleteUiExcludeFile: undefined,
+    incompleteUiExclude: undefined,
   };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) i = applyArg(o, argv, i, positional);
@@ -352,6 +359,29 @@ export function loadAuthBoundaryExclude(file: string): Record<string, string> {
       throw new UsageError(`--auth-boundary-exclude: exclusion for "${key}" needs a non-empty reason`);
     }
     out[key] = rawReason.trim();
+  }
+  return out;
+}
+
+/** Load a reasoned incomplete-UI surface exclusion map. */
+export function loadIncompleteUiExclude(file: string): Record<string, string> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    throw new UsageError(`--incomplete-ui-exclude: cannot read ${file}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new UsageError('--incomplete-ui-exclude: the file must be a JSON object of surface → reason');
+  }
+  const out: Record<string, string> = {};
+  for (const [rawSurface, rawReason] of Object.entries(parsed as Record<string, unknown>)) {
+    const surface = rawSurface.trim();
+    if (!surface) throw new UsageError('--incomplete-ui-exclude: surface must be a non-empty string');
+    if (typeof rawReason !== 'string' || !rawReason.trim()) {
+      throw new UsageError(`--incomplete-ui-exclude: exclusion for "${surface}" needs a non-empty reason`);
+    }
+    out[surface] = rawReason.trim();
   }
   return out;
 }

@@ -7,6 +7,7 @@ import { realNow } from './spec-clock.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { DANGER_SOURCE } from './danger.js';
 import { classifyAuthBoundary, type AuthBoundaryMetadata } from './auth-boundary.js';
+import { classifyIncompleteUi, type IncompleteUiDiagnostic, type IncompleteUiMetadata } from './incomplete-ui.js';
 import {
   resolveCrawlConfidence,
   redactedRoutePath,
@@ -65,6 +66,11 @@ export type CrawlStep = {
 
 export type CrawledSurface = { key: string; depth: number; path: CrawlStep[]; elements: number };
 
+export type IncompleteUiObservation = {
+  surface: string;
+  diagnostics: IncompleteUiDiagnostic[];
+};
+
 /** Did the crawl SEE everything the design styles? `missing` lists classes the
  *  page's own stylesheets select on that never appeared in any captured surface —
  *  dead CSS, or a state the crawl could not reach. `unreadable` names stylesheets
@@ -96,6 +102,8 @@ export type CrawlReport = {
    * Always present — consumers without auth walls see `status: 'complete'`.
    */
   confidence: CrawlConfidence;
+  /** Privacy-safe blocked continuations observed on each captured surface. */
+  incompleteUi: IncompleteUiObservation[];
 };
 
 /**
@@ -301,32 +309,28 @@ function collectClickable(dangerSource: string): RawCandidate[] {
   // Semantic controls first (stable, meaningful), then anything styled clickable.
   // `grab` counts too: a draggable card is routinely ALSO a click target (open on
   // click, drag to move), and we never drag — el.click() fires no drag gesture.
-  const pool = new Set<Element>([...document.querySelectorAll(SEMANTIC)]);
-  for (const el of document.querySelectorAll('body *')) {
-    if (pool.has(el)) continue;
-    const cursor = getComputedStyle(el).cursor;
-    if (cursor !== 'pointer' && cursor !== 'grab') continue;
-    // `cursor` is an INHERITED property: a clickable card makes every descendant
-    // compute cursor:pointer, and clicking any descendant just bubbles to the
-    // card's own handler — the SAME surface. Left unchecked, a card with N
-    // children becomes N+1 candidates, each paying a drive + verified reset to
-    // map one surface (the dominant cost of a large crawl). Add only the
-    // OUTERMOST clickable in an inherited-cursor subtree: skip when an ancestor
-    // is already a candidate. Semantic controls (button, a, [role]) are seeded
-    // above and skipped by the guard at the top of the loop, so a real button
-    // nested inside a clickable card is never dropped. (querySelectorAll walks
-    // document order, so an ancestor is always pooled before its descendants.)
-    let anc = el.parentElement;
-    let nested = false;
-    while (anc && anc !== document.body) {
-      if (pool.has(anc)) {
-        nested = true;
-        break;
-      }
-      anc = anc.parentElement;
+  const collectPointerElements = (pool: Set<Element>): void => {
+    for (const el of document.querySelectorAll('body *')) {
+      if (pool.has(el)) continue;
+      const cursor = getComputedStyle(el).cursor;
+      if (cursor !== 'pointer' && cursor !== 'grab') continue;
+      // `cursor` is an INHERITED property: a clickable card makes every descendant
+      // compute cursor:pointer, and clicking any descendant just bubbles to the
+      // card's own handler — the SAME surface. Left unchecked, a card with N
+      // children becomes N+1 candidates, each paying a drive + verified reset to
+      // map one surface (the dominant cost of a large crawl). Add only the
+      // OUTERMOST clickable in an inherited-cursor subtree: skip when an ancestor
+      // is already a candidate. Semantic controls (button, a, [role]) are seeded
+      // above and skipped by the guard at the top of the loop, so a real button
+      // nested inside a clickable card is never dropped. (querySelectorAll walks
+      // document order, so an ancestor is always pooled before its descendants.)
+      let anc = el.parentElement;
+      while (anc && anc !== document.body && !pool.has(anc)) anc = anc.parentElement;
+      if (!anc || anc === document.body) pool.add(el);
     }
-    if (!nested) pool.add(el);
-  }
+  };
+  const pool = new Set<Element>([...document.querySelectorAll(SEMANTIC)]);
+  collectPointerElements(pool);
 
   // Neutral text inputs are typed automatically with a deterministic value —
   // a search box or filter needs no secrets. Credential-semantic fields
@@ -344,15 +348,20 @@ function collectClickable(dangerSource: string): RawCandidate[] {
 
   const seen = new Set<string>();
   const out: RawCandidate[] = [];
-  for (const el of document.querySelectorAll(FILLABLE)) {
-    if (CRED_AUTOCOMPLETE.test(el.getAttribute('autocomplete') ?? '')) continue;
-    if (el.closest(':disabled,[aria-disabled="true"]') || (el as HTMLInputElement).readOnly) continue;
-    if (!visible(el)) continue;
+  const uniqueSelector = (el: Element): string | null => {
     const selector = selectorFor(el);
-    if (seen.has(selector)) continue;
+    if (seen.has(selector)) return null;
     seen.add(selector);
+    return selector;
+  };
+  const fillableCandidate = (el: Element): RawCandidate | null => {
+    if (CRED_AUTOCOMPLETE.test(el.getAttribute('autocomplete') ?? '')) return null;
+    if (el.closest(':disabled,[aria-disabled="true"]') || (el as HTMLInputElement).readOnly) return null;
+    if (!visible(el)) return null;
+    const selector = uniqueSelector(el);
+    if (!selector) return null;
     const kind = el.getAttribute('type') ?? 'text';
-    out.push({
+    return {
       action: 'fill-input',
       selector,
       identity: identityFor(el),
@@ -360,40 +369,46 @@ function collectClickable(dangerSource: string): RawCandidate[] {
       reason: 'auto-fill',
       value: AUTO_VALUE[kind] ?? 'sample text',
       unsafe: false,
-    });
-  }
-  for (const el of pool) {
-    if (el instanceof HTMLAnchorElement && el.href) continue; // links navigate — handled by link crawl, not here
-    if (el.closest(':disabled,[aria-disabled="true"]')) continue;
-    if (!visible(el)) continue;
-    const selector = selectorFor(el);
-    if (seen.has(selector)) continue;
-    seen.add(selector);
+    };
+  };
+  const controlCandidate = (el: Element): RawCandidate | null => {
+    if (el instanceof HTMLAnchorElement && el.href) return null; // links navigate — handled by link crawl, not here
+    if (el.closest(':disabled,[aria-disabled="true"]') || !visible(el)) return null;
+    const selector = uniqueSelector(el);
+    if (!selector) return null;
     const label = labelFor(el);
     const unsafe = DANGER.test(label);
     if (el instanceof HTMLSelectElement) {
       const next = [...el.options].find((o) => !o.disabled && o.value !== el.value);
-      if (next)
-        out.push({
-          action: 'select-option',
-          selector,
-          identity: identityFor(el),
-          label,
-          reason: 'select-option',
-          value: next.value,
-          unsafe,
-        });
-    } else {
-      out.push({
-        action: 'click',
-        selector,
-        identity: identityFor(el),
-        label,
-        reason: el.getAttribute('role') === 'tab' ? 'tab' : 'click',
-        unsafe,
-      });
+      return next
+        ? {
+            action: 'select-option',
+            selector,
+            identity: identityFor(el),
+            label,
+            reason: 'select-option',
+            value: next.value,
+            unsafe,
+          }
+        : null;
     }
-  }
+    return {
+      action: 'click',
+      selector,
+      identity: identityFor(el),
+      label,
+      reason: el.getAttribute('role') === 'tab' ? 'tab' : 'click',
+      unsafe,
+    };
+  };
+  const appendCandidates = (elements: Iterable<Element>, candidateFor: (el: Element) => RawCandidate | null): void => {
+    for (const el of elements) {
+      const candidate = candidateFor(el);
+      if (candidate) out.push(candidate);
+    }
+  };
+  appendCandidates(document.querySelectorAll(FILLABLE), fillableCandidate);
+  appendCandidates(pool, controlCandidate);
   return out;
 }
 /* c8 ignore stop */
@@ -501,6 +516,42 @@ function collectAuthBoundaryMetadata(): AuthBoundaryMetadata[] {
 }
 /* c8 ignore stop */
 
+/** Browser-side blocked-continuation metadata. Values and rendered text never leave the page. */
+/* c8 ignore start */
+function collectIncompleteUiMetadata(): IncompleteUiMetadata[] {
+  const selector = (el: Element): string => {
+    const id = el.getAttribute('id');
+    if (id && document.querySelectorAll(`#${CSS.escape(id)}`).length === 1) return `#${CSS.escape(id)}`;
+    return el.tagName.toLowerCase();
+  };
+  const visible = (el: Element): boolean => {
+    const style = getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && el.getClientRects().length > 0;
+  };
+  const candidates = document.querySelectorAll(
+    'form,[role="form"],:disabled,[aria-disabled="true"],[inert],[required],[aria-expanded="false"],details:not([open]),button,input[type="submit"],input[type="button"],input[type="reset"],[role="button"]',
+  );
+  return [...candidates].filter(visible).map((el) => {
+    const input =
+      el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
+    return {
+      selector: selector(el),
+      tag: el.tagName.toLowerCase(),
+      role: el.getAttribute('role'),
+      type: el instanceof HTMLInputElement ? el.type : null,
+      disabled: 'disabled' in el && (el as HTMLButtonElement).disabled === true,
+      ariaDisabled: el.getAttribute('aria-disabled') === 'true',
+      inert: el.hasAttribute('inert'),
+      pointerEventsNone: getComputedStyle(el).pointerEvents === 'none',
+      required: input && el.required,
+      valuePresent: input ? el.value.length > 0 : undefined,
+      ariaExpanded: el.hasAttribute('aria-expanded') ? el.getAttribute('aria-expanded') === 'true' : null,
+      detailsOpen: el instanceof HTMLDetailsElement ? el.open : null,
+    };
+  });
+}
+/* c8 ignore stop */
+
 /** Observe the current page for auth walls; returns null when none classify. */
 async function observeAuthBoundary(page: Page): Promise<AuthBoundaryObservation | null> {
   // Observation is part of the certification contract. If the page cannot be
@@ -510,6 +561,11 @@ async function observeAuthBoundary(page: Page): Promise<AuthBoundaryObservation 
   if (!diagnostics.length) return null;
   const route = redactedRoutePath(page.url());
   return { ...(route ? { route } : {}), diagnostics };
+}
+
+async function observeIncompleteUi(page: Page, surface: string): Promise<IncompleteUiObservation | null> {
+  const diagnostics = classifyIncompleteUi(await page.evaluate(collectIncompleteUiMetadata));
+  return diagnostics.length ? { surface, diagnostics } : null;
 }
 
 /** Structural fingerprint of the page's CURRENT state. Dedup key for surfaces. */
@@ -803,6 +859,8 @@ type CrawlState = {
    * surface (late-mounted gates). Merged at resolve time.
    */
   authObservations: AuthBoundaryObservation[];
+  /** Privacy-safe blocked continuations observed at every newly recorded surface. */
+  incompleteUiObservations: IncompleteUiObservation[];
 };
 
 /** Record a newly-found surface, capture it in place (page is already there), and
@@ -827,7 +885,14 @@ async function record(
   // into a false complete confidence report.
   try {
     const auth = await observeAuthBoundary(page);
-    if (auth) st.authObservations.push(auth);
+    if (auth) {
+      st.authObservations.push(auth);
+    } else {
+      // Auth is the more specific blocked-continuation classifier. Do not
+      // double-count its form controls as generic incomplete UI.
+      const incompleteUi = await observeIncompleteUi(page, key);
+      if (incompleteUi) st.incompleteUiObservations.push(incompleteUi);
+    }
   } catch (err) {
     throw new AuthBoundaryObserveError(`auth-boundary observation failed after recording surface ${key}`, err);
   }
@@ -1304,6 +1369,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     captured: 0,
     failed: [],
     authObservations,
+    incompleteUiObservations: [],
   };
   await record(page, opts, [], 0, fp, st, st.queue, false, false);
 
@@ -1336,6 +1402,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
       renderedClasses: defined.filter((c) => st.classes.has(c)).sort(),
     },
     confidence,
+    incompleteUi: st.incompleteUiObservations,
   };
 }
 
