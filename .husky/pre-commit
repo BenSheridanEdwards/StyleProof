@@ -2,7 +2,10 @@
 set -e
 
 echo "› build + typecheck + lint + format"
-npm run build && npm run typecheck && npm run lint && npm run format:check
+npm run build
+npm run typecheck
+npm run lint
+npm run format:check
 
 # gitleaks — scan the STAGED diff for secrets before they enter a commit.
 # Locally the binary is optional: if it isn't installed we warn loudly and skip,

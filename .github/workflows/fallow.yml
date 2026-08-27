@@ -37,13 +37,23 @@ jobs:
           # changed files still gates regardless.
           health-baseline: .fallow/health-baseline.json
       # Coverage-independent complexity gate (production mode → src/bin, skips tests).
-      # Fails only on NEW functions over the cyclomatic/cognitive thresholds in
-      # .fallowrc.jsonc, beyond the committed baseline.
+      # Use the exact lockfile-pinned binary and its baseline-aware exit semantics.
+      # The Action wrapper gates on the pre-baseline functions_above_threshold
+      # summary, which can reject an envelope whose post-baseline findings are empty.
       - name: Complexity gate
-        uses: fallow-rs/fallow@v3
-        with:
-          command: health
-          no-cache: true
-          production: true
-          baseline: .fallow/health-baseline.json
-          fail-on-issues: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA=$(node --input-type=module -e '
+            import fs from "node:fs";
+            const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
+            const sha = event?.pull_request?.base?.sha;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? "")) throw new Error("missing or invalid pull request base SHA");
+            process.stdout.write(sha);
+          ')
+          ./node_modules/.bin/fallow health \
+            --production \
+            --changed-since "$BASE_SHA" \
+            --baseline .fallow/health-baseline.json \
+            --no-cache \
+            --fail-on-issues
