@@ -66,6 +66,7 @@ import { readInventories, readResidue, surfaceElementPaths, mergeSurfaceKeyLooku
 import { auditRunInventory, readAckFile } from '../dist/inventory.js';
 import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
+import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
 import { isMapFile } from '../dist/map-store.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
@@ -390,6 +391,7 @@ let result;
 let inventoryAudit = null;
 let coverageVerdict = null;
 let determinismVerdict = null;
+let confidenceSummary = null;
 let residueAudit = null;
 let surfacePaths = new Map();
 let surfaceKeyOf = () => undefined;
@@ -410,6 +412,7 @@ try {
   const headLedger = readLedger(dirB);
   coverageVerdict = auditCoverage(capturedSurfaceKeys(dirB), headLedger);
   determinismVerdict = auditDeterminism(readLedger(dirA), headLedger);
+  confidenceSummary = summarizeConfidence(readConfidenceLedger(dirB));
   // Data-residue: the head bundle's failing data endpoints, gated only if its ledger
   // armed `dataResidue: 'gate'`. Same "read while the dirs exist" rule as the ledgers.
   residueAudit = readResidueAudit(dirB, headLedger?.dataResidue === 'gate', headLedger != null);
@@ -556,6 +559,12 @@ const invRemovals = printInventoryAudit(inventoryAudit);
 const residueFails = printResidueAudit(residueAudit);
 const coverageFails = printCoverageVerdict(coverageVerdict, { allowUnasserted });
 const determinismFails = printDeterminismVerdict(determinismVerdict, { allowUnasserted });
+const confidenceBlocks = (confidenceSummary?.counts.inaccessible ?? 0) > 0;
+if (confidenceBlocks) {
+  console.log(
+    `\n✗ incomplete UI confidence: ${confidenceSummary.counts.inaccessible} inaccessible blocked-continuation surface(s) — certification fails closed`,
+  );
+}
 const total = counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
 const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;
@@ -583,6 +592,7 @@ const certifiesFully =
   removedSurfaces === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
+  !confidenceBlocks &&
   !coverageBlocks &&
   !determinismBlocks &&
   greenfieldNewSurfaces === 0 &&
@@ -628,6 +638,7 @@ if (jsonOut) {
           statesUncertified,
           coverage: coverageVerdict,
           determinism: determinismVerdict,
+          confidence: confidenceSummary,
           certifiesFully,
           diagnostic: allowUnasserted,
           // The inventory verdict, machine-readable — parallel to coverage/determinism and
@@ -686,6 +697,9 @@ const removedNote = removedSurfaces ? ` + ${removedSurfaces} REMOVED surface(s)`
 const invNote = invRemovals ? ` + ${invRemovals} inventory gate failure(s) (unacknowledged or stale)` : '';
 // residueFails counts unacknowledged failing endpoints AND stale acknowledgements (both gate).
 const resNote = residueFails ? ` + ${residueFails} data-residue gate failure(s) (unacknowledged or stale)` : '';
+const confidenceNote = confidenceBlocks
+  ? ` + ${confidenceSummary.counts.inaccessible} inaccessible incomplete-UI surface(s)`
+  : '';
 const covNote = coverageBlocks
   ? coverageVerdict?.basis === 'unasserted'
     ? ' + completeness unasserted'
@@ -701,6 +715,7 @@ const clean =
   removedSurfaces === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
+  !confidenceBlocks &&
   !coverageBlocks &&
   !determinismBlocks;
 if (truth.rawOnlyNoReviewable) {
@@ -720,14 +735,20 @@ console.log(
       : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
         ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
         : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${covNote}${detNote}`,
+    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`,
 );
 // 0 = identical certified, 1 = reviewable differences or non-certifying evidence
 // (unasserted completeness, unknown/unproven determinism, incomplete registry,
 // inventory/residue failures, removed surfaces), 3 = ONLY new surfaces on a true
 // first-adoption bare base (or greenfield with proven ledgers). 2 = usage.
 process.exit(
-  total > 0 || removedSurfaces > 0 || invRemovals > 0 || residueFails > 0 || coverageBlocks || determinismBlocks
+  total > 0 ||
+    removedSurfaces > 0 ||
+    invRemovals > 0 ||
+    residueFails > 0 ||
+    confidenceBlocks ||
+    coverageBlocks ||
+    determinismBlocks
     ? 1
     : greenfieldNewSurfaces > 0
       ? 3

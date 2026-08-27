@@ -1233,7 +1233,20 @@ function confidenceLine(
     return `- **Confidence** — ⚠ unasserted (no \`expected\` registry — certifies only the ${counts.captured} captured surface(s), not that they are all of them)`;
   const inaccessible = (ledger?.entries ?? []).filter((e) => e.status === 'inaccessible');
   const named = inaccessible.length ? `; inaccessible: ${keyList(inaccessible.map((e) => ({ key: e.surface })))}` : '';
-  return `- **Confidence** — ⚠ limited (${parts})${named}`;
+  const blockerDetails = inaccessible
+    .slice(0, 8)
+    .map(
+      (entry) =>
+        `  - \`${safeKey(entry.surface)}\`: ${escapeMarkdownFailureReason(entry.reason ?? 'blocked continuation reason unavailable')}`,
+    );
+  const incompleteUiPresent = inaccessible.some((entry) => entry.producer === 'incomplete-ui');
+  const guidance = incompleteUiPresent
+    ? [
+        '  - **Next:** fixture the blocked state to increase the certified area, or exclude the surface with a non-empty reason when it is intentionally outside scope.',
+      ]
+    : [];
+  const details = [...blockerDetails, ...guidance];
+  return `- **Confidence** — ⚠ limited (${parts})${named}${details.length ? `\n${details.join('\n')}` : ''}`;
 }
 
 /**
@@ -1552,6 +1565,7 @@ function summaryLines(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
+  confidenceBlocked: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -1563,6 +1577,7 @@ function summaryLines(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    confidenceBlocked,
   } = args;
   // Greenfield/broken-base classification applies to surfaces missing a BASE map
   // (missing 'before'); a surface missing on HEAD is a removal, handled separately.
@@ -1577,13 +1592,12 @@ function summaryLines(args: {
     const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineSurfaceFailures);
     if (failureSummary) return failureSummary;
     if (baselineSurfaceFailures.length === 0) {
-      return [
-        contentEvaluated
-          ? contentCount > 0
-            ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
-            : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
-          : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.',
-      ];
+      const scopedSummary = contentEvaluated
+        ? contentCount > 0
+          ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
+          : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
+        : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.';
+      return [confidenceBlocked ? scopedSummary.replace(/^✓ /, 'Computed-style scope only: ') : scopedSummary];
     }
   }
   const md = [
@@ -1609,6 +1623,7 @@ function reportHeadline(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
+  confidenceBlocked: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -1622,6 +1637,7 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    confidenceBlocked,
   } = args;
   const md: string[] = summaryLines({
     changeGroups,
@@ -1633,6 +1649,7 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    confidenceBlocked,
   });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
@@ -2424,6 +2441,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       reportConsistency,
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
+      confidenceBlocked: confidence.counts.inaccessible > 0,
     }),
   );
   md.push(...incomparableStateLines(incomparable));

@@ -206,16 +206,17 @@ export function cliSafeLine(value: string): string {
 
 /**
  * Crawl CLI exit precedence after a successful capture run.
- * Coverage residue (`--require-full-coverage`) exits 4 and intentionally wins
- * over unacknowledged auth (exit 5) so a coverage gap is not masked by auth.
- * Auth blocked → 5; otherwise 0.
+ * Coverage residue (`--require-full-coverage`) exits 4 and intentionally wins.
+ * Incomplete UI exits 6 before unacknowledged auth exits 5.
  */
 export function crawlCaptureExitCode(input: {
   requireFullCoverage: boolean;
   hasCoverageResidue: boolean;
+  incompleteUiBlocked?: boolean;
   authBlocked: boolean;
-}): 0 | 4 | 5 {
+}): 0 | 4 | 5 | 6 {
   if (input.requireFullCoverage && input.hasCoverageResidue) return 4;
+  if (input.incompleteUiBlocked) return 6;
   if (input.authBlocked) return 5;
   return 0;
 }

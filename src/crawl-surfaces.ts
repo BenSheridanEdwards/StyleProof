@@ -7,6 +7,7 @@ import { realNow } from './spec-clock.js';
 import { detectViewportWidths } from './breakpoints.js';
 import { DANGER_SOURCE } from './danger.js';
 import { classifyAuthBoundary, type AuthBoundaryMetadata } from './auth-boundary.js';
+import { classifyIncompleteUi, type IncompleteUiDiagnostic, type IncompleteUiMetadata } from './incomplete-ui.js';
 import {
   resolveCrawlConfidence,
   redactedRoutePath,
@@ -65,6 +66,11 @@ export type CrawlStep = {
 
 export type CrawledSurface = { key: string; depth: number; path: CrawlStep[]; elements: number };
 
+export type IncompleteUiObservation = {
+  surface: string;
+  diagnostics: IncompleteUiDiagnostic[];
+};
+
 /** Did the crawl SEE everything the design styles? `missing` lists classes the
  *  page's own stylesheets select on that never appeared in any captured surface —
  *  dead CSS, or a state the crawl could not reach. `unreadable` names stylesheets
@@ -96,6 +102,8 @@ export type CrawlReport = {
    * Always present — consumers without auth walls see `status: 'complete'`.
    */
   confidence: CrawlConfidence;
+  /** Privacy-safe blocked continuations observed on each captured surface. */
+  incompleteUi: IncompleteUiObservation[];
 };
 
 /**
@@ -501,6 +509,42 @@ function collectAuthBoundaryMetadata(): AuthBoundaryMetadata[] {
 }
 /* c8 ignore stop */
 
+/** Browser-side blocked-continuation metadata. Values and rendered text never leave the page. */
+/* c8 ignore start */
+function collectIncompleteUiMetadata(): IncompleteUiMetadata[] {
+  const selector = (el: Element): string => {
+    const id = el.getAttribute('id');
+    if (id && document.querySelectorAll(`#${CSS.escape(id)}`).length === 1) return `#${CSS.escape(id)}`;
+    return el.tagName.toLowerCase();
+  };
+  const visible = (el: Element): boolean => {
+    const style = getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && el.getClientRects().length > 0;
+  };
+  const candidates = document.querySelectorAll(
+    'form,[role="form"],:disabled,[aria-disabled="true"],[inert],[required],[aria-expanded="false"],details:not([open]),button,input[type="submit"],input[type="button"],input[type="reset"],[role="button"]',
+  );
+  return [...candidates].filter(visible).map((el) => {
+    const input =
+      el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
+    return {
+      selector: selector(el),
+      tag: el.tagName.toLowerCase(),
+      role: el.getAttribute('role'),
+      type: el instanceof HTMLInputElement ? el.type : null,
+      disabled: 'disabled' in el && (el as HTMLButtonElement).disabled === true,
+      ariaDisabled: el.getAttribute('aria-disabled') === 'true',
+      inert: el.hasAttribute('inert'),
+      pointerEventsNone: getComputedStyle(el).pointerEvents === 'none',
+      required: input && el.required,
+      valuePresent: input ? el.value.length > 0 : undefined,
+      ariaExpanded: el.hasAttribute('aria-expanded') ? el.getAttribute('aria-expanded') === 'true' : null,
+      detailsOpen: el instanceof HTMLDetailsElement ? el.open : null,
+    };
+  });
+}
+/* c8 ignore stop */
+
 /** Observe the current page for auth walls; returns null when none classify. */
 async function observeAuthBoundary(page: Page): Promise<AuthBoundaryObservation | null> {
   // Observation is part of the certification contract. If the page cannot be
@@ -510,6 +554,11 @@ async function observeAuthBoundary(page: Page): Promise<AuthBoundaryObservation 
   if (!diagnostics.length) return null;
   const route = redactedRoutePath(page.url());
   return { ...(route ? { route } : {}), diagnostics };
+}
+
+async function observeIncompleteUi(page: Page, surface: string): Promise<IncompleteUiObservation | null> {
+  const diagnostics = classifyIncompleteUi(await page.evaluate(collectIncompleteUiMetadata));
+  return diagnostics.length ? { surface, diagnostics } : null;
 }
 
 /** Structural fingerprint of the page's CURRENT state. Dedup key for surfaces. */
@@ -803,6 +852,8 @@ type CrawlState = {
    * surface (late-mounted gates). Merged at resolve time.
    */
   authObservations: AuthBoundaryObservation[];
+  /** Privacy-safe blocked continuations observed at every newly recorded surface. */
+  incompleteUiObservations: IncompleteUiObservation[];
 };
 
 /** Record a newly-found surface, capture it in place (page is already there), and
@@ -827,7 +878,14 @@ async function record(
   // into a false complete confidence report.
   try {
     const auth = await observeAuthBoundary(page);
-    if (auth) st.authObservations.push(auth);
+    if (auth) {
+      st.authObservations.push(auth);
+    } else {
+      // Auth is the more specific blocked-continuation classifier. Do not
+      // double-count its form controls as generic incomplete UI.
+      const incompleteUi = await observeIncompleteUi(page, key);
+      if (incompleteUi) st.incompleteUiObservations.push(incompleteUi);
+    }
   } catch (err) {
     throw new AuthBoundaryObserveError(`auth-boundary observation failed after recording surface ${key}`, err);
   }
@@ -1304,6 +1362,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
     captured: 0,
     failed: [],
     authObservations,
+    incompleteUiObservations: [],
   };
   await record(page, opts, [], 0, fp, st, st.queue, false, false);
 
@@ -1336,6 +1395,7 @@ async function discover(page: Page, opts: SurfaceCrawlOptions): Promise<CrawlRep
       renderedClasses: defined.filter((c) => st.classes.has(c)).sort(),
     },
     confidence,
+    incompleteUi: st.incompleteUiObservations,
   };
 }
 

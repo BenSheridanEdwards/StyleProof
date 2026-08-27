@@ -143,7 +143,7 @@ test('styleproof-affected: a fully configured repo runs with no input flags at a
   }
 });
 
-test('loadStyleProofConfig: reads the closed-world crawl block for one-config auth adoption', () => {
+test('loadStyleProofConfig: reads the closed-world crawl block for confidence exclusions', () => {
   withConfig(
     {
       crawl: {
@@ -151,6 +151,7 @@ test('loadStyleProofConfig: reads the closed-world crawl block for one-config au
         routes: ['/', 'account=/account'],
         setup: 'styleproof.setup.json',
         authBoundaryExclude: 'styleproof.auth-boundary-exclude.json',
+        incompleteUiExclude: 'styleproof.incomplete-ui-exclude.json',
         strict: true,
         maxActions: 20,
         width: 1440,
@@ -164,6 +165,7 @@ test('loadStyleProofConfig: reads the closed-world crawl block for one-config au
         routes: ['/', 'account=/account'],
         setup: 'styleproof.setup.json',
         authBoundaryExclude: 'styleproof.auth-boundary-exclude.json',
+        incompleteUiExclude: 'styleproof.incomplete-ui-exclude.json',
         strict: true,
         out: undefined,
         maxActions: 20,

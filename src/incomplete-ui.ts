@@ -9,6 +9,8 @@ export type IncompleteUiMetadata = {
   disabled?: boolean;
   ariaDisabled?: boolean;
   inert?: boolean;
+  /** Computed style says this control cannot receive pointer input. */
+  pointerEventsNone?: boolean;
   required?: boolean;
   /** Whether a value exists. The value itself must never be supplied or copied. */
   valuePresent?: boolean;
@@ -27,7 +29,7 @@ export type IncompleteUiDiagnostic =
     }
   | {
       kind: 'blocked-control';
-      reason: 'disabled-control' | 'aria-disabled' | 'inert';
+      reason: 'disabled-control' | 'aria-disabled' | 'inert' | 'pointer-events-none';
       selector?: string;
     }
   | {
@@ -67,6 +69,13 @@ function classifyBlockedControl(
   if (candidate.ariaDisabled === true)
     return [withSelector({ kind: 'blocked-control', reason: 'aria-disabled' }, selector)];
   if (candidate.inert === true) return [withSelector({ kind: 'blocked-control', reason: 'inert' }, selector)];
+  const tag = typeof candidate.tag === 'string' ? candidate.tag.trim().toLowerCase() : '';
+  const role = typeof candidate.role === 'string' ? candidate.role.trim().toLowerCase() : '';
+  const type = typeof candidate.type === 'string' ? candidate.type.trim().toLowerCase() : '';
+  const control =
+    tag === 'button' || role === 'button' || (tag === 'input' && ['button', 'submit', 'reset'].includes(type));
+  if (control && candidate.pointerEventsNone === true)
+    return [withSelector({ kind: 'blocked-control', reason: 'pointer-events-none' }, selector)];
   return [];
 }
 
@@ -107,9 +116,10 @@ export function classifyIncompleteUi(metadata: IncompleteUiMetadata[]): Incomple
     'disabled-control': 1,
     'aria-disabled': 2,
     inert: 3,
-    'required-input-empty': 4,
-    'aria-collapsed': 5,
-    'details-closed': 6,
+    'pointer-events-none': 4,
+    'required-input-empty': 5,
+    'aria-collapsed': 6,
+    'details-closed': 7,
   };
   return diagnostics.sort(
     (a, b) => rank[a.reason] - rank[b.reason] || JSON.stringify(a).localeCompare(JSON.stringify(b)),

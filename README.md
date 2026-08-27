@@ -1179,6 +1179,25 @@ styleproof-capture https://example.com --crawl \
 
 Empty exclusion reasons are rejected. Acknowledged exclusions keep status `incomplete-auth` and `certifiesFully: false` so a visual PASS is never confused with complete surface access. Programmatic consumers read `CrawlReport.confidence` from `crawlAndCapture`.
 
+### Incomplete UI: blocked continuations fail closed
+
+A visually clean capture can still be incomplete when the page contains a form whose submitted state was never reached, an empty required field, a disabled/inert/`aria-disabled` control, a button blocked by `pointer-events: none`, or a closed `details`/`aria-expanded="false"` disclosure. The crawl records these as privacy-safe structural reasons only. It never stores field values, labels, text content, names, cookies, tokens, or query strings. Hidden leftovers (`display: none`, `visibility: hidden`, or no layout box) are ignored.
+
+Unacknowledged incomplete UI exits **6**, persists `inaccessible` confidence rows, and blocks downstream diff and GitHub Action certification as `CERTIFICATION_FAILED`. Coverage exit 4 still wins; incomplete UI exit 6 wins over auth exit 5. The report keeps the visual diff and completeness separate, names each blocked surface and reason, and never invents a coverage percentage.
+
+Prefer a deterministic fixture or `--setup` step that reaches the blocked state. That increases the certified area. If the surface is deliberately outside this certification scope, acknowledge it with a non-empty reason:
+
+```bash
+styleproof-capture https://example.com --crawl \
+  --incomplete-ui-exclude incomplete-ui-exclude.json --out design
+```
+
+```json
+{ "base": "Contact submission is certified by the isolated component fixture." }
+```
+
+Reasoned exclusions become `excluded-with-reason`: the capture may continue, but the report remains explicitly limited. Empty reasons are rejected. The same file can be configured as `crawl.incompleteUiExclude` in `styleproof.config.json`, or via `STYLEPROOF_INCOMPLETE_UI_EXCLUDE`.
+
 | State                                                                        | Reached by                                                                                                                                                                            |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Click-opened surfaces (modals, drawers, popovers, tabs, toggles)             | crawl, automatically                                                                                                                                                                  |
