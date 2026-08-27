@@ -128,6 +128,14 @@ export type {
   ComponentManifestCatalogPathOptions,
   ComponentManifestCatalogSurfaceOptions,
 } from './component-manifest.js';
+export { collectManifestDiagnostics } from './manifest-harness.js';
+export type {
+  StaticModuleExports,
+  ComponentStaticRegistry,
+  ManifestDiagnosticKind,
+  ManifestDiagnostic,
+  CollectManifestDiagnosticsOptions,
+} from './manifest-harness.js';
 export { selectCrawlLinks, defaultLinkKey, crawlCoverageGaps, crawlCoverageError } from './crawl.js';
 export type { CrawlLink, LinkMatch, SelectLinksOptions, CrawlCoverageGaps } from './crawl.js';
 export { harvestStyleVariants } from './variant-crawler.js';
