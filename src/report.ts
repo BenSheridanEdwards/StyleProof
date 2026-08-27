@@ -55,6 +55,11 @@ import {
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 import {
+  incomparableProductStates,
+  incomparableSurfaceBaseSet,
+  type IncomparableProductState,
+} from './product-state.js';
+import {
   cleanFindingsForDisplay,
   groupByPath,
   groupTitle,
@@ -134,10 +139,11 @@ export type ReportOptions = {
    * Render the opt-in content layer (default OFF): a separate, ADVISORY section
    * listing elements whose own text changed, each with a before/after crop.
    * Requires captures taken with `captureText: true`; otherwise there's no text
-   * to diff and the section is empty. Never affects `changedSurfaces`,
-   * `totalFindings`, or the exit code — StyleProof stays computed-styles-first;
-   * this only surfaces copy changes (and any silent overflow/clipping they
-   * cause) for the reviewer's eye.
+   * to diff and the section is empty. Copy edits stay advisory. A wholesale
+   * product-state flip (distinct mode labels, or a tree rewrite) withholds that
+   * surface's style findings from certification so a reviewer is not asked to
+   * approve a restyle the product did not make. Small copy edits next to a real
+   * restyle still certify.
    */
   includeContent?: boolean;
   /**
@@ -1486,6 +1492,15 @@ function missingSurfaceSummaryLines(
   return md;
 }
 
+function incomparableStateLines(states: IncomparableProductState[]): string[] {
+  if (states.length === 0) return [];
+  return [
+    '',
+    `⚠️ **${states.length} surface(s) not certified** — the two captures are different product states, not a style restyle. Do not approve these as if the product painted them.`,
+    ...states.map((state) => `- \`${state.surfaceBase}\`: ${state.evidence.join('; ')}`),
+  ];
+}
+
 function changedSurfaceSummaryLines(
   changeGroups: ChangeGroup[],
   shown: DiffCounts,
@@ -2333,9 +2348,20 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
   const prepared = prepareReportSurfaces(surfaces, includeNoise, includeStructure, beforeDir, afterDir);
+  const incomparable = includeContent
+    ? incomparableProductStates(diffContentDirs(beforeDir, afterDir).surfaces)
+    : [];
+  const incomparableBases = incomparableSurfaceBaseSet(incomparable);
+  const preparedCertified = prepared.filter(
+    (p) => p.sd.missing || !incomparableBases.has(surfaceBase(p.sd.surface)),
+  );
 
-  const missing = prepared.filter((p) => p.sd.missing);
-  const changeGroups = groupBySignature(prepared, beforeDir, afterDir);
+  const missing = preparedCertified.filter((p) => p.sd.missing);
+  const changeGroups = groupBySignature(
+    preparedCertified.filter((p) => !p.sd.missing),
+    beforeDir,
+    afterDir,
+  );
   // Shared-chrome tier (#193): promote a change that rode the frame every view
   // draws (nav rail, header) to a callout, so the reviewer reads "the nav changed
   // everywhere" once instead of inferring it from a long surface list on several
@@ -2349,8 +2375,11 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
   const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
-  const comparison = comparisonForReport(rawComparison, includeNoise, prepared.length - missing.length);
-  const reportConsistency = assessReportConsistency(comparison, changeGroups.length > 0 || missing.length > 0);
+  const comparison = comparisonForReport(rawComparison, includeNoise, preparedCertified.length - missing.length);
+  const reportConsistency = assessReportConsistency(
+    comparison,
+    changeGroups.length > 0 || missing.length > 0 || incomparable.length > 0,
+  );
 
   const md: string[] = [];
   const json: Array<Record<string, unknown>> = [];
@@ -2401,7 +2430,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       baselineSurfaceFailures,
     }),
   );
-
+  md.push(...incomparableStateLines(incomparable));
   let totalFindings = 0;
   let cropSeq = 0;
   // report.md must stay renderable — GitHub refuses to render markdown past ~512 KB.
@@ -2469,7 +2498,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     confidence,
   );
   return {
-    changedSurfaces: prepared.length - missing.length,
+    changedSurfaces: preparedCertified.length - missing.length,
     newSurfaces: missing.length,
     totalFindings,
     contentChanges: contentSection.count,
