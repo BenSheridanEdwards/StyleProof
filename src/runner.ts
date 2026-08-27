@@ -607,11 +607,10 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
     go: async (page) => {
       if (recipe.action === 'route') {
         await applyStateRecipe(page, recipe);
-        await surface.go(page);
-        // Semantic hover discovery in a previous capture may leave the physical
-        // pointer over content. Route recipes perform no pointer interaction, so
-        // park it outside the viewport to prevent cross-surface hover contamination.
+        // Navigation can dispatch native mouseenter at the pointer's old coordinates.
+        // Park first so route-state setup cannot inherit a sticky hover side effect.
         await page.mouse.move(-1, -1);
+        await surface.go(page);
       } else {
         await surface.go(page);
         await applyStateRecipe(page, recipe);

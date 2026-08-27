@@ -11,6 +11,8 @@ import {
   parseStateRecipes,
 } from '../dist/index.js';
 
+test.describe.configure({ mode: 'serial' });
+
 /**
  * #391 capture integration: Surface.stateRecipes expand into independent
  * styleproof captures with variantKind 'state-recipe' and exact safe provenance.
@@ -126,7 +128,6 @@ const EXPECTED = [
       stateKey: 'hover-plan-card',
       action: 'hover' as const,
       selector: '#card',
-      label: 'Plan card',
     },
   },
   {
@@ -135,7 +136,6 @@ const EXPECTED = [
       stateKey: 'focus-email',
       action: 'focus' as const,
       selector: '#email',
-      label: 'Email',
     },
   },
   {
@@ -145,7 +145,6 @@ const EXPECTED = [
       action: 'press' as const,
       selector: '#menu',
       key: 'ArrowDown',
-      label: 'Open menu',
     },
   },
   {
@@ -154,7 +153,6 @@ const EXPECTED = [
       stateKey: 'click-open-menu',
       action: 'click' as const,
       selector: '#menu',
-      label: 'Open menu',
     },
   },
 ];

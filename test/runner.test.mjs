@@ -323,6 +323,28 @@ test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach pro
   assert.deepEqual(calls, ['surface', 'hover']);
 });
 
+test('expandSurfaceVariants: route recipes park the pointer before parent navigation', async () => {
+  const calls = [];
+  const surfaces = expandSurfaceVariants({
+    key: 'plans',
+    go: async () => calls.push('navigate'),
+    stateRecipes: [{ action: 'route', stateKey: 'network-error', urlPattern: '**/api/plans', status: 503 }],
+  });
+  const fakePage = {
+    async route() {
+      calls.push('mock');
+    },
+    mouse: {
+      async move() {
+        calls.push('park');
+      },
+    },
+  };
+
+  await surfaces[1].go(fakePage);
+  assert.deepEqual(calls, ['mock', 'park', 'navigate']);
+});
+
 test('expandSurfaceVariants: transient observation is wired at runtime without persisting its selector', () => {
   const surfaces = expandSurfaceVariants({
     key: 'alerts',
