@@ -1,9 +1,9 @@
 /**
  * Typed deterministic interaction state recipes (issue #391, production contract).
  *
- * StyleProof already captures forced :hover/:focus/:active via CDP and discovers
- * click/select/form variants. This module is the consumer-facing contract for
- * *real* interaction states — hover, focus, press, and click — driven through
+ * StyleProof captures forced CSS pseudo states and discovered click/select/form
+ * variants. This module is the consumer-facing contract for real independent
+ * interaction, transient, and deterministic network-error states driven through
  * Playwright with stable keys and the shared destructive-action guard.
  *
  * A recipe **collection** is a set of **independent state variants**, not an
@@ -12,25 +12,19 @@
  * multi-step choreography. `parseStateRecipes` enforces unique stable keys and
  * returns a deterministic key-sorted collection for that reason.
  *
- * First production slice (#391 PR #2):
- *   - closed-world schema + pure validation (including conservative press-key vocabulary)
- *   - hover / focus / press / click drivers
- *   - CSS-only selector privacy policy (value-free structural selectors only)
- *   - press always targets an explicit selector (no ambient keyboard)
- *   - stable key derivation + duplicate detection (public `stateRecipeKey` = validate + internal derive)
- *   - deterministic collection ordering
- *   - destructive-label safety (never apply an unsafe control)
- *   - post-action DOM settle via the same real-clock pattern as crawl
+ * Production contract:
+ *   - closed-world discriminated schema + conservative press-key vocabulary
+ *   - hover / focus / press / click drivers and one-shot 400-599 route errors
+ *   - CSS-only value-free selector and URL-glob privacy policy
+ *   - stable key derivation, duplicate detection, deterministic ordering
+ *   - destructive-label safety for declared labels, explicit keys, and live targets
+ *   - bounded continuous transient observation plus pre-capture visibility guards
  *   - `stateRecipeGo` adapter assignable to `SurfaceVariant.go`
+ *   - independent `<surface.key>-<stateKey>` expansion with bounded provenance
  *
- * Surface expansion wiring (this package PR #3 / #391 capture slice):
- *   - `Surface.stateRecipes` / crawl `stateRecipes` expand via `parseStateRecipes`
- *   - independent captures `<surface.key>-<stateKey>` after parent `go` + apply
- *   - `CaptureMetadata.variantKind: 'state-recipe'` + report-only provenance
- *
- * Still deferred: automatic discovery, config-file recipe parsing, transient
- * observation windows, live-region promotion, network/route recipes, report
- * state-coverage UI, and bare Escape without a target selector (ambient-unsafe).
+ * Still deferred: automatic discovery, config-file recipe parsing, live-region
+ * recommendations, state-coverage UI, and bare Escape without a target selector
+ * (ambient-unsafe).
  */
 import type { Page } from '@playwright/test';
 import { DANGER_SOURCE } from './danger.js';

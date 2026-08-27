@@ -873,12 +873,11 @@ overlay, an empty render) has no control to click, so it never appears in the
 manifest; those need `liveStates` fixtures, per the
 [un-exercised-state gap](#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle).
 
-### State recipes: explicit hover, focus, keyboard, and click variants
+### State recipes: explicit interaction, transient, and network-error variants
 
-For interaction states that must be driven as **independent, named captures**
-(not crawl discovery or multi-step choreography), StyleProof exports a typed
-**state recipe** contract and wires it through `Surface.stateRecipes` (and the
-same field on crawl capture options):
+For states that must be driven as **independent, named captures** (not multi-step
+choreography), StyleProof exports a typed **state recipe** contract and wires it
+through `Surface.stateRecipes` (and the same field on crawl capture options):
 
 ```ts
 import {
@@ -894,12 +893,27 @@ const recipes = parseStateRecipes([
   { action: 'focus', selector: '#email', label: 'Email' },
   { action: 'press', selector: '#menu', key: 'ArrowDown', label: 'Open menu' },
   { action: 'click', selector: '#menu', label: 'Open menu' },
+  {
+    action: 'click',
+    selector: '#notify',
+    stateKey: 'toast-visible',
+    observeSelector: '[aria-live]',
+    observeMs: 250,
+  },
+  {
+    action: 'route',
+    stateKey: 'plans-network-error',
+    urlPattern: '**/api/plans',
+    status: 503,
+  },
 ]);
 
 // Preferred: declare on the surface — each recipe expands to
 // `<surface>-<stateKey>` after parent `go`, with `variantKind: 'state-recipe'`
-// and report-only provenance (stable key, action, safe selector, optional press
-// key / label). Metadata is ignored by the certification diff.
+// and report-only provenance (stable key, action, optional safe interaction
+// selector / press key / declared label / observation window / response status).
+// Route patterns and observation selectors are runtime-only. Metadata is ignored
+// by the certification diff.
 defineStyleMapCapture({
   dir: process.env.STYLEMAP_DIR,
   surfaces: [
@@ -923,10 +937,12 @@ const variant: SurfaceVariant = {
 
 Rules for this slice:
 
-- Actions are only `hover`, `focus`, `press`, and `click` — closed-world fields
-  are exactly `action`, `selector`, `key`, `label`, `stateKey` (unknown keys
-  rejected).
-- Every action, including `press`, requires an explicit **CSS-only, value-free**
+- Interaction actions are `hover`, `focus`, `press`, and `click`. Their fields
+  are `action`, `selector`, optional `key`, `label`, `stateKey`, and paired
+  `observeSelector` / `observeMs`. A `route` recipe instead requires explicit
+  `stateKey`, value-free `urlPattern`, and integer `status` from 400–599; it
+  rejects every interaction field. All shapes are closed-world.
+- Every interaction, including `press`, requires an explicit **CSS-only, value-free**
   selector (`#id`, `.class`, `[aria-expanded]`, `input[name]`, `li:nth-child(2)`,
   `nav > a`, …). Quotes/backticks, attribute-equality, Playwright engine prefixes
   (`text=`, `xpath=`, `css=`, …), Playwright locator chaining (`>>`,
@@ -939,25 +955,35 @@ Rules for this slice:
   are rejected before browser I/O (no generic `state` collision key). Bare
   Escape / ambient keyboard is deferred rather than unsafe.
 - A collection is a set of **independent variants** from a known baseline, not a
-  multi-step choreography. Surface expansion always runs parent `go` then
-  `applyStateRecipe` for that recipe alone. Duplicate derived keys are rejected;
-  order is sorted by stable key. Declared invalid/unsafe recipes fail closed at
-  expansion (before browser tests register); unsafe live targets still fail the
-  capture with a privacy-safe `StateRecipeError`.
+  multi-step choreography. Interaction expansion runs parent `go` then one
+  recipe. A route recipe installs a one-shot intercept first, runs parent `go`,
+  then parks the inherited pointer outside the viewport so prior hover discovery
+  cannot contaminate the state. Duplicate derived keys are rejected; order is
+  sorted by stable key. Declared invalid/unsafe recipes fail closed at expansion
+  (before browser tests register); unsafe live targets still fail the capture
+  with a privacy-safe `StateRecipeError`.
 - Stable keys come from declared `stateKey` / label / selector. Live accessible
   labels still feed the destructive-action guard (so a benign declared label
   cannot authorize a control whose live label is `Delete` / `Remove` / …).
 - `press` keys are a fixed disclosure/navigation allowlist (`Enter`, `Escape`,
   `Space`, `Tab`, arrows, `Home`, `End`). The driver focuses the target, then
   presses — never ambient page focus.
+- Transient observation requires an explicit state key and paired structural
+  selector/window. StyleProof waits at most one second for appearance, proves
+  continuous visibility for the bounded 50–5000 ms window, then checks again
+  before, during, and after map extraction. Disappearance fails with state key
+  and phase only; the observation selector and rendered copy are never persisted
+  or echoed.
+- `route` recipes install one empty-body error response only. No request values,
+  inline payloads, arbitrary headers, or success fixtures enter the recipe. Use a
+  consumer-owned `liveStates.setup` fixture for loaded/empty payload states.
 - Expanded keys participate in `assertUniqueExpandedKeys` alongside variants and
   live states (collision messages name origins without selectors/secrets).
   Coverage translation treats recipe expansions like other metadata-bearing
   captures.
 
-Automatic discovery, config-file recipe parsing, transient observation windows,
-network-state recipes, live-region promotion, and state-coverage UI are **not**
-wired in this release — those remain follow-up slices.
+Automatic discovery, config-file recipe parsing, live-region recommendations,
+and state-coverage UI remain follow-up slices.
 
 Before promoting a new state class, capture it in at least five fresh browser
 contexts and pass the public determinism oracle:

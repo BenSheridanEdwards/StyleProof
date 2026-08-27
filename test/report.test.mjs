@@ -1477,6 +1477,35 @@ test('end-to-end: state-recipe metadata labels the report surface with recipe pr
   rmTmp(root);
 });
 
+test('end-to-end: state coverage is a separate exact recipe ledger without invented percentages', () => {
+  const metadata = {
+    surfaceKey: 'dashboard',
+    variantKey: 'toast-visible',
+    variantKind: 'state-recipe',
+    stateRecipe: {
+      stateKey: 'toast-visible',
+      action: 'click',
+      selector: '#notify',
+      observationMs: 250,
+    },
+  };
+  const before = { ...sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), metadata };
+  const after = { ...sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }), metadata };
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'dashboard-toast-visible@1440',
+    before,
+    after,
+  });
+  const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
+
+  assert.match(md, /## State coverage/);
+  assert.match(md, /Captured recipe states: 1 across 1 surface/);
+  assert.match(md, /\| `dashboard` \| `toast-visible` \| `click` \| observation 250 ms \|/);
+  assert.doesNotMatch(md, /State coverage[^#]*%/s);
+  assert.doesNotMatch(md, /Route coverage/);
+  rmTmp(root);
+});
+
 test('end-to-end: forced-state echoes are suppressed and the change reads in plain English', () => {
   // A button recoloured amber → cyan. Its :hover delta echoes that base change,
   // and a :focus delta leaks grid-template-columns as a (gone) artifact. Both are

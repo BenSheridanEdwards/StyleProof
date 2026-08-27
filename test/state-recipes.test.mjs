@@ -183,6 +183,15 @@ test('validateStateRecipe: route recipes install bounded value-free network erro
     () => validateStateRecipe({ action: 'click', selector: '#button', urlPattern: '**/api/plans', status: 503 }),
     /interaction recipe must not include route fields/,
   );
+
+  const destructive = classifyStateRecipe({
+    action: 'route',
+    stateKey: 'delete-account-network-error',
+    urlPattern: '**/api/account',
+    status: 503,
+  });
+  assert.equal(destructive.ok, false);
+  assert.equal(destructive.skip.reason, 'unsafe-label');
 });
 
 test('validateStateRecipe: closed-world — rejects unknown keys including typos and deferred fields', () => {
