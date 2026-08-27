@@ -103,6 +103,33 @@ async function replayComputedMapDiff(
   return diffStyleMaps(before, after);
 }
 
+test('state discovery uses capture identity paths for identity-bearing controls', async ({ browser }) => {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end(`<!doctype html><html><head><style>
+      button:hover { outline: 4px solid rgb(14, 165, 233); }
+    </style></head><body><button data-testid="private-control-name">Open</button></body></html>`);
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as import('node:net').AddressInfo;
+  const ctx = await browser.newContext({ viewport: { width: 900, height: 700 } });
+  try {
+    const page = await ctx.newPage();
+    const harvest = await harvestStyleVariants(page, {
+      baseUrl: `http://127.0.0.1:${port}`,
+      routes: [{ key: 'identity', url: '/' }],
+      maxActionsPerRoute: 0,
+      maxStateActionsPerRoute: 2,
+    });
+    const hover = harvest.routes[0]!.stateCoverage.find((entry) => entry.action === 'hover');
+    expect(hover).toEqual(expect.objectContaining({ outcome: 'captured', reason: 'semantic-control' }));
+    expect(JSON.stringify(harvest)).not.toContain('private-control-name');
+  } finally {
+    await ctx.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test('harvestStyleVariants discovers one-step computed-style variants', async ({ browser }) => {
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html' });

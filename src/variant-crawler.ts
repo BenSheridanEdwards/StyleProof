@@ -97,6 +97,8 @@ export type VariantHarvestOptions = {
 type StateCandidate = {
   action: 'hover' | 'focus';
   selector: string;
+  /** Runtime-only capture identity. Uses hashed identity tokens, never raw attribute values. */
+  mapPath: string;
   unsafe: boolean;
 };
 
@@ -270,6 +272,7 @@ async function discoverCandidates(page: Page): Promise<Candidate[]> {
 // destructive-action classification.
 function collectStateDiscovery({ dangerSource, maxCandidates }: StateDiscoveryArgs): StateDiscovery {
   const dangerous = new RegExp(dangerSource, 'i');
+  const capturePath = (window as unknown as { __spPathOf?: (element: Element) => string }).__spPathOf;
   const visible = (element: Element): boolean => {
     const rect = element.getBoundingClientRect();
     const style = getComputedStyle(element);
@@ -320,10 +323,11 @@ function collectStateDiscovery({ dangerSource, maxCandidates }: StateDiscoveryAr
   for (const element of [...document.querySelectorAll(controls)]) {
     if (!visible(element) || element.matches(':disabled,[aria-disabled="true"]')) continue;
     const selector = structuralPath(element);
+    const mapPath = capturePath?.(element) ?? selector;
     const unsafe = dangerous.test(safetyLabel(element));
-    if (candidates.length < maxCandidates) candidates.push({ action: 'hover', selector, unsafe });
+    if (candidates.length < maxCandidates) candidates.push({ action: 'hover', selector, mapPath, unsafe });
     if (candidates.length < maxCandidates && element instanceof HTMLElement && element.tabIndex >= 0) {
-      candidates.push({ action: 'focus', selector, unsafe });
+      candidates.push({ action: 'focus', selector, mapPath, unsafe });
     }
   }
 
@@ -476,7 +480,7 @@ async function tryStateCandidate(
   options: VariantHarvestOptions,
   seenDiffs: Set<string>,
 ): Promise<HarvestedStateCoverage> {
-  const stateKey = stateCoverageKey(candidate.action, candidate.selector);
+  const stateKey = stateCoverageKey(candidate.action, candidate.mapPath);
   const identity = { stateKey, action: candidate.action, selector: candidate.selector } as const;
   if (candidate.unsafe) {
     return {
@@ -485,7 +489,7 @@ async function tryStateCandidate(
       reason: 'unsafe-label',
     };
   }
-  const forcedDelta = forcedStateMap.states[candidate.selector]?.[candidate.action];
+  const forcedDelta = forcedStateMap.states[candidate.mapPath]?.[candidate.action];
   if (forcedDelta) {
     const hash = createHash('sha256').update(JSON.stringify(forcedDelta)).digest('hex').slice(0, 16);
     const findings = Object.values(forcedDelta).reduce((sum, properties) => sum + Object.keys(properties).length, 0);
