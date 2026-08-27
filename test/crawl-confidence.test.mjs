@@ -179,10 +179,41 @@ test('cliSafeLine strips newlines and control characters for terminal rendering'
   assert.equal(cliSafeLine(c.acknowledged[0].reason), 'scope with newlines');
 });
 
-test('crawlCaptureExitCode: coverage 4 wins over auth 5; plain 0; auth-only 5', () => {
-  assert.equal(crawlCaptureExitCode({ requireFullCoverage: true, hasCoverageResidue: true, authBlocked: true }), 4);
-  assert.equal(crawlCaptureExitCode({ requireFullCoverage: true, hasCoverageResidue: true, authBlocked: false }), 4);
-  assert.equal(crawlCaptureExitCode({ requireFullCoverage: false, hasCoverageResidue: true, authBlocked: true }), 5);
-  assert.equal(crawlCaptureExitCode({ requireFullCoverage: true, hasCoverageResidue: false, authBlocked: true }), 5);
-  assert.equal(crawlCaptureExitCode({ requireFullCoverage: false, hasCoverageResidue: false, authBlocked: false }), 0);
+test('crawlCaptureExitCode precedence is coverage 4, incomplete UI 6, auth 5, then 0', () => {
+  assert.equal(
+    crawlCaptureExitCode({
+      requireFullCoverage: true,
+      hasCoverageResidue: true,
+      incompleteUiBlocked: true,
+      authBlocked: true,
+    }),
+    4,
+  );
+  assert.equal(
+    crawlCaptureExitCode({
+      requireFullCoverage: false,
+      hasCoverageResidue: true,
+      incompleteUiBlocked: true,
+      authBlocked: true,
+    }),
+    6,
+  );
+  assert.equal(
+    crawlCaptureExitCode({
+      requireFullCoverage: false,
+      hasCoverageResidue: false,
+      incompleteUiBlocked: false,
+      authBlocked: true,
+    }),
+    5,
+  );
+  assert.equal(
+    crawlCaptureExitCode({
+      requireFullCoverage: false,
+      hasCoverageResidue: false,
+      incompleteUiBlocked: false,
+      authBlocked: false,
+    }),
+    0,
+  );
 });

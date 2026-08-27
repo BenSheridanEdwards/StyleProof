@@ -11,15 +11,17 @@ test('flags a form even when no password field is present', () => {
   assert.equal('value' in diagnostic, false);
 });
 
-test('flags disabled, aria-disabled, and inert controls as blocked continuation', () => {
+test('flags disabled, aria-disabled, inert, and pointer-blocked controls as blocked continuation', () => {
   const diagnostics = classifyIncompleteUi([
     candidate({ disabled: true }),
     { selector: 'button.primary', ariaDisabled: true },
     { selector: 'section.wizard', inert: true },
+    { selector: 'button.css-blocked', tag: 'button', pointerEventsNone: true },
+    { selector: 'div.decorative', tag: 'div', pointerEventsNone: true },
   ]);
   assert.deepEqual(
     diagnostics.map(({ reason }) => reason),
-    ['disabled-control', 'aria-disabled', 'inert'],
+    ['disabled-control', 'aria-disabled', 'inert', 'pointer-events-none'],
   );
 });
 

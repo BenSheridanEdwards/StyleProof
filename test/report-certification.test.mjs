@@ -336,6 +336,39 @@ test('a persisted crawl ledger with an auth wall renders limited and names the i
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('incomplete-UI confidence names blocker reasons and fixture-or-exclusion guidance', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['landing'],
+    baseNav: ['landing'],
+    headNav: ['landing'],
+    expected: null,
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  writeConfidenceLedger(
+    head,
+    buildConfidenceLedger({
+      capturedKeys: ['landing'],
+      coverage: null,
+      incompleteUi: [
+        {
+          surface: 'landing·incomplete-ui',
+          reasons: ['disabled-control', 'details-closed'],
+        },
+      ],
+    }),
+  );
+  generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(md, /landing·incomplete-ui/);
+  assert.match(md, /disabled-control/);
+  assert.match(md, /details-closed/);
+  assert.match(md, /fixture.*certified area/i);
+  assert.match(md, /exclude.*non-empty reason/i);
+  assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('a bundle predating the confidence ledger degrades to ⚠ unknown when the block renders (never blocks)', () => {
   // No coverage ledger and no confidence file — but an inventory change forces the
   // certification block, so the confidence line must degrade honestly to unknown.

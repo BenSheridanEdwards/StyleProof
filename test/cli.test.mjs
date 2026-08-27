@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { saveStyleMap } from '../dist/capture.js';
 import { DEFAULT_MAP_STORE_BRANCH, MAP_MANIFEST, expectedCompatibilityKey } from '../dist/map-store.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+import { writeConfidenceLedger, buildConfidenceLedger } from '../dist/confidence-ledger.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
@@ -1511,5 +1512,25 @@ test('diff + report share one truth on a real style change (aligned reviewable)'
   const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
   assert.equal(reportJson.reportConsistency.ok, true);
   assert.ok(reportJson.surfaces.length > 0);
+  rmTmp(root);
+});
+
+test('diff CLI fails closed when head confidence names inaccessible incomplete UI', () => {
+  const { root, A, B } = identicalPair();
+  const jsonPath = path.join(root, 'confidence-block.json');
+  writeConfidenceLedger(
+    B,
+    buildConfidenceLedger({
+      capturedKeys: ['home@1280'],
+      coverage: null,
+      incompleteUi: [{ surface: 'home@1280·incomplete-ui', reasons: ['disabled-control'] }],
+    }),
+  );
+  const r = run(DIFF, [A, B, '--allow-unasserted', '--json', jsonPath]);
+  assert.equal(r.status, 1, `expected inaccessible confidence to block: ${r.stderr}\n${r.stdout}`);
+  assert.match(r.stdout, /incomplete UI|inaccessible/i);
+  const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(json.confidence.counts.inaccessible, 1);
+  assert.equal(json.certifiesFully, false);
   rmTmp(root);
 });

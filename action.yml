@@ -188,7 +188,13 @@ runs:
             !Number.isInteger(generated.content.changes) || generated.content.changes < 0) {
           throw new Error('styleproof-report/report.json has no valid content-evaluation receipt');
         }
+        if (!generated.confidence || !generated.confidence.counts ||
+            !Number.isInteger(generated.confidence.counts.inaccessible) ||
+            generated.confidence.counts.inaccessible < 0) {
+          throw new Error('styleproof-report/report.json has no valid confidence receipt');
+        }
         diff.reportConsistency = generated.reportConsistency;
+        diff.confidence = generated.confidence;
         fs.writeFileSync('styleproof-diff.json', `${JSON.stringify(diff, null, 2)}\n`);
         fs.appendFileSync(process.env.GITHUB_OUTPUT, `content-changes=${generated.content.changes}\n`);
         NODE
@@ -219,7 +225,8 @@ runs:
           // malformed, or missing evidence is not a style change a reviewer can approve.
           const certificationFailed =
             diff.coverage?.basis !== 'complete' ||
-            diff.determinism?.status !== 'proven';
+            diff.determinism?.status !== 'proven' ||
+            (diff.confidence?.counts?.inaccessible ?? 0) > 0;
           // Raw certification deltas that cleanFindings strips entirely: the durable
           // report has no crops/sections. Never map this to style review.
           const rawOnlyNoReviewable =

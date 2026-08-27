@@ -24,6 +24,7 @@ import {
   runCaptureUrl,
   loadSetupSteps,
   loadAuthBoundaryExclude,
+  loadIncompleteUiExclude,
 } from '../dist/capture-url.js';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { selectCrawlLinks, dedupIdentity } from '../dist/crawl.js';
@@ -45,7 +46,8 @@ const HELP = `${COMMAND} — capture a page's computed-style map(s) (no Playwrig
 
 usage: ${COMMAND} <url> [options]
 
-Honors optional repo-root styleproof.config.json crawl.setup / crawl.authBoundaryExclude
+Honors optional repo-root styleproof.config.json crawl.setup / crawl.authBoundaryExclude /
+crawl.incompleteUiExclude
 (flag > env > config). Secrets stay in env via \${ENV} placeholders in the setup file.
 
 one state (default): capture the page as it loads
@@ -76,6 +78,10 @@ whole surface: --crawl
                     Acknowledges walls outside certification scope (route path,
                     formAction, redirectTo, or full observation id). Empty
                     reasons are rejected. Does not claim full certification.
+  --incomplete-ui-exclude <file>
+                    JSON object of blocked surface keys → non-empty reasons.
+                    Acknowledges blocked continuations outside certification scope.
+                    Empty reasons are rejected; scope remains explicitly limited.
   --no-data-states  skip the automatic loading/error captures of the entry page
                     (on by default: data requests stalled → loading skeleton;
                     fulfilled with 500 → error render)
@@ -104,8 +110,8 @@ Then diff against another capture — zero diff = pixel-identical:
   styleproof-diff design .styleproof/maps/current
 
 exit: 0 captured, 2 usage error, 3 capture failed, 4 coverage gap (--require-full-coverage),
-      5 unacknowledged auth boundary (incomplete-auth, fail closed).
-      When both apply, coverage exit 4 wins over auth exit 5.
+      5 unacknowledged auth boundary, 6 unacknowledged incomplete UI.
+      Precedence: coverage 4, incomplete UI 6, auth 5.
 `;
 
 const argv = process.argv.slice(2);
@@ -114,6 +120,7 @@ if (isHelpArg(argv[0])) showHelpAndExit(HELP);
 let opts;
 let setupSteps;
 let authBoundaryExclude;
+let incompleteUiExclude;
 try {
   opts = parseCaptureUrlArgs(argv);
   // Config projection: flag > env > styleproof.config.json crawl block.
@@ -132,13 +139,24 @@ try {
       projectConfig.crawl?.authBoundaryExclude ||
       undefined;
   }
+  if (!opts.incompleteUiExcludeFile) {
+    opts.incompleteUiExcludeFile =
+      process.env.STYLEPROOF_INCOMPLETE_UI_EXCLUDE ||
+      process.env.STYLEPROOF_CRAWL_INCOMPLETE_UI_EXCLUDE ||
+      projectConfig.crawl?.incompleteUiExclude ||
+      undefined;
+  }
   if (opts.setupFile) opts.setupFile = resolveCfg(opts.setupFile);
   if (opts.authBoundaryExcludeFile) opts.authBoundaryExcludeFile = resolveCfg(opts.authBoundaryExcludeFile);
+  if (opts.incompleteUiExcludeFile) opts.incompleteUiExcludeFile = resolveCfg(opts.incompleteUiExcludeFile);
   if (opts.setupFile && !fs.existsSync(opts.setupFile)) {
     throw new UsageError(`--setup: cannot read ${opts.setupFile}`);
   }
   if (opts.authBoundaryExcludeFile && !fs.existsSync(opts.authBoundaryExcludeFile)) {
     throw new UsageError(`--auth-boundary-exclude: cannot read ${opts.authBoundaryExcludeFile}`);
+  }
+  if (opts.incompleteUiExcludeFile && !fs.existsSync(opts.incompleteUiExcludeFile)) {
+    throw new UsageError(`--incomplete-ui-exclude: cannot read ${opts.incompleteUiExcludeFile}`);
   }
   setupSteps = opts.setupFile ? loadSetupSteps(opts.setupFile) : undefined;
   opts.setup = setupSteps; // one-shot capture honours setup steps too
@@ -146,6 +164,10 @@ try {
     ? loadAuthBoundaryExclude(opts.authBoundaryExcludeFile)
     : undefined;
   opts.authBoundaryExclude = authBoundaryExclude;
+  incompleteUiExclude = opts.incompleteUiExcludeFile
+    ? loadIncompleteUiExclude(opts.incompleteUiExcludeFile)
+    : undefined;
+  opts.incompleteUiExclude = incompleteUiExclude;
 } catch (e) {
   if (e instanceof UsageError) {
     console.error(`${COMMAND}: ${e.message}\nNext: run ${COMMAND} --help to see supported options.`);
@@ -175,6 +197,40 @@ function aggregateConfidence(reports) {
     ack: all.flatMap((c) => c.acknowledged ?? []),
     stale: [...new Set(all.flatMap((c) => c.staleExclusions ?? []))].sort(),
   };
+}
+
+function aggregateIncompleteUi(reports, exclude = {}) {
+  const bySurface = new Map();
+  for (const observation of reports.flatMap((report) => report.incompleteUi ?? [])) {
+    const reasons = bySurface.get(observation.surface) ?? new Set();
+    for (const diagnostic of observation.diagnostics ?? []) reasons.add(diagnostic.reason);
+    bySurface.set(observation.surface, reasons);
+  }
+  return [...bySurface.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([surface, reasons]) => ({
+      surface,
+      reasons: [...reasons].sort(),
+      ...(exclude[surface] ? { acknowledgedReason: exclude[surface] } : {}),
+    }));
+}
+
+function printIncompleteUi(entries) {
+  if (!entries.length) return;
+  const blocked = entries.filter((entry) => !entry.acknowledgedReason);
+  const mark = blocked.length ? '✗' : '⚠';
+  const tail = blocked.length ? 'fail closed' : 'scope explicitly limited';
+  console.log(`${mark} incomplete UI — blocked continuations leave reachable states uncaptured (${tail})`);
+  for (const entry of entries) {
+    const reasons = entry.reasons.map(cliSafeLine).join(', ');
+    const acknowledgement = entry.acknowledgedReason ? ` — acknowledged: ${cliSafeLine(entry.acknowledgedReason)}` : '';
+    console.log(`    ${cliSafeLine(entry.surface)} (${reasons})${acknowledgement}`);
+  }
+  if (blocked.length) {
+    console.log(
+      '    Next: add deterministic setup/fixtures to reach these states, or --incomplete-ui-exclude with a non-empty reason when outside scope.',
+    );
+  }
 }
 
 function printAuthIncomplete(blocked, unack, ack, stale) {
@@ -363,6 +419,8 @@ async function runCrawl() {
     const cov = aggregateCoverage(reports);
     printCoverage(cov, reports.length > 1 ? ` (${reports.length} pages)` : '');
     const conf = printConfidence(reports, pageScopeGaps);
+    const incompleteUi = aggregateIncompleteUi(reports, incompleteUiExclude);
+    printIncompleteUi(incompleteUi);
     // Persist the confidence ledger (#399) into the bundle so the console-only
     // auth verdict travels with the maps: styleproof-report renders it as the
     // completeness badge next to the visual verdict. Failed captures stay out of
@@ -385,6 +443,10 @@ async function runCrawl() {
         capturedKeys,
         coverage: null, // a crawl declares no `expected` registry — basis stays unasserted
         auth: { acknowledged: conf.ack, unacknowledged: conf.unack },
+        incompleteUi: incompleteUi.map((entry) => ({
+          ...entry,
+          surface: `${entry.surface}·incomplete-ui`,
+        })),
         captureGaps,
       }),
     );
@@ -393,6 +455,7 @@ async function runCrawl() {
     const code = crawlCaptureExitCode({
       requireFullCoverage: opts.requireFullCoverage,
       hasCoverageResidue: cov.missing.length > 0 || cov.unreadable.length > 0,
+      incompleteUiBlocked: incompleteUi.some((entry) => !entry.acknowledgedReason),
       authBlocked: conf.blocked,
     });
     if (code !== 0) process.exit(code);
