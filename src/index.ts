@@ -133,6 +133,8 @@ export type { CrawlLink, LinkMatch, SelectLinksOptions, CrawlCoverageGaps } from
 export { harvestStyleVariants } from './variant-crawler.js';
 export type {
   HarvestAction,
+  HarvestStateOutcome,
+  HarvestedStateCoverage,
   HarvestedLiveState,
   HarvestedRoute,
   HarvestedVariant,

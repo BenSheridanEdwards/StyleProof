@@ -1461,7 +1461,6 @@ test('end-to-end: state-recipe metadata labels the report surface with recipe pr
       action: 'press',
       selector: '#menu',
       key: 'ArrowDown',
-      label: 'Open menu',
     },
   };
   const before = { ...sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), metadata };

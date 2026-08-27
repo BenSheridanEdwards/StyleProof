@@ -42,11 +42,38 @@ export type HarvestSkip = {
   detail?: string;
 };
 
+export type HarvestStateOutcome = 'captured' | 'skipped' | 'deduplicated' | 'timed-out' | 'requires-fixture';
+
+export type HarvestedStateCoverage = {
+  stateKey: string;
+  outcome: HarvestStateOutcome;
+  reason:
+    | 'semantic-control'
+    | 'unsafe-label'
+    | 'no-computed-style-change'
+    | 'duplicate-computed-style'
+    | 'action-failed'
+    | 'action-timeout'
+    | 'live-region';
+  action?: 'hover' | 'focus';
+  /** Value-free structural selector; no attribute values or rendered text. */
+  selector?: string;
+  findings?: number;
+  diffHash?: string;
+  /** Typed consumer-owned fixture recommendation. Never claims the state was captured. */
+  fixture?: {
+    kind: 'consumer-owned-setup';
+    observeSelector: string;
+    observeMs: 250;
+  };
+};
+
 export type HarvestedRoute = {
   key: string;
   url: string;
   variants: HarvestedVariant[];
   liveStates: HarvestedLiveState[];
+  stateCoverage: HarvestedStateCoverage[];
   skipped: HarvestSkip[];
 };
 
@@ -57,12 +84,30 @@ export type VariantHarvest = {
 export type VariantHarvestOptions = {
   baseUrl?: string;
   routes: HarvestRoute[];
-  /** Max attempted actions per route. Default 40. */
+  /** Max attempted click/select/form actions per route. Default 40. */
   maxActionsPerRoute?: number;
+  /** Max attempted hover/focus candidates per route. Default 40. */
+  maxStateActionsPerRoute?: number;
   /** Extra selectors to skip during capture. */
   ignore?: string[];
   /** Forwarded to the cheap discovery captures; forced states stay off here. */
   stabilize?: CaptureOptions['stabilize'];
+};
+
+type StateCandidate = {
+  action: 'hover' | 'focus';
+  selector: string;
+  unsafe: boolean;
+};
+
+type StateDiscovery = {
+  candidates: StateCandidate[];
+  liveSelectors: string[];
+};
+
+type StateDiscoveryArgs = {
+  dangerSource: string;
+  maxCandidates: number;
 };
 
 type Candidate = {
@@ -220,6 +265,83 @@ async function discoverCandidates(page: Page): Promise<Candidate[]> {
   return page.evaluate(collectCandidates, DANGER_SOURCE);
 }
 
+// One bounded state scan. It deliberately returns no text, label, role, attribute
+// value, or framework metadata. Labels exist only transiently inside the page for
+// destructive-action classification.
+function collectStateDiscovery({ dangerSource, maxCandidates }: StateDiscoveryArgs): StateDiscovery {
+  const dangerous = new RegExp(dangerSource, 'i');
+  const visible = (element: Element): boolean => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+  };
+  const structuralPath = (element: Element): string => {
+    const segments: string[] = [];
+    let current: Element | null = element;
+    while (current && current !== document.documentElement) {
+      const tag = current.tagName.toLowerCase();
+      if (current === document.body) {
+        segments.unshift('body');
+      } else {
+        const siblings = current.parentElement ? [...current.parentElement.children] : [];
+        const position = Math.max(1, siblings.indexOf(current) + 1);
+        segments.unshift(`${tag}:nth-child(${position})`);
+      }
+      current = current.parentElement;
+    }
+    return segments.join(' > ');
+  };
+  const safetyLabel = (element: Element): string =>
+    [
+      element.getAttribute('aria-label'),
+      element.getAttribute('title'),
+      element.getAttribute('name'),
+      element.textContent,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .slice(0, 240);
+
+  const candidates: StateCandidate[] = [];
+  const controls = [
+    'button',
+    'input',
+    'select',
+    'textarea',
+    'summary',
+    'a[href]',
+    '[tabindex]',
+    '[role="button"]',
+    '[role="tab"]',
+    '[role="menuitem"]',
+    '[role="combobox"]',
+  ].join(',');
+  for (const element of [...document.querySelectorAll(controls)]) {
+    if (!visible(element) || element.matches(':disabled,[aria-disabled="true"]')) continue;
+    const selector = structuralPath(element);
+    const unsafe = dangerous.test(safetyLabel(element));
+    if (candidates.length < maxCandidates) candidates.push({ action: 'hover', selector, unsafe });
+    if (candidates.length < maxCandidates && element instanceof HTMLElement && element.tabIndex >= 0) {
+      candidates.push({ action: 'focus', selector, unsafe });
+    }
+  }
+
+  const liveSelectors = [...document.querySelectorAll('[aria-live],[role="status"],[role="alert"],[aria-busy="true"]')]
+    .filter(visible)
+    .map(structuralPath)
+    .filter((selector, index, all) => all.indexOf(selector) === index);
+  return { candidates, liveSelectors: liveSelectors.slice(0, 200) };
+}
+
+async function discoverStateCandidates(page: Page, maxCandidates: number): Promise<StateDiscovery> {
+  return page.evaluate(collectStateDiscovery, { dangerSource: DANGER_SOURCE, maxCandidates });
+}
+
+function stateCoverageKey(prefix: 'hover' | 'focus' | 'live-region', selector: string): string {
+  return `${prefix}-${createHash('sha256').update(`${prefix}\u0000${selector}`).digest('hex').slice(0, 12)}`;
+}
+
 async function perform(page: Page, candidate: Candidate): Promise<void> {
   const target = page.locator(candidate.selector).first();
   if (candidate.action === 'select-option') {
@@ -321,18 +443,133 @@ async function tryCandidate(
   }
 }
 
+async function tryStateCandidate(
+  page: Page,
+  url: string,
+  before: Awaited<ReturnType<typeof captureStyleMap>>,
+  forcedStateMap: Awaited<ReturnType<typeof captureStyleMap>>,
+  candidate: StateCandidate,
+  options: VariantHarvestOptions,
+  seenDiffs: Set<string>,
+): Promise<HarvestedStateCoverage> {
+  const stateKey = stateCoverageKey(candidate.action, candidate.selector);
+  if (candidate.unsafe) {
+    return {
+      stateKey,
+      action: candidate.action,
+      selector: candidate.selector,
+      outcome: 'skipped',
+      reason: 'unsafe-label',
+    };
+  }
+  const forcedDelta = forcedStateMap.states[candidate.selector]?.[candidate.action];
+  if (forcedDelta) {
+    const hash = createHash('sha256').update(JSON.stringify(forcedDelta)).digest('hex').slice(0, 16);
+    if (seenDiffs.has(hash)) {
+      return {
+        stateKey,
+        action: candidate.action,
+        selector: candidate.selector,
+        outcome: 'deduplicated',
+        reason: 'duplicate-computed-style',
+        diffHash: hash,
+      };
+    }
+    seenDiffs.add(hash);
+    return {
+      stateKey,
+      action: candidate.action,
+      selector: candidate.selector,
+      outcome: 'captured',
+      reason: 'semantic-control',
+      findings: Object.values(forcedDelta).reduce((sum, properties) => sum + Object.keys(properties).length, 0),
+      diffHash: hash,
+    };
+  }
+  try {
+    await page.goto(url, { waitUntil: 'load' });
+    await page.mouse.move(-1, -1);
+    const target = page.locator(candidate.selector).first();
+    if (candidate.action === 'hover') await target.hover({ timeout: 1_000 });
+    else await target.focus({ timeout: 1_000 });
+    const after = await captureStyleMap(page, captureOptions(options));
+    const findings = diffStyleMaps(before, after);
+    if (findings.length === 0) {
+      return {
+        stateKey,
+        action: candidate.action,
+        selector: candidate.selector,
+        outcome: 'deduplicated',
+        reason: 'no-computed-style-change',
+      };
+    }
+    const hash = diffHash(findings);
+    if (seenDiffs.has(hash)) {
+      return {
+        stateKey,
+        action: candidate.action,
+        selector: candidate.selector,
+        outcome: 'deduplicated',
+        reason: 'duplicate-computed-style',
+        diffHash: hash,
+      };
+    }
+    seenDiffs.add(hash);
+    return {
+      stateKey,
+      action: candidate.action,
+      selector: candidate.selector,
+      outcome: 'captured',
+      reason: 'semantic-control',
+      findings: findings.length,
+      diffHash: hash,
+    };
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === 'TimeoutError';
+    return {
+      stateKey,
+      action: candidate.action,
+      selector: candidate.selector,
+      outcome: timedOut ? 'timed-out' : 'skipped',
+      reason: timedOut ? 'action-timeout' : 'action-failed',
+    };
+  }
+}
+
+function fixtureRecommendations(selectors: string[]): HarvestedStateCoverage[] {
+  return selectors.map((selector) => ({
+    stateKey: stateCoverageKey('live-region', selector),
+    outcome: 'requires-fixture',
+    reason: 'live-region',
+    selector,
+    fixture: { kind: 'consumer-owned-setup', observeSelector: selector, observeMs: 250 },
+  }));
+}
+
+function candidateLimit(value: number | undefined, field: string): number {
+  const resolved = value ?? 40;
+  if (!Number.isInteger(resolved) || resolved < 0 || resolved > 200) {
+    throw new Error(`styleproof variants: ${field} must be an integer from 0 to 200`);
+  }
+  return resolved;
+}
+
 /**
  * Discover one-step UI states by trying semantic controls and keeping only
  * actions whose rendered computed-style map differs from the route baseline.
  */
 export async function harvestStyleVariants(page: Page, options: VariantHarvestOptions): Promise<VariantHarvest> {
-  const maxActions = options.maxActionsPerRoute ?? 40;
+  const maxActions = candidateLimit(options.maxActionsPerRoute, 'maxActionsPerRoute');
+  const maxStateActions = candidateLimit(options.maxStateActionsPerRoute, 'maxStateActionsPerRoute');
   const routes: HarvestedRoute[] = [];
   for (const route of options.routes) {
     const url = routeUrl(route, options.baseUrl);
     await page.goto(url, { waitUntil: 'load' });
+    await page.mouse.move(-1, -1);
     const before = await captureStyleMap(page, captureOptions(options));
     const candidates = await discoverCandidates(page);
+    const stateDiscovery = await discoverStateCandidates(page, maxStateActions);
+    const forcedStateMap = await captureStyleMap(page, { ...captureOptions(options), captureStates: true });
     const liveStates = liveStatesFrom(before.liveCandidates);
     const variants: HarvestedVariant[] = [];
     const skipped: HarvestSkip[] = [];
@@ -346,7 +583,14 @@ export async function harvestStyleVariants(page: Page, options: VariantHarvestOp
       if (result.variant) variants.push(result.variant);
       if (result.skip) skipped.push(result.skip);
     }
-    routes.push({ key: route.key, url: route.url, variants, liveStates, skipped });
+    const stateCoverage = fixtureRecommendations(stateDiscovery.liveSelectors);
+    const seenStateDiffs = new Set<string>();
+    for (const candidate of stateDiscovery.candidates.slice(0, maxStateActions)) {
+      stateCoverage.push(
+        await tryStateCandidate(page, url, before, forcedStateMap, candidate, options, seenStateDiffs),
+      );
+    }
+    routes.push({ key: route.key, url: route.url, variants, liveStates, stateCoverage, skipped });
   }
   return { routes };
 }

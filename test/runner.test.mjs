@@ -276,7 +276,6 @@ test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach pro
       stateKey: 'hover-plan-card',
       action: 'hover',
       selector: '#card',
-      label: 'Plan card',
     },
   });
   assert.deepEqual(surfaces[4].metadata?.stateRecipe, {
@@ -284,8 +283,9 @@ test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach pro
     action: 'press',
     selector: '#menu',
     key: 'ArrowDown',
-    label: 'Open menu',
   });
+  assert.equal(JSON.stringify(surfaces.map((surface) => surface.metadata)).includes('Plan card'), false);
+  assert.equal(JSON.stringify(surfaces.map((surface) => surface.metadata)).includes('Open menu'), false);
 
   // Recipe execution is parent go then apply — no setup choreography.
   const fakePage = {

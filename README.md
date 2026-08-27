@@ -911,8 +911,8 @@ const recipes = parseStateRecipes([
 // Preferred: declare on the surface — each recipe expands to
 // `<surface>-<stateKey>` after parent `go`, with `variantKind: 'state-recipe'`
 // and report-only provenance (stable key, action, optional safe interaction
-// selector / press key / declared label / observation window / response status).
-// Route patterns and observation selectors are runtime-only. Metadata is ignored
+// selector / press key / observation window / response status). Declared labels,
+// route patterns, and observation selectors are runtime-only. Metadata is ignored
 // by the certification diff.
 defineStyleMapCapture({
   dir: process.env.STYLEMAP_DIR,
@@ -982,8 +982,35 @@ Rules for this slice:
   Coverage translation treats recipe expansions like other metadata-bearing
   captures.
 
-Automatic discovery, config-file recipe parsing, live-region recommendations,
-and state-coverage UI remain follow-up slices.
+#### Safe discovery ledger
+
+`styleproof variants` performs one bounded semantic scan per route and records
+hover/focus candidates separately in `route.stateCoverage`. It never clicks these
+candidates during discovery. CSS pseudo-state evidence comes from the same CDP
+forced-state layer used by certification; a real browser action is only a fallback
+for JS-driven effects when no pseudo-state delta exists.
+
+```sh
+styleproof variants \
+  --base-url http://localhost:3000 \
+  --route home=/ \
+  --max-state-actions 40
+```
+
+Every entry has a stable hashed `stateKey`, a value-free structural selector, and
+one exact outcome: `captured`, `deduplicated`, `skipped`, `timed-out`, or
+`requires-fixture`. Unsafe labels are checked inside the browser and discarded;
+the new ledger never persists the label, role, rendered text, attribute value, or
+exception string.
+
+Detected live regions produce a typed `consumer-owned-setup` recommendation with
+an `observeSelector` and 250 ms observation window. They remain
+`requires-fixture`. StyleProof does not fabricate the missing application state or
+guess which control should trigger it. In `--strict` mode, skipped, timed-out, and
+fixture-required outcomes fail the command.
+
+Config-file recipe parsing and bare Escape without a target selector remain
+follow-up slices.
 
 Before promoting a new state class, capture it in at least five fresh browser
 contexts and pass the public determinism oracle:

@@ -633,7 +633,6 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
         action: recipe.action,
         ...(recipe.action === 'route' ? { status: recipe.status } : { selector: recipe.selector }),
         ...(recipe.key ? { key: recipe.key } : {}),
-        ...(recipe.label !== undefined ? { label: recipe.label } : {}),
         ...(recipe.observeMs !== undefined ? { observationMs: recipe.observeMs } : {}),
       },
     },

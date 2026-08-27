@@ -88,8 +88,6 @@ export type StateRecipeCaptureProvenance = {
   selector?: string;
   /** Press key when action is `press`. */
   key?: string;
-  /** Declared label when provided (not a live DOM label rewrite). */
-  label?: string;
   /** Bounded transient visibility window proven before capture. */
   observationMs?: number;
   /** Deterministic network error status; route pattern is runtime-only. */

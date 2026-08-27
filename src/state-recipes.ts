@@ -22,8 +22,9 @@
  *   - `stateRecipeGo` adapter assignable to `SurfaceVariant.go`
  *   - independent `<surface.key>-<stateKey>` expansion with bounded provenance
  *
- * Still deferred: automatic discovery, config-file recipe parsing, live-region
- * recommendations, state-coverage UI, and bare Escape without a target selector
+ * Candidate discovery, fixture recommendations, and report state coverage are
+ * wired through the variant harvester and report module. Still deferred:
+ * config-file recipe parsing and bare Escape without a target selector
  * (ambient-unsafe).
  */
 import type { Page } from '@playwright/test';
