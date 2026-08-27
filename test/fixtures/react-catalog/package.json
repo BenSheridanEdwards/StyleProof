@@ -1,0 +1,6 @@
+{
+  "name": "styleproof-react-catalog-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Reference React catalog fixture for the StyleProof component manifest (issue #392). Never shipped: test/fixtures is outside the package files allowlist."
+}

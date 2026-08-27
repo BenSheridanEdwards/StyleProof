@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "id": "button",
+      "module": "test/fixtures/react-catalog/catalog/components/Button.jsx",
+      "export": "Button",
+      "variants": [
+        { "key": "default", "props": { "label": "Save" } },
+        { "key": "disabled", "props": { "label": "Save", "disabled": true } },
+        { "key": "loading", "props": { "label": "Save", "loading": true } },
+        { "key": "error", "props": { "label": "Save", "error": "Could not save your changes" } }
+      ]
+    },
+    {
+      "id": "modal",
+      "module": "test/fixtures/react-catalog/catalog/components/Modal.jsx",
+      "export": "Modal",
+      "variants": [{ "key": "open", "props": { "title": "Delete account?", "open": true } }]
+    },
+    {
+      "id": "empty",
+      "module": "test/fixtures/react-catalog/catalog/components/Empty.jsx",
+      "export": "Empty",
+      "variants": [{ "key": "default", "props": { "message": "No items yet" } }]
+    },
+    {
+      "id": "loading",
+      "module": "test/fixtures/react-catalog/catalog/components/Loading.jsx",
+      "export": "Loading",
+      "variants": [{ "key": "default", "props": { "message": "Loading…" } }]
+    },
+    {
+      "id": "error",
+      "module": "test/fixtures/react-catalog/catalog/components/Error.jsx",
+      "export": "Error",
+      "variants": [{ "key": "default", "props": { "message": "Something went wrong" } }]
+    }
+  ]
+}

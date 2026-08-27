@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "id": "modal",
+      "module": "test/fixtures/react-catalog/catalog/components/Modal.jsx",
+      "export": "Modal",
+      "variants": [
+        {
+          "key": "open",
+          "props": { "title": "Delete account?", "open": true },
+          "provider": "test/fixtures/react-catalog/catalog/providers/ModalProvider.jsx"
+        }
+      ]
+    }
+  ]
+}
