@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { diffStyleMapDirs } from '../dist/diff.js';
+import { diffStyleMapDirs, summarizeComparability } from '../dist/diff.js';
 import { assessComparisonTruth } from '../dist/change-groups.js';
 import { makeMap, pairFixture, rmTmp, writeCapture } from './helpers.mjs';
 
@@ -120,4 +120,20 @@ test('one-sided surfaces have no comparison obligation', () => {
     },
   );
   rmTmp(fixture.root);
+});
+
+test('unknown future comparability status fails closed and suppresses review evidence', () => {
+  const receipt = { surface: 'checkout@1280', status: 'future-state', required: true };
+  const summary = summarizeComparability([receipt]);
+  assert.equal(summary.status, 'unproven');
+  assert.equal(summary.blocksCertification, true);
+  assert.equal(summary.counts.requiredUnproven, 1);
+
+  const truth = assessComparisonTruth(
+    [{ surface: 'checkout@1280', findings: [{ kind: 'style', path: 'button', pseudo: '', changes: [] }] }],
+    { dom: 0, style: 1, state: 0 },
+    [receipt],
+  );
+  assert.equal(truth.reviewableCounts.style, 0);
+  assert.equal(truth.requiredUnprovenSurfaces, 1);
 });

@@ -295,6 +295,17 @@ test('expandSurfaceVariants: malformed or privacy-hostile productState fails clo
       }),
     { name: 'ProductStateIdentityError' },
   );
+
+  assert.throws(
+    () =>
+      expandSurfaceVariants({
+        key: 'checkout',
+        go: async () => {},
+        productState: { id: 'checkout-ready', revision: 'v1' },
+        variants: [{ key: 'dialog-open', productState: null }],
+      }),
+    { name: 'ProductStateIdentityError' },
+  );
 });
 
 test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach provenance', async () => {

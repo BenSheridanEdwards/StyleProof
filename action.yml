@@ -562,6 +562,7 @@ runs:
           if (j.coverage?.basis === 'incomplete') out.push('coverage incomplete: ' + (j.coverage.uncovered || []).join(', '));
           if (j.determinism?.status === 'unproven') out.push('determinism unproven (base ' + j.determinism.base + ', head ' + j.determinism.head + ')');
           if ((j.dataResidue?.blocking ?? 0) > 0) out.push('data-residue gate: ' + j.dataResidue.blocking + ' blocking failure(s)');
+          if (j.comparison?.blocksCertification === true) out.push('product-state comparison: ' + (j.comparison.status || 'unproven'));
           if (j.reportConsistency && j.reportConsistency.ok === false) {
             out.push('report/diff consistency: ' + (j.reportConsistency.reason || 'raw_only_no_reviewable') + ' — certification deltas without reviewable report crops (not visual-approval)');
           }
@@ -572,7 +573,7 @@ runs:
           echo "$fails"
           exit 1
         fi
-        echo "✓ certification: coverage, determinism, data-residue, and report consistency verdicts are approvable or clean"
+        echo "✓ certification: coverage, determinism, data-residue, product-state comparison, and report consistency verdicts are approvable or clean"
 
     # Always expose a terminal trust classification, even when a later gate fails.
     # Publication failure outranks every diff verdict because reviewers have no

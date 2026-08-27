@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadStyleMap, isUnder, validateProductStateIdentity, type StyleMap } from './capture.js';
+import { isProductStateComparabilityStatus, type ProductStateComparabilityStatus } from './comparability-status.js';
+export { isProductStateComparabilityStatus, type ProductStateComparabilityStatus } from './comparability-status.js';
 import { isMapFile, MAP_MANIFEST } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
 
@@ -85,8 +87,6 @@ export type SurfaceDiff = {
   findings: Finding[];
 };
 
-export type ProductStateComparabilityStatus = 'comparable' | 'incomparable' | 'unproven' | 'not-required';
-
 export type SurfaceComparability = {
   surface: string;
   status: ProductStateComparabilityStatus;
@@ -120,14 +120,19 @@ export function summarizeComparability(
   receipts: SurfaceComparability[],
   requireStateIdentity = false,
 ): ComparabilitySummary {
+  const normalized = receipts.map((entry) =>
+    isProductStateComparabilityStatus(entry.status)
+      ? entry
+      : { ...entry, status: 'unproven' as const, required: true, reason: 'state-identity-invalid' as const },
+  );
   const counts = {
-    comparable: receipts.filter((entry) => entry.status === 'comparable').length,
-    incomparable: receipts.filter((entry) => entry.status === 'incomparable').length,
-    unproven: receipts.filter((entry) => entry.status === 'unproven').length,
-    notRequired: receipts.filter((entry) => entry.status === 'not-required').length,
-    requiredUnproven: receipts.filter((entry) => entry.status === 'unproven' && entry.required).length,
+    comparable: normalized.filter((entry) => entry.status === 'comparable').length,
+    incomparable: normalized.filter((entry) => entry.status === 'incomparable').length,
+    unproven: normalized.filter((entry) => entry.status === 'unproven').length,
+    notRequired: normalized.filter((entry) => entry.status === 'not-required').length,
+    requiredUnproven: normalized.filter((entry) => entry.status === 'unproven' && entry.required).length,
     globalRequiredUnproven: requireStateIdentity
-      ? receipts.filter((entry) => entry.status === 'unproven' && !entry.required).length
+      ? normalized.filter((entry) => entry.status === 'unproven' && !entry.required).length
       : 0,
   };
   const status: ProductStateComparabilityStatus =

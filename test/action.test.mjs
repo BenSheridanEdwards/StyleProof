@@ -298,6 +298,7 @@ test('composite action hard-gates certification failures the approve box cannot 
   assert.match(gate[0], /determinism\?\.status === 'unproven'/);
   assert.match(gate[0], /dataResidue\?\.blocking/);
   assert.match(gate[0], /reportConsistency/, 'raw-only report/diff contradiction hard-gates');
+  assert.match(gate[0], /comparison\?\.blocksCertification/, 'product-state comparability hard-gates the Action job');
   assert.match(gate[0], /exit 1/);
   assert.doesNotMatch(gate[0], /require-approval/, 'the provenance gate must fire in BOTH modes');
 });

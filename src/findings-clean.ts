@@ -1,3 +1,4 @@
+import { isProductStateComparabilityStatus } from './comparability-status.js';
 import { type DiffCounts, type Finding, type PropChange } from './diff.js';
 import { trackCount } from './describe.js';
 import { isNonValue, summarizeProps } from './prop-summary.js';
@@ -303,12 +304,15 @@ function comparabilityTruth(
   ComparisonTruth,
   'incomparableSurfaces' | 'unprovenSurfaces' | 'requiredUnprovenSurfaces' | 'globalRequiredUnprovenSurfaces'
 > {
+  const normalized = comparability.map((entry) =>
+    isProductStateComparabilityStatus(entry.status) ? entry : { ...entry, status: 'unproven' as const, required: true },
+  );
   return {
-    incomparableSurfaces: comparability.filter((entry) => entry.status === 'incomparable').length,
-    unprovenSurfaces: comparability.filter((entry) => entry.status === 'unproven').length,
-    requiredUnprovenSurfaces: comparability.filter((entry) => entry.status === 'unproven' && entry.required).length,
+    incomparableSurfaces: normalized.filter((entry) => entry.status === 'incomparable').length,
+    unprovenSurfaces: normalized.filter((entry) => entry.status === 'unproven').length,
+    requiredUnprovenSurfaces: normalized.filter((entry) => entry.status === 'unproven' && entry.required).length,
     globalRequiredUnprovenSurfaces: requireStateIdentity
-      ? comparability.filter((entry) => entry.status === 'unproven' && !entry.required).length
+      ? normalized.filter((entry) => entry.status === 'unproven' && !entry.required).length
       : 0,
   };
 }
@@ -320,6 +324,7 @@ function reviewableFindings(
 ): Finding[] {
   const comparison = comparisonBySurface.get(surface.surface);
   const blocksReview =
+    (comparison !== undefined && !isProductStateComparabilityStatus(comparison.status)) ||
     comparison?.status === 'incomparable' ||
     (comparison?.status === 'unproven' && (comparison.required || requireStateIdentity));
   return blocksReview ? [] : cleanFindingsForDisplay(surface.findings);
