@@ -10,6 +10,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const cli = path.join(root, 'bin', 'styleproof.mjs');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const pinnedStyleproofInstall = new RegExp(
+  `npm install .*styleproof@${manifest.version.replaceAll('.', '\\.')}.*@playwright\\/test`,
+);
 
 function run(args, cwd = root, env = {}) {
   return spawnSync(process.execPath, [cli, ...args], {
@@ -77,7 +80,7 @@ test('styleproof setup dry-run plans installation, browser, scaffold, and verifi
 
     const result = run(['setup', '--dry-run', '--dir=apps/web'], project);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /npm install .*styleproof@6\.1\.0.*@playwright\/test/);
+    assert.match(result.stdout, pinnedStyleproofInstall);
     assert.match(result.stdout, /npm exec playwright install chromium/);
     assert.match(result.stdout, /styleproof-init --dir=apps\/web$/m);
     assert.match(result.stdout, /styleproof-init --dir=apps\/web --check$/m);
@@ -107,7 +110,7 @@ test('styleproof setup targets a nested project without conflating it with the c
     );
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, new RegExp(`Project: ${fs.realpathSync(project).replaceAll('\\', '\\\\')}`));
-    assert.match(result.stdout, /npm install .*styleproof@6\.1\.0.*@playwright\/test/);
+    assert.match(result.stdout, pinnedStyleproofInstall);
     assert.match(
       result.stdout,
       /styleproof-init --dir=e2e\/styleproof\.custom\.spec\.ts --base-url=http:\/\/127\.0\.0\.1:4173$/m,

@@ -47,6 +47,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Windows; live and malformed locks remain untouched, and age alone never authorizes
   stealing.
 
+## [6.1.1] - 2026-08-27
+
+### Fixed
+
+- **Do not certify a computed-style restyle when the two captures are different product states.** If the content layer shows a wholesale label replacement (for example `WATCHING YOUR DRAFT` vs `AUTO IS DRIVING`) or a tree rewrite of eight or more add/remove entries, the report withholds that surface's style findings from the approval gate and names the mismatch. Small copy edits next to a real restyle still certify. The differ stays exact; this is report classification only (StyleProof#428).
+
 ## [6.1.0] - 2026-08-25
 
 ### Fixed
@@ -3400,7 +3406,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.1...HEAD
+[6.1.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.0...v6.1.1
 [6.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.5...v6.1.0
 [6.0.5]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.4...v6.0.5
 [6.0.4]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.3...v6.0.4
