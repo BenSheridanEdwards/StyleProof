@@ -22,7 +22,7 @@ test('pre-commit runs the same audit and production complexity gates as CI', () 
 });
 
 test('local Fallow is exactly pinned so pre-commit and the Action resolve the same release', () => {
-  assert.equal(pkg.devDependencies.fallow, '3.14.0');
-  assert.equal(lock.packages[''].devDependencies.fallow, '3.14.0');
-  assert.equal(lock.packages['node_modules/fallow'].version, '3.14.0');
+  assert.equal(pkg.devDependencies.fallow, '3.19.0');
+  assert.equal(lock.packages[''].devDependencies.fallow, '3.19.0');
+  assert.equal(lock.packages['node_modules/fallow'].version, '3.19.0');
 });
