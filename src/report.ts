@@ -2348,13 +2348,9 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // cleanFindings), unless includeLayoutNoise is set. Surfaces left with no real
   // change are dropped.
   const prepared = prepareReportSurfaces(surfaces, includeNoise, includeStructure, beforeDir, afterDir);
-  const incomparable = includeContent
-    ? incomparableProductStates(diffContentDirs(beforeDir, afterDir).surfaces)
-    : [];
+  const incomparable = includeContent ? incomparableProductStates(diffContentDirs(beforeDir, afterDir).surfaces) : [];
   const incomparableBases = incomparableSurfaceBaseSet(incomparable);
-  const preparedCertified = prepared.filter(
-    (p) => p.sd.missing || !incomparableBases.has(surfaceBase(p.sd.surface)),
-  );
+  const preparedCertified = prepared.filter((p) => p.sd.missing || !incomparableBases.has(surfaceBase(p.sd.surface)));
 
   const missing = preparedCertified.filter((p) => p.sd.missing);
   const changeGroups = groupBySignature(
