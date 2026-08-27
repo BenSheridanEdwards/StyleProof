@@ -602,18 +602,28 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
   const stateKey = stateRecipeKey(recipe);
   return {
     key: `${surface.key}-${stateKey}`,
-    // Every recipe starts from the same base navigation — never choreography.
-    // Recipe-specific setup is not part of the recipe schema; optional setup
-    // belongs on a sibling variant/liveState if needed.
+    // Interaction recipes start from the parent baseline. Route recipes install
+    // their deterministic network outcome first, so the parent's own fetch sees it.
     go: async (page) => {
-      await surface.go(page);
-      await applyStateRecipe(page, recipe);
+      if (recipe.action === 'route') {
+        await applyStateRecipe(page, recipe);
+        await surface.go(page);
+        // Semantic hover discovery in a previous capture may leave the physical
+        // pointer over content. Route recipes perform no pointer interaction, so
+        // park it outside the viewport to prevent cross-surface hover contamination.
+        await page.mouse.move(-1, -1);
+      } else {
+        await surface.go(page);
+        await applyStateRecipe(page, recipe);
+      }
     },
     ignore: surface.ignore,
     widths: surface.widths,
     height: surface.height,
     popups: surface.popups,
-    ...(recipe.observeSelector ? { requiredVisibleState: { selector: recipe.observeSelector, stateKey } } : {}),
+    ...(recipe.action !== 'route' && recipe.observeSelector
+      ? { requiredVisibleState: { selector: recipe.observeSelector, stateKey } }
+      : {}),
     metadata: {
       surfaceKey: surface.key,
       variantKey: stateKey,
@@ -621,7 +631,7 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
       stateRecipe: {
         stateKey,
         action: recipe.action,
-        selector: recipe.selector,
+        ...(recipe.action === 'route' ? { status: recipe.status } : { selector: recipe.selector }),
         ...(recipe.key ? { key: recipe.key } : {}),
         ...(recipe.label !== undefined ? { label: recipe.label } : {}),
         ...(recipe.observeMs !== undefined ? { observationMs: recipe.observeMs } : {}),

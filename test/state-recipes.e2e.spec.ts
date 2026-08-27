@@ -6,8 +6,10 @@ import {
   stateRecipeKey,
   captureStyleMap,
   diffStyleMaps,
+  hashDeterminismMap,
   StateRecipeError,
 } from '../dist/index.js';
+import { expandSurfaceVariants } from '../dist/runner.js';
 
 /**
  * Sticky interaction fixture: pure CSS :hover/:focus is intentionally neutralised
@@ -41,6 +43,7 @@ function fixture(): string {
     body.list-open [role="listbox"] { display: block; color: rgb(146, 64, 14); }
     body.menu-clicked #menu { background: rgb(254, 226, 226); border: 2px solid rgb(220, 38, 38); }
     .toast { margin: 16px; padding: 12px; color: white; background: rgb(190, 24, 93); }
+    .network-error { margin: 16px; padding: 12px; color: white; background: rgb(185, 28, 28); }
     button { margin: 16px; }
   </style></head><body>
     <div class="card" id="card" aria-label="Plan card" tabindex="0">Plan card</div>
@@ -85,6 +88,21 @@ function fixture(): string {
       }
       document.getElementById('notify').addEventListener('click', () => showToast('toast', 0));
       document.getElementById('flash').addEventListener('click', () => showToast('flash-toast', 75));
+      fetch('/api/plans')
+        .then((response) => {
+          if (!response.ok) throw new Error('request failed');
+          return response.json();
+        })
+        .then(() => {
+          document.body.dataset.plans = 'loaded';
+        })
+        .catch(() => {
+          const error = document.createElement('div');
+          error.id = 'network-error';
+          error.className = 'network-error';
+          error.textContent = 'private network error copy';
+          document.body.append(error);
+        });
     </script>
   </body></html>`;
 }
@@ -93,7 +111,12 @@ async function withFixture(
   browser: import('@playwright/test').Browser,
   run: (page: import('@playwright/test').Page, baseUrl: string) => Promise<void>,
 ) {
-  const server = http.createServer((_req, res) => {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/api/plans') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"plans":[]}');
+      return;
+    }
     res.writeHead(200, { 'content-type': 'text/html' });
     res.end(fixture());
   });
@@ -248,6 +271,62 @@ test('state recipes: transient observation requires continuous visibility and em
         requiredVisibleState: { selector: '#flash-toast', stateKey: 'brief-toast' },
       }),
     ).rejects.toThrow(/brief-toast.*pre-capture/);
+  });
+});
+
+test('state recipes: route setup captures a deterministic mocked network-error state with bounded provenance', async ({
+  browser,
+}) => {
+  await withFixture(browser, async (page, baseUrl) => {
+    await expect(page.locator('body')).toHaveAttribute('data-plans', 'loaded');
+    const baseline = await captureStyleMap(page, { captureStates: false });
+
+    const surfaces = expandSurfaceVariants({
+      key: 'plans',
+      go: async (surfacePage) => {
+        await surfacePage.goto(baseUrl, { waitUntil: 'load' });
+      },
+      stateRecipes: [
+        {
+          action: 'route',
+          stateKey: 'plans-network-error',
+          urlPattern: '**/api/plans',
+          status: 503,
+        },
+      ],
+    });
+    const networkError = surfaces[1];
+    const hashes: string[] = [];
+    for (let run = 0; run < 3; run++) {
+      await networkError.go(page);
+      await expect(page.locator('#network-error')).toBeVisible();
+      const captured = await captureStyleMap(page, {
+        captureStates: false,
+        metadata: networkError.metadata,
+      });
+
+      expect(diffStyleMaps(baseline, captured).length).toBeGreaterThan(0);
+      expect(captured.metadata).toEqual({
+        surfaceKey: 'plans',
+        variantKey: 'plans-network-error',
+        variantKind: 'state-recipe',
+        stateRecipe: {
+          stateKey: 'plans-network-error',
+          action: 'route',
+          status: 503,
+        },
+      });
+      const persisted = JSON.stringify(captured.metadata);
+      expect(persisted).not.toContain('**/api/plans');
+      expect(persisted).not.toContain('private network error copy');
+      hashes.push(hashDeterminismMap(captured));
+
+      // The one-shot route must not poison the reused page's next ordinary surface.
+      await page.goto(baseUrl, { waitUntil: 'load' });
+      await expect(page.locator('body')).toHaveAttribute('data-plans', 'loaded');
+      await expect(page.locator('#network-error')).toHaveCount(0);
+    }
+    expect(new Set(hashes).size).toBe(1);
   });
 });
 

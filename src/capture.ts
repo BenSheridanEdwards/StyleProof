@@ -83,15 +83,17 @@ export type ElementEntry = {
 export type StateRecipeCaptureProvenance = {
   /** Stable recipe key (`hover-plan-card`, …) — same fragment joined into the capture key. */
   stateKey: string;
-  action: 'hover' | 'focus' | 'press' | 'click';
-  /** Validated value-free CSS selector (never attribute-equality / secret-bearing). */
-  selector: string;
+  action: 'hover' | 'focus' | 'press' | 'click' | 'route';
+  /** Validated value-free interaction selector; absent for route setup recipes. */
+  selector?: string;
   /** Press key when action is `press`. */
   key?: string;
   /** Declared label when provided (not a live DOM label rewrite). */
   label?: string;
   /** Bounded transient visibility window proven before capture. */
   observationMs?: number;
+  /** Deterministic network error status; route pattern is runtime-only. */
+  status?: number;
 };
 
 export type CaptureMetadata = {
