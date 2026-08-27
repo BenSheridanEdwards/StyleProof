@@ -956,12 +956,12 @@ Rules for this slice:
   Escape / ambient keyboard is deferred rather than unsafe.
 - A collection is a set of **independent variants** from a known baseline, not a
   multi-step choreography. Interaction expansion runs parent `go` then one
-  recipe. A route recipe installs a one-shot intercept first, runs parent `go`,
-  then parks the inherited pointer outside the viewport so prior hover discovery
-  cannot contaminate the state. Duplicate derived keys are rejected; order is
-  sorted by stable key. Declared invalid/unsafe recipes fail closed at expansion
-  (before browser tests register); unsafe live targets still fail the capture
-  with a privacy-safe `StateRecipeError`.
+  recipe. A route recipe installs its one-shot intercept, parks the inherited
+  pointer outside the viewport, and only then runs parent `go`, so navigation
+  cannot dispatch a sticky `mouseenter` from prior hover discovery. Duplicate
+  derived keys are rejected; order is sorted by stable key. Declared invalid/unsafe
+  recipes fail closed at expansion (before browser tests register); unsafe live
+  targets still fail the capture with a privacy-safe `StateRecipeError`.
 - Stable keys come from declared `stateKey` / label / selector. Live accessible
   labels still feed the destructive-action guard (so a benign declared label
   cannot authorize a control whose live label is `Delete` / `Remove` / …).
