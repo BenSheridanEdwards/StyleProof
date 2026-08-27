@@ -69,6 +69,29 @@ test('collectManifestDiagnostics: flags a provider module the registry lacks', (
   assert.match(diagnostics[0].message, /ModalProvider|provider/i);
 });
 
+test('collectManifestDiagnostics: ignores modules inherited through the registry prototype', () => {
+  const inherited = Object.create({
+    'src/components/Button.tsx': { exports: ['Button'] },
+    'src/components/AppModal.tsx': { exports: ['default'] },
+    'src/styleproof/providers/ModalProvider.tsx': { exports: ['default'] },
+  });
+  const diagnostics = collectManifestDiagnostics(validManifest, inherited);
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.kind),
+    ['missing-export', 'missing-export', 'missing-provider'],
+  );
+});
+
+test('collectManifestDiagnostics: requires a default provider export', () => {
+  const diagnostics = collectManifestDiagnostics(validManifest, {
+    ...registry,
+    'src/styleproof/providers/ModalProvider.tsx': { exports: ['ModalProvider'] },
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].kind, 'missing-provider');
+  assert.match(diagnostics[0].message, /default export/i);
+});
+
 test('collectManifestDiagnostics: non-serializable props surface as invalid-props', () => {
   const diagnostics = collectManifestDiagnostics(
     {

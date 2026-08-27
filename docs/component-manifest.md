@@ -99,7 +99,7 @@ const diagnostics = collectManifestDiagnostics(manifest, registry, { cwd: proces
 Diagnostics are deterministic and actionable:
 
 - `missing-export`: the component module or declared export is absent from the static registry.
-- `missing-provider`: a declared provider module is absent from the static registry.
+- `missing-provider`: a declared provider module or its required default export is absent from the static registry.
 - `invalid-props`: fixture props are not JSON-serializable.
 - `duplicate-keys`: two declarations produce the same surface key.
 - `invalid-manifest`: any other malformed manifest. Invalid input never produces a false clean result.

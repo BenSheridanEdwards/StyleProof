@@ -65,7 +65,9 @@ function toSlash(value: string): string {
 }
 
 function registryEntry(registry: ComponentStaticRegistry, modulePath: string): StaticModuleExports | undefined {
-  const entry = registry[toSlash(modulePath)];
+  const key = toSlash(modulePath);
+  if (!Object.prototype.hasOwnProperty.call(registry, key)) return undefined;
+  const entry = registry[key];
   if (!entry || !Array.isArray(entry.exports)) return undefined;
   return entry;
 }
@@ -107,11 +109,12 @@ function variantDiagnostics(
 ): void {
   if (variant.provider === undefined) return;
   const where = `components[${componentIndex}].variants[${variantIndex}]`;
-  if (!registryEntry(registry, variant.provider)) {
+  const providerEntry = registryEntry(registry, variant.provider);
+  if (!providerEntry || !providerEntry.exports.includes('default')) {
     out.push({
       kind: 'missing-provider',
       where,
-      message: `provider module "${variant.provider}" (for ${component.module} variant "${variant.key}") is not in the static registry — import it from the consumer dev entry before declaring it in the manifest`,
+      message: `provider module "${variant.provider}" (for ${component.module} variant "${variant.key}") is not in the static registry with a default export — import its default export from the consumer dev entry before declaring it in the manifest`,
     });
   }
 }

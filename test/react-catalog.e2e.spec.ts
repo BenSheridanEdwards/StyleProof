@@ -76,7 +76,10 @@ test.beforeAll(async () => {
     alias: STUB_ALIAS,
     logLevel: 'silent',
   });
-  fs.copyFileSync(path.join(CATALOG_DIR, 'index.html'), path.join(outDir, 'index.html'));
+  const html = fs
+    .readFileSync(path.join(CATALOG_DIR, 'index.html'), 'utf8')
+    .replace('</body>', '    <script src="/catalog.iife.js"></script>\n  </body>');
+  fs.writeFileSync(path.join(outDir, 'index.html'), html);
 
   server = http.createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
