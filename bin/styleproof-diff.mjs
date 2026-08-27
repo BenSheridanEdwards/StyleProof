@@ -691,7 +691,7 @@ if (productStateBlocks) {
   for (const surface of productState.surfaces) {
     console.log(`  ${surface.surface}`);
     for (const reason of surface.reasons) {
-      if (reason.kind === 'legacy-map') continue;
+      if (reason.kind === 'legacy-map' || reason.kind === 'unsupported-semantic-schema') continue;
       if (reason.kind === 'capture-schema-mismatch') {
         console.log('    capture-schema-mismatch: recapture the baseline with the current StyleProof version');
         continue;

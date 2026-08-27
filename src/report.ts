@@ -1540,6 +1540,7 @@ function summaryLines(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
+  productStateIncomparable: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -1551,6 +1552,7 @@ function summaryLines(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    productStateIncomparable,
   } = args;
   // Greenfield/broken-base classification applies to surfaces missing a BASE map
   // (missing 'before'); a surface missing on HEAD is a removal, handled separately.
@@ -1565,13 +1567,13 @@ function summaryLines(args: {
     const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineSurfaceFailures);
     if (failureSummary) return failureSummary;
     if (baselineSurfaceFailures.length === 0) {
-      return [
-        contentEvaluated
-          ? contentCount > 0
-            ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
-            : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
-          : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.',
-      ];
+      const prefix = productStateIncomparable ? '' : '✓ ';
+      const suffix = contentEvaluated
+        ? contentCount > 0
+          ? `See ${contentCount} advisory content/structure change(s) below.`
+          : 'No advisory content/structure changes detected.'
+        : 'Content/structure was not evaluated.';
+      return [`${prefix}No reviewable computed-style changes among semantically matched elements. ${suffix}`];
     }
   }
   const md = [
@@ -1597,6 +1599,7 @@ function reportHeadline(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
+  productStateIncomparable: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -1610,6 +1613,7 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    productStateIncomparable,
   } = args;
   const md: string[] = summaryLines({
     changeGroups,
@@ -1621,6 +1625,7 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    productStateIncomparable,
   });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
@@ -2399,7 +2404,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     for (const surface of productState.surfaces) {
       md.push(`- **${safeKey(surface.surface)}**`);
       for (const reason of surface.reasons) {
-        if (reason.kind === 'legacy-map') continue;
+        if (reason.kind === 'legacy-map' || reason.kind === 'unsupported-semantic-schema') continue;
         if (reason.kind === 'capture-schema-mismatch') {
           md.push('  - capture-schema-mismatch: recapture the baseline with the current StyleProof version');
           continue;
@@ -2431,6 +2436,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       reportConsistency,
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
+      productStateIncomparable: productState.status === 'incomparable',
     }),
   );
 

@@ -2889,7 +2889,7 @@ test('report persists and explains incomparable product-state evidence', () => {
     });
   try {
     writeCapture(beforeDir, 'guardian@1280', semanticMap('a1', 'rgb(0, 0, 0)'), solidPng(220, 120));
-    writeCapture(afterDir, 'guardian@1280', semanticMap('b1', 'rgb(255, 0, 0)'), solidPng(220, 120));
+    writeCapture(afterDir, 'guardian@1280', semanticMap('b1', 'rgb(0, 0, 0)'), solidPng(220, 120));
 
     const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
     assert.equal(result.productState.status, 'incomparable');
@@ -2901,6 +2901,7 @@ test('report persists and explains incomparable product-state evidence', () => {
     assert.match(markdown, /a1/);
     assert.match(markdown, /b1/);
     assert.match(markdown, /reviewer approval cannot clear/i);
+    assert.doesNotMatch(markdown, /✓ No reviewable computed-style changes/);
   } finally {
     rmTmp(root);
   }

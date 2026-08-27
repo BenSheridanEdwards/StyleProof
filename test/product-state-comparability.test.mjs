@@ -79,6 +79,14 @@ test('product-state comparability rejects a legacy/new capture-schema mismatch',
   });
 });
 
+test('product-state comparability labels unsupported future schemas without calling them legacy', () => {
+  const future = makeMap({ semanticIdentityVersion: 2 });
+  assert.deepEqual(assessProductStateComparability(future, future), {
+    status: 'unknown',
+    reasons: [{ kind: 'unsupported-semantic-schema' }],
+  });
+});
+
 test('product-state comparability rejects malformed semantic metadata without echoing it', () => {
   const hostile = '<script>alert(1)</script>';
   const before = semanticMap({

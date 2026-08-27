@@ -99,6 +99,7 @@ export type DiffStyleOptions = {
 
 export type ProductStateComparabilityReason =
   | { kind: 'legacy-map' }
+  | { kind: 'unsupported-semantic-schema' }
   | { kind: 'capture-schema-mismatch' }
   | { kind: 'invalid-semantic'; side: 'before' | 'after' | 'both' }
   | { kind: 'data-style' | 'role'; beforeOnly: string[]; afterOnly: string[] };
@@ -181,7 +182,13 @@ export function assessProductStateComparability(a: StyleMap, b: StyleMap): Produ
   if (beforeCurrent !== afterCurrent) {
     return { status: 'incomparable', reasons: [{ kind: 'capture-schema-mismatch' }] };
   }
-  if (!beforeCurrent) return { status: 'unknown', reasons: [{ kind: 'legacy-map' }] };
+  if (!beforeCurrent) {
+    const bothLegacy = a.semanticIdentityVersion === undefined && b.semanticIdentityVersion === undefined;
+    return {
+      status: 'unknown',
+      reasons: [{ kind: bothLegacy ? 'legacy-map' : 'unsupported-semantic-schema' }],
+    };
+  }
 
   const before = semanticInventory(a);
   const after = semanticInventory(b);

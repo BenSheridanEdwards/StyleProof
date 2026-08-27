@@ -50,7 +50,8 @@ complete`, `✗ coverage INCOMPLETE`, or `✗ completeness NOT asserted` (no reg
   both captures to the same state or recapture a matching baseline. Maps written
   before the inventory existed remain explicitly `unknown` when compared with
   another legacy map. A legacy/current pair fails as a schema mismatch and tells
-  the operator to recapture the baseline.
+  the operator to recapture the baseline. Maps carrying an unsupported future
+  semantic schema remain readable but are labeled `unknown`, never `legacy`.
 
 ## The boundary (stated plainly)
 
