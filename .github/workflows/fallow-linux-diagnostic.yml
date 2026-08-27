@@ -1,0 +1,48 @@
+name: Fallow Linux diagnostic
+
+on:
+  push:
+    branches:
+      - diag/fallow-linux-ac9248b
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Capture exact Linux Fallow health envelope
+        shell: bash
+        run: |
+          set +e
+          npx --no-install fallow health \
+            --root . \
+            --quiet \
+            --format json \
+            --production \
+            --changed-since 1384a4ba3305d774116611d4b830e17a06cb206b \
+            --baseline .fallow/health-baseline.json \
+            --no-cache \
+            > fallow-linux.json \
+            2> fallow-linux.stderr
+          printf '%s\n' "$?" > fallow-linux.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fallow-linux-ac9248b
+          path: |
+            fallow-linux.json
+            fallow-linux.stderr
+            fallow-linux.exit
+          if-no-files-found: error
+          retention-days: 1
