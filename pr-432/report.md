@@ -1,11 +1,10 @@
 ## 🗺️ StyleProof report
 
 **Certification**
-- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
-- **Determinism** — ✓ proven (base self-checked, head self-checked)
-- **Inventory** — ✓ navigable set unchanged
-- **Data residue** — ✗ 1 failing data endpoint(s), unacknowledged: home·/api/status
-- **Confidence** — ✓ complete (1 captured)
+- **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)
+- **Determinism** — ⚠ unknown (a capture predates the determinism ledger)
+- **Inventory** — ⚠ 1 navigable affordance(s) removed, unacknowledged: route:/b
+- **Confidence** — ⚠ unknown (capture predates the confidence ledger; not blocking retroactively)
 
 ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
