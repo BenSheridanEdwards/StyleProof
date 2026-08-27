@@ -18,7 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
+const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
 
 /** `styleproof-affected` inputs a consumer can pin once instead of per-invocation. */
 export type AffectedConfig = {
@@ -72,7 +72,7 @@ export type StyleProofConfig = {
   crawl?: CrawlConfig;
 };
 
-export class StyleProofConfigError extends Error {}
+class StyleProofConfigError extends Error {}
 
 function fail(message: string): never {
   throw new StyleProofConfigError(`${STYLEPROOF_CONFIG_FILE}: ${message}`);

@@ -4,8 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { STYLEPROOF_CONFIG_FILE, StyleProofConfigError, loadStyleProofConfig } from '../dist/config.js';
+import { loadStyleProofConfig } from '../dist/config.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
+
+const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const AFFECTED = path.join(here, '..', 'bin', 'styleproof-affected.mjs');
@@ -70,7 +72,6 @@ test("loadStyleProofConfig: validates the Action's gate-policy keys in the share
 
 test('loadStyleProofConfig: written-but-broken config fails LOUDLY, never silently drops', () => {
   withConfig('{ not json', (dir) => {
-    assert.throws(() => loadStyleProofConfig(dir), StyleProofConfigError);
     assert.throws(() => loadStyleProofConfig(dir), /invalid JSON/);
   });
   withConfig({ dirtyAllow: 'hud/tsconfig.json' }, (dir) => {
