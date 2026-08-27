@@ -7,48 +7,32 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Added
+## [6.2.0] - 2026-08-27
 
-- **Incomplete-UI certification now fails closed across capture, diff, reports, and the GitHub Action:** exhaustive crawls detect privacy-safe form, empty-required-field, disabled/inert/ARIA-disabled, pointer-blocked control, and closed-disclosure residue; persist it in the confidence ledger; exit 6 when unacknowledged; and map downstream inaccessible evidence to `CERTIFICATION_FAILED`. `--incomplete-ui-exclude` and `crawl.incompleteUiExclude` accept surface-to-reason JSON for explicit limited scope. Hidden DOM leftovers are ignored, raw values/text are never stored, and report guidance favors deterministic fixtures that increase certified area.
-- **Deterministic state recipes now cover interaction, transient, and network-error UI:** typed hover, focus, press, click, and one-shot route recipes carry stable map provenance; transient observation fails closed if the state vanishes before extraction; mocked 400–599 outcomes are installed before navigation without persisting URL patterns; the report lists exact captured state coverage separately from route coverage; and `styleproof variants` emits a bounded privacy-safe hover/focus ledger with captured, deduplicated, skipped, timed-out, and live-region `requires-fixture` outcomes.
+> **StyleProof 6.2.0: Release Confidence**
+>
+> This release separates two questions that visual testing tools often blur:
+> what changed, and how trustworthy was the capture that produced the answer?
 
-- **One-command setup and unified CLI:** `npx styleproof setup` now detects npm,
-  pnpm, Yarn, or Bun; installs StyleProof, Playwright, and Chromium; runs the
-  existing project-aware scaffold; then verifies generated-file drift. It supports
-  explicit monorepo project roots with `--project-dir`, respects
-  `package.json#packageManager`, rejects malformed option values, resolves
-  shell-free package-manager shims on Windows, verifies custom base URLs with
-  the same arguments used to scaffold them, and refuses ambiguous mixed
-  lockfiles rather than guessing. A new
-  primary `styleproof` binary exposes setup, capture, crawl, compare, report,
-  variants, affected, CI, pre-push, publication, maintenance, and store
-  workflows while preserving every existing `styleproof-*` binary as a
-  backwards-compatible alias. `styleproof report` generates `report.md` and
-  `report.json` explicitly on command.
-- **Experimental content-addressed evidence store v2:** immutable SHA-256
-  objects, canonical capture manifests, closed-set coverage/determinism trust,
-  atomic verified restoration, and compare-and-swap refs separate evidence
-  identity from Git transport. `styleproof store import` migrates an existing
-  v1 bundle without persisting HAR or unrelated user files by default;
-  `styleproof store verify` re-hashes every referenced object; and
-  `styleproof store restore` atomically materializes a verified ref. Current
-  remote publication remains on the v1 Git adapter pending dual-write and
-  remote-CAS migration.
+### Honest confidence coverage
 
-### Security
+- **Incomplete UI now fails closed across capture, diff, reports, and the GitHub Action.** Exhaustive crawls detect privacy-safe form, empty-required-field, disabled/inert/ARIA-disabled, pointer-blocked control, and closed-disclosure residue. Unacknowledged gaps exit 6 and downstream reports classify them as `CERTIFICATION_FAILED`. Reasoned exclusions remain explicit limited scope, never manufactured full coverage. Hidden DOM leftovers are ignored, while raw values and rendered text never enter persisted evidence.
 
-- **Evidence import now rejects hostile filesystem entries before reading metadata:**
-  every path reachable by manifest, coverage, confidence, provenance, or map readers
-  is checked through one no-follow regular-file primitive. FIFOs, sockets, devices,
-  and symlinks fail closed before bytes are read. The managed surface-failures
-  directory imports only canonical flat StyleProof receipts, excluding unknown
-  files and nested directories.
-- **Local evidence refs recover only locks owned by dead publishers:** lock files
-  now carry versioned PID, timestamp, and random-token ownership while legacy PID-line
-  locks remain recoverable during upgrade. Recovery hard-links and rechecks the exact
-  owner bytes and file identity before removal, including a zero-inode fallback for
-  Windows; live and malformed locks remain untouched, and age alone never authorizes
-  stealing.
+### Deterministic application states
+
+- **Typed state recipes cover interaction, transient, and network-error UI.** Hover, focus, press, click, and one-shot route recipes carry stable map provenance. Transient observation fails closed when the state disappears before extraction. Mocked 400-599 outcomes are installed before navigation without persisting URL patterns. Reports list exact captured state coverage separately from route coverage, and `styleproof variants` emits bounded outcomes for captured, deduplicated, skipped, timed-out, and live-region `requires-fixture` states.
+
+### Component catalog certification
+
+- **Framework-neutral typed component manifests make isolated states auditable.** Static consumer registries prove declared component exports and provider default exports without dynamic imports, evaluation, AST execution, or remote loading. Stable catalog routes and deterministic serializable props connect component variants to capture surfaces.
+- **Component inventory distinguishes declared, excluded-with-reason, and uncovered files.** The new `styleproof-components` command fails closed on uncovered components unless `--uncovered-ok` is explicit. Exclusions require reasons and cannot manufacture full certification.
+- **`styleproof-init` can scaffold safe starter manifests.** `--manifest` plus `--component-roots` discovers candidate files and creates one default variant per component without inventing props or providers. Existing manifests are preserved unless `--force` is explicit, and invalid roots fail with bounded usage diagnostics before any partial scaffold is written.
+- **A deterministic React reference catalog proves the integration without coupling the package to React.** Default, disabled, loading, error, modal-open, and empty states are exercised in browser tests. React remains development-only and is excluded from production bundles, runtime/peer dependencies, and the npm tarball.
+
+### Verification
+
+- The release candidate passed 987 unit tests, 199 Playwright tests, exact-SHA adversarial review, the complete pull-request check matrix, and post-merge CI, CodeQL, secret scanning, package-boundary, privacy, dependency, and dead-code gates.
+- Existing specs and committed baselines remain backward-compatible. No regeneration is required solely because of this upgrade.
 
 ## [6.1.1] - 2026-08-27
 
@@ -3411,7 +3395,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.1...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.0...HEAD
+[6.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.1...v6.2.0
 [6.1.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.0...v6.1.1
 [6.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.5...v6.1.0
 [6.0.5]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.4...v6.0.5

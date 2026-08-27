@@ -23,3 +23,22 @@ test('release runs serialize without cancelling an in-flight publish', () => {
     'main pushes must queue behind an active release so one version cannot publish and tag concurrently',
   );
 });
+
+test('release completion requires npm, tag, and GitHub Release receipts', () => {
+  assert.match(release, /npm view "styleproof@\$\{VERSION\}" version/);
+  assert.match(release, /TAG_SHA="\$\(git rev-list -n 1 "v\$VERSION"/);
+  assert.match(release, /gh release view "v\$VERSION"/);
+  assert.match(
+    release,
+    /\[ "\$PUBLISHED" = "\$VERSION" \].*\[ -n "\$TAG_SHA" \].*\[ "\$RELEASE_TAG" = "v\$VERSION" \]/s,
+  );
+});
+
+test('release repair preserves an existing version tag and names the GitHub Release from notes', () => {
+  const tagStep = release.match(/- name: Tag the release[\s\S]*?(?=\n {6}- name:|\n {2}# Mirror)/)?.[0] ?? '';
+  assert.match(tagStep, /if git rev-parse "v\$VERSION"/);
+  assert.match(tagStep, /already exists/);
+  assert.match(release, /release_name=/);
+  assert.match(release, /name: \$\{\{ steps\.notes\.outputs\.release_name \}\}/);
+  assert.match(release, /git tag -f "\$MAJOR" "v\$\{\{ steps\.check\.outputs\.version \}\}"/);
+});

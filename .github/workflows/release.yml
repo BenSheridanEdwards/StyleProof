@@ -49,18 +49,27 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: npm
 
-      # The version bump is the release signal: if package.json's version has no
-      # tag yet, this merge bumped it and we release; otherwise it's a no-op.
+      # A release is complete only when npm, the immutable version tag, and the
+      # GitHub Release all exist. Partial states re-enter the repair path.
       - name: Has this version been released?
         id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="$(node -p "require('./package.json').version")"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "::notice::v$VERSION is already tagged — no version bump on this merge, nothing to release."
+          PUBLISHED="$(npm view "styleproof@${VERSION}" version 2>/dev/null || true)"
+          TAG_SHA="$(git rev-list -n 1 "v$VERSION" 2>/dev/null || true)"
+          RELEASE_TAG="$(gh release view "v$VERSION" --json tagName --jq .tagName 2>/dev/null || true)"
+          if [ "$PUBLISHED" = "$VERSION" ] && [ -n "$TAG_SHA" ] && [ "$RELEASE_TAG" = "v$VERSION" ]; then
+            echo "::notice::styleproof@${VERSION}, tag v$VERSION, and its GitHub Release are complete."
             echo "released=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::v$VERSION is new — releasing."
+            if [ -n "$TAG_SHA" ] && [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+              echo "::error::Incomplete v$VERSION tag belongs to $TAG_SHA, not this workflow commit $GITHUB_SHA. Rerun the originating release workflow."
+              exit 1
+            fi
+            echo "::notice::v$VERSION is new or partially released — entering the fail-closed release path."
             echo "released=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -139,22 +148,27 @@ jobs:
         if: steps.check.outputs.released == 'true'
         run: |
           VERSION="${{ steps.check.outputs.version }}"
-          git tag "v$VERSION" "$GITHUB_SHA"
-          git push origin "refs/tags/v$VERSION"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            TAG_VERSION="$(git show "v$VERSION:package.json" | node -e "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>process.stdout.write(JSON.parse(s).version))")"
+            if [ "$TAG_VERSION" != "$VERSION" ]; then
+              echo "::error::Existing tag v$VERSION does not contain package version $VERSION"
+              exit 1
+            fi
+            echo "::notice::Tag v$VERSION already exists; preserving it for release repair."
+          else
+            git tag "v$VERSION" "$GITHUB_SHA"
+            git push origin "refs/tags/v$VERSION"
+          fi
 
-      # Extract this version's section from CHANGELOG.md if present; otherwise let
-      # the release action auto-generate notes.
+      # Extract and validate this version's section and explicit title from
+      # CHANGELOG.md. An absent section falls back to generated notes and vX.Y.Z.
       - name: Build release notes
         if: steps.check.outputs.released == 'true'
         id: notes
         run: |
           VERSION="${{ steps.check.outputs.version }}"
-          if [ -f CHANGELOG.md ]; then
-            awk -v v="$VERSION" '
-              /^## / { if (p) exit; if (index($0, v)) { p=1; next } }
-              p { print }
-            ' CHANGELOG.md > notes.md
-          fi
+          RELEASE_NAME="$(node scripts/release-notes.mjs --version "$VERSION" --out notes.md)"
+          echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
           if [ -s notes.md ]; then
             echo 'have_notes=true' >> "$GITHUB_OUTPUT"
           else
@@ -168,6 +182,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.check.outputs.version }}
+          name: ${{ steps.notes.outputs.release_name }}
           body_path: notes.md
 
       - name: Create GitHub Release (auto-generated notes)
@@ -175,6 +190,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.check.outputs.version }}
+          name: ${{ steps.notes.outputs.release_name }}
           generate_release_notes: true
 
       # Move the major alias (e.g. v6) to this release, so consumers pinning
@@ -184,7 +200,7 @@ jobs:
         if: steps.check.outputs.released == 'true'
         run: |
           MAJOR="v$(echo "${{ steps.check.outputs.version }}" | cut -d. -f1)"
-          git tag -f "$MAJOR" "$GITHUB_SHA"
+          git tag -f "$MAJOR" "v${{ steps.check.outputs.version }}"
           git push -f origin "refs/tags/$MAJOR"
 
   # Mirror the same version to GitHub Packages (scoped) so the repo's Packages

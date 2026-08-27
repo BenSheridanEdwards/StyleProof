@@ -100,23 +100,23 @@ Releases publish **on merge to main**, driven by the version in `package.json`.
 `.github/workflows/release.yml` runs on every push to main: if there is no `vX.Y.Z`
 tag for the current version (i.e. the merge bumped it), it builds, typechecks, lints,
 tests, publishes to npm, tags the commit, cuts a GitHub Release from the CHANGELOG
-section, **moves the floating major tag** (`v1`) so consumers pinning
-`uses: …/styleproof@v1` always get the latest 1.x, and mirrors to GitHub Packages. A
+section, **moves the floating major tag** (`v6`) so consumers pinning
+`uses: …/styleproof@v6` always get the latest 6.x, and mirrors to GitHub Packages. A
 merge that does not bump the version is a clean no-op.
 
 So a release is just a version bump in a normal PR:
 
 1. Move the `## [Unreleased]` notes into a new version section in `CHANGELOG.md`.
-2. `npm version <patch|minor|major> --no-git-tag-version` — bumps `package.json` only
-   (the workflow creates the tag, not you).
+2. `npm version <patch|minor|major> --no-git-tag-version` — bumps `package.json`
+   and `package-lock.json` only (the workflow creates the tag, not you).
 3. Open the PR, get it green, and merge. Merging publishes.
 
-The publish step is **idempotent and token-aware**: it skips when that version is already
-on npm or when the `NPM_TOKEN` secret is not set. Until you add `NPM_TOKEN`, the workflow
-still tags, cuts the Release, and moves `v1`, and you publish with a manual
-`npm publish --access public` (no provenance); add an **Automation** `NPM_TOKEN` secret to
-publish automatically with provenance. You no longer create the tag or move the major tag
-by hand.
+The publish step is **idempotent and fail-closed**: it skips publication only when
+that exact version already exists on npm, then verifies the registry before continuing.
+If the repository `NPM_TOKEN` secret is absent or npm does not confirm the version, the
+workflow stops before creating a tag or GitHub Release. Configure an npm **Automation**
+token in the repository before merging a version bump. Do not create the tag or move the
+major alias by hand.
 
 `dist/` is git-ignored on purpose; it ships via the npm `files` array (built at publish
 time), not via git — don't commit it. A manual `npm publish` works too but ships
