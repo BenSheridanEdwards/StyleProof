@@ -443,6 +443,30 @@ async function tryCandidate(
   }
 }
 
+function capturedStateOutcome(
+  identity: Pick<HarvestedStateCoverage, 'stateKey' | 'action' | 'selector'>,
+  hash: string,
+  findings: number,
+  seenDiffs: Set<string>,
+): HarvestedStateCoverage {
+  if (seenDiffs.has(hash)) {
+    return {
+      ...identity,
+      outcome: 'deduplicated',
+      reason: 'duplicate-computed-style',
+      diffHash: hash,
+    };
+  }
+  seenDiffs.add(hash);
+  return {
+    ...identity,
+    outcome: 'captured',
+    reason: 'semantic-control',
+    findings,
+    diffHash: hash,
+  };
+}
+
 async function tryStateCandidate(
   page: Page,
   url: string,
@@ -453,11 +477,10 @@ async function tryStateCandidate(
   seenDiffs: Set<string>,
 ): Promise<HarvestedStateCoverage> {
   const stateKey = stateCoverageKey(candidate.action, candidate.selector);
+  const identity = { stateKey, action: candidate.action, selector: candidate.selector } as const;
   if (candidate.unsafe) {
     return {
-      stateKey,
-      action: candidate.action,
-      selector: candidate.selector,
+      ...identity,
       outcome: 'skipped',
       reason: 'unsafe-label',
     };
@@ -465,26 +488,8 @@ async function tryStateCandidate(
   const forcedDelta = forcedStateMap.states[candidate.selector]?.[candidate.action];
   if (forcedDelta) {
     const hash = createHash('sha256').update(JSON.stringify(forcedDelta)).digest('hex').slice(0, 16);
-    if (seenDiffs.has(hash)) {
-      return {
-        stateKey,
-        action: candidate.action,
-        selector: candidate.selector,
-        outcome: 'deduplicated',
-        reason: 'duplicate-computed-style',
-        diffHash: hash,
-      };
-    }
-    seenDiffs.add(hash);
-    return {
-      stateKey,
-      action: candidate.action,
-      selector: candidate.selector,
-      outcome: 'captured',
-      reason: 'semantic-control',
-      findings: Object.values(forcedDelta).reduce((sum, properties) => sum + Object.keys(properties).length, 0),
-      diffHash: hash,
-    };
+    const findings = Object.values(forcedDelta).reduce((sum, properties) => sum + Object.keys(properties).length, 0);
+    return capturedStateOutcome(identity, hash, findings, seenDiffs);
   }
   try {
     await page.goto(url, { waitUntil: 'load' });
@@ -496,40 +501,16 @@ async function tryStateCandidate(
     const findings = diffStyleMaps(before, after);
     if (findings.length === 0) {
       return {
-        stateKey,
-        action: candidate.action,
-        selector: candidate.selector,
+        ...identity,
         outcome: 'deduplicated',
         reason: 'no-computed-style-change',
       };
     }
-    const hash = diffHash(findings);
-    if (seenDiffs.has(hash)) {
-      return {
-        stateKey,
-        action: candidate.action,
-        selector: candidate.selector,
-        outcome: 'deduplicated',
-        reason: 'duplicate-computed-style',
-        diffHash: hash,
-      };
-    }
-    seenDiffs.add(hash);
-    return {
-      stateKey,
-      action: candidate.action,
-      selector: candidate.selector,
-      outcome: 'captured',
-      reason: 'semantic-control',
-      findings: findings.length,
-      diffHash: hash,
-    };
+    return capturedStateOutcome(identity, diffHash(findings), findings.length, seenDiffs);
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'TimeoutError';
     return {
-      stateKey,
-      action: candidate.action,
-      selector: candidate.selector,
+      ...identity,
       outcome: timedOut ? 'timed-out' : 'skipped',
       reason: timedOut ? 'action-timeout' : 'action-failed',
     };
