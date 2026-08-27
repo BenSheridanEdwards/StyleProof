@@ -120,10 +120,10 @@ runs:
       uses: actions/github-script@v9
       with:
         script: |
-          const { loadStyleProofConfig, STYLEPROOF_CONFIG_FILE } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/config.js`);
+          const { loadStyleProofConfig } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/config.js`);
           const root = process.env.GITHUB_WORKSPACE || '.';
           const cfg = loadStyleProofConfig(root);
-          core.info(`StyleProof: loaded ${STYLEPROOF_CONFIG_FILE} policy (or defaults when absent)`);
+          core.info('StyleProof: loaded styleproof.config.json policy (or defaults when absent)');
           core.setOutput('blocking', cfg.blocking === false ? 'false' : 'true');
           // A removed navigable affordance (a route/tab/menu-item the UI stopped offering)
           // is a feature going unreachable — high-stakes, and NOT something the style

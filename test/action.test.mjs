@@ -353,7 +353,9 @@ test('composite action blocks unapproved changes by default (opt out with "block
   const configStep = actionYml.match(/- id: config[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:)/);
 
   assert.ok(configStep, 'action.yml should include a config step');
-  assert.match(configStep[0], /loadStyleProofConfig/);
+  assert.match(configStep[0], /const \{ loadStyleProofConfig \} = await import/);
+  assert.doesNotMatch(configStep[0], /STYLEPROOF_CONFIG_FILE/);
+  assert.match(configStep[0], /StyleProof: loaded styleproof\.config\.json policy/);
   assert.doesNotMatch(configStep[0], /ignoring unreadable styleproof\.config\.json/);
   assert.match(
     configStep[0],
