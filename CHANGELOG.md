@@ -3395,7 +3395,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.1...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.0...HEAD
+[6.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.1...v6.2.0
 [6.1.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.0...v6.1.1
 [6.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.5...v6.1.0
 [6.0.5]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.4...v6.0.5
