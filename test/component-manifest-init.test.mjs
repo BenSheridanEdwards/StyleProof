@@ -30,7 +30,7 @@ function run(root, ...args) {
       '--manifest',
       'styleproof.components.json',
       '--component-roots',
-      'src/components,src/widgets',
+      ' src/components, src/widgets ',
       ...args,
     ],
     { cwd: root, encoding: 'utf8' },
@@ -96,6 +96,31 @@ test('styleproof-init requires --manifest and --component-roots together', () =>
     );
     assert.equal(rootsOnly.status, 2);
     assert.match(rootsOnly.stderr, /manifest/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('styleproof-init reports invalid component roots as a clean usage error', () => {
+  const root = makeProject();
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        init,
+        '--dir',
+        'e2e/styleproof.spec.ts',
+        '--manifest',
+        'styleproof.components.json',
+        '--component-roots',
+        'src/nowhere',
+      ],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /^styleproof-init: /);
+    assert.doesNotMatch(result.stderr, /\n\s+at /);
+    assert.equal(fs.existsSync(path.join(root, 'styleproof.components.json')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

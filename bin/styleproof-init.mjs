@@ -1148,28 +1148,33 @@ let wroteSomething = false;
 const touched = [];
 
 if (manifestPath) {
-  const discovered = discoverComponentFiles({ cwd: process.cwd(), roots: componentRoots });
-  const starterManifest = validateComponentManifest(
-    {
-      version: 1,
-      components: discovered.map((component) => ({
-        module: component.path,
-        variants: [{ key: 'default' }],
-      })),
-    },
-    { cwd: process.cwd() },
-  );
-  const manifest = writeFileSafe(manifestPath, `${JSON.stringify(starterManifest, null, 2)}\n`, { force });
-  if (manifest.wrote) {
-    touched.push(manifestPath);
-    console.log(
-      `${manifest.exists ? 'overwrote' : 'created'} ${manifestPath} (${discovered.length} component file(s))`,
+  try {
+    const discovered = discoverComponentFiles({ cwd: process.cwd(), roots: componentRoots });
+    const starterManifest = validateComponentManifest(
+      {
+        version: 1,
+        components: discovered.map((component) => ({
+          module: component.path,
+          variants: [{ key: 'default' }],
+        })),
+      },
+      { cwd: process.cwd() },
     );
-    wroteSomething = true;
-  } else if (manifest.unmanaged) {
-    reportUnmanagedGeneratedPath(manifestPath);
-  } else {
-    console.log(`${manifestPath} already exists — left untouched (use --force to overwrite)`);
+    const manifest = writeFileSafe(manifestPath, `${JSON.stringify(starterManifest, null, 2)}\n`, { force });
+    if (manifest.wrote) {
+      touched.push(manifestPath);
+      console.log(
+        `${manifest.exists ? 'overwrote' : 'created'} ${manifestPath} (${discovered.length} component file(s))`,
+      );
+      wroteSomething = true;
+    } else if (manifest.unmanaged) {
+      reportUnmanagedGeneratedPath(manifestPath);
+    } else {
+      console.log(`${manifestPath} already exists — left untouched (use --force to overwrite)`);
+    }
+  } catch (error) {
+    console.error(`styleproof-init: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(2);
   }
 }
 
