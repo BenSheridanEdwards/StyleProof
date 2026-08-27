@@ -664,6 +664,7 @@ function surfaceContext(...maps: Array<StyleMap | undefined>): string {
   if (!metadata?.variantKey) return '';
   if (metadata.variantKind === 'live-state') return `live state \`${metadata.variantKey}\``;
   if (metadata.variantKind === 'popup') return `popup \`${metadata.variantKey}\``;
+  if (metadata.variantKind === 'state-recipe') return `state recipe \`${metadata.variantKey}\``;
   return `variant \`${metadata.variantKey}\``;
 }
 
