@@ -5,6 +5,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { makeMap, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
@@ -15,6 +17,99 @@ const publishModule = fs.readFileSync(path.join(here, '..', 'src', 'report-publi
 function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
 }
+
+function stampActionFixture(dir, sha) {
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha,
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: 'test',
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: false,
+      har: false,
+      compatibilityKey: 'action-receipt-parity-test',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+  fs.writeFileSync(
+    path.join(dir, COVERAGE_LEDGER),
+    JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' }),
+  );
+}
+
+function actionReportMergeScript() {
+  const match = actionYml.match(/ {8}node <<'NODE'\n([\s\S]*?)\n {8}NODE/);
+  assert.ok(match, 'action.yml should contain the report merge Node program');
+  return `${match[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {8}/, ''))
+    .join('\n')}\n`;
+}
+
+test('production diff and report receipts pass through the exact Action merge program', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-receipts-'));
+  try {
+    const before = path.join(root, 'before');
+    const after = path.join(root, 'after');
+    const state = { id: 'home-ready', revision: 'fixture-v2' };
+    const map = {
+      ...makeMap({ elements: { 'body > button:nth-child(1)': { tag: 'button', style: { color: 'black' } } } }),
+      metadata: { productState: state },
+    };
+    writeCapture(before, 'home@1280', map, null);
+    writeCapture(after, 'home@1280', map, null);
+    stampActionFixture(before, 'base-sha');
+    stampActionFixture(after, 'head-sha');
+
+    const diff = spawnSync(
+      process.execPath,
+      [path.join(here, '..', 'bin/styleproof-diff.mjs'), before, after, '--json', 'styleproof-diff.json'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(diff.status, 0, diff.stderr || diff.stdout);
+    const report = spawnSync(
+      process.execPath,
+      [path.join(here, '..', 'bin/styleproof-report.mjs'), before, after, '--out', 'styleproof-report'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(report.status, 0, report.stderr || report.stdout);
+
+    const mergeScript = path.join(root, 'merge.cjs');
+    const output = path.join(root, 'github-output');
+    fs.writeFileSync(mergeScript, actionReportMergeScript());
+    fs.writeFileSync(output, '');
+    const merge = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_INCLUDE_CONTENT: 'false', GITHUB_OUTPUT: output },
+    });
+    assert.equal(merge.status, 0, merge.stderr || merge.stdout);
+
+    const reportJsonPath = path.join(root, 'styleproof-report', 'report.json');
+    const contradictory = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
+    contradictory.comparison = {
+      ...contradictory.comparison,
+      status: 'future-state',
+      blocksCertification: false,
+    };
+    fs.writeFileSync(reportJsonPath, JSON.stringify(contradictory));
+    const rejected = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_INCLUDE_CONTENT: 'false', GITHUB_OUTPUT: output },
+    });
+    assert.equal(rejected.status, 1, rejected.stderr || rejected.stdout);
+    assert.match(rejected.stderr, /report comparison receipts disagree with the validated diff/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('composite action builds its checkout before running local bins', () => {
   const installStep = actionYml.match(/- name: Install StyleProof action runtime[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
@@ -460,7 +555,8 @@ test('composite action makes required product-state identity a closed-set certif
   assert.ok(verdict);
   assert.match(diffStep[0], /--require-state-identity/);
   assert.match(reportStep[0], /--require-state-identity/);
-  assert.match(reportStep[0], /isDeepStrictEqual\(generated\.comparison, diff\.comparison\)/);
+  assert.match(reportStep[0], /comparisonCertificationReceipt\(generated\.comparison\)/);
+  assert.match(reportStep[0], /comparisonCertificationReceipt\(diff\.comparison\)/);
   assert.match(reportStep[0], /isDeepStrictEqual\(generated\.comparability, diff\.comparability\)/);
   assert.doesNotMatch(reportStep[0], /diff\.comparison = generated\.comparison/);
   assert.doesNotMatch(reportStep[0], /diff\.comparability = generated\.comparability/);

@@ -212,8 +212,16 @@ runs:
             generated.confidence.counts.inaccessible < 0) {
           throw new Error('styleproof-report/report.json has no valid confidence receipt');
         }
-        if (!isDeepStrictEqual(generated.comparison, diff.comparison) ||
-            !isDeepStrictEqual(generated.comparability, diff.comparability)) {
+        const comparisonCertificationReceipt = (comparison) => ({
+          status: comparison?.status,
+          requireStateIdentity: comparison?.requireStateIdentity,
+          blocksCertification: comparison?.blocksCertification,
+          counts: comparison?.counts,
+        });
+        if (!isDeepStrictEqual(
+              comparisonCertificationReceipt(generated.comparison),
+              comparisonCertificationReceipt(diff.comparison),
+            ) || !isDeepStrictEqual(generated.comparability, diff.comparability)) {
           throw new Error('styleproof-report/report.json report comparison receipts disagree with the validated diff');
         }
         diff.reportConsistency = generated.reportConsistency;
