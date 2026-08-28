@@ -85,6 +85,18 @@ function runDiffRaw(fixture, extra = []) {
   });
 }
 
+test('diff CLI labels an unbound clean comparison as diagnostic rather than certified success', () => {
+  const capture = fixture({});
+  try {
+    const result = runDiffRaw(capture);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /UNVERIFIED DIAGNOSTIC/i);
+    assert.doesNotMatch(result.stdout, /✓ 0 reviewable computed-style changes/);
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
 test('diff CLI binds capture manifests to explicit trusted source SHAs before diffing', () => {
   const capture = fixture({});
   try {

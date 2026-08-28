@@ -22,6 +22,8 @@ import {
   MapStoreNotFoundError,
   publishMapBundle,
   readMapManifest,
+  readSurfaceCaptureFailures,
+  recordSurfaceCaptureFailure,
   restoreMapBundle,
   SURFACE_CAPTURE_FAILURES_DIR,
   workflowTokenCredentialArguments,
@@ -258,6 +260,53 @@ test('readMapManifest rejects an unsafe manifest entry instead of treating it as
   fs.symlinkSync(target, manifestPath);
   try {
     assert.throws(() => readMapManifest(dir), /invalid styleproof-manifest\.json/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('surface capture failure persistence emits reader-valid bounded strings', () => {
+  const dir = manifestDir();
+  try {
+    recordSurfaceCaptureFailure(dir, {
+      key: `${'surface'.repeat(50)}\nvariant`,
+      reason: `line one\nline two\u001b[31m${'x'.repeat(5_000)}`,
+      kind: 'capture',
+    });
+    const [failure] = readSurfaceCaptureFailures(dir);
+    assert.equal(failure.key.length, 256);
+    assert.equal(failure.reason.length, 1024);
+    const containsControl = (value) =>
+      [...value].some((character) => character.charCodeAt(0) <= 31 || character.charCodeAt(0) === 127);
+    assert.equal(containsControl(failure.key), false);
+    assert.equal(containsControl(failure.reason), false);
+    assert.match(failure.reason, /^line one line two /);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('captureEvidenceReceipt rejects artifacts above the per-file byte limit before hashing', () => {
+  const dir = manifestDir();
+  const oversized = path.join(dir, 'oversized.png');
+  fs.writeFileSync(oversized, '');
+  fs.truncateSync(oversized, 16 * 1024 * 1024 + 1);
+  try {
+    assert.throws(() => captureEvidenceReceipt(dir), /unsafe capture evidence/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('captureEvidenceReceipt rejects capture trees above the aggregate byte limit', () => {
+  const dir = manifestDir();
+  for (let index = 0; index < 8; index++) {
+    const artifact = path.join(dir, `artifact-${index}.png`);
+    fs.writeFileSync(artifact, '');
+    fs.truncateSync(artifact, 16 * 1024 * 1024);
+  }
+  try {
+    assert.throws(() => captureEvidenceReceipt(dir), /unsafe capture evidence/i);
   } finally {
     rmTmp(dir);
   }

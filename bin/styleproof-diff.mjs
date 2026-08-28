@@ -818,13 +818,21 @@ if (truth.rawOnlyNoReviewable) {
       '(not STYLE_REVIEW_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect.',
   );
 }
+const unverifiedDiagnosticSummary =
+  newSurfaces === 0
+    ? `0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
+    : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
+      ? `${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch`
+      : `${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`;
 console.log(
   clean
-    ? newSurfaces === 0
-      ? `\n✓ 0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
-      : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
-        ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
-        : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
+    ? sourceBinding.status !== 'bound'
+      ? `\n⚠ UNVERIFIED DIAGNOSTIC: ${unverifiedDiagnosticSummary}; trusted source SHAs were not supplied, so this result is not certification`
+      : newSurfaces === 0
+        ? `\n✓ 0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
+        : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
+          ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
+          : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : comparison.blocksCertification
       ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`
       : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`,

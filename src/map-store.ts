@@ -82,6 +82,11 @@ export type CaptureEvidenceReceipt = {
   byteCount: number;
 };
 
+export const MAX_MAP_MANIFEST_BYTES = 16_777_216;
+export const MAX_CAPTURE_EVIDENCE_FILES = 100_000;
+export const MAX_CAPTURE_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024;
+export const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES = 128 * 1024 * 1024;
+
 function unsafeCaptureEvidence(): never {
   throw new MapStoreError('unsafe capture evidence — expected a bounded tree of regular files');
 }
@@ -106,10 +111,11 @@ export function captureEvidenceReceipt(dir: string): CaptureEvidenceReceipt {
       if (entry.isDirectory()) visit(absolute, relative);
       else if (entry.isFile()) files.push(relative);
       else unsafeCaptureEvidence();
-      if (files.length > 100_000) unsafeCaptureEvidence();
+      if (files.length > MAX_CAPTURE_EVIDENCE_FILES) unsafeCaptureEvidence();
     }
   };
   visit(dir);
+  files.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 
   const hash = createHash('sha256').update('styleproof-capture-evidence-v1\0');
   let byteCount = 0;
@@ -117,12 +123,12 @@ export function captureEvidenceReceipt(dir: string): CaptureEvidenceReceipt {
   for (const relative of files) {
     let bytes: Buffer;
     try {
-      bytes = readRegularFileNoFollow(path.join(dir, ...relative.split('/')));
+      bytes = readRegularFileNoFollow(path.join(dir, ...relative.split('/')), MAX_CAPTURE_EVIDENCE_FILE_BYTES);
     } catch {
       return unsafeCaptureEvidence();
     }
     byteCount += bytes.length;
-    if (!Number.isSafeInteger(byteCount)) unsafeCaptureEvidence();
+    if (!Number.isSafeInteger(byteCount) || byteCount > MAX_CAPTURE_EVIDENCE_TOTAL_BYTES) unsafeCaptureEvidence();
     if (!relative.includes('/') && isMapFile(relative)) mapCount++;
     const relativeBytes = Buffer.from(relative, 'utf8');
     hash.update(`${relativeBytes.length}:`).update(relativeBytes).update(`${bytes.length}:`).update(bytes);
@@ -618,14 +624,31 @@ function failureFileName(key: string): string {
   // short hash of the RAW key so a later write can never erase another surface's
   // ledger entry (which would resurface its missing surface as greenfield-new).
   const digest = createHash('sha256').update(key).digest('hex').slice(0, 8);
-  return `${key.replace(/[^a-zA-Z0-9@._-]+/g, '_')}-${digest}.json`;
+  const stem = key.replace(/[^a-zA-Z0-9@._-]+/g, '_').slice(0, 200);
+  return `${stem}-${digest}.json`;
+}
+
+function boundedFailureText(value: string, maximumLength: number, fallback: string): string {
+  const controlFree = [...value]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || code === 127 ? ' ' : character;
+    })
+    .join('');
+  const normalized = controlFree.replace(/\s+/g, ' ').trim();
+  return (normalized || fallback).slice(0, maximumLength);
 }
 
 /** Record one tolerated surface failure (safe under parallel Playwright workers). */
 export function recordSurfaceCaptureFailure(dir: string, failure: SurfaceCaptureFailure): void {
   const sub = path.join(dir, SURFACE_CAPTURE_FAILURES_DIR);
+  const normalized: SurfaceCaptureFailure = {
+    key: boundedFailureText(failure.key, 256, 'capture'),
+    reason: boundedFailureText(failure.reason, 1024, 'capture failed'),
+    ...(failure.kind ? { kind: failure.kind } : {}),
+  };
   fs.mkdirSync(sub, { recursive: true });
-  fs.writeFileSync(path.join(sub, failureFileName(failure.key)), JSON.stringify(failure));
+  fs.writeFileSync(path.join(sub, failureFileName(failure.key)), JSON.stringify(normalized));
 }
 
 /** Read tolerated failures written during capture (sorted by key). */
@@ -733,6 +756,12 @@ function buildManifest(options: {
   };
 }
 
+function writeBoundedManifest(dir: string, manifest: MapManifest): void {
+  const serialized = JSON.stringify(manifest, null, 2);
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_MAP_MANIFEST_BYTES) invalidMapManifest();
+  fs.writeFileSync(path.join(dir, MAP_MANIFEST), serialized);
+}
+
 export function writeMapManifest(options: {
   dir: string;
   spec: string;
@@ -755,7 +784,7 @@ export function writeMapManifest(options: {
     screenshots: options.screenshots,
     surfaceCaptureFailures,
   });
-  fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
+  writeBoundedManifest(options.dir, manifest);
   return manifest;
 }
 
@@ -789,7 +818,7 @@ export function writeCaptureManifest(options: {
     screenshots: options.screenshots,
   });
   fs.mkdirSync(options.dir, { recursive: true });
-  fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
+  writeBoundedManifest(options.dir, manifest);
   return manifest;
 }
 
@@ -850,7 +879,7 @@ function canonicalContentHash(value: unknown): value is string {
 /** JSON.parse keeps only the last duplicate key. Certification manifests must
  * reject that ambiguity instead. This scanner runs only after JSON.parse has
  * established valid JSON grammar, and checks every nested object. */
-function hasDuplicateJsonKeys(source: string): boolean {
+export function hasDuplicateJsonKeys(source: string): boolean {
   let offset = 0;
   let duplicate = false;
   const whitespace = () => {
@@ -974,13 +1003,13 @@ function parseMapManifest(value: unknown): MapManifest {
 export function readMapManifest(dir: string): MapManifest | null {
   let content: string;
   try {
-    content = readRegularFileNoFollow(path.join(dir, MAP_MANIFEST)).toString('utf8');
+    content = readRegularFileNoFollow(path.join(dir, MAP_MANIFEST), MAX_MAP_MANIFEST_BYTES).toString('utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     return invalidMapManifest();
   }
   try {
-    if (content.length > 16_777_216) invalidMapManifest();
+    if (Buffer.byteLength(content, 'utf8') > MAX_MAP_MANIFEST_BYTES) invalidMapManifest();
     const parsed = JSON.parse(content) as unknown;
     if (hasDuplicateJsonKeys(content)) invalidMapManifest();
     return parseMapManifest(parsed);

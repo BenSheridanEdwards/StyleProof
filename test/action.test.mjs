@@ -44,7 +44,7 @@ function stampActionFixture(dir, sha) {
 }
 
 function actionReportMergeScript() {
-  const match = actionYml.match(/ {8}node <<'NODE'\n([\s\S]*?)\n {8}NODE/);
+  const match = actionYml.match(/ {8}node --input-type=module <<'NODE'\n([\s\S]*?)\n {8}NODE/);
   assert.ok(match, 'action.yml should contain the report merge Node program');
   return `${match[1]
     .split('\n')
@@ -100,7 +100,7 @@ test('production diff and report receipts pass through the exact Action merge pr
     );
     assert.equal(report.status, 0, report.stderr || report.stdout);
 
-    const mergeScript = path.join(root, 'merge.cjs');
+    const mergeScript = path.join(root, 'merge.mjs');
     const output = path.join(root, 'github-output');
     fs.writeFileSync(mergeScript, actionReportMergeScript());
     fs.writeFileSync(output, '');
@@ -109,6 +109,7 @@ test('production diff and report receipts pass through the exact Action merge pr
       STYLEPROOF_INCLUDE_CONTENT: 'false',
       STYLEPROOF_EXPECTED_BASE_SHA: 'a'.repeat(40),
       STYLEPROOF_EXPECTED_HEAD_SHA: 'b'.repeat(40),
+      GITHUB_ACTION_PATH: path.join(here, '..'),
       GITHUB_OUTPUT: output,
     };
     const merge = spawnSync(process.execPath, [mergeScript], {
@@ -123,6 +124,52 @@ test('production diff and report receipts pass through the exact Action merge pr
     const honestReport = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
     const honestDiff = JSON.parse(fs.readFileSync(diffJsonPath, 'utf8'));
 
+    const impossibleFileCountReport = structuredClone(honestReport);
+    const impossibleFileCountDiff = structuredClone(honestDiff);
+    impossibleFileCountReport.evidenceBinding.after.fileCount = 100_001;
+    impossibleFileCountDiff.evidenceBinding.after.fileCount = 100_001;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(impossibleFileCountReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(impossibleFileCountDiff));
+    const impossibleFileCount = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(impossibleFileCount.status, 1, impossibleFileCount.stderr || impossibleFileCount.stdout);
+    assert.match(impossibleFileCount.stderr, /evidence-binding receipts are missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const impossibleByteCountReport = structuredClone(honestReport);
+    const impossibleByteCountDiff = structuredClone(honestDiff);
+    impossibleByteCountReport.evidenceBinding.after.byteCount = 128 * 1024 * 1024 + 1;
+    impossibleByteCountDiff.evidenceBinding.after.byteCount = 128 * 1024 * 1024 + 1;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(impossibleByteCountReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(impossibleByteCountDiff));
+    const impossibleByteCount = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(impossibleByteCount.status, 1, impossibleByteCount.stderr || impossibleByteCount.stdout);
+    assert.match(impossibleByteCount.stderr, /evidence-binding receipts are missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const honestDigestToken = `"digest":"${honestReport.evidenceBinding.before.digest}"`;
+    const duplicateDigestToken = `"digest":"${'f'.repeat(64)}",${honestDigestToken}`;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport).replace(honestDigestToken, duplicateDigestToken));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff).replace(honestDigestToken, duplicateDigestToken));
+    const duplicateDigest = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(duplicateDigest.status, 1, duplicateDigest.stderr || duplicateDigest.stdout);
+    assert.match(duplicateDigest.stderr, /duplicate json key|missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
     const digestMismatch = structuredClone(honestReport);
     digestMismatch.evidenceBinding.after.digest = 'f'.repeat(64);
     fs.writeFileSync(reportJsonPath, JSON.stringify(digestMismatch));

@@ -214,24 +214,39 @@ runs:
           echo "styleproof-report exited with code $report_exit_code — no trustworthy report was generated" >&2
           exit "$report_exit_code"
         fi
-        node <<'NODE'
-        const fs = require('fs');
-        const { isDeepStrictEqual } = require('util');
-        const diff = JSON.parse(fs.readFileSync('styleproof-diff.json', 'utf8'));
-        const generated = JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'));
+        node --input-type=module <<'NODE'
+        import fs from 'node:fs';
+        import path from 'node:path';
+        import { pathToFileURL } from 'node:url';
+        import { isDeepStrictEqual } from 'node:util';
+        const mapStoreUrl = pathToFileURL(path.join(process.env.GITHUB_ACTION_PATH, 'dist/map-store.js')).href;
+        const { hasDuplicateJsonKeys } = await import(mapStoreUrl);
+        const parseReceipt = (filePath) => {
+          const source = fs.readFileSync(filePath, 'utf8');
+          const parsed = JSON.parse(source);
+          if (hasDuplicateJsonKeys(source)) throw new Error('duplicate JSON key in StyleProof receipt');
+          return parsed;
+        };
+        const diff = parseReceipt('styleproof-diff.json');
+        const generated = parseReceipt('styleproof-report/report.json');
         const exactKeys = (value, keys) =>
           value &&
           typeof value === 'object' &&
           !Array.isArray(value) &&
           isDeepStrictEqual(Object.keys(value).sort(), [...keys].sort());
         const fullSha = (value) => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
+        const MAX_CAPTURE_EVIDENCE_FILES = 100_000;
+        const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES = 128 * 1024 * 1024;
         const validEvidenceSide = (value) =>
           exactKeys(value, ['algorithm', 'digest', 'fileCount', 'mapCount', 'byteCount']) &&
           value.algorithm === 'sha256' &&
           typeof value.digest === 'string' && /^[0-9a-f]{64}$/.test(value.digest) &&
           Number.isSafeInteger(value.fileCount) && value.fileCount >= 0 &&
+          value.fileCount <= MAX_CAPTURE_EVIDENCE_FILES &&
           Number.isSafeInteger(value.mapCount) && value.mapCount >= 0 && value.mapCount <= value.fileCount &&
-          Number.isSafeInteger(value.byteCount) && value.byteCount >= 0;
+          Number.isSafeInteger(value.byteCount) && value.byteCount >= 0 &&
+          value.byteCount <= MAX_CAPTURE_EVIDENCE_TOTAL_BYTES &&
+          (value.fileCount !== 0 || value.byteCount === 0);
         const validEvidenceBinding = (value) =>
           exactKeys(value, ['version', 'before', 'after']) && value.version === 1 &&
           validEvidenceSide(value.before) && validEvidenceSide(value.after);
