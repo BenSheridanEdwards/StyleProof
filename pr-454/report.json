@@ -25,25 +25,25 @@
       "style": 0,
       "state": 0
     },
-    "newSurfaces": 1,
+    "newSurfaces": 0,
     "removedSurfaces": 0,
     "rawChangedSurfaces": 0,
     "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": true,
+    "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "incomparableSurfaces": 0,
-    "unprovenSurfaces": 0,
+    "unprovenSurfaces": 1,
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "not-required",
+    "status": "unproven",
     "requireStateIdentity": false,
     "blocksCertification": false,
     "counts": {
       "comparable": 0,
       "incomparable": 0,
-      "unproven": 0,
-      "notRequired": 1,
+      "unproven": 1,
+      "notRequired": 0,
       "requiredUnproven": 0,
       "globalRequiredUnproven": 0
     }
@@ -51,9 +51,9 @@
   "comparability": [
     {
       "surface": "home@320",
-      "status": "not-required",
+      "status": "unproven",
       "required": false,
-      "reason": "missing-before"
+      "reason": "state-identity-missing"
     }
   ],
   "reportConsistency": {
@@ -65,32 +65,24 @@
     "changes": 0,
     "advisory": true
   },
-  "surfaces": [
-    {
-      "surface": "home@320",
-      "missing": "before",
-      "isNew": true,
-      "isRemoved": false,
-      "image": "crops/home-320-1-new.png"
-    }
-  ],
+  "surfaces": [],
   "confidence": {
     "counts": {
       "inaccessible": 0,
       "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 0
+      "captured": 1
     },
-    "completeness": "unknown"
+    "completeness": "complete"
   },
   "sourceBinding": {
     "status": "bound",
-    "compatibility": "not-applicable",
+    "compatibility": "matched",
     "before": {
       "expected": "c9a385ef69f7312ca24cf02cb3712ea4770e5c8e",
-      "observed": null,
-      "result": "no-capture"
+      "observed": "c9a385ef69f7312ca24cf02cb3712ea4770e5c8e",
+      "result": "matched"
     },
     "after": {
       "expected": "070776e48a6d017a0ebd2f7e37db94eb5251b45d",
@@ -102,17 +94,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd",
-      "fileCount": 0,
-      "mapCount": 0,
-      "byteCount": 0
+      "digest": "a7ac0670aadc7c9075e069c894628e350a165fa85dd62bd31b358114ea662426",
+      "fileCount": 4,
+      "mapCount": 1,
+      "byteCount": 1329
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "e0ea90239730aea83b51b46383513fd76fcd7027a315ddc2a74d0fa6de4709dd",
+      "digest": "208a2a9acdda5b47ecea4fd30545a182568c5baff6f718afe05b2c9051cf2681",
       "fileCount": 4,
       "mapCount": 1,
-      "byteCount": 1328
+      "byteCount": 1396
     }
   }
 }
