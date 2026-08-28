@@ -33,16 +33,16 @@
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "incomparableSurfaces": 0,
-    "unprovenSurfaces": 1,
+    "unprovenSurfaces": 0,
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "unproven",
+    "status": "not-required",
     "requireStateIdentity": false,
     "blocksCertification": false,
     "counts": {
       "comparable": 0,
       "incomparable": 0,
-      "unproven": 1,
+      "unproven": 0,
       "notRequired": 1,
       "requiredUnproven": 0,
       "globalRequiredUnproven": 0
@@ -50,16 +50,10 @@
   },
   "comparability": [
     {
-      "surface": "about@320",
+      "surface": "home@320",
       "status": "not-required",
       "required": false,
       "reason": "missing-before"
-    },
-    {
-      "surface": "home@320",
-      "status": "unproven",
-      "required": false,
-      "reason": "state-identity-missing"
     }
   ],
   "reportConsistency": {
@@ -73,11 +67,11 @@
   },
   "surfaces": [
     {
-      "surface": "about@320",
+      "surface": "home@320",
       "missing": "before",
       "isNew": true,
       "isRemoved": false,
-      "image": "crops/about-320-1-new.png"
+      "image": "crops/home-320-1-new.png"
     }
   ],
   "confidence": {
@@ -92,11 +86,11 @@
   },
   "sourceBinding": {
     "status": "bound",
-    "compatibility": "matched",
+    "compatibility": "not-applicable",
     "before": {
       "expected": "4221e521045ddbb5da63442aaad4cd4adc9b59a4",
-      "observed": "4221e521045ddbb5da63442aaad4cd4adc9b59a4",
-      "result": "matched"
+      "observed": null,
+      "result": "no-capture"
     },
     "after": {
       "expected": "9641c95c372f75fe5c893efaecd908275c22b50c",
@@ -108,17 +102,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "7966a1ad9f81c2287e19b6e8f6ac8eaf9a7e13bbb4bca558a02514e78d1afa13",
-      "fileCount": 4,
-      "mapCount": 1,
-      "byteCount": 1479
+      "digest": "f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd",
+      "fileCount": 0,
+      "mapCount": 0,
+      "byteCount": 0
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "8cb3b24ff7573de08ffcf1868b2c48fdd6edbe720e37249146db7dd96a2dd0b8",
-      "fileCount": 6,
-      "mapCount": 2,
-      "byteCount": 2105
+      "digest": "62dc2ad86af76924c6827578a1ba1aa7a75aac572c027dfe3fe0634dace07a83",
+      "fileCount": 4,
+      "mapCount": 1,
+      "byteCount": 1328
     }
   }
 }
