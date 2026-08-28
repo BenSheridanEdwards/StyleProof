@@ -100,7 +100,7 @@ Examples:
   styleproof-map
   styleproof-map --crawl-base-url http://localhost:3000 --crawl-route / --crawl-route settings=/settings
   styleproof-map --upload
-  styleproof-map --restore --sha 0123abcd --dir head --base-dir __stylemaps__
+  styleproof-map --restore --sha 0123abcd0123abcd0123abcd0123abcd0123abcd --dir head --base-dir __stylemaps__
   styleproof-map --spec e2e/styleproof.spec.ts
   styleproof-map --dir review --base-dir __stylemaps__ --keep-har --no-upload
 `;
@@ -236,6 +236,10 @@ if (!dir) {
 }
 if (!baseDir) {
   console.error('--base-dir requires a path');
+  process.exit(2);
+}
+if (sha && !/^(?:[0-9a-f]{40}|uncommitted)$/.test(sha)) {
+  console.error('styleproof-map: --sha must be a full lowercase 40-hex commit SHA or uncommitted');
   process.exit(2);
 }
 if (!fs.existsSync(spec)) {
@@ -482,11 +486,11 @@ if (status === 0) {
   }
   // Bind the map to the commit it actually started rendering (headBeforeCapture), not a
   // HEAD that may have moved mid-capture. `--sha` still wins for callers that know better.
-  const manifestSha = sha || headBeforeCapture || 'local';
+  const manifestSha = sha || headBeforeCapture || 'uncommitted';
   // Re-check the tree AFTER capture (ignoring the maps this run just wrote): if the source
   // was edited, or HEAD moved, during the capture window, the map↔SHA binding is a lie —
   // mark it dirty so publishMapBundle refuses to push a stale map into the SHA-keyed store.
-  let dirty = dirtyBeforeCapture;
+  let dirty = manifestSha === 'uncommitted' ? true : dirtyBeforeCapture;
   try {
     const rel = path.relative(process.cwd(), targetDir) || targetDir;
     const headAfter = currentGitSha(process.cwd(), env);

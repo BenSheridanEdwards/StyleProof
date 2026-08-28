@@ -127,6 +127,47 @@ test('recordSurfaceCaptureFailures merge into writeMapManifest', () => {
   rmTmp(root);
 });
 
+test('writeMapManifest rejects source identities its strict reader cannot consume', () => {
+  const root = mkTmp();
+  try {
+    for (const sha of ['0123abcd', 'local', 'A'.repeat(40)]) {
+      const dir = path.join(root, sha.slice(0, 8));
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'home@900.json'), '{}');
+      assert.throws(
+        () =>
+          writeMapManifest({
+            dir,
+            spec: 'e2e/styleproof.spec.ts',
+            sha,
+            screenshots: false,
+            cwd: root,
+          }),
+        /invalid .*manifest/i,
+      );
+      assert.equal(fs.existsSync(path.join(dir, MAP_MANIFEST)), false);
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map rejects a noncanonical explicit source SHA before capture', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    for (const sha of ['0123abcd', 'local', 'A'.repeat(40)]) {
+      const result = run(MAP, ['--spec', spec, '--sha', sha, '--no-upload'], {}, root);
+      assert.equal(result.status, 2, result.stderr + result.stdout);
+      assert.match(result.stderr, /sha.*40.*lowercase|full lowercase.*sha/i);
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('recordSurfaceCaptureFailure: keys that sanitize identically do not clobber each other', () => {
   const root = mkTmp();
   const dir = path.join(root, 'maps');
@@ -173,6 +214,8 @@ exit 1
     );
     assert.equal(r.status, 0, r.stderr + r.stdout);
     const manifest = JSON.parse(fs.readFileSync(path.join(maps, 'base', MAP_MANIFEST), 'utf8'));
+    assert.equal(manifest.sha, 'uncommitted');
+    assert.equal(manifest.dirty, true);
     assert.equal(manifest.surfaceCaptureFailures?.length, 1);
     assert.match(r.stderr, /partial baseline/);
   } finally {

@@ -236,17 +236,18 @@ runs:
           isDeepStrictEqual(Object.keys(value).sort(), [...keys].sort());
         const fullSha = (value) => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
         const MAX_CAPTURE_EVIDENCE_FILES = 100_000;
+        const MAX_CAPTURE_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024;
         const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES = 128 * 1024 * 1024;
         const validEvidenceSide = (value) =>
           exactKeys(value, ['algorithm', 'digest', 'fileCount', 'mapCount', 'byteCount']) &&
           value.algorithm === 'sha256' &&
           typeof value.digest === 'string' && /^[0-9a-f]{64}$/.test(value.digest) &&
-          Number.isSafeInteger(value.fileCount) && value.fileCount >= 0 &&
+          Number.isSafeInteger(value.fileCount) && value.fileCount >= 2 &&
           value.fileCount <= MAX_CAPTURE_EVIDENCE_FILES &&
-          Number.isSafeInteger(value.mapCount) && value.mapCount >= 0 && value.mapCount <= value.fileCount &&
-          Number.isSafeInteger(value.byteCount) && value.byteCount >= 0 &&
+          Number.isSafeInteger(value.mapCount) && value.mapCount >= 1 && value.mapCount < value.fileCount &&
+          Number.isSafeInteger(value.byteCount) && value.byteCount > 0 &&
           value.byteCount <= MAX_CAPTURE_EVIDENCE_TOTAL_BYTES &&
-          (value.fileCount !== 0 || value.byteCount === 0);
+          value.byteCount <= value.fileCount * MAX_CAPTURE_EVIDENCE_FILE_BYTES;
         const validEvidenceBinding = (value) =>
           exactKeys(value, ['version', 'before', 'after']) && value.version === 1 &&
           validEvidenceSide(value.before) && validEvidenceSide(value.after);
