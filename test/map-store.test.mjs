@@ -161,7 +161,7 @@ function manifestDir(overrides = {}) {
     sha: 'a'.repeat(40),
     dirty: false,
     spec: 'e2e/styleproof.spec.ts',
-    specHash: 'test',
+    specHash: '1'.repeat(64),
     platform: 'linux',
     arch: 'x64',
     nodeMajor: '20',
@@ -174,6 +174,77 @@ function manifestDir(overrides = {}) {
   fs.writeFileSync(path.join(dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
   return dir;
 }
+
+test('readMapManifest rejects a parseable object missing the v1 contract', () => {
+  const dir = mkTmp('styleproof-malformed-manifest-');
+  try {
+    fs.writeFileSync(path.join(dir, MAP_MANIFEST), '{}');
+    assert.throws(() => readMapManifest(dir), /invalid styleproof-manifest\.json/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('readMapManifest rejects unknown fields without echoing hostile values', () => {
+  const marker = 'PRIVATE-MANIFEST-MARKER';
+  const dir = manifestDir({ unexpected: marker });
+  try {
+    assert.throws(
+      () => readMapManifest(dir),
+      (error) => {
+        assert.match(error.message, /invalid styleproof-manifest\.json/i);
+        assert.doesNotMatch(error.message, new RegExp(marker));
+        return true;
+      },
+    );
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('readMapManifest rejects invalid optional fields and nested failure receipts', () => {
+  const cases = [
+    { dirtyAllow: ['generated/file', 7] },
+    { lockfile: false },
+    { lockfileHash: [] },
+    { playwrightVersion: 42 },
+    { browserVersion: {} },
+    { baseUrl: null },
+    { compatibilityKey: '' },
+    { createdAt: 'not-an-instant' },
+    { createdAt: '2026-01-01' },
+    { specHash: 'not-a-content-hash' },
+    { compatibilityKey: 'not-a-canonical-key' },
+    { lockfile: 'package-lock.json' },
+    { lockfileHash: '2'.repeat(64) },
+    { lockfile: 'package-lock.json', lockfileHash: 'not-a-content-hash' },
+    { sha: 'uncommitted', dirty: false },
+    { platform: 'linux\nPRIVATE-MANIFEST-MARKER' },
+    { surfaceCaptureFailures: 'not-an-array' },
+    { surfaceCaptureFailures: [{ key: 'home@1280', reason: 'failed', kind: 'self-check' }] },
+    { surfaceCaptureFailures: [{ key: 'home@1280', reason: 'failed', unexpected: true }] },
+  ];
+
+  for (const overrides of cases) {
+    const dir = manifestDir(overrides);
+    try {
+      assert.throws(() => readMapManifest(dir), /invalid styleproof-manifest\.json/i);
+    } finally {
+      rmTmp(dir);
+    }
+  }
+});
+
+test('readMapManifest rejects duplicate JSON object keys', () => {
+  const dir = manifestDir();
+  try {
+    const valid = fs.readFileSync(path.join(dir, MAP_MANIFEST), 'utf8').trim();
+    fs.writeFileSync(path.join(dir, MAP_MANIFEST), valid.replace('{', `{"sha":"${'b'.repeat(40)}",`));
+    assert.throws(() => readMapManifest(dir), /invalid styleproof-manifest\.json/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
 
 test('workingTreeDirty: ignorePrefix skips the map output dir but still catches a source edit', () => {
   const repo = mkTmp('styleproof-dirty-');
@@ -930,7 +1001,7 @@ test('restoreMapBundle retrieves only the requested SHA from a large map store',
         sha: requestedSha,
         dirty: false,
         spec: 'styleproof.spec.ts',
-        specHash: 'test',
+        specHash: '1'.repeat(64),
         platform: 'linux',
         arch: 'x64',
         nodeMajor: '22',
@@ -1005,16 +1076,60 @@ test('restoreMapBundle retrieves only the requested SHA from a large map store',
   }
 });
 
-test('assertCompatibleMapDirs: differing browser build refuses to compare, naming both', () => {
-  const before = manifestDir({ browserVersion: '124.0.6367.60', sha: 'b'.repeat(40) });
-  const after = manifestDir({ browserVersion: '125.0.6422.60', sha: 'c'.repeat(40) });
+test('assertCompatibleMapDirs: trusted source SHAs form one complete binding receipt', () => {
+  const before = manifestDir({ sha: 'a'.repeat(40) });
+  const after = manifestDir({ sha: 'b'.repeat(40) });
+  try {
+    assert.deepEqual(assertCompatibleMapDirs(before, after, { beforeSha: 'a'.repeat(40), afterSha: 'b'.repeat(40) }), {
+      status: 'bound',
+      compatibility: 'matched',
+      before: { expected: 'a'.repeat(40), observed: 'a'.repeat(40), result: 'matched' },
+      after: { expected: 'b'.repeat(40), observed: 'b'.repeat(40), result: 'matched' },
+    });
+    assert.throws(
+      () => assertCompatibleMapDirs(before, after, { beforeSha: 'a'.repeat(40) }),
+      /must be supplied together/i,
+    );
+    assert.throws(
+      () => assertCompatibleMapDirs(before, after, { afterSha: 'b'.repeat(40) }),
+      /must be supplied together/i,
+    );
+    assert.throws(
+      () => assertCompatibleMapDirs(before, after, { beforeSha: 'a'.repeat(40), afterSha: 'c'.repeat(40) }),
+      /after capture source does not match the trusted SHA/i,
+    );
+    assert.throws(
+      () => assertCompatibleMapDirs(before, after, { beforeSha: 'c'.repeat(40), afterSha: 'b'.repeat(40) }),
+      /before capture source does not match the trusted SHA/i,
+    );
+  } finally {
+    rmTmp(before);
+    rmTmp(after);
+  }
+});
+
+test('assertCompatibleMapDirs: differing canonical compatibility keys refuse to compare', () => {
+  const before = manifestDir({ compatibilityKey: 'aaaaaaaaaaaaaaaa' });
+  const after = manifestDir({ compatibilityKey: 'bbbbbbbbbbbbbbbb' });
+  try {
+    assert.throws(() => assertCompatibleMapDirs(before, after), /different capture compatibility/i);
+  } finally {
+    rmTmp(before);
+    rmTmp(after);
+  }
+});
+
+test('assertCompatibleMapDirs: differing runtime refuses privately without echoing manifest values', () => {
+  const beforeVersion = '124.0.6367.60-PRIVATE-BEFORE-MARKER';
+  const afterVersion = '125.0.6422.60-PRIVATE-AFTER-MARKER';
+  const before = manifestDir({ browserVersion: beforeVersion, sha: 'b'.repeat(40) });
+  const after = manifestDir({ browserVersion: afterVersion, sha: 'c'.repeat(40) });
   try {
     assert.throws(
       () => assertCompatibleMapDirs(before, after),
       (err) => {
         assert.match(err.message, /different runtime environments/);
-        assert.match(err.message, /124\.0\.6367\.60/);
-        assert.match(err.message, /125\.0\.6422\.60/);
+        assert.doesNotMatch(err.message, /PRIVATE-BEFORE-MARKER|PRIVATE-AFTER-MARKER/);
         return true;
       },
     );
@@ -1209,7 +1324,7 @@ function seedMapStore(root, seededSha, compatibilityKey) {
         sha: seededSha,
         dirty: false,
         spec: 'styleproof.spec.ts',
-        specHash: 'test',
+        specHash: '1'.repeat(64),
         platform: 'linux',
         arch: 'x64',
         nodeMajor: '22',

@@ -1757,7 +1757,7 @@ test(
             sha: seededSha,
             dirty: false,
             spec: 'styleproof.spec.ts',
-            specHash: 'test',
+            specHash: '1'.repeat(64),
             platform: process.platform,
             arch: process.arch,
             nodeMajor: process.versions.node.split('.')[0],

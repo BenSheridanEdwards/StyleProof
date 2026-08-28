@@ -11,6 +11,7 @@
  * need the .png screenshots that `defineStyleMapCapture` saves by default.
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
+import fs from 'node:fs';
 import { generateStyleMapReport } from '../dist/report.js';
 import { cachedMapsUnavailableMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
@@ -18,6 +19,7 @@ import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
+  validateExpectedSourceShas,
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
@@ -53,6 +55,8 @@ options:
                             before/after crop. Needs captures taken with
                             captureText:true; never affects the check (off by default)
   --require-state-identity require explicit matching product-state identity for every paired surface
+  --expected-before-sha <sha> trusted full base commit SHA; must be paired with --expected-after-sha
+  --expected-after-sha <sha>  trusted full head commit SHA; must be paired with --expected-before-sha
   -h, --help                show this help
 
 exit: 0 no changes, 1 report generated, 2 usage error.
@@ -69,6 +73,10 @@ let minHeight;
 let includeLayoutNoise = false;
 let includeContent = false;
 let requireStateIdentity = false;
+let expectedBeforeSha;
+let expectedAfterSha;
+let expectedBeforeShaSet = false;
+let expectedAfterShaSet = false;
 // Repo config is the lowest-precedence default layer (flag > env > file > built-in),
 // matching every other CLI — see the identical block in styleproof-diff.
 const captureSource = captureSourceDefaults(COMMAND);
@@ -100,10 +108,31 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--include-content=')) includeContent = a.slice(18) !== 'false';
   else if (a === '--require-state-identity') requireStateIdentity = true;
   else if (a.startsWith('--require-state-identity=')) requireStateIdentity = a.slice(25) !== 'false';
-  else if (a.startsWith('--')) {
+  else if (a === '--expected-before-sha') {
+    expectedBeforeShaSet = true;
+    expectedBeforeSha = argv[++i];
+  } else if (a.startsWith('--expected-before-sha=')) {
+    expectedBeforeShaSet = true;
+    expectedBeforeSha = a.slice(22);
+  } else if (a === '--expected-after-sha') {
+    expectedAfterShaSet = true;
+    expectedAfterSha = argv[++i];
+  } else if (a.startsWith('--expected-after-sha=')) {
+    expectedAfterShaSet = true;
+    expectedAfterSha = a.slice(21);
+  } else if (a.startsWith('--')) {
     console.error(unknownFlagMessage(COMMAND, a));
     process.exit(2);
   } else args.push(a);
+}
+try {
+  validateExpectedSourceShas({
+    beforeSha: expectedBeforeShaSet ? (expectedBeforeSha ?? '') : undefined,
+    afterSha: expectedAfterShaSet ? (expectedAfterSha ?? '') : undefined,
+  });
+} catch (error) {
+  console.error(`${COMMAND}: ${error.message}`);
+  process.exit(2);
 }
 let beforeDir;
 let afterDir;
@@ -156,7 +185,10 @@ try {
   // compatibility can't be verified without a manifest on both sides.
   const manifestless = manifestlessSide(beforeDir, afterDir);
   if (manifestless) throw new Error(manifestlessError(manifestless));
-  assertCompatibleMapDirs(beforeDir, afterDir);
+  const sourceBinding = assertCompatibleMapDirs(beforeDir, afterDir, {
+    beforeSha: expectedBeforeSha,
+    afterSha: expectedAfterSha,
+  });
   result = generateStyleMapReport({
     beforeDir,
     afterDir,
@@ -171,6 +203,8 @@ try {
     includeContent,
     requireStateIdentity,
   });
+  const reportJson = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  fs.writeFileSync(result.reportJsonPath, `${JSON.stringify({ ...reportJson, sourceBinding }, null, 2)}\n`);
 } catch (e) {
   console.error(e.message);
   process.exit(2);

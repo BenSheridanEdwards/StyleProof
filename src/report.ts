@@ -1502,12 +1502,9 @@ const SURFACE_SCOPE_GLOSSARY =
 function baselineFailureSummaryLines(failures: SurfaceCaptureFailure[]): string[] {
   if (failures.length === 0) return [];
   const md = [
-    `⚠️ **${failures.length} baseline capture failure(s)** — these surfaces failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely as if they were greenfield new surfaces.`,
+    `⚠️ **${failures.length} baseline capture failure(s)** — these surfaces failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely as if they were greenfield new surfaces. Failure details remain in the local capture manifest and are not echoed from untrusted artifacts.`,
+    '',
   ];
-  for (const failure of failures.slice(0, 8))
-    md.push(`- \`${safeKey(failure.key)}\`: ${escapeMarkdownFailureReason(failure.reason)}`);
-  if (failures.length > 8) md.push(`- _…and ${failures.length - 8} more (see manifest \`surfaceCaptureFailures\`)_`);
-  md.push('');
   return md;
 }
 

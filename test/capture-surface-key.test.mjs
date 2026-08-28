@@ -13,7 +13,15 @@ import {
 import { countCapturedSurfaceBases } from '../dist/change-groups.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { MAP_MANIFEST } from '../dist/map-store.js';
-import { makeMap, mkTmp, rmTmp, writeCapture, solidPng } from './helpers.mjs';
+import {
+  fixtureCommitSha,
+  fixtureCompatibilityKey,
+  makeMap,
+  mkTmp,
+  rmTmp,
+  writeCapture,
+  solidPng,
+} from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DIFF = path.join(here, '..', 'bin', 'styleproof-diff.mjs');
@@ -25,16 +33,16 @@ function writeManifest(dir, sha, compatibilityKey) {
       {
         version: 1,
         packageVersion: 'test',
-        sha,
+        sha: fixtureCommitSha(sha),
         dirty: false,
         spec: 'e2e/styleproof.spec.ts',
-        specHash: 'test',
+        specHash: '1'.repeat(64),
         platform: process.platform,
         arch: process.arch,
         nodeMajor: process.versions.node.split('.')[0],
         screenshots: true,
         har: false,
-        compatibilityKey,
+        compatibilityKey: fixtureCompatibilityKey(compatibilityKey),
         createdAt: '2026-01-01T00:00:00.000Z',
       },
       null,

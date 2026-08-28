@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { saveStyleMap } from '../dist/capture.js';
 import { DEFAULT_MAP_STORE_BRANCH, MAP_MANIFEST, expectedCompatibilityKey } from '../dist/map-store.js';
-import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+import { fixtureCommitSha, fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 import { writeConfidenceLedger, buildConfidenceLedger } from '../dist/confidence-ledger.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -565,13 +565,13 @@ test('diff CLI --max truncates the per-surface listing and prints a hint', () =>
   rmTmp(root);
 });
 
-test('diff CLI allows different cache keys when the runtime environment matches', () => {
+test('diff CLI refuses different canonical compatibility keys even when runtime fields match', () => {
   const { root, A, B } = differingPair();
   writeManifest(A, 'base-sha', 'base-spec-key');
   writeManifest(B, 'head-sha', 'head-spec-key');
   const r = run(DIFF, [A, B]);
-  assert.equal(r.status, 1, r.stderr);
-  assert.match(r.stdout, /computed-style difference/);
+  assert.equal(r.status, 2, r.stderr);
+  assert.match(r.stderr, /different capture compatibility contracts/);
   rmTmp(root);
 });
 
@@ -682,16 +682,16 @@ function writeManifest(dir, sha, compatibilityKey) {
       {
         version: 1,
         packageVersion: 'test',
-        sha,
+        sha: fixtureCommitSha(sha),
         dirty: false,
         spec: 'e2e/styleproof.spec.ts',
-        specHash: 'test',
+        specHash: '1'.repeat(64),
         platform: process.platform,
         arch: process.arch,
         nodeMajor: process.versions.node.split('.')[0],
         screenshots: true,
         har: false,
-        compatibilityKey,
+        compatibilityKey: fixtureCompatibilityKey(compatibilityKey),
         createdAt: '2026-01-01T00:00:00.000Z',
       },
       null,
@@ -806,12 +806,12 @@ test('diff accepts a single base ref and uses cached maps', () => {
   rmTmp(repo);
 });
 
-test('diff restores each cached side under the compatibility key derived from its own commit', () => {
+test('diff restores each cached side but refuses to compare distinct compatibility contracts', () => {
   const { repo, baseCompatibilityKey, headCompatibilityKey } = setupCachedComparison({ changeLockfile: true });
   assert.notEqual(baseCompatibilityKey, headCompatibilityKey, 'the lockfile-only fixture must exercise distinct keys');
   const r = runIn(repo, DIFF, ['main']);
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
+  assert.equal(r.status, 2, r.stderr);
+  assert.match(r.stderr, /different capture compatibility contracts/);
   rmTmp(repo);
 });
 

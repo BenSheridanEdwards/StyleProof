@@ -16,13 +16,13 @@ function writeBundle(root, options = {}) {
       sha: 'c'.repeat(40),
       dirty: false,
       spec: 'e2e/styleproof.spec.ts',
-      specHash: 'spec-hash',
+      specHash: '1'.repeat(64),
       platform: 'darwin',
       arch: 'arm64',
       nodeMajor: '22',
       screenshots: true,
       har: true,
-      compatibilityKey: 'compat-import',
+      compatibilityKey: '0000000000000000',
       createdAt: '2026-08-26T00:00:00.000Z',
     }),
   );
@@ -51,7 +51,7 @@ test('v1 map import creates verified complete/proven v2 evidence and excludes HA
     const imported = importMapBundleToEvidenceStore({ bundleDirectory: bundle, storeRoot: store });
     assert.deepEqual(imported.manifest.trust, { coverageBasis: 'complete', determinismStatus: 'proven' });
     assert.equal(imported.manifest.source.sha, 'c'.repeat(40));
-    assert.equal(imported.manifest.source.compatibilityKey, 'compat-import');
+    assert.equal(imported.manifest.source.compatibilityKey, '0000000000000000');
     assert.equal(
       imported.manifest.files.some((file) => file.path.endsWith('.har')),
       false,
