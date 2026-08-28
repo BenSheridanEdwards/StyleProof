@@ -950,7 +950,8 @@ test('report CLI exits 0 for structural-only path churn when content comparison 
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /✓ no reviewable computed-style changes/);
+  assert.match(r.stdout, /UNVERIFIED DIAGNOSTIC: no reviewable computed-style changes/i);
+  assert.doesNotMatch(r.stdout, /✓ no reviewable computed-style changes/);
   assert.match(r.stdout, /content\/structure not evaluated/);
   const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
   assert.deepEqual(json.rawCounts, { dom: 0, style: 0, state: 0 });

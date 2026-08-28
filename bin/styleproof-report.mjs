@@ -182,13 +182,14 @@ if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
 }
 
 let result;
+let sourceBinding;
 try {
   // v4: refuse a manifest-less side (exit 2 via the catch) — same-environment
   // compatibility can't be verified without a manifest on both sides.
   const manifestless = manifestlessSide(beforeDir, afterDir);
   if (manifestless) throw new Error(manifestlessError(manifestless));
   const initialEvidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
-  const sourceBinding = assertCompatibleMapDirs(beforeDir, afterDir, {
+  sourceBinding = assertCompatibleMapDirs(beforeDir, afterDir, {
     beforeSha: expectedBeforeSha,
     afterSha: expectedAfterSha,
   });
@@ -215,6 +216,17 @@ try {
     result.reportJsonPath,
     `${JSON.stringify({ ...reportJson, sourceBinding, evidenceBinding }, null, 2)}\n`,
   );
+  if (sourceBinding.status !== 'bound') {
+    const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+    const relabeled = markdown.replace(
+      /✓ No reviewable computed-style changes/g,
+      '⚠ UNVERIFIED DIAGNOSTIC: No reviewable computed-style changes',
+    );
+    fs.writeFileSync(
+      result.reportMdPath,
+      relabeled === markdown ? `> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified.\n\n${markdown}` : relabeled,
+    );
+  }
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -225,6 +237,7 @@ try {
 const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';
 const consistencyFailed = result.reportConsistency?.ok === false;
 const comparisonFailed = result.comparison?.blocksCertification === true;
+const cleanPrefix = sourceBinding.status === 'bound' ? '✓' : '⚠ UNVERIFIED DIAGNOSTIC:';
 if (consistencyFailed) {
   console.log(`⚠ report consistency: ${result.reportConsistency.reason} — not a clean no-change (fail closed)`);
 }
@@ -235,9 +248,9 @@ console.log(
         ? '⚠ no presentation changes — report consistency failure written'
         : includeContent
           ? result.contentChanges > 0
-            ? `✓ no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
-            : '✓ no reviewable computed-style or advisory content/structure changes'
-          : '✓ no reviewable computed-style changes — content/structure not evaluated'
+            ? `${cleanPrefix} no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
+            : `${cleanPrefix} no reviewable computed-style or advisory content/structure changes`
+          : `${cleanPrefix} no reviewable computed-style changes — content/structure not evaluated`
       : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
     : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );

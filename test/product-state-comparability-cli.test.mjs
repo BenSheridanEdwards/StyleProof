@@ -97,6 +97,25 @@ test('diff CLI labels an unbound clean comparison as diagnostic rather than cert
   }
 });
 
+test('report CLI labels unbound clean output and durable markdown as unverified diagnostics', () => {
+  const capture = fixture({});
+  try {
+    const out = path.join(capture.root, 'report-unverified');
+    const result = spawnSync(process.execPath, [REPORT, capture.before, capture.after, '--out', out], {
+      cwd: capture.root,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /UNVERIFIED DIAGNOSTIC/i);
+    assert.doesNotMatch(result.stdout, /✓ no reviewable/i);
+    const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+    assert.match(markdown, /UNVERIFIED DIAGNOSTIC/i);
+    assert.doesNotMatch(markdown, /✓ No reviewable computed-style changes/);
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
 test('diff CLI binds capture manifests to explicit trusted source SHAs before diffing', () => {
   const capture = fixture({});
   try {

@@ -243,7 +243,8 @@ runs:
           value.fileCount === 0 && value.mapCount === 0 && value.byteCount === 0 &&
           value.digest === EMPTY_CAPTURE_EVIDENCE_DIGEST;
         const capturedEvidenceSide = (value) =>
-          value.fileCount >= 2 && value.mapCount >= 1 && value.mapCount < value.fileCount && value.byteCount > 0;
+          value.fileCount >= 2 && value.mapCount >= 1 && value.mapCount < value.fileCount &&
+          value.byteCount >= (value.mapCount + 1) * 2 && value.digest !== EMPTY_CAPTURE_EVIDENCE_DIGEST;
         const validEvidenceSide = (value) =>
           exactKeys(value, ['algorithm', 'digest', 'fileCount', 'mapCount', 'byteCount']) &&
           value.algorithm === 'sha256' &&
@@ -283,6 +284,24 @@ runs:
         if (!validSourceBinding(diff.sourceBinding, diff.evidenceBinding) ||
             !validSourceBinding(generated.sourceBinding, generated.evidenceBinding)) {
           throw new Error('StyleProof source-binding receipts are missing, malformed, or not bound to trusted SHAs');
+        }
+        const validNoCaptureTopology = (receipt) => {
+          const missingBefore = receipt.sourceBinding.before.result === 'no-capture';
+          const missingAfter = receipt.sourceBinding.after.result === 'no-capture';
+          if (!missingBefore && !missingAfter) return true;
+          const counts = receipt.comparison?.counts;
+          if (receipt.comparison?.status !== 'not-required' || !counts || counts.comparable !== 0 ||
+              counts.incomparable !== 0 || counts.unproven !== 0 || counts.requiredUnproven !== 0 ||
+              counts.globalRequiredUnproven !== 0 || !Array.isArray(receipt.comparability)) return false;
+          const allowedReasons = new Set([
+            ...(missingBefore ? ['missing-before'] : []),
+            ...(missingAfter ? ['missing-after'] : []),
+          ]);
+          return receipt.comparability.every((entry) =>
+            entry && entry.status === 'not-required' && entry.required === false && allowedReasons.has(entry.reason));
+        };
+        if (!validNoCaptureTopology(diff) || !validNoCaptureTopology(generated)) {
+          throw new Error('StyleProof comparison topology disagrees with source and evidence receipts');
         }
         if (!generated.reportConsistency || typeof generated.reportConsistency.ok !== 'boolean') {
           throw new Error('styleproof-report/report.json has no valid reportConsistency verdict');
