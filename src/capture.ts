@@ -114,35 +114,37 @@ const PRODUCT_STATE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 /** Validate and copy consumer-owned semantic identity without echoing hostile values. */
 export function validateProductStateIdentity(value: unknown): ProductStateIdentity | undefined {
   if (value === undefined) return undefined;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ProductStateIdentityError('expected an object with id and revision identifiers');
+  }
+
+  let descriptors: PropertyDescriptorMap;
   try {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-      throw new ProductStateIdentityError('expected an object with id and revision identifiers');
-    }
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    const fields = Reflect.ownKeys(descriptors);
-    if (fields.length !== 2 || !fields.includes('id') || !fields.includes('revision')) {
-      throw new ProductStateIdentityError('only id and revision are allowed');
-    }
-    const id = descriptors.id;
-    const revision = descriptors.revision;
-    if (!('value' in id) || !('value' in revision)) {
-      throw new ProductStateIdentityError('id and revision must be plain values');
-    }
-    if (
-      typeof id.value !== 'string' ||
-      typeof revision.value !== 'string' ||
-      !PRODUCT_STATE_IDENTIFIER.test(id.value) ||
-      !PRODUCT_STATE_IDENTIFIER.test(revision.value)
-    ) {
-      throw new ProductStateIdentityError(
-        'id and revision must be 1–128 character opaque identifiers using letters, numbers, dot, underscore, colon, or hyphen',
-      );
-    }
-    return { id: id.value, revision: revision.value };
-  } catch (error) {
-    if (error instanceof ProductStateIdentityError) throw error;
+    descriptors = Object.getOwnPropertyDescriptors(value);
+  } catch {
     throw new ProductStateIdentityError('identity could not be read safely');
   }
+
+  const fields = Reflect.ownKeys(descriptors);
+  if (fields.length !== 2 || !fields.includes('id') || !fields.includes('revision')) {
+    throw new ProductStateIdentityError('only id and revision are allowed');
+  }
+  const id = descriptors.id;
+  const revision = descriptors.revision;
+  if (!('value' in id) || !('value' in revision)) {
+    throw new ProductStateIdentityError('id and revision must be plain values');
+  }
+  if (
+    typeof id.value !== 'string' ||
+    typeof revision.value !== 'string' ||
+    !PRODUCT_STATE_IDENTIFIER.test(id.value) ||
+    !PRODUCT_STATE_IDENTIFIER.test(revision.value)
+  ) {
+    throw new ProductStateIdentityError(
+      'id and revision must be 1–128 character opaque identifiers using letters, numbers, dot, underscore, colon, or hyphen',
+    );
+  }
+  return { id: id.value, revision: revision.value };
 }
 
 export type CaptureMetadata = {

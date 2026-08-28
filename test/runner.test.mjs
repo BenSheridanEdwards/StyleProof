@@ -17,6 +17,7 @@ import {
   selfCheckErrorMessage,
 } from '../dist/runner.js';
 import { coverageGaps } from '../dist/coverage.js';
+import { ProductStateIdentityError } from '../dist/capture.js';
 import { StateRecipeError } from '../dist/state-recipes.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
@@ -267,9 +268,18 @@ test('expandSurfaceVariants: productState reaches base, variant, live-state, and
 
 test('expandSurfaceVariants: malformed or privacy-hostile productState fails closed without echoing input', () => {
   const hostile = 'private[value=customer-secret]';
+  const hostileProxy = new Proxy(
+    {},
+    {
+      ownKeys() {
+        throw new ProductStateIdentityError('https://fixture.invalid/proxy-secret');
+      },
+    },
+  );
   const safeErrors = new Set([
     'styleproof: invalid productState — only id and revision are allowed',
     'styleproof: invalid productState — id and revision must be 1–128 character opaque identifiers using letters, numbers, dot, underscore, colon, or hyphen',
+    'styleproof: invalid productState — identity could not be read safely',
   ]);
   for (const productState of [
     { id: '', revision: 'v1' },
@@ -277,6 +287,7 @@ test('expandSurfaceVariants: malformed or privacy-hostile productState fails clo
     { id: 'checkout-ready', revision: 'https://fixture.invalid/state' },
     { id: 'checkout-ready', revision: 'v1', label: hostile },
     { id: 'x'.repeat(129), revision: 'v1' },
+    hostileProxy,
   ]) {
     assert.throws(
       () => expandSurfaceVariants({ key: 'checkout', go: async () => {}, productState }),
