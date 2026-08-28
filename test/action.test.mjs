@@ -6,7 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
-import { makeMap, writeCapture } from './helpers.mjs';
+import { readMapManifest } from '../dist/map-store.js';
+import { fixtureCompatibilityKey, fixtureContentHash, makeMap, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
@@ -27,13 +28,13 @@ function stampActionFixture(dir, sha) {
       sha,
       dirty: false,
       spec: 'e2e/styleproof.spec.ts',
-      specHash: 'test',
+      specHash: fixtureContentHash('test'),
       platform: process.platform,
       arch: process.arch,
       nodeMajor: process.versions.node.split('.')[0],
       screenshots: false,
       har: false,
-      compatibilityKey: 'action-receipt-parity-test',
+      compatibilityKey: fixtureCompatibilityKey('action-receipt-parity-test'),
       createdAt: '2026-01-01T00:00:00.000Z',
     }),
   );
@@ -44,7 +45,7 @@ function stampActionFixture(dir, sha) {
 }
 
 function actionReportMergeScript() {
-  const match = actionYml.match(/ {8}node <<'NODE'\n([\s\S]*?)\n {8}NODE/);
+  const match = actionYml.match(/ {8}node --input-type=module <<'NODE'\n([\s\S]*?)\n {8}NODE/);
   assert.ok(match, 'action.yml should contain the report merge Node program');
   return `${match[1]
     .split('\n')
@@ -64,35 +65,312 @@ test('production diff and report receipts pass through the exact Action merge pr
     };
     writeCapture(before, 'home@1280', map, null);
     writeCapture(after, 'home@1280', map, null);
-    stampActionFixture(before, 'base-sha');
-    stampActionFixture(after, 'head-sha');
+    stampActionFixture(before, 'a'.repeat(40));
+    stampActionFixture(after, 'b'.repeat(40));
 
     const diff = spawnSync(
       process.execPath,
-      [path.join(here, '..', 'bin/styleproof-diff.mjs'), before, after, '--json', 'styleproof-diff.json'],
+      [
+        path.join(here, '..', 'bin/styleproof-diff.mjs'),
+        before,
+        after,
+        '--json',
+        'styleproof-diff.json',
+        '--expected-before-sha',
+        'a'.repeat(40),
+        '--expected-after-sha',
+        'b'.repeat(40),
+      ],
       { cwd: root, encoding: 'utf8' },
     );
     assert.equal(diff.status, 0, diff.stderr || diff.stdout);
     const report = spawnSync(
       process.execPath,
-      [path.join(here, '..', 'bin/styleproof-report.mjs'), before, after, '--out', 'styleproof-report'],
+      [
+        path.join(here, '..', 'bin/styleproof-report.mjs'),
+        before,
+        after,
+        '--out',
+        'styleproof-report',
+        '--expected-before-sha',
+        'a'.repeat(40),
+        '--expected-after-sha',
+        'b'.repeat(40),
+      ],
       { cwd: root, encoding: 'utf8' },
     );
     assert.equal(report.status, 0, report.stderr || report.stdout);
 
-    const mergeScript = path.join(root, 'merge.cjs');
+    const mergeScript = path.join(root, 'merge.mjs');
     const output = path.join(root, 'github-output');
     fs.writeFileSync(mergeScript, actionReportMergeScript());
     fs.writeFileSync(output, '');
+    const actionEnv = {
+      ...process.env,
+      STYLEPROOF_INCLUDE_CONTENT: 'false',
+      STYLEPROOF_EXPECTED_BASE_SHA: 'a'.repeat(40),
+      STYLEPROOF_EXPECTED_HEAD_SHA: 'b'.repeat(40),
+      GITHUB_ACTION_PATH: path.join(here, '..'),
+      GITHUB_OUTPUT: output,
+    };
     const merge = spawnSync(process.execPath, [mergeScript], {
       cwd: root,
       encoding: 'utf8',
-      env: { ...process.env, STYLEPROOF_INCLUDE_CONTENT: 'false', GITHUB_OUTPUT: output },
+      env: actionEnv,
     });
     assert.equal(merge.status, 0, merge.stderr || merge.stdout);
 
     const reportJsonPath = path.join(root, 'styleproof-report', 'report.json');
-    const contradictory = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
+    const diffJsonPath = path.join(root, 'styleproof-diff.json');
+    const honestReport = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
+    const honestDiff = JSON.parse(fs.readFileSync(diffJsonPath, 'utf8'));
+
+    const emptyBefore = path.join(root, 'empty-before');
+    fs.mkdirSync(emptyBefore);
+    const firstAdoptionDiffPath = path.join(root, 'first-adoption-diff.json');
+    const firstAdoptionReportDir = path.join(root, 'first-adoption-report');
+    const firstAdoptionDiffRun = spawnSync(
+      process.execPath,
+      [
+        path.join(here, '..', 'bin/styleproof-diff.mjs'),
+        emptyBefore,
+        after,
+        '--json',
+        firstAdoptionDiffPath,
+        '--expected-before-sha',
+        'a'.repeat(40),
+        '--expected-after-sha',
+        'b'.repeat(40),
+      ],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(firstAdoptionDiffRun.status, 3, firstAdoptionDiffRun.stderr || firstAdoptionDiffRun.stdout);
+    const firstAdoptionReportRun = spawnSync(
+      process.execPath,
+      [
+        path.join(here, '..', 'bin/styleproof-report.mjs'),
+        emptyBefore,
+        after,
+        '--out',
+        firstAdoptionReportDir,
+        '--expected-before-sha',
+        'a'.repeat(40),
+        '--expected-after-sha',
+        'b'.repeat(40),
+      ],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(firstAdoptionReportRun.status, 1, firstAdoptionReportRun.stderr || firstAdoptionReportRun.stdout);
+    const firstAdoptionReport = JSON.parse(fs.readFileSync(path.join(firstAdoptionReportDir, 'report.json'), 'utf8'));
+    const firstAdoptionDiff = JSON.parse(fs.readFileSync(firstAdoptionDiffPath, 'utf8'));
+    fs.writeFileSync(reportJsonPath, JSON.stringify(firstAdoptionReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(firstAdoptionDiff));
+    const firstAdoption = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(firstAdoption.status, 0, firstAdoption.stderr || firstAdoption.stdout);
+
+    const forgedNoCapturePairedReport = structuredClone(honestReport);
+    const forgedNoCapturePairedDiff = structuredClone(honestDiff);
+    for (const receipt of [forgedNoCapturePairedReport, forgedNoCapturePairedDiff]) {
+      receipt.evidenceBinding.before.fileCount = 0;
+      receipt.evidenceBinding.before.mapCount = 0;
+      receipt.evidenceBinding.before.byteCount = 0;
+      receipt.evidenceBinding.before.digest = 'f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd';
+      receipt.sourceBinding.before.observed = null;
+      receipt.sourceBinding.before.result = 'no-capture';
+      receipt.sourceBinding.compatibility = 'not-applicable';
+    }
+    fs.writeFileSync(reportJsonPath, JSON.stringify(forgedNoCapturePairedReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(forgedNoCapturePairedDiff));
+    const forgedNoCapturePaired = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(forgedNoCapturePaired.status, 1, forgedNoCapturePaired.stderr || forgedNoCapturePaired.stdout);
+    assert.match(forgedNoCapturePaired.stderr, /comparison.*source|topology/i);
+
+    const forgedEmptyReport = structuredClone(firstAdoptionReport);
+    const forgedEmptyDiff = structuredClone(firstAdoptionDiff);
+    forgedEmptyReport.evidenceBinding.before.digest = 'f'.repeat(64);
+    forgedEmptyDiff.evidenceBinding.before.digest = 'f'.repeat(64);
+    fs.writeFileSync(reportJsonPath, JSON.stringify(forgedEmptyReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(forgedEmptyDiff));
+    const forgedEmpty = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(forgedEmpty.status, 1, forgedEmpty.stderr || forgedEmpty.stdout);
+    assert.match(forgedEmpty.stderr, /evidence-binding receipts are missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+
+    const impossibleFileCountReport = structuredClone(honestReport);
+    const impossibleFileCountDiff = structuredClone(honestDiff);
+    impossibleFileCountReport.evidenceBinding.after.fileCount = 100_001;
+    impossibleFileCountDiff.evidenceBinding.after.fileCount = 100_001;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(impossibleFileCountReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(impossibleFileCountDiff));
+    const impossibleFileCount = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(impossibleFileCount.status, 1, impossibleFileCount.stderr || impossibleFileCount.stdout);
+    assert.match(impossibleFileCount.stderr, /evidence-binding receipts are missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const impossibleByteCountReport = structuredClone(honestReport);
+    const impossibleByteCountDiff = structuredClone(honestDiff);
+    impossibleByteCountReport.evidenceBinding.after.byteCount = 128 * 1024 * 1024 + 1;
+    impossibleByteCountDiff.evidenceBinding.after.byteCount = 128 * 1024 * 1024 + 1;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(impossibleByteCountReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(impossibleByteCountDiff));
+    const impossibleByteCount = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(impossibleByteCount.status, 1, impossibleByteCount.stderr || impossibleByteCount.stdout);
+    assert.match(impossibleByteCount.stderr, /evidence-binding receipts are missing or malformed/i);
+
+    const impossibleMinimumBytesReport = structuredClone(honestReport);
+    const impossibleMinimumBytesDiff = structuredClone(honestDiff);
+    for (const receipt of [impossibleMinimumBytesReport, impossibleMinimumBytesDiff]) {
+      receipt.evidenceBinding.after.fileCount = 3;
+      receipt.evidenceBinding.after.mapCount = 1;
+      receipt.evidenceBinding.after.byteCount = 1;
+    }
+    fs.writeFileSync(reportJsonPath, JSON.stringify(impossibleMinimumBytesReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(impossibleMinimumBytesDiff));
+    const impossibleMinimumBytes = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(impossibleMinimumBytes.status, 1, impossibleMinimumBytes.stderr || impossibleMinimumBytes.stdout);
+    assert.match(impossibleMinimumBytes.stderr, /evidence-binding receipts are missing or malformed/i);
+
+    const populatedEmptyDigestReport = structuredClone(honestReport);
+    const populatedEmptyDigestDiff = structuredClone(honestDiff);
+    for (const receipt of [populatedEmptyDigestReport, populatedEmptyDigestDiff]) {
+      receipt.evidenceBinding.after.digest = 'f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd';
+    }
+    fs.writeFileSync(reportJsonPath, JSON.stringify(populatedEmptyDigestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(populatedEmptyDigestDiff));
+    const populatedEmptyDigest = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(populatedEmptyDigest.status, 1, populatedEmptyDigest.stderr || populatedEmptyDigest.stdout);
+    assert.match(populatedEmptyDigest.stderr, /evidence-binding receipts are missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const impossiblePerFileArithmeticReport = structuredClone(honestReport);
+    const impossiblePerFileArithmeticDiff = structuredClone(honestDiff);
+    for (const receipt of [impossiblePerFileArithmeticReport, impossiblePerFileArithmeticDiff]) {
+      receipt.evidenceBinding.after.fileCount = 2;
+      receipt.evidenceBinding.after.mapCount = 1;
+      receipt.evidenceBinding.after.byteCount = 128 * 1024 * 1024;
+    }
+    fs.writeFileSync(reportJsonPath, JSON.stringify(impossiblePerFileArithmeticReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(impossiblePerFileArithmeticDiff));
+    const impossiblePerFileArithmetic = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(
+      impossiblePerFileArithmetic.status,
+      1,
+      impossiblePerFileArithmetic.stderr || impossiblePerFileArithmetic.stdout,
+    );
+    assert.match(impossiblePerFileArithmetic.stderr, /evidence-binding receipts are missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const emptyEvidenceReport = structuredClone(honestReport);
+    const emptyEvidenceDiff = structuredClone(honestDiff);
+    for (const receipt of [emptyEvidenceReport, emptyEvidenceDiff]) {
+      receipt.evidenceBinding.after.fileCount = 0;
+      receipt.evidenceBinding.after.mapCount = 0;
+      receipt.evidenceBinding.after.byteCount = 0;
+      receipt.evidenceBinding.after.digest = 'f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd';
+    }
+    fs.writeFileSync(reportJsonPath, JSON.stringify(emptyEvidenceReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(emptyEvidenceDiff));
+    const emptyEvidence = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(emptyEvidence.status, 1, emptyEvidence.stderr || emptyEvidence.stdout);
+    assert.match(emptyEvidence.stderr, /source-binding receipts are missing, malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const honestDigestToken = `"digest":"${honestReport.evidenceBinding.before.digest}"`;
+    const duplicateDigestToken = `"digest":"${'f'.repeat(64)}",${honestDigestToken}`;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport).replace(honestDigestToken, duplicateDigestToken));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff).replace(honestDigestToken, duplicateDigestToken));
+    const duplicateDigest = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(duplicateDigest.status, 1, duplicateDigest.stderr || duplicateDigest.stdout);
+    assert.match(duplicateDigest.stderr, /duplicate json key|missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const digestMismatch = structuredClone(honestReport);
+    digestMismatch.evidenceBinding.after.digest = 'f'.repeat(64);
+    fs.writeFileSync(reportJsonPath, JSON.stringify(digestMismatch));
+    const mismatchedEvidence = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(mismatchedEvidence.status, 1, mismatchedEvidence.stderr || mismatchedEvidence.stdout);
+    assert.match(mismatchedEvidence.stderr, /evidence-binding receipts disagree/i);
+
+    const impossibleSourceBinding = {
+      status: 'bound',
+      compatibility: 'not-applicable',
+      before: { expected: 'a'.repeat(40), observed: null, result: 'no-capture' },
+      after: { expected: 'b'.repeat(40), observed: 'b'.repeat(40), result: 'matched' },
+    };
+    fs.writeFileSync(reportJsonPath, JSON.stringify({ ...honestReport, sourceBinding: impossibleSourceBinding }));
+    fs.writeFileSync(diffJsonPath, JSON.stringify({ ...honestDiff, sourceBinding: impossibleSourceBinding }));
+    const matchingImpossible = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(matchingImpossible.status, 1, matchingImpossible.stderr || matchingImpossible.stdout);
+    assert.match(matchingImpossible.stderr, /source-binding receipts are missing, malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify({ ...honestReport, sourceBinding: { status: 'bound' } }));
+    fs.writeFileSync(diffJsonPath, JSON.stringify({ ...honestDiff, sourceBinding: { status: 'bound' } }));
+    const malformedEqual = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(malformedEqual.status, 1, malformedEqual.stderr || malformedEqual.stdout);
+    assert.match(malformedEqual.stderr, /source-binding receipts are missing, malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const contradictory = { ...honestReport };
     contradictory.comparison = {
       ...contradictory.comparison,
       status: 'future-state',
@@ -102,10 +380,10 @@ test('production diff and report receipts pass through the exact Action merge pr
     const rejected = spawnSync(process.execPath, [mergeScript], {
       cwd: root,
       encoding: 'utf8',
-      env: { ...process.env, STYLEPROOF_INCLUDE_CONTENT: 'false', GITHUB_OUTPUT: output },
+      env: actionEnv,
     });
     assert.equal(rejected.status, 1, rejected.stderr || rejected.stdout);
-    assert.match(rejected.stderr, /report comparison receipts disagree with the validated diff/);
+    assert.match(rejected.stderr, /report receipts disagree with the validated diff/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -233,15 +511,22 @@ test('composite action marks certify-mode comments with their source head SHA', 
 
 test('action dogfood fixtures are asserted and deterministic unless the scenario overrides trust', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-dogfood-'));
+  const baseSha = 'a'.repeat(40);
+  const headSha = 'b'.repeat(40);
   try {
     const generated = spawnSync(
       process.execPath,
-      [path.join(here, '..', 'scripts/action-dogfood-fixtures.mjs'), root],
+      [path.join(here, '..', 'scripts/action-dogfood-fixtures.mjs'), root, baseSha, headSha],
       {
         encoding: 'utf8',
       },
     );
     assert.equal(generated.status, 0, generated.stderr);
+    const baseManifest = readMapManifest(path.join(root, 'clean-base'));
+    const headManifest = readMapManifest(path.join(root, 'clean-head'));
+    assert.equal(baseManifest.sha, baseSha);
+    assert.equal(headManifest.sha, headSha);
+    assert.equal(baseManifest.compatibilityKey, headManifest.compatibilityKey);
     const clean = JSON.parse(fs.readFileSync(path.join(root, 'clean-base', 'styleproof-coverage.json'), 'utf8'));
     assert.deepEqual(clean.expected, ['home']);
     assert.equal(clean.determinism, 'self-checked');
@@ -256,6 +541,11 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
 });
 
 test('dogfood workflow runs the local composite action against every trust-state class', () => {
+  assert.doesNotMatch(dogfoodYml, /workflow_dispatch/);
+  assert.match(
+    dogfoodYml,
+    /node scripts\/action-dogfood-fixtures\.mjs action-dogfood '\$\{\{ github\.event\.pull_request\.base\.sha \}\}' '\$\{\{ github\.event\.pull_request\.head\.sha \}\}'/,
+  );
   assert.match(dogfoodYml, /uses: \.\/\n/g);
   assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 9);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
@@ -429,7 +719,7 @@ test('composite action classifies report-time correspondence collapse before app
   assert.match(report[0], /styleproof-report\/report\.json/);
   assert.match(report[0], /diff\.reportConsistency\s*=\s*generated\.reportConsistency/);
   assert.match(report[0], /isDeepStrictEqual/);
-  assert.match(report[0], /report comparison receipts disagree with the validated diff/i);
+  assert.match(report[0], /report receipts disagree with the validated diff/i);
   assert.doesNotMatch(report[0], /diff\.comparison\s*=\s*generated\.comparison/);
   assert.doesNotMatch(report[0], /diff\.comparability\s*=\s*generated\.comparability/);
   assert.match(report[0], /writeFileSync\('styleproof-diff\.json'/);
@@ -543,6 +833,26 @@ test('composite action verdict honors the gateInventoryRemovals opt-out end to e
     verdict[0],
     /gateInventoryRemovals\s*\n?\s*\? \(diff\.inventory|gateInventoryRemovals[\s\S]{0,120}inventory/,
   );
+});
+
+test('composite action binds diff and report receipts to trusted GitHub base and head SHAs', () => {
+  const contextStep = actionYml.match(/- id: context[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  const reportStep = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
+  assert.ok(contextStep);
+  assert.ok(diffStep);
+  assert.ok(reportStep);
+  assert.match(contextStep[0], /const \{ prNumber, baseSha, headSha \} = await resolveActionContext/);
+  assert.match(contextStep[0], /Boolean\(baseSha\)/);
+  assert.match(contextStep[0], /core\.setOutput\('base-sha', resolved \? baseSha : ''\)/);
+  for (const step of [diffStep[0], reportStep[0]]) {
+    assert.match(step, /STYLEPROOF_EXPECTED_BASE_SHA: \$\{\{ steps\.context\.outputs\.base-sha \}\}/);
+    assert.match(step, /STYLEPROOF_EXPECTED_HEAD_SHA: \$\{\{ steps\.context\.outputs\.head-sha \}\}/);
+    assert.match(step, /--expected-before-sha/);
+    assert.match(step, /--expected-after-sha/);
+  }
+  assert.match(diffStep[0], /trusted base\/head SHA context is required/i);
+  assert.match(reportStep[0], /isDeepStrictEqual\(generated\.sourceBinding, diff\.sourceBinding\)/);
 });
 
 test('composite action makes required product-state identity a closed-set certification gate', () => {

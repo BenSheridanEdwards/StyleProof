@@ -100,15 +100,16 @@ runs:
         retries: 3
         script: |
           const { resolveActionContext } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/action-context.js`);
-          const { prNumber, headSha } = await resolveActionContext({
+          const { prNumber, baseSha, headSha } = await resolveActionContext({
             eventName: context.eventName,
             payload: context.payload,
             repo: context.repo,
             github,
           });
-          // Emit both together or neither, so a later step can never run with one half.
-          const resolved = Boolean(prNumber) && Boolean(headSha);
+          // Emit the complete tuple together or nothing, so no later step can run on partial provenance.
+          const resolved = Boolean(prNumber) && Boolean(baseSha) && Boolean(headSha);
           core.setOutput('pr-number', resolved ? prNumber : '');
+          core.setOutput('base-sha', resolved ? baseSha : '');
           core.setOutput('head-sha', resolved ? headSha : '');
           if (!resolved) {
             core.info('StyleProof: no PR context resolved — comment/status steps will be skipped.');
@@ -139,6 +140,8 @@ runs:
       shell: bash
       env:
         STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
+        STYLEPROOF_EXPECTED_BASE_SHA: ${{ steps.context.outputs.base-sha }}
+        STYLEPROOF_EXPECTED_HEAD_SHA: ${{ steps.context.outputs.head-sha }}
       run: |
         state_identity_arguments=()
         case "$STYLEPROOF_REQUIRE_STATE_IDENTITY" in
@@ -146,8 +149,16 @@ runs:
           false) ;;
           *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
         esac
+        if [ -z "$STYLEPROOF_EXPECTED_BASE_SHA" ] || [ -z "$STYLEPROOF_EXPECTED_HEAD_SHA" ]; then
+          echo "StyleProof: trusted base/head SHA context is required for certification" >&2
+          exit 2
+        fi
+        trusted_sha_arguments=(
+          --expected-before-sha "$STYLEPROOF_EXPECTED_BASE_SHA"
+          --expected-after-sha "$STYLEPROOF_EXPECTED_HEAD_SHA"
+        )
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json "${state_identity_arguments[@]}" | tee styleproof-diff.txt
+        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json "${trusted_sha_arguments[@]}" "${state_identity_arguments[@]}" | tee styleproof-diff.txt
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
@@ -171,11 +182,20 @@ runs:
       env:
         STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
         STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
+        STYLEPROOF_EXPECTED_BASE_SHA: ${{ steps.context.outputs.base-sha }}
+        STYLEPROOF_EXPECTED_HEAD_SHA: ${{ steps.context.outputs.head-sha }}
       run: |
         set -euo pipefail
         rm -rf styleproof-report
         report_content_arguments=()
         state_identity_arguments=()
+        trusted_sha_arguments=()
+        if [ -z "$STYLEPROOF_EXPECTED_BASE_SHA" ] || [ -z "$STYLEPROOF_EXPECTED_HEAD_SHA" ]; then
+          echo "trusted base/head SHA context is required for report generation" >&2
+          exit 2
+        fi
+        trusted_sha_arguments+=(--expected-before-sha "$STYLEPROOF_EXPECTED_BASE_SHA")
+        trusted_sha_arguments+=(--expected-after-sha "$STYLEPROOF_EXPECTED_HEAD_SHA")
         case "$STYLEPROOF_INCLUDE_CONTENT" in
           true) report_content_arguments+=(--include-content) ;;
           false) ;;
@@ -187,18 +207,102 @@ runs:
           *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
         esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report "${report_content_arguments[@]}" "${state_identity_arguments[@]}"
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report "${trusted_sha_arguments[@]}" "${report_content_arguments[@]}" "${state_identity_arguments[@]}"
         report_exit_code=$?
         set -e
         if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
           echo "styleproof-report exited with code $report_exit_code — no trustworthy report was generated" >&2
           exit "$report_exit_code"
         fi
-        node <<'NODE'
-        const fs = require('fs');
-        const { isDeepStrictEqual } = require('util');
-        const diff = JSON.parse(fs.readFileSync('styleproof-diff.json', 'utf8'));
-        const generated = JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'));
+        node --input-type=module <<'NODE'
+        import fs from 'node:fs';
+        import path from 'node:path';
+        import { pathToFileURL } from 'node:url';
+        import { isDeepStrictEqual } from 'node:util';
+        const mapStoreUrl = pathToFileURL(path.join(process.env.GITHUB_ACTION_PATH, 'dist/map-store.js')).href;
+        const { hasDuplicateJsonKeys } = await import(mapStoreUrl);
+        const parseReceipt = (filePath) => {
+          const source = fs.readFileSync(filePath, 'utf8');
+          const parsed = JSON.parse(source);
+          if (hasDuplicateJsonKeys(source)) throw new Error('duplicate JSON key in StyleProof receipt');
+          return parsed;
+        };
+        const diff = parseReceipt('styleproof-diff.json');
+        const generated = parseReceipt('styleproof-report/report.json');
+        const exactKeys = (value, keys) =>
+          value &&
+          typeof value === 'object' &&
+          !Array.isArray(value) &&
+          isDeepStrictEqual(Object.keys(value).sort(), [...keys].sort());
+        const fullSha = (value) => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
+        const MAX_CAPTURE_EVIDENCE_FILES = 100_000;
+        const MAX_CAPTURE_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024;
+        const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES = 128 * 1024 * 1024;
+        const EMPTY_CAPTURE_EVIDENCE_DIGEST = 'f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd';
+        const emptyEvidenceSide = (value) =>
+          value.fileCount === 0 && value.mapCount === 0 && value.byteCount === 0 &&
+          value.digest === EMPTY_CAPTURE_EVIDENCE_DIGEST;
+        const capturedEvidenceSide = (value) =>
+          value.fileCount >= 2 && value.mapCount >= 1 && value.mapCount < value.fileCount &&
+          value.byteCount >= (value.mapCount + 1) * 2 && value.digest !== EMPTY_CAPTURE_EVIDENCE_DIGEST;
+        const validEvidenceSide = (value) =>
+          exactKeys(value, ['algorithm', 'digest', 'fileCount', 'mapCount', 'byteCount']) &&
+          value.algorithm === 'sha256' &&
+          typeof value.digest === 'string' && /^[0-9a-f]{64}$/.test(value.digest) &&
+          Number.isSafeInteger(value.fileCount) && value.fileCount >= 0 &&
+          value.fileCount <= MAX_CAPTURE_EVIDENCE_FILES &&
+          Number.isSafeInteger(value.mapCount) && value.mapCount >= 0 && value.mapCount <= value.fileCount &&
+          Number.isSafeInteger(value.byteCount) && value.byteCount >= 0 &&
+          value.byteCount <= MAX_CAPTURE_EVIDENCE_TOTAL_BYTES &&
+          value.byteCount <= value.fileCount * MAX_CAPTURE_EVIDENCE_FILE_BYTES &&
+          (emptyEvidenceSide(value) || capturedEvidenceSide(value));
+        const validEvidenceBinding = (value) =>
+          exactKeys(value, ['version', 'before', 'after']) && value.version === 1 &&
+          validEvidenceSide(value.before) && validEvidenceSide(value.after);
+        if (!validEvidenceBinding(diff.evidenceBinding) || !validEvidenceBinding(generated.evidenceBinding)) {
+          throw new Error('StyleProof evidence-binding receipts are missing or malformed');
+        }
+        if (!isDeepStrictEqual(generated.evidenceBinding, diff.evidenceBinding)) {
+          throw new Error('StyleProof evidence-binding receipts disagree');
+        }
+        const validBoundSide = (value, expected, evidence) => {
+          if (!exactKeys(value, ['expected', 'observed', 'result']) || value.expected !== expected) return false;
+          if (!fullSha(value.expected)) return false;
+          if (value.result === 'matched') return value.observed === value.expected && capturedEvidenceSide(evidence);
+          if (value.result === 'no-capture') return value.observed === null && emptyEvidenceSide(evidence);
+          return false;
+        };
+        const validSourceBinding = (value, evidence) => {
+          if (!exactKeys(value, ['status', 'compatibility', 'before', 'after']) || value.status !== 'bound') {
+            return false;
+          }
+          if (!validBoundSide(value.before, process.env.STYLEPROOF_EXPECTED_BASE_SHA, evidence.before)) return false;
+          if (!validBoundSide(value.after, process.env.STYLEPROOF_EXPECTED_HEAD_SHA, evidence.after)) return false;
+          const bothObserved = value.before.observed !== null && value.after.observed !== null;
+          return value.compatibility === (bothObserved ? 'matched' : 'not-applicable');
+        };
+        if (!validSourceBinding(diff.sourceBinding, diff.evidenceBinding) ||
+            !validSourceBinding(generated.sourceBinding, generated.evidenceBinding)) {
+          throw new Error('StyleProof source-binding receipts are missing, malformed, or not bound to trusted SHAs');
+        }
+        const validNoCaptureTopology = (receipt) => {
+          const missingBefore = receipt.sourceBinding.before.result === 'no-capture';
+          const missingAfter = receipt.sourceBinding.after.result === 'no-capture';
+          if (!missingBefore && !missingAfter) return true;
+          const counts = receipt.comparison?.counts;
+          if (receipt.comparison?.status !== 'not-required' || !counts || counts.comparable !== 0 ||
+              counts.incomparable !== 0 || counts.unproven !== 0 || counts.requiredUnproven !== 0 ||
+              counts.globalRequiredUnproven !== 0 || !Array.isArray(receipt.comparability)) return false;
+          const allowedReasons = new Set([
+            ...(missingBefore ? ['missing-before'] : []),
+            ...(missingAfter ? ['missing-after'] : []),
+          ]);
+          return receipt.comparability.every((entry) =>
+            entry && entry.status === 'not-required' && entry.required === false && allowedReasons.has(entry.reason));
+        };
+        if (!validNoCaptureTopology(diff) || !validNoCaptureTopology(generated)) {
+          throw new Error('StyleProof comparison topology disagrees with source and evidence receipts');
+        }
         if (!generated.reportConsistency || typeof generated.reportConsistency.ok !== 'boolean') {
           throw new Error('styleproof-report/report.json has no valid reportConsistency verdict');
         }
@@ -221,8 +325,9 @@ runs:
         if (!isDeepStrictEqual(
               comparisonCertificationReceipt(generated.comparison),
               comparisonCertificationReceipt(diff.comparison),
-            ) || !isDeepStrictEqual(generated.comparability, diff.comparability)) {
-          throw new Error('styleproof-report/report.json report comparison receipts disagree with the validated diff');
+            ) || !isDeepStrictEqual(generated.comparability, diff.comparability) ||
+            !isDeepStrictEqual(generated.sourceBinding, diff.sourceBinding)) {
+          throw new Error('styleproof-report/report.json report receipts disagree with the validated diff');
         }
         diff.reportConsistency = generated.reportConsistency;
         diff.confidence = generated.confidence;
@@ -255,6 +360,7 @@ runs:
           // proven determinism may avoid CERTIFICATION_FAILED. Unasserted, unknown,
           // malformed, or missing evidence is not a style change a reviewer can approve.
           const certificationFailed =
+            diff.sourceBinding?.status !== 'bound' ||
             diff.coverage?.basis !== 'complete' ||
             diff.determinism?.status !== 'proven' ||
             (diff.confidence?.counts?.inaccessible ?? 0) > 0 ||

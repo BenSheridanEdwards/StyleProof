@@ -11,6 +11,7 @@
  * need the .png screenshots that `defineStyleMapCapture` saves by default.
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
+import fs from 'node:fs';
 import { generateStyleMapReport } from '../dist/report.js';
 import { cachedMapsUnavailableMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
@@ -18,6 +19,8 @@ import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
+  captureEvidenceBindingReceipt,
+  expectedSourceShaFlagsError,
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
@@ -53,6 +56,8 @@ options:
                             before/after crop. Needs captures taken with
                             captureText:true; never affects the check (off by default)
   --require-state-identity require explicit matching product-state identity for every paired surface
+  --expected-before-sha <sha> trusted full base commit SHA; must be paired with --expected-after-sha
+  --expected-after-sha <sha>  trusted full head commit SHA; must be paired with --expected-before-sha
   -h, --help                show this help
 
 exit: 0 no changes, 1 report generated, 2 usage error.
@@ -69,6 +74,10 @@ let minHeight;
 let includeLayoutNoise = false;
 let includeContent = false;
 let requireStateIdentity = false;
+let expectedBeforeSha;
+let expectedAfterSha;
+let expectedBeforeShaSet = false;
+let expectedAfterShaSet = false;
 // Repo config is the lowest-precedence default layer (flag > env > file > built-in),
 // matching every other CLI — see the identical block in styleproof-diff.
 const captureSource = captureSourceDefaults(COMMAND);
@@ -100,10 +109,32 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--include-content=')) includeContent = a.slice(18) !== 'false';
   else if (a === '--require-state-identity') requireStateIdentity = true;
   else if (a.startsWith('--require-state-identity=')) requireStateIdentity = a.slice(25) !== 'false';
-  else if (a.startsWith('--')) {
+  else if (a === '--expected-before-sha') {
+    expectedBeforeShaSet = true;
+    expectedBeforeSha = argv[++i];
+  } else if (a.startsWith('--expected-before-sha=')) {
+    expectedBeforeShaSet = true;
+    expectedBeforeSha = a.slice(22);
+  } else if (a === '--expected-after-sha') {
+    expectedAfterShaSet = true;
+    expectedAfterSha = argv[++i];
+  } else if (a.startsWith('--expected-after-sha=')) {
+    expectedAfterShaSet = true;
+    expectedAfterSha = a.slice(21);
+  } else if (a.startsWith('--')) {
     console.error(unknownFlagMessage(COMMAND, a));
     process.exit(2);
   } else args.push(a);
+}
+const sourceShaError = expectedSourceShaFlagsError({
+  beforeProvided: expectedBeforeShaSet,
+  beforeSha: expectedBeforeSha,
+  afterProvided: expectedAfterShaSet,
+  afterSha: expectedAfterSha,
+});
+if (sourceShaError) {
+  console.error(`${COMMAND}: ${sourceShaError}`);
+  process.exit(2);
 }
 let beforeDir;
 let afterDir;
@@ -151,12 +182,17 @@ if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
 }
 
 let result;
+let sourceBinding;
 try {
   // v4: refuse a manifest-less side (exit 2 via the catch) — same-environment
   // compatibility can't be verified without a manifest on both sides.
   const manifestless = manifestlessSide(beforeDir, afterDir);
   if (manifestless) throw new Error(manifestlessError(manifestless));
-  assertCompatibleMapDirs(beforeDir, afterDir);
+  const initialEvidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
+  sourceBinding = assertCompatibleMapDirs(beforeDir, afterDir, {
+    beforeSha: expectedBeforeSha,
+    afterSha: expectedAfterSha,
+  });
   result = generateStyleMapReport({
     beforeDir,
     afterDir,
@@ -171,6 +207,26 @@ try {
     includeContent,
     requireStateIdentity,
   });
+  const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
+  if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
+    throw new Error('capture evidence changed while styleproof-report was reading it');
+  }
+  const reportJson = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  fs.writeFileSync(
+    result.reportJsonPath,
+    `${JSON.stringify({ ...reportJson, sourceBinding, evidenceBinding }, null, 2)}\n`,
+  );
+  if (sourceBinding.status !== 'bound') {
+    const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+    const relabeled = markdown.replace(
+      /✓ No reviewable computed-style changes/g,
+      '⚠ UNVERIFIED DIAGNOSTIC: No reviewable computed-style changes',
+    );
+    fs.writeFileSync(
+      result.reportMdPath,
+      relabeled === markdown ? `> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified.\n\n${markdown}` : relabeled,
+    );
+  }
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -181,6 +237,7 @@ try {
 const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';
 const consistencyFailed = result.reportConsistency?.ok === false;
 const comparisonFailed = result.comparison?.blocksCertification === true;
+const cleanPrefix = sourceBinding.status === 'bound' ? '✓' : '⚠ UNVERIFIED DIAGNOSTIC:';
 if (consistencyFailed) {
   console.log(`⚠ report consistency: ${result.reportConsistency.reason} — not a clean no-change (fail closed)`);
 }
@@ -191,9 +248,9 @@ console.log(
         ? '⚠ no presentation changes — report consistency failure written'
         : includeContent
           ? result.contentChanges > 0
-            ? `✓ no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
-            : '✓ no reviewable computed-style or advisory content/structure changes'
-          : '✓ no reviewable computed-style changes — content/structure not evaluated'
+            ? `${cleanPrefix} no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
+            : `${cleanPrefix} no reviewable computed-style or advisory content/structure changes`
+          : `${cleanPrefix} no reviewable computed-style changes — content/structure not evaluated`
       : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
     : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );

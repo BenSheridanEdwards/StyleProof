@@ -73,6 +73,79 @@ export function isMapFile(name: string): boolean {
   return !RESERVED_BUNDLE_FILES.has(name) && /\.json(\.gz)?$/.test(name);
 }
 
+/** Canonical byte identity for every regular artifact consumed from one capture directory. */
+export type CaptureEvidenceReceipt = {
+  algorithm: 'sha256';
+  digest: string;
+  fileCount: number;
+  mapCount: number;
+  byteCount: number;
+};
+
+export const MAX_MAP_MANIFEST_BYTES = 16_777_216;
+export const MAX_CAPTURE_EVIDENCE_FILES = 100_000;
+export const MAX_CAPTURE_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024;
+export const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES = 128 * 1024 * 1024;
+
+function unsafeCaptureEvidence(): never {
+  throw new MapStoreError('unsafe capture evidence — expected a bounded tree of regular files');
+}
+
+/** Hash a complete capture directory with unambiguous path/content framing.
+ * Every entry is read no-follow and the sorted relative path is part of the hash. */
+export function captureEvidenceReceipt(dir: string): CaptureEvidenceReceipt {
+  const files: string[] = [];
+  const visit = (directory: string, prefix = ''): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs
+        .readdirSync(directory, { withFileTypes: true })
+        .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+    } catch {
+      return unsafeCaptureEvidence();
+    }
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) unsafeCaptureEvidence();
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(absolute, relative);
+      else if (entry.isFile()) files.push(relative);
+      else unsafeCaptureEvidence();
+      if (files.length > MAX_CAPTURE_EVIDENCE_FILES) unsafeCaptureEvidence();
+    }
+  };
+  visit(dir);
+  files.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+
+  const hash = createHash('sha256').update('styleproof-capture-evidence-v1\0');
+  let byteCount = 0;
+  let mapCount = 0;
+  for (const relative of files) {
+    let bytes: Buffer;
+    try {
+      bytes = readRegularFileNoFollow(path.join(dir, ...relative.split('/')), MAX_CAPTURE_EVIDENCE_FILE_BYTES);
+    } catch {
+      return unsafeCaptureEvidence();
+    }
+    byteCount += bytes.length;
+    if (!Number.isSafeInteger(byteCount) || byteCount > MAX_CAPTURE_EVIDENCE_TOTAL_BYTES) unsafeCaptureEvidence();
+    if (!relative.includes('/') && isMapFile(relative)) mapCount++;
+    const relativeBytes = Buffer.from(relative, 'utf8');
+    hash.update(`${relativeBytes.length}:`).update(relativeBytes).update(`${bytes.length}:`).update(bytes);
+  }
+  return { algorithm: 'sha256', digest: hash.digest('hex'), fileCount: files.length, mapCount, byteCount };
+}
+
+export type CaptureEvidenceBindingReceipt = {
+  version: 1;
+  before: CaptureEvidenceReceipt;
+  after: CaptureEvidenceReceipt;
+};
+
+export function captureEvidenceBindingReceipt(beforeDir: string, afterDir: string): CaptureEvidenceBindingReceipt {
+  return { version: 1, before: captureEvidenceReceipt(beforeDir), after: captureEvidenceReceipt(afterDir) };
+}
+
 const CRAWL_BUNDLE_FILES = new Set([...RESERVED_BUNDLE_FILES, FATAL_CAPTURE_MARKER]);
 const GENERATED_CAPTURE_ARTIFACT = /@\d+\.(?:json(?:\.gz)?|png|(?:hover|focus|active)\.png)$/;
 const SURFACE_CAPTURE_FAILURE_ARTIFACT = /^[a-zA-Z0-9@._-]+-[0-9a-f]{8}\.json$/;
@@ -551,14 +624,31 @@ function failureFileName(key: string): string {
   // short hash of the RAW key so a later write can never erase another surface's
   // ledger entry (which would resurface its missing surface as greenfield-new).
   const digest = createHash('sha256').update(key).digest('hex').slice(0, 8);
-  return `${key.replace(/[^a-zA-Z0-9@._-]+/g, '_')}-${digest}.json`;
+  const stem = key.replace(/[^a-zA-Z0-9@._-]+/g, '_').slice(0, 200);
+  return `${stem}-${digest}.json`;
+}
+
+function boundedFailureText(value: string, maximumLength: number, fallback: string): string {
+  const controlFree = [...value]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || code === 127 ? ' ' : character;
+    })
+    .join('');
+  const normalized = controlFree.replace(/\s+/g, ' ').trim();
+  return (normalized || fallback).slice(0, maximumLength);
 }
 
 /** Record one tolerated surface failure (safe under parallel Playwright workers). */
 export function recordSurfaceCaptureFailure(dir: string, failure: SurfaceCaptureFailure): void {
   const sub = path.join(dir, SURFACE_CAPTURE_FAILURES_DIR);
+  const normalized: SurfaceCaptureFailure = {
+    key: boundedFailureText(failure.key, 256, 'capture'),
+    reason: boundedFailureText(failure.reason, 1024, 'capture failed'),
+    ...(failure.kind ? { kind: failure.kind } : {}),
+  };
   fs.mkdirSync(sub, { recursive: true });
-  fs.writeFileSync(path.join(sub, failureFileName(failure.key)), JSON.stringify(failure));
+  fs.writeFileSync(path.join(sub, failureFileName(failure.key)), JSON.stringify(normalized));
 }
 
 /** Read tolerated failures written during capture (sorted by key). */
@@ -666,6 +756,13 @@ function buildManifest(options: {
   };
 }
 
+function writeBoundedManifest(dir: string, manifest: MapManifest): void {
+  parseMapManifest(manifest);
+  const serialized = JSON.stringify(manifest, null, 2);
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_MAP_MANIFEST_BYTES) invalidMapManifest();
+  fs.writeFileSync(path.join(dir, MAP_MANIFEST), serialized);
+}
+
 export function writeMapManifest(options: {
   dir: string;
   spec: string;
@@ -688,7 +785,7 @@ export function writeMapManifest(options: {
     screenshots: options.screenshots,
     surfaceCaptureFailures,
   });
-  fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
+  writeBoundedManifest(options.dir, manifest);
   return manifest;
 }
 
@@ -722,15 +819,204 @@ export function writeCaptureManifest(options: {
     screenshots: options.screenshots,
   });
   fs.mkdirSync(options.dir, { recursive: true });
-  fs.writeFileSync(path.join(options.dir, MAP_MANIFEST), JSON.stringify(manifest, null, 2));
+  writeBoundedManifest(options.dir, manifest);
   return manifest;
 }
 
+const MAP_MANIFEST_FIELDS = new Set([
+  'version',
+  'packageVersion',
+  'sha',
+  'dirty',
+  'dirtyAllow',
+  'spec',
+  'specHash',
+  'lockfile',
+  'lockfileHash',
+  'playwrightVersion',
+  'browserVersion',
+  'platform',
+  'arch',
+  'nodeMajor',
+  'baseUrl',
+  'screenshots',
+  'har',
+  'compatibilityKey',
+  'createdAt',
+  'surfaceCaptureFailures',
+]);
+
+function invalidMapManifest(): never {
+  throw new MapStoreError(`invalid ${MAP_MANIFEST} — expected a valid v1 capture manifest`);
+}
+
+function hasUnsafeControlCharacter(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code === 0x7f || code < 0x20;
+  });
+}
+
+function boundedString(value: unknown, maximumLength = 4096): value is string {
+  return (
+    typeof value === 'string' && value.length > 0 && value.length <= maximumLength && !hasUnsafeControlCharacter(value)
+  );
+}
+
+function optionalBoundedString(value: unknown, maximumLength = 4096): boolean {
+  return value === undefined || boundedString(value, maximumLength);
+}
+
+function canonicalInstant(value: unknown): value is string {
+  if (!boundedString(value, 64)) return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+}
+
+function canonicalContentHash(value: unknown): value is string {
+  return value === 'missing' || (typeof value === 'string' && /^[0-9a-f]{64}$/.test(value));
+}
+
+/** JSON.parse keeps only the last duplicate key. Certification manifests must
+ * reject that ambiguity instead. This scanner runs only after JSON.parse has
+ * established valid JSON grammar, and checks every nested object. */
+export function hasDuplicateJsonKeys(source: string): boolean {
+  let offset = 0;
+  let duplicate = false;
+  const whitespace = () => {
+    while (/\s/.test(source[offset] ?? '')) offset++;
+  };
+  const stringValue = (): string => {
+    const start = offset++;
+    while (offset < source.length) {
+      if (source[offset] === '\\') {
+        offset += 2;
+        continue;
+      }
+      if (source[offset++] === '"') return JSON.parse(source.slice(start, offset)) as string;
+    }
+    return '';
+  };
+  function value(): void {
+    whitespace();
+    if (source[offset] === '{') return objectValue();
+    if (source[offset] === '[') return arrayValue();
+    if (source[offset] === '"') {
+      stringValue();
+      return;
+    }
+    while (offset < source.length && !/[\s,\]}]/.test(source[offset] ?? '')) offset++;
+  }
+  const objectValue = (): void => {
+    offset++;
+    const keys = new Set<string>();
+    whitespace();
+    while (source[offset] !== '}') {
+      const key = stringValue();
+      if (keys.has(key)) duplicate = true;
+      keys.add(key);
+      whitespace();
+      offset++;
+      value();
+      whitespace();
+      if (source[offset] !== ',') break;
+      offset++;
+      whitespace();
+    }
+    offset++;
+  };
+  const arrayValue = (): void => {
+    offset++;
+    whitespace();
+    while (source[offset] !== ']') {
+      value();
+      whitespace();
+      if (source[offset] !== ',') break;
+      offset++;
+      whitespace();
+    }
+    offset++;
+  };
+  value();
+  return duplicate;
+}
+
+function matchesBoundedString(value: unknown, expression: RegExp, maximumLength = 4096): value is string {
+  return boundedString(value, maximumLength) && expression.test(value);
+}
+
+function validSurfaceCaptureFailures(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!Array.isArray(value) || value.length > 10_000) return false;
+  return value.every((entry) => {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const failure = entry as Record<string, unknown>;
+    if (Object.keys(failure).some((field) => !['key', 'reason', 'kind'].includes(field))) return false;
+    return (
+      boundedString(failure.key, 256) &&
+      boundedString(failure.reason) &&
+      (failure.kind === undefined || failure.kind === 'capture')
+    );
+  });
+}
+
+function parseMapManifest(value: unknown): MapManifest {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) invalidMapManifest();
+  const manifest = value as Record<string, unknown>;
+  if (Object.keys(manifest).some((field) => !MAP_MANIFEST_FIELDS.has(field))) invalidMapManifest();
+  const dirtyAllowValid =
+    manifest.dirtyAllow === undefined ||
+    (Array.isArray(manifest.dirtyAllow) &&
+      manifest.dirtyAllow.length <= 1_000 &&
+      manifest.dirtyAllow.every((entry) => boundedString(entry)));
+  const createdAtValid = canonicalInstant(manifest.createdAt);
+  const lockfilePairValid =
+    (manifest.lockfile === undefined && manifest.lockfileHash === undefined) ||
+    (boundedString(manifest.lockfile) &&
+      /^[A-Za-z0-9._/-]+$/.test(manifest.lockfile) &&
+      canonicalContentHash(manifest.lockfileHash));
+  const manifestValid = [
+    manifest.version === 1,
+    boundedString(manifest.packageVersion, 128),
+    matchesBoundedString(manifest.sha, /^(?:[0-9a-f]{40}|uncommitted)$/, 40),
+    manifest.sha !== 'uncommitted' || manifest.dirty === true,
+    typeof manifest.dirty === 'boolean',
+    dirtyAllowValid,
+    boundedString(manifest.spec),
+    canonicalContentHash(manifest.specHash),
+    lockfilePairValid,
+    optionalBoundedString(manifest.playwrightVersion, 128),
+    optionalBoundedString(manifest.browserVersion, 256),
+    matchesBoundedString(manifest.platform, /^[A-Za-z0-9._-]+$/, 128),
+    matchesBoundedString(manifest.arch, /^[A-Za-z0-9._-]+$/, 128),
+    matchesBoundedString(manifest.nodeMajor, /^\d+$/, 16),
+    optionalBoundedString(manifest.baseUrl),
+    typeof manifest.screenshots === 'boolean',
+    typeof manifest.har === 'boolean',
+    matchesBoundedString(manifest.compatibilityKey, /^[0-9a-f]{16}$/, 16),
+    createdAtValid,
+    validSurfaceCaptureFailures(manifest.surfaceCaptureFailures),
+  ].every(Boolean);
+  if (!manifestValid) invalidMapManifest();
+  return manifest as unknown as MapManifest;
+}
+
 export function readMapManifest(dir: string): MapManifest | null {
+  let content: string;
   try {
-    return JSON.parse(readRegularFileNoFollow(path.join(dir, MAP_MANIFEST)).toString('utf8')) as MapManifest;
-  } catch {
-    return null;
+    content = readRegularFileNoFollow(path.join(dir, MAP_MANIFEST), MAX_MAP_MANIFEST_BYTES).toString('utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    return invalidMapManifest();
+  }
+  try {
+    if (Buffer.byteLength(content, 'utf8') > MAX_MAP_MANIFEST_BYTES) invalidMapManifest();
+    const parsed = JSON.parse(content) as unknown;
+    if (hasDuplicateJsonKeys(content)) invalidMapManifest();
+    return parseMapManifest(parsed);
+  } catch (error) {
+    if (error instanceof MapStoreError) throw error;
+    return invalidMapManifest();
   }
 }
 
@@ -816,41 +1102,132 @@ export function manifestlessError(side: 'before' | 'after' | 'both'): string {
   );
 }
 
-export function assertCompatibleMapDirs(beforeDir: string, afterDir: string): void {
-  const before = readMapManifest(beforeDir);
-  const after = readMapManifest(afterDir);
-  if (!before || !after) return;
-  const beforeRuntime = {
-    platform: before.platform,
-    arch: before.arch,
-    nodeMajor: before.nodeMajor,
-    playwrightVersion: before.playwrightVersion ?? '',
-    baseUrl: before.baseUrl ?? '',
+export type SourceBindingReceipt = {
+  status: 'bound' | 'unverified';
+  compatibility: 'matched' | 'not-applicable';
+  before: {
+    expected: string | null;
+    observed: string | null;
+    result: 'matched' | 'no-capture' | 'unverified';
   };
-  const afterRuntime = {
-    platform: after.platform,
-    arch: after.arch,
-    nodeMajor: after.nodeMajor,
-    playwrightVersion: after.playwrightVersion ?? '',
-    baseUrl: after.baseUrl ?? '',
+  after: {
+    expected: string | null;
+    observed: string | null;
+    result: 'matched' | 'no-capture' | 'unverified';
   };
-  // Browser build is the actual renderer, but it's optional: only compare when BOTH sides
-  // carry it, so bundles cached before this field existed stay comparable to each other.
-  // A field on one side only can't be a proven mismatch.
-  if (before.browserVersion && after.browserVersion) {
-    (beforeRuntime as Record<string, string>).browserVersion = before.browserVersion;
-    (afterRuntime as Record<string, string>).browserVersion = after.browserVersion;
+};
+
+export function expectedSourceShaFlagsError(input: {
+  beforeProvided: boolean;
+  beforeSha?: string;
+  afterProvided: boolean;
+  afterSha?: string;
+}): string | null {
+  try {
+    validateExpectedSourceShas({
+      beforeSha: input.beforeProvided ? (input.beforeSha ?? '') : undefined,
+      afterSha: input.afterProvided ? (input.afterSha ?? '') : undefined,
+    });
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
   }
-  if (JSON.stringify(beforeRuntime) === JSON.stringify(afterRuntime)) return;
-  const build = (m: MapManifest) => (m.browserVersion ? `, browser ${m.browserVersion}` : '');
-  throw new MapStoreError(
-    [
-      'maps were captured in different runtime environments',
-      `before ${before.sha.slice(0, 12)}: ${before.compatibilityKey} (${before.platform}/${before.arch}, Playwright ${before.playwrightVersion ?? 'unknown'}${build(before)})`,
-      `after  ${after.sha.slice(0, 12)}: ${after.compatibilityKey} (${after.platform}/${after.arch}, Playwright ${after.playwrightVersion ?? 'unknown'}${build(after)})`,
-      'Next: rebuild one side with styleproof-map in the same environment, or let CI recapture both maps.',
-    ].join('\n'),
-  );
+}
+
+export function validateExpectedSourceShas(expected: { beforeSha?: string; afterSha?: string }): void {
+  const beforeExpected = expected.beforeSha !== undefined;
+  const afterExpected = expected.afterSha !== undefined;
+  if (beforeExpected !== afterExpected) {
+    throw new MapStoreError('trusted before and after SHAs must be supplied together');
+  }
+  if (beforeExpected && !/^[0-9a-f]{40}$/.test(expected.beforeSha ?? '')) {
+    throw new MapStoreError('trusted before SHA must be a full lowercase commit SHA');
+  }
+  if (afterExpected && !/^[0-9a-f]{40}$/.test(expected.afterSha ?? '')) {
+    throw new MapStoreError('trusted after SHA must be a full lowercase commit SHA');
+  }
+}
+
+function comparableManifest(dir: string): MapManifest | null {
+  const manifest = readMapManifest(dir);
+  if (!manifest && dirHasMaps(dir)) {
+    throw new MapStoreError('capture manifest is unavailable for a map-bearing directory');
+  }
+  return manifest;
+}
+
+function assertBoundManifest(manifest: MapManifest | null, expectedSha: string | undefined, side: string): void {
+  if (expectedSha !== undefined && manifest?.dirty === true) {
+    throw new MapStoreError('dirty capture cannot bind to a trusted commit SHA');
+  }
+  if (expectedSha !== undefined && manifest && manifest.sha !== expectedSha) {
+    throw new MapStoreError(`${side} capture source does not match the trusted SHA`);
+  }
+}
+
+function sourceBindingSide(manifest: MapManifest | null, expectedSha: string | undefined) {
+  const result = expectedSha === undefined ? 'unverified' : manifest ? 'matched' : 'no-capture';
+  return { expected: expectedSha ?? null, observed: manifest?.sha ?? null, result } as const;
+}
+
+function sourceBindingReceipt(
+  before: MapManifest | null,
+  after: MapManifest | null,
+  expected: { beforeSha?: string; afterSha?: string },
+): SourceBindingReceipt {
+  return {
+    status: expected.beforeSha !== undefined && expected.afterSha !== undefined ? 'bound' : 'unverified',
+    compatibility: before && after ? 'matched' : 'not-applicable',
+    before: sourceBindingSide(before, expected.beforeSha),
+    after: sourceBindingSide(after, expected.afterSha),
+  };
+}
+
+function runtimeIdentity(manifest: MapManifest): Record<string, string> {
+  return {
+    platform: manifest.platform,
+    arch: manifest.arch,
+    nodeMajor: manifest.nodeMajor,
+    playwrightVersion: manifest.playwrightVersion ?? '',
+    baseUrl: manifest.baseUrl ?? '',
+  };
+}
+
+function assertCompatibleManifests(before: MapManifest, after: MapManifest): void {
+  if (before.compatibilityKey !== after.compatibilityKey) {
+    throw new MapStoreError(
+      'maps were captured with different capture compatibility contracts\n' +
+        'Next: rebuild one side with styleproof-map in the same environment, or let CI recapture both maps.',
+    );
+  }
+  const beforeRuntime = runtimeIdentity(before);
+  const afterRuntime = runtimeIdentity(after);
+  // Browser build is optional for bundles captured before the field existed. Compare it only when both sides carry it.
+  if (before.browserVersion && after.browserVersion) {
+    beforeRuntime.browserVersion = before.browserVersion;
+    afterRuntime.browserVersion = after.browserVersion;
+  }
+  if (JSON.stringify(beforeRuntime) !== JSON.stringify(afterRuntime)) {
+    throw new MapStoreError(
+      'maps were captured in different runtime environments\n' +
+        'Next: rebuild one side with styleproof-map in the same environment, or let CI recapture both maps.',
+    );
+  }
+}
+
+export function assertCompatibleMapDirs(
+  beforeDir: string,
+  afterDir: string,
+  expected: { beforeSha?: string; afterSha?: string } = {},
+): SourceBindingReceipt {
+  validateExpectedSourceShas(expected);
+  const before = comparableManifest(beforeDir);
+  const after = comparableManifest(afterDir);
+  assertBoundManifest(before, expected.beforeSha, 'before');
+  assertBoundManifest(after, expected.afterSha, 'after');
+  const receipt = sourceBindingReceipt(before, after, expected);
+  if (before && after) assertCompatibleManifests(before, after);
+  return receipt;
 }
 
 function safeSegment(value: string, name: string): string {

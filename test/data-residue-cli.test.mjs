@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { residueKey } from '../dist/data-residue.js';
+import { fixtureCommitSha } from './helpers.mjs';
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'styleproof-diff.mjs');
 
@@ -24,16 +25,16 @@ function stampManifest(dir, sha) {
     JSON.stringify({
       version: 1,
       packageVersion: 'test',
-      sha,
+      sha: fixtureCommitSha(sha),
       dirty: false,
       spec: 'e2e/styleproof.spec.ts',
-      specHash: 'test',
+      specHash: '1'.repeat(64),
       platform: process.platform,
       arch: process.arch,
       nodeMajor: process.versions.node.split('.')[0],
       screenshots: true,
       har: false,
-      compatibilityKey: 'testcompatkey0000',
+      compatibilityKey: '0000000000000000',
       createdAt: '2026-01-01T00:00:00.000Z',
     }),
   );

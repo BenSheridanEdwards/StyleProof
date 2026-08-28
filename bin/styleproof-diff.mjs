@@ -45,6 +45,8 @@ import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
+  captureEvidenceBindingReceipt,
+  expectedSourceShaFlagsError,
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
@@ -312,6 +314,10 @@ options:
                    require explicit matching productState {id, revision} on every
                    paired capture. Without this opt-in, undeclared legacy pairs
                    remain compatible but are reported as unproven, never comparable.
+  --expected-before-sha <sha>
+                   require the before manifest to bind to this trusted full commit SHA
+  --expected-after-sha <sha>
+                   require the after manifest to bind to this trusted full commit SHA
   -h, --help       show this help
 
 exit: 0 identical (certified), 1 differences found OR non-certifying evidence
@@ -327,6 +333,10 @@ let MAX = 40;
 let jsonOut = null;
 let allowUnasserted = false;
 let requireStateIdentity = false;
+let expectedBeforeSha;
+let expectedAfterSha;
+let expectedBeforeShaSet = false;
+let expectedAfterShaSet = false;
 // Repo config is the lowest-precedence default layer (flag > env > file > built-in),
 // matching styleproof-map/-prepush/-ci — without it, a repo whose config moves the
 // spec or store branch computed a different compatibility key here than the capture
@@ -345,10 +355,33 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
   else if (argv[i] === '--allow-unasserted') allowUnasserted = true;
   else if (argv[i] === '--require-state-identity') requireStateIdentity = true;
-  else if (argv[i].startsWith('--')) {
+  else if (argv[i] === '--expected-before-sha') {
+    expectedBeforeShaSet = true;
+    expectedBeforeSha = argv[++i];
+  } else if (argv[i].startsWith('--expected-before-sha=')) {
+    expectedBeforeShaSet = true;
+    expectedBeforeSha = argv[i].slice(22);
+  } else if (argv[i] === '--expected-after-sha') {
+    expectedAfterShaSet = true;
+    expectedAfterSha = argv[++i];
+  } else if (argv[i].startsWith('--expected-after-sha=')) {
+    expectedAfterShaSet = true;
+    expectedAfterSha = argv[i].slice(21);
+  } else if (argv[i].startsWith('--')) {
     console.error(unknownFlagMessage(COMMAND, argv[i]));
     process.exit(2);
   } else args.push(argv[i]);
+}
+
+const sourceShaError = expectedSourceShaFlagsError({
+  beforeProvided: expectedBeforeShaSet,
+  beforeSha: expectedBeforeSha,
+  afterProvided: expectedAfterShaSet,
+  afterSha: expectedAfterSha,
+});
+if (sourceShaError) {
+  console.error(`${COMMAND}: ${sourceShaError}`);
+  process.exit(2);
 }
 
 let dirA;
@@ -390,6 +423,8 @@ if (args.length <= 1) {
 }
 
 let result;
+let sourceBinding;
+let evidenceBinding;
 let inventoryAudit = null;
 let coverageVerdict = null;
 let determinismVerdict = null;
@@ -405,7 +440,11 @@ try {
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
   const manifestless = manifestlessSide(dirA, dirB);
   if (manifestless) throw new Error(manifestlessError(manifestless));
-  assertCompatibleMapDirs(dirA, dirB);
+  const initialEvidenceBinding = captureEvidenceBindingReceipt(dirA, dirB);
+  sourceBinding = assertCompatibleMapDirs(dirA, dirB, {
+    beforeSha: expectedBeforeSha,
+    afterSha: expectedAfterSha,
+  });
   result = diffStyleMapDirs(dirA, dirB);
   // Read inventory + the certification ledgers here, while the (possibly cached/restored)
   // dirs still exist — the finally below deletes them in cached-map mode. Coverage is the
@@ -434,6 +473,10 @@ try {
   // First-adoption bare base: zero maps on the before side. Used so exit 3 is not
   // swallowed by unasserted/unknown fail-closed (filtered pairs still have maps).
   baseMapCount = fs.existsSync(dirA) ? fs.readdirSync(dirA).filter(isMapFile).length : 0;
+  evidenceBinding = captureEvidenceBindingReceipt(dirA, dirB);
+  if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
+    throw new Error('capture evidence changed while styleproof-diff was reading it');
+  }
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -452,9 +495,9 @@ const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
 function printBaselineSurfaceFailureCallout() {
   if (!baselineSurfaceFailures.length) return;
   console.log(
-    `\n⚠ ${baselineSurfaceFailures.length} surface(s) failed during the BASELINE capture and were omitted from the base bundle — repair base capture on the base branch; do not treat these as greenfield new surfaces:`,
+    `\n⚠ ${baselineSurfaceFailures.length} surface(s) failed during the BASELINE capture and were omitted from the base bundle. ` +
+      'Failure details remain in the local capture manifest and are not echoed from untrusted artifacts.',
   );
-  for (const f of baselineSurfaceFailures) console.log(`  ✗ ${f.key}: ${f.reason.split('\n')[0]}`);
   console.log('  → Re-run styleproof-map on the base commit (or merge a fix) before approving indefinitely.');
 }
 
@@ -626,6 +669,7 @@ const coverageBlocks = coverageFails && !(firstAdoptionBareBase && coverageVerdi
 const determinismBlocks = determinismFails && !(firstAdoptionBareBase && determinismVerdict?.status === 'unknown');
 // True only when the run would exit 0 as a full certification (not diagnostic).
 const certifiesFully =
+  sourceBinding?.status === 'bound' &&
   !allowUnasserted &&
   !truth.rawOnlyNoReviewable &&
   !comparison.blocksCertification &&
@@ -650,6 +694,8 @@ if (jsonOut) {
       JSON.stringify(
         {
           counts,
+          sourceBinding,
+          evidenceBinding,
           // Reviewable tallies after cleanFindings (what the durable report shows).
           // Trust/approval must use these + one-sided surfaces — not raw counts alone.
           reviewableCounts: truth.reviewableCounts,
@@ -772,13 +818,21 @@ if (truth.rawOnlyNoReviewable) {
       '(not STYLE_REVIEW_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect.',
   );
 }
+const unverifiedDiagnosticSummary =
+  newSurfaces === 0
+    ? `0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
+    : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
+      ? `${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch`
+      : `${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`;
 console.log(
   clean
-    ? newSurfaces === 0
-      ? `\n✓ 0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
-      : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
-        ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
-        : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
+    ? sourceBinding.status !== 'bound'
+      ? `\n⚠ UNVERIFIED DIAGNOSTIC: ${unverifiedDiagnosticSummary}; trusted source SHAs were not supplied, so this result is not certification`
+      : newSurfaces === 0
+        ? `\n✓ 0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
+        : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
+          ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
+          : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : comparison.blocksCertification
       ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`
       : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`,

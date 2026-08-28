@@ -13,7 +13,15 @@ import {
   writeMapManifest,
   baselineFailureMatchesSurface,
 } from '../dist/map-store.js';
-import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+import {
+  fixtureCommitSha,
+  fixtureCompatibilityKey,
+  fixtureContentHash,
+  makeMap,
+  mkTmp,
+  rmTmp,
+  writeCapture,
+} from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
@@ -22,7 +30,11 @@ const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
 const CI = path.join(here, '..', 'bin', 'styleproof-ci.mjs');
 
 function run(script, args, env = {}, cwd = process.cwd()) {
-  return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', env: { ...process.env, ...env }, cwd });
+  const childEnv = { ...process.env, ...env };
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete childEnv[key];
+  }
+  return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', env: childEnv, cwd });
 }
 
 function writeManifest(dir, sha, compatibilityKey, extra = {}) {
@@ -32,16 +44,16 @@ function writeManifest(dir, sha, compatibilityKey, extra = {}) {
       {
         version: 1,
         packageVersion: 'test',
-        sha,
+        sha: fixtureCommitSha(sha),
         dirty: false,
         spec: 'e2e/styleproof.spec.ts',
-        specHash: 'test',
+        specHash: fixtureContentHash('test'),
         platform: process.platform,
         arch: process.arch,
         nodeMajor: process.versions.node.split('.')[0],
         screenshots: true,
         har: false,
-        compatibilityKey,
+        compatibilityKey: fixtureCompatibilityKey(compatibilityKey),
         createdAt: '2026-01-01T00:00:00.000Z',
         ...extra,
       },
@@ -108,7 +120,7 @@ test('recordSurfaceCaptureFailures merge into writeMapManifest', () => {
   const manifest = writeMapManifest({
     dir,
     spec: 'e2e/styleproof.spec.ts',
-    sha: 'abc',
+    sha: 'a'.repeat(40),
     screenshots: true,
     cwd: root,
   });
@@ -117,6 +129,63 @@ test('recordSurfaceCaptureFailures merge into writeMapManifest', () => {
   ]);
   assert.deepEqual(readSurfaceCaptureFailures(dir), manifest.surfaceCaptureFailures);
   rmTmp(root);
+});
+
+test('writeMapManifest rejects source identities its strict reader cannot consume', () => {
+  const root = mkTmp();
+  try {
+    for (const sha of ['0123abcd', 'local', 'A'.repeat(40)]) {
+      const dir = path.join(root, sha.slice(0, 8));
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'home@900.json'), '{}');
+      assert.throws(
+        () =>
+          writeMapManifest({
+            dir,
+            spec: 'e2e/styleproof.spec.ts',
+            sha,
+            screenshots: false,
+            cwd: root,
+          }),
+        /invalid .*manifest/i,
+      );
+      assert.equal(fs.existsSync(path.join(dir, MAP_MANIFEST)), false);
+    }
+    const hostileDirtyAllowDir = path.join(root, 'hostile-dirty-allow');
+    fs.mkdirSync(hostileDirtyAllowDir, { recursive: true });
+    fs.writeFileSync(path.join(hostileDirtyAllowDir, 'home@900.json'), '{}');
+    assert.throws(
+      () =>
+        writeMapManifest({
+          dir: hostileDirtyAllowDir,
+          spec: 'e2e/styleproof.spec.ts',
+          sha: 'a'.repeat(40),
+          screenshots: false,
+          dirtyAllow: ['generated\tPRIVATE-CONTROL-MARKER'],
+          cwd: root,
+        }),
+      /invalid .*manifest/i,
+    );
+    assert.equal(fs.existsSync(path.join(hostileDirtyAllowDir, MAP_MANIFEST)), false);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map rejects a noncanonical explicit source SHA before capture', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    for (const sha of ['0123abcd', 'local', 'A'.repeat(40)]) {
+      const result = run(MAP, ['--spec', spec, '--sha', sha, '--no-upload'], {}, root);
+      assert.equal(result.status, 2, result.stderr + result.stdout);
+      assert.match(result.stderr, /sha.*40.*lowercase|full lowercase.*sha/i);
+    }
+  } finally {
+    rmTmp(root);
+  }
 });
 
 test('recordSurfaceCaptureFailure: keys that sanitize identically do not clobber each other', () => {
@@ -160,11 +229,21 @@ exit 1
     const r = run(
       MAP,
       ['--spec', spec, '--dir', 'base', '--base-dir', maps, '--tolerate-surface-failures', '--no-upload'],
-      { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+      {
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+        STYLEPROOF_SHA: undefined,
+        GITHUB_HEAD_SHA: undefined,
+        GITHUB_BASE_SHA: undefined,
+        GITHUB_EVENT_PATH: undefined,
+        GITHUB_EVENT_NAME: undefined,
+        GITHUB_SHA: undefined,
+      },
       root,
     );
     assert.equal(r.status, 0, r.stderr + r.stdout);
     const manifest = JSON.parse(fs.readFileSync(path.join(maps, 'base', MAP_MANIFEST), 'utf8'));
+    assert.equal(manifest.sha, 'uncommitted');
+    assert.equal(manifest.dirty, true);
     assert.equal(manifest.surfaceCaptureFailures?.length, 1);
     assert.match(r.stderr, /partial baseline/);
   } finally {
@@ -393,22 +472,23 @@ test('styleproof-report surfaces baseline capture failure callout', () => {
   rmTmp(root);
 });
 
-test('styleproof-report escapes injected markdown in baseline failure reason', () => {
+test('styleproof-report never echoes untrusted baseline failure details', () => {
   const root = mkTmp();
   const A = path.join(root, 'a');
   const B = path.join(root, 'b');
   const out = path.join(root, 'report');
+  const marker = 'PRIVATE-BASELINE-FAILURE-MARKER';
   const m = makeMap({ elements: { body: { tag: 'body' } } });
   writeCapture(A, 'home@1280', m, null);
   writeCapture(B, 'home@1280', m, null);
   writeManifest(A, 'base-sha', 'same-env-key', {
-    surfaceCaptureFailures: [{ key: 'home@1280', reason: '**pwned** <script>', kind: 'capture' }],
+    surfaceCaptureFailures: [{ key: `home@1280-${marker}`, reason: `**pwned** <script> ${marker}`, kind: 'capture' }],
   });
   writeManifest(B, 'head-sha', 'same-env-key');
   run(REPORT, [A, B, '--out', out]);
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
-  assert.doesNotMatch(md, /<script>/i);
-  assert.match(md, /\\\*\\\*pwned\\\*\\\*/);
+  assert.match(md, /baseline capture failure/i);
+  assert.doesNotMatch(md, /<script>|PRIVATE-BASELINE-FAILURE-MARKER|pwned/i);
   rmTmp(root);
 });
 

@@ -228,16 +228,16 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
   const MANIFEST = JSON.stringify({
     version: 1,
     packageVersion: '0.0.0-e2e',
-    sha: 'e2e-fixture',
+    sha: 'e'.repeat(40),
     dirty: false,
     spec: 'test/pr-surfacing.e2e.spec.ts',
-    specHash: 'e2e',
+    specHash: '1'.repeat(64),
     platform: 'e2e',
     arch: 'e2e',
-    nodeMajor: 'e2e',
+    nodeMajor: '20',
     screenshots: false,
     har: false,
-    compatibilityKey: 'e2e-fixture',
+    compatibilityKey: '0000000000000000',
     createdAt: '2026-01-01T00:00:00.000Z',
   });
   function dirs(): { root: string; base: string; head: string } {

@@ -4,6 +4,7 @@ import { resolveActionContext } from '../dist/action-context.js';
 
 const repo = { owner: 'owner', repo: 'repo' };
 const sha = 'a'.repeat(40);
+const baseSha = 'd'.repeat(40);
 
 function github(data = []) {
   const calls = [];
@@ -26,12 +27,12 @@ test('resolveActionContext reads pull_request identity directly from the event',
   const mock = github();
   const result = await resolveActionContext({
     eventName: 'pull_request',
-    payload: { pull_request: { number: 12, head: { sha } } },
+    payload: { pull_request: { number: 12, base: { sha: baseSha }, head: { sha } } },
     repo,
     github: mock.client,
   });
 
-  assert.deepEqual(result, { prNumber: '12', headSha: sha });
+  assert.deepEqual(result, { prNumber: '12', baseSha, headSha: sha });
   assert.deepEqual(mock.calls, []);
 });
 
@@ -39,21 +40,43 @@ test('resolveActionContext reads same-repo workflow_run identity from trusted pu
   const mock = github();
   const result = await resolveActionContext({
     eventName: 'workflow_run',
-    payload: { workflow_run: { head_sha: sha, pull_requests: [{ number: 34 }] } },
+    payload: {
+      workflow_run: { head_sha: sha, pull_requests: [{ number: 34, base: { sha: baseSha }, head: { sha } }] },
+    },
     repo,
     github: mock.client,
   });
 
-  assert.deepEqual(result, { prNumber: '34', headSha: sha });
+  assert.deepEqual(result, { prNumber: '34', baseSha, headSha: sha });
   assert.deepEqual(mock.calls, []);
+});
+
+test('resolveActionContext rejects a non-corresponding embedded workflow_run PR and uses exact-head lookup', async () => {
+  const unrelatedHead = 'c'.repeat(40);
+  const fallbackBase = 'e'.repeat(40);
+  const mock = github([{ state: 'open', number: 35, base: { sha: fallbackBase }, head: { sha } }]);
+  const result = await resolveActionContext({
+    eventName: 'workflow_run',
+    payload: {
+      workflow_run: {
+        head_sha: sha,
+        pull_requests: [{ number: 34, base: { sha: baseSha }, head: { sha: unrelatedHead } }],
+      },
+    },
+    repo,
+    github: mock.client,
+  });
+
+  assert.deepEqual(result, { prNumber: '35', baseSha: fallbackBase, headSha: sha });
+  assert.deepEqual(mock.calls, [{ ...repo, commit_sha: sha }]);
 });
 
 test('resolveActionContext falls back to the PR associated with the trusted workflow_run head SHA', async () => {
   const other = 'b'.repeat(40);
   const mock = github([
-    { state: 'open', number: 1, head: { sha: other } },
-    { state: 'closed', number: 2, head: { sha } },
-    { state: 'open', number: 3, head: { sha } },
+    { state: 'open', number: 1, base: { sha: 'e'.repeat(40) }, head: { sha: other } },
+    { state: 'closed', number: 2, base: { sha: 'f'.repeat(40) }, head: { sha } },
+    { state: 'open', number: 3, base: { sha: baseSha }, head: { sha } },
   ]);
   const result = await resolveActionContext({
     eventName: 'workflow_run',
@@ -69,8 +92,20 @@ test('resolveActionContext falls back to the PR associated with the trusted work
     github: mock.client,
   });
 
-  assert.deepEqual(result, { prNumber: '3', headSha: sha });
+  assert.deepEqual(result, { prNumber: '3', baseSha, headSha: sha });
   assert.deepEqual(mock.calls, [{ ...repo, commit_sha: sha }]);
+});
+
+test('resolveActionContext rejects incomplete or malformed SHA provenance', async () => {
+  const mock = github();
+  const result = await resolveActionContext({
+    eventName: 'pull_request',
+    payload: { pull_request: { number: 12, base: { sha: 'short' }, head: { sha } } },
+    repo,
+    github: mock.client,
+  });
+
+  assert.deepEqual(result, { prNumber: '', baseSha: '', headSha: '' });
 });
 
 test('resolveActionContext returns empty outputs when PR identity is missing', async () => {
@@ -82,5 +117,5 @@ test('resolveActionContext returns empty outputs when PR identity is missing', a
     github: mock.client,
   });
 
-  assert.deepEqual(result, { prNumber: '', headSha: '' });
+  assert.deepEqual(result, { prNumber: '', baseSha: '', headSha: '' });
 });
