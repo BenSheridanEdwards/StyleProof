@@ -1218,9 +1218,7 @@ function readAcknowledgedResidue(): Record<string, string> {
 }
 
 function describeFailedDataRequests(entries: { surface: string; endpoint: string; reason: string }[]): string {
-  return entries
-    .map((entry) => `${entry.surface} called \`${entry.endpoint}\` (${entry.reason})`)
-    .join('; ');
+  return entries.map((entry) => `${entry.surface} called \`${entry.endpoint}\` (${entry.reason})`).join('; ');
 }
 
 // A failed data request captured the fallback UI, so the real data state is unproven.
