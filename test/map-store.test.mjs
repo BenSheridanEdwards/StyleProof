@@ -245,7 +245,7 @@ test('readMapManifest rejects duplicate JSON object keys', () => {
   const dir = manifestDir();
   try {
     const valid = fs.readFileSync(path.join(dir, MAP_MANIFEST), 'utf8').trim();
-    fs.writeFileSync(path.join(dir, MAP_MANIFEST), valid.replace('{', `{"sha":"${'b'.repeat(40)}",`));
+    fs.writeFileSync(path.join(dir, MAP_MANIFEST), valid.replaceAll('{', `{"sha":"${'b'.repeat(40)}",`));
     assert.throws(() => readMapManifest(dir), /invalid styleproof-manifest\.json/i);
   } finally {
     rmTmp(dir);

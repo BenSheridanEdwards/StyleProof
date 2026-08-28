@@ -4,6 +4,13 @@ import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
 
 const root = process.argv[2] || 'action-dogfood';
+const baseSha = process.argv[3];
+const headSha = process.argv[4];
+const TRUSTED_SHA = /^[0-9a-f]{40}$/;
+
+if (!TRUSTED_SHA.test(baseSha ?? '') || !TRUSTED_SHA.test(headSha ?? '')) {
+  throw new Error('action dogfood fixtures require trusted base and head SHAs');
+}
 
 function map(color = 'rgb(0, 0, 0)') {
   return {
@@ -73,18 +80,24 @@ function png([r, g, b]) {
 const MANIFEST = {
   version: 1,
   packageVersion: '0.0.0-dogfood',
-  sha: 'dogfood-fixture',
   dirty: false,
   spec: 'scripts/action-dogfood-fixtures.mjs',
-  specHash: 'dogfood',
-  platform: 'dogfood',
-  arch: 'dogfood',
-  nodeMajor: 'dogfood',
+  specHash: '1'.repeat(64),
+  platform: process.platform,
+  arch: process.arch,
+  nodeMajor: process.versions.node.split('.')[0],
   screenshots: true,
   har: false,
-  compatibilityKey: 'dogfood-fixture',
+  compatibilityKey: 'deadbeefdeadbeef',
   createdAt: '2026-01-01T00:00:00.000Z',
 };
+
+function fixtureSha(dir) {
+  const name = path.basename(dir);
+  if (name.endsWith('-base')) return baseSha;
+  if (name.endsWith('-head')) return headSha;
+  throw new Error('action dogfood fixture directory must identify its source side');
+}
 
 function writeSyntheticCoverage(dir, surface, overrides = {}) {
   const file = path.join(dir, 'styleproof-coverage.json');
@@ -100,7 +113,10 @@ function writeCapture(dir, surface, styleMap, image) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, `${surface}.json.gz`), gzipSync(JSON.stringify(styleMap)));
   fs.writeFileSync(path.join(dir, `${surface}.png`), image);
-  fs.writeFileSync(path.join(dir, 'styleproof-manifest.json'), JSON.stringify(MANIFEST, null, 2));
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-manifest.json'),
+    JSON.stringify({ ...MANIFEST, sha: fixtureSha(dir) }, null, 2),
+  );
   writeSyntheticCoverage(dir, surface);
 }
 

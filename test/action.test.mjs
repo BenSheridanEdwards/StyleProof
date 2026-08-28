@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { readMapManifest } from '../dist/map-store.js';
 import { fixtureCompatibilityKey, fixtureContentHash, makeMap, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -510,15 +511,22 @@ test('composite action marks certify-mode comments with their source head SHA', 
 
 test('action dogfood fixtures are asserted and deterministic unless the scenario overrides trust', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-dogfood-'));
+  const baseSha = 'a'.repeat(40);
+  const headSha = 'b'.repeat(40);
   try {
     const generated = spawnSync(
       process.execPath,
-      [path.join(here, '..', 'scripts/action-dogfood-fixtures.mjs'), root],
+      [path.join(here, '..', 'scripts/action-dogfood-fixtures.mjs'), root, baseSha, headSha],
       {
         encoding: 'utf8',
       },
     );
     assert.equal(generated.status, 0, generated.stderr);
+    const baseManifest = readMapManifest(path.join(root, 'clean-base'));
+    const headManifest = readMapManifest(path.join(root, 'clean-head'));
+    assert.equal(baseManifest.sha, baseSha);
+    assert.equal(headManifest.sha, headSha);
+    assert.equal(baseManifest.compatibilityKey, headManifest.compatibilityKey);
     const clean = JSON.parse(fs.readFileSync(path.join(root, 'clean-base', 'styleproof-coverage.json'), 'utf8'));
     assert.deepEqual(clean.expected, ['home']);
     assert.equal(clean.determinism, 'self-checked');
@@ -533,6 +541,11 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
 });
 
 test('dogfood workflow runs the local composite action against every trust-state class', () => {
+  assert.doesNotMatch(dogfoodYml, /workflow_dispatch/);
+  assert.match(
+    dogfoodYml,
+    /node scripts\/action-dogfood-fixtures\.mjs action-dogfood '\$\{\{ github\.event\.pull_request\.base\.sha \}\}' '\$\{\{ github\.event\.pull_request\.head\.sha \}\}'/,
+  );
   assert.match(dogfoodYml, /uses: \.\/\n/g);
   assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 9);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
