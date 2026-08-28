@@ -123,6 +123,33 @@ test('production diff and report receipts pass through the exact Action merge pr
     const honestReport = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
     const honestDiff = JSON.parse(fs.readFileSync(diffJsonPath, 'utf8'));
 
+    const digestMismatch = structuredClone(honestReport);
+    digestMismatch.evidenceBinding.after.digest = 'f'.repeat(64);
+    fs.writeFileSync(reportJsonPath, JSON.stringify(digestMismatch));
+    const mismatchedEvidence = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(mismatchedEvidence.status, 1, mismatchedEvidence.stderr || mismatchedEvidence.stdout);
+    assert.match(mismatchedEvidence.stderr, /evidence-binding receipts disagree/i);
+
+    const impossibleSourceBinding = {
+      status: 'bound',
+      compatibility: 'not-applicable',
+      before: { expected: 'a'.repeat(40), observed: null, result: 'no-capture' },
+      after: { expected: 'b'.repeat(40), observed: 'b'.repeat(40), result: 'matched' },
+    };
+    fs.writeFileSync(reportJsonPath, JSON.stringify({ ...honestReport, sourceBinding: impossibleSourceBinding }));
+    fs.writeFileSync(diffJsonPath, JSON.stringify({ ...honestDiff, sourceBinding: impossibleSourceBinding }));
+    const matchingImpossible = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(matchingImpossible.status, 1, matchingImpossible.stderr || matchingImpossible.stdout);
+    assert.match(matchingImpossible.stderr, /source-binding receipts are missing, malformed/i);
+
     fs.writeFileSync(reportJsonPath, JSON.stringify({ ...honestReport, sourceBinding: { status: 'bound' } }));
     fs.writeFileSync(diffJsonPath, JSON.stringify({ ...honestDiff, sourceBinding: { status: 'bound' } }));
     const malformedEqual = spawnSync(process.execPath, [mergeScript], {

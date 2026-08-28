@@ -308,10 +308,14 @@ for command-specific options. The existing `styleproof-*` binaries remain as
 backwards-compatible aliases.
 
 **Exact-source certification:** the composite Action binds both `compare` and
-`report` to the trusted pull-request base and head SHAs, then requires their
-source-binding receipts to match before publication. An ancestor-reused
+`report` to the trusted pull-request base and head SHAs and to a canonical
+SHA-256 receipt over every regular artifact byte in both capture directories.
+Each command checks that receipt before and after consuming the evidence, then
+the Action validates the closed receipt, requires exact diff/report equality,
+and rejects impossible `no-capture` claims when maps exist. An ancestor-reused
 baseline is still useful as diagnostic/cache evidence, but it cannot certify
-an exact base SHA. Recapture the exact base for the certifying Action.
+an exact base SHA. Dirty captures also cannot bind to a trusted commit.
+Recapture the exact clean base for the certifying Action.
 
 The experimental v2 evidence store separates immutable bytes from mutable refs:
 

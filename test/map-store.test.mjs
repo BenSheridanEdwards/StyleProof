@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {
   assertCompatibleMapDirs,
+  captureEvidenceReceipt,
   BASELINE_PROVENANCE_FILE,
   expectedCompatibilityKey,
   BROWSER_BUILD_SIDECAR,
@@ -220,6 +221,9 @@ test('readMapManifest rejects invalid optional fields and nested failure receipt
     { lockfile: 'package-lock.json', lockfileHash: 'not-a-content-hash' },
     { sha: 'uncommitted', dirty: false },
     { platform: 'linux\nPRIVATE-MANIFEST-MARKER' },
+    { spec: 'fixture\n::warning::PRIVATE-CONTROL-MARKER' },
+    { baseUrl: 'https://example.test\rPRIVATE-CONTROL-MARKER' },
+    { dirtyAllow: ['generated\tPRIVATE-CONTROL-MARKER'] },
     { surfaceCaptureFailures: 'not-an-array' },
     { surfaceCaptureFailures: [{ key: 'home@1280', reason: 'failed', kind: 'self-check' }] },
     { surfaceCaptureFailures: [{ key: 'home@1280', reason: 'failed', unexpected: true }] },
@@ -241,6 +245,44 @@ test('readMapManifest rejects duplicate JSON object keys', () => {
     const valid = fs.readFileSync(path.join(dir, MAP_MANIFEST), 'utf8').trim();
     fs.writeFileSync(path.join(dir, MAP_MANIFEST), valid.replace('{', `{"sha":"${'b'.repeat(40)}",`));
     assert.throws(() => readMapManifest(dir), /invalid styleproof-manifest\.json/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('readMapManifest rejects an unsafe manifest entry instead of treating it as absent', () => {
+  const dir = manifestDir();
+  const target = path.join(dir, 'manifest-target.json');
+  const manifestPath = path.join(dir, MAP_MANIFEST);
+  fs.renameSync(manifestPath, target);
+  fs.symlinkSync(target, manifestPath);
+  try {
+    assert.throws(() => readMapManifest(dir), /invalid styleproof-manifest\.json/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('captureEvidenceReceipt binds the complete regular-file snapshot and map count', () => {
+  const dir = manifestDir();
+  const mapPath = path.join(dir, 'home@1280.json');
+  fs.writeFileSync(mapPath, '{"color":"red"}');
+  fs.writeFileSync(path.join(dir, 'home@1280.png'), Buffer.from([1, 2, 3]));
+  try {
+    const first = captureEvidenceReceipt(dir);
+    const second = captureEvidenceReceipt(dir);
+    assert.deepEqual(second, first);
+    assert.deepEqual(
+      { algorithm: first.algorithm, fileCount: first.fileCount, mapCount: first.mapCount },
+      { algorithm: 'sha256', fileCount: 3, mapCount: 1 },
+    );
+    assert.match(first.digest, /^[0-9a-f]{64}$/);
+
+    fs.writeFileSync(mapPath, '{"color":"blue"}');
+    assert.notEqual(captureEvidenceReceipt(dir).digest, first.digest);
+
+    fs.symlinkSync(mapPath, path.join(dir, 'unsafe-link'));
+    assert.throws(() => captureEvidenceReceipt(dir), /unsafe capture evidence/i);
   } finally {
     rmTmp(dir);
   }
@@ -1101,6 +1143,20 @@ test('assertCompatibleMapDirs: trusted source SHAs form one complete binding rec
     assert.throws(
       () => assertCompatibleMapDirs(before, after, { beforeSha: 'c'.repeat(40), afterSha: 'b'.repeat(40) }),
       /before capture source does not match the trusted SHA/i,
+    );
+  } finally {
+    rmTmp(before);
+    rmTmp(after);
+  }
+});
+
+test('assertCompatibleMapDirs: dirty captures cannot bind to trusted commit SHAs', () => {
+  const before = manifestDir({ sha: 'a'.repeat(40), dirty: true });
+  const after = manifestDir({ sha: 'b'.repeat(40) });
+  try {
+    assert.throws(
+      () => assertCompatibleMapDirs(before, after, { beforeSha: 'a'.repeat(40), afterSha: 'b'.repeat(40) }),
+      /dirty capture cannot bind to a trusted commit SHA/i,
     );
   } finally {
     rmTmp(before);

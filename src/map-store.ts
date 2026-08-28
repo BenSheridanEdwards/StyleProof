@@ -8,7 +8,7 @@ import { CiWorktreeSession, consumerRelativeFromRepoRoot, gitRepoRoot, worktreeR
 import { inferBaseRef } from './gitref.js';
 import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
-import { readRegularFileNoFollow, UnsafeFilesystemEntryError } from './safe-filesystem.js';
+import { readRegularFileNoFollow } from './safe-filesystem.js';
 
 export const DEFAULT_MAP_DIR = '.styleproof/maps';
 export const DEFAULT_MAP_LABEL = 'current';
@@ -71,6 +71,73 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */
 export function isMapFile(name: string): boolean {
   return !RESERVED_BUNDLE_FILES.has(name) && /\.json(\.gz)?$/.test(name);
+}
+
+/** Canonical byte identity for every regular artifact consumed from one capture directory. */
+export type CaptureEvidenceReceipt = {
+  algorithm: 'sha256';
+  digest: string;
+  fileCount: number;
+  mapCount: number;
+  byteCount: number;
+};
+
+function unsafeCaptureEvidence(): never {
+  throw new MapStoreError('unsafe capture evidence — expected a bounded tree of regular files');
+}
+
+/** Hash a complete capture directory with unambiguous path/content framing.
+ * Every entry is read no-follow and the sorted relative path is part of the hash. */
+export function captureEvidenceReceipt(dir: string): CaptureEvidenceReceipt {
+  const files: string[] = [];
+  const visit = (directory: string, prefix = ''): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs
+        .readdirSync(directory, { withFileTypes: true })
+        .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+    } catch {
+      return unsafeCaptureEvidence();
+    }
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) unsafeCaptureEvidence();
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(absolute, relative);
+      else if (entry.isFile()) files.push(relative);
+      else unsafeCaptureEvidence();
+      if (files.length > 100_000) unsafeCaptureEvidence();
+    }
+  };
+  visit(dir);
+
+  const hash = createHash('sha256').update('styleproof-capture-evidence-v1\0');
+  let byteCount = 0;
+  let mapCount = 0;
+  for (const relative of files) {
+    let bytes: Buffer;
+    try {
+      bytes = readRegularFileNoFollow(path.join(dir, ...relative.split('/')));
+    } catch {
+      return unsafeCaptureEvidence();
+    }
+    byteCount += bytes.length;
+    if (!Number.isSafeInteger(byteCount)) unsafeCaptureEvidence();
+    if (!relative.includes('/') && isMapFile(relative)) mapCount++;
+    const relativeBytes = Buffer.from(relative, 'utf8');
+    hash.update(`${relativeBytes.length}:`).update(relativeBytes).update(`${bytes.length}:`).update(bytes);
+  }
+  return { algorithm: 'sha256', digest: hash.digest('hex'), fileCount: files.length, mapCount, byteCount };
+}
+
+export type CaptureEvidenceBindingReceipt = {
+  version: 1;
+  before: CaptureEvidenceReceipt;
+  after: CaptureEvidenceReceipt;
+};
+
+export function captureEvidenceBindingReceipt(beforeDir: string, afterDir: string): CaptureEvidenceBindingReceipt {
+  return { version: 1, before: captureEvidenceReceipt(beforeDir), after: captureEvidenceReceipt(afterDir) };
 }
 
 const CRAWL_BUNDLE_FILES = new Set([...RESERVED_BUNDLE_FILES, FATAL_CAPTURE_MARKER]);
@@ -756,7 +823,7 @@ function invalidMapManifest(): never {
 function hasUnsafeControlCharacter(value: string): boolean {
   return Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
-    return code === 0x7f || (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d);
+    return code === 0x7f || code < 0x20;
   });
 }
 
@@ -909,7 +976,7 @@ export function readMapManifest(dir: string): MapManifest | null {
   try {
     content = readRegularFileNoFollow(path.join(dir, MAP_MANIFEST)).toString('utf8');
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT' || error instanceof UnsafeFilesystemEntryError) return null;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     return invalidMapManifest();
   }
   try {
@@ -1020,6 +1087,23 @@ export type SourceBindingReceipt = {
   };
 };
 
+export function expectedSourceShaFlagsError(input: {
+  beforeProvided: boolean;
+  beforeSha?: string;
+  afterProvided: boolean;
+  afterSha?: string;
+}): string | null {
+  try {
+    validateExpectedSourceShas({
+      beforeSha: input.beforeProvided ? (input.beforeSha ?? '') : undefined,
+      afterSha: input.afterProvided ? (input.afterSha ?? '') : undefined,
+    });
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 export function validateExpectedSourceShas(expected: { beforeSha?: string; afterSha?: string }): void {
   const beforeExpected = expected.beforeSha !== undefined;
   const afterExpected = expected.afterSha !== undefined;
@@ -1043,6 +1127,9 @@ function comparableManifest(dir: string): MapManifest | null {
 }
 
 function assertBoundManifest(manifest: MapManifest | null, expectedSha: string | undefined, side: string): void {
+  if (expectedSha !== undefined && manifest?.dirty === true) {
+    throw new MapStoreError('dirty capture cannot bind to a trusted commit SHA');
+  }
   if (expectedSha !== undefined && manifest && manifest.sha !== expectedSha) {
     throw new MapStoreError(`${side} capture source does not match the trusted SHA`);
   }

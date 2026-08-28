@@ -120,6 +120,10 @@ test('diff and report independently emit the same canonical source-binding recei
       before: { expected: BASE_SHA, observed: BASE_SHA, result: 'matched' },
       after: { expected: HEAD_SHA, observed: HEAD_SHA, result: 'matched' },
     });
+    assert.equal(diff.json.evidenceBinding.version, 1);
+    assert.equal(diff.json.evidenceBinding.before.mapCount, 1);
+    assert.equal(diff.json.evidenceBinding.after.mapCount, 1);
+    assert.match(diff.json.evidenceBinding.before.digest, /^[0-9a-f]{64}$/);
 
     const reportArgs = [
       REPORT,
@@ -136,6 +140,23 @@ test('diff and report independently emit the same canonical source-binding recei
     assert.equal(report.status, 0, report.stderr || report.stdout);
     const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
     assert.deepEqual(reportJson.sourceBinding, diff.json.sourceBinding);
+    assert.deepEqual(reportJson.evidenceBinding, diff.json.evidenceBinding);
+
+    writeCapture(
+      capture.after,
+      'home@1280',
+      makeMap({ elements: { 'body > button:nth-child(1)': { tag: 'button', style: { color: 'blue' } } } }),
+      null,
+    );
+    const swappedMapOut = path.join(capture.root, 'swapped-map-report');
+    const swappedMap = spawnSync(
+      process.execPath,
+      reportArgs.map((argument) => (argument === out ? swappedMapOut : argument)),
+      { cwd: capture.root, encoding: 'utf8' },
+    );
+    assert.equal(swappedMap.status, 1, swappedMap.stderr || swappedMap.stdout);
+    const swappedMapJson = JSON.parse(fs.readFileSync(path.join(swappedMapOut, 'report.json'), 'utf8'));
+    assert.notDeepEqual(swappedMapJson.evidenceBinding, diff.json.evidenceBinding);
 
     for (const partial of [
       ['--expected-before-sha', BASE_SHA],
