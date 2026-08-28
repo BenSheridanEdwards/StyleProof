@@ -30,7 +30,11 @@ const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
 const CI = path.join(here, '..', 'bin', 'styleproof-ci.mjs');
 
 function run(script, args, env = {}, cwd = process.cwd()) {
-  return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', env: { ...process.env, ...env }, cwd });
+  const childEnv = { ...process.env, ...env };
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete childEnv[key];
+  }
+  return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', env: childEnv, cwd });
 }
 
 function writeManifest(dir, sha, compatibilityKey, extra = {}) {
@@ -225,7 +229,15 @@ exit 1
     const r = run(
       MAP,
       ['--spec', spec, '--dir', 'base', '--base-dir', maps, '--tolerate-surface-failures', '--no-upload'],
-      { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+      {
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+        STYLEPROOF_SHA: undefined,
+        GITHUB_HEAD_SHA: undefined,
+        GITHUB_BASE_SHA: undefined,
+        GITHUB_EVENT_PATH: undefined,
+        GITHUB_EVENT_NAME: undefined,
+        GITHUB_SHA: undefined,
+      },
       root,
     );
     assert.equal(r.status, 0, r.stderr + r.stdout);
