@@ -196,6 +196,7 @@ runs:
         fi
         node <<'NODE'
         const fs = require('fs');
+        const { isDeepStrictEqual } = require('util');
         const diff = JSON.parse(fs.readFileSync('styleproof-diff.json', 'utf8'));
         const generated = JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'));
         if (!generated.reportConsistency || typeof generated.reportConsistency.ok !== 'boolean') {
@@ -211,10 +212,12 @@ runs:
             generated.confidence.counts.inaccessible < 0) {
           throw new Error('styleproof-report/report.json has no valid confidence receipt');
         }
+        if (!isDeepStrictEqual(generated.comparison, diff.comparison) ||
+            !isDeepStrictEqual(generated.comparability, diff.comparability)) {
+          throw new Error('styleproof-report/report.json report comparison receipts disagree with the validated diff');
+        }
         diff.reportConsistency = generated.reportConsistency;
         diff.confidence = generated.confidence;
-        diff.comparison = generated.comparison;
-        diff.comparability = generated.comparability;
         fs.writeFileSync('styleproof-diff.json', `${JSON.stringify(diff, null, 2)}\n`);
         fs.appendFileSync(process.env.GITHUB_OUTPUT, `content-changes=${generated.content.changes}\n`);
         NODE
@@ -547,33 +550,24 @@ runs:
         fi
         echo "✓ navigable inventory: no unacknowledged removals"
 
-    # Provenance hard-gate (runs LAST, in BOTH modes, like the inventory gate): incomplete
-    # coverage, an unproven-determinism capture, and an armed data-residue failure are
-    # categorically NOT restyles — the style "approve all" box must not wave them through.
-    # Each is a hole in what the green would certify, so they fail hard even after approval.
+    # Canonical certification hard-gate (runs LAST in both modes): the verdict step
+    # owns the closed-set trust predicate. Do not re-parse evidence here or approval
+    # can exploit drift between two subtly different definitions of certification.
     - name: Block on unapprovable certification failures
+      env:
+        STYLEPROOF_TRUST_STATE: ${{ steps.verdict.outputs.state }}
       shell: bash
       run: |
         set -euo pipefail
-        [ -f styleproof-diff.json ] || { echo "no styleproof-diff.json — nothing to gate"; exit 0; }
-        fails="$(node -e "
-          const j = require('./styleproof-diff.json');
-          const out = [];
-          if (j.coverage?.basis === 'incomplete') out.push('coverage incomplete: ' + (j.coverage.uncovered || []).join(', '));
-          if (j.determinism?.status === 'unproven') out.push('determinism unproven (base ' + j.determinism.base + ', head ' + j.determinism.head + ')');
-          if ((j.dataResidue?.blocking ?? 0) > 0) out.push('data-residue gate: ' + j.dataResidue.blocking + ' blocking failure(s)');
-          if (j.comparison?.blocksCertification === true) out.push('product-state comparison: ' + (j.comparison.status || 'unproven'));
-          if (j.reportConsistency && j.reportConsistency.ok === false) {
-            out.push('report/diff consistency: ' + (j.reportConsistency.reason || 'raw_only_no_reviewable') + ' — certification deltas without reviewable report crops (not visual-approval)');
-          }
-          process.stdout.write(out.join('\\n'));
-        ")"
-        if [ -n "$fails" ]; then
-          echo "::error::StyleProof: certification failure(s) that approval cannot wave through:"
-          echo "$fails"
-          exit 1
-        fi
-        echo "✓ certification: coverage, determinism, data-residue, product-state comparison, and report consistency verdicts are approvable or clean"
+        case "$STYLEPROOF_TRUST_STATE" in
+          CERTIFICATION_FAILED|DATA_RESIDUE_UNACKNOWLEDGED)
+            echo "::error::StyleProof: $STYLEPROOF_TRUST_STATE is a certification failure that approval cannot wave through."
+            exit 1
+            ;;
+          *)
+            echo "✓ certification: canonical trust verdict is $STYLEPROOF_TRUST_STATE"
+            ;;
+        esac
 
     # Always expose a terminal trust classification, even when a later gate fails.
     # Publication failure outranks every diff verdict because reviewers have no

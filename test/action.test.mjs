@@ -289,17 +289,20 @@ test('composite action fails closed on unexpected diff exit codes', () => {
   assert.match(diffStep[0], /-ne 0.*-ne 1.*-ne 3|failing closed/s, 'unexpected exit codes hard-fail');
 });
 
-test('composite action hard-gates certification failures the approve box cannot clear', () => {
+test('composite action hard-gates the canonical certification verdict the approve box cannot clear', () => {
   const gate = actionYml.match(
     /- name: Block on unapprovable certification failures[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/,
   );
   assert.ok(gate, 'action.yml should include the provenance gate step');
-  assert.match(gate[0], /coverage\?\.basis === 'incomplete'/);
-  assert.match(gate[0], /determinism\?\.status === 'unproven'/);
-  assert.match(gate[0], /dataResidue\?\.blocking/);
-  assert.match(gate[0], /reportConsistency/, 'raw-only report/diff contradiction hard-gates');
-  assert.match(gate[0], /comparison\?\.blocksCertification/, 'product-state comparability hard-gates the Action job');
+  assert.match(gate[0], /STYLEPROOF_TRUST_STATE/);
+  assert.match(gate[0], /steps\.verdict\.outputs\.state/);
+  assert.match(gate[0], /CERTIFICATION_FAILED/);
   assert.match(gate[0], /exit 1/);
+  assert.doesNotMatch(
+    gate[0],
+    /coverage\?\.|determinism\?\.|dataResidue\?\.|comparison\?\.|reportConsistency\?\./,
+    'the terminal gate must not reimplement a narrower copy of the canonical verdict',
+  );
   assert.doesNotMatch(gate[0], /require-approval/, 'the provenance gate must fire in BOTH modes');
 });
 
@@ -330,6 +333,10 @@ test('composite action classifies report-time correspondence collapse before app
   assert.match(report[0], /styleproof-report\.mjs/);
   assert.match(report[0], /styleproof-report\/report\.json/);
   assert.match(report[0], /diff\.reportConsistency\s*=\s*generated\.reportConsistency/);
+  assert.match(report[0], /isDeepStrictEqual/);
+  assert.match(report[0], /report comparison receipts disagree with the validated diff/i);
+  assert.doesNotMatch(report[0], /diff\.comparison\s*=\s*generated\.comparison/);
+  assert.doesNotMatch(report[0], /diff\.comparability\s*=\s*generated\.comparability/);
   assert.match(report[0], /writeFileSync\('styleproof-diff\.json'/);
 
   const reportIndex = actionYml.indexOf('- id: report');
@@ -453,8 +460,10 @@ test('composite action makes required product-state identity a closed-set certif
   assert.ok(verdict);
   assert.match(diffStep[0], /--require-state-identity/);
   assert.match(reportStep[0], /--require-state-identity/);
-  assert.match(reportStep[0], /diff\.comparison = generated\.comparison/);
-  assert.match(reportStep[0], /diff\.comparability = generated\.comparability/);
+  assert.match(reportStep[0], /isDeepStrictEqual\(generated\.comparison, diff\.comparison\)/);
+  assert.match(reportStep[0], /isDeepStrictEqual\(generated\.comparability, diff\.comparability\)/);
+  assert.doesNotMatch(reportStep[0], /diff\.comparison = generated\.comparison/);
+  assert.doesNotMatch(reportStep[0], /diff\.comparability = generated\.comparability/);
   assert.match(verdict[0], /diff\.comparison\?\.blocksCertification === true/);
   assert.ok(
     verdict[0].indexOf('diff.comparison?.blocksCertification === true') <
