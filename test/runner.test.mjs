@@ -267,6 +267,10 @@ test('expandSurfaceVariants: productState reaches base, variant, live-state, and
 
 test('expandSurfaceVariants: malformed or privacy-hostile productState fails closed without echoing input', () => {
   const hostile = 'private[value=customer-secret]';
+  const safeErrors = new Set([
+    'styleproof: invalid productState — only id and revision are allowed',
+    'styleproof: invalid productState — id and revision must be 1–128 character opaque identifiers using letters, numbers, dot, underscore, colon, or hyphen',
+  ]);
   for (const productState of [
     { id: '', revision: 'v1' },
     { id: hostile, revision: 'v1' },
@@ -278,9 +282,7 @@ test('expandSurfaceVariants: malformed or privacy-hostile productState fails clo
       () => expandSurfaceVariants({ key: 'checkout', go: async () => {}, productState }),
       (error) => {
         assert.equal(error.name, 'ProductStateIdentityError');
-        assert.match(error.message, /productState|product state/i);
-        assert.equal(error.message.includes(hostile), false);
-        assert.equal(error.message.includes('https://fixture.invalid/state'), false);
+        assert.equal(safeErrors.has(error.message), true, 'only complete privacy-safe diagnostics may escape');
         return true;
       },
     );
