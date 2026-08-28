@@ -1,6 +1,6 @@
 # Product-state comparability contract
 
-Status: Phase 0 decision record for issues #448 and #438
+Status: Phase 0 decision record for issues #448 and #438. This file is the four-valued comparability clause cited by ADR [0003](../.agents/decisions/0003-phase0-truth-contract.md); the assertion/closure/obligation kernel lives in `docs/phase0-truth-contract.md`.
 
 StyleProof may only describe a base/head style delta as reviewable evidence when both captures represent the same consumer-declared product state.
 

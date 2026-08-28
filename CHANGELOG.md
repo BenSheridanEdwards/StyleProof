@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Phase 0 v0.1 truth-contract kernel (`assessPhase0Contract`) with closed layered
+  identities, enumerated denominator, authority matrix, exact artifact closure, and
+  named hostile fixtures. `certifies` means contract conformance under internally
+  bound authorities, not a release decision. See `docs/phase0-truth-contract.md`.
+
 ## [6.2.1] - 2026-08-28
 
 ### Changed

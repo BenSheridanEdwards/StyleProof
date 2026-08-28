@@ -1,0 +1,113 @@
+{
+  "version": "0.1",
+  "documentId": "doc-missing-relation",
+  "identities": [
+    {
+      "id": "state-home",
+      "layer": "product-state",
+      "revision": "rev-1"
+    },
+    {
+      "id": "state-homepage",
+      "layer": "product-state",
+      "revision": "rev-1"
+    },
+    {
+      "id": "snap-src-1",
+      "layer": "source-snapshot",
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567"
+    },
+    {
+      "id": "assert-home",
+      "layer": "assertion",
+      "assertionId": "assert-home"
+    },
+    {
+      "id": "evidence-home",
+      "layer": "evidence",
+      "evidenceDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  ],
+  "assertions": [
+    {
+      "id": "assert-home",
+      "mode": "declared",
+      "subject": "state-home",
+      "predicate": "has-status",
+      "object": "ready",
+      "sourceDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "inputDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "producer": "checkout-app",
+      "producerVersion": "1.0.0",
+      "run": "run-1",
+      "scope": "home",
+      "validity": "snap-src-1"
+    }
+  ],
+  "sourceRuns": [
+    {
+      "id": "run-capture-maps",
+      "domain": "capture-maps",
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+      "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "scope": "home",
+      "capabilities": [
+        "computed-style"
+      ],
+      "execution": "complete",
+      "outputDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "closure": "enumerated",
+      "factCount": 0,
+      "emptyUniverseProof": true,
+      "producer": "styleproof",
+      "producerVersion": "6.2.1",
+      "authority": "styleproof",
+      "compatibilityKey": "0000000000000000"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "obl-1",
+      "required": true,
+      "state": "state-home",
+      "surface": "home",
+      "environment": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "sensor": "styleproof.computed-style",
+      "sourceSnapshot": "snap-src-1",
+      "outcome": "satisfied",
+      "physicalCaptureKey": "home-1280"
+    }
+  ],
+  "relations": [],
+  "comparability": [
+    {
+      "surface": "home",
+      "status": "not-required",
+      "required": false,
+      "reason": "missing-after"
+    },
+    {
+      "surface": "homepage",
+      "status": "not-required",
+      "required": false,
+      "reason": "missing-before"
+    }
+  ],
+  "integrity": [
+    {
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+      "manifestDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "compatibilityKey": "0000000000000000",
+      "producer": "styleproof",
+      "run": "run-capture-maps",
+      "physicalCaptureKey": "home-1280",
+      "semanticStateId": "state-home",
+      "environmentDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "sensorContract": "styleproof.computed-style",
+      "artifactDigests": [
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      ],
+      "obligationId": "obl-1"
+    }
+  ]
+}

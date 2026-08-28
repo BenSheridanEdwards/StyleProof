@@ -234,3 +234,27 @@ export type {
 } from './evidence-store.js';
 export { importMapBundleToEvidenceStore } from './evidence-import.js';
 export type { ImportMapBundleOptions } from './evidence-import.js';
+
+export {
+  assessPhase0Contract,
+  parsePhase0Contract,
+  serializePhase0Contract,
+  digestPhase0Contract,
+  Phase0ContractError,
+} from './phase0-contract.js';
+export type {
+  Phase0Assertion,
+  Phase0Authority,
+  Phase0AxisName,
+  Phase0AxisStatus,
+  Phase0CertificationReceipt,
+  Phase0Comparability,
+  Phase0ContractDocument,
+  Phase0Identity,
+  Phase0IntegrityJoin,
+  Phase0Obligation,
+  Phase0Presence,
+  Phase0Reason,
+  Phase0Relation,
+  Phase0SourceRun,
+} from './phase0-contract.js';

@@ -1,0 +1,202 @@
+{
+  "version": "0.1",
+  "documentId": "doc-connector-not-run",
+  "identities": [
+    {
+      "id": "state-checkout",
+      "layer": "product-state",
+      "revision": "rev-1"
+    },
+    {
+      "id": "snap-src-1",
+      "layer": "source-snapshot",
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567"
+    },
+    {
+      "id": "assert-checkout-ready",
+      "layer": "assertion",
+      "assertionId": "assert-checkout-ready"
+    },
+    {
+      "id": "evidence-checkout",
+      "layer": "evidence",
+      "evidenceDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    }
+  ],
+  "assertions": [
+    {
+      "id": "assert-checkout-ready",
+      "mode": "declared",
+      "subject": "state-checkout",
+      "predicate": "has-status",
+      "object": "ready",
+      "sourceDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "inputDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "producer": "checkout-app",
+      "producerVersion": "1.0.0",
+      "run": "run-product-state",
+      "scope": "checkout",
+      "validity": "snap-src-1"
+    }
+  ],
+  "sourceRuns": [
+    {
+      "id": "run-capture-maps",
+      "domain": "capture-maps",
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+      "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "scope": "checkout",
+      "capabilities": [
+        "computed-style"
+      ],
+      "execution": "not-run",
+      "outputDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "closure": "unasserted",
+      "factCount": 0,
+      "producer": "styleproof",
+      "producerVersion": "6.2.1",
+      "authority": "styleproof",
+      "compatibilityKey": "0000000000000000"
+    },
+    {
+      "id": "run-coverage-ledger",
+      "domain": "coverage-ledger",
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+      "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "scope": "checkout",
+      "capabilities": [
+        "coverage-registry"
+      ],
+      "execution": "complete",
+      "outputDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "closure": "enumerated",
+      "factCount": 0,
+      "emptyUniverseProof": true,
+      "producer": "styleproof",
+      "producerVersion": "6.2.1",
+      "authority": "styleproof",
+      "compatibilityKey": "0000000000000000"
+    },
+    {
+      "id": "run-determinism",
+      "domain": "determinism",
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+      "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "scope": "checkout",
+      "capabilities": [
+        "repeat-hash"
+      ],
+      "execution": "complete",
+      "outputDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "closure": "enumerated",
+      "factCount": 0,
+      "emptyUniverseProof": true,
+      "producer": "styleproof",
+      "producerVersion": "6.2.1",
+      "authority": "styleproof",
+      "compatibilityKey": "0000000000000000"
+    },
+    {
+      "id": "run-product-state",
+      "domain": "product-state",
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+      "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "scope": "checkout",
+      "capabilities": [
+        "declared-state"
+      ],
+      "execution": "complete",
+      "outputDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "closure": "enumerated",
+      "factCount": 1,
+      "producer": "checkout-app",
+      "producerVersion": "1.0.0",
+      "authority": "consumer",
+      "compatibilityKey": "0000000000000000"
+    },
+    {
+      "id": "run-evidence-store",
+      "domain": "evidence-store",
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+      "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "scope": "checkout",
+      "capabilities": [
+        "evidence-bytes"
+      ],
+      "execution": "complete",
+      "outputDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+      "closure": "enumerated",
+      "factCount": 0,
+      "emptyUniverseProof": true,
+      "producer": "styleproof",
+      "producerVersion": "6.2.1",
+      "authority": "styleproof",
+      "compatibilityKey": "0000000000000000"
+    },
+    {
+      "id": "run-source-binding",
+      "domain": "source-binding",
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+      "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "scope": "checkout",
+      "capabilities": [
+        "source-sha"
+      ],
+      "execution": "complete",
+      "outputDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "closure": "enumerated",
+      "factCount": 0,
+      "emptyUniverseProof": true,
+      "producer": "styleproof",
+      "producerVersion": "6.2.1",
+      "authority": "styleproof",
+      "compatibilityKey": "0000000000000000"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "obl-1",
+      "required": true,
+      "state": "state-checkout",
+      "surface": "checkout",
+      "environment": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "sensor": "styleproof.computed-style",
+      "sourceSnapshot": "snap-src-1",
+      "outcome": "satisfied",
+      "physicalCaptureKey": "checkout-1280"
+    }
+  ],
+  "relations": [],
+  "comparability": [
+    {
+      "surface": "checkout",
+      "status": "comparable",
+      "required": true,
+      "reason": "explicit-state-match"
+    }
+  ],
+  "integrity": [
+    {
+      "sourceSha": "0123456789abcdef0123456789abcdef01234567",
+      "manifestDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "compatibilityKey": "0000000000000000",
+      "producer": "styleproof",
+      "run": "run-capture-maps",
+      "physicalCaptureKey": "checkout-1280",
+      "semanticStateId": "state-checkout",
+      "environmentDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "sensorContract": "styleproof.computed-style",
+      "artifactDigests": [
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "2222222222222222222222222222222222222222222222222222222222222222",
+        "3333333333333333333333333333333333333333333333333333333333333333",
+        "4444444444444444444444444444444444444444444444444444444444444444",
+        "5555555555555555555555555555555555555555555555555555555555555555",
+        "6666666666666666666666666666666666666666666666666666666666666666",
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      ],
+      "obligationId": "obl-1"
+    }
+  ]
+}
