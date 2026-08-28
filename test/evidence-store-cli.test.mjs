@@ -27,13 +27,13 @@ function writeBundle(directory) {
       sha: 'd'.repeat(40),
       dirty: false,
       spec: 'e2e/styleproof.spec.ts',
-      specHash: 'spec-hash',
+      specHash: '1'.repeat(64),
       platform: 'darwin',
       arch: 'arm64',
       nodeMajor: '22',
       screenshots: false,
       har: false,
-      compatibilityKey: 'compat-cli',
+      compatibilityKey: '0000000000000000',
       createdAt: '2026-08-26T00:00:00.000Z',
     }),
   );
@@ -57,12 +57,12 @@ test('styleproof store import creates an immutable capture and idempotent commit
     assert.match(receipt.capture.digest, /^[0-9a-f]{64}$/);
     assert.equal(receipt.trust.coverageBasis, 'complete');
     assert.equal(receipt.trust.determinismStatus, 'proven');
-    assert.equal(receipt.ref, `commits/${'d'.repeat(40)}/compat-cli`);
+    assert.equal(receipt.ref, `commits/${'d'.repeat(40)}/0000000000000000`);
 
     const second = run(['store', 'import', bundle, '--root', store, '--json'], workspace);
     assert.equal(second.status, 0, second.stderr);
     assert.deepEqual(JSON.parse(second.stdout), receipt);
-    assert.equal(fs.existsSync(path.join(store, 'refs', 'commits', 'd'.repeat(40), 'compat-cli.json')), true);
+    assert.equal(fs.existsSync(path.join(store, 'refs', 'commits', 'd'.repeat(40), '0000000000000000.json')), true);
 
     const verified = run(['store', 'verify', receipt.ref, '--root', store, '--json'], workspace);
     assert.equal(verified.status, 0, verified.stderr);

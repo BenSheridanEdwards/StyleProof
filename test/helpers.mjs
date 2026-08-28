@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
 
@@ -26,6 +27,23 @@ export function mkNonGitTmp(prefix = 'styleproof-non-git-test-') {
 
 export function rmTmp(dir) {
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+/** Turn readable fixture labels into deterministic full commit SHAs for strict manifest tests. */
+export function fixtureCommitSha(value) {
+  if (typeof value === 'string' && /^[0-9a-f]{40}$/i.test(value)) return value.toLowerCase();
+  return createHash('sha1').update(String(value)).digest('hex');
+}
+
+/** Deterministic canonical SHA-256 content hash for strict manifest fixtures. */
+export function fixtureContentHash(value) {
+  return createHash('sha256').update(String(value)).digest('hex');
+}
+
+/** Deterministic canonical 16-hex compatibility identity for strict manifest fixtures. */
+export function fixtureCompatibilityKey(value) {
+  if (typeof value === 'string' && /^[0-9a-f]{16}$/.test(value)) return value;
+  return fixtureContentHash(value).slice(0, 16);
 }
 
 /**

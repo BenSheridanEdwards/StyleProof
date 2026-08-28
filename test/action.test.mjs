@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
-import { makeMap, writeCapture } from './helpers.mjs';
+import { fixtureCompatibilityKey, fixtureContentHash, makeMap, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
@@ -27,13 +27,13 @@ function stampActionFixture(dir, sha) {
       sha,
       dirty: false,
       spec: 'e2e/styleproof.spec.ts',
-      specHash: 'test',
+      specHash: fixtureContentHash('test'),
       platform: process.platform,
       arch: process.arch,
       nodeMajor: process.versions.node.split('.')[0],
       screenshots: false,
       har: false,
-      compatibilityKey: 'action-receipt-parity-test',
+      compatibilityKey: fixtureCompatibilityKey('action-receipt-parity-test'),
       createdAt: '2026-01-01T00:00:00.000Z',
     }),
   );
@@ -64,18 +64,38 @@ test('production diff and report receipts pass through the exact Action merge pr
     };
     writeCapture(before, 'home@1280', map, null);
     writeCapture(after, 'home@1280', map, null);
-    stampActionFixture(before, 'base-sha');
-    stampActionFixture(after, 'head-sha');
+    stampActionFixture(before, 'a'.repeat(40));
+    stampActionFixture(after, 'b'.repeat(40));
 
     const diff = spawnSync(
       process.execPath,
-      [path.join(here, '..', 'bin/styleproof-diff.mjs'), before, after, '--json', 'styleproof-diff.json'],
+      [
+        path.join(here, '..', 'bin/styleproof-diff.mjs'),
+        before,
+        after,
+        '--json',
+        'styleproof-diff.json',
+        '--expected-before-sha',
+        'a'.repeat(40),
+        '--expected-after-sha',
+        'b'.repeat(40),
+      ],
       { cwd: root, encoding: 'utf8' },
     );
     assert.equal(diff.status, 0, diff.stderr || diff.stdout);
     const report = spawnSync(
       process.execPath,
-      [path.join(here, '..', 'bin/styleproof-report.mjs'), before, after, '--out', 'styleproof-report'],
+      [
+        path.join(here, '..', 'bin/styleproof-report.mjs'),
+        before,
+        after,
+        '--out',
+        'styleproof-report',
+        '--expected-before-sha',
+        'a'.repeat(40),
+        '--expected-after-sha',
+        'b'.repeat(40),
+      ],
       { cwd: root, encoding: 'utf8' },
     );
     assert.equal(report.status, 0, report.stderr || report.stdout);
@@ -84,15 +104,38 @@ test('production diff and report receipts pass through the exact Action merge pr
     const output = path.join(root, 'github-output');
     fs.writeFileSync(mergeScript, actionReportMergeScript());
     fs.writeFileSync(output, '');
+    const actionEnv = {
+      ...process.env,
+      STYLEPROOF_INCLUDE_CONTENT: 'false',
+      STYLEPROOF_EXPECTED_BASE_SHA: 'a'.repeat(40),
+      STYLEPROOF_EXPECTED_HEAD_SHA: 'b'.repeat(40),
+      GITHUB_OUTPUT: output,
+    };
     const merge = spawnSync(process.execPath, [mergeScript], {
       cwd: root,
       encoding: 'utf8',
-      env: { ...process.env, STYLEPROOF_INCLUDE_CONTENT: 'false', GITHUB_OUTPUT: output },
+      env: actionEnv,
     });
     assert.equal(merge.status, 0, merge.stderr || merge.stdout);
 
     const reportJsonPath = path.join(root, 'styleproof-report', 'report.json');
-    const contradictory = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
+    const diffJsonPath = path.join(root, 'styleproof-diff.json');
+    const honestReport = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
+    const honestDiff = JSON.parse(fs.readFileSync(diffJsonPath, 'utf8'));
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify({ ...honestReport, sourceBinding: { status: 'bound' } }));
+    fs.writeFileSync(diffJsonPath, JSON.stringify({ ...honestDiff, sourceBinding: { status: 'bound' } }));
+    const malformedEqual = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(malformedEqual.status, 1, malformedEqual.stderr || malformedEqual.stdout);
+    assert.match(malformedEqual.stderr, /source-binding receipts are missing, malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const contradictory = { ...honestReport };
     contradictory.comparison = {
       ...contradictory.comparison,
       status: 'future-state',
@@ -102,10 +145,10 @@ test('production diff and report receipts pass through the exact Action merge pr
     const rejected = spawnSync(process.execPath, [mergeScript], {
       cwd: root,
       encoding: 'utf8',
-      env: { ...process.env, STYLEPROOF_INCLUDE_CONTENT: 'false', GITHUB_OUTPUT: output },
+      env: actionEnv,
     });
     assert.equal(rejected.status, 1, rejected.stderr || rejected.stdout);
-    assert.match(rejected.stderr, /report comparison receipts disagree with the validated diff/);
+    assert.match(rejected.stderr, /report receipts disagree with the validated diff/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -429,7 +472,7 @@ test('composite action classifies report-time correspondence collapse before app
   assert.match(report[0], /styleproof-report\/report\.json/);
   assert.match(report[0], /diff\.reportConsistency\s*=\s*generated\.reportConsistency/);
   assert.match(report[0], /isDeepStrictEqual/);
-  assert.match(report[0], /report comparison receipts disagree with the validated diff/i);
+  assert.match(report[0], /report receipts disagree with the validated diff/i);
   assert.doesNotMatch(report[0], /diff\.comparison\s*=\s*generated\.comparison/);
   assert.doesNotMatch(report[0], /diff\.comparability\s*=\s*generated\.comparability/);
   assert.match(report[0], /writeFileSync\('styleproof-diff\.json'/);
@@ -543,6 +586,26 @@ test('composite action verdict honors the gateInventoryRemovals opt-out end to e
     verdict[0],
     /gateInventoryRemovals\s*\n?\s*\? \(diff\.inventory|gateInventoryRemovals[\s\S]{0,120}inventory/,
   );
+});
+
+test('composite action binds diff and report receipts to trusted GitHub base and head SHAs', () => {
+  const contextStep = actionYml.match(/- id: context[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  const reportStep = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
+  assert.ok(contextStep);
+  assert.ok(diffStep);
+  assert.ok(reportStep);
+  assert.match(contextStep[0], /const \{ prNumber, baseSha, headSha \} = await resolveActionContext/);
+  assert.match(contextStep[0], /Boolean\(baseSha\)/);
+  assert.match(contextStep[0], /core\.setOutput\('base-sha', resolved \? baseSha : ''\)/);
+  for (const step of [diffStep[0], reportStep[0]]) {
+    assert.match(step, /STYLEPROOF_EXPECTED_BASE_SHA: \$\{\{ steps\.context\.outputs\.base-sha \}\}/);
+    assert.match(step, /STYLEPROOF_EXPECTED_HEAD_SHA: \$\{\{ steps\.context\.outputs\.head-sha \}\}/);
+    assert.match(step, /--expected-before-sha/);
+    assert.match(step, /--expected-after-sha/);
+  }
+  assert.match(diffStep[0], /trusted base\/head SHA context is required/i);
+  assert.match(reportStep[0], /isDeepStrictEqual\(generated\.sourceBinding, diff\.sourceBinding\)/);
 });
 
 test('composite action makes required product-state identity a closed-set certification gate', () => {

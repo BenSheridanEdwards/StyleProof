@@ -307,6 +307,12 @@ Run `styleproof --help` for the whole journey or `styleproof <command> --help`
 for command-specific options. The existing `styleproof-*` binaries remain as
 backwards-compatible aliases.
 
+**Exact-source certification:** the composite Action binds both `compare` and
+`report` to the trusted pull-request base and head SHAs, then requires their
+source-binding receipts to match before publication. An ancestor-reused
+baseline is still useful as diagnostic/cache evidence, but it cannot certify
+an exact base SHA. Recapture the exact base for the certifying Action.
+
 The experimental v2 evidence store separates immutable bytes from mutable refs:
 
 ```bash

@@ -45,6 +45,7 @@ import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
+  validateExpectedSourceShas,
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
@@ -312,6 +313,10 @@ options:
                    require explicit matching productState {id, revision} on every
                    paired capture. Without this opt-in, undeclared legacy pairs
                    remain compatible but are reported as unproven, never comparable.
+  --expected-before-sha <sha>
+                   require the before manifest to bind to this trusted full commit SHA
+  --expected-after-sha <sha>
+                   require the after manifest to bind to this trusted full commit SHA
   -h, --help       show this help
 
 exit: 0 identical (certified), 1 differences found OR non-certifying evidence
@@ -327,6 +332,10 @@ let MAX = 40;
 let jsonOut = null;
 let allowUnasserted = false;
 let requireStateIdentity = false;
+let expectedBeforeSha;
+let expectedAfterSha;
+let expectedBeforeShaSet = false;
+let expectedAfterShaSet = false;
 // Repo config is the lowest-precedence default layer (flag > env > file > built-in),
 // matching styleproof-map/-prepush/-ci — without it, a repo whose config moves the
 // spec or store branch computed a different compatibility key here than the capture
@@ -345,10 +354,32 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
   else if (argv[i] === '--allow-unasserted') allowUnasserted = true;
   else if (argv[i] === '--require-state-identity') requireStateIdentity = true;
-  else if (argv[i].startsWith('--')) {
+  else if (argv[i] === '--expected-before-sha') {
+    expectedBeforeShaSet = true;
+    expectedBeforeSha = argv[++i];
+  } else if (argv[i].startsWith('--expected-before-sha=')) {
+    expectedBeforeShaSet = true;
+    expectedBeforeSha = argv[i].slice(22);
+  } else if (argv[i] === '--expected-after-sha') {
+    expectedAfterShaSet = true;
+    expectedAfterSha = argv[++i];
+  } else if (argv[i].startsWith('--expected-after-sha=')) {
+    expectedAfterShaSet = true;
+    expectedAfterSha = argv[i].slice(21);
+  } else if (argv[i].startsWith('--')) {
     console.error(unknownFlagMessage(COMMAND, argv[i]));
     process.exit(2);
   } else args.push(argv[i]);
+}
+
+try {
+  validateExpectedSourceShas({
+    beforeSha: expectedBeforeShaSet ? (expectedBeforeSha ?? '') : undefined,
+    afterSha: expectedAfterShaSet ? (expectedAfterSha ?? '') : undefined,
+  });
+} catch (error) {
+  console.error(`${COMMAND}: ${error.message}`);
+  process.exit(2);
 }
 
 let dirA;
@@ -390,6 +421,7 @@ if (args.length <= 1) {
 }
 
 let result;
+let sourceBinding;
 let inventoryAudit = null;
 let coverageVerdict = null;
 let determinismVerdict = null;
@@ -405,7 +437,10 @@ try {
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
   const manifestless = manifestlessSide(dirA, dirB);
   if (manifestless) throw new Error(manifestlessError(manifestless));
-  assertCompatibleMapDirs(dirA, dirB);
+  sourceBinding = assertCompatibleMapDirs(dirA, dirB, {
+    beforeSha: expectedBeforeSha,
+    afterSha: expectedAfterSha,
+  });
   result = diffStyleMapDirs(dirA, dirB);
   // Read inventory + the certification ledgers here, while the (possibly cached/restored)
   // dirs still exist — the finally below deletes them in cached-map mode. Coverage is the
@@ -452,9 +487,9 @@ const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
 function printBaselineSurfaceFailureCallout() {
   if (!baselineSurfaceFailures.length) return;
   console.log(
-    `\n⚠ ${baselineSurfaceFailures.length} surface(s) failed during the BASELINE capture and were omitted from the base bundle — repair base capture on the base branch; do not treat these as greenfield new surfaces:`,
+    `\n⚠ ${baselineSurfaceFailures.length} surface(s) failed during the BASELINE capture and were omitted from the base bundle. ` +
+      'Failure details remain in the local capture manifest and are not echoed from untrusted artifacts.',
   );
-  for (const f of baselineSurfaceFailures) console.log(`  ✗ ${f.key}: ${f.reason.split('\n')[0]}`);
   console.log('  → Re-run styleproof-map on the base commit (or merge a fix) before approving indefinitely.');
 }
 
@@ -626,6 +661,7 @@ const coverageBlocks = coverageFails && !(firstAdoptionBareBase && coverageVerdi
 const determinismBlocks = determinismFails && !(firstAdoptionBareBase && determinismVerdict?.status === 'unknown');
 // True only when the run would exit 0 as a full certification (not diagnostic).
 const certifiesFully =
+  sourceBinding?.status === 'bound' &&
   !allowUnasserted &&
   !truth.rawOnlyNoReviewable &&
   !comparison.blocksCertification &&
@@ -650,6 +686,7 @@ if (jsonOut) {
       JSON.stringify(
         {
           counts,
+          sourceBinding,
           // Reviewable tallies after cleanFindings (what the durable report shows).
           // Trust/approval must use these + one-sided surfaces — not raw counts alone.
           reviewableCounts: truth.reviewableCounts,
