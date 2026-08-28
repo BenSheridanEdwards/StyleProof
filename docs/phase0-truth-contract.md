@@ -16,8 +16,10 @@ not restate that lattice as a second decision.
 
 ## What the kernel checks
 
-- **Presence.** Absent bytes are `absent-legacy`. Unreadable or oversize bytes
-  throw. Present but malformed JSON is `present-invalid`.
+- **Presence.** An omitted document is `absent-legacy`. Invalid UTF-8,
+  malformed JSON syntax, oversize bytes, or excessive nesting throw a
+  privacy-safe `Phase0ContractError`. Parsed JSON with an invalid closed schema
+  is `present-invalid`.
 - **Closed fields.** Unknown fields, unknown enums, and nested duplicate JSON
   keys fail closed. Hostile values are never echoed.
 - **Required domains.** Exactly one source-run envelope per domain:
@@ -30,14 +32,24 @@ not restate that lattice as a second decision.
   snapshots bind a 40-hex SHA. Assertion identities bijection with assertions.
   Evidence identities bind a sha256 digest. Obligation `sourceSnapshot` and
   assertion `validity` name snapshot identities, not raw SHAs.
-- **Denominator.** Enumerated `factCount` equals assertions for that run.
-  Complete enumerated zero-fact runs require `emptyUniverseProof: true`.
+- **Denominator and execution.** Enumerated `factCount` equals assertions for
+  that run. Complete enumerated zero-fact runs require
+  `emptyUniverseProof: true`; positive facts forbid it. Failed, unsupported,
+  not-run, partial, partial-closure, and unasserted outcomes stay distinct and
+  cannot claim enumerated completeness.
 - **Conflicts.** Same subject, predicate, scope, and validity with a different
-  object blocks a required obligation. Different scope or snapshot do not.
+  object blocks only a required obligation for the same state, surface, and
+  source snapshot. Different scope or snapshot do not block it.
+- **Migrations.** Rename, split, merge, and supersede relations accept only
+  product-state identity endpoints. Cross-layer, duplicate, dangling, and
+  cyclic relations fail closed.
 - **Joins.** Each required satisfied obligation has exactly one integrity join
-  to a StyleProof evidence/capture run. Artifact digests are an exact closure.
+  to a StyleProof evidence/capture run in the obligation scope. Artifact
+  digests are an exact closure including credited run config digests.
 - **Comparability.** Only the shipped #438 status/reason/required combinations
   are valid. Style, DOM, and copy never mint comparability.
+- **Bounds.** Documents are limited to 16 MiB, arrays to 10,000 entries, and
+  JSON nesting to 64 levels. Nested duplicate keys fail closed.
 
 ## What this contract does not do
 

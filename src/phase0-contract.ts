@@ -19,7 +19,13 @@ export type Phase0Reason =
   | 'invalid-digest'
   | 'contradiction-blocks-obligation'
   | 'connector-not-run'
+  | 'connector-failed'
+  | 'connector-unsupported'
+  | 'connector-partial'
+  | 'closure-partial'
+  | 'closure-unasserted'
   | 'empty-universe-unproven'
+  | 'empty-universe-conflict'
   | 'partial-enumerated'
   | 'illegal-cardinality'
   | 'dangling-endpoint'
@@ -32,6 +38,7 @@ export type Phase0Reason =
   | 'unmatched-source-run'
   | 'producer-mismatch'
   | 'unauthorized-mode'
+  | 'scope-mismatch'
   | 'missing-join'
   | 'extra-join'
   | 'duplicate-join'
@@ -330,6 +337,7 @@ const GIT_SHA = /^[0-9a-f]{40}$/;
 const COMPAT = /^[0-9a-f]{16}$/;
 const MAX_ARRAY = 10_000;
 const MAX_DOCUMENT_BYTES = 16 * 1024 * 1024;
+const MAX_JSON_DEPTH = 64;
 const EMPTY_COUNTS = {
   assertions: 0,
   contradictions: 0,
@@ -578,6 +586,7 @@ function parseSourceRun(value: unknown, draft: Draft): Phase0SourceRun | undefin
   if (keys.includes('emptyUniverseProof')) {
     parsed.emptyUniverseProof = asBoolean(field(value, 'emptyUniverseProof', draft), draft);
   }
+  if (Array.isArray(parsed.capabilities)) uniqueIds(parsed.capabilities, draft);
   return draft.reasons.size === 0 ? parsed : undefined;
 }
 
@@ -804,11 +813,11 @@ function readJsonString(cursor: Cursor): string {
   return '';
 }
 
-function skipJsonArray(cursor: Cursor): void {
+function skipJsonArray(cursor: Cursor, depth: number): void {
   cursor.offset++;
   skipSpace(cursor);
   while (cursor.source[cursor.offset] !== ']') {
-    skipJsonValue(cursor);
+    skipJsonValue(cursor, depth + 1);
     skipSpace(cursor);
     if (cursor.source[cursor.offset] !== ',') break;
     cursor.offset++;
@@ -817,7 +826,7 @@ function skipJsonArray(cursor: Cursor): void {
   cursor.offset++;
 }
 
-function skipJsonObject(cursor: Cursor): void {
+function skipJsonObject(cursor: Cursor, depth: number): void {
   cursor.offset++;
   const keys = new Set<string>();
   skipSpace(cursor);
@@ -827,7 +836,7 @@ function skipJsonObject(cursor: Cursor): void {
     keys.add(key);
     skipSpace(cursor);
     cursor.offset++;
-    skipJsonValue(cursor);
+    skipJsonValue(cursor, depth + 1);
     skipSpace(cursor);
     if (cursor.source[cursor.offset] !== ',') break;
     cursor.offset++;
@@ -836,15 +845,17 @@ function skipJsonObject(cursor: Cursor): void {
   cursor.offset++;
 }
 
-function skipJsonValue(cursor: Cursor): void {
+function skipJsonValue(cursor: Cursor, depth: number): void {
   skipSpace(cursor);
   const ch = cursor.source[cursor.offset];
   if (ch === '{') {
-    skipJsonObject(cursor);
+    if (depth > MAX_JSON_DEPTH) throw new Phase0ContractError();
+    skipJsonObject(cursor, depth);
     return;
   }
   if (ch === '[') {
-    skipJsonArray(cursor);
+    if (depth > MAX_JSON_DEPTH) throw new Phase0ContractError();
+    skipJsonArray(cursor, depth);
     return;
   }
   if (ch === '"') {
@@ -858,7 +869,7 @@ function skipJsonValue(cursor: Cursor): void {
 
 function hasDuplicateJsonKeys(source: string): boolean {
   const cursor: Cursor = { source, offset: 0, duplicate: false };
-  skipJsonValue(cursor);
+  skipJsonValue(cursor, 1);
   return cursor.duplicate;
 }
 
@@ -874,17 +885,26 @@ function worstStatus(statuses: Phase0AxisStatus[]): Phase0AxisStatus {
   return 'valid';
 }
 
+function contradictionTupleKey(assertion: {
+  subject: string;
+  predicate: string;
+  scope: string;
+  validity: string;
+}): string {
+  return `${assertion.subject}\0${assertion.predicate}\0${assertion.scope}\0${assertion.validity}`;
+}
+
 function contradictionKeys(assertions: Phase0Assertion[]): Set<string> {
   const byTuple = new Map<string, Set<string>>();
   for (const assertion of assertions) {
-    const key = `${assertion.subject}\0${assertion.predicate}\0${assertion.scope}\0${assertion.validity}`;
+    const key = contradictionTupleKey(assertion);
     const objects = byTuple.get(key) ?? new Set<string>();
     objects.add(assertion.object);
     byTuple.set(key, objects);
   }
   const contradicted = new Set<string>();
   for (const [key, objects] of byTuple) {
-    if (objects.size > 1) contradicted.add(key.split('\0')[0] ?? '');
+    if (objects.size > 1) contradicted.add(key);
   }
   return contradicted;
 }
@@ -908,10 +928,6 @@ function productStateById(document: Phase0ContractDocument): Map<string, Phase0P
 
 function uniqueOpaque(ids: string[]): string[] {
   return [...new Set(ids)];
-}
-
-function knownIdentityIds(document: Phase0ContractDocument): Set<string> {
-  return new Set((document.identities ?? []).map((entry) => entry.id));
 }
 
 function relationCardinalityOk(relation: Phase0Relation): boolean {
@@ -989,11 +1005,11 @@ function assessIdentity(document: Phase0ContractDocument): { status: Phase0AxisS
   const reasons: Phase0Reason[] = identityBindingReasons(document);
   const relations = document.relations ?? [];
   if (hasDuplicateRelations(relations)) reasons.push('duplicate-id');
-  const known = knownIdentityIds(document);
+  const knownProductStates = productStateIds(document);
   for (const relation of relations) {
     if (!relationCardinalityOk(relation)) reasons.push('illegal-cardinality');
     const endpoints = [...relation.from, ...relation.to];
-    if (endpoints.some((id) => !known.has(id))) reasons.push('dangling-endpoint');
+    if (endpoints.some((id) => !knownProductStates.has(id))) reasons.push('dangling-endpoint');
   }
   if (relationHasCycle(relations)) reasons.push('identity-cycle');
   return { status: reasons.length > 0 ? 'invalid' : 'valid', reasons };
@@ -1047,6 +1063,7 @@ function assessAssertionAuthority(
   if (run.producer !== assertion.producer || run.producerVersion !== assertion.producerVersion) {
     return { status: 'invalid', reason: 'producer-mismatch' };
   }
+  if (assertion.scope !== run.scope) return { status: 'invalid', reason: 'scope-mismatch' };
   if (!allowedModes(run.domain).has(assertion.mode) || run.authority !== domainAuthority(run.domain)) {
     return { status: 'invalid', reason: 'unauthorized-mode' };
   }
@@ -1066,28 +1083,31 @@ function assessEnvelopes(runs: Phase0SourceRun[]): { status: Phase0AxisStatus; r
   return { status: 'valid', reasons: [] };
 }
 
+function assessRunState(run: Phase0SourceRun): { status: Phase0AxisStatus; reasons: Phase0Reason[] } {
+  if (run.execution === 'complete' && run.closure === 'enumerated') return { status: 'valid', reasons: [] };
+  if (run.closure === 'enumerated') return enumeratedClaimState(run.execution);
+  if (run.execution === 'failed') return { status: 'invalid', reasons: ['connector-failed'] };
+  if (run.execution === 'unsupported') return { status: 'unproven', reasons: ['connector-unsupported'] };
+  if (run.execution === 'not-run') return { status: 'unproven', reasons: ['connector-not-run'] };
+  if (run.execution === 'partial') return { status: 'unproven', reasons: ['connector-partial'] };
+  if (run.closure === 'partial') return { status: 'unproven', reasons: ['closure-partial'] };
+  return { status: 'unproven', reasons: ['closure-unasserted'] };
+}
+
+function enumeratedClaimState(execution: Phase0Execution): { status: Phase0AxisStatus; reasons: Phase0Reason[] } {
+  const reasons: Phase0Reason[] = ['partial-enumerated'];
+  if (execution === 'failed') reasons.push('connector-failed');
+  return { status: 'invalid', reasons };
+}
+
 function assessExecution(runs: Phase0SourceRun[]): { status: Phase0AxisStatus; reasons: Phase0Reason[] } {
   if (runs.length === 0) return { status: 'unproven', reasons: ['connector-not-run'] };
   const reasons: Phase0Reason[] = [];
   const statuses: Phase0AxisStatus[] = [];
   for (const run of runs) {
-    const claimsEnumerated = run.closure === 'enumerated';
-    const complete = run.execution === 'complete';
-    if (claimsEnumerated && !complete) {
-      reasons.push('partial-enumerated');
-      statuses.push('invalid');
-      continue;
-    }
-    if (run.execution === 'failed') {
-      statuses.push('invalid');
-      continue;
-    }
-    if (run.execution === 'not-run' || run.execution === 'unsupported' || run.execution === 'partial') {
-      if (run.execution === 'not-run') reasons.push('connector-not-run');
-      statuses.push('unproven');
-      continue;
-    }
-    statuses.push('valid');
+    const result = assessRunState(run);
+    reasons.push(...result.reasons);
+    statuses.push(result.status);
   }
   return { status: worstStatus(statuses), reasons };
 }
@@ -1135,20 +1155,13 @@ function runFactCount(document: Phase0ContractDocument, runId: string): number {
   return (document.assertions ?? []).filter((assertion) => assertion.run === runId).length;
 }
 
-function incompleteRunAssessment(
-  run: Phase0SourceRun,
-): { status: Phase0AxisStatus; reasons: Phase0Reason[] } | undefined {
-  if (run.execution === 'complete' && run.closure === 'enumerated') return undefined;
-  const reasons: Phase0Reason[] = [];
-  if (run.closure === 'enumerated' && run.execution !== 'complete') reasons.push('partial-enumerated');
-  if (run.execution === 'not-run') reasons.push('connector-not-run');
-  return { status: run.execution === 'not-run' ? 'unproven' : 'invalid', reasons };
-}
-
 function enumeratedRunAssessment(
   run: Phase0SourceRun,
   facts: number,
 ): { status: Phase0AxisStatus; reasons: Phase0Reason[] } {
+  if (run.factCount > 0 && run.emptyUniverseProof === true) {
+    return { status: 'invalid', reasons: ['empty-universe-conflict'] };
+  }
   if (run.factCount !== facts) {
     return { status: 'invalid', reasons: [facts === 0 ? 'empty-universe-unproven' : 'fact-count-mismatch'] };
   }
@@ -1162,8 +1175,8 @@ function assessRunCompleteness(
   document: Phase0ContractDocument,
   run: Phase0SourceRun,
 ): { status: Phase0AxisStatus; reasons: Phase0Reason[] } {
-  const incomplete = incompleteRunAssessment(run);
-  if (incomplete) return incomplete;
+  const state = assessRunState(run);
+  if (state.status !== 'valid') return state;
   return enumeratedRunAssessment(run, runFactCount(document, run.id));
 }
 
@@ -1177,13 +1190,23 @@ function groupObligationsByState(obligations: Phase0Obligation[]): Map<string, P
   return byState;
 }
 
+function contradictionBlocksObligation(obligation: Phase0Obligation, contradicted: Set<string>): boolean {
+  for (const key of contradicted) {
+    const [subject, , scope, validity] = key.split('\0');
+    if (subject === obligation.state && scope === obligation.surface && validity === obligation.sourceSnapshot) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function recordObligationCompleteness(
   obligation: Phase0Obligation,
   contradicted: Set<string>,
   reasons: Phase0Reason[],
   statuses: Phase0AxisStatus[],
 ): number {
-  if (contradicted.has(obligation.state) && obligation.required) {
+  if (contradictionBlocksObligation(obligation, contradicted) && obligation.required) {
     reasons.push('contradiction-blocks-obligation');
     statuses.push('invalid');
     return 1;
@@ -1237,7 +1260,10 @@ function productStateIds(document: Phase0ContractDocument): Set<string> {
 
 function creditedDigests(document: Phase0ContractDocument, join: Phase0IntegrityJoin): Set<string> {
   const needed = new Set<string>([join.manifestDigest]);
-  for (const run of document.sourceRuns ?? []) needed.add(run.outputDigest);
+  for (const run of document.sourceRuns ?? []) {
+    needed.add(run.outputDigest);
+    needed.add(run.configDigest);
+  }
   for (const assertion of document.assertions ?? []) {
     needed.add(assertion.sourceDigest);
     needed.add(assertion.inputDigest);
@@ -1286,6 +1312,7 @@ function assessOneJoin(document: Phase0ContractDocument, join: Phase0IntegrityJo
   if (!productStateIds(document).has(join.semanticStateId)) return false;
   const obligation = (document.obligations ?? []).find((entry) => entry.id === join.obligationId);
   if (!obligation || !joinMatchesObligation(document, join, obligation)) return false;
+  if (producerRun.scope !== obligation.surface || capture.scope !== obligation.surface) return false;
   return artifactsCover(join, creditedDigests(document, join));
 }
 
