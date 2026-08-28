@@ -124,6 +124,43 @@ test('production diff and report receipts pass through the exact Action merge pr
     const honestReport = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
     const honestDiff = JSON.parse(fs.readFileSync(diffJsonPath, 'utf8'));
 
+    const firstAdoptionReport = structuredClone(honestReport);
+    const firstAdoptionDiff = structuredClone(honestDiff);
+    for (const receipt of [firstAdoptionReport, firstAdoptionDiff]) {
+      receipt.evidenceBinding.before.fileCount = 0;
+      receipt.evidenceBinding.before.mapCount = 0;
+      receipt.evidenceBinding.before.byteCount = 0;
+      receipt.evidenceBinding.before.digest = 'f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd';
+      receipt.sourceBinding.before.observed = null;
+      receipt.sourceBinding.before.result = 'no-capture';
+      receipt.sourceBinding.compatibility = 'not-applicable';
+    }
+    fs.writeFileSync(reportJsonPath, JSON.stringify(firstAdoptionReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(firstAdoptionDiff));
+    const firstAdoption = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(firstAdoption.status, 0, firstAdoption.stderr || firstAdoption.stdout);
+
+    const forgedEmptyReport = structuredClone(firstAdoptionReport);
+    const forgedEmptyDiff = structuredClone(firstAdoptionDiff);
+    forgedEmptyReport.evidenceBinding.before.digest = 'f'.repeat(64);
+    forgedEmptyDiff.evidenceBinding.before.digest = 'f'.repeat(64);
+    fs.writeFileSync(reportJsonPath, JSON.stringify(forgedEmptyReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(forgedEmptyDiff));
+    const forgedEmpty = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(forgedEmpty.status, 1, forgedEmpty.stderr || forgedEmpty.stdout);
+    assert.match(forgedEmpty.stderr, /evidence-binding receipts are missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+
     const impossibleFileCountReport = structuredClone(honestReport);
     const impossibleFileCountDiff = structuredClone(honestDiff);
     impossibleFileCountReport.evidenceBinding.after.fileCount = 100_001;
@@ -185,6 +222,7 @@ test('production diff and report receipts pass through the exact Action merge pr
       receipt.evidenceBinding.after.fileCount = 0;
       receipt.evidenceBinding.after.mapCount = 0;
       receipt.evidenceBinding.after.byteCount = 0;
+      receipt.evidenceBinding.after.digest = 'f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd';
     }
     fs.writeFileSync(reportJsonPath, JSON.stringify(emptyEvidenceReport));
     fs.writeFileSync(diffJsonPath, JSON.stringify(emptyEvidenceDiff));
@@ -194,7 +232,7 @@ test('production diff and report receipts pass through the exact Action merge pr
       env: actionEnv,
     });
     assert.equal(emptyEvidence.status, 1, emptyEvidence.stderr || emptyEvidence.stdout);
-    assert.match(emptyEvidence.stderr, /evidence-binding receipts are missing or malformed/i);
+    assert.match(emptyEvidence.stderr, /source-binding receipts are missing, malformed/i);
 
     fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
     fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));

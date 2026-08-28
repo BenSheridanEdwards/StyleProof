@@ -238,16 +238,23 @@ runs:
         const MAX_CAPTURE_EVIDENCE_FILES = 100_000;
         const MAX_CAPTURE_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024;
         const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES = 128 * 1024 * 1024;
+        const EMPTY_CAPTURE_EVIDENCE_DIGEST = 'f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd';
+        const emptyEvidenceSide = (value) =>
+          value.fileCount === 0 && value.mapCount === 0 && value.byteCount === 0 &&
+          value.digest === EMPTY_CAPTURE_EVIDENCE_DIGEST;
+        const capturedEvidenceSide = (value) =>
+          value.fileCount >= 2 && value.mapCount >= 1 && value.mapCount < value.fileCount && value.byteCount > 0;
         const validEvidenceSide = (value) =>
           exactKeys(value, ['algorithm', 'digest', 'fileCount', 'mapCount', 'byteCount']) &&
           value.algorithm === 'sha256' &&
           typeof value.digest === 'string' && /^[0-9a-f]{64}$/.test(value.digest) &&
-          Number.isSafeInteger(value.fileCount) && value.fileCount >= 2 &&
+          Number.isSafeInteger(value.fileCount) && value.fileCount >= 0 &&
           value.fileCount <= MAX_CAPTURE_EVIDENCE_FILES &&
-          Number.isSafeInteger(value.mapCount) && value.mapCount >= 1 && value.mapCount < value.fileCount &&
-          Number.isSafeInteger(value.byteCount) && value.byteCount > 0 &&
+          Number.isSafeInteger(value.mapCount) && value.mapCount >= 0 && value.mapCount <= value.fileCount &&
+          Number.isSafeInteger(value.byteCount) && value.byteCount >= 0 &&
           value.byteCount <= MAX_CAPTURE_EVIDENCE_TOTAL_BYTES &&
-          value.byteCount <= value.fileCount * MAX_CAPTURE_EVIDENCE_FILE_BYTES;
+          value.byteCount <= value.fileCount * MAX_CAPTURE_EVIDENCE_FILE_BYTES &&
+          (emptyEvidenceSide(value) || capturedEvidenceSide(value));
         const validEvidenceBinding = (value) =>
           exactKeys(value, ['version', 'before', 'after']) && value.version === 1 &&
           validEvidenceSide(value.before) && validEvidenceSide(value.after);
@@ -260,8 +267,8 @@ runs:
         const validBoundSide = (value, expected, evidence) => {
           if (!exactKeys(value, ['expected', 'observed', 'result']) || value.expected !== expected) return false;
           if (!fullSha(value.expected)) return false;
-          if (value.result === 'matched') return value.observed === value.expected;
-          if (value.result === 'no-capture') return value.observed === null && evidence.mapCount === 0;
+          if (value.result === 'matched') return value.observed === value.expected && capturedEvidenceSide(evidence);
+          if (value.result === 'no-capture') return value.observed === null && emptyEvidenceSide(evidence);
           return false;
         };
         const validSourceBinding = (value, evidence) => {

@@ -757,8 +757,7 @@ function buildManifest(options: {
 }
 
 function writeBoundedManifest(dir: string, manifest: MapManifest): void {
-  if (!/^(?:[0-9a-f]{40}|uncommitted)$/.test(manifest.sha)) invalidMapManifest();
-  if (manifest.sha === 'uncommitted' && manifest.dirty !== true) invalidMapManifest();
+  parseMapManifest(manifest);
   const serialized = JSON.stringify(manifest, null, 2);
   if (Buffer.byteLength(serialized, 'utf8') > MAX_MAP_MANIFEST_BYTES) invalidMapManifest();
   fs.writeFileSync(path.join(dir, MAP_MANIFEST), serialized);

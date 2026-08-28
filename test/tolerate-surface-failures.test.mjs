@@ -147,6 +147,22 @@ test('writeMapManifest rejects source identities its strict reader cannot consum
       );
       assert.equal(fs.existsSync(path.join(dir, MAP_MANIFEST)), false);
     }
+    const hostileDirtyAllowDir = path.join(root, 'hostile-dirty-allow');
+    fs.mkdirSync(hostileDirtyAllowDir, { recursive: true });
+    fs.writeFileSync(path.join(hostileDirtyAllowDir, 'home@900.json'), '{}');
+    assert.throws(
+      () =>
+        writeMapManifest({
+          dir: hostileDirtyAllowDir,
+          spec: 'e2e/styleproof.spec.ts',
+          sha: 'a'.repeat(40),
+          screenshots: false,
+          dirtyAllow: ['generated\tPRIVATE-CONTROL-MARKER'],
+          cwd: root,
+        }),
+      /invalid .*manifest/i,
+    );
+    assert.equal(fs.existsSync(path.join(hostileDirtyAllowDir, MAP_MANIFEST)), false);
   } finally {
     rmTmp(root);
   }
