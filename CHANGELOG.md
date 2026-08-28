@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.2.1] - 2026-08-28
+
 ### Changed
 
 - Certification line **Failed data request** replaces **Data residue**. The report now
