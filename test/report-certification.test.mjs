@@ -227,14 +227,14 @@ const residueEntry = {
 test('an armed gate with an unacknowledged failing endpoint renders a ✗ data-residue line', () => {
   const { root, base, head, out } = residueBundle({ residue: [residueEntry], gate: true });
   generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
-  assert.match(readMd(out), /Data residue.*✗ 1 failing data endpoint\(s\), unacknowledged: dashboard·\/api\/probe/);
+  assert.match(readMd(out), /Failed data request.*✗.*dashboard called `\/api\/probe`/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
 test('warn opt-out residue renders ⚠ (recorded, not gating)', () => {
   const { root, base, head, out } = residueBundle({ residue: [residueEntry], gate: false });
   generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
-  assert.match(readMd(out), /Data residue.*⚠ 1 failing data endpoint\(s\).*recorded, not gating/);
+  assert.match(readMd(out), /Failed data request.*⚠.*dashboard called `\/api\/probe`/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -243,7 +243,7 @@ test('a clean healthy bundle (no residue, not armed) omits the data-residue line
   generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   const md = readMd(out);
   assert.match(md, /\*\*Certification\*\*/); // ledger present → block renders
-  assert.doesNotMatch(md, /Data residue/); // but no residue line
+  assert.doesNotMatch(md, /Failed data request/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

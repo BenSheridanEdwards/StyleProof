@@ -148,7 +148,7 @@ test('a clean healthy run (no residue, not armed) prints nothing about residue a
   const { root, a, b } = fixture({ residue: null, gate: false });
   const { code, out } = runDiff(a, b, root);
   assert.equal(code, 0, `expected exit 0, got ${code}\n${out}`);
-  assert.doesNotMatch(out, /Data residue/, 'no residue section when nothing failed and gate not armed');
+  assert.doesNotMatch(out, /Failed data request/, 'no residue section when nothing failed and gate not armed');
   fs.rmSync(root, { recursive: true, force: true });
 });
 

@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- Certification line **Failed data request** replaces **Data residue**. The report now
+  says the page called an API that failed, so the screenshot is the fallback UI, not
+  the real data. It names the surface, endpoint, and failure reason, and tells you to
+  fixture the API or declare why the fallback is the intended capture. Machine field
+  `dataResidue` is unchanged.
+
 ## [6.2.0] - 2026-08-27
 
 > **StyleProof 6.2.0: Release Confidence**
