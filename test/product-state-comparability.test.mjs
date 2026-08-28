@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { diffStyleMapDirs, summarizeComparability } from '../dist/diff.js';
+import { expandSurfaceVariants } from '../dist/runner.js';
 import { assessComparisonTruth } from '../dist/change-groups.js';
 import { makeMap, pairFixture, rmTmp, writeCapture } from './helpers.mjs';
 
@@ -47,6 +48,36 @@ test('different explicit product-state identities are incomparable and never rev
   assert.equal(truth.hasReviewableEvidence, false);
   assert.equal(truth.incomparableSurfaces, 1);
   assert.equal(truth.unprovenSurfaces, 0);
+  rmTmp(fixture.root);
+});
+
+test('explicit undefined child state inherits mismatched parent identity and cannot restore approval evidence', () => {
+  const childMetadata = (id) =>
+    expandSurfaceVariants({
+      key: 'checkout',
+      go: async () => {},
+      productState: { id, revision: '1' },
+      liveStates: [{ key: 'loaded', productState: undefined }],
+    })[0].metadata;
+  const fixture = pairFixture({
+    surface: 'checkout-loaded@1280',
+    before: scene('black', childMetadata('checkout-loading')),
+    after: scene('red', childMetadata('checkout-ready')),
+  });
+
+  const result = diffStyleMapDirs(fixture.beforeDir, fixture.afterDir);
+  assert.deepEqual(result.comparability, [
+    {
+      surface: 'checkout-loaded@1280',
+      status: 'incomparable',
+      required: true,
+      reason: 'explicit-state-mismatch',
+    },
+  ]);
+  assert.equal(summarizeComparability(result.comparability).blocksCertification, true);
+  const truth = assessComparisonTruth(result.surfaces, result.counts, result.comparability);
+  assert.equal(truth.reviewableCounts.style, 0);
+  assert.equal(truth.hasReviewableEvidence, false);
   rmTmp(fixture.root);
 });
 

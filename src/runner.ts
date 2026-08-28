@@ -573,9 +573,7 @@ function expandOne(
   variant: SurfaceVariant,
   variantKind: CaptureMetadata['variantKind'],
 ): ExpandedSurface {
-  const declaredProductState = Object.prototype.hasOwnProperty.call(variant, 'productState')
-    ? variant.productState
-    : surface.productState;
+  const declaredProductState = variant.productState === undefined ? surface.productState : variant.productState;
   const productState = validateProductStateIdentity(declaredProductState);
   return {
     key: `${surface.key}-${variant.key}`,
