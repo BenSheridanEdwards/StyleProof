@@ -181,10 +181,10 @@ function printResidueAudit(audit) {
   if (!audit) return 0;
   const { residue, unacknowledged, staleAcknowledgements, armed, hasLedger } = audit;
   if (!residue.length && !staleAcknowledgements.length) {
-    console.log('\n🩹 Data residue: no failing data-boundary request during capture');
+    console.log('\nFailed data request: no API failed during capture');
     return 0;
   }
-  console.log('\n🩹 Data residue (data-boundary requests that FAILED during capture — fallback branch captured):');
+  console.log('\nFailed data request (an API failed during capture, so the screenshot is the fallback UI):');
   for (const r of residue) console.log(residueLine(r, audit.acknowledged[r.key], armed));
   for (const k of staleAcknowledgements)
     console.log(`  ⚠ stale acknowledgement (endpoint no longer failing/present): ${k}`);

@@ -1217,18 +1217,30 @@ function readAcknowledgedResidue(): Record<string, string> {
   }
 }
 
-// One data-residue clause. A failing data endpoint captured the fallback branch, so its
-// response-driven states are unproven; an ARMED gate escalates an unacknowledged one to ✗.
+function describeFailedDataRequests(entries: { surface: string; endpoint: string; reason: string }[]): string {
+  return entries.map((entry) => `${entry.surface} called \`${entry.endpoint}\` (${entry.reason})`).join('; ');
+}
+
+// A failed data request captured the fallback UI, so the real data state is unproven.
 function dataResidueLine(res: ReturnType<typeof auditRunResidue>): string {
   const { residue, unacknowledged, staleAcknowledgements, armed } = res;
+  const meaning = 'this page called an API that failed, so the screenshot is the fallback UI, not the real data';
   if (armed && (unacknowledged.length > 0 || staleAcknowledgements.length > 0)) {
-    const stale = staleAcknowledgements.length ? `; ${staleAcknowledgements.length} stale acknowledgement(s)` : '';
-    return `- **Data residue** — ✗ ${unacknowledged.length} failing data endpoint(s), unacknowledged: ${keyList(unacknowledged)}${stale}`;
+    const fail = unacknowledged.length
+      ? `${describeFailedDataRequests(unacknowledged)}. Fixture the API, or declare why the fallback is the intended capture.`
+      : '';
+    const stale = staleAcknowledgements.length
+      ? ` ${staleAcknowledgements.length} declared failure(s) no longer happen; remove them from styleproof.data-residue.json.`
+      : '';
+    return `- **Failed data request**: ✗ ${meaning}. ${fail}${stale}`;
   }
-  if (unacknowledged.length > 0)
-    return `- **Data residue** — ⚠ ${unacknowledged.length} failing data endpoint(s) (fallback branch captured): ${keyList(unacknowledged)} — recorded, not gating (\`dataResidue: 'warn'\` opt-out)`;
-  if (residue.length > 0) return `- **Data residue** — ✓ ${residue.length} failing endpoint(s), all acknowledged`;
-  return '- **Data residue** — ✓ no failing data-boundary request during capture';
+  if (unacknowledged.length > 0) {
+    return `- **Failed data request**: ⚠ ${meaning}. ${describeFailedDataRequests(unacknowledged)} (recorded, not gating: dataResidue warn opt-out)`;
+  }
+  if (residue.length > 0) {
+    return `- **Failed data request**: ✓ ${residue.length} failed API call(s), all declared as intended fallbacks`;
+  }
+  return `- **Failed data request**: ✓ no API failed during capture`;
 }
 
 // One confidence clause (#399): the completeness badge, always separate from the

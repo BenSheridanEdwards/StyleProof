@@ -536,12 +536,12 @@ report leads with their verdicts:
   can't rot. Details and the keying rules:
   [docs/inventory-guard.md](docs/inventory-guard.md). Make it advisory in the
   Action with `"gateInventoryRemovals": false` in `styleproof.config.json`.
-- **Data residue** — a data-boundary request that **failed** during capture
-  means the fallback branch was captured, not the state its responses drive.
+- **Failed data request**: a data-boundary request that **failed** during capture
+  means the fallback UI was captured, not the state its responses drive.
   Gating is the default (`dataResidue: 'gate'`): an unacknowledged failing
-  endpoint blocks until acknowledged in `styleproof.data-residue.json`, and a
-  stale acknowledgement also fails. Opt down with `dataResidue: 'warn'`. See
-  [Data residue](#data-residue-a-failed-data-request-is-named-not-swallowed).
+  endpoint blocks until declared in `styleproof.data-residue.json`, and a
+  stale declaration also fails. Opt down with `dataResidue: 'warn'`. See
+  [Failed data request](#failed-data-request-a-failed-api-call-is-named-not-swallowed).
 
 Those verdicts roll up into one more line the report always states: the
 **confidence ledger** (`styleproof-confidence.json`, bundled next to the maps).
@@ -1130,7 +1130,7 @@ Anything still moving on its own after that is detected as a volatile region and
 | `clockTime`                                   | Your styling keys off a **specific** date, not just "now".                                                                                                                                                                                                                                               |
 | `stabilize: { quietFor, timeout }`            | An unusually slow surface needs a longer quiet window before the map is read.                                                                                                                                                                                                                            |
 
-### Data residue: a failed data request is named, not swallowed
+### Failed data request: a failed API call is named, not swallowed
 
 A subtler gap than a _missing_ surface is a surface that renders the **wrong** state, silently. If a surface requests a data endpoint that nothing routes — no fixture, no `liveStates` — the request falls through and **fails during capture**, so the view paints its _fallback_ branch. Every capture then embeds that fallback; the state its real responses would drive is never captured, and a restyle confined to it ships green. StyleProof used to watch that request fail and say nothing.
 
