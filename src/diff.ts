@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadStyleMap, isUnder, type StyleMap } from './capture.js';
+import { loadStyleMap, isUnder, validateProductStateIdentity, type StyleMap } from './capture.js';
+import { isProductStateComparabilityStatus, type ProductStateComparabilityStatus } from './comparability-status.js';
+export { isProductStateComparabilityStatus, type ProductStateComparabilityStatus } from './comparability-status.js';
 import { isMapFile, MAP_MANIFEST } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
 
@@ -84,6 +86,70 @@ export type SurfaceDiff = {
   missing?: 'before' | 'after';
   findings: Finding[];
 };
+
+export type SurfaceComparability = {
+  surface: string;
+  status: ProductStateComparabilityStatus;
+  /** True when either side opted into explicit product-state identity. */
+  required: boolean;
+  reason:
+    | 'explicit-state-match'
+    | 'explicit-state-mismatch'
+    | 'state-identity-missing'
+    | 'state-identity-invalid'
+    | 'missing-before'
+    | 'missing-after';
+};
+
+export type ComparabilitySummary = {
+  status: ProductStateComparabilityStatus;
+  requireStateIdentity: boolean;
+  blocksCertification: boolean;
+  counts: {
+    comparable: number;
+    incomparable: number;
+    unproven: number;
+    notRequired: number;
+    requiredUnproven: number;
+    globalRequiredUnproven: number;
+  };
+};
+
+/** Aggregate bounded receipts without promoting absent legacy identity to proof. */
+export function summarizeComparability(
+  receipts: SurfaceComparability[],
+  requireStateIdentity = false,
+): ComparabilitySummary {
+  const normalized = receipts.map((entry) =>
+    isProductStateComparabilityStatus(entry.status)
+      ? entry
+      : { ...entry, status: 'unproven' as const, required: true, reason: 'state-identity-invalid' as const },
+  );
+  const counts = {
+    comparable: normalized.filter((entry) => entry.status === 'comparable').length,
+    incomparable: normalized.filter((entry) => entry.status === 'incomparable').length,
+    unproven: normalized.filter((entry) => entry.status === 'unproven').length,
+    notRequired: normalized.filter((entry) => entry.status === 'not-required').length,
+    requiredUnproven: normalized.filter((entry) => entry.status === 'unproven' && entry.required).length,
+    globalRequiredUnproven: requireStateIdentity
+      ? normalized.filter((entry) => entry.status === 'unproven' && !entry.required).length
+      : 0,
+  };
+  const status: ProductStateComparabilityStatus =
+    counts.incomparable > 0
+      ? 'incomparable'
+      : counts.unproven > 0
+        ? 'unproven'
+        : counts.comparable > 0
+          ? 'comparable'
+          : 'not-required';
+  return {
+    status,
+    requireStateIdentity,
+    blocksCertification: counts.incomparable > 0 || counts.requiredUnproven > 0 || counts.globalRequiredUnproven > 0,
+    counts,
+  };
+}
 
 export type DiffCounts = { dom: number; style: number; state: number };
 
@@ -514,7 +580,14 @@ export function diffStyleMapDirs(
   dirA: string,
   dirB: string,
   options: DiffStyleOptions = { includeStructure: false },
-): { surfaces: SurfaceDiff[]; counts: DiffCounts; volatile: number; statesUncertified: number; compared: number } {
+): {
+  surfaces: SurfaceDiff[];
+  counts: DiffCounts;
+  comparability: SurfaceComparability[];
+  volatile: number;
+  statesUncertified: number;
+  compared: number;
+} {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
@@ -538,6 +611,7 @@ export function diffStyleMapDirs(
   if (Object.keys(indexB).length === 0) throw new MissingHeadMapError();
 
   const surfaces: SurfaceDiff[] = [];
+  const comparability: SurfaceComparability[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
   const uncompared = { volatile: 0, statesUncertified: 0 };
   for (const surface of names) {
@@ -547,29 +621,64 @@ export function diffStyleMapDirs(
       // tallies (those drive the review gate); the consumer flags it separately
       // off the `missing` marker and shows it for reference without blocking.
       surfaces.push({ surface, missing: indexA[surface] ? 'after' : 'before', findings: [] });
+      comparability.push({
+        surface,
+        status: 'not-required',
+        required: false,
+        reason: indexA[surface] ? 'missing-after' : 'missing-before',
+      });
       continue;
     }
-    const findings = diffSurfacePair(indexA[surface], indexB[surface], uncompared, options);
-    tallyCounts(findings, counts);
-    if (findings.length) surfaces.push({ surface, findings });
+    const pair = diffSurfacePair(surface, indexA[surface], indexB[surface], uncompared, options);
+    comparability.push(pair.comparability);
+    tallyCounts(pair.findings, counts);
+    if (pair.findings.length) surfaces.push({ surface, findings: pair.findings });
   }
-  return { surfaces, counts, ...uncompared, compared: names.length };
+  return { surfaces, counts, comparability, ...uncompared, compared: names.length };
 }
 
 /** Diff one paired surface, tallying what was NOT compared (volatile subtrees;
  *  a forced-state layer skipped on BOTH sides — {} vs {} certifies nothing). */
 function diffSurfacePair(
+  surface: string,
   fileA: string,
   fileB: string,
   uncompared: { volatile: number; statesUncertified: number },
   options: DiffStyleOptions,
-): Finding[] {
+): { findings: Finding[]; comparability: SurfaceComparability } {
   const mapA = loadStyleMap(fileA);
   const mapB = loadStyleMap(fileB);
   uncompared.volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
   if (mapA.statesSkipped && mapB.statesSkipped) uncompared.statesUncertified++;
   const comparableBase = options.includeStructure === false ? correspondContentShiftedPaths(mapA, mapB) : mapA;
-  return diffStyleMaps(comparableBase, mapB, options);
+  return {
+    findings: diffStyleMaps(comparableBase, mapB, options),
+    comparability: compareProductState(surface, mapA, mapB),
+  };
+}
+
+function validProductState(value: unknown): value is { id: string; revision: string } {
+  try {
+    return validateProductStateIdentity(value) !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+function compareProductState(surface: string, before: StyleMap, after: StyleMap): SurfaceComparability {
+  const beforeRaw = before.metadata?.productState;
+  const afterRaw = after.metadata?.productState;
+  const required = beforeRaw !== undefined || afterRaw !== undefined;
+  if (!beforeRaw || !afterRaw) {
+    return { surface, status: 'unproven', required, reason: 'state-identity-missing' };
+  }
+  if (!validProductState(beforeRaw) || !validProductState(afterRaw)) {
+    return { surface, status: 'unproven', required: true, reason: 'state-identity-invalid' };
+  }
+  if (beforeRaw.id !== afterRaw.id || beforeRaw.revision !== afterRaw.revision) {
+    return { surface, status: 'incomparable', required: true, reason: 'explicit-state-mismatch' };
+  }
+  return { surface, status: 'comparable', required: true, reason: 'explicit-state-match' };
 }
 
 /**

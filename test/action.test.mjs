@@ -5,6 +5,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { makeMap, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
@@ -15,6 +17,99 @@ const publishModule = fs.readFileSync(path.join(here, '..', 'src', 'report-publi
 function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
 }
+
+function stampActionFixture(dir, sha) {
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha,
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: 'test',
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: false,
+      har: false,
+      compatibilityKey: 'action-receipt-parity-test',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+  fs.writeFileSync(
+    path.join(dir, COVERAGE_LEDGER),
+    JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' }),
+  );
+}
+
+function actionReportMergeScript() {
+  const match = actionYml.match(/ {8}node <<'NODE'\n([\s\S]*?)\n {8}NODE/);
+  assert.ok(match, 'action.yml should contain the report merge Node program');
+  return `${match[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {8}/, ''))
+    .join('\n')}\n`;
+}
+
+test('production diff and report receipts pass through the exact Action merge program', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-receipts-'));
+  try {
+    const before = path.join(root, 'before');
+    const after = path.join(root, 'after');
+    const state = { id: 'home-ready', revision: 'fixture-v2' };
+    const map = {
+      ...makeMap({ elements: { 'body > button:nth-child(1)': { tag: 'button', style: { color: 'black' } } } }),
+      metadata: { productState: state },
+    };
+    writeCapture(before, 'home@1280', map, null);
+    writeCapture(after, 'home@1280', map, null);
+    stampActionFixture(before, 'base-sha');
+    stampActionFixture(after, 'head-sha');
+
+    const diff = spawnSync(
+      process.execPath,
+      [path.join(here, '..', 'bin/styleproof-diff.mjs'), before, after, '--json', 'styleproof-diff.json'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(diff.status, 0, diff.stderr || diff.stdout);
+    const report = spawnSync(
+      process.execPath,
+      [path.join(here, '..', 'bin/styleproof-report.mjs'), before, after, '--out', 'styleproof-report'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(report.status, 0, report.stderr || report.stdout);
+
+    const mergeScript = path.join(root, 'merge.cjs');
+    const output = path.join(root, 'github-output');
+    fs.writeFileSync(mergeScript, actionReportMergeScript());
+    fs.writeFileSync(output, '');
+    const merge = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_INCLUDE_CONTENT: 'false', GITHUB_OUTPUT: output },
+    });
+    assert.equal(merge.status, 0, merge.stderr || merge.stdout);
+
+    const reportJsonPath = path.join(root, 'styleproof-report', 'report.json');
+    const contradictory = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
+    contradictory.comparison = {
+      ...contradictory.comparison,
+      status: 'future-state',
+      blocksCertification: false,
+    };
+    fs.writeFileSync(reportJsonPath, JSON.stringify(contradictory));
+    const rejected = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_INCLUDE_CONTENT: 'false', GITHUB_OUTPUT: output },
+    });
+    assert.equal(rejected.status, 1, rejected.stderr || rejected.stdout);
+    assert.match(rejected.stderr, /report comparison receipts disagree with the validated diff/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('composite action builds its checkout before running local bins', () => {
   const installStep = actionYml.match(/- name: Install StyleProof action runtime[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
@@ -289,16 +384,20 @@ test('composite action fails closed on unexpected diff exit codes', () => {
   assert.match(diffStep[0], /-ne 0.*-ne 1.*-ne 3|failing closed/s, 'unexpected exit codes hard-fail');
 });
 
-test('composite action hard-gates certification failures the approve box cannot clear', () => {
+test('composite action hard-gates the canonical certification verdict the approve box cannot clear', () => {
   const gate = actionYml.match(
     /- name: Block on unapprovable certification failures[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/,
   );
   assert.ok(gate, 'action.yml should include the provenance gate step');
-  assert.match(gate[0], /coverage\?\.basis === 'incomplete'/);
-  assert.match(gate[0], /determinism\?\.status === 'unproven'/);
-  assert.match(gate[0], /dataResidue\?\.blocking/);
-  assert.match(gate[0], /reportConsistency/, 'raw-only report/diff contradiction hard-gates');
+  assert.match(gate[0], /STYLEPROOF_TRUST_STATE/);
+  assert.match(gate[0], /steps\.verdict\.outputs\.state/);
+  assert.match(gate[0], /CERTIFICATION_FAILED/);
   assert.match(gate[0], /exit 1/);
+  assert.doesNotMatch(
+    gate[0],
+    /coverage\?\.|determinism\?\.|dataResidue\?\.|comparison\?\.|reportConsistency\?\./,
+    'the terminal gate must not reimplement a narrower copy of the canonical verdict',
+  );
   assert.doesNotMatch(gate[0], /require-approval/, 'the provenance gate must fire in BOTH modes');
 });
 
@@ -329,6 +428,10 @@ test('composite action classifies report-time correspondence collapse before app
   assert.match(report[0], /styleproof-report\.mjs/);
   assert.match(report[0], /styleproof-report\/report\.json/);
   assert.match(report[0], /diff\.reportConsistency\s*=\s*generated\.reportConsistency/);
+  assert.match(report[0], /isDeepStrictEqual/);
+  assert.match(report[0], /report comparison receipts disagree with the validated diff/i);
+  assert.doesNotMatch(report[0], /diff\.comparison\s*=\s*generated\.comparison/);
+  assert.doesNotMatch(report[0], /diff\.comparability\s*=\s*generated\.comparability/);
   assert.match(report[0], /writeFileSync\('styleproof-diff\.json'/);
 
   const reportIndex = actionYml.indexOf('- id: report');
@@ -440,4 +543,34 @@ test('composite action verdict honors the gateInventoryRemovals opt-out end to e
     verdict[0],
     /gateInventoryRemovals\s*\n?\s*\? \(diff\.inventory|gateInventoryRemovals[\s\S]{0,120}inventory/,
   );
+});
+
+test('composite action makes required product-state identity a closed-set certification gate', () => {
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  const reportStep = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
+  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.match(actionYml, /require-state-identity:[\s\S]*?default: 'false'/);
+  assert.ok(diffStep);
+  assert.ok(reportStep);
+  assert.ok(verdict);
+  assert.match(diffStep[0], /--require-state-identity/);
+  assert.match(reportStep[0], /--require-state-identity/);
+  assert.match(reportStep[0], /comparisonCertificationReceipt\(generated\.comparison\)/);
+  assert.match(reportStep[0], /comparisonCertificationReceipt\(diff\.comparison\)/);
+  assert.match(reportStep[0], /isDeepStrictEqual\(generated\.comparability, diff\.comparability\)/);
+  assert.doesNotMatch(reportStep[0], /diff\.comparison = generated\.comparison/);
+  assert.doesNotMatch(reportStep[0], /diff\.comparability = generated\.comparability/);
+  assert.match(verdict[0], /diff\.comparison\?\.blocksCertification === true/);
+  assert.ok(
+    verdict[0].indexOf('diff.comparison?.blocksCertification === true') <
+      verdict[0].indexOf("state = 'STYLE_REVIEW_REQUIRED'"),
+    'comparison failure must be classified before approval-required evidence',
+  );
+});
+
+test('report CLI exposes strict product-state identity mode and passes it to report generation', () => {
+  const reportCli = fs.readFileSync(path.join(here, '..', 'bin', 'styleproof-report.mjs'), 'utf8');
+  assert.match(reportCli, /--require-state-identity/);
+  assert.match(reportCli, /requireStateIdentity/);
+  assert.match(reportCli, /generateStyleMapReport\([\s\S]*?requireStateIdentity/);
 });

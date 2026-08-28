@@ -80,12 +80,14 @@ export type {
   StyleMap,
   CaptureOptions,
   CaptureMetadata,
+  ProductStateIdentity,
   StateRecipeCaptureProvenance,
   ElementEntry,
   LiveRegionCandidate,
   CapturedOverlay,
   Rect,
 } from './capture.js';
+export { validateProductStateIdentity, ProductStateIdentityError } from './capture.js';
 export { defineStyleMapCapture, defineCrawlCapture, isSelfCheckCaptureFailure } from './runner.js';
 export type {
   Surface,
@@ -157,8 +159,25 @@ export type {
   VariantHarvest,
   VariantHarvestOptions,
 } from './variant-crawler.js';
-export { diffStyleMaps, diffStyleMapDirs, diffContentMaps, diffContentDirs, findingLabel } from './diff.js';
-export type { Finding, PropChange, SurfaceDiff, DiffCounts, ContentChange, DiffStyleOptions } from './diff.js';
+export {
+  diffStyleMaps,
+  diffStyleMapDirs,
+  diffContentMaps,
+  diffContentDirs,
+  findingLabel,
+  summarizeComparability,
+} from './diff.js';
+export type {
+  Finding,
+  PropChange,
+  SurfaceDiff,
+  DiffCounts,
+  ContentChange,
+  DiffStyleOptions,
+  ProductStateComparabilityStatus,
+  SurfaceComparability,
+  ComparabilitySummary,
+} from './diff.js';
 export { generateStyleMapReport, summarizeProps, prettyLabel, assessComparisonTruth } from './report.js';
 export type { ReportOptions, ReportResult, ComparisonTruth } from './report.js';
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';

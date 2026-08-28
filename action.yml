@@ -18,6 +18,9 @@ inputs:
   include-content:
     description: 'Render advisory content and DOM-structure evidence in the durable report. This evidence never changes the style gate verdict.'
     default: 'false'
+  require-state-identity:
+    description: 'Require explicit matching product-state identity on every paired capture. Missing, malformed, or mismatched identity is non-certifying and cannot be approved.'
+    default: 'false'
   base-capture-failed:
     description: 'Set true when the baseline capture failed with zero maps and baseline-dir is intentionally bare. Partial baselines with tolerated per-surface failures keep this false. Produces DEGRADED_BASELINE when true.'
     default: 'false'
@@ -134,9 +137,17 @@ runs:
 
     - id: diff
       shell: bash
+      env:
+        STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
       run: |
+        state_identity_arguments=()
+        case "$STYLEPROOF_REQUIRE_STATE_IDENTITY" in
+          true) state_identity_arguments+=(--require-state-identity) ;;
+          false) ;;
+          *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
+        esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json | tee styleproof-diff.txt
+        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json "${state_identity_arguments[@]}" | tee styleproof-diff.txt
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
@@ -159,17 +170,24 @@ runs:
       shell: bash
       env:
         STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
+        STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
       run: |
         set -euo pipefail
         rm -rf styleproof-report
         report_content_arguments=()
+        state_identity_arguments=()
         case "$STYLEPROOF_INCLUDE_CONTENT" in
           true) report_content_arguments+=(--include-content) ;;
           false) ;;
           *) echo "include-content must be true or false" >&2; exit 2 ;;
         esac
+        case "$STYLEPROOF_REQUIRE_STATE_IDENTITY" in
+          true) state_identity_arguments+=(--require-state-identity) ;;
+          false) ;;
+          *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
+        esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report "${report_content_arguments[@]}"
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report "${report_content_arguments[@]}" "${state_identity_arguments[@]}"
         report_exit_code=$?
         set -e
         if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
@@ -178,6 +196,7 @@ runs:
         fi
         node <<'NODE'
         const fs = require('fs');
+        const { isDeepStrictEqual } = require('util');
         const diff = JSON.parse(fs.readFileSync('styleproof-diff.json', 'utf8'));
         const generated = JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'));
         if (!generated.reportConsistency || typeof generated.reportConsistency.ok !== 'boolean') {
@@ -192,6 +211,18 @@ runs:
             !Number.isInteger(generated.confidence.counts.inaccessible) ||
             generated.confidence.counts.inaccessible < 0) {
           throw new Error('styleproof-report/report.json has no valid confidence receipt');
+        }
+        const comparisonCertificationReceipt = (comparison) => ({
+          status: comparison?.status,
+          requireStateIdentity: comparison?.requireStateIdentity,
+          blocksCertification: comparison?.blocksCertification,
+          counts: comparison?.counts,
+        });
+        if (!isDeepStrictEqual(
+              comparisonCertificationReceipt(generated.comparison),
+              comparisonCertificationReceipt(diff.comparison),
+            ) || !isDeepStrictEqual(generated.comparability, diff.comparability)) {
+          throw new Error('styleproof-report/report.json report comparison receipts disagree with the validated diff');
         }
         diff.reportConsistency = generated.reportConsistency;
         diff.confidence = generated.confidence;
@@ -226,7 +257,8 @@ runs:
           const certificationFailed =
             diff.coverage?.basis !== 'complete' ||
             diff.determinism?.status !== 'proven' ||
-            (diff.confidence?.counts?.inaccessible ?? 0) > 0;
+            (diff.confidence?.counts?.inaccessible ?? 0) > 0 ||
+            diff.comparison?.blocksCertification === true;
           // Raw certification deltas that cleanFindings strips entirely: the durable
           // report has no crops/sections. Never map this to style review.
           const rawOnlyNoReviewable =
@@ -526,32 +558,24 @@ runs:
         fi
         echo "✓ navigable inventory: no unacknowledged removals"
 
-    # Provenance hard-gate (runs LAST, in BOTH modes, like the inventory gate): incomplete
-    # coverage, an unproven-determinism capture, and an armed data-residue failure are
-    # categorically NOT restyles — the style "approve all" box must not wave them through.
-    # Each is a hole in what the green would certify, so they fail hard even after approval.
+    # Canonical certification hard-gate (runs LAST in both modes): the verdict step
+    # owns the closed-set trust predicate. Do not re-parse evidence here or approval
+    # can exploit drift between two subtly different definitions of certification.
     - name: Block on unapprovable certification failures
+      env:
+        STYLEPROOF_TRUST_STATE: ${{ steps.verdict.outputs.state }}
       shell: bash
       run: |
         set -euo pipefail
-        [ -f styleproof-diff.json ] || { echo "no styleproof-diff.json — nothing to gate"; exit 0; }
-        fails="$(node -e "
-          const j = require('./styleproof-diff.json');
-          const out = [];
-          if (j.coverage?.basis === 'incomplete') out.push('coverage incomplete: ' + (j.coverage.uncovered || []).join(', '));
-          if (j.determinism?.status === 'unproven') out.push('determinism unproven (base ' + j.determinism.base + ', head ' + j.determinism.head + ')');
-          if ((j.dataResidue?.blocking ?? 0) > 0) out.push('data-residue gate: ' + j.dataResidue.blocking + ' blocking failure(s)');
-          if (j.reportConsistency && j.reportConsistency.ok === false) {
-            out.push('report/diff consistency: ' + (j.reportConsistency.reason || 'raw_only_no_reviewable') + ' — certification deltas without reviewable report crops (not visual-approval)');
-          }
-          process.stdout.write(out.join('\\n'));
-        ")"
-        if [ -n "$fails" ]; then
-          echo "::error::StyleProof: certification failure(s) that approval cannot wave through:"
-          echo "$fails"
-          exit 1
-        fi
-        echo "✓ certification: coverage, determinism, data-residue, and report consistency verdicts are approvable or clean"
+        case "$STYLEPROOF_TRUST_STATE" in
+          CERTIFICATION_FAILED|DATA_RESIDUE_UNACKNOWLEDGED)
+            echo "::error::StyleProof: $STYLEPROOF_TRUST_STATE is a certification failure that approval cannot wave through."
+            exit 1
+            ;;
+          *)
+            echo "✓ certification: canonical trust verdict is $STYLEPROOF_TRUST_STATE"
+            ;;
+        esac
 
     # Always expose a terminal trust classification, even when a later gate fails.
     # Publication failure outranks every diff verdict because reviewers have no

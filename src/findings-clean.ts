@@ -1,3 +1,4 @@
+import { isProductStateComparabilityStatus } from './comparability-status.js';
 import { type DiffCounts, type Finding, type PropChange } from './diff.js';
 import { trackCount } from './describe.js';
 import { isNonValue, summarizeProps } from './prop-summary.js';
@@ -272,6 +273,10 @@ export type ComparisonTruth = {
    *  It is reviewable evidence (approval clears it), never a certification
    *  failure on its own. */
   contentGeometryUncertain: boolean;
+  incomparableSurfaces: number;
+  unprovenSurfaces: number;
+  requiredUnprovenSurfaces: number;
+  globalRequiredUnprovenSurfaces: number;
 };
 
 /** Surface shape both the differ and the report already produce. */
@@ -281,6 +286,85 @@ export type ComparisonSurface = {
   findings: Finding[];
 };
 
+export type ComparisonComparability = {
+  surface: string;
+  status: 'comparable' | 'incomparable' | 'unproven' | 'not-required';
+  required: boolean;
+};
+
+export type ComparisonTruthOptions = {
+  /** Require explicit identity even when both captures are legacy and undeclared. */
+  requireStateIdentity?: boolean;
+};
+
+function comparabilityTruth(
+  comparability: ComparisonComparability[],
+  requireStateIdentity: boolean,
+): Pick<
+  ComparisonTruth,
+  'incomparableSurfaces' | 'unprovenSurfaces' | 'requiredUnprovenSurfaces' | 'globalRequiredUnprovenSurfaces'
+> {
+  const normalized = comparability.map((entry) =>
+    isProductStateComparabilityStatus(entry.status) ? entry : { ...entry, status: 'unproven' as const, required: true },
+  );
+  return {
+    incomparableSurfaces: normalized.filter((entry) => entry.status === 'incomparable').length,
+    unprovenSurfaces: normalized.filter((entry) => entry.status === 'unproven').length,
+    requiredUnprovenSurfaces: normalized.filter((entry) => entry.status === 'unproven' && entry.required).length,
+    globalRequiredUnprovenSurfaces: requireStateIdentity
+      ? normalized.filter((entry) => entry.status === 'unproven' && !entry.required).length
+      : 0,
+  };
+}
+
+function reviewableFindings(
+  surface: ComparisonSurface,
+  comparisonBySurface: Map<string, ComparisonComparability>,
+  requireStateIdentity: boolean,
+): Finding[] {
+  const comparison = comparisonBySurface.get(surface.surface);
+  const blocksReview =
+    (comparison !== undefined && !isProductStateComparabilityStatus(comparison.status)) ||
+    comparison?.status === 'incomparable' ||
+    (comparison?.status === 'unproven' && (comparison.required || requireStateIdentity));
+  return blocksReview ? [] : cleanFindingsForDisplay(surface.findings);
+}
+
+function sumSurfaceCounts(surfaces: ComparisonSurface[]): DiffCounts {
+  return surfaces.reduce((total, surface) => addCounts(total, countFindings(surface.findings)), {
+    ...ZERO_COUNTS,
+  });
+}
+
+function surfaceTruth(
+  surfaces: ComparisonSurface[],
+  rawCounts: DiffCounts | undefined,
+  comparisonBySurface: Map<string, ComparisonComparability>,
+  requireStateIdentity: boolean,
+): Pick<
+  ComparisonTruth,
+  | 'rawCounts'
+  | 'reviewableCounts'
+  | 'newSurfaces'
+  | 'removedSurfaces'
+  | 'rawChangedSurfaces'
+  | 'reviewableChangedSurfaces'
+> {
+  const paired = surfaces.filter((surface) => surface.missing === undefined);
+  const reviewableSurfaces = paired.map((surface) => ({
+    ...surface,
+    findings: reviewableFindings(surface, comparisonBySurface, requireStateIdentity),
+  }));
+  return {
+    rawCounts: rawCounts ? { ...rawCounts } : sumSurfaceCounts(paired),
+    reviewableCounts: sumSurfaceCounts(reviewableSurfaces),
+    newSurfaces: surfaces.filter((surface) => surface.missing === 'before').length,
+    removedSurfaces: surfaces.filter((surface) => surface.missing === 'after').length,
+    rawChangedSurfaces: paired.filter((surface) => surface.findings.length > 0).length,
+    reviewableChangedSurfaces: reviewableSurfaces.filter((surface) => surface.findings.length > 0).length,
+  };
+}
+
 /**
  * Assess one map-pair comparison for report/verdict coherence.
  *
@@ -288,52 +372,36 @@ export type ComparisonSurface = {
  * JSON `counts` and the assessment share one tally. Otherwise counts are
  * recomputed from the surface findings.
  */
-export function assessComparisonTruth(surfaces: ComparisonSurface[], rawCounts?: DiffCounts): ComparisonTruth {
-  let raw = rawCounts ? { ...rawCounts } : { ...ZERO_COUNTS };
-  let reviewable = { ...ZERO_COUNTS };
-  let newSurfaces = 0;
-  let removedSurfaces = 0;
-  let rawChangedSurfaces = 0;
-  let reviewableChangedSurfaces = 0;
-  const contentGeometryUncertain = surfaces.some((sd) => contentDrivenGeometry(sd.findings).length > 0);
-
-  for (const sd of surfaces) {
-    if (sd.missing === 'before') {
-      newSurfaces++;
-      continue;
-    }
-    if (sd.missing === 'after') {
-      removedSurfaces++;
-      continue;
-    }
-    if (!rawCounts) raw = addCounts(raw, countFindings(sd.findings));
-    if (sd.findings.length > 0) rawChangedSurfaces++;
-    // Reviewable = what the report/CLI actually RENDER — including a surface's
-    // resurrected derived-only findings — so the truth contract, the evidence,
-    // and the verdict move together.
-    const cleaned = cleanFindingsForDisplay(sd.findings);
-    const rev = countFindings(cleaned);
-    reviewable = addCounts(reviewable, rev);
-    if (cleaned.length > 0) reviewableChangedSurfaces++;
-  }
-
-  const rawTotal = raw.dom + raw.style + raw.state;
-  const revTotal = reviewable.dom + reviewable.style + reviewable.state;
-  const hasReviewableEvidence = revTotal > 0 || newSurfaces > 0 || removedSurfaces > 0;
-  // Content-driven geometry is counted in `reviewable` above (it always renders),
-  // so it can never force this backstop: only shapes that truly cannot render —
-  // e.g. state-strip-only deltas — reach the CERTIFICATION_FAILED path.
-  const rawOnlyNoReviewable = rawTotal > 0 && revTotal === 0 && newSurfaces === 0 && removedSurfaces === 0;
+export function assessComparisonTruth(
+  surfaces: ComparisonSurface[],
+  rawCounts?: DiffCounts,
+  comparability: ComparisonComparability[] = [],
+  options: ComparisonTruthOptions = {},
+): ComparisonTruth {
+  const requireStateIdentity = options.requireStateIdentity === true;
+  const surface = surfaceTruth(
+    surfaces,
+    rawCounts,
+    new Map(comparability.map((entry) => [entry.surface, entry])),
+    requireStateIdentity,
+  );
+  const comparison = comparabilityTruth(comparability, requireStateIdentity);
+  const rawTotal = surface.rawCounts.dom + surface.rawCounts.style + surface.rawCounts.state;
+  const reviewableTotal =
+    surface.reviewableCounts.dom + surface.reviewableCounts.style + surface.reviewableCounts.state;
+  const hasReviewableEvidence = reviewableTotal > 0 || surface.newSurfaces > 0 || surface.removedSurfaces > 0;
+  const rawOnlyNoReviewable =
+    rawTotal > 0 &&
+    !hasReviewableEvidence &&
+    comparison.incomparableSurfaces === 0 &&
+    comparison.requiredUnprovenSurfaces === 0 &&
+    comparison.globalRequiredUnprovenSurfaces === 0;
 
   return {
-    rawCounts: raw,
-    reviewableCounts: reviewable,
-    newSurfaces,
-    removedSurfaces,
-    rawChangedSurfaces,
-    reviewableChangedSurfaces,
+    ...surface,
     hasReviewableEvidence,
     rawOnlyNoReviewable,
-    contentGeometryUncertain,
+    contentGeometryUncertain: surfaces.some((item) => contentDrivenGeometry(item.findings).length > 0),
+    ...comparison,
   };
 }

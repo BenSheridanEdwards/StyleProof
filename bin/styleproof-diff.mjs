@@ -25,7 +25,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { diffStyleMapDirs, findingLabel } from '../dist/diff.js';
+import { diffStyleMapDirs, findingLabel, summarizeComparability } from '../dist/diff.js';
 // The shared grouping brain (leaf — no Playwright-adjacent imports) that already
 // dedupes the report: group identical change-sets across surfaces and fold derived
 // longhands. Used for the HUMAN output only; --json stays the raw machine contract.
@@ -57,11 +57,11 @@ import {
 import {
   cachedMapsUnavailableMessage,
   isHelpArg,
-  projectConfigOrExit,
   missingManualCaptureMessage,
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
+import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
 import { readInventories, readResidue, surfaceElementPaths, mergeSurfaceKeyLookup } from '../dist/capture.js';
 import { auditRunInventory, readAckFile } from '../dist/inventory.js';
 import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
@@ -308,6 +308,10 @@ options:
                    determinism without exit 1. JSON marks certifiesFully=false.
                    Default certification still requires asserted coverage and
                    proven determinism.
+  --require-state-identity
+                   require explicit matching productState {id, revision} on every
+                   paired capture. Without this opt-in, undeclared legacy pairs
+                   remain compatible but are reported as unproven, never comparable.
   -h, --help       show this help
 
 exit: 0 identical (certified), 1 differences found OR non-certifying evidence
@@ -322,27 +326,25 @@ const args = [];
 let MAX = 40;
 let jsonOut = null;
 let allowUnasserted = false;
+let requireStateIdentity = false;
 // Repo config is the lowest-precedence default layer (flag > env > file > built-in),
 // matching styleproof-map/-prepush/-ci — without it, a repo whose config moves the
 // spec or store branch computed a different compatibility key here than the capture
 // side did, and the no-arg diff (incl. the pre-push advisory diff) always missed.
-const projectConfig = projectConfigOrExit(COMMAND);
-let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
-let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
-let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
+const captureSource = captureSourceDefaults(COMMAND);
 for (let i = 0; i < argv.length; i++) {
+  const captureSourceIndex = consumeCaptureSourceOption(argv, i, captureSource);
+  if (captureSourceIndex !== undefined) {
+    i = captureSourceIndex;
+    continue;
+  }
   if (isHelpArg(argv[i])) showHelpAndExit(HELP);
   else if (argv[i] === '--max') MAX = Number(argv[++i]);
   else if (argv[i].startsWith('--max=')) MAX = Number(argv[i].slice(6));
   else if (argv[i] === '--json') jsonOut = argv[++i];
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
-  else if (argv[i] === '--spec') spec = argv[++i];
-  else if (argv[i].startsWith('--spec=')) spec = argv[i].slice(7);
-  else if (argv[i] === '--cache-branch') cacheBranch = argv[++i];
-  else if (argv[i].startsWith('--cache-branch=')) cacheBranch = argv[i].slice(15);
-  else if (argv[i] === '--remote') remote = argv[++i];
-  else if (argv[i].startsWith('--remote=')) remote = argv[i].slice(9);
   else if (argv[i] === '--allow-unasserted') allowUnasserted = true;
+  else if (argv[i] === '--require-state-identity') requireStateIdentity = true;
   else if (argv[i].startsWith('--')) {
     console.error(unknownFlagMessage(COMMAND, argv[i]));
     process.exit(2);
@@ -361,9 +363,9 @@ if (args.length <= 1) {
     cacheCapture = resolveCachedCaptureDirs({
       command: COMMAND,
       args,
-      spec,
-      branch: cacheBranch,
-      remote,
+      spec: captureSource.spec,
+      branch: captureSource.cacheBranch,
+      remote: captureSource.remote,
       baseUrl: process.env.BASE_URL,
       usage: `usage: ${COMMAND} [baseRef] [--max N] [--json <file>]`,
     });
@@ -438,11 +440,12 @@ try {
 } finally {
   cleanupCachedCaptureDirs(cacheCapture);
 }
-const { surfaces, counts, compared, volatile, statesUncertified } = result;
+const { surfaces, counts, comparability, compared, volatile, statesUncertified } = result;
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned)
 // findings the report/crops can show. Prevents STYLE_REVIEW_REQUIRED without
 // evidence when only derived/reflow longhands differ.
-const truth = assessComparisonTruth(surfaces, counts);
+const truth = assessComparisonTruth(surfaces, counts, comparability, { requireStateIdentity });
+const comparison = summarizeComparability(comparability, requireStateIdentity);
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
 const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
 
@@ -456,6 +459,36 @@ function printBaselineSurfaceFailureCallout() {
 }
 
 printBaselineSurfaceFailureCallout();
+
+function printComparabilitySummary() {
+  const c = comparison.counts;
+  if (comparison.status === 'comparable') {
+    console.log(`\n✓ product-state identity comparable on ${c.comparable} paired capture(s)`);
+    return;
+  }
+  if (comparison.status === 'not-required') {
+    console.log('\nℹ product-state comparison not required — no paired capture obligation');
+    return;
+  }
+  if (!comparison.blocksCertification) {
+    console.log(
+      `\n⚠ product-state identity unproven on ${c.unproven} legacy paired capture(s) — ` +
+        'legacy compatibility mode keeps the existing verdict, but this is not proof of same product state. ' +
+        'Pass --require-state-identity to make it non-certifying.',
+    );
+    return;
+  }
+  const mismatch = c.incomparable ? `${c.incomparable} explicit mismatch(es)` : '';
+  const missing = c.requiredUnproven ? `${c.requiredUnproven} required-unproven pair(s)` : '';
+  const global = c.globalRequiredUnproven ? `${c.globalRequiredUnproven} globally-required legacy pair(s)` : '';
+  console.log(
+    `\n✗ product-state identity ${comparison.status.toUpperCase()} — ${[mismatch, missing, global]
+      .filter(Boolean)
+      .join(', ')}. Raw style deltas remain diagnostic only; they are not approval evidence.`,
+  );
+}
+
+printComparabilitySummary();
 
 // ── grouped human output ─────────────────────────────────────────────────────
 // Reuse the report's dedup so one real change doesn't print once per surface with
@@ -519,6 +552,13 @@ for (const sd of surfaces) {
 // across N surfaces prints once (with the count), not N times.
 const preparedForGrouping = surfaces
   .filter((sd) => !sd.missing)
+  .filter((sd) => {
+    const receipt = comparability.find((entry) => entry.surface === sd.surface);
+    return !(
+      receipt?.status === 'incomparable' ||
+      (receipt?.status === 'unproven' && (receipt.required || requireStateIdentity))
+    );
+  })
   // Carry the RAW findings too, so we can report how many derived longhands the
   // grouped view folded (the cleaned findings have them already removed).
   .map((sd) => ({ surface: sd.surface, findings: cleanFindingsForDisplay(sd.findings), raw: sd.findings }))
@@ -588,6 +628,7 @@ const determinismBlocks = determinismFails && !(firstAdoptionBareBase && determi
 const certifiesFully =
   !allowUnasserted &&
   !truth.rawOnlyNoReviewable &&
+  !comparison.blocksCertification &&
   total === 0 &&
   removedSurfaces === 0 &&
   invRemovals === 0 &&
@@ -612,6 +653,8 @@ if (jsonOut) {
           // Reviewable tallies after cleanFindings (what the durable report shows).
           // Trust/approval must use these + one-sided surfaces — not raw counts alone.
           reviewableCounts: truth.reviewableCounts,
+          comparison,
+          comparability,
           reportConsistency: truth.rawOnlyNoReviewable
             ? {
                 ok: false,
@@ -712,6 +755,7 @@ const detNote = determinismBlocks
   : '';
 const clean =
   total === 0 &&
+  !comparison.blocksCertification &&
   removedSurfaces === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
@@ -735,7 +779,9 @@ console.log(
       : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
         ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
         : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
-    : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`,
+    : comparison.blocksCertification
+      ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`
+      : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`,
 );
 // 0 = identical certified, 1 = reviewable differences or non-certifying evidence
 // (unasserted completeness, unknown/unproven determinism, incomplete registry,
@@ -743,6 +789,7 @@ console.log(
 // first-adoption bare base (or greenfield with proven ledgers). 2 = usage.
 process.exit(
   total > 0 ||
+    comparison.blocksCertification ||
     removedSurfaces > 0 ||
     invRemovals > 0 ||
     residueFails > 0 ||

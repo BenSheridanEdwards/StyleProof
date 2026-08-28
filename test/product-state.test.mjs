@@ -74,7 +74,7 @@ test('incomparableProductStates collapse widths onto one surface base', () => {
   assert.equal(states[0].surfaceBase, 'chat-guardian-auto-preview');
 });
 
-test('generateStyleMapReport does not certify a restyle when product state diverged', () => {
+test('generateStyleMapReport marks undeclared legacy state as unproven and strict mode does not certify it', () => {
   const dirs = tmpDirs();
   const before = makeMap({
     elements: {
@@ -106,12 +106,13 @@ test('generateStyleMapReport does not certify a restyle when product state diver
     afterDir: dirs.afterDir,
     outDir: path.join(dirs.root, 'out'),
     includeContent: true,
+    requireStateIdentity: true,
   });
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   assert.equal(result.changedSurfaces, 0);
-  assert.ok(md.includes('not certified'));
-  assert.ok(md.includes('WATCHING YOUR DRAFT'));
-  assert.ok(md.includes('AUTO IS DRIVING'));
+  assert.equal(result.comparison.status, 'unproven');
+  assert.equal(result.comparison.blocksCertification, true);
+  assert.ok(md.includes('unproven'));
   assert.ok(!md.includes('## Element-level changes'));
   assert.ok(!md.includes('1 element restyled'));
 

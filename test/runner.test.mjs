@@ -17,6 +17,7 @@ import {
   selfCheckErrorMessage,
 } from '../dist/runner.js';
 import { coverageGaps } from '../dist/coverage.js';
+import { ProductStateIdentityError } from '../dist/capture.js';
 import { StateRecipeError } from '../dist/state-recipes.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
@@ -240,6 +241,84 @@ test('expandSurfaceVariants: liveStates carry live-state metadata', () => {
     variantKey: 'loaded',
     variantKind: 'live-state',
   });
+});
+
+test('expandSurfaceVariants: productState reaches base, variant, live-state, and state-recipe metadata', () => {
+  const parentState = { id: 'checkout-ready', revision: 'fixture-v3' };
+  const variantState = { id: 'checkout-dialog-open', revision: 'fixture-v4' };
+  const expanded = expandSurfaceVariants({
+    key: 'checkout',
+    go: async () => {},
+    productState: parentState,
+    variants: [{ key: 'dialog-open', productState: variantState }],
+    liveStates: [{ key: 'loaded' }],
+    stateRecipes: [{ action: 'hover', selector: '#summary', stateKey: 'summary-hover' }],
+  });
+
+  assert.deepEqual(
+    expanded.map((surface) => [surface.key, surface.metadata?.productState]),
+    [
+      ['checkout-dialog-open', variantState],
+      ['checkout-loaded', parentState],
+      ['checkout-summary-hover', parentState],
+    ],
+  );
+  assert.notEqual(expanded[0].metadata?.productState, variantState, 'persist a validated copy, not caller-owned data');
+});
+
+test('expandSurfaceVariants: malformed or privacy-hostile productState fails closed without echoing input', () => {
+  const hostile = 'private[value=customer-secret]';
+  const hostileProxy = new Proxy(
+    {},
+    {
+      ownKeys() {
+        throw new ProductStateIdentityError('https://fixture.invalid/proxy-secret');
+      },
+    },
+  );
+  const safeErrors = new Set([
+    'styleproof: invalid productState — only id and revision are allowed',
+    'styleproof: invalid productState — id and revision must be 1–128 character opaque identifiers using letters, numbers, dot, underscore, colon, or hyphen',
+    'styleproof: invalid productState — identity could not be read safely',
+  ]);
+  for (const productState of [
+    { id: '', revision: 'v1' },
+    { id: hostile, revision: 'v1' },
+    { id: 'checkout-ready', revision: 'https://fixture.invalid/state' },
+    { id: 'checkout-ready', revision: 'v1', label: hostile },
+    { id: 'x'.repeat(129), revision: 'v1' },
+    hostileProxy,
+  ]) {
+    assert.throws(
+      () => expandSurfaceVariants({ key: 'checkout', go: async () => {}, productState }),
+      (error) => {
+        assert.equal(error.name, 'ProductStateIdentityError');
+        assert.equal(safeErrors.has(error.message), true, 'only complete privacy-safe diagnostics may escape');
+        return true;
+      },
+    );
+  }
+
+  assert.throws(
+    () =>
+      expandSurfaceVariants({
+        key: 'checkout',
+        go: async () => {},
+        variants: [{ key: 'dialog-open', productState: { id: 'checkout dialog open', revision: 'v1' } }],
+      }),
+    { name: 'ProductStateIdentityError' },
+  );
+
+  assert.throws(
+    () =>
+      expandSurfaceVariants({
+        key: 'checkout',
+        go: async () => {},
+        productState: { id: 'checkout-ready', revision: 'v1' },
+        variants: [{ key: 'dialog-open', productState: null }],
+      }),
+    { name: 'ProductStateIdentityError' },
+  );
 });
 
 test('expandSurfaceVariants: stateRecipes keep base, sort by key, and attach provenance', async () => {
