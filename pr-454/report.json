@@ -85,8 +85,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "f9321fba0487d21b2514a81f0e877ff0f2a17b0b",
-      "observed": "f9321fba0487d21b2514a81f0e877ff0f2a17b0b",
+      "expected": "9641c95c372f75fe5c893efaecd908275c22b50c",
+      "observed": "9641c95c372f75fe5c893efaecd908275c22b50c",
       "result": "matched"
     }
   },
@@ -94,17 +94,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "76889d250f6eeb3394d09a038b84dbfc3a035a8f971ee686a49fa6acc510758e",
+      "digest": "d17a6328f5fe0504a06f70d951922ab28f044dbca305b1ae630d81f2053e2cc1",
       "fileCount": 4,
       "mapCount": 1,
-      "byteCount": 1324
+      "byteCount": 1328
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "5bde4cd42e7b9a22d1c02907dd55ed0f664c84b29a2f8f88322bdd2b4b8dad94",
+      "digest": "62dc2ad86af76924c6827578a1ba1aa7a75aac572c027dfe3fe0634dace07a83",
       "fileCount": 4,
       "mapCount": 1,
-      "byteCount": 1324
+      "byteCount": 1328
     }
   }
 }
