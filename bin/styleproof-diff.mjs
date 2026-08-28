@@ -45,7 +45,8 @@ import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
-  validateExpectedSourceShas,
+  captureEvidenceBindingReceipt,
+  expectedSourceShaFlagsError,
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
@@ -372,13 +373,14 @@ for (let i = 0; i < argv.length; i++) {
   } else args.push(argv[i]);
 }
 
-try {
-  validateExpectedSourceShas({
-    beforeSha: expectedBeforeShaSet ? (expectedBeforeSha ?? '') : undefined,
-    afterSha: expectedAfterShaSet ? (expectedAfterSha ?? '') : undefined,
-  });
-} catch (error) {
-  console.error(`${COMMAND}: ${error.message}`);
+const sourceShaError = expectedSourceShaFlagsError({
+  beforeProvided: expectedBeforeShaSet,
+  beforeSha: expectedBeforeSha,
+  afterProvided: expectedAfterShaSet,
+  afterSha: expectedAfterSha,
+});
+if (sourceShaError) {
+  console.error(`${COMMAND}: ${sourceShaError}`);
   process.exit(2);
 }
 
@@ -422,6 +424,7 @@ if (args.length <= 1) {
 
 let result;
 let sourceBinding;
+let evidenceBinding;
 let inventoryAudit = null;
 let coverageVerdict = null;
 let determinismVerdict = null;
@@ -437,6 +440,7 @@ try {
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
   const manifestless = manifestlessSide(dirA, dirB);
   if (manifestless) throw new Error(manifestlessError(manifestless));
+  const initialEvidenceBinding = captureEvidenceBindingReceipt(dirA, dirB);
   sourceBinding = assertCompatibleMapDirs(dirA, dirB, {
     beforeSha: expectedBeforeSha,
     afterSha: expectedAfterSha,
@@ -469,6 +473,10 @@ try {
   // First-adoption bare base: zero maps on the before side. Used so exit 3 is not
   // swallowed by unasserted/unknown fail-closed (filtered pairs still have maps).
   baseMapCount = fs.existsSync(dirA) ? fs.readdirSync(dirA).filter(isMapFile).length : 0;
+  evidenceBinding = captureEvidenceBindingReceipt(dirA, dirB);
+  if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
+    throw new Error('capture evidence changed while styleproof-diff was reading it');
+  }
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -687,6 +695,7 @@ if (jsonOut) {
         {
           counts,
           sourceBinding,
+          evidenceBinding,
           // Reviewable tallies after cleanFindings (what the durable report shows).
           // Trust/approval must use these + one-sided surfaces — not raw counts alone.
           reviewableCounts: truth.reviewableCounts,

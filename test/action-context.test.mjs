@@ -51,6 +51,26 @@ test('resolveActionContext reads same-repo workflow_run identity from trusted pu
   assert.deepEqual(mock.calls, []);
 });
 
+test('resolveActionContext rejects a non-corresponding embedded workflow_run PR and uses exact-head lookup', async () => {
+  const unrelatedHead = 'c'.repeat(40);
+  const fallbackBase = 'e'.repeat(40);
+  const mock = github([{ state: 'open', number: 35, base: { sha: fallbackBase }, head: { sha } }]);
+  const result = await resolveActionContext({
+    eventName: 'workflow_run',
+    payload: {
+      workflow_run: {
+        head_sha: sha,
+        pull_requests: [{ number: 34, base: { sha: baseSha }, head: { sha: unrelatedHead } }],
+      },
+    },
+    repo,
+    github: mock.client,
+  });
+
+  assert.deepEqual(result, { prNumber: '35', baseSha: fallbackBase, headSha: sha });
+  assert.deepEqual(mock.calls, [{ ...repo, commit_sha: sha }]);
+});
+
 test('resolveActionContext falls back to the PR associated with the trusted workflow_run head SHA', async () => {
   const other = 'b'.repeat(40);
   const mock = github([

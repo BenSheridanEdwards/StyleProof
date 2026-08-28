@@ -20,7 +20,7 @@ function linkExternalJson(directory, name, value) {
   fs.symlinkSync(target, path.join(directory, name));
 }
 
-test('all bundle metadata and map readers refuse symlink targets', () => {
+test('bundle readers refuse symlink targets and manifests fail closed as invalid evidence', () => {
   const workspace = mkTmp('styleproof-safe-readers-');
   try {
     const bundle = path.join(workspace, 'bundle');
@@ -32,7 +32,7 @@ test('all bundle metadata and map readers refuse symlink targets', () => {
     linkExternalJson(bundle, FATAL_CAPTURE_MARKER, 'external fatal marker');
     linkExternalJson(bundle, 'home@1280.json', {});
 
-    assert.equal(readMapManifest(bundle), null);
+    assert.throws(() => readMapManifest(bundle), /invalid styleproof-manifest\.json/);
     assert.equal(readBaselineProvenance(bundle), null);
     assert.equal(readConfidenceLedger(bundle), null);
     assert.equal(readCoverageLedgerLenient(bundle), null);

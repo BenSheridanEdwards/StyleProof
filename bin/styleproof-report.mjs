@@ -19,7 +19,8 @@ import {
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
   assertCompatibleMapDirs,
-  validateExpectedSourceShas,
+  captureEvidenceBindingReceipt,
+  expectedSourceShaFlagsError,
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
@@ -125,13 +126,14 @@ for (let i = 0; i < argv.length; i++) {
     process.exit(2);
   } else args.push(a);
 }
-try {
-  validateExpectedSourceShas({
-    beforeSha: expectedBeforeShaSet ? (expectedBeforeSha ?? '') : undefined,
-    afterSha: expectedAfterShaSet ? (expectedAfterSha ?? '') : undefined,
-  });
-} catch (error) {
-  console.error(`${COMMAND}: ${error.message}`);
+const sourceShaError = expectedSourceShaFlagsError({
+  beforeProvided: expectedBeforeShaSet,
+  beforeSha: expectedBeforeSha,
+  afterProvided: expectedAfterShaSet,
+  afterSha: expectedAfterSha,
+});
+if (sourceShaError) {
+  console.error(`${COMMAND}: ${sourceShaError}`);
   process.exit(2);
 }
 let beforeDir;
@@ -185,6 +187,7 @@ try {
   // compatibility can't be verified without a manifest on both sides.
   const manifestless = manifestlessSide(beforeDir, afterDir);
   if (manifestless) throw new Error(manifestlessError(manifestless));
+  const initialEvidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
   const sourceBinding = assertCompatibleMapDirs(beforeDir, afterDir, {
     beforeSha: expectedBeforeSha,
     afterSha: expectedAfterSha,
@@ -203,8 +206,15 @@ try {
     includeContent,
     requireStateIdentity,
   });
+  const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
+  if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
+    throw new Error('capture evidence changed while styleproof-report was reading it');
+  }
   const reportJson = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  fs.writeFileSync(result.reportJsonPath, `${JSON.stringify({ ...reportJson, sourceBinding }, null, 2)}\n`);
+  fs.writeFileSync(
+    result.reportJsonPath,
+    `${JSON.stringify({ ...reportJson, sourceBinding, evidenceBinding }, null, 2)}\n`,
+  );
 } catch (e) {
   console.error(e.message);
   process.exit(2);

@@ -225,23 +225,40 @@ runs:
           !Array.isArray(value) &&
           isDeepStrictEqual(Object.keys(value).sort(), [...keys].sort());
         const fullSha = (value) => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
-        const validBoundSide = (value, expected) => {
+        const validEvidenceSide = (value) =>
+          exactKeys(value, ['algorithm', 'digest', 'fileCount', 'mapCount', 'byteCount']) &&
+          value.algorithm === 'sha256' &&
+          typeof value.digest === 'string' && /^[0-9a-f]{64}$/.test(value.digest) &&
+          Number.isSafeInteger(value.fileCount) && value.fileCount >= 0 &&
+          Number.isSafeInteger(value.mapCount) && value.mapCount >= 0 && value.mapCount <= value.fileCount &&
+          Number.isSafeInteger(value.byteCount) && value.byteCount >= 0;
+        const validEvidenceBinding = (value) =>
+          exactKeys(value, ['version', 'before', 'after']) && value.version === 1 &&
+          validEvidenceSide(value.before) && validEvidenceSide(value.after);
+        if (!validEvidenceBinding(diff.evidenceBinding) || !validEvidenceBinding(generated.evidenceBinding)) {
+          throw new Error('StyleProof evidence-binding receipts are missing or malformed');
+        }
+        if (!isDeepStrictEqual(generated.evidenceBinding, diff.evidenceBinding)) {
+          throw new Error('StyleProof evidence-binding receipts disagree');
+        }
+        const validBoundSide = (value, expected, evidence) => {
           if (!exactKeys(value, ['expected', 'observed', 'result']) || value.expected !== expected) return false;
           if (!fullSha(value.expected)) return false;
           if (value.result === 'matched') return value.observed === value.expected;
-          if (value.result === 'no-capture') return value.observed === null;
+          if (value.result === 'no-capture') return value.observed === null && evidence.mapCount === 0;
           return false;
         };
-        const validSourceBinding = (value) => {
+        const validSourceBinding = (value, evidence) => {
           if (!exactKeys(value, ['status', 'compatibility', 'before', 'after']) || value.status !== 'bound') {
             return false;
           }
-          if (!validBoundSide(value.before, process.env.STYLEPROOF_EXPECTED_BASE_SHA)) return false;
-          if (!validBoundSide(value.after, process.env.STYLEPROOF_EXPECTED_HEAD_SHA)) return false;
+          if (!validBoundSide(value.before, process.env.STYLEPROOF_EXPECTED_BASE_SHA, evidence.before)) return false;
+          if (!validBoundSide(value.after, process.env.STYLEPROOF_EXPECTED_HEAD_SHA, evidence.after)) return false;
           const bothObserved = value.before.observed !== null && value.after.observed !== null;
           return value.compatibility === (bothObserved ? 'matched' : 'not-applicable');
         };
-        if (!validSourceBinding(diff.sourceBinding) || !validSourceBinding(generated.sourceBinding)) {
+        if (!validSourceBinding(diff.sourceBinding, diff.evidenceBinding) ||
+            !validSourceBinding(generated.sourceBinding, generated.evidenceBinding)) {
           throw new Error('StyleProof source-binding receipts are missing, malformed, or not bound to trusted SHAs');
         }
         if (!generated.reportConsistency || typeof generated.reportConsistency.ok !== 'boolean') {
