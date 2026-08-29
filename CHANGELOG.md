@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.2.2] - 2026-08-29
+
 ### Fixed
 
 - **Action steps no longer trip `set -u` on empty argument arrays** (#457): the
@@ -3434,7 +3436,9 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.2...HEAD
+[6.2.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.1...v6.2.2
+[6.2.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.0...v6.2.1
 [6.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.1...v6.2.0
 [6.1.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.0...v6.1.1
 [6.1.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.0.5...v6.1.0
