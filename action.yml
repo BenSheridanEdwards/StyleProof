@@ -158,7 +158,7 @@ runs:
           --expected-after-sha "$STYLEPROOF_EXPECTED_HEAD_SHA"
         )
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json "${trusted_sha_arguments[@]}" "${state_identity_arguments[@]}" | tee styleproof-diff.txt
+        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} | tee styleproof-diff.txt
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
@@ -207,7 +207,7 @@ runs:
           *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
         esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report "${trusted_sha_arguments[@]}" "${report_content_arguments[@]}" "${state_identity_arguments[@]}"
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"}
         report_exit_code=$?
         set -e
         if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
