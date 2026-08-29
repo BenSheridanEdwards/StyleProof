@@ -1,35 +1,35 @@
 {
   "counts": {
     "dom": 0,
-    "style": 0,
+    "style": 1,
     "state": 0
   },
   "rawCounts": {
     "dom": 0,
-    "style": 0,
+    "style": 1,
     "state": 0
   },
   "reviewableCounts": {
     "dom": 0,
-    "style": 0,
+    "style": 1,
     "state": 0
   },
   "comparison": {
     "rawCounts": {
       "dom": 0,
-      "style": 0,
+      "style": 1,
       "state": 0
     },
     "reviewableCounts": {
       "dom": 0,
-      "style": 0,
+      "style": 1,
       "state": 0
     },
     "newSurfaces": 0,
     "removedSurfaces": 0,
-    "rawChangedSurfaces": 0,
-    "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": false,
+    "rawChangedSurfaces": 1,
+    "reviewableChangedSurfaces": 1,
+    "hasReviewableEvidence": true,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "incomparableSurfaces": 0,
@@ -61,11 +61,57 @@
     "reason": "aligned"
   },
   "content": {
-    "evaluated": true,
-    "changes": 1,
+    "evaluated": false,
+    "changes": 0,
     "advisory": true
   },
-  "surfaces": [],
+  "surfaces": [
+    {
+      "surfaces": [
+        "home@320"
+      ],
+      "representative": "home@320",
+      "regions": [
+        {
+          "paths": [
+            "body > main:nth-child(1)"
+          ],
+          "before": {
+            "x": 12,
+            "y": 12,
+            "w": 204,
+            "h": 104
+          },
+          "after": {
+            "x": 12,
+            "y": 12,
+            "w": 204,
+            "h": 104
+          },
+          "images": {
+            "composite": "crops/home-320-1-composite.png",
+            "annotated": "crops/home-320-1-annotated.png"
+          }
+        }
+      ],
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1)",
+          "cls": "panel",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(255, 0, 0)"
+            }
+          ],
+          "contentLengthSignal": "unknown"
+        }
+      ]
+    }
+  ],
   "confidence": {
     "counts": {
       "inaccessible": 0,
@@ -101,10 +147,10 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "64ecca316e4fe7dde4d0ed49488180d072e199c0a4ed0ec018eb92bf69e9c122",
+      "digest": "481ffea0fd407789ecb74fbd5a0e001dfe5e37041d645d18ac63e37f734144db",
       "fileCount": 4,
       "mapCount": 1,
-      "byteCount": 1361
+      "byteCount": 1330
     }
   }
 }
