@@ -1,11 +1,10 @@
 ## 🗺️ StyleProof report
 
 **Certification**
-- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
-- **Determinism** — ✓ proven (base self-checked, head self-checked)
-- **Inventory** — ✓ navigable set unchanged
-- **Failed data request**: ✗ this page called an API that failed, so the screenshot is the fallback UI, not the real data. home called `/api/status` (HTTP 500). Fixture the API, or declare why the fallback is the intended capture.
-- **Confidence** — ✓ complete (1 captured)
+- **Coverage** — ⚠ not asserted (no `expected` registry; certifies only the captured surfaces)
+- **Determinism** — ⚠ unknown (a capture predates the determinism ledger)
+- **Inventory** — ⚠ 1 navigable affordance(s) removed, unacknowledged: route:/b
+- **Confidence** — ⚠ unknown (capture predates the confidence ledger; not blocking retroactively)
 
 ⚠️ **Product-state comparison** — unproven on 1 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
