@@ -1,0 +1,110 @@
+{
+  "counts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "rawCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "reviewableCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "comparison": {
+    "rawCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "reviewableCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "newSurfaces": 0,
+    "removedSurfaces": 0,
+    "rawChangedSurfaces": 0,
+    "reviewableChangedSurfaces": 0,
+    "hasReviewableEvidence": false,
+    "rawOnlyNoReviewable": false,
+    "contentGeometryUncertain": false,
+    "incomparableSurfaces": 0,
+    "unprovenSurfaces": 1,
+    "requiredUnprovenSurfaces": 0,
+    "globalRequiredUnprovenSurfaces": 0,
+    "status": "unproven",
+    "requireStateIdentity": false,
+    "blocksCertification": false,
+    "counts": {
+      "comparable": 0,
+      "incomparable": 0,
+      "unproven": 1,
+      "notRequired": 0,
+      "requiredUnproven": 0,
+      "globalRequiredUnproven": 0
+    }
+  },
+  "comparability": [
+    {
+      "surface": "home@320",
+      "status": "unproven",
+      "required": false,
+      "reason": "state-identity-missing"
+    }
+  ],
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "content": {
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
+  },
+  "surfaces": [],
+  "confidence": {
+    "counts": {
+      "inaccessible": 0,
+      "unproven-determinism": 0,
+      "excluded-with-reason": 0,
+      "unknown": 0,
+      "captured": 0
+    },
+    "completeness": "unknown"
+  },
+  "sourceBinding": {
+    "status": "bound",
+    "compatibility": "matched",
+    "before": {
+      "expected": "1f411007769fa78c99d07740a3cdfc1b19ad104e",
+      "observed": "1f411007769fa78c99d07740a3cdfc1b19ad104e",
+      "result": "matched"
+    },
+    "after": {
+      "expected": "3db89b0056238cdb94d3b5e518594378700ddbfd",
+      "observed": "3db89b0056238cdb94d3b5e518594378700ddbfd",
+      "result": "matched"
+    }
+  },
+  "evidenceBinding": {
+    "version": 1,
+    "before": {
+      "algorithm": "sha256",
+      "digest": "9509b42a61816a98383fa6dfb3132b5641a3fd90498fc853d8c2b75b620c3027",
+      "fileCount": 4,
+      "mapCount": 1,
+      "byteCount": 1328
+    },
+    "after": {
+      "algorithm": "sha256",
+      "digest": "2969faa0588e2d85b967aaadacc8b794a3f5b1a09bf84e25535e74f5d200a181",
+      "fileCount": 4,
+      "mapCount": 1,
+      "byteCount": 1328
+    }
+  }
+}
