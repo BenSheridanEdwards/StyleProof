@@ -121,7 +121,7 @@ test('genuine one-sided addition without a relation remains not-required', () =>
   assert.equal(receipt.counts.relations, 0);
 });
 
-test('genuine one-sided removal without a relation remains not-required', () => {
+test('one-sided removal does not mint a relation or satisfy a required obligation', () => {
   const doc = validDoc();
   doc.comparability = [
     {
@@ -132,7 +132,9 @@ test('genuine one-sided removal without a relation remains not-required', () => 
     },
   ];
   const receipt = assessPhase0Contract(doc);
-  assert.equal(receipt.axes.comparability, 'not-required');
+  assert.equal(receipt.certifies, false);
+  assert.equal(receipt.axes.comparability, 'invalid');
+  assert.ok(receipt.reasons.includes('comparability-mismatch'));
   assert.equal(receipt.axes.identity, 'valid');
   assert.equal(receipt.reasons.includes('missing-relation'), false);
 });
@@ -266,7 +268,7 @@ test('legacy no-pin remains unproven and cannot certify', () => {
     {
       surface: 'checkout',
       status: 'unproven',
-      required: false,
+      required: true,
       reason: 'state-identity-missing',
     },
   ];

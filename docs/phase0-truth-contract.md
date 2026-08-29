@@ -57,7 +57,8 @@ not restate that lattice as a second decision.
   integrity join `evidenceDigest` values.
 - **Comparability.** Only the shipped #438 status/reason/required combinations
   are valid. Required obligation surfaces must equal comparability receipt
-  surfaces exactly. Invalid combinations and incomparable receipts return
+  surfaces exactly, and the matching receipts must remain `required: true` and
+  must not claim `not-required`. Invalid combinations and incomparable receipts return
   bounded `comparability-mismatch`. Style, DOM, and copy never mint
   comparability. Kernel `certifies` is not proof that obligated pins exist.
 - **Bounds.** Documents are limited to 16 MiB, arrays to 10,000 entries, and

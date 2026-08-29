@@ -65,8 +65,9 @@ retrospectively reconciles #438 and #452 without reimplementing them:
 7. **Comparability.** Receipt status/reason/required tuples are the shipped
    #438 lattice. Impossible combinations and incomparable receipts fail closed
    as `comparability-mismatch`. Required obligation surfaces must equal
-   comparability receipt surfaces exactly; empty or foreign coverage cannot
-   certify. `certifies` means v0.1 contract conformance under internally bound
+   comparability receipt surfaces exactly, and each matching receipt must itself
+   be `required: true` with a status other than `not-required`; empty, foreign, or
+   requirement-contradicting coverage cannot certify. `certifies` means v0.1 contract conformance under internally bound
    authorities. It is not a release decision, an Action verdict, or external
    producer authentication.
 

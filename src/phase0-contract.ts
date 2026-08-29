@@ -1306,7 +1306,7 @@ function assessComparability(document: Phase0ContractDocument): { status: Phase0
   }
   const reasons: Phase0Reason[] = [];
   const statuses: Phase0AxisStatus[] = [];
-  if (!comparabilityCoversRequired(document, surfaces)) {
+  if (!comparabilityCoversRequired(document, entries)) {
     reasons.push('comparability-mismatch');
     statuses.push('invalid');
   }
@@ -1319,12 +1319,16 @@ function assessComparability(document: Phase0ContractDocument): { status: Phase0
   return { status: worstStatus(statuses), reasons: [...new Set(reasons)] };
 }
 
-function comparabilityCoversRequired(document: Phase0ContractDocument, receiptSurfaces: string[]): boolean {
+function comparabilityCoversRequired(document: Phase0ContractDocument, entries: Phase0Comparability[]): boolean {
   const required = uniqueSorted(
     (document.obligations ?? []).filter((entry) => entry.required).map((entry) => entry.surface),
   );
-  const receipts = uniqueSorted(receiptSurfaces);
-  return sameTexts(required, receipts);
+  const receipts = uniqueSorted(entries.map((entry) => entry.surface));
+  if (!sameTexts(required, receipts)) return false;
+  const requiredSet = new Set(required);
+  return entries.every(
+    (entry) => !requiredSet.has(entry.surface) || (entry.required && entry.status !== 'not-required'),
+  );
 }
 
 function uniqueSorted(values: string[]): string[] {

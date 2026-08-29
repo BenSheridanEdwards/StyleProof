@@ -46,9 +46,7 @@
       "sourceSha": "0123456789abcdef0123456789abcdef01234567",
       "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "scope": "checkout",
-      "capabilities": [
-        "computed-style"
-      ],
+      "capabilities": ["computed-style"],
       "execution": "complete",
       "outputDigest": "1111111111111111111111111111111111111111111111111111111111111111",
       "closure": "enumerated",
@@ -65,9 +63,7 @@
       "sourceSha": "0123456789abcdef0123456789abcdef01234567",
       "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "scope": "checkout",
-      "capabilities": [
-        "coverage-registry"
-      ],
+      "capabilities": ["coverage-registry"],
       "execution": "complete",
       "outputDigest": "2222222222222222222222222222222222222222222222222222222222222222",
       "closure": "enumerated",
@@ -84,9 +80,7 @@
       "sourceSha": "0123456789abcdef0123456789abcdef01234567",
       "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "scope": "checkout",
-      "capabilities": [
-        "repeat-hash"
-      ],
+      "capabilities": ["repeat-hash"],
       "execution": "complete",
       "outputDigest": "3333333333333333333333333333333333333333333333333333333333333333",
       "closure": "enumerated",
@@ -103,9 +97,7 @@
       "sourceSha": "0123456789abcdef0123456789abcdef01234567",
       "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "scope": "checkout",
-      "capabilities": [
-        "declared-state"
-      ],
+      "capabilities": ["declared-state"],
       "execution": "complete",
       "outputDigest": "4444444444444444444444444444444444444444444444444444444444444444",
       "closure": "enumerated",
@@ -121,9 +113,7 @@
       "sourceSha": "0123456789abcdef0123456789abcdef01234567",
       "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "scope": "checkout",
-      "capabilities": [
-        "evidence-bytes"
-      ],
+      "capabilities": ["evidence-bytes"],
       "execution": "complete",
       "outputDigest": "5555555555555555555555555555555555555555555555555555555555555555",
       "closure": "enumerated",
@@ -140,9 +130,7 @@
       "sourceSha": "0123456789abcdef0123456789abcdef01234567",
       "configDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "scope": "checkout",
-      "capabilities": [
-        "source-sha"
-      ],
+      "capabilities": ["source-sha"],
       "execution": "complete",
       "outputDigest": "6666666666666666666666666666666666666666666666666666666666666666",
       "closure": "enumerated",
@@ -172,7 +160,7 @@
     {
       "surface": "checkout",
       "status": "unproven",
-      "required": false,
+      "required": true,
       "reason": "state-identity-missing"
     }
   ],

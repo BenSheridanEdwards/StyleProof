@@ -315,6 +315,25 @@ test('empty comparability with a required checkout obligation cannot certify', (
   assertClosedReasons(receipt);
 });
 
+test('matching required surface cannot be covered by a not-required receipt', () => {
+  for (const reason of ['missing-before', 'missing-after']) {
+    const doc = validDoc();
+    doc.comparability = [
+      {
+        surface: 'checkout',
+        status: 'not-required',
+        required: false,
+        reason,
+      },
+    ];
+    const receipt = assessPhase0Contract(doc);
+    assert.equal(receipt.certifies, false, reason);
+    assert.equal(receipt.axes.comparability, 'invalid', reason);
+    assert.ok(receipt.reasons.includes('comparability-mismatch'), reason);
+    assertClosedReasons(receipt);
+  }
+});
+
 test('foreign pricing-only comparability cannot cover required checkout', () => {
   const doc = validDoc();
   doc.comparability = [
