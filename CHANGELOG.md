@@ -7,6 +7,24 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Action steps no longer trip `set -u` on empty argument arrays** (#457): the
+  report step ran under `set -euo pipefail` and expanded
+  `"${state_identity_arguments[@]}"`, which is EMPTY whenever
+  `require-state-identity` is false — the default. bash 4.4 tolerates that;
+  **macOS ships bash 3.2**, which raises `unbound variable`. Every consumer on a
+  macOS self-hosted runner therefore lost its report step, skipped publication,
+  and terminated as `CERTIFICATION_FAILED` — a verdict that points at coverage
+  and determinism, both of which log green immediately above the real failure.
+  A downstream consumer measured 100% of visual jobs failing this way from the
+  6.2.1 pin onward. Both the diff and report steps now use the portable
+  `${arr[@]+"${arr[@]}"}` idiom, which expands to nothing instead of erroring;
+  the diff step is guarded too, since it carried the same expansions and was one
+  `set -u` away from the identical outage. `test/action-bash-portability.test.mjs`
+  executes the real `run:` bodies from `action.yml` under `bash -u` with the
+  empty-array configuration, so the guard cannot regress.
+
 ### Added
 
 - Phase 0 v0.1 truth-contract kernel (`assessPhase0Contract`) with closed layered
