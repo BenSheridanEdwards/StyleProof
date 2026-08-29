@@ -21,7 +21,11 @@ not restate that lattice as a second decision.
   privacy-safe `Phase0ContractError`. Parsed JSON with an invalid closed schema
   is `present-invalid`.
 - **Closed fields.** Unknown fields, unknown enums, and nested duplicate JSON
-  keys fail closed. Hostile values are never echoed.
+  keys fail closed. Hostile values are never echoed. The public object path
+  snapshots untrusted arrays from own length and index descriptors only;
+  length, iterator, accessor, revoked-proxy, and same-class secret traps return
+  `present-invalid` and never throw trap text. JSON bytes cannot produce those
+  traps and stay on the ordinary parser.
 - **Required domains.** Exactly one source-run envelope per domain:
   `capture-maps`, `coverage-ledger`, `determinism`, `product-state`,
   `evidence-store`, `source-binding`.
@@ -29,9 +33,11 @@ not restate that lattice as a second decision.
   `declared|excluded`. Evidence domains are `styleproof` with modes
   `observed|derived`. Assertion producer, version, and run must match the run.
 - **Layered identity.** Product-state identities carry a revision. Source
-  snapshots bind a 40-hex SHA. Assertion identities bijection with assertions.
-  Evidence identities bind a sha256 digest. Obligation `sourceSnapshot` and
-  assertion `validity` name snapshot identities, not raw SHAs.
+  snapshots bind a 40-hex SHA; distinct snapshot identities may not share a
+  SHA. Assertion identities bijection with assertions. Evidence identities bind
+  a sha256 digest. Obligation `sourceSnapshot` and assertion `validity` name
+  snapshot identities, not raw SHAs. An assertion's validity snapshot SHA must
+  equal its producing run SHA.
 - **Denominator and execution.** Enumerated `factCount` equals assertions for
   that run. Complete enumerated zero-fact runs require
   `emptyUniverseProof: true`; positive facts forbid it. Failed, unsupported,
@@ -44,12 +50,19 @@ not restate that lattice as a second decision.
   product-state identity endpoints. Cross-layer, duplicate, dangling, and
   cyclic relations fail closed.
 - **Joins.** Each required satisfied obligation has exactly one integrity join
-  to a StyleProof evidence/capture run in the obligation scope. Artifact
-  digests are an exact closure including credited run config digests.
+  to a StyleProof `capture-maps` or `evidence-store` run in the obligation
+  scope. Coverage-ledger, determinism, source-binding, and product-state runs
+  cannot be `join.run`. Artifact digests are an exact closure including credited
+  run config digests. The set of evidence identity digests must equal the set of
+  integrity join `evidenceDigest` values.
 - **Comparability.** Only the shipped #438 status/reason/required combinations
-  are valid. Style, DOM, and copy never mint comparability.
+  are valid. Required obligation surfaces must equal comparability receipt
+  surfaces exactly. Invalid combinations and incomparable receipts return
+  bounded `comparability-mismatch`. Style, DOM, and copy never mint
+  comparability. Kernel `certifies` is not proof that obligated pins exist.
 - **Bounds.** Documents are limited to 16 MiB, arrays to 10,000 entries, and
-  JSON nesting to 64 levels. Nested duplicate keys fail closed.
+  JSON nesting to 64 levels. Nested duplicate keys fail closed. The Uint8Array
+  path rejects `byteLength` above 16 MiB before `TextDecoder`.
 
 ## What this contract does not do
 

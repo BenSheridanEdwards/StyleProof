@@ -107,7 +107,8 @@
       "artifactDigests": [
         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       ],
-      "obligationId": "obl-1"
+      "obligationId": "obl-1",
+      "evidenceDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     }
   ]
 }

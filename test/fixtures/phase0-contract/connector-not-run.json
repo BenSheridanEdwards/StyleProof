@@ -196,7 +196,8 @@
         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
       ],
-      "obligationId": "obl-1"
+      "obligationId": "obl-1",
+      "evidenceDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
     }
   ]
 }

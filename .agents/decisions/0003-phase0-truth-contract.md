@@ -30,7 +30,9 @@ retrospectively reconciles #438 and #452 without reimplementing them:
    product-state `{id, revision}`, source-snapshot `{id, sourceSha}`,
    assertion `{id, assertionId}`, evidence `{id, evidenceDigest}`. Obligation
    `sourceSnapshot` and assertion `validity` reference source-snapshot identity
-   IDs, never raw SHAs. Cross-layer IDs fail closed.
+   IDs, never raw SHAs. Distinct source-snapshot identities may not share
+   `sourceSha`. After resolving `assertion.run` and `assertion.validity`, the
+   snapshot SHA must equal the producing run SHA. Cross-layer IDs fail closed.
 
 3. **Enumerated denominator and execution.** `factCount` on a complete
    enumerated envelope equals the number of assertions whose `run` is that
@@ -50,23 +52,33 @@ retrospectively reconciles #438 and #452 without reimplementing them:
    duplicate relations, cross-layer endpoints, dangling endpoints, and cycles
    are invalid. Similar names never mint a relation.
 
-6. **Integrity join.** Required satisfied obligations have exactly one join.
-   Non-required and unsatisfied obligations have none. Assertions bind to their
-   source-run scope; credited capture evidence binds to the obligation surface.
-   Artifact digests are an exact set: manifest, credited run outputs and config
-   digests, assertion input/source digests, and evidence identity digests.
-   Supersets and subsets both fail.
+6. **Integrity join.** Required satisfied obligations have exactly one join
+   to a StyleProof `capture-maps` or `evidence-store` run. Coverage-ledger,
+   determinism, source-binding, and product-state runs are invalid join
+   producers. Non-required and unsatisfied obligations have none. Assertions
+   bind to their source-run scope; credited capture evidence binds to the
+   obligation surface. Artifact digests are an exact set: manifest, credited
+   run outputs and config digests, assertion input/source digests, and evidence
+   identity digests. The set of evidence identity digests equals the set of
+   join `evidenceDigest` values. Supersets and subsets both fail.
 
 7. **Comparability.** Receipt status/reason/required tuples are the shipped
-   #438 lattice. Impossible combinations fail closed. `certifies` means v0.1
-   contract conformance under internally bound authorities. It is not a release
-   decision, an Action verdict, or external producer authentication.
+   #438 lattice. Impossible combinations and incomparable receipts fail closed
+   as `comparability-mismatch`. Required obligation surfaces must equal
+   comparability receipt surfaces exactly; empty or foreign coverage cannot
+   certify. `certifies` means v0.1 contract conformance under internally bound
+   authorities. It is not a release decision, an Action verdict, or external
+   producer authentication.
 
 8. **Bounded parsing.** Documents are limited to 16 MiB, arrays to 10,000
    entries, and JSON nesting to 64 levels. Invalid UTF-8, malformed JSON syntax,
    oversize bytes, and excessive nesting throw a privacy-safe
-   `Phase0ContractError`. Parsed JSON with an invalid closed schema returns a
-   `present-invalid` receipt. Nested duplicate keys fail closed.
+   `Phase0ContractError`. The Uint8Array path rejects oversize `byteLength`
+   before decode. Parsed JSON with an invalid closed schema returns a
+   `present-invalid` receipt. Untrusted object arrays are snapshotted from own
+   descriptors only; hostile length, iterator, accessor, and revoked-proxy traps
+   return `present-invalid` and never echo trap text. Nested duplicate keys fail
+   closed.
 
 ## Consequences
 

@@ -1,6 +1,7 @@
 /** Phase 0 truth-contract kernel: closed types, parser, and assessment oracle. */
 
 import { createHash } from 'node:crypto';
+import { types } from 'node:util';
 import { isProductStateComparabilityStatus } from './comparability-status.js';
 
 export type Phase0Presence = 'present' | 'present-invalid' | 'absent-legacy';
@@ -42,7 +43,8 @@ export type Phase0Reason =
   | 'missing-join'
   | 'extra-join'
   | 'duplicate-join'
-  | 'fact-count-mismatch';
+  | 'fact-count-mismatch'
+  | 'comparability-mismatch';
 
 export type Phase0AssertionMode = 'declared' | 'observed' | 'derived' | 'excluded';
 export type Phase0Closure = 'enumerated' | 'partial' | 'unasserted';
@@ -153,6 +155,7 @@ export type Phase0IntegrityJoin = {
   semanticStateId: string;
   environmentDigest: string;
   sensorContract: string;
+  evidenceDigest: string;
   artifactDigests: string[];
 };
 
@@ -296,6 +299,7 @@ const INTEGRITY_FIELDS = new Set([
   'semanticStateId',
   'environmentDigest',
   'sensorContract',
+  'evidenceDigest',
   'artifactDigests',
 ]);
 
@@ -489,8 +493,67 @@ function closedEnum<T extends string>(value: unknown, allowed: Set<T>, draft: Dr
   return value as T;
 }
 
+function safeIsArray(value: unknown): boolean | 'hostile' {
+  try {
+    return Array.isArray(value);
+  } catch {
+    return 'hostile';
+  }
+}
+
+function readOwnDescriptor(value: object, key: string): PropertyDescriptor | 'hostile' | undefined {
+  try {
+    return Object.getOwnPropertyDescriptor(value, key);
+  } catch {
+    return 'hostile';
+  }
+}
+
+function lengthFromDescriptor(desc: PropertyDescriptor | 'hostile' | undefined): number | undefined {
+  if (desc === 'hostile' || !desc || !('value' in desc)) return undefined;
+  const length = desc.value;
+  if (typeof length !== 'number' || !Number.isInteger(length) || length < 0 || length > MAX_ARRAY) {
+    return undefined;
+  }
+  return length;
+}
+
+function snapshotIndex(value: object, index: number): { ok: true; value: unknown } | { ok: false } {
+  const desc = readOwnDescriptor(value, String(index));
+  if (desc === 'hostile' || !desc || !('value' in desc)) return { ok: false };
+  return { ok: true, value: desc.value };
+}
+
+function snapshotArray(value: unknown, draft: Draft): unknown[] | undefined {
+  const isArray = safeIsArray(value);
+  if (isArray !== true || types.isProxy(value)) {
+    add(draft, 'document-invalid');
+    return undefined;
+  }
+  const length = lengthFromDescriptor(readOwnDescriptor(value as object, 'length'));
+  if (length === undefined) {
+    add(draft, 'document-invalid');
+    return undefined;
+  }
+  const out: unknown[] = [];
+  for (let index = 0; index < length; index++) {
+    const item = snapshotIndex(value as object, index);
+    if (!item.ok) {
+      add(draft, 'document-invalid');
+      return undefined;
+    }
+    out.push(item.value);
+  }
+  return out;
+}
+
 function asArray(value: unknown, draft: Draft): unknown[] | undefined {
-  if (!Array.isArray(value) || value.length > MAX_ARRAY) {
+  return snapshotArray(value, draft);
+}
+
+function asClosedObject(value: unknown, draft: Draft): object | undefined {
+  const isArray = safeIsArray(value);
+  if (isArray === 'hostile' || value === null || typeof value !== 'object' || isArray === true) {
     add(draft, 'document-invalid');
     return undefined;
   }
@@ -538,112 +601,102 @@ function digestList(value: unknown, draft: Draft): string[] | undefined {
 }
 
 function parseAssertion(value: unknown, draft: Draft): Phase0Assertion | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    add(draft, 'document-invalid');
-    return undefined;
-  }
-  if (!closedKeys(value, ASSERTION_FIELDS, draft)) return undefined;
+  const record = asClosedObject(value, draft);
+  if (!record) return undefined;
+  if (!closedKeys(record, ASSERTION_FIELDS, draft)) return undefined;
   const parsed: Phase0Assertion = {
-    id: opaque(field(value, 'id', draft), draft) as string,
-    mode: closedEnum(field(value, 'mode', draft), ASSERTION_MODES, draft) as Phase0AssertionMode,
-    subject: opaque(field(value, 'subject', draft), draft) as string,
-    predicate: opaque(field(value, 'predicate', draft), draft) as string,
-    object: opaque(field(value, 'object', draft), draft) as string,
-    sourceDigest: digest(field(value, 'sourceDigest', draft), draft) as string,
-    inputDigest: digest(field(value, 'inputDigest', draft), draft) as string,
-    producer: opaque(field(value, 'producer', draft), draft) as string,
-    producerVersion: opaque(field(value, 'producerVersion', draft), draft) as string,
-    run: opaque(field(value, 'run', draft), draft) as string,
-    scope: opaque(field(value, 'scope', draft), draft) as string,
-    validity: opaque(field(value, 'validity', draft), draft) as string,
+    id: opaque(field(record, 'id', draft), draft) as string,
+    mode: closedEnum(field(record, 'mode', draft), ASSERTION_MODES, draft) as Phase0AssertionMode,
+    subject: opaque(field(record, 'subject', draft), draft) as string,
+    predicate: opaque(field(record, 'predicate', draft), draft) as string,
+    object: opaque(field(record, 'object', draft), draft) as string,
+    sourceDigest: digest(field(record, 'sourceDigest', draft), draft) as string,
+    inputDigest: digest(field(record, 'inputDigest', draft), draft) as string,
+    producer: opaque(field(record, 'producer', draft), draft) as string,
+    producerVersion: opaque(field(record, 'producerVersion', draft), draft) as string,
+    run: opaque(field(record, 'run', draft), draft) as string,
+    scope: opaque(field(record, 'scope', draft), draft) as string,
+    validity: opaque(field(record, 'validity', draft), draft) as string,
   };
   return draft.reasons.size === 0 ? parsed : undefined;
 }
 
 function parseSourceRun(value: unknown, draft: Draft): Phase0SourceRun | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    add(draft, 'document-invalid');
-    return undefined;
-  }
-  const keys = closedKeys(value, SOURCE_RUN_FIELDS, draft);
+  const record = asClosedObject(value, draft);
+  if (!record) return undefined;
+  const keys = closedKeys(record, SOURCE_RUN_FIELDS, draft);
   if (!keys) return undefined;
   const parsed: Phase0SourceRun = {
-    id: opaque(field(value, 'id', draft), draft) as string,
-    domain: closedEnum(field(value, 'domain', draft), DOMAINS, draft) as Phase0Domain,
-    producer: opaque(field(value, 'producer', draft), draft) as string,
-    producerVersion: opaque(field(value, 'producerVersion', draft), draft) as string,
-    authority: closedEnum(field(value, 'authority', draft), AUTHORITIES, draft) as Phase0Authority,
-    sourceSha: gitSha(field(value, 'sourceSha', draft), draft) as string,
-    configDigest: digest(field(value, 'configDigest', draft), draft) as string,
-    scope: opaque(field(value, 'scope', draft), draft) as string,
-    capabilities: opaqueList(field(value, 'capabilities', draft), draft) as string[],
-    execution: closedEnum(field(value, 'execution', draft), EXECUTIONS, draft) as Phase0Execution,
-    outputDigest: digest(field(value, 'outputDigest', draft), draft) as string,
-    closure: closedEnum(field(value, 'closure', draft), CLOSURES, draft) as Phase0Closure,
-    factCount: asFactCount(field(value, 'factCount', draft), draft) as number,
-    compatibilityKey: compatKey(field(value, 'compatibilityKey', draft), draft) as string,
+    id: opaque(field(record, 'id', draft), draft) as string,
+    domain: closedEnum(field(record, 'domain', draft), DOMAINS, draft) as Phase0Domain,
+    producer: opaque(field(record, 'producer', draft), draft) as string,
+    producerVersion: opaque(field(record, 'producerVersion', draft), draft) as string,
+    authority: closedEnum(field(record, 'authority', draft), AUTHORITIES, draft) as Phase0Authority,
+    sourceSha: gitSha(field(record, 'sourceSha', draft), draft) as string,
+    configDigest: digest(field(record, 'configDigest', draft), draft) as string,
+    scope: opaque(field(record, 'scope', draft), draft) as string,
+    capabilities: opaqueList(field(record, 'capabilities', draft), draft) as string[],
+    execution: closedEnum(field(record, 'execution', draft), EXECUTIONS, draft) as Phase0Execution,
+    outputDigest: digest(field(record, 'outputDigest', draft), draft) as string,
+    closure: closedEnum(field(record, 'closure', draft), CLOSURES, draft) as Phase0Closure,
+    factCount: asFactCount(field(record, 'factCount', draft), draft) as number,
+    compatibilityKey: compatKey(field(record, 'compatibilityKey', draft), draft) as string,
   };
   if (keys.includes('emptyUniverseProof')) {
-    parsed.emptyUniverseProof = asBoolean(field(value, 'emptyUniverseProof', draft), draft);
+    parsed.emptyUniverseProof = asBoolean(field(record, 'emptyUniverseProof', draft), draft);
   }
   if (Array.isArray(parsed.capabilities)) uniqueIds(parsed.capabilities, draft);
   return draft.reasons.size === 0 ? parsed : undefined;
 }
 
 function parseObligation(value: unknown, draft: Draft): Phase0Obligation | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    add(draft, 'document-invalid');
-    return undefined;
-  }
-  if (!closedKeys(value, OBLIGATION_FIELDS, draft)) return undefined;
+  const record = asClosedObject(value, draft);
+  if (!record) return undefined;
+  if (!closedKeys(record, OBLIGATION_FIELDS, draft)) return undefined;
   const parsed: Phase0Obligation = {
-    id: opaque(field(value, 'id', draft), draft) as string,
-    required: asBoolean(field(value, 'required', draft), draft) as boolean,
-    state: opaque(field(value, 'state', draft), draft) as string,
-    surface: opaque(field(value, 'surface', draft), draft) as string,
-    environment: digest(field(value, 'environment', draft), draft) as string,
-    sensor: opaque(field(value, 'sensor', draft), draft) as string,
-    sourceSnapshot: opaque(field(value, 'sourceSnapshot', draft), draft) as string,
-    physicalCaptureKey: opaque(field(value, 'physicalCaptureKey', draft), draft) as string,
-    outcome: closedEnum(field(value, 'outcome', draft), OBLIGATION_OUTCOMES, draft) as Phase0ObligationOutcome,
+    id: opaque(field(record, 'id', draft), draft) as string,
+    required: asBoolean(field(record, 'required', draft), draft) as boolean,
+    state: opaque(field(record, 'state', draft), draft) as string,
+    surface: opaque(field(record, 'surface', draft), draft) as string,
+    environment: digest(field(record, 'environment', draft), draft) as string,
+    sensor: opaque(field(record, 'sensor', draft), draft) as string,
+    sourceSnapshot: opaque(field(record, 'sourceSnapshot', draft), draft) as string,
+    physicalCaptureKey: opaque(field(record, 'physicalCaptureKey', draft), draft) as string,
+    outcome: closedEnum(field(record, 'outcome', draft), OBLIGATION_OUTCOMES, draft) as Phase0ObligationOutcome,
   };
   return draft.reasons.size === 0 ? parsed : undefined;
 }
 
 function parseRelation(value: unknown, draft: Draft): Phase0Relation | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    add(draft, 'document-invalid');
-    return undefined;
-  }
-  if (!closedKeys(value, RELATION_FIELDS, draft)) return undefined;
+  const record = asClosedObject(value, draft);
+  if (!record) return undefined;
+  if (!closedKeys(record, RELATION_FIELDS, draft)) return undefined;
   const parsed: Phase0Relation = {
-    kind: closedEnum(field(value, 'kind', draft), RELATION_KINDS, draft) as Phase0RelationKind,
-    from: opaqueList(field(value, 'from', draft), draft) as string[],
-    to: opaqueList(field(value, 'to', draft), draft) as string[],
+    kind: closedEnum(field(record, 'kind', draft), RELATION_KINDS, draft) as Phase0RelationKind,
+    from: opaqueList(field(record, 'from', draft), draft) as string[],
+    to: opaqueList(field(record, 'to', draft), draft) as string[],
   };
   return draft.reasons.size === 0 ? parsed : undefined;
 }
 
 function parseIdentity(value: unknown, draft: Draft): Phase0Identity | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    add(draft, 'document-invalid');
-    return undefined;
-  }
-  const keys = ownStringKeys(value);
+  const record = asClosedObject(value, draft);
+  if (!record) return undefined;
+  const keys = ownStringKeys(record);
   if (keys === null) {
     add(draft, 'document-invalid');
     return undefined;
   }
-  const layer = closedEnum(field(value, 'layer', draft), IDENTITY_LAYERS, draft);
+  const layer = closedEnum(field(record, 'layer', draft), IDENTITY_LAYERS, draft);
   if (!layer) return undefined;
   const allowed = IDENTITY_FIELDS_BY_LAYER[layer];
   if (keys.some((key) => !allowed.has(key))) {
     add(draft, 'unknown-field');
     return undefined;
   }
-  const id = opaque(field(value, 'id', draft), draft);
+  const id = opaque(field(record, 'id', draft), draft);
   if (!id) return undefined;
-  return parseIdentityFields(layer, value, id, draft);
+  return parseIdentityFields(layer, record, id, draft);
 }
 
 function parseIdentityFields(
@@ -669,49 +722,40 @@ function parseIdentityFields(
 }
 
 function parseComparability(value: unknown, draft: Draft): Phase0Comparability | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    add(draft, 'document-invalid');
-    return undefined;
-  }
-  if (!closedKeys(value, COMPARABILITY_FIELDS, draft)) return undefined;
-  const status = field(value, 'status', draft);
+  const record = asClosedObject(value, draft);
+  if (!record) return undefined;
+  if (!closedKeys(record, COMPARABILITY_FIELDS, draft)) return undefined;
+  const status = field(record, 'status', draft);
   if (!isProductStateComparabilityStatus(status)) {
     add(draft, 'unknown-enum');
     return undefined;
   }
   const parsed: Phase0Comparability = {
-    surface: opaque(field(value, 'surface', draft), draft) as string,
+    surface: opaque(field(record, 'surface', draft), draft) as string,
     status,
-    required: asBoolean(field(value, 'required', draft), draft) as boolean,
-    reason: closedEnum(field(value, 'reason', draft), COMPARABILITY_REASONS, draft) as Phase0ComparabilityReason,
+    required: asBoolean(field(record, 'required', draft), draft) as boolean,
+    reason: closedEnum(field(record, 'reason', draft), COMPARABILITY_REASONS, draft) as Phase0ComparabilityReason,
   };
-  if (draft.reasons.size > 0) return undefined;
-  const latticeKey = `${parsed.status}|${String(parsed.required)}|${parsed.reason}`;
-  if (!COMPARABILITY_LATTICE.has(latticeKey)) {
-    add(draft, 'document-invalid');
-    return undefined;
-  }
-  return parsed;
+  return draft.reasons.size === 0 ? parsed : undefined;
 }
 
 function parseIntegrity(value: unknown, draft: Draft): Phase0IntegrityJoin | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    add(draft, 'document-invalid');
-    return undefined;
-  }
-  if (!closedKeys(value, INTEGRITY_FIELDS, draft)) return undefined;
+  const record = asClosedObject(value, draft);
+  if (!record) return undefined;
+  if (!closedKeys(record, INTEGRITY_FIELDS, draft)) return undefined;
   const parsed: Phase0IntegrityJoin = {
-    obligationId: opaque(field(value, 'obligationId', draft), draft) as string,
-    sourceSha: gitSha(field(value, 'sourceSha', draft), draft) as string,
-    manifestDigest: digest(field(value, 'manifestDigest', draft), draft) as string,
-    compatibilityKey: compatKey(field(value, 'compatibilityKey', draft), draft) as string,
-    producer: opaque(field(value, 'producer', draft), draft) as string,
-    run: opaque(field(value, 'run', draft), draft) as string,
-    physicalCaptureKey: opaque(field(value, 'physicalCaptureKey', draft), draft) as string,
-    semanticStateId: opaque(field(value, 'semanticStateId', draft), draft) as string,
-    environmentDigest: digest(field(value, 'environmentDigest', draft), draft) as string,
-    sensorContract: opaque(field(value, 'sensorContract', draft), draft) as string,
-    artifactDigests: digestList(field(value, 'artifactDigests', draft), draft) as string[],
+    obligationId: opaque(field(record, 'obligationId', draft), draft) as string,
+    sourceSha: gitSha(field(record, 'sourceSha', draft), draft) as string,
+    manifestDigest: digest(field(record, 'manifestDigest', draft), draft) as string,
+    compatibilityKey: compatKey(field(record, 'compatibilityKey', draft), draft) as string,
+    producer: opaque(field(record, 'producer', draft), draft) as string,
+    run: opaque(field(record, 'run', draft), draft) as string,
+    physicalCaptureKey: opaque(field(record, 'physicalCaptureKey', draft), draft) as string,
+    semanticStateId: opaque(field(record, 'semanticStateId', draft), draft) as string,
+    environmentDigest: digest(field(record, 'environmentDigest', draft), draft) as string,
+    sensorContract: opaque(field(record, 'sensorContract', draft), draft) as string,
+    evidenceDigest: digest(field(record, 'evidenceDigest', draft), draft) as string,
+    artifactDigests: digestList(field(record, 'artifactDigests', draft), draft) as string[],
   };
   return draft.reasons.size === 0 ? parsed : undefined;
 }
@@ -987,18 +1031,45 @@ function assertionBijectionOk(document: Phase0ContractDocument): boolean {
 }
 
 function identityBindingReasons(document: Phase0ContractDocument): Phase0Reason[] {
+  return [
+    ...assertionIdentityReasons(document),
+    ...obligationIdentityReasons(document),
+    ...uniqueSnapshotShaReasons(document),
+  ];
+}
+
+function assertionIdentityReasons(document: Phase0ContractDocument): Phase0Reason[] {
   const reasons: Phase0Reason[] = [];
   if (!assertionBijectionOk(document)) reasons.push('invalid-id');
   const snapshots = snapshotById(document);
-  const products = productStateById(document);
+  const runById = new Map((document.sourceRuns ?? []).map((run) => [run.id, run]));
   for (const assertion of document.assertions ?? []) {
-    if (!snapshots.has(assertion.validity)) reasons.push('invalid-id');
+    const snap = snapshots.get(assertion.validity);
+    if (!snap) {
+      reasons.push('invalid-id');
+      continue;
+    }
+    const run = runById.get(assertion.run);
+    if (run && snap.sourceSha !== run.sourceSha) reasons.push('integrity-mismatch');
   }
+  return reasons;
+}
+
+function obligationIdentityReasons(document: Phase0ContractDocument): Phase0Reason[] {
+  const reasons: Phase0Reason[] = [];
+  const snapshots = snapshotById(document);
+  const products = productStateById(document);
   for (const obligation of document.obligations ?? []) {
     if (!products.has(obligation.state)) reasons.push('invalid-id');
     if (!snapshots.has(obligation.sourceSnapshot)) reasons.push('invalid-id');
   }
   return reasons;
+}
+
+function uniqueSnapshotShaReasons(document: Phase0ContractDocument): Phase0Reason[] {
+  const snapshotShas = identitiesOfLayer(document, 'source-snapshot').map((entry) => entry.sourceSha);
+  if (new Set(snapshotShas).size === snapshotShas.length) return [];
+  return ['duplicate-id', 'integrity-mismatch'];
 }
 
 function assessIdentity(document: Phase0ContractDocument): { status: Phase0AxisStatus; reasons: Phase0Reason[] } {
@@ -1227,31 +1298,53 @@ function mixedEnvironmentUnproven(group: Phase0Obligation[]): boolean {
   );
 }
 
-function assessComparability(entries: Phase0Comparability[]): { status: Phase0AxisStatus; reasons: Phase0Reason[] } {
-  if (entries.length === 0) return { status: 'not-required', reasons: [] };
+function assessComparability(document: Phase0ContractDocument): { status: Phase0AxisStatus; reasons: Phase0Reason[] } {
+  const entries = document.comparability ?? [];
   const surfaces = entries.map((entry) => entry.surface);
   if (new Set(surfaces).size !== surfaces.length) {
     return { status: 'invalid', reasons: ['duplicate-id'] };
   }
   const reasons: Phase0Reason[] = [];
   const statuses: Phase0AxisStatus[] = [];
-  for (const entry of entries) {
-    if (entry.status === 'comparable' && entry.reason === 'explicit-state-match') {
-      statuses.push('valid');
-      continue;
-    }
-    if (entry.status === 'not-required') {
-      statuses.push('not-required');
-      continue;
-    }
-    if (entry.status === 'incomparable') {
-      statuses.push('invalid');
-      continue;
-    }
-    reasons.push('legacy-unproven');
-    statuses.push('unproven');
+  if (!comparabilityCoversRequired(document, surfaces)) {
+    reasons.push('comparability-mismatch');
+    statuses.push('invalid');
   }
-  return { status: worstStatus(statuses), reasons };
+  for (const entry of entries) {
+    const note = comparabilityEntryNote(entry);
+    if (note.reason) reasons.push(note.reason);
+    statuses.push(note.status);
+  }
+  if (statuses.length === 0) return { status: 'not-required', reasons: [] };
+  return { status: worstStatus(statuses), reasons: [...new Set(reasons)] };
+}
+
+function comparabilityCoversRequired(document: Phase0ContractDocument, receiptSurfaces: string[]): boolean {
+  const required = uniqueSorted(
+    (document.obligations ?? []).filter((entry) => entry.required).map((entry) => entry.surface),
+  );
+  const receipts = uniqueSorted(receiptSurfaces);
+  return sameTexts(required, receipts);
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values)].sort(compareText);
+}
+
+function sameTexts(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
+function comparabilityEntryNote(entry: Phase0Comparability): { status: Phase0AxisStatus; reason?: Phase0Reason } {
+  const latticeKey = `${entry.status}|${String(entry.required)}|${entry.reason}`;
+  if (!COMPARABILITY_LATTICE.has(latticeKey)) {
+    return { status: 'invalid', reason: 'comparability-mismatch' };
+  }
+  if (entry.status === 'comparable') return { status: 'valid' };
+  if (entry.status === 'not-required') return { status: 'not-required' };
+  if (entry.status === 'incomparable') return { status: 'invalid', reason: 'comparability-mismatch' };
+  return { status: 'unproven', reason: 'legacy-unproven' };
 }
 
 function productStateIds(document: Phase0ContractDocument): Set<string> {
@@ -1299,6 +1392,17 @@ function joinMatchesObligation(
   );
 }
 
+function isCaptureOrEvidenceDomain(domain: Phase0Domain): boolean {
+  return domain === 'capture-maps' || domain === 'evidence-store';
+}
+
+function evidenceDigestSetEqual(document: Phase0ContractDocument): boolean {
+  const identityDigests = identitiesOfLayer(document, 'evidence').map((entry) => entry.evidenceDigest);
+  const joinDigests = (document.integrity ?? []).map((join) => join.evidenceDigest);
+  if (new Set(identityDigests).size !== identityDigests.length) return false;
+  return sameTexts(uniqueSorted(identityDigests), uniqueSorted(joinDigests));
+}
+
 function assessOneJoin(document: Phase0ContractDocument, join: Phase0IntegrityJoin): boolean {
   const runs = document.sourceRuns ?? [];
   const capture = runs.find((run) => run.domain === 'capture-maps');
@@ -1308,7 +1412,7 @@ function assessOneJoin(document: Phase0ContractDocument, join: Phase0IntegrityJo
   }
   const producerRun = runs.find((run) => run.id === join.run);
   if (!producerRun || producerRun.producer !== join.producer) return false;
-  if (producerRun.authority !== 'styleproof' || producerRun.domain === 'product-state') return false;
+  if (producerRun.authority !== 'styleproof' || !isCaptureOrEvidenceDomain(producerRun.domain)) return false;
   if (!productStateIds(document).has(join.semanticStateId)) return false;
   const obligation = (document.obligations ?? []).find((entry) => entry.id === join.obligationId);
   if (!obligation || !joinMatchesObligation(document, join, obligation)) return false;
@@ -1329,6 +1433,7 @@ function assessProvenance(document: Phase0ContractDocument): { status: Phase0Axi
   if (joins.some((join) => !satisfiedIds.has(join.obligationId))) reasons.push('extra-join');
   if (requiredSatisfied.some((entry) => (counts.get(entry.id) ?? 0) === 0)) reasons.push('missing-join');
   if (joins.some((join) => !assessOneJoin(document, join))) reasons.push('integrity-mismatch');
+  if (!evidenceDigestSetEqual(document)) reasons.push('integrity-mismatch');
   if (reasons.length > 0) return { status: 'invalid', reasons };
   return { status: 'valid', reasons: [] };
 }
@@ -1339,7 +1444,7 @@ function assessParsed(document: Phase0ContractDocument): Phase0CertificationRece
   const authority = assessAuthority(document);
   const execution = assessExecution(document.sourceRuns ?? []);
   const completeness = assessCompleteness(document);
-  const comparability = assessComparability(document.comparability ?? []);
+  const comparability = assessComparability(document);
   const provenance = assessProvenance(document);
   const axes: Record<Phase0AxisName, Phase0AxisStatus> = {
     integrity: 'valid',
@@ -1381,7 +1486,8 @@ function assessParsed(document: Phase0ContractDocument): Phase0CertificationRece
 }
 
 function assessObject(input: unknown): Phase0CertificationReceipt {
-  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+  const isArray = safeIsArray(input);
+  if (isArray === 'hostile' || input === null || typeof input !== 'object' || isArray === true) {
     return invalidReceipt(['document-invalid']);
   }
   const parsed = parseObject(input);
@@ -1396,13 +1502,24 @@ export function assessPhase0Contract(input?: unknown, bytes?: string | Uint8Arra
 }
 
 export function parsePhase0Contract(bytes: string | Uint8Array): Phase0CertificationReceipt {
+  if (typeof bytes !== 'string') {
+    let byteLength: number;
+    try {
+      byteLength = bytes.byteLength;
+    } catch {
+      throw new Phase0ContractError();
+    }
+    if (byteLength > MAX_DOCUMENT_BYTES) throw new Phase0ContractError();
+  }
   let source: string;
   try {
     source = toUtf8(bytes);
   } catch {
     throw new Phase0ContractError();
   }
-  if (Buffer.byteLength(source, 'utf8') > MAX_DOCUMENT_BYTES) throw new Phase0ContractError();
+  if (typeof bytes === 'string' && Buffer.byteLength(source, 'utf8') > MAX_DOCUMENT_BYTES) {
+    throw new Phase0ContractError();
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(source) as unknown;

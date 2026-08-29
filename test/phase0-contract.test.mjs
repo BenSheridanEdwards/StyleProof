@@ -114,16 +114,8 @@ test('valid enumerated control certifies when every required axis is valid', () 
 
 test('genuine one-sided addition without a relation remains not-required', () => {
   const doc = validDoc();
-  doc.comparability = [
-    {
-      surface: 'pricing',
-      status: 'not-required',
-      required: false,
-      reason: 'missing-before',
-    },
-  ];
+  doc.identities.push(productStateIdentity('state-pricing'));
   const receipt = assessPhase0Contract(doc);
-  assert.equal(receipt.axes.comparability, 'not-required');
   assert.equal(receipt.axes.identity, 'valid');
   assert.equal(receipt.reasons.includes('missing-relation'), false);
   assert.equal(receipt.counts.relations, 0);
