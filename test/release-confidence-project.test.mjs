@@ -294,6 +294,57 @@ test('unasserted or limited confidence cannot certify complete coverage', () => 
   }
 });
 
+test('empty or wrong-universe asserted confidence cannot certify', () => {
+  const confidenceCases = [
+    {
+      before: { version: 1, basis: 'asserted', entries: [] },
+      after: { version: 1, basis: 'asserted', entries: [] },
+    },
+    {
+      before: {
+        version: 1,
+        basis: 'asserted',
+        entries: [{ surface: 'login', producer: 'capture', status: 'captured' }],
+      },
+      after: {
+        version: 1,
+        basis: 'asserted',
+        entries: [{ surface: 'login', producer: 'capture', status: 'captured' }],
+      },
+    },
+    {
+      before: {
+        version: 1,
+        basis: 'asserted',
+        entries: [{ surface: 'login', producer: 'capture', status: 'captured' }],
+      },
+      after: {
+        version: 1,
+        basis: 'asserted',
+        entries: [{ surface: 'home', producer: 'capture', status: 'captured' }],
+      },
+    },
+  ];
+
+  for (const confidence of confidenceCases) {
+    const dirs = matchingCapturePair();
+    try {
+      writeConfidenceLedger(dirs.beforeDir, confidence.before);
+      writeConfidenceLedger(dirs.afterDir, confidence.after);
+      const storeRoot = path.join(dirs.root, 'evidence-store');
+      const imported = importMapBundleToEvidenceStore({ bundleDirectory: dirs.afterDir, storeRoot });
+      const produced = projectMatching(dirs, { storeRoot, capture: imported.capture });
+      const receipt = validateReleaseConfidenceManifest(produced.manifest);
+      const coverageRun = produced.manifest.sourceRuns.find((run) => run.domain === 'coverage-ledger');
+
+      assert.equal(receipt.certifies, false);
+      assert.equal(coverageRun.execution, 'partial');
+    } finally {
+      rmTmp(dirs.root);
+    }
+  }
+});
+
 test('missing coverage ledger is an unasserted not-run envelope, never proved empty', () => {
   const dirs = matchingCapturePair({ coverage: false });
   try {

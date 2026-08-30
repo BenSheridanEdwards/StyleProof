@@ -482,18 +482,42 @@ function compatibleBinding(input: ReleaseConfidenceProjectInput): SourceBindingR
   }
 }
 
-function completeCoverage(
+function sameValues(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function completeConfidenceUniverse(
   ledger: CoverageLedger | null,
+  confidence: ConfidenceLedgerFile | null,
+  capturedKeys: readonly string[],
+): string[] | null {
+  if (!ledger || !confidence || summarizeConfidence(confidence).completeness !== 'complete') return null;
+  if (!Array.isArray(ledger.expected) || ledger.expected.length === 0 || confidence.entries.length === 0) return null;
+  const expected = uniqueSorted(ledger.expected);
+  const confidenceSurfaces = uniqueSorted(confidence.entries.map((entry) => entry.surface));
+  const captured = uniqueSorted(capturedKeys);
+  if (expected.length !== ledger.expected.length || confidenceSurfaces.length !== confidence.entries.length)
+    return null;
+  return sameValues(confidenceSurfaces, expected) && sameValues(confidenceSurfaces, captured)
+    ? confidenceSurfaces
+    : null;
+}
+
+function completeCoverage(
+  beforeLedger: CoverageLedger | null,
+  afterLedger: CoverageLedger | null,
   beforeConfidence: ConfidenceLedgerFile | null,
   afterConfidence: ConfidenceLedgerFile | null,
+  beforeCapturedKeys: readonly string[],
+  afterCapturedKeys: readonly string[],
   verdict: ReturnType<typeof auditCoverage>,
 ): boolean {
+  const beforeUniverse = completeConfidenceUniverse(beforeLedger, beforeConfidence, beforeCapturedKeys);
+  const afterUniverse = completeConfidenceUniverse(afterLedger, afterConfidence, afterCapturedKeys);
   return (
-    ledger !== null &&
-    summarizeConfidence(beforeConfidence).completeness === 'complete' &&
-    summarizeConfidence(afterConfidence).completeness === 'complete' &&
-    Array.isArray(ledger.expected) &&
-    ledger.expected.length > 0 &&
+    beforeUniverse !== null &&
+    afterUniverse !== null &&
+    sameValues(beforeUniverse, afterUniverse) &&
     verdict.basis === 'complete'
   );
 }
@@ -527,8 +551,9 @@ function assembleContract(input: ReleaseConfidenceProjectInput): Phase0ContractD
   const evidence = requiredEvidence(input.evidence, afterManifest.sha, afterManifest.compatibilityKey);
   const comparability = copiedComparability(input.beforeDir, input.afterDir);
   const captureBinding = captureEvidenceBindingReceipt(input.beforeDir, input.afterDir);
-  const capturedKeys = bundleSurfaceKeys(input.afterDir, afterCoverage?.expected ?? null);
-  const coverageVerdict = auditCoverage(capturedKeys, afterCoverage);
+  const beforeCapturedKeys = bundleSurfaceKeys(input.beforeDir, beforeCoverage?.expected ?? null);
+  const afterCapturedKeys = bundleSurfaceKeys(input.afterDir, afterCoverage?.expected ?? null);
+  const coverageVerdict = auditCoverage(afterCapturedKeys, afterCoverage);
   const determinismVerdict = auditDeterminism(beforeCoverage, afterCoverage);
   const shared: SharedRun = {
     sourceSha: afterManifest.sha,
@@ -538,7 +563,15 @@ function assembleContract(input: ReleaseConfidenceProjectInput): Phase0ContractD
     scope: surface ?? input.releaseScope,
   };
 
-  const coverageComplete = completeCoverage(afterCoverage, beforeConfidence, afterConfidence, coverageVerdict);
+  const coverageComplete = completeCoverage(
+    beforeCoverage,
+    afterCoverage,
+    beforeConfidence,
+    afterConfidence,
+    beforeCapturedKeys,
+    afterCapturedKeys,
+    coverageVerdict,
+  );
   const determinismComplete = completeDeterminism(beforeCoverage, afterCoverage);
   const sourceBound = binding.status === 'bound';
   const captureComplete = records.length > 0 && sourceBound;
