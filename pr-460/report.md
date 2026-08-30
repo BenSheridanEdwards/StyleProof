@@ -1,19 +1,14 @@
 ## 🗺️ StyleProof report
 
-**Product-state comparison** — not required; there are no paired capture obligations.
+**Certification**
+- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
+- **Determinism** — ✓ proven (base self-checked, head self-checked)
+- **Inventory** — ✓ navigable set unchanged
+- **Failed data request**: ✗ this page called an API that failed, so the screenshot is the fallback UI, not the real data. home called `/api/status` (HTTP 500). Fixture the API, or declare why the fallback is the intended capture.
+- **Confidence** — ✓ complete (1 captured)
 
-🆕 **1 new surface(s)** captured with no baseline to compare: `home @ 320`. Approve them before they become the baseline.
+⚠️ **Product-state comparison** — unproven on 1 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
-## 🆕 New pages, states, or surfaces — review first
-
-### `home@320` · new surface <!-- styleproof-new -->
-
-_home @ 320_
-
-![new surface — after](crops/home-320-1-new.png)
-
-<sub>after · home @ 320</sub>
-
-_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._
+✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
 <!-- styleproof-receipt head-sha:297feea511ced142a34953557d2fba483b0e0fd1 run-id:33312446089 run-attempt:1 -->
