@@ -1,0 +1,110 @@
+{
+  "counts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "rawCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "reviewableCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "comparison": {
+    "rawCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "reviewableCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "newSurfaces": 0,
+    "removedSurfaces": 0,
+    "rawChangedSurfaces": 0,
+    "reviewableChangedSurfaces": 0,
+    "hasReviewableEvidence": false,
+    "rawOnlyNoReviewable": false,
+    "contentGeometryUncertain": false,
+    "incomparableSurfaces": 0,
+    "unprovenSurfaces": 1,
+    "requiredUnprovenSurfaces": 0,
+    "globalRequiredUnprovenSurfaces": 0,
+    "status": "unproven",
+    "requireStateIdentity": false,
+    "blocksCertification": false,
+    "counts": {
+      "comparable": 0,
+      "incomparable": 0,
+      "unproven": 1,
+      "notRequired": 0,
+      "requiredUnproven": 0,
+      "globalRequiredUnproven": 0
+    }
+  },
+  "comparability": [
+    {
+      "surface": "home@320",
+      "status": "unproven",
+      "required": false,
+      "reason": "state-identity-missing"
+    }
+  ],
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "content": {
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
+  },
+  "surfaces": [],
+  "confidence": {
+    "counts": {
+      "inaccessible": 0,
+      "unproven-determinism": 0,
+      "excluded-with-reason": 0,
+      "unknown": 0,
+      "captured": 0
+    },
+    "completeness": "unknown"
+  },
+  "sourceBinding": {
+    "status": "bound",
+    "compatibility": "matched",
+    "before": {
+      "expected": "81e653bd50462f2cf826f0b4dbb22ace3c94a2f4",
+      "observed": "81e653bd50462f2cf826f0b4dbb22ace3c94a2f4",
+      "result": "matched"
+    },
+    "after": {
+      "expected": "297feea511ced142a34953557d2fba483b0e0fd1",
+      "observed": "297feea511ced142a34953557d2fba483b0e0fd1",
+      "result": "matched"
+    }
+  },
+  "evidenceBinding": {
+    "version": 1,
+    "before": {
+      "algorithm": "sha256",
+      "digest": "a7eb5275f1817a9acb199b4f8ea149356ff190177c76a5b8d0a7f642e4117d07",
+      "fileCount": 4,
+      "mapCount": 1,
+      "byteCount": 1328
+    },
+    "after": {
+      "algorithm": "sha256",
+      "digest": "582e8276e2add6b00c60d24828ab69a06ff7603c2212ec61e4d78cc3fedf62d2",
+      "fileCount": 4,
+      "mapCount": 1,
+      "byteCount": 1328
+    }
+  }
+}
