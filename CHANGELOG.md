@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Release Confidence Manifest v0.1 kernel with exact-source and compatibility binding,
+  derived exclusions and gaps, canonical insertion-order-independent bytes, bounded
+  duplicate-key-aware parsing, hostile reflective-object closure, public package APIs,
+  and a packed public contract. Manifest conformance is not yet the report or Action
+  release gate; that policy wiring remains explicitly separate.
+
 ## [6.2.2] - 2026-08-29
 
 ### Fixed

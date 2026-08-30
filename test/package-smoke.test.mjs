@@ -60,6 +60,9 @@ function stagePackageDir(dest) {
     'docs/demo-composite.png',
     'docs/evidence-store-v2.md',
     'docs/component-manifest.md',
+    'docs/product-state-comparability.md',
+    'docs/phase0-truth-contract.md',
+    'docs/release-confidence-manifest.md',
     'README.md',
     'CHANGELOG.md',
     'LICENSE',
@@ -109,6 +112,11 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       'README-linked component-manifest guide must ship in the tarball',
     );
     assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/docs/release-confidence-manifest.md')),
+      true,
+      'release-confidence manifest contract must ship in the tarball',
+    );
+    assert.equal(
       fs.existsSync(path.join(app, 'node_modules/styleproof/test/fixtures/react-catalog')),
       false,
       'the React catalog reference fixture must never ship in the package tarball',
@@ -124,7 +132,7 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       process.execPath,
       [
         '-e',
-        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function' || typeof m.createEvidenceCapture !== 'function' || typeof m.writeEvidenceRef !== 'function') process.exit(1); })",
+        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function' || typeof m.createEvidenceCapture !== 'function' || typeof m.writeEvidenceRef !== 'function' || typeof m.createReleaseConfidenceManifest !== 'function' || typeof m.parseReleaseConfidenceManifest !== 'function' || typeof m.serializeReleaseConfidenceManifest !== 'function' || typeof m.validateReleaseConfidenceManifest !== 'function' || typeof m.projectReleaseConfidence !== 'function') process.exit(1); })",
       ],
       { cwd: app },
     );

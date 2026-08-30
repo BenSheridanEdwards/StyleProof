@@ -258,3 +258,23 @@ export type {
   Phase0Relation,
   Phase0SourceRun,
 } from './phase0-contract.js';
+
+export {
+  createReleaseConfidenceManifest,
+  digestReleaseConfidenceManifest,
+  parseReleaseConfidenceManifest,
+  serializeReleaseConfidenceManifest,
+  validateReleaseConfidenceManifest,
+  ReleaseConfidenceManifestError,
+} from './release-confidence-manifest.js';
+export type {
+  ReleaseConfidenceManifest,
+  ReleaseConfidenceManifestReason,
+  ReleaseConfidenceManifestReceipt,
+} from './release-confidence-manifest.js';
+export { projectReleaseConfidence, ReleaseConfidenceProjectError } from './release-confidence-project.js';
+export type {
+  ReleaseConfidenceEvidenceInput,
+  ReleaseConfidenceProjectInput,
+  ReleaseConfidenceProjectResult,
+} from './release-confidence-project.js';

@@ -333,6 +333,12 @@ one atomic rename. Git-backed remote publication still uses the v1 adapter while
 the dual-write and remote CAS migration is completed; see
 [`docs/evidence-store-v2.md`](docs/evidence-store-v2.md).
 
+For canonical exact-source release evidence, see the
+[Release Confidence Manifest v0.1 contract](docs/release-confidence-manifest.md).
+It projects existing capture, comparability, ledger, source-binding and verified
+evidence-store artifacts without replacing their truth rules. The manifest is not
+yet the report or Action gate; that consumer policy remains separate.
+
 `styleproof setup` detects your app and wires **surface discovery** for you — there is nothing to hand-list for the first capture:
 
 - **Next.js** — it discovers your routes (`app/` + `pages/`) at run time and derives _both_ the captured surfaces and the coverage guard from them, so a route you add later is captured automatically, never a guard failure.
