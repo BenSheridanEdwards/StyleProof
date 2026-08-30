@@ -197,6 +197,21 @@ test('reflective envelope objects and arrays are present-invalid even when traps
   }
 });
 
+test('nested reflective Phase 0 records are present-invalid even when traps look honest', () => {
+  for (const field of ['identities', 'assertions', 'sourceRuns', 'obligations', 'comparability', 'evidenceJoins']) {
+    const manifest = createReleaseConfidenceManifest({
+      manifestId: `rcm-nested-reflective-${field}`,
+      producerVersion: '6.2.2',
+      releaseScope: 'release-control',
+      contract: validContract(),
+    });
+    manifest[field][0] = new Proxy(manifest[field][0], {});
+    const receipt = validateReleaseConfidenceManifest(manifest);
+    assert.equal(receipt.presence, 'present-invalid', field);
+    assert.equal(receipt.certifies, false, field);
+  }
+});
+
 test('hostile programmatic objects return one closed invalid receipt without leaking attacker text', () => {
   const secret = 'private-token-material';
   const manifest = createReleaseConfidenceManifest({
@@ -254,6 +269,27 @@ test('oversized manifest bytes fail before UTF-8 decoding', () => {
   };
   try {
     const bytes = new Uint8Array(16 * 1024 * 1024 + 1);
+    assert.throws(() => parseReleaseConfidenceManifest(bytes), ReleaseConfidenceManifestError);
+    assert.equal(decoded, false);
+  } finally {
+    TextDecoder.prototype.decode = original;
+  }
+});
+
+test('typed-array subclass cannot lie about byte length before decoding', () => {
+  class LyingBytes extends Uint8Array {
+    get byteLength() {
+      return 0;
+    }
+  }
+  const original = TextDecoder.prototype.decode;
+  let decoded = false;
+  TextDecoder.prototype.decode = function decodeOversize(...args) {
+    decoded = true;
+    return original.apply(this, args);
+  };
+  try {
+    const bytes = new LyingBytes(16 * 1024 * 1024 + 1);
     assert.throws(() => parseReleaseConfidenceManifest(bytes), ReleaseConfidenceManifestError);
     assert.equal(decoded, false);
   } finally {

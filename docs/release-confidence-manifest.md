@@ -34,7 +34,8 @@ Semantically unordered collections are canonicalized, so producer scheduling and
 
 - Missing, failed, partial, unsupported, unasserted, excluded, proved-empty, and satisfied remain distinct.
 - Missing coverage, confidence, product-state, evidence-store, or trusted source binding never becomes proof of an empty universe.
-- `expected: []` is not evidence unless an explicit empty-universe proof exists.
+- `expected: []` is not evidence unless an explicit empty-universe proof exists. The v0.1 projector accepts no user-supplied empty-universe override, so an empty registry remains non-certifying.
+- Projector `producerVersion` must equal the exact after-capture manifest `packageVersion`; caller metadata cannot relabel artifact-producing bytes.
 - Product-state comparability is copied from StyleProof's existing receipt. It is never inferred from CSS, DOM, route names, or labels.
 - Required satisfied obligations receive join credit only from `capture-maps` or `evidence-store` evidence.
 - A legacy manifest may be present and non-certifying. It is not malformed, and it never strengthens into certification.

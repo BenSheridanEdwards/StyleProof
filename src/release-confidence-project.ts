@@ -481,8 +481,18 @@ function compatibleBinding(input: ReleaseConfidenceProjectInput): SourceBindingR
   }
 }
 
-function completeCoverage(ledger: CoverageLedger | null, verdict: ReturnType<typeof auditCoverage>): boolean {
-  return ledger !== null && verdict.basis === 'complete';
+function completeCoverage(
+  ledger: CoverageLedger | null,
+  confidence: ConfidenceLedgerFile | null,
+  verdict: ReturnType<typeof auditCoverage>,
+): boolean {
+  return (
+    ledger !== null &&
+    confidence !== null &&
+    Array.isArray(ledger.expected) &&
+    ledger.expected.length > 0 &&
+    verdict.basis === 'complete'
+  );
 }
 
 function completeDeterminism(before: CoverageLedger | null, after: CoverageLedger | null): boolean {
@@ -502,6 +512,7 @@ function everyPrerequisite(...values: boolean[]): boolean {
 
 function assembleContract(input: ReleaseConfidenceProjectInput): Phase0ContractDocument {
   const afterManifest = requiredHeadManifest(input.afterDir);
+  if (input.producerVersion !== afterManifest.packageVersion) throw new ReleaseConfidenceProjectError();
   const beforeCoverage = strictCoverage(input.beforeDir);
   const afterCoverage = strictCoverage(input.afterDir);
   const beforeConfidence = strictConfidence(input.beforeDir);
@@ -524,7 +535,7 @@ function assembleContract(input: ReleaseConfidenceProjectInput): Phase0ContractD
     scope: surface ?? input.releaseScope,
   };
 
-  const coverageComplete = completeCoverage(afterCoverage, coverageVerdict);
+  const coverageComplete = completeCoverage(afterCoverage, afterConfidence, coverageVerdict);
   const determinismComplete = completeDeterminism(beforeCoverage, afterCoverage);
   const sourceBound = binding.status === 'bound';
   const captureComplete = records.length > 0 && sourceBound;

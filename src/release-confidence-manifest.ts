@@ -62,6 +62,10 @@ const GIT_SHA = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const COMPATIBILITY_KEY = /^[0-9a-f]{16}$/;
 const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
+const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),
+  'byteLength',
+)?.get;
 const MAX_JSON_DEPTH = 64;
 const MANIFEST_FIELDS = new Set([
   'kind',
@@ -152,6 +156,40 @@ function snapshotOwnArray(value: unknown): unknown[] | undefined {
     return snapshot;
   } catch {
     return undefined;
+  }
+}
+
+function plainDataChildren(value: object): unknown[] | undefined {
+  if (types.isProxy(value)) return undefined;
+  if (Array.isArray(value)) return snapshotOwnArray(value);
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return undefined;
+  const children: unknown[] = [];
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string') return undefined;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || descriptor.enumerable !== true || !('value' in descriptor)) return undefined;
+    children.push(descriptor.value);
+  }
+  return children;
+}
+
+function isPlainDataTree(value: unknown): boolean {
+  try {
+    const pending: unknown[] = [value];
+    const seen = new WeakSet<object>();
+    while (pending.length > 0) {
+      const current = pending.pop();
+      if (current === null || ['string', 'number', 'boolean'].includes(typeof current)) continue;
+      if (typeof current !== 'object' || seen.has(current)) return false;
+      seen.add(current);
+      const children = plainDataChildren(current);
+      if (!children) return false;
+      pending.push(...children);
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -250,7 +288,16 @@ function phase0Document(manifest: ReleaseConfidenceManifest): Phase0ContractDocu
   const relations = snapshotOwnArray(manifest.relations) as Phase0Relation[] | undefined;
   const comparability = snapshotOwnArray(manifest.comparability) as Phase0Comparability[] | undefined;
   const integrity = snapshotOwnArray(manifest.evidenceJoins) as Phase0IntegrityJoin[] | undefined;
-  if (!identities || !assertions || !sourceRuns || !obligations || !relations || !comparability || !integrity) {
+  if (
+    !identities ||
+    !assertions ||
+    !sourceRuns ||
+    !obligations ||
+    !relations ||
+    !comparability ||
+    !integrity ||
+    ![identities, assertions, sourceRuns, obligations, relations, comparability, integrity].every(isPlainDataTree)
+  ) {
     throw new ReleaseConfidenceManifestError();
   }
   return {
@@ -545,7 +592,8 @@ export function parseReleaseConfidenceManifest(bytes: string | Uint8Array): Rele
   if (typeof bytes !== 'string') {
     let byteLength: number;
     try {
-      byteLength = bytes.byteLength;
+      if (!types.isUint8Array(bytes) || !TYPED_ARRAY_BYTE_LENGTH) throw new ReleaseConfidenceManifestError();
+      byteLength = TYPED_ARRAY_BYTE_LENGTH.call(bytes) as number;
     } catch {
       throw new ReleaseConfidenceManifestError();
     }

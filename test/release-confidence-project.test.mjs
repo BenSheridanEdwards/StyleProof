@@ -90,7 +90,7 @@ function matchingCapturePair({ coverage = true } = {}) {
   return { root, beforeDir, afterDir };
 }
 
-function projectMatching(dirs, evidence) {
+function projectMatching(dirs, evidence, overrides = {}) {
   return projectReleaseConfidence({
     beforeDir: dirs.beforeDir,
     afterDir: dirs.afterDir,
@@ -100,6 +100,7 @@ function projectMatching(dirs, evidence) {
     expectedBeforeSha: BASE_SHA,
     expectedAfterSha: HEAD_SHA,
     evidence,
+    ...overrides,
   });
 }
 
@@ -209,6 +210,48 @@ test('projects matching 6.2 artifacts and verified evidence into one certifying 
   }
 });
 
+test('empty coverage registry cannot synthesize a certifying empty-universe proof', () => {
+  const dirs = matchingCapturePair();
+  try {
+    const emptyCoverage = { version: 1, expected: [], exclude: {}, determinism: 'self-checked' };
+    for (const dir of [dirs.beforeDir, dirs.afterDir]) {
+      fs.writeFileSync(path.join(dir, COVERAGE_LEDGER), JSON.stringify(emptyCoverage));
+      writeConfidenceLedger(dir, buildConfidenceLedger({ capturedKeys: ['home'], coverage: emptyCoverage }));
+    }
+    const storeRoot = path.join(dirs.root, 'evidence-store');
+    const imported = importMapBundleToEvidenceStore({ bundleDirectory: dirs.afterDir, storeRoot });
+    const produced = projectMatching(dirs, { storeRoot, capture: imported.capture });
+    const receipt = validateReleaseConfidenceManifest(produced.manifest);
+    const coverageRun = produced.manifest.sourceRuns.find((run) => run.domain === 'coverage-ledger');
+
+    assert.equal(receipt.certifies, false);
+    assert.equal(coverageRun.execution, 'partial');
+    assert.equal(coverageRun.emptyUniverseProof, undefined);
+  } finally {
+    rmTmp(dirs.root);
+  }
+});
+
+test('missing confidence ledger cannot certify complete coverage', () => {
+  const dirs = matchingCapturePair();
+  try {
+    for (const dir of [dirs.beforeDir, dirs.afterDir]) {
+      fs.rmSync(path.join(dir, CONFIDENCE_LEDGER));
+    }
+    const storeRoot = path.join(dirs.root, 'evidence-store');
+    const imported = importMapBundleToEvidenceStore({ bundleDirectory: dirs.afterDir, storeRoot });
+    const produced = projectMatching(dirs, { storeRoot, capture: imported.capture });
+    const receipt = validateReleaseConfidenceManifest(produced.manifest);
+    const coverageRun = produced.manifest.sourceRuns.find((run) => run.domain === 'coverage-ledger');
+
+    assert.equal(receipt.certifies, false);
+    assert.equal(coverageRun.execution, 'partial');
+    assert.equal(coverageRun.emptyUniverseProof, undefined);
+  } finally {
+    rmTmp(dirs.root);
+  }
+});
+
 test('missing coverage ledger is an unasserted not-run envelope, never proved empty', () => {
   const dirs = matchingCapturePair({ coverage: false });
   try {
@@ -244,6 +287,21 @@ test('present malformed ledgers hard-fail distinctly from missing ledgers', () =
     } finally {
       rmTmp(dirs.root);
     }
+  }
+});
+
+test('projector producer version must equal the exact capture package version', () => {
+  const dirs = matchingCapturePair();
+  try {
+    const storeRoot = path.join(dirs.root, 'evidence-store');
+    const imported = importMapBundleToEvidenceStore({ bundleDirectory: dirs.afterDir, storeRoot });
+    assert.throws(
+      () => projectMatching(dirs, { storeRoot, capture: imported.capture }, { producerVersion: '9.9.9' }),
+      (error) =>
+        error instanceof ReleaseConfidenceProjectError && error.message === 'release confidence projection failed',
+    );
+  } finally {
+    rmTmp(dirs.root);
   }
 });
 
