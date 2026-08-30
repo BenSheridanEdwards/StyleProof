@@ -94,17 +94,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "74dcc6dbf6d1985b2dae636414afb8e3775661139d327b57336fff25463ac083",
+      "digest": "2f472209bca6abffe904911a661017f42d98fab4d1569f40443ed99a28f1c681",
       "fileCount": 4,
       "mapCount": 1,
-      "byteCount": 1381
+      "byteCount": 1324
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "7da3618668331386a3bd8d26127b9119af5bfc2458512b291705220242ceebb6",
+      "digest": "9050211d4542d721296c92d78070806bb6782050e2bc554bf3395bef32616488",
       "fileCount": 4,
       "mapCount": 1,
-      "byteCount": 1371
+      "byteCount": 1324
     }
   }
 }
