@@ -36,9 +36,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Typecheck
-        run: npm run typecheck
-
       # ESLint 10's formatter uses newer Node APIs when printing findings. Keep
       # runtime support proven on every Node version, but run lint/format once on
       # the supported toolchain.
@@ -67,7 +64,8 @@ jobs:
         run: node scripts/demo-report.mjs --check
 
       - name: Unit tests
-        run: npm test
+        # Build already emitted and typechecked this exact checkout above.
+        run: npm run test:unit
 
       # The one place the browser capture path (page.evaluate + CDP) is
       # exercised — a self-contained file:// fixture, no live server. Runs on
@@ -87,7 +85,8 @@ jobs:
 
       - name: Smoke e2e
         if: matrix.node == '22'
-        run: npm run test:e2e
+        # Reuse the exact dist/ emitted by Build instead of compiling a third time.
+        run: npx playwright test
 
       - name: Print determinism oracle receipt
         if: matrix.node == '22'
@@ -119,5 +118,4 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-      - run: npm run typecheck
       - run: node --test test/package-smoke.test.mjs

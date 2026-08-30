@@ -2,7 +2,7 @@
 
 The Release Confidence Manifest (RCM) is StyleProof's canonical, exact-source projection of the evidence it already owns. It wraps the Phase 0 truth contract with producer identity, source SHA, compatibility key, declared release scope, derived exclusions and gaps, and a content digest.
 
-It is not a release verdict. In v0.1, `certifies: true` means the manifest and its inner evidence contract are internally closed and mutually bound. It does not authenticate the producer, prove publication, record human approval, or replace Action policy. Report projection and the hard Action gate belong to #443.
+It is not by itself a release verdict. In v0.1, `certifies: true` means the manifest and its inner evidence contract are internally closed and mutually bound. The report projects that validated result, and the Action hard-blocks missing, invalid, or non-certifying evidence. The manifest does not authenticate the producer, record human approval, or replace Action policy.
 
 ## Public API
 
@@ -54,15 +54,28 @@ The serializer then inserts that digest and canonicalizes the complete manifest.
 
 ## Walking slice
 
-The #437 walking slice uses production StyleProof artifact shapes:
+The release-confidence walking slice uses production StyleProof artifact shapes:
 
 ```text
 capture maps + manifests + ledgers
   → diff and comparability receipt
   → RCM projection
   → canonical sidecar
-  → existing report
-  → existing Action merge program
+  → bounded Markdown + report.json summary
+  → literal Action sidecar/report validation
+  → non-approvable certification gate
+  → exact-commit publication readback
 ```
 
-The report and Action continue to operate unchanged in #437. Their release decision does not consume the RCM until #443 freezes and tests that gate.
+The report CLI projects one RCM from the same capture directories it reports,
+writes `styleproof-release-confidence.json`, and rechecks the capture receipts
+after writing all artifacts. The report summary is a bounded projection of the
+shipped validator, not a second truth engine.
+
+The Action independently parses the sidecar, recomputes its bounded summary,
+binds the manifest source SHA to the trusted head SHA, and requires exact
+summary equality before copying it into the canonical diff receipt. Missing,
+invalid, stale, incompatible, partial, non-certifying, or future evidence maps
+to `CERTIFICATION_FAILED` before visual approval. Publication then reads
+`report.md`, `report.json`, and the canonical sidecar back from the exact
+advertised report commit and requires the digest established by the merge step.

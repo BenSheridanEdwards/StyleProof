@@ -78,6 +78,7 @@
     "format:check": "prettier --check \"{src,bin,test,example,scripts}/**/*.{ts,mjs,js}\" \"*.{ts,js,mjs,json,md}\"",
     "privacy:check": "node scripts/privacy-check.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
+    "test:unit": "node --test test/*.test.mjs",
     "test:watch": "node --test --watch test/*.test.mjs",
     "test:e2e": "npm run build && playwright test",
     "bench": "npm run build && node bench/gate-speed.mjs",

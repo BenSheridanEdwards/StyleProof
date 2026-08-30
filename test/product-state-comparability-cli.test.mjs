@@ -105,7 +105,7 @@ test('report CLI labels unbound clean output and durable markdown as unverified 
       cwd: capture.root,
       encoding: 'utf8',
     });
-    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
     assert.match(result.stdout, /UNVERIFIED DIAGNOSTIC/i);
     assert.doesNotMatch(result.stdout, /✓ no reviewable/i);
     const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
@@ -168,7 +168,7 @@ test('diff and report independently emit the same canonical source-binding recei
       HEAD_SHA,
     ];
     const report = spawnSync(process.execPath, reportArgs, { cwd: capture.root, encoding: 'utf8' });
-    assert.equal(report.status, 0, report.stderr || report.stdout);
+    assert.equal(report.status, 1, report.stderr || report.stdout);
     const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
     assert.deepEqual(reportJson.sourceBinding, diff.json.sourceBinding);
     assert.deepEqual(reportJson.evidenceBinding, diff.json.evidenceBinding);

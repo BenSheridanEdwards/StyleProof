@@ -1,5 +1,7 @@
 ## 🗺️ StyleProof report
 
+**Release confidence** — ✗ blocked (absent-legacy; integrity; manifest-absent)
+
 ⚠️ **Product-state comparison** — unproven on 3 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.

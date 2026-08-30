@@ -2,11 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
+import { buildConfidenceLedger, writeConfidenceLedger } from '../dist/confidence-ledger.js';
 
 const root = process.argv[2] || 'action-dogfood';
 const baseSha = process.argv[3];
 const headSha = process.argv[4];
 const TRUSTED_SHA = /^[0-9a-f]{40}$/;
+const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+const PRODUCT_STATE = { id: 'action-dogfood-ready', revision: 'fixture-v1' };
 
 if (!TRUSTED_SHA.test(baseSha ?? '') || !TRUSTED_SHA.test(headSha ?? '')) {
   throw new Error('action dogfood fixtures require trusted base and head SHAs');
@@ -25,6 +28,7 @@ function map(color = 'rgb(0, 0, 0)') {
       },
     },
     states: {},
+    metadata: { productState: PRODUCT_STATE },
   };
 }
 
@@ -79,7 +83,7 @@ function png([r, g, b]) {
 // synthetic, and the same-environment guard only needs the two sides to match.
 const MANIFEST = {
   version: 1,
-  packageVersion: '0.0.0-dogfood',
+  packageVersion: PACKAGE_VERSION,
   dirty: false,
   spec: 'scripts/action-dogfood-fixtures.mjs',
   specHash: '1'.repeat(64),
@@ -103,7 +107,7 @@ function writeSyntheticCoverage(dir, surface, overrides = {}) {
   const file = path.join(dir, 'styleproof-coverage.json');
   const prior = fs.existsSync(file)
     ? JSON.parse(fs.readFileSync(file, 'utf8'))
-    : { version: 1, expected: [], exclude: {}, determinism: 'self-checked', dataResidue: 'off' };
+    : { version: 1, expected: [], exclude: {}, determinism: 'self-checked', dataResidue: 'warn' };
   const surfaceKey = surface.replace(/@[^@]+$/, '');
   const expected = [...new Set([...(prior.expected ?? []), surfaceKey])].sort();
   fs.writeFileSync(file, JSON.stringify({ ...prior, expected, ...overrides }, null, 2));
@@ -189,3 +193,19 @@ writeCapture(path.join(root, 'certfail-base'), 'home@320', map(), png([240, 240,
 writeCapture(path.join(root, 'certfail-head'), 'home@320', map(), png([240, 240, 240]));
 armUnprovenDeterminism(path.join(root, 'certfail-base'));
 armUnprovenDeterminism(path.join(root, 'certfail-head'));
+
+// The hosted Action consumes the same confidence artifacts as a real capture.
+// Generate them last so scenario-specific coverage mutations are reflected in
+// the canonical Release Confidence Manifest projected by styleproof-report.
+for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+  if (!entry.isDirectory()) continue;
+  const dir = path.join(root, entry.name);
+  const coveragePath = path.join(dir, 'styleproof-coverage.json');
+  if (!fs.existsSync(coveragePath)) continue;
+  const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8'));
+  const capturedKeys = fs
+    .readdirSync(dir)
+    .filter((name) => name.endsWith('.json.gz'))
+    .map((name) => name.slice(0, -'.json.gz'.length).replace(/@[^@]+$/, ''));
+  writeConfidenceLedger(dir, buildConfidenceLedger({ capturedKeys, coverage }));
+}

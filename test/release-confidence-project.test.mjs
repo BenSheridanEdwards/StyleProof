@@ -190,21 +190,38 @@ test('projects matching 6.2 artifacts and verified evidence into one certifying 
     const githubOutput = path.join(dirs.root, 'github-output');
     fs.writeFileSync(mergeScript, actionReportMergeScript());
     fs.writeFileSync(githubOutput, '');
+    const mergeEnv = {
+      ...process.env,
+      STYLEPROOF_INCLUDE_CONTENT: 'false',
+      STYLEPROOF_EXPECTED_BASE_SHA: BASE_SHA,
+      STYLEPROOF_EXPECTED_HEAD_SHA: HEAD_SHA,
+      GITHUB_ACTION_PATH: path.join(here, '..'),
+      GITHUB_OUTPUT: githubOutput,
+    };
+    const reportSidecarPath = path.join(dirs.root, 'styleproof-report', 'styleproof-release-confidence.json');
+    assert.equal(fs.existsSync(reportSidecarPath), true);
+    const heldSidecarPath = `${reportSidecarPath}.held`;
+    fs.renameSync(reportSidecarPath, heldSidecarPath);
+    const missingSidecarRun = spawnSync(process.execPath, [mergeScript], {
+      cwd: dirs.root,
+      encoding: 'utf8',
+      env: mergeEnv,
+    });
+    assert.notEqual(missingSidecarRun.status, 0, 'merge must reject a missing release-confidence sidecar');
+    fs.renameSync(heldSidecarPath, reportSidecarPath);
+
     const mergeRun = spawnSync(process.execPath, [mergeScript], {
       cwd: dirs.root,
       encoding: 'utf8',
-      env: {
-        ...process.env,
-        STYLEPROOF_INCLUDE_CONTENT: 'false',
-        STYLEPROOF_EXPECTED_BASE_SHA: BASE_SHA,
-        STYLEPROOF_EXPECTED_HEAD_SHA: HEAD_SHA,
-        GITHUB_ACTION_PATH: path.join(here, '..'),
-        GITHUB_OUTPUT: githubOutput,
-      },
+      env: mergeEnv,
     });
     assert.equal(mergeRun.status, 0, mergeRun.stderr || mergeRun.stdout);
     assert.equal(fs.existsSync(path.join(dirs.root, 'styleproof-report', 'report.json')), true);
-    assert.equal(fs.existsSync(sidecarPath), true);
+    assert.equal(fs.existsSync(reportSidecarPath), true);
+    const reportJson = JSON.parse(fs.readFileSync(path.join(dirs.root, 'styleproof-report', 'report.json'), 'utf8'));
+    const reportManifest = parseReleaseConfidenceManifest(fs.readFileSync(reportSidecarPath));
+    assert.equal(reportJson.releaseConfidence.manifestDigest, reportManifest.manifestDigest);
+    assert.equal(reportJson.releaseConfidence.certifies, true);
   } finally {
     rmTmp(dirs.root);
   }

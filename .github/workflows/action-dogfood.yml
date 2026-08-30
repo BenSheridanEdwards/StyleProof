@@ -74,6 +74,7 @@ jobs:
           test -n '${{ steps.changed.outputs.report-url }}'
 
       - id: new-surface
+        continue-on-error: true
         uses: ./
         with:
           baseline-dir: action-dogfood/new-base
@@ -81,10 +82,12 @@ jobs:
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
-      - name: Assert new-surface-only output
+      - name: Assert an expanded physical capture universe is non-certifying in RCM v0.1
         run: |
-          test '${{ steps.new-surface.outputs.changed }}' = 'true'
-          test '${{ steps.new-surface.outputs.trust-state }}' = 'STYLE_REVIEW_REQUIRED'
+          # RCM v0.1 certifies one physical capture. A second surface is not an
+          # approvable visual delta until the manifest contract expands its universe.
+          test '${{ steps.new-surface.outcome }}' = 'failure'
+          test '${{ steps.new-surface.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
           test -n '${{ steps.new-surface.outputs.report-url }}'
 
       - id: partial-baseline
@@ -96,11 +99,11 @@ jobs:
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
-      - name: Assert partial baseline is repair debt, not visual approval
+      - name: Assert partial baseline cannot bypass release-confidence certification
         run: |
           test '${{ steps.partial-baseline.outcome }}' = 'failure'
           test '${{ steps.partial-baseline.outputs.changed }}' = 'false'
-          test '${{ steps.partial-baseline.outputs.trust-state }}' = 'PARTIAL_BASELINE'
+          test '${{ steps.partial-baseline.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
           test -n '${{ steps.partial-baseline.outputs.report-url }}'
 
       - id: degraded

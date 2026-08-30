@@ -7,6 +7,20 @@ import test from 'node:test';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ci = fs.readFileSync(path.join(here, '..', '.github/workflows/ci.yml'), 'utf8');
 const release = fs.readFileSync(path.join(here, '..', '.github/workflows/release.yml'), 'utf8');
+const packageJson = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
+
+test('CI reuses one successful build without deleting unit, E2E, or cross-platform evidence', () => {
+  const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}cli-smoke:)/)?.[0] ?? '';
+  const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*$/)?.[0] ?? '';
+  assert.equal(packageJson.scripts['test:unit'], 'node --test test/*.test.mjs');
+  assert.match(buildJob, /npm run build/);
+  assert.match(buildJob, /npm run test:unit/);
+  assert.match(buildJob, /npx playwright test/);
+  assert.doesNotMatch(buildJob, /npm test|npm run test:e2e|npm run typecheck/);
+  assert.match(cliSmoke, /npm run build/);
+  assert.match(cliSmoke, /node --test test\/package-smoke\.test\.mjs/);
+  assert.doesNotMatch(cliSmoke, /npm run typecheck/);
+});
 
 test('CI runs a small non-Linux CLI smoke without the browser suite', () => {
   assert.match(ci, /cli-smoke:/);
