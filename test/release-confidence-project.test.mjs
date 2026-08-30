@@ -252,6 +252,48 @@ test('missing confidence ledger cannot certify complete coverage', () => {
   }
 });
 
+test('either missing confidence ledger prevents certification', () => {
+  const dirs = matchingCapturePair();
+  try {
+    fs.rmSync(path.join(dirs.beforeDir, CONFIDENCE_LEDGER));
+    const storeRoot = path.join(dirs.root, 'evidence-store');
+    const imported = importMapBundleToEvidenceStore({ bundleDirectory: dirs.afterDir, storeRoot });
+    const produced = projectMatching(dirs, { storeRoot, capture: imported.capture });
+    const receipt = validateReleaseConfidenceManifest(produced.manifest);
+    const coverageRun = produced.manifest.sourceRuns.find((run) => run.domain === 'coverage-ledger');
+
+    assert.equal(receipt.certifies, false);
+    assert.equal(coverageRun.execution, 'partial');
+  } finally {
+    rmTmp(dirs.root);
+  }
+});
+
+test('unasserted or limited confidence cannot certify complete coverage', () => {
+  const completeCoverage = { version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' };
+  const confidenceCases = [
+    buildConfidenceLedger({ capturedKeys: ['home'], coverage: null }),
+    buildConfidenceLedger({ capturedKeys: [], coverage: completeCoverage }),
+  ];
+
+  for (const confidence of confidenceCases) {
+    const dirs = matchingCapturePair();
+    try {
+      writeConfidenceLedger(dirs.afterDir, confidence);
+      const storeRoot = path.join(dirs.root, 'evidence-store');
+      const imported = importMapBundleToEvidenceStore({ bundleDirectory: dirs.afterDir, storeRoot });
+      const produced = projectMatching(dirs, { storeRoot, capture: imported.capture });
+      const receipt = validateReleaseConfidenceManifest(produced.manifest);
+      const coverageRun = produced.manifest.sourceRuns.find((run) => run.domain === 'coverage-ledger');
+
+      assert.equal(receipt.certifies, false);
+      assert.equal(coverageRun.execution, 'partial');
+    } finally {
+      rmTmp(dirs.root);
+    }
+  }
+});
+
 test('missing coverage ledger is an unasserted not-run envelope, never proved empty', () => {
   const dirs = matchingCapturePair({ coverage: false });
   try {

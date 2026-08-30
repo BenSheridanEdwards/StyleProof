@@ -7,6 +7,7 @@ import {
   CONFIDENCE_LEDGER,
   readConfidenceLedger,
   readCoverageLedgerLenient,
+  summarizeConfidence,
   type ConfidenceLedgerFile,
 } from './confidence-ledger.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER, type CoverageLedger } from './coverage.js';
@@ -483,12 +484,14 @@ function compatibleBinding(input: ReleaseConfidenceProjectInput): SourceBindingR
 
 function completeCoverage(
   ledger: CoverageLedger | null,
-  confidence: ConfidenceLedgerFile | null,
+  beforeConfidence: ConfidenceLedgerFile | null,
+  afterConfidence: ConfidenceLedgerFile | null,
   verdict: ReturnType<typeof auditCoverage>,
 ): boolean {
   return (
     ledger !== null &&
-    confidence !== null &&
+    summarizeConfidence(beforeConfidence).completeness === 'complete' &&
+    summarizeConfidence(afterConfidence).completeness === 'complete' &&
     Array.isArray(ledger.expected) &&
     ledger.expected.length > 0 &&
     verdict.basis === 'complete'
@@ -535,7 +538,7 @@ function assembleContract(input: ReleaseConfidenceProjectInput): Phase0ContractD
     scope: surface ?? input.releaseScope,
   };
 
-  const coverageComplete = completeCoverage(afterCoverage, afterConfidence, coverageVerdict);
+  const coverageComplete = completeCoverage(afterCoverage, beforeConfidence, afterConfidence, coverageVerdict);
   const determinismComplete = completeDeterminism(beforeCoverage, afterCoverage);
   const sourceBound = binding.status === 'bound';
   const captureComplete = records.length > 0 && sourceBound;
