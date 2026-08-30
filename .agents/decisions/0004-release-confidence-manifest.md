@@ -20,7 +20,9 @@ The public object validator snapshots own data descriptors. It rejects Proxies, 
 
 `projectReleaseConfidence` is one-way. It reads production 6.2 artifacts and copies shipped comparability status and reason values without reinterpretation. Missing optional evidence remains explicit and non-certifying. Present malformed ledgers, incompatible source manifests, unreadable evidence objects, and evidence bound to another SHA or compatibility key hard-fail with one bounded projector error.
 
-A certifying v0.1 walking projection is deliberately narrow. It accepts no caller-authored empty-universe override: coverage must declare at least one expected surface. Both before/after confidence ledgers must summarize to `complete`, enumerate exactly the declared and actually captured surface universe, and correspond to each other. Missing, unknown, unasserted, limited, empty-asserted, or wrong-universe confidence remains non-certifying. The supplied producer version must equal the exact after-capture package version:
+A certifying v0.1 walking projection is deliberately narrow. It accepts no caller-authored empty-universe override: coverage must declare at least one expected surface. Both before/after confidence ledgers must summarize to `complete`, enumerate exactly the declared and actually captured surface universe, and correspond to each other. Missing, unknown, unasserted, limited, empty-asserted, or wrong-universe confidence remains non-certifying. The physical capture identity remains separate from the semantic product surface. A capture may use the semantic name directly or a generated `surface-*` expansion; unrelated aliases fail closed. Declared scope, confidence, comparability, and obligations use the semantic surface, while `physicalCaptureKey` binds the concrete artifact.
+
+The supplied producer version must equal the exact after-capture package version:
 
 1. one physical capture surface;
 2. matching before/after runtime compatibility;

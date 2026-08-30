@@ -36,6 +36,7 @@ Semantically unordered collections are canonicalized, so producer scheduling and
 - Missing coverage, confidence, product-state, evidence-store, or trusted source binding never becomes proof of an empty universe.
 - `expected: []` is not evidence unless an explicit empty-universe proof exists. The v0.1 projector accepts no user-supplied empty-universe override, so an empty registry remains non-certifying.
 - Both before/after confidence ledgers must summarize to `complete`, contain a non-empty exact surface universe equal to their declared coverage and actual captured map surfaces, and correspond to each other. Missing, `unknown`, `unasserted`, `limited`, empty-asserted, or wrong-universe confidence remains non-certifying.
+- A physical capture may equal its semantic product surface or be a generated `surface-*` expansion. Unrelated aliases are invalid. Scope, confidence, comparability, and obligations use the semantic surface; `physicalCaptureKey` retains the concrete artifact identity.
 - Projector `producerVersion` must equal the exact after-capture manifest `packageVersion`; caller metadata cannot relabel artifact-producing bytes.
 - Product-state comparability is copied from StyleProof's existing receipt. It is never inferred from CSS, DOM, route names, or labels.
 - Required satisfied obligations receive join credit only from `capture-maps` or `evidence-store` evidence.

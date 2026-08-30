@@ -62,7 +62,7 @@ function stampBundle(dir, sha, { coverage = true } = {}) {
   }
 }
 
-function matchingCapturePair({ coverage = true } = {}) {
+function matchingCapturePair({ coverage = true, captureKey = 'home@1280', surfaceKey } = {}) {
   const root = mkTmp('styleproof-rcm-project-');
   const beforeDir = path.join(root, 'before');
   const afterDir = path.join(root, 'after');
@@ -70,10 +70,10 @@ function matchingCapturePair({ coverage = true } = {}) {
     ...makeMap({
       elements: { 'body > button:nth-child(1)': { tag: 'button', style: { color: 'black' } } },
     }),
-    metadata: { productState: PRODUCT_STATE },
+    metadata: { productState: PRODUCT_STATE, ...(surfaceKey ? { surfaceKey } : {}) },
   };
-  writeCapture(beforeDir, 'home@1280', map, null);
-  writeCapture(afterDir, 'home@1280', map, null);
+  writeCapture(beforeDir, captureKey, map, null);
+  writeCapture(afterDir, captureKey, map, null);
   stampBundle(beforeDir, BASE_SHA, { coverage });
   stampBundle(afterDir, HEAD_SHA, { coverage });
   if (coverage) {
@@ -207,6 +207,41 @@ test('projects matching 6.2 artifacts and verified evidence into one certifying 
     assert.equal(fs.existsSync(sidecarPath), true);
   } finally {
     rmTmp(dirs.root);
+  }
+});
+
+test('semantic surface aliases must bind to their physical capture family', () => {
+  const spoofed = matchingCapturePair({ captureKey: 'login@1280', surfaceKey: 'home' });
+  try {
+    const storeRoot = path.join(spoofed.root, 'evidence-store');
+    const imported = importMapBundleToEvidenceStore({ bundleDirectory: spoofed.afterDir, storeRoot });
+    assert.throws(
+      () => projectMatching(spoofed, { storeRoot, capture: imported.capture }),
+      (error) => error instanceof ReleaseConfidenceProjectError,
+    );
+  } finally {
+    rmTmp(spoofed.root);
+  }
+
+  const expanded = matchingCapturePair({ captureKey: 'home-loading@1280', surfaceKey: 'home' });
+  try {
+    const storeRoot = path.join(expanded.root, 'evidence-store');
+    const imported = importMapBundleToEvidenceStore({ bundleDirectory: expanded.afterDir, storeRoot });
+    const produced = projectMatching(expanded, { storeRoot, capture: imported.capture });
+    const receipt = validateReleaseConfidenceManifest(produced.manifest);
+
+    assert.equal(receipt.certifies, true);
+    assert.deepEqual(produced.manifest.declaredScope.surfaces, ['home']);
+    assert.equal(
+      produced.manifest.comparability.every((entry) => entry.surface === 'home'),
+      true,
+    );
+    assert.equal(
+      produced.manifest.obligations.every((entry) => entry.physicalCaptureKey === 'home-loading-1280'),
+      true,
+    );
+  } finally {
+    rmTmp(expanded.root);
   }
 });
 

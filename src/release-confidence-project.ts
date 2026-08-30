@@ -67,6 +67,7 @@ export class ReleaseConfidenceProjectError extends Error {
 type CaptureRecord = {
   captureKey: string;
   physicalCaptureKey: string;
+  captureSurface: string;
   surface: string;
   state: { id: string; revision: string } | null;
 };
@@ -137,15 +138,27 @@ function physicalCaptureKey(captureKey: string): string {
   return captureKey.replace(/[^A-Za-z0-9._-]/g, '-');
 }
 
+function boundSemanticSurface(captureSurface: string, value: unknown): string {
+  if (value === undefined) return captureSurface;
+  if (typeof value !== 'string' || value.trim() === '') throw new ReleaseConfidenceProjectError();
+  if (captureSurface !== value && !captureSurface.startsWith(`${value}-`)) {
+    throw new ReleaseConfidenceProjectError();
+  }
+  return value;
+}
+
 function captureRecords(dir: string): CaptureRecord[] {
   try {
     return mapFiles(dir).map((file) => {
       const captureKey = captureKeyFromFile(file);
-      const surface = captureKeyParts(captureKey).surface;
-      const state = validateProductStateIdentity(loadStyleMap(path.join(dir, file)).metadata?.productState);
+      const captureSurface = captureKeyParts(captureKey).surface;
+      const map = loadStyleMap(path.join(dir, file));
+      const surface = boundSemanticSurface(captureSurface, map.metadata?.surfaceKey);
+      const state = validateProductStateIdentity(map.metadata?.productState);
       return {
         captureKey,
         physicalCaptureKey: physicalCaptureKey(captureKey),
+        captureSurface,
         surface,
         state: state ? { id: state.id, revision: state.revision } : null,
       };
@@ -172,14 +185,33 @@ function requiredHeadManifest(dir: string): MapManifest {
   }
 }
 
-function copiedComparability(beforeDir: string, afterDir: string): Phase0Comparability[] {
+function captureSurfaceAliases(...recordSets: CaptureRecord[][]): Map<string, string> {
+  const aliases = new Map<string, string>();
+  for (const record of recordSets.flat()) {
+    const existing = aliases.get(record.captureSurface);
+    if (existing !== undefined && existing !== record.surface) throw new ReleaseConfidenceProjectError();
+    aliases.set(record.captureSurface, record.surface);
+  }
+  return aliases;
+}
+
+function copiedComparability(
+  beforeDir: string,
+  afterDir: string,
+  beforeRecords: CaptureRecord[],
+  afterRecords: CaptureRecord[],
+): Phase0Comparability[] {
   try {
-    return diffStyleMapDirs(beforeDir, afterDir).comparability.map((entry) => ({
-      surface: captureKeyParts(entry.surface).surface,
-      status: entry.status,
-      required: entry.required,
-      reason: entry.reason,
-    }));
+    const aliases = captureSurfaceAliases(beforeRecords, afterRecords);
+    return diffStyleMapDirs(beforeDir, afterDir).comparability.map((entry) => {
+      const captureSurface = captureKeyParts(entry.surface).surface;
+      return {
+        surface: aliases.get(captureSurface) ?? captureSurface,
+        status: entry.status,
+        required: entry.required,
+        reason: entry.reason,
+      };
+    });
   } catch {
     throw new ReleaseConfidenceProjectError();
   }
@@ -544,12 +576,13 @@ function assembleContract(input: ReleaseConfidenceProjectInput): Phase0ContractD
   const afterCoverage = strictCoverage(input.afterDir);
   const beforeConfidence = strictConfidence(input.beforeDir);
   const afterConfidence = strictConfidence(input.afterDir);
+  const beforeRecords = captureRecords(input.beforeDir);
   const records = captureRecords(input.afterDir);
   const surface = exactSurface(records);
   const state = exactState(records);
   const binding = compatibleBinding(input);
   const evidence = requiredEvidence(input.evidence, afterManifest.sha, afterManifest.compatibilityKey);
-  const comparability = copiedComparability(input.beforeDir, input.afterDir);
+  const comparability = copiedComparability(input.beforeDir, input.afterDir, beforeRecords, records);
   const captureBinding = captureEvidenceBindingReceipt(input.beforeDir, input.afterDir);
   const beforeCapturedKeys = bundleSurfaceKeys(input.beforeDir, beforeCoverage?.expected ?? null);
   const afterCapturedKeys = bundleSurfaceKeys(input.afterDir, afterCoverage?.expected ?? null);
