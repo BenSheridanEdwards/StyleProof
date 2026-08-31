@@ -75,13 +75,29 @@ runs:
     # Composite actions run from a checked-out action ref, but bare `npx
     # styleproof-*` resolves from the consumer workspace or npm latest. Install and
     # build this action checkout, then run the checked-out bins so `uses: ...@v6`
-    # truly executes v6 code even though `dist/` is not committed to git.
+    # truly executes v6 code even though `dist/` is not committed to git. The
+    # checkout-bound stamp is job-local by design: never publish or cache it.
     - name: Install StyleProof action runtime
       shell: bash
       run: |
+        set -euo pipefail
         cd "$GITHUB_ACTION_PATH"
+
+        runtime_identity="$(node -e "const fs=require('node:fs');const {createHash}=require('node:crypto');const h=createHash('sha256');h.update(process.env.GITHUB_ACTION_PATH ?? '');h.update('\\0');h.update(process.env.GITHUB_SHA ?? '');h.update('\\0');h.update(fs.readFileSync('package-lock.json'));process.stdout.write(h.digest('hex'))")"
+        runtime_stamp="$RUNNER_TEMP/styleproof-action-runtime-${runtime_identity}.stamp"
+        if [ -f "$runtime_stamp" ] && [ ! -L "$runtime_stamp" ] && [ "$(cat "$runtime_stamp")" = "$runtime_identity" ]; then
+          exit 0
+        fi
+
+        rm -f -- "$runtime_stamp"
         npm ci --ignore-scripts
         npm run build
+
+        runtime_stamp_tmp="${runtime_stamp}.tmp.$$"
+        trap 'rm -f -- "$runtime_stamp_tmp"' EXIT
+        printf '%s\n' "$runtime_identity" > "$runtime_stamp_tmp"
+        mv -f -- "$runtime_stamp_tmp" "$runtime_stamp"
+        trap - EXIT
 
     # Resolve the PR number + head SHA from the TRUSTED event payload. This is what
     # lets the report be driven from a `workflow_run` (the fork/Dependabot-safe flow:
