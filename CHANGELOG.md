@@ -23,6 +23,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - CI reuses each successful TypeScript build for unit and browser tests instead of
   recompiling through nested npm scripts. All Node-version, cross-platform, static,
   security, unit, browser, and determinism gates remain enabled.
+- Action report delivery now uses one commit-bound GitHub blob link for both public
+  and private repositories. Crops stay relative to the committed report; private
+  viewers authenticate through GitHub, and failed publication emits no new delivery
+  claim for that run.
 
 ## [6.2.2] - 2026-08-29
 

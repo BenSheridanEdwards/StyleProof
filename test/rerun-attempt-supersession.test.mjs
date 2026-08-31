@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { publishReportFolder, verifyPublishedReceipt } from '../dist/report-publish.js';
+import { buildReportDelivery } from '../dist/report-delivery.js';
 import {
   createReleaseConfidenceManifest,
   serializeReleaseConfidenceManifest,
@@ -155,6 +156,8 @@ const MANIFEST = createReleaseConfidenceManifest({
 const SUMMARY = summarizeReleaseConfidence(MANIFEST);
 const HEAD_SHA = MANIFEST.sourceSha;
 const RUN_ID = '4242';
+const DELIVERY_SHA = 'd'.repeat(40);
+const DELIVERY_URL = `https://github.com/acme/widgets/blob/${DELIVERY_SHA}/pr-7/report.md`;
 
 function receiptFor(runAttempt) {
   return `styleproof-receipt head-sha:${HEAD_SHA} run-id:${RUN_ID} run-attempt:${runAttempt}`;
@@ -289,7 +292,7 @@ test('attempt 2 may overwrite attempt 1; a late attempt-1 delivery may not overw
 function buildCommentDeliverySimulator() {
   const comments = [];
   let nextCommentId = 100;
-  const deliver = ({ runAttempt, summary }) => {
+  const deliver = ({ runAttempt, summary, publicationSha = DELIVERY_SHA, reportUrl = DELIVERY_URL }) => {
     const marker = '<!-- styleproof-report -->';
     const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
     if (
@@ -298,9 +301,17 @@ function buildCommentDeliverySimulator() {
     ) {
       return { staleDelivery: true };
     }
+    const delivery = buildReportDelivery({
+      repository: 'acme/widgets',
+      publicationSha,
+      prNumber: 7,
+      reportUrl,
+      repositoryVisibility: 'private',
+    });
     const body = [
       marker,
       summary,
+      delivery.markdown,
       `<!-- styleproof-sha:${HEAD_SHA} -->`,
       formatRunAttemptReceiptMarker({ runId: RUN_ID, runAttempt }),
     ].join('\n');
@@ -332,6 +343,15 @@ test('the single marker comment ends up reflecting attempt 2, updated in place',
   assert.equal(simulator.comments.length, 1);
   assert.match(simulator.comments[0].body, /no reviewable changes/);
   assert.match(simulator.comments[0].body, new RegExp(`styleproof-run-id:${RUN_ID} run-attempt:2`));
+});
+
+test('the supersession simulator cannot create a delivery claim without a verified report identity', () => {
+  const simulator = buildCommentDeliverySimulator();
+  assert.throws(
+    () => simulator.deliver({ runAttempt: '1', summary: 'changes need sign-off', reportUrl: '' }),
+    /report delivery/i,
+  );
+  assert.deepEqual(simulator.comments, []);
 });
 
 test('composite action wires the rerun ordering guard into the comment and status steps', () => {
