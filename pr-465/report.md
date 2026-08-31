@@ -1,47 +1,27 @@
 ## 🗺️ StyleProof report
 
 **Certification**
-- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
+- **Coverage** — ✓ complete (all 2 registered surface(s) captured)
 - **Determinism** — ✓ proven (base self-checked, head self-checked)
 - **Inventory** — ✓ navigable set unchanged
-- **Confidence** — ✓ complete (1 captured)
+- **Confidence** — ✓ complete (2 captured)
 
-**Release confidence** — ✓ complete (1 declared surface(s), 6/6 domains complete)
+**Release confidence** — ✗ blocked (present; completeness; comparability-mismatch, connector-partial, integrity-mismatch)
 
 **Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
-**1 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
-_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
+🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 320`. Approve them before they become the baseline.
 
-## Element-level changes
+## 🆕 New pages, states, or surfaces — review first
 
-### `main.panel` · 1 element restyled
+### `pricing@320` · new surface <!-- styleproof-new -->
 
-_home @ 320_
+_pricing @ 320_
 
-`color` `#000000` → `#ff0000`
+![new surface — after](crops/pricing-320-1-new.png)
 
-![before ◀ │ ▶ after](crops/home-320-1-composite.png)
+<sub>after · pricing @ 320</sub>
 
-<sub>◀ before  ·  after ▶ — home @ 320</sub>
-
-![highlighted before ◀ │ ▶ after](crops/home-320-1-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `main.panel`</sub>
-
-- **`main.panel`** — text black (`#000000`) → red (`#ff0000`)
-
-<details>
-<summary>Show the property change</summary>
-
-**`main.panel`**
-
-Style:
-
-| Property | Before | After |
-| --- | --- | --- |
-| `color` | `#000000` | `#ff0000` |
-
-</details>
+_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._
 
 <!-- styleproof-receipt head-sha:2abd944d580b9f6f69c83efb92a09017bcc2f5b8 run-id:33452541017 run-attempt:1 -->
