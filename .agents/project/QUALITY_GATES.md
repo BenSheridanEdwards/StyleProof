@@ -21,7 +21,7 @@ is listed here only if it exists and runs on a clean checkout.
 | Dependency audit       | npm audit                            | CI (Node 22)                  | `npm audit --audit-level=high`                                                                                |
 | PR body validation     | `scripts/validate-pr-body.mjs`       | CI (`pull_request`)           | `.github/workflows/pr-body.yml`                                                                               |
 | Unit tests             | Node `--test`                        | push (`.husky/pre-push`) + CI | `npm test`; CI reuses its prior build via `npm run test:unit`                                                 |
-| E2E                    | Playwright                           | CI                            | CI reuses its prior build via `npx playwright test`                                                           |
+| E2E                    | Playwright                           | CI (parallel Node 22 job)     | `npm run build`; `npx playwright test`; print + upload the determinism oracle receipt                         |
 | CLI smoke              | Node `--test` (package-smoke)        | CI (macOS + Windows)          | `node --test test/package-smoke.test.mjs`                                                                     |
 | Demo report freshness  | `scripts/demo-report.mjs --check`    | CI (Node 22)                  | `npm run demo:check`                                                                                          |
 | Action dogfood         | the Action itself, on fixtures       | CI (`pull_request`)           | `.github/workflows/action-dogfood.yml`                                                                        |
@@ -35,9 +35,10 @@ is listed here only if it exists and runs on a clean checkout.
   gitleaks staged-diff scan.
 - **`.husky/pre-push`** — `npm test` (git hook env is unset first so it does not
   leak into the CLI tests' temp repos).
-- **CI (`ci.yml`)** — build on the full Node matrix; lint, format,
-  privacy, npm audit, demo freshness, unit, and e2e on Node 22; CLI smoke on
-  macOS + Windows.
+- **CI (`ci.yml`)** — build and unit on the full Node matrix; lint, format,
+  privacy, npm audit, and demo freshness on Node 22; complete e2e plus the
+  determinism receipt in a parallel Node 22 job; CLI smoke on macOS + Windows;
+  one stable `required` check that fails unless all three lanes succeed.
 - **CI (dedicated workflows)** — `secret-scan.yml`, `codeql.yml`, `pr-body.yml`,
   `fallow.yml`, `action-dogfood.yml`, `store-dogfood.yml`.
 

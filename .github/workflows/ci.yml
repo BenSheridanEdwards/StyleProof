@@ -67,33 +67,44 @@ jobs:
         # Build already emitted and typechecked this exact checkout above.
         run: npm run test:unit
 
+  # Run the complete browser and determinism path beside the Node matrix instead
+  # of placing it after every Node 22 static and unit gate.
+  e2e:
+    name: e2e (node 22)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
       # The one place the browser capture path (page.evaluate + CDP) is
-      # exercised — a self-contained file:// fixture, no live server. Runs on
-      # ONE Node version: the suite exercises browser-evaluated code (Node-
-      # agnostic); the Node-sensitive paths (CLI, fs, runner) are covered per
-      # version by the unit suite above.
+      # exercised — a self-contained file:// fixture, no live server. The
+      # Node-sensitive paths remain covered by units on 18, 20, and 22.
       - name: Cache Playwright browser
-        if: matrix.node == '22'
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Chromium
-        if: matrix.node == '22'
         run: npx playwright install --with-deps chromium
 
       - name: Smoke e2e
-        if: matrix.node == '22'
-        # Reuse the exact dist/ emitted by Build instead of compiling a third time.
         run: npx playwright test
 
       - name: Print determinism oracle receipt
-        if: matrix.node == '22'
         run: node -e "const fs=require('node:fs');const p='test-results/determinism-oracle.json';if(!fs.existsSync(p))throw new Error('missing determinism oracle receipt');process.stdout.write(fs.readFileSync(p,'utf8'))"
 
       - name: Upload determinism oracle receipt
-        if: matrix.node == '22'
         uses: actions/upload-artifact@v6
         with:
           name: determinism-oracle-node-22
@@ -119,3 +130,22 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node --test test/package-smoke.test.mjs
+
+  # Stable branch-protection context. Internal jobs may evolve, but this check
+  # fails unless every required CI evidence lane completed successfully.
+  required:
+    name: required
+    if: always()
+    needs: [build, e2e, cli-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required CI evidence
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          CLI_SMOKE_RESULT: ${{ needs.cli-smoke.result }}
+        run: |
+          set -euo pipefail
+          test "$BUILD_RESULT" = success
+          test "$E2E_RESULT" = success
+          test "$CLI_SMOKE_RESULT" = success
