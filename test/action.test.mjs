@@ -21,6 +21,17 @@ function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
 }
 
+function actionRuntimeInstallScript() {
+  const match = actionYml.match(
+    /- name: Install StyleProof action runtime[\s\S]*?run: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:)/,
+  );
+  assert.ok(match, 'action.yml should include an action runtime install script');
+  return `${match[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {8}/, ''))
+    .join('\n')}\n`;
+}
+
 function stampActionFixture(dir, sha) {
   fs.writeFileSync(
     path.join(dir, 'styleproof-manifest.json'),
@@ -426,6 +437,70 @@ test('composite action builds its checkout before running local bins', () => {
   assert.match(installStep[0], /npm ci --ignore-scripts/);
   assert.match(installStep[0], /npm run build/);
   assert.doesNotMatch(installStep[0], /npm ci .*--omit=dev/);
+});
+
+test('action runtime bootstrap installs once per exact action checkout in one job', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-bootstrap-'));
+  try {
+    const actionPath = path.join(root, "action path $() 'quoted'");
+    const runnerTemp = path.join(root, 'runner-temp');
+    const fakeBin = path.join(root, 'fake-bin');
+    const npmLog = path.join(root, 'npm.log');
+    fs.mkdirSync(actionPath, { recursive: true });
+    fs.mkdirSync(runnerTemp);
+    fs.mkdirSync(fakeBin);
+    fs.writeFileSync(path.join(actionPath, 'package-lock.json'), '{"lockfileVersion":3}\n');
+    const fakeNpm = path.join(fakeBin, 'npm');
+    fs.writeFileSync(
+      fakeNpm,
+      '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "$NPM_LOG"\nif [ "${FAIL_BUILD:-0}" = 1 ] && [ "$*" = "run build" ]; then exit 9; fi\n',
+    );
+    fs.chmodSync(fakeNpm, 0o755);
+
+    const env = {
+      ...process.env,
+      PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+      GITHUB_ACTION_PATH: actionPath,
+      GITHUB_SHA: 'a'.repeat(40),
+      NPM_LOG: npmLog,
+      RUNNER_TEMP: runnerTemp,
+    };
+    const first = spawnSync('bash', ['-c', actionRuntimeInstallScript()], { env, encoding: 'utf8' });
+    assert.equal(first.status, 0, first.stderr);
+    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), ['ci --ignore-scripts', 'run build']);
+
+    const second = spawnSync('bash', ['-c', actionRuntimeInstallScript()], { env, encoding: 'utf8' });
+    assert.equal(second.status, 0, second.stderr);
+    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), ['ci --ignore-scripts', 'run build']);
+    const firstStamp = fs.readdirSync(runnerTemp).find((name) => name.endsWith('.stamp'));
+    assert.ok(firstStamp);
+
+    fs.writeFileSync(path.join(runnerTemp, firstStamp), 'malformed\n');
+    const malformed = spawnSync('bash', ['-c', actionRuntimeInstallScript()], { env, encoding: 'utf8' });
+    assert.equal(malformed.status, 0, malformed.stderr);
+    assert.equal(fs.readFileSync(npmLog, 'utf8').trim().split('\n').length, 4);
+
+    fs.writeFileSync(path.join(actionPath, 'package-lock.json'), '{"lockfileVersion":3,"changed":true}\n');
+    const changedLock = spawnSync('bash', ['-c', actionRuntimeInstallScript()], { env, encoding: 'utf8' });
+    assert.equal(changedLock.status, 0, changedLock.stderr);
+    assert.equal(fs.readFileSync(npmLog, 'utf8').trim().split('\n').length, 6);
+    assert.equal(fs.readdirSync(runnerTemp).filter((name) => name.endsWith('.stamp')).length, 2);
+
+    fs.writeFileSync(path.join(actionPath, 'package-lock.json'), '{"lockfileVersion":3,"failed":true}\n');
+    const failed = spawnSync('bash', ['-c', actionRuntimeInstallScript()], {
+      env: { ...env, FAIL_BUILD: '1' },
+      encoding: 'utf8',
+    });
+    assert.equal(failed.status, 9, failed.stderr);
+    assert.equal(fs.readdirSync(runnerTemp).filter((name) => name.endsWith('.stamp')).length, 2);
+
+    const retry = spawnSync('bash', ['-c', actionRuntimeInstallScript()], { env, encoding: 'utf8' });
+    assert.equal(retry.status, 0, retry.stderr);
+    assert.equal(fs.readFileSync(npmLog, 'utf8').trim().split('\n').length, 10);
+    assert.equal(fs.readdirSync(runnerTemp).filter((name) => name.endsWith('.stamp')).length, 3);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('composite action publishes a durable no-change report on a clean first run', () => {
