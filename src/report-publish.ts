@@ -1,5 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import { hasDuplicateJsonKeys } from './map-store.js';
+import { parseReleaseConfidenceManifest } from './release-confidence-manifest.js';
+import { summarizeReleaseConfidence } from './release-confidence-summary.js';
 
 /** Publish a report folder to the report branch through the GitHub git-data API.
  *
@@ -271,34 +275,75 @@ export async function publishReportFolder(request: ReportPublishRequest): Promis
 /** Read the just-published report back at the exact commit we are about to
  *  advertise and require the run receipt. Fail closed: a green run must never
  *  hand out a dead or stale report URL. */
-export async function verifyPublishedReceipt(options: {
+type PublishedReceiptOptions = {
   apiBaseUrl: string;
   repository: string;
   token: string;
   reportPath: string;
   commitSha: string;
   expectedReceipt: string;
+  expectedManifestDigest: string;
+  expectedSourceSha: string;
   maximumAttempts?: number;
   fetchImplementation?: typeof fetch;
   sleepImplementation?: (milliseconds: number) => Promise<void>;
-}): Promise<void> {
+};
+
+async function readPublishedBytes(
+  options: PublishedReceiptOptions,
+  fetchImplementation: typeof fetch,
+  relativePath: string,
+): Promise<Uint8Array | null> {
+  const response = await fetchImplementation(
+    `${options.apiBaseUrl}/repos/${options.repository}/contents/${options.reportPath}/${relativePath}?ref=${options.commitSha}`,
+    {
+      headers: {
+        authorization: ['Bearer', options.token].join(' '),
+        accept: 'application/vnd.github.raw',
+      },
+    },
+  ).catch(() => null);
+  if (!response?.ok) return null;
+  if (typeof response.arrayBuffer === 'function') return new Uint8Array(await response.arrayBuffer());
+  return Buffer.from(await response.text(), 'utf8');
+}
+
+function publishedReceiptMatches(
+  options: PublishedReceiptOptions,
+  markdownBytes: Uint8Array | null,
+  reportBytes: Uint8Array | null,
+  manifestBytes: Uint8Array | null,
+): boolean {
+  if (!markdownBytes || !reportBytes || !manifestBytes) return false;
+  try {
+    const markdown = new TextDecoder('utf-8', { fatal: true }).decode(markdownBytes);
+    const reportSource = new TextDecoder('utf-8', { fatal: true }).decode(reportBytes);
+    if (hasDuplicateJsonKeys(reportSource)) return false;
+    const report = JSON.parse(reportSource) as { releaseConfidence?: unknown };
+    const manifest = parseReleaseConfidenceManifest(manifestBytes);
+    const summary = summarizeReleaseConfidence(manifest);
+    return (
+      markdown.includes(options.expectedReceipt) &&
+      manifest.sourceSha === options.expectedSourceSha &&
+      manifest.manifestDigest === options.expectedManifestDigest &&
+      isDeepStrictEqual(report.releaseConfidence, summary)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function verifyPublishedReceipt(options: PublishedReceiptOptions): Promise<void> {
   const fetchImplementation = options.fetchImplementation ?? fetch;
   const sleep = options.sleepImplementation ?? realSleep;
   const maximumAttempts = options.maximumAttempts ?? 5;
   for (let attemptNumber = 1; attemptNumber <= maximumAttempts; attemptNumber += 1) {
-    const response = await fetchImplementation(
-      `${options.apiBaseUrl}/repos/${options.repository}/contents/${options.reportPath}/report.md?ref=${options.commitSha}`,
-      {
-        headers: {
-          authorization: `Bearer ${options.token}`,
-          accept: 'application/vnd.github.raw',
-        },
-      },
-    ).catch(() => null);
-    if (response?.ok) {
-      const published = await response.text();
-      if (published.includes(options.expectedReceipt)) return;
-    }
+    const [markdownBytes, reportBytes, manifestBytes] = await Promise.all([
+      readPublishedBytes(options, fetchImplementation, 'report.md'),
+      readPublishedBytes(options, fetchImplementation, 'report.json'),
+      readPublishedBytes(options, fetchImplementation, 'styleproof-release-confidence.json'),
+    ]);
+    if (publishedReceiptMatches(options, markdownBytes, reportBytes, manifestBytes)) return;
     if (attemptNumber < maximumAttempts) await sleep(attemptNumber * 2000);
   }
   throw new Error(
@@ -318,6 +363,10 @@ export function collectReportFiles(reportDirectory: string): ReportPublishFile[]
     {
       relativePath: 'report.json',
       content: fs.readFileSync(path.join(reportDirectory, 'report.json')),
+    },
+    {
+      relativePath: 'styleproof-release-confidence.json',
+      content: fs.readFileSync(path.join(reportDirectory, 'styleproof-release-confidence.json')),
     },
   ];
   const cropsDirectory = path.join(reportDirectory, 'crops');

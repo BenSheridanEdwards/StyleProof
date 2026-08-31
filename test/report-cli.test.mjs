@@ -56,6 +56,7 @@ test('report-management CLIs accept --flag=value syntax', () => {
     '--report-path=pr-42',
     '--report-dir=styleproof-report',
     '--head-sha=abc123',
+    `--manifest-digest=${'a'.repeat(64)}`,
     '--run-id=7',
     '--run-attempt=1',
   ]);

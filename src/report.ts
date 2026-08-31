@@ -55,6 +55,7 @@ import {
   type ConfidenceLedgerFile,
   type ConfidenceSummary,
 } from './confidence-ledger.js';
+import { summarizeReleaseConfidence, type ReleaseConfidenceSummary } from './release-confidence-summary.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 
@@ -156,6 +157,8 @@ export type ReportOptions = {
    * lost, just relocated. Default 400_000 (~0.4 MB). Set to Infinity to never cap.
    */
   maxReportBytes?: number;
+  /** Canonical Release Confidence Manifest to summarize. Missing is explicitly blocking. */
+  releaseConfidenceManifest?: unknown;
 };
 
 export type ReportComparison = ComparisonTruth & ComparabilitySummary;
@@ -184,6 +187,8 @@ export type ReportResult = {
    * before the ledger existed — advisory, never a retroactive block.
    */
   confidence: ConfidenceSummary;
+  /** Manifest completeness, separate from the visual comparison verdict. */
+  releaseConfidence: ReleaseConfidenceSummary;
   reportMdPath: string;
   reportJsonPath: string;
 };
@@ -2366,6 +2371,7 @@ function writeReportArtifacts(
   reportConsistency: ReportConsistency,
   content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
+  releaseConfidence: ReleaseConfidenceSummary,
   baselineProvenance: BaselineProvenance | null = null,
   confidence: ConfidenceSummary | null = null,
 ): { reportMdPath: string; reportJsonPath: string } {
@@ -2387,6 +2393,7 @@ function writeReportArtifacts(
         // Additive (#399): the completeness badge, machine-readable — a consumer
         // must never read one green as full certification.
         ...(confidence ? { confidence } : {}),
+        releaseConfidence,
         // Additive (#367): where the baseline maps came from, when recorded —
         // exact-SHA restore, nearest-ancestor reuse (with proof), or fresh capture.
         ...(baselineProvenance ? { baselineProvenance } : {}),
@@ -2396,6 +2403,19 @@ function writeReportArtifacts(
     ),
   );
   return { reportMdPath, reportJsonPath };
+}
+
+function releaseConfidenceLines(summary: ReleaseConfidenceSummary): string[] {
+  if (summary.certifies) {
+    return [
+      `**Release confidence** — ✓ complete (${summary.declared.surfaces} declared surface(s), ${summary.evidenced.completeDomains}/${summary.evidenced.requiredDomains} domains complete)`,
+      '',
+    ];
+  }
+  return [
+    `**Release confidence** — ✗ blocked (${summary.presence}; ${summary.worstAxis}; ${summary.reasons.join(', ') || 'unproven'})`,
+    '',
+  ];
 }
 
 function stateCoverageLines(afterDir: string): string[] {
@@ -2555,7 +2575,9 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // the badge and the machine-readable summary can never disagree.
   const confidenceLedger = resolveBundleConfidence(afterDir);
   const confidence = summarizeConfidence(confidenceLedger);
+  const releaseConfidence = summarizeReleaseConfidence(opts.releaseConfidenceManifest);
   md.push(...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }));
+  md.push(...releaseConfidenceLines(releaseConfidence));
   // Baseline provenance (#367): when the run recorded where the base maps came
   // from, say so up front — an ancestor reuse must be visible, never inferred.
   const baselineProvenance = readBaselineProvenance(beforeDir);
@@ -2643,6 +2665,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reportConsistency,
     { evaluated: includeContent, changes: contentSection.count, advisory: true },
     json,
+    releaseConfidence,
     baselineProvenance,
     confidence,
   );
@@ -2655,6 +2678,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     comparability,
     reportConsistency,
     confidence,
+    releaseConfidence,
     reportMdPath,
     reportJsonPath,
   };

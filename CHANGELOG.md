@@ -12,8 +12,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Release Confidence Manifest v0.1 kernel with exact-source and compatibility binding,
   derived exclusions and gaps, canonical insertion-order-independent bytes, bounded
   duplicate-key-aware parsing, hostile reflective-object closure, public package APIs,
-  and a packed public contract. Manifest conformance is not yet the report or Action
-  release gate; that policy wiring remains explicitly separate.
+  and a packed public contract.
+- Report and Action Release Confidence gating: the report CLI projects and publishes
+  the canonical manifest sidecar, Markdown and `report.json` carry one bounded validated
+  summary, the Action rejects every non-certifying or mismatched state before approval,
+  and publication re-reads all three artifacts at the exact advertised commit.
+
+### Changed
+
+- CI reuses each successful TypeScript build for unit and browser tests instead of
+  recompiling through nested npm scripts. All Node-version, cross-platform, static,
+  security, unit, browser, and determinism gates remain enabled.
 
 ## [6.2.2] - 2026-08-29
 

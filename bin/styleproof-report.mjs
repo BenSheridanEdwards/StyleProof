@@ -12,7 +12,12 @@
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { generateStyleMapReport } from '../dist/report.js';
+import { importMapBundleToEvidenceStore } from '../dist/evidence-import.js';
+import { serializeReleaseConfidenceManifest } from '../dist/release-confidence-manifest.js';
+import { projectReleaseConfidence } from '../dist/release-confidence-project.js';
 import { cachedMapsUnavailableMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
 import {
@@ -24,6 +29,7 @@ import {
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
+  readMapManifest,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
 
@@ -183,6 +189,7 @@ if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
 
 let result;
 let sourceBinding;
+let releaseConfidenceStoreRoot;
 try {
   // v4: refuse a manifest-less side (exit 2 via the catch) — same-environment
   // compatibility can't be verified without a manifest on both sides.
@@ -193,6 +200,28 @@ try {
     beforeSha: expectedBeforeSha,
     afterSha: expectedAfterSha,
   });
+  let releaseConfidenceManifest;
+  try {
+    const afterManifest = readMapManifest(afterDir);
+    if (!afterManifest) throw new Error('missing map manifest');
+    releaseConfidenceStoreRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-report-confidence-'));
+    const imported = importMapBundleToEvidenceStore({
+      bundleDirectory: afterDir,
+      storeRoot: releaseConfidenceStoreRoot,
+    });
+    releaseConfidenceManifest = projectReleaseConfidence({
+      beforeDir,
+      afterDir,
+      manifestId: `rcm-${afterManifest.sha}`,
+      producerVersion: afterManifest.packageVersion,
+      releaseScope: 'styleproof-report',
+      expectedBeforeSha,
+      expectedAfterSha,
+      evidence: { storeRoot: releaseConfidenceStoreRoot, capture: imported.capture },
+    }).manifest;
+  } catch {
+    console.error('styleproof-report: release confidence projection failed');
+  }
   result = generateStyleMapReport({
     beforeDir,
     afterDir,
@@ -206,7 +235,14 @@ try {
     includeLayoutNoise,
     includeContent,
     requireStateIdentity,
+    releaseConfidenceManifest,
   });
+  if (releaseConfidenceManifest) {
+    fs.writeFileSync(
+      path.join(flags.out, 'styleproof-release-confidence.json'),
+      serializeReleaseConfidenceManifest(releaseConfidenceManifest),
+    );
+  }
   const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
   if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
     throw new Error('capture evidence changed while styleproof-report was reading it');
@@ -231,12 +267,14 @@ try {
   console.error(e.message);
   process.exit(2);
 } finally {
+  if (releaseConfidenceStoreRoot) fs.rmSync(releaseConfidenceStoreRoot, { recursive: true, force: true });
   cleanupCachedCaptureDirs(cacheCapture);
 }
 
 const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';
 const consistencyFailed = result.reportConsistency?.ok === false;
 const comparisonFailed = result.comparison?.blocksCertification === true;
+const releaseConfidenceFailed = result.releaseConfidence?.blocking !== false;
 const cleanPrefix = sourceBinding.status === 'bound' ? '✓' : '⚠ UNVERIFIED DIAGNOSTIC:';
 if (consistencyFailed) {
   console.log(`⚠ report consistency: ${result.reportConsistency.reason} — not a clean no-change (fail closed)`);
@@ -261,5 +299,11 @@ if (includeContent && result.contentChanges > 0) {
 // Exit 1 when there is anything to review OR any report-consistency failure (never
 // exit 0 for "identical" when certification evidence was hidden by presentation).
 process.exit(
-  result.changedSurfaces === 0 && result.newSurfaces === 0 && !consistencyFailed && !comparisonFailed ? 0 : 1,
+  result.changedSurfaces === 0 &&
+    result.newSurfaces === 0 &&
+    !consistencyFailed &&
+    !comparisonFailed &&
+    !releaseConfidenceFailed
+    ? 0
+    : 1,
 );

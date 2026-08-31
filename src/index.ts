@@ -278,3 +278,5 @@ export type {
   ReleaseConfidenceProjectInput,
   ReleaseConfidenceProjectResult,
 } from './release-confidence-project.js';
+export { summarizeReleaseConfidence } from './release-confidence-summary.js';
+export type { ReleaseConfidenceSummary } from './release-confidence-summary.js';

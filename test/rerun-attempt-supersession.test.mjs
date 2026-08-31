@@ -10,6 +10,11 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { publishReportFolder, verifyPublishedReceipt } from '../dist/report-publish.js';
 import {
+  createReleaseConfidenceManifest,
+  serializeReleaseConfidenceManifest,
+} from '../dist/release-confidence-manifest.js';
+import { summarizeReleaseConfidence } from '../dist/release-confidence-summary.js';
+import {
   formatRunAttemptReceiptMarker,
   parseRunAttemptReceiptMarker,
   shouldSupersedeExistingComment,
@@ -138,7 +143,17 @@ function buildStatefulGitHubRepository() {
   return { state, fetchImplementation };
 }
 
-const HEAD_SHA = 'headsha';
+const contract = JSON.parse(
+  fs.readFileSync(new URL('./fixtures/phase0-contract/valid-enumerated.json', import.meta.url), 'utf8'),
+);
+const MANIFEST = createReleaseConfidenceManifest({
+  manifestId: 'rcm-rerun-supersession',
+  producerVersion: '6.2.2',
+  releaseScope: 'styleproof-report',
+  contract,
+});
+const SUMMARY = summarizeReleaseConfidence(MANIFEST);
+const HEAD_SHA = MANIFEST.sourceSha;
 const RUN_ID = '4242';
 
 function receiptFor(runAttempt) {
@@ -152,7 +167,14 @@ function reportFilesFor(runAttempt, verdictLine) {
       relativePath: 'report.md',
       content: Buffer.from(`# report\n${verdictLine}\n<!-- ${receiptFor(runAttempt)} -->\n`),
     },
-    { relativePath: 'report.json', content: Buffer.from(`{"attempt":${runAttempt}}`) },
+    {
+      relativePath: 'report.json',
+      content: Buffer.from(JSON.stringify({ attempt: runAttempt, releaseConfidence: SUMMARY })),
+    },
+    {
+      relativePath: 'styleproof-release-confidence.json',
+      content: Buffer.from(serializeReleaseConfidenceManifest(MANIFEST)),
+    },
   ];
 }
 
@@ -179,6 +201,8 @@ function verifyReceiptAt(repository, commitSha, runAttempt) {
     reportPath: 'pr-7',
     commitSha,
     expectedReceipt: receiptFor(runAttempt),
+    expectedManifestDigest: MANIFEST.manifestDigest,
+    expectedSourceSha: HEAD_SHA,
     maximumAttempts: 2,
     sleepImplementation: async () => {},
     fetchImplementation: repository.fetchImplementation,

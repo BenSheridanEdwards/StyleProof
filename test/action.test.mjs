@@ -6,7 +6,9 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { buildConfidenceLedger, writeConfidenceLedger } from '../dist/confidence-ledger.js';
 import { readMapManifest } from '../dist/map-store.js';
+import { parseReleaseConfidenceManifest } from '../dist/release-confidence-manifest.js';
 import { fixtureCompatibilityKey, fixtureContentHash, makeMap, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -42,6 +44,13 @@ function stampActionFixture(dir, sha) {
     path.join(dir, COVERAGE_LEDGER),
     JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' }),
   );
+  writeConfidenceLedger(
+    dir,
+    buildConfidenceLedger({
+      capturedKeys: ['home'],
+      coverage: { version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' },
+    }),
+  );
 }
 
 function actionReportMergeScript() {
@@ -51,6 +60,27 @@ function actionReportMergeScript() {
     .split('\n')
     .map((line) => line.replace(/^ {8}/, ''))
     .join('\n')}\n`;
+}
+
+function actionVerdictScript({ baseCaptureFailed, changed }) {
+  const match = actionYml.match(/- id: verdict[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/);
+  assert.ok(match, 'action.yml should contain the verdict github-script program');
+  const script = match[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {10}/, ''))
+    .join('\n')
+    .replace("'${{ steps.config.outputs.gate-inventory-removals }}'", "'true'")
+    .replace("'${{ inputs.base-capture-failed }}'", `'${baseCaptureFailed ? 'true' : 'false'}'`)
+    .replace("'${{ steps.diff.outputs.changed }}'", `'${changed ? 'true' : 'false'}'`);
+  return `
+const outputs = {};
+const core = {
+  setOutput(name, value) { outputs[name] = String(value); },
+  info() {},
+};
+${script}
+require('fs').writeFileSync(process.env.STYLEPROOF_VERDICT_OUTPUT, JSON.stringify(outputs));
+`;
 }
 
 test('production diff and report receipts pass through the exact Action merge program', () => {
@@ -170,7 +200,7 @@ test('production diff and report receipts pass through the exact Action merge pr
       encoding: 'utf8',
       env: actionEnv,
     });
-    assert.equal(firstAdoption.status, 0, firstAdoption.stderr || firstAdoption.stdout);
+    assert.equal(firstAdoption.status, 1, 'first adoption lacks a certifying baseline manifest');
 
     const forgedNoCapturePairedReport = structuredClone(honestReport);
     const forgedNoCapturePairedDiff = structuredClone(honestDiff);
@@ -205,7 +235,7 @@ test('production diff and report receipts pass through the exact Action merge pr
       env: actionEnv,
     });
     assert.equal(forgedEmpty.status, 1, forgedEmpty.stderr || forgedEmpty.stdout);
-    assert.match(forgedEmpty.stderr, /evidence-binding receipts are missing or malformed/i);
+    assert.match(forgedEmpty.stderr, /release-confidence manifest and report receipt disagree/i);
 
     fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
     fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
@@ -535,6 +565,90 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
     const certfail = JSON.parse(fs.readFileSync(path.join(root, 'certfail-head', 'styleproof-coverage.json'), 'utf8'));
     assert.deepEqual(certfail.expected, ['home']);
     assert.equal(certfail.determinism, 'unproven');
+
+    const expectedStates = {
+      clean: 'NO_REVIEWABLE_STYLE_CHANGES',
+      content: 'NO_REVIEWABLE_STYLE_CHANGES',
+      changed: 'STYLE_REVIEW_REQUIRED',
+      new: 'CERTIFICATION_FAILED',
+      partial: 'CERTIFICATION_FAILED',
+      degraded: 'DEGRADED_BASELINE',
+      residue: 'DATA_RESIDUE_UNACKNOWLEDGED',
+      removed: 'INVENTORY_REMOVAL_UNACKNOWLEDGED',
+      certfail: 'CERTIFICATION_FAILED',
+    };
+    for (const [fixture, expectedState] of Object.entries(expectedStates)) {
+      const caseRoot = path.join(root, `${fixture}-case`);
+      fs.mkdirSync(caseRoot);
+      const beforeDir = path.join(root, `${fixture}-base`);
+      const afterDir = path.join(root, `${fixture}-head`);
+      const diff = spawnSync(
+        process.execPath,
+        [
+          path.join(here, '..', 'bin/styleproof-diff.mjs'),
+          beforeDir,
+          afterDir,
+          '--json',
+          'styleproof-diff.json',
+          '--expected-before-sha',
+          baseSha,
+          '--expected-after-sha',
+          headSha,
+        ],
+        { cwd: caseRoot, encoding: 'utf8' },
+      );
+      assert.ok([0, 1, 3].includes(diff.status), `${fixture} diff: ${diff.stderr || diff.stdout}`);
+      const reportArguments = [
+        path.join(here, '..', 'bin/styleproof-report.mjs'),
+        beforeDir,
+        afterDir,
+        '--out',
+        'styleproof-report',
+        '--expected-before-sha',
+        baseSha,
+        '--expected-after-sha',
+        headSha,
+      ];
+      if (fixture === 'content') reportArguments.push('--include-content');
+      const report = spawnSync(process.execPath, reportArguments, { cwd: caseRoot, encoding: 'utf8' });
+      assert.ok([0, 1].includes(report.status), `${fixture} report: ${report.stderr || report.stdout}`);
+      const confidence = parseReleaseConfidenceManifest(
+        fs.readFileSync(path.join(caseRoot, 'styleproof-report', 'styleproof-release-confidence.json')),
+      );
+      assert.equal(confidence.sourceSha, headSha, fixture);
+
+      const mergeScript = path.join(caseRoot, 'merge.mjs');
+      const githubOutput = path.join(caseRoot, 'github-output');
+      fs.writeFileSync(mergeScript, actionReportMergeScript());
+      fs.writeFileSync(githubOutput, '');
+      const merge = spawnSync(process.execPath, [mergeScript], {
+        cwd: caseRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          STYLEPROOF_INCLUDE_CONTENT: fixture === 'content' ? 'true' : 'false',
+          STYLEPROOF_EXPECTED_BASE_SHA: baseSha,
+          STYLEPROOF_EXPECTED_HEAD_SHA: headSha,
+          GITHUB_ACTION_PATH: path.join(here, '..'),
+          GITHUB_OUTPUT: githubOutput,
+        },
+      });
+      assert.equal(merge.status, 0, `${fixture} merge: ${merge.stderr || merge.stdout}`);
+
+      const verdictScript = path.join(caseRoot, 'verdict.cjs');
+      const verdictOutput = path.join(caseRoot, 'verdict.json');
+      fs.writeFileSync(
+        verdictScript,
+        actionVerdictScript({ baseCaptureFailed: fixture === 'degraded', changed: [1, 3].includes(diff.status) }),
+      );
+      const verdict = spawnSync(process.execPath, [verdictScript], {
+        cwd: caseRoot,
+        encoding: 'utf8',
+        env: { ...process.env, STYLEPROOF_VERDICT_OUTPUT: verdictOutput },
+      });
+      assert.equal(verdict.status, 0, `${fixture} verdict: ${verdict.stderr || verdict.stdout}`);
+      assert.equal(JSON.parse(fs.readFileSync(verdictOutput, 'utf8')).state, expectedState, fixture);
+    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -556,14 +670,15 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /action-dogfood\/degraded-base/);
   assert.match(dogfoodYml, /steps\.clean\.outputs\.report-url }}'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
-  assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'true'/);
+  assert.match(dogfoodYml, /steps\.new-surface\.outcome }}' = 'failure'/);
   assert.match(dogfoodYml, /steps\.clean\.outputs\.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
+  assert.match(dogfoodYml, /steps\.new-surface\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /steps\.content-advisory\.outputs\.content-changes }}' = '1'/);
   assert.match(dogfoodYml, /Content and structure changes \(advisory\)/);
   assert.match(dogfoodYml, /steps\.residue\.outputs\.trust-state }}' = 'DATA_RESIDUE_UNACKNOWLEDGED'/);
   assert.match(dogfoodYml, /action-dogfood\/partial-base/);
-  assert.match(dogfoodYml, /steps\.partial-baseline\.outputs\.trust-state }}' = 'PARTIAL_BASELINE'/);
+  assert.match(dogfoodYml, /steps\.partial-baseline\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /steps\.degraded\.outputs\.trust-state }}' = 'DEGRADED_BASELINE'/);
   // The inventory removal must FAIL the action even with fail-on-diff off.
   assert.match(dogfoodYml, /steps\.removed\.outcome }}' = 'failure'/);
@@ -592,6 +707,16 @@ test('composite action treats inaccessible confidence as CERTIFICATION_FAILED', 
   const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
   assert.ok(verdict);
   assert.match(verdict[0], /diff\.confidence\?\.counts\?\.inaccessible/);
+  assert.match(verdict[0], /CERTIFICATION_FAILED/);
+});
+
+test('composite action makes release confidence mandatory before visual approval', () => {
+  const report = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
+  assert.ok(report);
+  assert.match(report[0], /diff\.releaseConfidence = releaseConfidence/);
+  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(verdict);
+  assert.match(verdict[0], /diff\.releaseConfidence\?\.blocking !== false/);
   assert.match(verdict[0], /CERTIFICATION_FAILED/);
 });
 
@@ -802,8 +927,14 @@ test('composite action self-verifies the published receipt before advertising th
   // The read-back: fetch the report at the EXACT commit being advertised and
   // require the receipt embedded for this run (head SHA + run id + attempt).
   assert.match(publishModule, /application\/vnd\.github\.raw/);
-  assert.match(publishModule, /report\.md\?ref=\$\{options\.commitSha\}/);
-  assert.match(publishModule, /published\.includes\(options\.expectedReceipt\)/);
+  assert.match(publishModule, /readPublishedBytes\(options, fetchImplementation, 'report\.md'\)/);
+  assert.match(publishModule, /readPublishedBytes\(options, fetchImplementation, 'report\.json'\)/);
+  assert.match(
+    publishModule,
+    /readPublishedBytes\(options, fetchImplementation, 'styleproof-release-confidence\.json'\)/,
+  );
+  assert.match(publishModule, /markdown\.includes\(options\.expectedReceipt\)/);
+  assert.match(publishModule, /manifest\.manifestDigest === options\.expectedManifestDigest/);
   // Fail CLOSED on a dead or mismatched report — never a green run with a bad URL.
   assert.match(publishModule, /do not trust this run's report/);
   // The url/raw-base outputs exist ONLY once verification passed.

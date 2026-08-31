@@ -9,6 +9,13 @@ import {
   publishReportFolder,
   verifyPublishedReceipt,
 } from '../dist/report-publish.js';
+import {
+  createReleaseConfidenceManifest,
+  serializeReleaseConfidenceManifest,
+} from '../dist/release-confidence-manifest.js';
+import { summarizeReleaseConfidence } from '../dist/release-confidence-summary.js';
+
+const PHASE0_FIXTURE = new URL('./fixtures/phase0-contract/valid-enumerated.json', import.meta.url);
 
 /** In-memory GitHub git-data API double. Tracks every request so tests can
  *  assert exactly what crossed the wire — the whole point of the API publisher
@@ -98,21 +105,31 @@ const reportFiles = [
   { relativePath: 'crops/hero.png', content: Buffer.from([1, 2, 3]) },
 ];
 
-test('collectReportFiles publishes report.json with markdown and crops', (t) => {
+test('collectReportFiles publishes report JSON, canonical confidence sidecar, markdown, and crops', (t) => {
   const reportDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-report-publish-'));
   t.after(() => fs.rmSync(reportDirectory, { recursive: true, force: true }));
   fs.mkdirSync(path.join(reportDirectory, 'crops'));
   fs.writeFileSync(path.join(reportDirectory, 'report.md'), '# report');
   fs.writeFileSync(path.join(reportDirectory, 'report.json'), '{"surfaces":[]}');
+  fs.writeFileSync(path.join(reportDirectory, 'styleproof-release-confidence.json'), '{"kind":"sidecar"}');
   fs.writeFileSync(path.join(reportDirectory, 'crops', 'hero.png'), Buffer.from([1, 2, 3]));
 
   const files = collectReportFiles(reportDirectory);
 
   assert.deepEqual(
     files.map((file) => file.relativePath),
-    ['report.md', 'report.json', 'crops/hero.png'],
+    ['report.md', 'report.json', 'styleproof-release-confidence.json', 'crops/hero.png'],
   );
   assert.equal(files[1].content.toString('utf8'), '{"surfaces":[]}');
+  assert.equal(files[2].content.toString('utf8'), '{"kind":"sidecar"}');
+});
+
+test('collectReportFiles fails closed when the confidence sidecar is missing', (t) => {
+  const reportDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-report-publish-'));
+  t.after(() => fs.rmSync(reportDirectory, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(reportDirectory, 'report.md'), '# report');
+  fs.writeFileSync(path.join(reportDirectory, 'report.json'), '{"surfaces":[]}');
+  assert.throws(() => collectReportFiles(reportDirectory));
 });
 
 test('publishes onto an existing branch without downloading any report bytes', async () => {
@@ -298,12 +315,25 @@ test('a truncated tree listing skips size telemetry instead of guessing', async 
   assert.deepEqual(warningLines, []);
 });
 
-test('receipt verification passes when the published report carries this run receipt', async () => {
-  const fetchImplementation = async () => ({
-    ok: true,
-    status: 200,
-    text: async () => 'report body\n<!-- styleproof-receipt head-sha:abc run-id:1 run-attempt:1 -->\n',
+test('receipt verification passes when all published confidence artifacts match this run', async () => {
+  const contract = JSON.parse(fs.readFileSync(PHASE0_FIXTURE, 'utf8'));
+  const sourceSha = contract.sourceRuns[0].sourceSha;
+  const manifest = createReleaseConfidenceManifest({
+    manifestId: 'rcm-published-control',
+    producerVersion: '6.2.2',
+    releaseScope: 'styleproof-report',
+    contract,
   });
+  const summary = summarizeReleaseConfidence(manifest);
+  const byName = {
+    'report.md': 'report body\n<!-- styleproof-receipt head-sha:abc run-id:1 run-attempt:1 -->\n',
+    'report.json': JSON.stringify({ releaseConfidence: summary }),
+    'styleproof-release-confidence.json': serializeReleaseConfidenceManifest(manifest),
+  };
+  const fetchImplementation = async (url) => {
+    const name = Object.keys(byName).find((entry) => String(url).includes(`/${entry}?`));
+    return { ok: Boolean(name), status: name ? 200 : 404, text: async () => (name ? byName[name] : '') };
+  };
   await verifyPublishedReceipt({
     apiBaseUrl: 'https://api.example',
     repository: 'acme/widgets',
@@ -311,8 +341,86 @@ test('receipt verification passes when the published report carries this run rec
     reportPath: 'pr-7',
     commitSha: 'published-commit-sha',
     expectedReceipt: 'styleproof-receipt head-sha:abc run-id:1 run-attempt:1',
+    expectedManifestDigest: manifest.manifestDigest,
+    expectedSourceSha: sourceSha,
     fetchImplementation,
   });
+});
+
+test('receipt verification rejects merge-digest or trusted-source drift with all artifacts present', async () => {
+  const contract = JSON.parse(fs.readFileSync(PHASE0_FIXTURE, 'utf8'));
+  const sourceSha = contract.sourceRuns[0].sourceSha;
+  const manifest = createReleaseConfidenceManifest({
+    manifestId: 'rcm-published-drift',
+    producerVersion: '6.2.2',
+    releaseScope: 'styleproof-report',
+    contract,
+  });
+  const byName = {
+    'report.md': 'report body\n<!-- styleproof-receipt head-sha:abc run-id:1 run-attempt:1 -->\n',
+    'report.json': JSON.stringify({ releaseConfidence: summarizeReleaseConfidence(manifest) }),
+    'styleproof-release-confidence.json': serializeReleaseConfidenceManifest(manifest),
+  };
+  const fetchImplementation = async (url) => {
+    const name = Object.keys(byName).find((entry) => String(url).includes(`/${entry}?`));
+    return { ok: Boolean(name), status: name ? 200 : 404, text: async () => (name ? byName[name] : '') };
+  };
+  const options = {
+    apiBaseUrl: 'https://api.example',
+    repository: 'acme/widgets',
+    token: 'test-token',
+    reportPath: 'pr-7',
+    commitSha: 'published-commit-sha',
+    expectedReceipt: 'styleproof-receipt head-sha:abc run-id:1 run-attempt:1',
+    expectedManifestDigest: manifest.manifestDigest,
+    expectedSourceSha: sourceSha,
+    maximumAttempts: 1,
+    fetchImplementation,
+  };
+  await assert.rejects(
+    verifyPublishedReceipt({ ...options, expectedManifestDigest: 'f'.repeat(64) }),
+    /do not trust this run's report/,
+  );
+  await assert.rejects(
+    verifyPublishedReceipt({ ...options, expectedSourceSha: 'e'.repeat(40) }),
+    /do not trust this run's report/,
+  );
+});
+
+test('receipt verification rejects a published Markdown receipt without the confidence sidecar', async () => {
+  const digest = 'a'.repeat(64);
+  const fetchImplementation = async (url) => {
+    if (String(url).includes('/report.md?')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => 'report body\n<!-- styleproof-receipt head-sha:abc run-id:1 run-attempt:1 -->\n',
+      };
+    }
+    if (String(url).includes('/report.json?')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ releaseConfidence: { manifestDigest: digest } }),
+      };
+    }
+    return { ok: false, status: 404, text: async () => '' };
+  };
+  await assert.rejects(
+    verifyPublishedReceipt({
+      apiBaseUrl: 'https://api.example',
+      repository: 'acme/widgets',
+      token: 'test-token',
+      reportPath: 'pr-7',
+      commitSha: 'published-commit-sha',
+      expectedReceipt: 'styleproof-receipt head-sha:abc run-id:1 run-attempt:1',
+      expectedManifestDigest: digest,
+      expectedSourceSha: 'b'.repeat(40),
+      maximumAttempts: 1,
+      fetchImplementation,
+    }),
+    /do not trust this run's report/,
+  );
 });
 
 test('receipt verification fails closed on a stale or unreadable report', async () => {

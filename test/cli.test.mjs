@@ -924,11 +924,11 @@ test('report accepts a single base ref and uses cached maps', () => {
 
 // -------------------------------------------------------------- styleproof-report
 
-test('report CLI exits 0 and writes an empty report when nothing changed', () => {
+test('report CLI blocks an uncertified empty report even when nothing changed', () => {
   const { root, A, B } = identicalPair();
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
-  assert.equal(r.status, 0);
+  assert.equal(r.status, 1);
   assert.match(r.stdout, /no reviewable computed-style changes/);
   assert.match(r.stdout, /content\/structure not evaluated/);
   assert.ok(fs.existsSync(path.join(out, 'report.md')));
@@ -945,11 +945,11 @@ test('report CLI exits 1 and writes a report when surfaces changed', () => {
   rmTmp(root);
 });
 
-test('report CLI exits 0 for structural-only path churn when content comparison is off', () => {
+test('report CLI blocks uncertified structural-only path churn when content comparison is off', () => {
   const { root, A, B } = correspondenceCollapsedPair();
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
-  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.status, 1, r.stderr);
   assert.match(r.stdout, /UNVERIFIED DIAGNOSTIC: no reviewable computed-style changes/i);
   assert.doesNotMatch(r.stdout, /✓ no reviewable computed-style changes/);
   assert.match(r.stdout, /content\/structure not evaluated/);
