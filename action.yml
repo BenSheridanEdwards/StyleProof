@@ -1,9 +1,9 @@
 name: 'styleproof report'
 description: >-
   Diff two StyleProof capture directories, publish a compact side-by-side report
-  to an orphan branch, and post it to the PR — inline images for public repos, a
-  link for private repos (where a committed file's images render through the
-  viewer's authenticated session).
+  to an orphan branch, and post a compact summary and one commit-bound report link
+  to the PR. Crops remain relative files in the committed report for both public
+  and private repositories.
 branding:
   icon: 'layers'
   color: 'blue'
@@ -485,7 +485,7 @@ runs:
 
     - name: Upsert PR comment
       id: comment
-      if: steps.context.outputs.pr-number != ''
+      if: success() && steps.context.outputs.pr-number != ''
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}
@@ -494,6 +494,8 @@ runs:
           const fs = require('fs');
           const { shouldSupersedeExistingComment, formatRunAttemptReceiptMarker } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
+          const { buildReportDelivery } =
+            await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
           const marker = '<!-- styleproof-report -->';
           // `changed` = review required: before/after differences OR new surfaces
@@ -522,6 +524,18 @@ runs:
             : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
 
           const url = '${{ steps.publish.outputs.url }}';
+          const publicationSha = '${{ steps.publish.outputs.sha }}';
+          const repositoryPrivate = context.payload.repository?.private;
+          if (typeof repositoryPrivate !== 'boolean') {
+            throw new Error('StyleProof report delivery: repository visibility is unknown');
+          }
+          const delivery = buildReportDelivery({
+            repository: `${context.repo.owner}/${context.repo.repo}`,
+            prNumber,
+            publicationSha,
+            reportUrl: url,
+            repositoryVisibility: repositoryPrivate ? 'private' : 'public',
+          });
 
           // The committed report is the COMPLETE source of truth — side-by-side crops
           // plus per-element property tables. The comment stays lean: the summary, one
@@ -540,7 +554,7 @@ runs:
           // Bind approval to this exact commit so a post-report push can't inherit green.
           const headSha = '${{ steps.context.outputs.head-sha }}';
 
-          const link = `### 📊 [**View the side-by-side visual report →**](${url})`;
+          const link = delivery.markdown;
           // One box signs off every change. On a re-run that's already approved it's
           // pre-ticked and carries "approved by @x" (reconstructed from the commit
           // status), so the comment matches the green status without re-running approval.

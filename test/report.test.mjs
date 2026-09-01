@@ -247,6 +247,10 @@ test('end-to-end: a tiny change gets a magnified zoom crop and the highlight sho
   assert.ok(fs.existsSync(path.join(outDir, region.images.zoom)), 'the zoom png is actually written');
 
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
+  for (const imagePath of Object.values(region.images)) {
+    assert.match(imagePath, /^crops\//, 'report JSON records crop paths relative to report.md');
+    assert.ok(md.includes(`](${imagePath})`), `report.md references committed relative crop ${imagePath}`);
+  }
   assert.match(md, /🔬 magnified \d+× — change too small to see at 1:1/, 'zoom is captioned with its factor');
   assert.match(md, /🔍 magenta boxes mark each change/, 'the highlight is shown by default');
   assert.match(md, /changed: `span\.caret`/, 'the changed element is named next to the image');

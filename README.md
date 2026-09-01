@@ -11,10 +11,13 @@ Intentional changes get approved. Unexpected changes block.
 [![CI](https://github.com/BenSheridanEdwards/StyleProof/actions/workflows/ci.yml/badge.svg)](https://github.com/BenSheridanEdwards/StyleProof/actions)
 [![license](https://img.shields.io/npm/l/styleproof.svg)](https://github.com/BenSheridanEdwards/StyleProof/blob/main/LICENSE)
 
-On a pull request the Action comment has to stop at a link. GitHub comments
-cannot carry the crops. The README can. This is the unmodified product
-report: Save at rest comes first, followed by Docs hover, focus, and active.
-Both sides of each interaction-state crop are in that state.
+On a pull request, the PR comment is the same linked summary for public and private repositories.
+Crops stay as relative files inside the committed report instead of being duplicated into the comment.
+Private-repository viewers need repository access and an authenticated GitHub session.
+If publication or receipt verification fails, StyleProof posts no delivery claim for that run.
+The README can carry the crops directly. This is the unmodified product report: Save at rest comes
+first, followed by Docs hover, focus, and active. Both sides of each interaction-state crop are in
+that state.
 
 <!-- styleproof-report -->
 
