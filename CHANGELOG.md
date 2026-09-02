@@ -20,6 +20,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Ambiguous signatures and replaced hashed identities (`id`, `data-testid`,
   `data-style`) stay one-sided and fail closed as before; a wrapper-only change
   still certifies as no reviewable change. (#472)
+## [6.3.0] - 2026-09-02
+
+> **StyleProof 6.3.0: Release Confidence Manifest**
+>
+> This release makes exact-source release confidence a first-class, Action-gated
+> artifact and expands bounded capture evidence for substantial browser projects.
 
 ### Added
 
@@ -3476,7 +3482,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.2...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.3.0...HEAD
+[6.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.2...v6.3.0
 [6.2.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.1...v6.2.2
 [6.2.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.0...v6.2.1
 [6.2.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.1.1...v6.2.0
