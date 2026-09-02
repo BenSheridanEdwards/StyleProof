@@ -61,8 +61,8 @@
     "reason": "aligned"
   },
   "content": {
-    "evaluated": false,
-    "changes": 0,
+    "evaluated": true,
+    "changes": 1,
     "advisory": true
   },
   "surfaces": [],
@@ -96,7 +96,7 @@
     },
     "incomparable": [],
     "reasons": [],
-    "manifestDigest": "90930fbe772ad30aba13b29364ccd73b19feb501f7a69ad8954163c5eed05f3b"
+    "manifestDigest": "861e4754212b4a5a7d9faddf9898ed355cbf305339bb95a8bdd623938a42f8ae"
   },
   "sourceBinding": {
     "status": "bound",
@@ -123,10 +123,10 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "ea51c6bba157958dd5acfc7dd01dc79cc29a07b01623c979daf8f12bc9562b7f",
+      "digest": "0f69908c5250f2043437c12723c6afc88e440bb3dcdaf6a31728602b66be94fe",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1555
     }
   }
 }
