@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Forced pseudo-state capture now retries one stale CDP node through the same unique
+  temporary marker, fails closed when that marker is missing or ambiguous, and clears
+  already-applied states before detaching after unrelated protocol failures.
 - Capture-evidence receipts now accept bounded trees up to 512 MiB, while retaining
   the 100,000-file, 16 MiB per-file, regular-file, and no-follow safety checks.
   Exact-boundary coverage accepts the ceiling and rejects one byte above it.

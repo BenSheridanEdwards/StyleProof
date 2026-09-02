@@ -860,6 +860,48 @@ async function snapSubtreeInSession(client: CDPSession, args: SubtreeArgs): Prom
   return (result.value ?? {}) as Snap;
 }
 
+type ForcedStateTarget = { selector: string; nodeId: number };
+
+function isStaleForcedStateNodeError(error: unknown): boolean {
+  if (!(error instanceof Error) || !error.message.includes('CSS.forcePseudoState')) return false;
+  return [
+    'Could not find node with given id',
+    'No node with given id found',
+    'Node is detached from document',
+    'Node with given id does not belong to the document',
+  ].some((message) => error.message.includes(message));
+}
+
+/** Force one marked target, retrying once only when its CDP node became stale. */
+async function forcePseudoState(
+  client: CDPSession,
+  rootNodeId: number,
+  target: ForcedStateTarget,
+  forcedPseudoClasses: string[],
+): Promise<boolean> {
+  try {
+    await client.send('CSS.forcePseudoState', { nodeId: target.nodeId, forcedPseudoClasses });
+    return true;
+  } catch (error) {
+    if (!isStaleForcedStateNodeError(error)) throw error;
+  }
+
+  const { nodeIds } = await client.send('DOM.querySelectorAll', {
+    nodeId: rootNodeId,
+    selector: target.selector,
+  });
+  if (nodeIds.length !== 1) return false;
+
+  target.nodeId = nodeIds[0];
+  try {
+    await client.send('CSS.forcePseudoState', { nodeId: target.nodeId, forcedPseudoClasses });
+    return true;
+  } catch (error) {
+    if (isStaleForcedStateNodeError(error)) return false;
+    throw error;
+  }
+}
+
 // Forced pseudo-class states on interactive elements, via CDP so no real
 // mouse or focus is involved and parent-state descendant rules still apply.
 async function captureForcedStates(
@@ -869,58 +911,80 @@ async function captureForcedStates(
   skipPaths: string[] = [],
 ): Promise<{ states: StyleMap['states']; skipped: boolean }> {
   const client = await page.context().newCDPSession(page);
-  await client.send('DOM.enable');
-  await client.send('CSS.enable');
-  const { root } = await client.send('DOM.getDocument');
-  const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
-  const marked = (
-    await page.evaluate(markInteractiveElements, { selector: INTERACTIVE, skipSel, attr: STATE_ID_ATTR })
-  ).filter((m) => !(skipPaths.length && isUnder(m.path, skipPaths)));
-
-  const limit = Math.min(marked.length, maxInteractive);
-  const truncated = marked.length > maxInteractive;
-  if (truncated) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `styleproof: ${marked.length} interactive elements exceeds maxInteractive=${maxInteractive}; ` +
-        `forced-state capture truncated to the first ${maxInteractive}. Raise maxInteractive to cover them all.`,
-    );
-  }
-
   const states: StyleMap['states'] = {};
+  const applied = new Set<ForcedStateTarget>();
+  let rootNodeId = 0;
+  let truncated: boolean;
+  let incomplete = false;
   try {
+    await client.send('DOM.enable');
+    await client.send('CSS.enable');
+    const { root } = await client.send('DOM.getDocument');
+    rootNodeId = root.nodeId;
+    const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
+    const marked = (
+      await page.evaluate(markInteractiveElements, { selector: INTERACTIVE, skipSel, attr: STATE_ID_ATTR })
+    ).filter((m) => !(skipPaths.length && isUnder(m.path, skipPaths)));
+
+    const limit = Math.min(marked.length, maxInteractive);
+    truncated = marked.length > maxInteractive;
+    if (truncated) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `styleproof: ${marked.length} interactive elements exceeds maxInteractive=${maxInteractive}; ` +
+          `forced-state capture truncated to the first ${maxInteractive}. Raise maxInteractive to cover them all.`,
+      );
+    }
+
     for (const { id, path: p } of marked.slice(0, limit)) {
       const selector = `[${STATE_ID_ATTR}="${id}"]`;
-      const { nodeId } = await client.send('DOM.querySelector', { nodeId: root.nodeId, selector });
-      if (!nodeId) {
+      const { nodeIds } = await client.send('DOM.querySelectorAll', { nodeId: rootNodeId, selector });
+      if (nodeIds.length !== 1) {
+        incomplete = true;
         // eslint-disable-next-line no-console
-        console.warn(`styleproof: interactive element ${id} detached before forced-state capture; skipping it.`);
+        console.warn(`styleproof: interactive element ${id} is missing or ambiguous; skipping forced-state capture.`);
         continue;
       }
+      const target = { selector, nodeId: nodeIds[0] };
       const baseSnap = await snapSubtreeInSession(client, { selector, index: 0 });
       for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
-        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses });
+        if (!(await forcePseudoState(client, rootNodeId, target, forcedPseudoClasses))) {
+          incomplete = true;
+          // eslint-disable-next-line no-console
+          console.warn(`styleproof: interactive element ${id} detached during forced-state capture; skipping it.`);
+          break;
+        }
+        applied.add(target);
         if (!(await settleForcedState(client, selector))) {
-          await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+          await forcePseudoState(client, rootNodeId, target, []);
+          applied.delete(target);
+          incomplete = true;
           // eslint-disable-next-line no-console
           console.warn(`styleproof: interactive element ${id} detached during forced-state capture; skipping it.`);
           break;
         }
         const forcedSnap = await snapSubtreeInSession(client, { selector, index: 0 });
-        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+        if (!(await forcePseudoState(client, rootNodeId, target, []))) incomplete = true;
+        applied.delete(target);
         await settleForcedState(client, selector);
         const delta = deltaBetween(baseSnap, forcedSnap);
         if (Object.keys(delta).length) (states[p] ??= {})[stateName] = delta;
       }
     }
   } finally {
-    await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
-    await client.detach();
+    try {
+      if (rootNodeId) {
+        for (const target of applied) await forcePseudoState(client, rootNodeId, target, []);
+      }
+    } finally {
+      await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
+      await client.detach().catch(() => undefined);
+    }
   }
   // When truncated, the elements past the limit have no forced-state delta —
   // flag the layer so the diff reports it as uncertified instead of letting the
   // missing states read as "identical" against a fully-captured side.
-  return { states, skipped: truncated };
+  return { states, skipped: truncated || incomplete };
 }
 
 export const STATE_LAYER_NAMES = ['hover', 'focus', 'active'] as const;
@@ -956,37 +1020,48 @@ export async function captureStateLayerScreenshots(
   const ignore = options.ignore ?? [];
   const maxInteractive = options.maxInteractive ?? 800;
   const skipSel = ignore.length ? ignore.map((s) => `${s}, ${s} *`).join(', ') : '';
-  const ids = (
-    await page.evaluate(markInteractiveForShot, { selector: INTERACTIVE, skipSel, attr: STATE_ID_ATTR })
-  ).slice(0, maxInteractive);
   const written: string[] = [];
   const client = await page.context().newCDPSession(page);
+  const applied = new Set<ForcedStateTarget>();
+  let rootNodeId = 0;
   try {
+    const ids = (
+      await page.evaluate(markInteractiveForShot, { selector: INTERACTIVE, skipSel, attr: STATE_ID_ATTR })
+    ).slice(0, maxInteractive);
     await client.send('DOM.enable');
     await client.send('CSS.enable');
     const { root } = await client.send('DOM.getDocument');
-    const nodeIds: number[] = [];
+    rootNodeId = root.nodeId;
+    const targets: ForcedStateTarget[] = [];
     for (const id of ids) {
-      const { nodeId } = await client.send('DOM.querySelector', {
-        nodeId: root.nodeId,
-        selector: `[${STATE_ID_ATTR}="${id}"]`,
+      const selector = `[${STATE_ID_ATTR}="${id}"]`;
+      const { nodeIds } = await client.send('DOM.querySelectorAll', {
+        nodeId: rootNodeId,
+        selector,
       });
-      if (nodeId) nodeIds.push(nodeId);
+      if (nodeIds.length === 1) targets.push({ selector, nodeId: nodeIds[0] });
     }
     for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
-      for (const nodeId of nodeIds) {
-        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses });
+      for (const target of targets) {
+        if (await forcePseudoState(client, rootNodeId, target, forcedPseudoClasses)) applied.add(target);
       }
       const dest = stateLayerScreenshotPath(stem, stateName);
       await page.screenshot({ path: dest, fullPage: true, animations: 'disabled' });
       written.push(dest);
-      for (const nodeId of nodeIds) {
-        await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+      for (const target of applied) {
+        await forcePseudoState(client, rootNodeId, target, []);
+        applied.delete(target);
       }
     }
   } finally {
-    await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
-    await client.detach().catch(() => undefined);
+    try {
+      if (rootNodeId) {
+        for (const target of applied) await forcePseudoState(client, rootNodeId, target, []);
+      }
+    } finally {
+      await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
+      await client.detach().catch(() => undefined);
+    }
   }
   return written;
 }
