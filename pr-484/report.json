@@ -36,11 +36,11 @@
     "unprovenSurfaces": 0,
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "comparable",
+    "status": "not-required",
     "requireStateIdentity": false,
     "blocksCertification": false,
     "counts": {
-      "comparable": 1,
+      "comparable": 0,
       "incomparable": 0,
       "unproven": 0,
       "notRequired": 1,
@@ -50,16 +50,10 @@
   },
   "comparability": [
     {
-      "surface": "about@320",
+      "surface": "home@320",
       "status": "not-required",
       "required": false,
       "reason": "missing-before"
-    },
-    {
-      "surface": "home@320",
-      "status": "comparable",
-      "required": true,
-      "reason": "explicit-state-match"
     }
   ],
   "reportConsistency": {
@@ -73,11 +67,11 @@
   },
   "surfaces": [
     {
-      "surface": "about@320",
+      "surface": "home@320",
       "missing": "before",
       "isNew": true,
       "isRemoved": false,
-      "image": "crops/about-320-1-new.png"
+      "image": "crops/home-320-1-new.png"
     }
   ],
   "confidence": {
@@ -86,7 +80,7 @@
       "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 2
+      "captured": 1
     },
     "completeness": "complete"
   },
@@ -101,7 +95,7 @@
     "declared": {
       "surfaces": 0,
       "obligations": 0,
-      "assertions": 0
+      "assertions": 1
     },
     "evidenced": {
       "joins": 0,
@@ -114,15 +108,15 @@
       "connector-partial",
       "integrity-mismatch"
     ],
-    "manifestDigest": "171f17a0274edcfae1e9f0a375e3a0ad23798eba954d3e46e2ad1d0b8133d13e"
+    "manifestDigest": "c32635e3e8116bfc4ba1e90b2c17e6929c88b2bc0edc52abafa96f65a7a23eba"
   },
   "sourceBinding": {
     "status": "bound",
-    "compatibility": "matched",
+    "compatibility": "not-applicable",
     "before": {
       "expected": "dbc0486714cb328a4a17a9cdc7a5edc57b0fdda3",
-      "observed": "dbc0486714cb328a4a17a9cdc7a5edc57b0fdda3",
-      "result": "matched"
+      "observed": null,
+      "result": "no-capture"
     },
     "after": {
       "expected": "d6696e9510638eeb39281cd90d0712a5cb9340bd",
@@ -134,17 +128,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "a0ece6a441ba9c16b0a34899f521e1866c93c8379aba873495f2bdb13fe1d50b",
-      "fileCount": 5,
-      "mapCount": 1,
-      "byteCount": 1676
+      "digest": "f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd",
+      "fileCount": 0,
+      "mapCount": 0,
+      "byteCount": 0
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "1015bf00a79e99a69a8e41a236e222eef73f9a85ed26a88e8b7149a4871c5945",
-      "fileCount": 7,
-      "mapCount": 2,
-      "byteCount": 2447
+      "digest": "8f4c51d2095d391c02e7ea1c71a7276f7badd7ee47b53222ae6aa00f815c1c5a",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1525
     }
   }
 }
