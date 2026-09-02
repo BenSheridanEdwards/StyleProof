@@ -25,25 +25,25 @@
       "style": 0,
       "state": 0
     },
-    "newSurfaces": 1,
+    "newSurfaces": 0,
     "removedSurfaces": 0,
     "rawChangedSurfaces": 0,
     "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": true,
+    "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "incomparableSurfaces": 0,
     "unprovenSurfaces": 0,
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "not-required",
+    "status": "comparable",
     "requireStateIdentity": false,
     "blocksCertification": false,
     "counts": {
-      "comparable": 0,
+      "comparable": 1,
       "incomparable": 0,
       "unproven": 0,
-      "notRequired": 1,
+      "notRequired": 0,
       "requiredUnproven": 0,
       "globalRequiredUnproven": 0
     }
@@ -51,9 +51,9 @@
   "comparability": [
     {
       "surface": "home@320",
-      "status": "not-required",
-      "required": false,
-      "reason": "missing-before"
+      "status": "comparable",
+      "required": true,
+      "reason": "explicit-state-match"
     }
   ],
   "reportConsistency": {
@@ -65,15 +65,7 @@
     "changes": 0,
     "advisory": true
   },
-  "surfaces": [
-    {
-      "surface": "home@320",
-      "missing": "before",
-      "isNew": true,
-      "isRemoved": false,
-      "image": "crops/home-320-1-new.png"
-    }
-  ],
+  "surfaces": [],
   "confidence": {
     "counts": {
       "inaccessible": 0,
@@ -88,35 +80,31 @@
     "kind": "styleproof.release-confidence.summary",
     "version": "0.1",
     "presence": "present",
-    "certifies": false,
-    "status": "invalid",
-    "blocking": true,
-    "worstAxis": "completeness",
+    "certifies": true,
+    "status": "valid",
+    "blocking": false,
+    "worstAxis": "none",
     "declared": {
-      "surfaces": 0,
-      "obligations": 0,
+      "surfaces": 1,
+      "obligations": 1,
       "assertions": 1
     },
     "evidenced": {
-      "joins": 0,
-      "completeDomains": 4,
+      "joins": 1,
+      "completeDomains": 6,
       "requiredDomains": 6
     },
     "incomparable": [],
-    "reasons": [
-      "comparability-mismatch",
-      "connector-partial",
-      "integrity-mismatch"
-    ],
-    "manifestDigest": "852938a594d0e66e5a789dc8560cf70be787902e5e099a12802976d8443346b7"
+    "reasons": [],
+    "manifestDigest": "cabe6ba3c9456b08b08e6f8ecc1cde6814af9018603d87a7220fb7c2de49f7fb"
   },
   "sourceBinding": {
     "status": "bound",
-    "compatibility": "not-applicable",
+    "compatibility": "matched",
     "before": {
       "expected": "dbc0486714cb328a4a17a9cdc7a5edc57b0fdda3",
-      "observed": null,
-      "result": "no-capture"
+      "observed": "dbc0486714cb328a4a17a9cdc7a5edc57b0fdda3",
+      "result": "matched"
     },
     "after": {
       "expected": "f3e8d7b90dd245b09ceb504de9d05b70282b940b",
@@ -128,17 +116,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd",
-      "fileCount": 0,
-      "mapCount": 0,
-      "byteCount": 0
-    },
-    "after": {
-      "algorithm": "sha256",
-      "digest": "d3242b0f6b26d8d7f7fdeaa3fa13f7a8004feb4647f8f083c32c5e7ab155c93b",
+      "digest": "9488ce6ab193ea320ed4d9aa0ed49acdb1216ecd9765741e79edc8df2e522a91",
       "fileCount": 5,
       "mapCount": 1,
       "byteCount": 1525
+    },
+    "after": {
+      "algorithm": "sha256",
+      "digest": "f04024503e8091498f9421a4b9aeea88a578a7d5ad334f582e5ff6d74456a732",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1589
     }
   }
 }
