@@ -144,7 +144,18 @@ test('production diff and report receipts pass through the exact Action merge pr
 
     const mergeScript = path.join(root, 'merge.mjs');
     const output = path.join(root, 'github-output');
-    fs.writeFileSync(mergeScript, actionReportMergeScript());
+    const reportMergeScript = actionReportMergeScript();
+    assert.match(
+      reportMergeScript,
+      /MAX_CAPTURE_EVIDENCE_FILES,\s*MAX_CAPTURE_EVIDENCE_FILE_BYTES,\s*MAX_CAPTURE_EVIDENCE_TOTAL_BYTES/,
+      'the Action merge must import the producer evidence bounds',
+    );
+    assert.doesNotMatch(
+      reportMergeScript,
+      /const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES\s*=/,
+      'the Action merge must not redeclare the aggregate evidence bound',
+    );
+    fs.writeFileSync(mergeScript, reportMergeScript);
     fs.writeFileSync(output, '');
     const actionEnv = {
       ...process.env,
@@ -265,12 +276,29 @@ test('production diff and report receipts pass through the exact Action merge pr
     assert.equal(impossibleFileCount.status, 1, impossibleFileCount.stderr || impossibleFileCount.stdout);
     assert.match(impossibleFileCount.stderr, /evidence-binding receipts are missing or malformed/i);
 
-    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
-    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const exactAggregateBoundaryReport = structuredClone(honestReport);
+    const exactAggregateBoundaryDiff = structuredClone(honestDiff);
+    for (const receipt of [exactAggregateBoundaryReport, exactAggregateBoundaryDiff]) {
+      receipt.evidenceBinding.after.fileCount = 32;
+      receipt.evidenceBinding.after.mapCount = 1;
+      receipt.evidenceBinding.after.byteCount = 512 * 1024 * 1024;
+    }
+    fs.writeFileSync(reportJsonPath, JSON.stringify(exactAggregateBoundaryReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(exactAggregateBoundaryDiff));
+    const exactAggregateBoundary = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(exactAggregateBoundary.status, 0, exactAggregateBoundary.stderr || exactAggregateBoundary.stdout);
+
     const impossibleByteCountReport = structuredClone(honestReport);
     const impossibleByteCountDiff = structuredClone(honestDiff);
-    impossibleByteCountReport.evidenceBinding.after.byteCount = 128 * 1024 * 1024 + 1;
-    impossibleByteCountDiff.evidenceBinding.after.byteCount = 128 * 1024 * 1024 + 1;
+    for (const receipt of [impossibleByteCountReport, impossibleByteCountDiff]) {
+      receipt.evidenceBinding.after.fileCount = 100;
+      receipt.evidenceBinding.after.mapCount = 1;
+      receipt.evidenceBinding.after.byteCount = 512 * 1024 * 1024 + 1;
+    }
     fs.writeFileSync(reportJsonPath, JSON.stringify(impossibleByteCountReport));
     fs.writeFileSync(diffJsonPath, JSON.stringify(impossibleByteCountDiff));
     const impossibleByteCount = spawnSync(process.execPath, [mergeScript], {

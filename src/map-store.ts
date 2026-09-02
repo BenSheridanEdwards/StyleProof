@@ -85,7 +85,10 @@ export type CaptureEvidenceReceipt = {
 export const MAX_MAP_MANIFEST_BYTES = 16_777_216;
 export const MAX_CAPTURE_EVIDENCE_FILES = 100_000;
 export const MAX_CAPTURE_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024;
-export const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES = 128 * 1024 * 1024;
+// Large suites retain screenshots alongside computed-style maps. Keep the
+// aggregate finite while allowing the existing per-file and file-count bounds
+// to compose into a useful evidence bundle.
+export const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES = 512 * 1024 * 1024;
 
 function unsafeCaptureEvidence(): never {
   throw new MapStoreError('unsafe capture evidence — expected a bounded tree of regular files');

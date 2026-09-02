@@ -242,7 +242,12 @@ runs:
         const summaryUrl = pathToFileURL(
           path.join(process.env.GITHUB_ACTION_PATH, 'dist/release-confidence-summary.js'),
         ).href;
-        const { hasDuplicateJsonKeys } = await import(mapStoreUrl);
+        const {
+          hasDuplicateJsonKeys,
+          MAX_CAPTURE_EVIDENCE_FILES,
+          MAX_CAPTURE_EVIDENCE_FILE_BYTES,
+          MAX_CAPTURE_EVIDENCE_TOTAL_BYTES,
+        } = await import(mapStoreUrl);
         const { parseReleaseConfidenceManifest } = await import(manifestUrl);
         const { summarizeReleaseConfidence } = await import(summaryUrl);
         const parseReceipt = (filePath) => {
@@ -267,9 +272,6 @@ runs:
           !Array.isArray(value) &&
           isDeepStrictEqual(Object.keys(value).sort(), [...keys].sort());
         const fullSha = (value) => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
-        const MAX_CAPTURE_EVIDENCE_FILES = 100_000;
-        const MAX_CAPTURE_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024;
-        const MAX_CAPTURE_EVIDENCE_TOTAL_BYTES = 128 * 1024 * 1024;
         const EMPTY_CAPTURE_EVIDENCE_DIGEST = 'f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd';
         const emptyEvidenceSide = (value) =>
           value.fileCount === 0 && value.mapCount === 0 && value.byteCount === 0 &&

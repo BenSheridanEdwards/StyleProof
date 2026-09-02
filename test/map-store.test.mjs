@@ -18,6 +18,7 @@ import {
   manifestlessError,
   manifestlessSide,
   MAP_MANIFEST,
+  MAX_CAPTURE_EVIDENCE_TOTAL_BYTES,
   MapStoreError,
   MapStoreNotFoundError,
   publishMapBundle,
@@ -298,14 +299,19 @@ test('captureEvidenceReceipt rejects artifacts above the per-file byte limit bef
   }
 });
 
-test('captureEvidenceReceipt rejects capture trees above the aggregate byte limit', () => {
-  const dir = manifestDir();
-  for (let index = 0; index < 8; index++) {
+test('captureEvidenceReceipt accepts the aggregate byte ceiling and rejects one byte above it', () => {
+  const dir = mkTmp('styleproof-capture-evidence-total-');
+  assert.equal(MAX_CAPTURE_EVIDENCE_TOTAL_BYTES, 512 * 1024 * 1024);
+  for (let index = 0; index < 32; index++) {
     const artifact = path.join(dir, `artifact-${index}.png`);
     fs.writeFileSync(artifact, '');
     fs.truncateSync(artifact, 16 * 1024 * 1024);
   }
   try {
+    const receipt = captureEvidenceReceipt(dir);
+    assert.equal(receipt.byteCount, MAX_CAPTURE_EVIDENCE_TOTAL_BYTES);
+
+    fs.writeFileSync(path.join(dir, 'one-byte-over.png'), Buffer.from([1]));
     assert.throws(() => captureEvidenceReceipt(dir), /unsafe capture evidence/i);
   } finally {
     rmTmp(dir);
