@@ -69,38 +69,34 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 1,
+      "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 0
+      "captured": 1
     },
-    "completeness": "limited"
+    "completeness": "complete"
   },
   "releaseConfidence": {
     "kind": "styleproof.release-confidence.summary",
     "version": "0.1",
     "presence": "present",
-    "certifies": false,
-    "status": "invalid",
-    "blocking": true,
-    "worstAxis": "completeness",
+    "certifies": true,
+    "status": "valid",
+    "blocking": false,
+    "worstAxis": "none",
     "declared": {
       "surfaces": 1,
       "obligations": 1,
       "assertions": 1
     },
     "evidenced": {
-      "joins": 0,
-      "completeDomains": 3,
+      "joins": 1,
+      "completeDomains": 6,
       "requiredDomains": 6
     },
     "incomparable": [],
-    "reasons": [
-      "connector-partial",
-      "environment-unproven",
-      "integrity-mismatch"
-    ],
-    "manifestDigest": "b0feb405a406a5193e387b5db54962d6a1c2ebf28fb1f89335966c5e906e2d6a"
+    "reasons": [],
+    "manifestDigest": "c6ae83759387a23dec1e93c7e297aff2c9198287b32fa6418af3e1e8a3e68a20"
   },
   "sourceBinding": {
     "status": "bound",
@@ -111,8 +107,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "e06aa15ebd95db7f11ba11d78128fd7824ee36eb",
-      "observed": "e06aa15ebd95db7f11ba11d78128fd7824ee36eb",
+      "expected": "16b0826882564281654f716c9762cfed3011189e",
+      "observed": "16b0826882564281654f716c9762cfed3011189e",
       "result": "matched"
     }
   },
@@ -120,17 +116,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "39287dc99af158a01d7e6d97321408be3c4700cf276261d743f8ec629d009fd7",
+      "digest": "7f0f78a1e7157653b61e78d2beda0d3769a09c7780444ea881e09c6435e8d895",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "8626e48a59d73d6c0063e1fc58f20f50f9c35f38d36561177e562c7b0f2d7e3f",
+      "digest": "69bf8b60a7f7730d7974c76e3b57a95f8e67e74d9757c7451fb1cf4e8f0ae1ac",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1525
     }
   }
 }
