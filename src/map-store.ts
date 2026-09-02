@@ -435,11 +435,46 @@ function playwrightVersion(cwd: string): string | undefined {
   }
 }
 
-function detectLockfile(cwd: string): { file?: string; hash?: string } {
+function playwrightRuntimeLockfileHash(file: string, content: Buffer): string | undefined {
+  if (file === 'package-lock.json') {
+    try {
+      const lock = JSON.parse(content.toString('utf8')) as {
+        packages?: Record<string, unknown>;
+        dependencies?: Record<string, unknown>;
+      };
+      const runtime = ['@playwright/test', 'playwright', 'playwright-core']
+        .map((name) => [name, lock.packages?.[`node_modules/${name}`] ?? lock.dependencies?.[name]] as const)
+        .filter((entry) => entry[1] !== undefined);
+      return runtime.length > 0 ? hash(JSON.stringify(runtime)) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  const text = content.toString('utf8');
+  const descriptors = new Set<string>();
+  for (const match of text.matchAll(/(?:@playwright\/test|playwright(?:-core)?)@(?:npm:)?([0-9][0-9A-Za-z.+-]*)/g)) {
+    descriptors.add(match[0]);
+  }
+  for (const block of text.split(/\r?\n\s*\r?\n/)) {
+    const header = block.split(/\r?\n/, 1)[0] ?? '';
+    if (!/(?:@playwright\/test|playwright(?:-core)?)[@:"]/i.test(header)) continue;
+    const version = block.match(/^\s*version:\s*['"]?([^'"\s]+)|^\s*version\s+['"]([^'"]+)/m);
+    const resolvedVersion = version?.[1] ?? version?.[2];
+    if (resolvedVersion) descriptors.add(`${header.trim()}=${resolvedVersion}`);
+  }
+  return descriptors.size > 0 ? hash(JSON.stringify([...descriptors].sort())) : undefined;
+}
+
+function detectLockfile(cwd: string): { file?: string; hash?: string; playwrightRuntimeHash?: string } {
   for (const file of ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb']) {
     const full = path.join(cwd, file);
-    const h = hashFile(full);
-    if (h) return { file, hash: h };
+    try {
+      const content = fs.readFileSync(full);
+      return { file, hash: hash(content), playwrightRuntimeHash: playwrightRuntimeLockfileHash(file, content) };
+    } catch {
+      // Try the next supported lockfile.
+    }
   }
   return {};
 }
@@ -495,6 +530,7 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
     specHash: hashFile(specPath) ?? 'missing',
     lockfile: lock.file,
     lockfileHash: lock.hash,
+    playwrightRuntimeHash: lock.playwrightRuntimeHash,
     playwrightVersion: playwrightVersion(cwd),
     platform: process.platform,
     arch: process.arch,
@@ -503,13 +539,20 @@ function compatibilityInput(options: { cwd: string; spec: string; baseUrl?: stri
   };
 }
 
-/** Hash only inputs available both during capture and in a detached restore probe.
- *  The installed Playwright package remains manifest evidence, but detached probe
- *  worktrees intentionally have no node_modules. The lockfile hash already binds
- *  the resolved dependency graph, so hashing the installed lookup made every
- *  capture key differ from its later restore key. */
+/** Hash only capture-runtime inputs available both during capture and in a detached
+ *  restore probe. The full lockfile stays provenance: application dependencies are
+ *  the product under test, while the lockfile's Playwright descriptor remains part
+ *  of the compatibility contract. Installed Playwright remains manifest evidence,
+ *  but detached probe worktrees intentionally have no node_modules. */
 function compatibilityKeyForInput(input: ReturnType<typeof compatibilityInput>): string {
-  const { playwrightVersion: recordedPlaywrightVersion, ...stableCompatibilityInput } = input;
+  const {
+    lockfile: recordedLockfile,
+    lockfileHash: recordedLockfileHash,
+    playwrightVersion: recordedPlaywrightVersion,
+    ...stableCompatibilityInput
+  } = input;
+  void recordedLockfile;
+  void recordedLockfileHash;
   void recordedPlaywrightVersion;
   return hash(JSON.stringify(stableCompatibilityInput)).slice(0, 16);
 }
@@ -1108,6 +1151,11 @@ export function manifestlessError(side: 'before' | 'after' | 'both'): string {
 export type SourceBindingReceipt = {
   status: 'bound' | 'unverified';
   compatibility: 'matched' | 'not-applicable';
+  applicationDependencyProvenance?: {
+    status: 'matched' | 'changed';
+    before: { lockfile: string; lockfileHash: string };
+    after: { lockfile: string; lockfileHash: string };
+  };
   before: {
     expected: string | null;
     observed: string | null;
@@ -1178,9 +1226,21 @@ function sourceBindingReceipt(
   after: MapManifest | null,
   expected: { beforeSha?: string; afterSha?: string },
 ): SourceBindingReceipt {
+  const applicationDependencyProvenance =
+    before?.lockfile && before.lockfileHash && after?.lockfile && after.lockfileHash
+      ? {
+          status:
+            before.lockfile === after.lockfile && before.lockfileHash === after.lockfileHash
+              ? ('matched' as const)
+              : ('changed' as const),
+          before: { lockfile: before.lockfile, lockfileHash: before.lockfileHash },
+          after: { lockfile: after.lockfile, lockfileHash: after.lockfileHash },
+        }
+      : undefined;
   return {
     status: expected.beforeSha !== undefined && expected.afterSha !== undefined ? 'bound' : 'unverified',
     compatibility: before && after ? 'matched' : 'not-applicable',
+    ...(applicationDependencyProvenance ? { applicationDependencyProvenance } : {}),
     before: sourceBindingSide(before, expected.beforeSha),
     after: sourceBindingSide(after, expected.afterSha),
   };

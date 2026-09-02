@@ -1558,6 +1558,78 @@ test('expectedCompatibilityKey is identical for relative and absolute cwd', () =
   assert.equal(relative, absolute);
 });
 
+test('application lockfile changes preserve provenance without changing capture-runtime compatibility', () => {
+  const consumer = mkTmp('styleproof-dependency-provenance-');
+  const before = path.join(consumer, 'before');
+  const after = path.join(consumer, 'after');
+  const spec = path.join(consumer, 'e2e/styleproof.spec.ts');
+  const lockfile = path.join(consumer, 'package-lock.json');
+  const writeLockfile = (applicationVersion, playwrightVersion = '1.52.0') => {
+    fs.writeFileSync(
+      lockfile,
+      `${JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          '': {
+            dependencies: { 'application-library': applicationVersion },
+            devDependencies: { '@playwright/test': playwrightVersion },
+          },
+          'node_modules/@playwright/test': { version: playwrightVersion },
+          'node_modules/application-library': { version: applicationVersion },
+        },
+      })}\n`,
+    );
+  };
+  try {
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.mkdirSync(before);
+    fs.mkdirSync(after);
+    fs.writeFileSync(path.join(consumer, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(spec, 'export default {};\n');
+
+    writeLockfile('1.0.0');
+    const beforeKey = expectedCompatibilityKey({ cwd: consumer, spec: 'e2e/styleproof.spec.ts' });
+    const beforeManifest = writeMapManifest({
+      dir: before,
+      spec: 'e2e/styleproof.spec.ts',
+      sha: 'a'.repeat(40),
+      screenshots: true,
+      dirty: false,
+      cwd: consumer,
+    });
+
+    writeLockfile('2.0.0');
+    const afterKey = expectedCompatibilityKey({ cwd: consumer, spec: 'e2e/styleproof.spec.ts' });
+    const afterManifest = writeMapManifest({
+      dir: after,
+      spec: 'e2e/styleproof.spec.ts',
+      sha: 'b'.repeat(40),
+      screenshots: true,
+      dirty: false,
+      cwd: consumer,
+    });
+
+    assert.equal(afterKey, beforeKey, 'an application dependency migration is the product change under test');
+    assert.equal(beforeManifest.compatibilityKey, beforeKey);
+    assert.equal(afterManifest.compatibilityKey, afterKey);
+    assert.notEqual(beforeManifest.lockfileHash, afterManifest.lockfileHash);
+    assert.deepEqual(assertCompatibleMapDirs(before, after).applicationDependencyProvenance, {
+      status: 'changed',
+      before: { lockfile: 'package-lock.json', lockfileHash: beforeManifest.lockfileHash },
+      after: { lockfile: 'package-lock.json', lockfileHash: afterManifest.lockfileHash },
+    });
+
+    writeLockfile('2.0.0', '1.53.0');
+    assert.notEqual(
+      expectedCompatibilityKey({ cwd: consumer, spec: 'e2e/styleproof.spec.ts' }),
+      afterKey,
+      'a pinned Playwright runtime change must select a different cache contract',
+    );
+  } finally {
+    rmTmp(consumer);
+  }
+});
+
 test('expectedCompatibilityKey is stable when a detached restore probe has no node_modules', () => {
   const consumer = mkTmp('styleproof-detached-probe-');
   const capture = path.join(consumer, 'maps');

@@ -341,6 +341,138 @@ chmod +x node_modules/.bin/playwright
   },
 );
 
+test(
+  'styleproof-ci: application dependency migrations use one capture contract on cold and restored paths',
+  { timeout: 30_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-dependency-migration-');
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'consumer');
+    const mapRoot = path.join(root, 'maps');
+    const captureLog = path.join(root, 'capture.log');
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    const lockfile = (applicationVersion) =>
+      `${JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          '': {
+            dependencies: { 'application-library': applicationVersion },
+            devDependencies: { '@playwright/test': '1.52.0' },
+          },
+          'node_modules/@playwright/test': { version: '1.52.0' },
+          'node_modules/application-library': { version: applicationVersion },
+        },
+      })}\n`;
+    try {
+      fs.mkdirSync(repo);
+      git(root, ['init', '--bare', '-q', remote]);
+      git(repo, ['init', '-q', '-b', 'main']);
+      git(repo, ['config', 'user.email', 'styleproof@example.test']);
+      git(repo, ['config', 'user.name', 'StyleProof Test']);
+      git(repo, ['remote', 'add', 'origin', remote]);
+      fs.writeFileSync(
+        path.join(repo, 'package.json'),
+        JSON.stringify({
+          private: true,
+          dependencies: { 'application-library': '1.0.0' },
+          devDependencies: { '@playwright/test': '1.52.0' },
+        }),
+      );
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), lockfile('1.0.0'));
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// capture fixture\n');
+      fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: base dependency']);
+      const base = git(repo, ['rev-parse', 'HEAD']);
+
+      fs.writeFileSync(
+        path.join(repo, 'package.json'),
+        JSON.stringify({
+          private: true,
+          dependencies: { 'application-library': '2.0.0' },
+          devDependencies: { '@playwright/test': '1.52.0' },
+        }),
+      );
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), lockfile('2.0.0'));
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'test: head dependency']);
+      const head = git(repo, ['rev-parse', 'HEAD']);
+      git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+      const bin = path.join(repo, 'node_modules', '.bin');
+      fs.mkdirSync(bin, { recursive: true });
+      const playwrightShim = path.join(root, 'playwright-shim');
+      fs.writeFileSync(
+        playwrightShim,
+        `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+git rev-parse HEAD >> "$STYLEPROOF_TEST_CAPTURE_LOG"
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+`,
+      );
+      fs.chmodSync(playwrightShim, 0o755);
+      fs.writeFileSync(
+        path.join(bin, 'npm'),
+        npmShim(`
+mkdir -p node_modules/.bin node_modules/@playwright/test
+printf '{"name":"@playwright/test","version":"1.52.0"}\\n' > node_modules/@playwright/test/package.json
+cp "$STYLEPROOF_TEST_PLAYWRIGHT_SHIM" node_modules/.bin/playwright
+chmod +x node_modules/.bin/playwright
+exit 0
+`),
+      );
+      fs.copyFileSync(playwrightShim, path.join(bin, 'playwright'));
+      fs.chmodSync(path.join(bin, 'npm'), 0o755);
+      fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+
+      const args = ['--base', base, '--head', head, '--spec', 'styleproof.spec.ts', '--base-dir', mapRoot, '--force'];
+      const sharedEnv = {
+        CI: '1',
+        STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        STYLEPROOF_SKIP_BROWSER_PREFLIGHT: '1',
+        STYLEPROOF_TEST_CAPTURE_LOG: captureLog,
+        STYLEPROOF_TEST_PLAYWRIGHT_SHIM: playwrightShim,
+      };
+      const coldOutput = path.join(root, 'cold-output');
+      const cold = runCi(args, { ...sharedEnv, GITHUB_OUTPUT: coldOutput }, repo);
+      assert.equal(cold.status, 0, cold.stderr + cold.stdout);
+      const coldBefore = readMapManifest(path.join(mapRoot, 'base'));
+      const coldAfter = readMapManifest(path.join(mapRoot, 'head'));
+      assert.notEqual(coldBefore.lockfileHash, coldAfter.lockfileHash, 'the original lockfile hashes remain evidence');
+      assert.equal(coldBefore.compatibilityKey, coldAfter.compatibilityKey, 'cold captures share the sensor contract');
+      assert.match(fs.readFileSync(coldOutput, 'utf8'), /capture-needed=true/);
+      const captureCount = fs.readFileSync(captureLog, 'utf8').trim().split('\n').length;
+      assert.equal(captureCount, 2, 'the cold path captures base and head once');
+
+      fs.rmSync(mapRoot, { recursive: true, force: true });
+      const restoredOutput = path.join(root, 'restored-output');
+      const restored = runCi(args, { ...sharedEnv, GITHUB_OUTPUT: restoredOutput }, repo);
+      assert.equal(restored.status, 0, restored.stderr + restored.stdout);
+      const outputs = fs.readFileSync(restoredOutput, 'utf8');
+      assert.match(outputs, /base-hit=true/);
+      assert.match(outputs, /head-hit=true/);
+      assert.match(outputs, /capture-needed=false/);
+      assert.equal(
+        fs.readFileSync(captureLog, 'utf8').trim().split('\n').length,
+        captureCount,
+        'the restored path does not recapture either side',
+      );
+      const restoredBefore = readMapManifest(path.join(mapRoot, 'base'));
+      const restoredAfter = readMapManifest(path.join(mapRoot, 'head'));
+      assert.equal(restoredBefore.compatibilityKey, restoredAfter.compatibilityKey);
+      assert.equal(restoredBefore.lockfileHash, coldBefore.lockfileHash);
+      assert.equal(restoredAfter.lockfileHash, coldAfter.lockfileHash);
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
+
 test('styleproof-ci: refuses to run outside CI without --force (it force-checkouts commits)', () => {
   const res = runCi(['--base', 'a'.repeat(40), '--head', 'b'.repeat(40)]);
   assert.equal(res.status, 2);

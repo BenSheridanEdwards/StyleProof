@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -675,7 +676,7 @@ function addBareOrigin(repo) {
   return remote;
 }
 
-function writeManifest(dir, sha, compatibilityKey) {
+function writeManifest(dir, sha, compatibilityKey, lockfileProvenance) {
   fs.writeFileSync(
     path.join(dir, MAP_MANIFEST),
     JSON.stringify(
@@ -686,6 +687,9 @@ function writeManifest(dir, sha, compatibilityKey) {
         dirty: false,
         spec: 'e2e/styleproof.spec.ts',
         specHash: '1'.repeat(64),
+        ...(lockfileProvenance
+          ? { lockfile: lockfileProvenance.lockfile, lockfileHash: lockfileProvenance.lockfileHash }
+          : {}),
         platform: process.platform,
         arch: process.arch,
         nodeMajor: process.versions.node.split('.')[0],
@@ -749,19 +753,35 @@ function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main'
     commitAll(repo, baseBranch);
   }
   const baseRefSha = spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+  const baseLockfileHash = changeLockfile
+    ? createHash('sha256')
+        .update(fs.readFileSync(path.join(repo, 'package-lock.json')))
+        .digest('hex')
+    : undefined;
   const baseCompatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
   spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'feature.txt'), 'feature');
   if (changeLockfile) fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"fixture":"head"}\n');
   const headSha = commitAll(repo, 'feature');
 
+  const headLockfileHash = changeLockfile
+    ? createHash('sha256')
+        .update(fs.readFileSync(path.join(repo, 'package-lock.json')))
+        .digest('hex')
+    : undefined;
   const headCompatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
   const baseDir = path.join(repo, 'seed-base');
   const headDir = path.join(repo, 'seed-head');
   writeCapture(baseDir, 'home@1280', mapWith('rgb(0, 0, 0)'), null);
   writeCapture(headDir, 'home@1280', mapWith(headColor), null);
-  writeManifest(baseDir, baseRefSha, baseCompatibilityKey);
-  writeManifest(headDir, headSha, headCompatibilityKey);
+  const baseLockfileProvenance = baseLockfileHash
+    ? { lockfile: 'package-lock.json', lockfileHash: baseLockfileHash }
+    : undefined;
+  const headLockfileProvenance = headLockfileHash
+    ? { lockfile: 'package-lock.json', lockfileHash: headLockfileHash }
+    : undefined;
+  writeManifest(baseDir, baseRefSha, baseCompatibilityKey, baseLockfileProvenance);
+  writeManifest(headDir, headSha, headCompatibilityKey, headLockfileProvenance);
   seedMapStore(repo, [
     {
       sha: baseRefSha,
@@ -772,7 +792,15 @@ function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main'
   ]);
   fs.rmSync(baseDir, { recursive: true, force: true });
   fs.rmSync(headDir, { recursive: true, force: true });
-  return { repo, baseSha, headSha, baseCompatibilityKey, headCompatibilityKey };
+  return {
+    repo,
+    baseSha,
+    headSha,
+    baseCompatibilityKey,
+    headCompatibilityKey,
+    baseLockfileHash,
+    headLockfileHash,
+  };
 }
 
 test('diff defaults to cached maps against the inferred main branch', () => {
@@ -806,12 +834,20 @@ test('diff accepts a single base ref and uses cached maps', () => {
   rmTmp(repo);
 });
 
-test('diff restores each cached side but refuses to compare distinct compatibility contracts', () => {
-  const { repo, baseCompatibilityKey, headCompatibilityKey } = setupCachedComparison({ changeLockfile: true });
-  assert.notEqual(baseCompatibilityKey, headCompatibilityKey, 'the lockfile-only fixture must exercise distinct keys');
-  const r = runIn(repo, DIFF, ['main']);
-  assert.equal(r.status, 2, r.stderr);
-  assert.match(r.stderr, /different capture compatibility contracts/);
+test('diff compares an application dependency migration and reports both lockfile hashes as provenance', () => {
+  const { repo, baseCompatibilityKey, headCompatibilityKey, baseLockfileHash, headLockfileHash } =
+    setupCachedComparison({ changeLockfile: true });
+  assert.equal(baseCompatibilityKey, headCompatibilityKey, 'application dependency bytes are not a sensor contract');
+  const jsonPath = path.join(repo, 'dependency-migration-diff.json');
+  const r = runIn(repo, DIFF, ['main', '--json', jsonPath]);
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(receipt.sourceBinding.compatibility, 'matched');
+  assert.deepEqual(receipt.sourceBinding.applicationDependencyProvenance, {
+    status: 'changed',
+    before: { lockfile: 'package-lock.json', lockfileHash: baseLockfileHash },
+    after: { lockfile: 'package-lock.json', lockfileHash: headLockfileHash },
+  });
   rmTmp(repo);
 });
 

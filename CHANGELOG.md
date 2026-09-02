@@ -20,6 +20,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Capture compatibility now separates the Playwright sensor/runtime descriptor from
+  the application's full lockfile hash. Frontend dependency migrations can compare
+  normally when the capture runtime is unchanged, while manifests and diff/report
+  source-binding receipts retain both lockfile hashes as explicit provenance.
 - Capture-evidence receipts now accept bounded trees up to 512 MiB, while retaining
   the 100,000-file, 16 MiB per-file, regular-file, and no-follow safety checks.
   Exact-boundary coverage accepts the ceiling and rejects one byte above it.
