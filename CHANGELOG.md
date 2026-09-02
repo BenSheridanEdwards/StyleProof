@@ -23,6 +23,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Capture-evidence receipts now accept bounded trees up to 512 MiB, while retaining
   the 100,000-file, 16 MiB per-file, regular-file, and no-follow safety checks.
   Exact-boundary coverage accepts the ceiling and rejects one byte above it.
+- The transitive `fast-uri` development dependency is refreshed to `3.1.7`, clearing
+  the newly disclosed host-confusion and SSRF advisories from the CI audit gate.
 - CI reuses each successful TypeScript build for unit and browser tests instead of
   recompiling through nested npm scripts. All Node-version, cross-platform, static,
   security, unit, browser, and determinism gates remain enabled.
