@@ -236,6 +236,8 @@ It catches:
 - a modal, menu, listbox, popover, sheet, or toast whose open state changed;
 - a supposedly no-op refactor, such as CSS-to-Tailwind, that changed rendered
   output;
+- a restyle on an element the PR also re-nested (a wrapper added or removed),
+  paired back by geometry so the structural churn cannot hide it;
 - a required route, component, or UI state that exists but has no capture.
 
 The end-to-end catch contract lives in

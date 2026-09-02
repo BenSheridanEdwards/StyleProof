@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- A restyle on an element that a pull request re-nested (a wrapper added around it,
+  or removed from around it) was certified clean: certification excludes structure,
+  the element's structural path changed, and the real computed-style delta vanished
+  with the advisory remove+add. The certification diff (`styleproof-diff`, the
+  report counts, and the Action gate) now runs the same before-map correspondence
+  the report already used for presentation — nth-child shift first, then geometry
+  among one-sided elements — and pairs a re-nested element back onto its head path
+  by tag, rect, and own-text length, whether or not the paths share an ancestor.
+  Ambiguous signatures and replaced hashed identities (`id`, `data-testid`,
+  `data-style`) stay one-sided and fail closed as before; a wrapper-only change
+  still certifies as no reviewable change. (#472)
+
 ### Added
 
 - Release Confidence Manifest v0.1 kernel with exact-source and compatibility binding,

@@ -14,16 +14,17 @@ and fails if any one stops being surfaced.
 
 On every **captured surface**, base vs head:
 
-| Change                                                        | Surfaced as                                                                                  | Pinned by                       |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------- |
-| A computed style differs on a matched path (resting)          | `style` finding; headline "computed-style difference(s)" — not used for added-node inventory | pr-surfacing ✓                  |
-| A `:hover` / `:focus` / `:active` variant dropped or changed  | `state` finding                                                                              | pr-surfacing ✓                  |
-| A `::before` / `::after` style differs                        | `style` finding, pseudo tagged                                                               | pr-surfacing ✓                  |
-| An element is added, removed, or retagged                     | opt-in content/structure advisory; does not gate style certification                         | content boundary + report tests |
-| Content changes reflow an unchanged `auto` / `%` / `fr` value | ignored as used-value reflow; a changed CSS computed value still gates                       | unit + browser e2e              |
-| A nav item / route disappears                                 | inventory guard, named, **gates**                                                            | pr-surfacing ✓                  |
-| A surface exists on only one side                             | reported as a new / removed surface                                                          | pr-surfacing ✓                  |
-| Nothing changed                                               | zero findings (no false positives)                                                           | pr-surfacing ✓                  |
+| Change                                                          | Surfaced as                                                                                          | Pinned by                       |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------- |
+| A computed style differs on a matched path (resting)            | `style` finding; headline "computed-style difference(s)" — not used for added-node inventory         | pr-surfacing ✓                  |
+| A `:hover` / `:focus` / `:active` variant dropped or changed    | `state` finding                                                                                      | pr-surfacing ✓                  |
+| A `::before` / `::after` style differs                          | `style` finding, pseudo tagged                                                                       | pr-surfacing ✓                  |
+| An element is added, removed, or retagged                       | opt-in content/structure advisory; does not gate style certification                                 | content boundary + report tests |
+| Content changes reflow an unchanged `auto` / `%` / `fr` value   | ignored as used-value reflow; a changed CSS computed value still gates                               | unit + browser e2e              |
+| A wrapper added around / removed from around a restyled element | `style` / `state` finding on the head path — the re-nested element is paired back by geometry (#472) | pr-surfacing ✓                  |
+| A nav item / route disappears                                   | inventory guard, named, **gates**                                                                    | pr-surfacing ✓                  |
+| A surface exists on only one side                               | reported as a new / removed surface                                                                  | pr-surfacing ✓                  |
+| Nothing changed                                                 | zero findings (no false positives)                                                                   | pr-surfacing ✓                  |
 
 The reachable set is kept complete by two guards that run _before_ the diff:
 

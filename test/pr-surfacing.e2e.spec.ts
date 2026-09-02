@@ -20,6 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureStyleMap, diffStyleMaps, diffStyleMapDirs, auditRunInventory, type StyleMap } from '../dist/index.js';
+import { correspondBeforeMap } from '../dist/path-correspondence.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIFF_BIN = path.join(ROOT, 'bin', 'styleproof-diff.mjs');
@@ -210,6 +211,48 @@ test.describe('every PR change class is surfaced in the diff', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  // GAP CLOSED (#472): certification excludes structure, so a wrapper added around
+  // (or removed from around) an element re-keyed every descendant and a real restyle
+  // on it vanished with the advisory remove+add — the surface certified clean. The
+  // certification correspondence now pairs the re-nested element back by geometry.
+  const CARD_CSS = '.card{display:block}.wrap{display:block}';
+  const CTA = (color: string) => `.cta{display:block;width:120px;height:40px;color:${color};background:rgb(0,0,255)}`;
+  const FLAT = '<div class="card"><button class="cta">Go</button></div>';
+  const WRAPPED = '<div class="card"><div class="wrap"><button class="cta">Go</button></div></div>';
+  // Exactly what diffStyleMapDirs runs for certification (structure excluded).
+  const certify = (base: StyleMap, head: StyleMap) =>
+    diffStyleMaps(correspondBeforeMap(base, head), head, { includeStructure: false });
+
+  test('a wrapper added around a RESTYLED element → the style finding still names the property', async ({ page }) => {
+    const base = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), FLAT);
+    const head = await cap(page, CARD_CSS + CTA('rgb(0,128,0)'), WRAPPED);
+    const f = certify(base, head).find((x) => x.kind === 'style' && x.props.some((p) => p.prop === 'color'));
+    expect(f, 'the colour change on the re-nested button is surfaced').toBeTruthy();
+    expect(f!.path, 'the finding sits on the head path').toContain(' > button:');
+  });
+
+  test('a wrapper removed from around a RESTYLED element → the style finding still names the property', async ({
+    page,
+  }) => {
+    const base = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), WRAPPED);
+    const head = await cap(page, CARD_CSS + CTA('rgb(0,128,0)'), FLAT);
+    const f = certify(base, head).find((x) => x.kind === 'style' && x.props.some((p) => p.prop === 'color'));
+    expect(f, 'the colour change on the un-nested button is surfaced').toBeTruthy();
+  });
+
+  test('a wrapper added around an element whose :hover was dropped → a state finding for hover', async ({ page }) => {
+    const base = await cap(page, CARD_CSS + CTA('rgb(255,0,0)') + '.cta:hover{color:rgb(200,0,0)}', FLAT);
+    const head = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), WRAPPED);
+    const f = certify(base, head).find((x) => x.kind === 'state' && x.state === 'hover');
+    expect(f, 'the dropped :hover on the re-nested button is surfaced').toBeTruthy();
+  });
+
+  test('a wrapper added around an UNCHANGED element surfaces NOTHING (zero false positives)', async ({ page }) => {
+    const base = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), FLAT);
+    const head = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), WRAPPED);
+    expect(certify(base, head)).toEqual([]);
+  });
+
   test('a clean no-op change surfaces NOTHING (zero false positives)', async ({ page }) => {
     const base = await cap(page, boxCss('background-color:rgb(200,200,200)'), BOX);
     const head = await cap(page, boxCss('background-color:rgb(200,200,200)'), BOX);
@@ -267,6 +310,58 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     expect(report.status, `styleproof-report ran and flagged the change\n${report.out}`).toBe(1);
     const md = fs.readFileSync(path.join(root, 'report', 'report.md'), 'utf8');
     expect(md, 'the report names the changed property').toMatch(/background/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  // GAP CLOSED (#472): the same re-nesting through the real gate + report bins.
+  test('styleproof-diff exits 1 and styleproof-report NAMES a restyle hidden behind a new wrapper', async ({
+    page,
+  }) => {
+    const { root, base, head } = dirs();
+    const cardCss = '.card{display:block}.wrap{display:block}';
+    const ctaCss = (bg: string) => `.cta{display:block;width:120px;height:40px;background-color:${bg}}`;
+    writeMap(
+      base,
+      await cap(page, cardCss + ctaCss('rgb(200,200,200)'), '<div class="card"><button class="cta">Go</button></div>'),
+    );
+    writeMap(
+      head,
+      await cap(
+        page,
+        cardCss + ctaCss('rgb(80,120,200)'),
+        '<div class="card"><div class="wrap"><button class="cta">Go</button></div></div>',
+      ),
+    );
+
+    const diff = run(DIFF_BIN, ['base', 'head'], root);
+    expect(diff.status, `styleproof-diff blocks the re-nested restyle\n${diff.out}`).toBe(1);
+    expect(diff.out).toMatch(/background-color/);
+
+    const report = run(REPORT_BIN, ['base', 'head', '--out', 'report'], root);
+    expect(report.status, `styleproof-report ran and flagged the change\n${report.out}`).toBe(1);
+    const md = fs.readFileSync(path.join(root, 'report', 'report.md'), 'utf8');
+    expect(md, 'the report names the changed property').toMatch(/background-color/);
+    expect(md, 'the report does not claim a clean match').not.toMatch(/No reviewable computed-style changes/);
+    const json = JSON.parse(fs.readFileSync(path.join(root, 'report', 'report.json'), 'utf8'));
+    expect(json.counts.style, 'the machine-readable count agrees with the gate').toBe(1);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test('styleproof-diff certifies a wrapper-only change as 0 reviewable changes (diagnostic compare)', async ({
+    page,
+  }) => {
+    const { root, base, head } = dirs();
+    const css =
+      '.card{display:block}.wrap{display:block}.cta{display:block;width:120px;height:40px;background-color:rgb(200,200,200)}';
+    writeMap(base, await cap(page, css, '<div class="card"><button class="cta">Go</button></div>'));
+    writeMap(
+      head,
+      await cap(page, css, '<div class="card"><div class="wrap"><button class="cta">Go</button></div></div>'),
+    );
+
+    const diff = run(DIFF_BIN, ['base', 'head', '--allow-unasserted'], root);
+    expect(diff.status, `a no-op re-nesting is not a style change\n${diff.out}`).toBe(0);
+    expect(diff.out).toMatch(/0 reviewable computed-style changes/);
     fs.rmSync(root, { recursive: true, force: true });
   });
 

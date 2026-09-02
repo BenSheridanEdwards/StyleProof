@@ -26,6 +26,7 @@ import { fillRect, type RGB } from './png-util.js';
 import {
   diffStyleMapDirs,
   diffContentDirs,
+  presentationDiffStyleMaps,
   summarizeComparability,
   type ComparabilitySummary,
   type ContentChange,
@@ -35,7 +36,7 @@ import {
   type SurfaceComparability,
   type SurfaceDiff,
 } from './diff.js';
-import { presentationBeforeMap, presentationDiffStyleMaps } from './path-correspondence.js';
+import { presentationBeforeMap } from './path-correspondence.js';
 import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
 import {
   auditCoverage,
