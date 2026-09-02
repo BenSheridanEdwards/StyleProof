@@ -20,6 +20,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Ambiguous signatures and replaced hashed identities (`id`, `data-testid`,
   `data-style`) stay one-sided and fail closed as before; a wrapper-only change
   still certifies as no reviewable change. (#472)
+
 ## [6.3.0] - 2026-09-02
 
 > **StyleProof 6.3.0: Release Confidence Manifest**
