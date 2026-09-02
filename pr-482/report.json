@@ -69,34 +69,38 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 0,
+      "unproven-determinism": 1,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 1
+      "captured": 0
     },
-    "completeness": "complete"
+    "completeness": "limited"
   },
   "releaseConfidence": {
     "kind": "styleproof.release-confidence.summary",
     "version": "0.1",
     "presence": "present",
-    "certifies": true,
-    "status": "valid",
-    "blocking": false,
-    "worstAxis": "none",
+    "certifies": false,
+    "status": "invalid",
+    "blocking": true,
+    "worstAxis": "completeness",
     "declared": {
       "surfaces": 1,
       "obligations": 1,
       "assertions": 1
     },
     "evidenced": {
-      "joins": 1,
-      "completeDomains": 6,
+      "joins": 0,
+      "completeDomains": 3,
       "requiredDomains": 6
     },
     "incomparable": [],
-    "reasons": [],
-    "manifestDigest": "fa05878079ad67c3bc2557dc309ce5d839b98ba8c735e8d8e36d4fd4fbe9156a"
+    "reasons": [
+      "connector-partial",
+      "environment-unproven",
+      "integrity-mismatch"
+    ],
+    "manifestDigest": "ca5959f5c91ecf49c5b1607592c075e652c7f3dd5166f974bf9ebd8a77fbf5cb"
   },
   "sourceBinding": {
     "status": "bound",
@@ -116,17 +120,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "64f8b01bf2fbca1256e0d59d6b3aaa5ef11b43d3444be34caabba86a011a589e",
+      "digest": "88aed4af95815fc00ae40e3135d721e819b598cfd04b61d3b823f36992d93a08",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1578
+      "byteCount": 1638
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "2b9364e95005b04b6b40238b4765f827a2fa07faf445c9416a679b711c9b12ad",
+      "digest": "35d1db159891e1f4dfc4ffe985846daf1c145d9e6d5a1db9ebbd2f88a82768bc",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1566
+      "byteCount": 1638
     }
   }
 }
