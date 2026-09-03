@@ -50,16 +50,16 @@
   },
   "comparability": [
     {
+      "surface": "about@320",
+      "status": "not-required",
+      "required": false,
+      "reason": "missing-before"
+    },
+    {
       "surface": "home@320",
       "status": "comparable",
       "required": true,
       "reason": "explicit-state-match"
-    },
-    {
-      "surface": "pricing@320",
-      "status": "not-required",
-      "required": false,
-      "reason": "missing-before"
     }
   ],
   "reportConsistency": {
@@ -73,11 +73,11 @@
   },
   "surfaces": [
     {
-      "surface": "pricing@320",
+      "surface": "about@320",
       "missing": "before",
       "isNew": true,
       "isRemoved": false,
-      "image": "crops/pricing-320-1-new.png"
+      "image": "crops/about-320-1-new.png"
     }
   ],
   "confidence": {
@@ -114,7 +114,7 @@
       "connector-partial",
       "integrity-mismatch"
     ],
-    "manifestDigest": "7d87e322589e26a1b16040dc00040235964293543202d38dc0ddc573cb53e936"
+    "manifestDigest": "a35222b77e399a5e4f3a99bab28fac4fb2de437b18f089cd3191469483b55b1a"
   },
   "sourceBinding": {
     "status": "bound",
@@ -134,17 +134,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "d4c11d7f54d3635d1ac3c94b1c1abe4734abdd16a4ea07e69b40c6b0935ccd8c",
+      "digest": "19fbfd8fc8f9cfd383831c852313e8807f43b63b3942f8062314e62c6d239d81",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1676
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "a7bbe22f516f67568476c1e1d6f3b76c3a1853c7ab6aa502b14a9be7e9640a1a",
+      "digest": "dc51ac9b10e0868a49bb844a65e45f40fe4ec7f54e2b9fb4b0ab3ffaa6bfb45d",
       "fileCount": 7,
       "mapCount": 2,
-      "byteCount": 2451
+      "byteCount": 2447
     }
   }
 }
