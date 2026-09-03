@@ -1,0 +1,132 @@
+{
+  "counts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "rawCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "reviewableCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "comparison": {
+    "rawCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "reviewableCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "newSurfaces": 0,
+    "removedSurfaces": 0,
+    "rawChangedSurfaces": 0,
+    "reviewableChangedSurfaces": 0,
+    "hasReviewableEvidence": false,
+    "rawOnlyNoReviewable": false,
+    "contentGeometryUncertain": false,
+    "incomparableSurfaces": 0,
+    "unprovenSurfaces": 0,
+    "requiredUnprovenSurfaces": 0,
+    "globalRequiredUnprovenSurfaces": 0,
+    "status": "comparable",
+    "requireStateIdentity": false,
+    "blocksCertification": false,
+    "counts": {
+      "comparable": 1,
+      "incomparable": 0,
+      "unproven": 0,
+      "notRequired": 0,
+      "requiredUnproven": 0,
+      "globalRequiredUnproven": 0
+    }
+  },
+  "comparability": [
+    {
+      "surface": "home@320",
+      "status": "comparable",
+      "required": true,
+      "reason": "explicit-state-match"
+    }
+  ],
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "content": {
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
+  },
+  "surfaces": [],
+  "confidence": {
+    "counts": {
+      "inaccessible": 0,
+      "unproven-determinism": 0,
+      "excluded-with-reason": 0,
+      "unknown": 0,
+      "captured": 1
+    },
+    "completeness": "complete"
+  },
+  "releaseConfidence": {
+    "kind": "styleproof.release-confidence.summary",
+    "version": "0.1",
+    "presence": "present",
+    "certifies": true,
+    "status": "valid",
+    "blocking": false,
+    "worstAxis": "none",
+    "declared": {
+      "surfaces": 1,
+      "obligations": 1,
+      "assertions": 1
+    },
+    "evidenced": {
+      "joins": 1,
+      "completeDomains": 6,
+      "requiredDomains": 6
+    },
+    "incomparable": [],
+    "reasons": [],
+    "manifestDigest": "d23363e816379b716fa8e49ff51eeb463553b8ccaa3f0fb73183feca5e6a6933"
+  },
+  "sourceBinding": {
+    "status": "bound",
+    "compatibility": "matched",
+    "before": {
+      "expected": "626ea05a0e13643159f7ce06dc8aa26d986d2936",
+      "observed": "626ea05a0e13643159f7ce06dc8aa26d986d2936",
+      "result": "matched"
+    },
+    "after": {
+      "expected": "44cff0d82fbb4592fccd9807418f89a95473b943",
+      "observed": "44cff0d82fbb4592fccd9807418f89a95473b943",
+      "result": "matched"
+    }
+  },
+  "evidenceBinding": {
+    "version": 1,
+    "before": {
+      "algorithm": "sha256",
+      "digest": "d4c11d7f54d3635d1ac3c94b1c1abe4734abdd16a4ea07e69b40c6b0935ccd8c",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1525
+    },
+    "after": {
+      "algorithm": "sha256",
+      "digest": "b6e95a95f41830d8b2fb3c863c02e7c9fbba6dabf34adbe3f50e9b602d7405ef",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1525
+    }
+  }
+}
