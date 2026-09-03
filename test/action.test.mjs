@@ -797,7 +797,9 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /action-dogfood\/degraded-base/);
   assert.match(dogfoodYml, /steps\.clean\.outputs\.report-url }}'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
-  assert.match(dogfoodYml, /steps\.new-surface\.outcome }}' = 'failure'/);
+  // #475: a new surface is reviewable, so with both gates opted out the action
+  // succeeds — but `changed` must still be true, proving it is not silently green.
+  assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'true'/);
   assert.match(dogfoodYml, /steps\.clean\.outputs\.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
   assert.match(dogfoodYml, /steps\.new-surface\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);

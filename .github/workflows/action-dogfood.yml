@@ -82,11 +82,16 @@ jobs:
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
-      - name: Assert an expanded physical capture universe is non-certifying in RCM v0.1
+      - name: Assert a surface with no baseline is reviewable, not an evidence failure
         run: |
-          # A surface with no baseline is a reviewable delta, not an unapprovable
-          # evidence failure: approve it before it becomes the baseline (#475).
-          test '${{ steps.new-surface.outcome }}' = 'failure'
+          # #475: a new surface is a reviewable delta — approve it before it becomes
+          # the baseline — not the unapprovable CERTIFICATION_FAILED it used to be.
+          # It is NOT silently green: styleproof-diff exits 3, so `changed` is true and
+          # the trust state is surfaced. This step opts out of both gates
+          # (fail-on-diff: 'false', no require-approval), so the action itself
+          # succeeds — exactly as it does for the `changed` fixture above. A real
+          # repo in either certify or review-gate mode still blocks on `changed`.
+          test '${{ steps.new-surface.outputs.changed }}' = 'true'
           test '${{ steps.new-surface.outputs.trust-state }}' = 'STYLE_REVIEW_REQUIRED'
           test -n '${{ steps.new-surface.outputs.report-url }}'
 
