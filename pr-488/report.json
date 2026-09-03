@@ -25,11 +25,11 @@
       "style": 0,
       "state": 0
     },
-    "newSurfaces": 1,
+    "newSurfaces": 0,
     "removedSurfaces": 0,
     "rawChangedSurfaces": 0,
     "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": true,
+    "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "incomparableSurfaces": 0,
@@ -43,7 +43,7 @@
       "comparable": 1,
       "incomparable": 0,
       "unproven": 0,
-      "notRequired": 1,
+      "notRequired": 0,
       "requiredUnproven": 0,
       "globalRequiredUnproven": 0
     }
@@ -54,12 +54,6 @@
       "status": "comparable",
       "required": true,
       "reason": "explicit-state-match"
-    },
-    {
-      "surface": "pricing@320",
-      "status": "not-required",
-      "required": false,
-      "reason": "missing-before"
     }
   ],
   "reportConsistency": {
@@ -71,22 +65,14 @@
     "changes": 0,
     "advisory": true
   },
-  "surfaces": [
-    {
-      "surface": "pricing@320",
-      "missing": "before",
-      "isNew": true,
-      "isRemoved": false,
-      "image": "crops/pricing-320-1-new.png"
-    }
-  ],
+  "surfaces": [],
   "confidence": {
     "counts": {
       "inaccessible": 0,
       "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 2
+      "captured": 1
     },
     "completeness": "complete"
   },
@@ -99,8 +85,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "edc7056a9ae0e6fecccfdb47fe9f518f01196d2b",
-      "observed": "edc7056a9ae0e6fecccfdb47fe9f518f01196d2b",
+      "expected": "aa1da63e6a0319e2f992d52c75d1aed37eaceae7",
+      "observed": "aa1da63e6a0319e2f992d52c75d1aed37eaceae7",
       "result": "matched"
     }
   },
@@ -115,10 +101,10 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "6de8e9ccb7ae806d566db2333b43cf8e560d1d745f751330abb5ee499a851f28",
-      "fileCount": 7,
-      "mapCount": 2,
-      "byteCount": 2451
+      "digest": "06a3a9ae30de02a5af0d13cb963d224662aea69e61303e62f0d80185fca99686",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1525
     }
   }
 }
