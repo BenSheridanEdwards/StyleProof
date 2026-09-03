@@ -96,7 +96,7 @@
     },
     "incomparable": [],
     "reasons": [],
-    "manifestDigest": "0cbabd44dc02ce2963a421cbc769870cec3a7382fdf118f26929ff1e1b6de063"
+    "manifestDigest": "74f1848dd5e8fce659cc57a1ffa0636d43101ef9737c0a8d67d1a632ea4f68e5"
   },
   "sourceBinding": {
     "status": "bound",
@@ -116,17 +116,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "2f0b75de5e09faeead1178a66fe76fb72a6beeb6195cc49154bb73f9f91ea162",
+      "digest": "4f980e84ea05d5ecb20a4a03fe46a48a063c1eb069ea0108da4fb3b63e027a2d",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1578
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "8e45fad81b4fc34846eb6c58cccf85d1909341aa3c7c6008f38d56ca1bb2bf05",
+      "digest": "32dcecee11fdc6e22a90d97413cee43edd604a7e98128b7f538bd01f73c04af5",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1589
+      "byteCount": 1566
     }
   }
 }
