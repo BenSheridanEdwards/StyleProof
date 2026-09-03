@@ -932,6 +932,12 @@ test('report CLI blocks an uncertified empty report even when nothing changed', 
   assert.match(r.stdout, /no reviewable computed-style changes/);
   assert.match(r.stdout, /content\/structure not evaluated/);
   assert.ok(fs.existsSync(path.join(out, 'report.md')));
+  // #474: this fixture projects a real (non-certifying) manifest, so the line is a
+  // genuine "blocked" that names the axis and reasons — never a raw presence token.
+  assert.doesNotMatch(r.stderr, /projection/);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  assert.match(md, /\*\*Release confidence\*\* — ✗ blocked \(completeness: [a-z-]+(, [a-z-]+)*\)/);
+  assert.doesNotMatch(md, /absent-legacy|confidence\*\* — ⚠ not evaluated/);
   rmTmp(root);
 });
 

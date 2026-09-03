@@ -15,7 +15,12 @@ import {
   serializeReleaseConfidenceManifest,
   validateReleaseConfidenceManifest,
 } from '../dist/release-confidence-manifest.js';
-import { projectReleaseConfidence, ReleaseConfidenceProjectError } from '../dist/release-confidence-project.js';
+import {
+  describeReleaseConfidenceProjectReason,
+  projectReleaseConfidence,
+  releaseConfidenceProjectReason,
+  ReleaseConfidenceProjectError,
+} from '../dist/release-confidence-project.js';
 import { fixtureCompatibilityKey, fixtureContentHash, makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 const BASE_SHA = 'a'.repeat(40);
@@ -463,6 +468,61 @@ test('verified evidence for the wrong source SHA hard-fails', () => {
   } finally {
     rmTmp(dirs.root);
   }
+});
+
+test('a projection refusal names a fixed reason literal (#474)', () => {
+  // A URL-only `styleproof-capture` run stamps specHash 'missing' — the exact
+  // shape behind the false "✗ blocked" line on a clean two-directory compare.
+  const dirs = matchingCapturePair();
+  try {
+    const manifestPath = path.join(dirs.afterDir, 'styleproof-manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    fs.writeFileSync(manifestPath, JSON.stringify({ ...manifest, specHash: 'missing' }));
+    assert.throws(
+      () => projectMatching(dirs),
+      (error) =>
+        error instanceof ReleaseConfidenceProjectError &&
+        error.message === 'release confidence projection failed' &&
+        error.reason === 'spec-hash-unbound',
+    );
+    // A malformed SHA or compatibility key never reaches the projector's own
+    // regexes: readMapManifest refuses the file first, so the reason is "unreadable".
+    fs.writeFileSync(manifestPath, JSON.stringify({ ...manifest, sha: 'not-a-sha' }));
+    assert.throws(
+      () => projectMatching(dirs),
+      (error) => error instanceof ReleaseConfidenceProjectError && error.reason === 'head-manifest-unreadable',
+    );
+    fs.rmSync(manifestPath);
+    assert.throws(
+      () => projectMatching(dirs),
+      (error) => error instanceof ReleaseConfidenceProjectError && error.reason === 'head-manifest-unreadable',
+    );
+  } finally {
+    rmTmp(dirs.root);
+  }
+  const versioned = matchingCapturePair();
+  try {
+    assert.throws(
+      () => projectMatching(versioned, undefined, { producerVersion: '9.9.9' }),
+      (error) => error instanceof ReleaseConfidenceProjectError && error.reason === 'producer-version-mismatch',
+    );
+    fs.writeFileSync(path.join(versioned.afterDir, COVERAGE_LEDGER), '{');
+    assert.throws(
+      () => projectMatching(versioned),
+      (error) => error instanceof ReleaseConfidenceProjectError && error.reason === 'coverage-ledger-invalid',
+    );
+  } finally {
+    rmTmp(versioned.root);
+  }
+});
+
+test('projection reasons narrow to known literals and describe themselves without echoing input', () => {
+  assert.equal(releaseConfidenceProjectReason('spec-hash-unbound'), 'spec-hash-unbound');
+  assert.equal(releaseConfidenceProjectReason('<img onerror=1>'), 'projection-failed');
+  assert.equal(releaseConfidenceProjectReason(undefined), 'projection-failed');
+  assert.equal(new ReleaseConfidenceProjectError().reason, 'projection-failed');
+  assert.match(describeReleaseConfidenceProjectReason('spec-hash-unbound'), /without a StyleProof spec file/);
+  assert.match(describeReleaseConfidenceProjectReason('projection-failed'), /unclassified/);
 });
 
 test('exports the 6.2 projector from the package root', async () => {

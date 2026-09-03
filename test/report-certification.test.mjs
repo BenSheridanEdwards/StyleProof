@@ -93,6 +93,95 @@ test('report projects one validated release-confidence summary without changing 
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('a manifest-less compare reads "not evaluated", never "blocked", and still withholds certification (#474)', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['home'],
+    baseNav: ['home'],
+    headNav: ['home'],
+    expected: ['home'],
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
+  const md = readMd(out);
+  assert.match(
+    md,
+    /\*\*Release confidence\*\* — ⚠ not evaluated \(no release-confidence manifest accompanied this comparison\)/,
+  );
+  assert.doesNotMatch(md, /✗ blocked/);
+  assert.doesNotMatch(md, /absent-legacy|manifest-absent/, 'raw presence tokens never reach the reviewer');
+  assert.match(md, /release certification stays withheld/);
+  // Gates-first ordering is unchanged: the line still precedes the visual verdict.
+  assert.ok(md.indexOf('**Release confidence**') < md.indexOf('No reviewable computed-style changes'));
+  // The machine summary is byte-for-byte what it was: the Action gate is untouched.
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.equal(report.releaseConfidence.presence, 'absent-legacy');
+  assert.equal(report.releaseConfidence.blocking, true);
+  assert.deepEqual(report.releaseConfidence.reasons, ['manifest-absent']);
+  assert.equal(result.releaseConfidence.blocking, true);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a refused projection names its cause in report.md from a fixed reason literal (#474)', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['home'],
+    baseNav: ['home'],
+    headNav: ['home'],
+    expected: ['home'],
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  generateStyleMapReport({
+    beforeDir: base,
+    afterDir: head,
+    outDir: out,
+    releaseConfidenceProjectionFailure: 'spec-hash-unbound',
+  });
+  const md = readMd(out);
+  assert.match(md, /not evaluated \(projection refused — the head capture ran without a StyleProof spec file/);
+  assert.doesNotMatch(md, /✗ blocked/);
+  fs.rmSync(root, { recursive: true, force: true });
+
+  const hostile = bundle({
+    captured: ['home'],
+    baseNav: ['home'],
+    headNav: ['home'],
+    expected: ['home'],
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  generateStyleMapReport({
+    beforeDir: hostile.base,
+    afterDir: hostile.head,
+    outDir: hostile.out,
+    releaseConfidenceProjectionFailure: '<img src=x onerror=alert(1)>',
+  });
+  const hostileMd = readMd(hostile.out);
+  assert.doesNotMatch(hostileMd, /onerror/, 'an unknown reason never echoes into the report');
+  assert.match(hostileMd, /projection refused — the projection refused for an unclassified reason/);
+  fs.rmSync(hostile.root, { recursive: true, force: true });
+});
+
+test('an invalid or non-certifying manifest still reads "✗ blocked" with its axis and reasons', () => {
+  const { root, base, head, out } = bundle({
+    captured: ['home'],
+    baseNav: ['home'],
+    headNav: ['home'],
+    expected: ['home'],
+    baseDet: 'self-checked',
+    headDet: 'self-checked',
+  });
+  const result = generateStyleMapReport({
+    beforeDir: base,
+    afterDir: head,
+    outDir: out,
+    releaseConfidenceManifest: {},
+  });
+  assert.equal(result.releaseConfidence.presence, 'present-invalid');
+  assert.match(readMd(out), /\*\*Release confidence\*\* — ✗ blocked \(manifest invalid: manifest-invalid\)/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('expanded captures satisfy the expanded registry in both coverage and confidence', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-cert-expanded-'));
   const base = path.join(root, 'base');

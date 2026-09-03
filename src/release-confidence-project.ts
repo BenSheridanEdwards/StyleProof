@@ -57,11 +57,84 @@ export type ReleaseConfidenceProjectResult = {
   manifest: ReleaseConfidenceManifest;
 };
 
+/**
+ * Why a projection refused. Fixed literals only — a reason is rendered into
+ * report.md and the CLI, so it must never carry attacker-controlled text.
+ */
+export type ReleaseConfidenceProjectReason =
+  | 'head-manifest-unreadable'
+  | 'head-manifest-unbound'
+  | 'spec-hash-unbound'
+  | 'producer-version-mismatch'
+  | 'coverage-ledger-invalid'
+  | 'confidence-ledger-invalid'
+  | 'capture-records-invalid'
+  | 'surface-alias-conflict'
+  | 'evidence-capture-unbound'
+  | 'source-binding-failed'
+  | 'projection-failed';
+
+const PROJECT_REASONS: ReadonlySet<string> = new Set<ReleaseConfidenceProjectReason>([
+  'head-manifest-unreadable',
+  'head-manifest-unbound',
+  'spec-hash-unbound',
+  'producer-version-mismatch',
+  'coverage-ledger-invalid',
+  'confidence-ledger-invalid',
+  'capture-records-invalid',
+  'surface-alias-conflict',
+  'evidence-capture-unbound',
+  'source-binding-failed',
+  'projection-failed',
+]);
+
+/** Narrow an untrusted value to a known reason literal; anything else is the generic reason. */
+export function releaseConfidenceProjectReason(value: unknown): ReleaseConfidenceProjectReason {
+  return typeof value === 'string' && PROJECT_REASONS.has(value)
+    ? (value as ReleaseConfidenceProjectReason)
+    : 'projection-failed';
+}
+
+/** One human sentence per reason, for report.md and the CLI. Fixed text — no input echoes. */
+export function describeReleaseConfidenceProjectReason(reason: ReleaseConfidenceProjectReason): string {
+  switch (reason) {
+    case 'head-manifest-unreadable':
+      return 'the head capture has no readable styleproof-manifest.json';
+    case 'head-manifest-unbound':
+      return 'the head manifest is not bound to a full commit SHA and compatibility key';
+    case 'spec-hash-unbound':
+      return 'the head capture ran without a StyleProof spec file, so no release scope can be bound (a URL-only styleproof-capture run)';
+    case 'producer-version-mismatch':
+      return 'the head capture was produced by a different StyleProof version';
+    case 'coverage-ledger-invalid':
+      return 'a coverage ledger is present but unreadable';
+    case 'confidence-ledger-invalid':
+      return 'a confidence ledger is present but unreadable';
+    case 'capture-records-invalid':
+      return 'a capture in the pair carries an unreadable surface or product-state identity';
+    case 'surface-alias-conflict':
+      return 'one capture surface maps to two different semantic surfaces';
+    case 'evidence-capture-unbound':
+      return 'the evidence-store capture does not match the head commit and compatibility key';
+    case 'source-binding-failed':
+      return 'the base and head captures are not source-compatible';
+    default:
+      return 'the projection refused for an unclassified reason';
+  }
+}
+
 export class ReleaseConfidenceProjectError extends Error {
-  constructor() {
+  readonly reason: ReleaseConfidenceProjectReason;
+  constructor(reason: ReleaseConfidenceProjectReason = 'projection-failed') {
     super('release confidence projection failed');
     this.name = 'ReleaseConfidenceProjectError';
+    this.reason = reason;
   }
+}
+
+function rethrowProjectError(error: unknown, fallback: ReleaseConfidenceProjectReason): never {
+  if (error instanceof ReleaseConfidenceProjectError) throw error;
+  throw new ReleaseConfidenceProjectError(fallback);
 }
 
 type CaptureRecord = {
@@ -115,14 +188,14 @@ function uniqueSorted(values: Iterable<string>): string[] {
 function strictCoverage(dir: string): CoverageLedger | null {
   const exists = fs.existsSync(path.join(dir, COVERAGE_LEDGER));
   const ledger = readCoverageLedgerLenient(dir);
-  if (exists && !ledger) throw new ReleaseConfidenceProjectError();
+  if (exists && !ledger) throw new ReleaseConfidenceProjectError('coverage-ledger-invalid');
   return ledger;
 }
 
 function strictConfidence(dir: string): ConfidenceLedgerFile | null {
   const exists = fs.existsSync(path.join(dir, CONFIDENCE_LEDGER));
   const ledger = readConfidenceLedger(dir);
-  if (exists && !ledger) throw new ReleaseConfidenceProjectError();
+  if (exists && !ledger) throw new ReleaseConfidenceProjectError('confidence-ledger-invalid');
   return ledger;
 }
 
@@ -140,9 +213,11 @@ function physicalCaptureKey(captureKey: string): string {
 
 function boundSemanticSurface(captureSurface: string, value: unknown): string {
   if (value === undefined) return captureSurface;
-  if (typeof value !== 'string' || value.trim() === '') throw new ReleaseConfidenceProjectError();
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new ReleaseConfidenceProjectError('capture-records-invalid');
+  }
   if (captureSurface !== value && !captureSurface.startsWith(`${value}-`)) {
-    throw new ReleaseConfidenceProjectError();
+    throw new ReleaseConfidenceProjectError('capture-records-invalid');
   }
   return value;
 }
@@ -163,25 +238,24 @@ function captureRecords(dir: string): CaptureRecord[] {
         state: state ? { id: state.id, revision: state.revision } : null,
       };
     });
-  } catch {
-    throw new ReleaseConfidenceProjectError();
+  } catch (error) {
+    rethrowProjectError(error, 'capture-records-invalid');
   }
 }
 
 function requiredHeadManifest(dir: string): MapManifest {
   try {
     const manifest = readMapManifest(dir);
-    if (
-      !manifest ||
-      !GIT_SHA.test(manifest.sha) ||
-      !COMPATIBILITY_KEY.test(manifest.compatibilityKey) ||
-      !SHA256.test(manifest.specHash)
-    ) {
-      throw new ReleaseConfidenceProjectError();
+    if (!manifest) throw new ReleaseConfidenceProjectError('head-manifest-unreadable');
+    if (!GIT_SHA.test(manifest.sha) || !COMPATIBILITY_KEY.test(manifest.compatibilityKey)) {
+      throw new ReleaseConfidenceProjectError('head-manifest-unbound');
     }
+    // A URL-only `styleproof-capture` run stamps specHash 'missing': nothing
+    // declares a release scope, so the projection refuses rather than guess.
+    if (!SHA256.test(manifest.specHash)) throw new ReleaseConfidenceProjectError('spec-hash-unbound');
     return manifest;
-  } catch {
-    throw new ReleaseConfidenceProjectError();
+  } catch (error) {
+    rethrowProjectError(error, 'head-manifest-unreadable');
   }
 }
 
@@ -189,7 +263,9 @@ function captureSurfaceAliases(...recordSets: CaptureRecord[][]): Map<string, st
   const aliases = new Map<string, string>();
   for (const record of recordSets.flat()) {
     const existing = aliases.get(record.captureSurface);
-    if (existing !== undefined && existing !== record.surface) throw new ReleaseConfidenceProjectError();
+    if (existing !== undefined && existing !== record.surface) {
+      throw new ReleaseConfidenceProjectError('surface-alias-conflict');
+    }
     aliases.set(record.captureSurface, record.surface);
   }
   return aliases;
@@ -212,8 +288,8 @@ function copiedComparability(
         reason: entry.reason,
       };
     });
-  } catch {
-    throw new ReleaseConfidenceProjectError();
+  } catch (error) {
+    rethrowProjectError(error, 'surface-alias-conflict');
   }
 }
 
@@ -277,11 +353,11 @@ function requiredEvidence(
   try {
     const manifest = verifyEvidenceCapture(input.storeRoot, input.capture);
     if (manifest.source.sha !== sourceSha || manifest.source.compatibilityKey !== compatibilityKey) {
-      throw new ReleaseConfidenceProjectError();
+      throw new ReleaseConfidenceProjectError('evidence-capture-unbound');
     }
     return { manifest, digest: input.capture.digest };
-  } catch {
-    throw new ReleaseConfidenceProjectError();
+  } catch (error) {
+    rethrowProjectError(error, 'evidence-capture-unbound');
   }
 }
 
@@ -509,8 +585,8 @@ function compatibleBinding(input: ReleaseConfidenceProjectInput): SourceBindingR
       beforeSha: input.expectedBeforeSha,
       afterSha: input.expectedAfterSha,
     });
-  } catch {
-    throw new ReleaseConfidenceProjectError();
+  } catch (error) {
+    rethrowProjectError(error, 'source-binding-failed');
   }
 }
 
@@ -571,7 +647,9 @@ function everyPrerequisite(...values: boolean[]): boolean {
 
 function assembleContract(input: ReleaseConfidenceProjectInput): Phase0ContractDocument {
   const afterManifest = requiredHeadManifest(input.afterDir);
-  if (input.producerVersion !== afterManifest.packageVersion) throw new ReleaseConfidenceProjectError();
+  if (input.producerVersion !== afterManifest.packageVersion) {
+    throw new ReleaseConfidenceProjectError('producer-version-mismatch');
+  }
   const beforeCoverage = strictCoverage(input.beforeDir);
   const afterCoverage = strictCoverage(input.afterDir);
   const beforeConfidence = strictConfidence(input.beforeDir);
@@ -693,7 +771,6 @@ export function projectReleaseConfidence(input: ReleaseConfidenceProjectInput): 
       }),
     };
   } catch (error) {
-    if (error instanceof ReleaseConfidenceProjectError) throw error;
-    throw new ReleaseConfidenceProjectError();
+    rethrowProjectError(error, 'projection-failed');
   }
 }

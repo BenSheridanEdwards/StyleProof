@@ -17,7 +17,11 @@ import path from 'node:path';
 import { generateStyleMapReport } from '../dist/report.js';
 import { importMapBundleToEvidenceStore } from '../dist/evidence-import.js';
 import { serializeReleaseConfidenceManifest } from '../dist/release-confidence-manifest.js';
-import { projectReleaseConfidence } from '../dist/release-confidence-project.js';
+import {
+  describeReleaseConfidenceProjectReason,
+  projectReleaseConfidence,
+  releaseConfidenceProjectReason,
+} from '../dist/release-confidence-project.js';
 import { cachedMapsUnavailableMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
 import {
@@ -201,6 +205,7 @@ try {
     afterSha: expectedAfterSha,
   });
   let releaseConfidenceManifest;
+  let releaseConfidenceProjectionFailure;
   try {
     const afterManifest = readMapManifest(afterDir);
     if (!afterManifest) throw new Error('missing map manifest');
@@ -219,8 +224,14 @@ try {
       expectedAfterSha,
       evidence: { storeRoot: releaseConfidenceStoreRoot, capture: imported.capture },
     }).manifest;
-  } catch {
-    console.error('styleproof-report: release confidence projection failed');
+  } catch (error) {
+    // Name the cause (#474): a fixed reason literal, never the thrown text, so the
+    // same sentence lands in report.md and here. Release certification stays
+    // withheld — this changes what the reviewer reads, not what the gate decides.
+    releaseConfidenceProjectionFailure = releaseConfidenceProjectReason(error?.reason);
+    console.error(
+      `styleproof-report: release confidence not evaluated — projection refused (${releaseConfidenceProjectionFailure}): ${describeReleaseConfidenceProjectReason(releaseConfidenceProjectionFailure)}. Release certification stays withheld.`,
+    );
   }
   result = generateStyleMapReport({
     beforeDir,
@@ -236,6 +247,7 @@ try {
     includeContent,
     requireStateIdentity,
     releaseConfidenceManifest,
+    releaseConfidenceProjectionFailure,
   });
   if (releaseConfidenceManifest) {
     fs.writeFileSync(

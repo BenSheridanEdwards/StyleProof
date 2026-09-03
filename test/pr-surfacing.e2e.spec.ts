@@ -32,6 +32,7 @@ import { correspondBeforeMap } from '../dist/path-correspondence.js';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIFF_BIN = path.join(ROOT, 'bin', 'styleproof-diff.mjs');
 const REPORT_BIN = path.join(ROOT, 'bin', 'styleproof-report.mjs');
+const CAPTURE_BIN = path.join(ROOT, 'bin', 'styleproof-capture.mjs');
 
 // Build a minimal deterministic document. No fonts, no animation → never flaky.
 const doc = (css: string, body: string): string =>
@@ -435,6 +436,55 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels'], root);
     expect(gated.status, `an uncompared layer is not certified\n${gated.out}`).toBe(1);
     expect(gated.out).toMatch(/\[hover\]: ✗ screenshot missing on the after side/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  // GAP CLOSED (#474): two real URL-only captures of the SAME page, compared with
+  // the real report CLI. Before the fix report.md opened with
+  // "**Release confidence** — ✗ blocked (absent-legacy; integrity; manifest-absent)"
+  // and stderr said only "projection failed": a clean compare that read as a
+  // finding. Now the line says what did NOT happen and why, the cause is a fixed
+  // reason literal, and the machine summary (and so the gate) is unchanged.
+  test('a clean URL-only compare reads "not evaluated" with a named cause, not "✗ blocked"', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-flow-rc-'));
+    const pageFile = path.join(root, 'page.html');
+    fs.writeFileSync(
+      pageFile,
+      doc('.hero{display:block;width:200px;height:80px;background:rgb(0,128,128)}', '<div class="hero">Hi</div>'),
+    );
+    const base = path.join(root, 'base');
+    const head = path.join(root, 'head');
+    for (const out of [base, head]) {
+      const cap = run(CAPTURE_BIN, ['file://' + pageFile, '--out', out, '--key', 'home', '--widths', '1280'], root);
+      expect(cap.status, `real capture must succeed\n${cap.out}`).toBe(0);
+    }
+    // The manifest a URL-only capture stamps: no spec file → specHash 'missing'.
+    // Outside a git checkout the SHA is not a full commit either; the projector
+    // refuses on the first unbound field, so derive the expected reason from the
+    // manifest rather than the environment.
+    const manifest = JSON.parse(fs.readFileSync(path.join(head, 'styleproof-manifest.json'), 'utf8'));
+    expect(manifest.specHash).toBe('missing');
+    const bound = /^[0-9a-f]{40}$/.test(manifest.sha) && /^[0-9a-f]{16}$/.test(manifest.compatibilityKey);
+    const reason = bound ? 'spec-hash-unbound' : 'head-manifest-unbound';
+    const sentence = bound
+      ? 'the head capture ran without a StyleProof spec file'
+      : 'the head manifest is not bound to a full commit SHA and compatibility key';
+
+    const report = run(REPORT_BIN, [base, head, '--out', path.join(root, 'out')], root);
+    expect(report.status, `fail-closed exit code is unchanged\n${report.out}`).toBe(1);
+    expect(report.out).toContain(`release confidence not evaluated — projection refused (${reason}): ${sentence}`);
+    expect(report.out).not.toMatch(/projection failed$/m);
+
+    const md = fs.readFileSync(path.join(root, 'out', 'report.md'), 'utf8');
+    expect(md).toContain(`**Release confidence** — ⚠ not evaluated (projection refused — ${sentence}`);
+    expect(md).not.toMatch(/✗ blocked/);
+    expect(md).not.toMatch(/absent-legacy|manifest-absent/);
+    const json = JSON.parse(fs.readFileSync(path.join(root, 'out', 'report.json'), 'utf8'));
+    expect(json.releaseConfidence).toMatchObject({
+      presence: 'absent-legacy',
+      blocking: true,
+      reasons: ['manifest-absent'],
+    });
     fs.rmSync(root, { recursive: true, force: true });
   });
 
