@@ -46,8 +46,8 @@ and the label can no longer disagree.
 Two captures of the same page, compared with the real report CLI:
 
 ```
-$ styleproof-capture file://page.html --out base --key home --widths 1280
-$ styleproof-capture file://page.html --out head --key home --widths 1280
+$ styleproof-capture <url> --out base --key home --widths 1280
+$ styleproof-capture <url> --out head --key home --widths 1280
 $ styleproof-report base head --out out
 ⚠ UNVERIFIED DIAGNOSTIC: no reviewable computed-style changes — content/structure not evaluated
 report: out/report.md
