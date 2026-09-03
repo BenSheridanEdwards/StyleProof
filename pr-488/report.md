@@ -8,20 +8,38 @@
 
 **Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
-✓ No reviewable computed-style changes among semantically matched elements. See 1 advisory content/structure change(s) below.
+**1 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
+_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
----
+## Element-level changes
 
-## 📝 Content and structure changes (advisory)
+### `main.panel` · 1 element restyled
 
-_1 content/structure change(s). **Advisory only** — content and DOM structure are not part of the computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are visible when content comparison is enabled._
+_home @ 320_
 
-### `home@320` · 1 content/structure change(s)
+`color` `#000000` → `#ff0000`
 
-**`button.action`**
+![before ◀ │ ▶ after](crops/home-320-1-composite.png)
 
-- element added
+<sub>◀ before  ·  after ▶ — home @ 320</sub>
 
-_This element's location renders identically before and after (the change has no visible effect in the captured state), so there is no before/after crop to show._
+![highlighted before ◀ │ ▶ after](crops/home-320-1-annotated.png)
+
+<sub>🔍 magenta boxes mark each change — changed: `main.panel`</sub>
+
+- **`main.panel`** — text black (`#000000`) → red (`#ff0000`)
+
+<details>
+<summary>Show the property change</summary>
+
+**`main.panel`**
+
+Style:
+
+| Property | Before | After |
+| --- | --- | --- |
+| `color` | `#000000` | `#ff0000` |
+
+</details>
 
 <!-- styleproof-receipt head-sha:aa1da63e6a0319e2f992d52c75d1aed37eaceae7 run-id:33760972695 run-attempt:1 -->
