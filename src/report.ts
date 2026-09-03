@@ -56,12 +56,6 @@ import {
   type ConfidenceLedgerFile,
   type ConfidenceSummary,
 } from './confidence-ledger.js';
-import {
-  describeReleaseConfidenceProjectReason,
-  releaseConfidenceProjectReason,
-  type ReleaseConfidenceProjectReason,
-} from './release-confidence-project.js';
-import { summarizeReleaseConfidence, type ReleaseConfidenceSummary } from './release-confidence-summary.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 
@@ -163,15 +157,6 @@ export type ReportOptions = {
    * lost, just relocated. Default 400_000 (~0.4 MB). Set to Infinity to never cap.
    */
   maxReportBytes?: number;
-  /** Canonical Release Confidence Manifest to summarize. Missing is explicitly blocking. */
-  releaseConfidenceManifest?: unknown;
-  /**
-   * Why no manifest accompanies this comparison, when the caller tried to project
-   * one and the projection refused (#474). Rendered into report.md as a fixed
-   * sentence so a reviewer reads the cause, never the raw presence token. Only a
-   * known reason literal is honoured; anything else renders as the generic reason.
-   */
-  releaseConfidenceProjectionFailure?: ReleaseConfidenceProjectReason;
 };
 
 export type ReportComparison = ComparisonTruth & ComparabilitySummary;
@@ -200,8 +185,6 @@ export type ReportResult = {
    * before the ledger existed — advisory, never a retroactive block.
    */
   confidence: ConfidenceSummary;
-  /** Manifest completeness, separate from the visual comparison verdict. */
-  releaseConfidence: ReleaseConfidenceSummary;
   reportMdPath: string;
   reportJsonPath: string;
 };
@@ -2384,7 +2367,6 @@ function writeReportArtifacts(
   reportConsistency: ReportConsistency,
   content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
-  releaseConfidence: ReleaseConfidenceSummary,
   baselineProvenance: BaselineProvenance | null = null,
   confidence: ConfidenceSummary | null = null,
 ): { reportMdPath: string; reportJsonPath: string } {
@@ -2406,7 +2388,6 @@ function writeReportArtifacts(
         // Additive (#399): the completeness badge, machine-readable — a consumer
         // must never read one green as full certification.
         ...(confidence ? { confidence } : {}),
-        releaseConfidence,
         // Additive (#367): where the baseline maps came from, when recorded —
         // exact-SHA restore, nearest-ancestor reuse (with proof), or fresh capture.
         ...(baselineProvenance ? { baselineProvenance } : {}),
@@ -2416,35 +2397,6 @@ function writeReportArtifacts(
     ),
   );
   return { reportMdPath, reportJsonPath };
-}
-
-function releaseConfidenceLines(
-  summary: ReleaseConfidenceSummary,
-  projectionFailure: ReleaseConfidenceProjectReason | undefined,
-): string[] {
-  if (summary.certifies) {
-    return [
-      `**Release confidence** — ✓ complete (${summary.declared.surfaces} declared surface(s), ${summary.evidenced.completeDomains}/${summary.evidenced.requiredDomains} domains complete)`,
-      '',
-    ];
-  }
-  // No manifest at all: nothing was evaluated, so "blocked" would misread as a
-  // finding. Say what did not happen and why; the JSON summary still carries
-  // `blocking: true`, so release certification stays withheld exactly as before.
-  if (summary.presence === 'absent-legacy') {
-    const cause = projectionFailure
-      ? `projection refused — ${describeReleaseConfidenceProjectReason(releaseConfidenceProjectReason(projectionFailure))}`
-      : 'no release-confidence manifest accompanied this comparison';
-    return [
-      `**Release confidence** — ⚠ not evaluated (${cause}). The style comparison below stands on its own; release certification stays withheld.`,
-      '',
-    ];
-  }
-  const detail =
-    summary.presence === 'present-invalid'
-      ? `manifest invalid: ${summary.reasons.join(', ') || 'unspecified'}`
-      : `${summary.worstAxis}: ${summary.reasons.join(', ') || 'unproven'}`;
-  return [`**Release confidence** — ✗ blocked (${detail})`, ''];
 }
 
 function stateCoverageLines(afterDir: string): string[] {
@@ -2604,9 +2556,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // the badge and the machine-readable summary can never disagree.
   const confidenceLedger = resolveBundleConfidence(afterDir);
   const confidence = summarizeConfidence(confidenceLedger);
-  const releaseConfidence = summarizeReleaseConfidence(opts.releaseConfidenceManifest);
   md.push(...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }));
-  md.push(...releaseConfidenceLines(releaseConfidence, opts.releaseConfidenceProjectionFailure));
   // Baseline provenance (#367): when the run recorded where the base maps came
   // from, say so up front — an ancestor reuse must be visible, never inferred.
   const baselineProvenance = readBaselineProvenance(beforeDir);
@@ -2694,7 +2644,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reportConsistency,
     { evaluated: includeContent, changes: contentSection.count, advisory: true },
     json,
-    releaseConfidence,
     baselineProvenance,
     confidence,
   );
@@ -2707,7 +2656,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     comparability,
     reportConsistency,
     confidence,
-    releaseConfidence,
     reportMdPath,
     reportJsonPath,
   };

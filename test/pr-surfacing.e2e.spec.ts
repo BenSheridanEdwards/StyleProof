@@ -439,13 +439,15 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  // GAP CLOSED (#474): two real URL-only captures of the SAME page, compared with
-  // the real report CLI. Before the fix report.md opened with
-  // "**Release confidence** — ✗ blocked (absent-legacy; integrity; manifest-absent)"
-  // and stderr said only "projection failed": a clean compare that read as a
-  // finding. Now the line says what did NOT happen and why, the cause is a fixed
-  // reason literal, and the machine summary (and so the gate) is unchanged.
-  test('a clean URL-only compare reads "not evaluated" with a named cause, not "✗ blocked"', async () => {
+  // #475: two real URL-only captures of the SAME page, compared with the real
+  // report CLI. This compare used to open with three warnings a reviewer could not
+  // rank, led by "**Release confidence** — ✗ blocked (absent-legacy; integrity;
+  // manifest-absent)" — a fail-closed default reading as a finding, from a layer
+  // that could never certify a real two-directory compare. The layer is deleted:
+  // nothing of it reaches report.md, report.json, stderr, or the output directory.
+  // The one honest caveat that remains is the unverified source binding, which now
+  // states its own fail-closed rule instead of inheriting it.
+  test('a clean URL-only compare carries no release-confidence layer, only the source-binding caveat', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-flow-rc-'));
     const pageFile = path.join(root, 'page.html');
     fs.writeFileSync(
@@ -458,33 +460,22 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
       const cap = run(CAPTURE_BIN, ['file://' + pageFile, '--out', out, '--key', 'home', '--widths', '1280'], root);
       expect(cap.status, `real capture must succeed\n${cap.out}`).toBe(0);
     }
-    // The manifest a URL-only capture stamps: no spec file → specHash 'missing'.
-    // Outside a git checkout the SHA is not a full commit either; the projector
-    // refuses on the first unbound field, so derive the expected reason from the
-    // manifest rather than the environment.
-    const manifest = JSON.parse(fs.readFileSync(path.join(head, 'styleproof-manifest.json'), 'utf8'));
-    expect(manifest.specHash).toBe('missing');
-    const bound = /^[0-9a-f]{40}$/.test(manifest.sha) && /^[0-9a-f]{16}$/.test(manifest.compatibilityKey);
-    const reason = bound ? 'spec-hash-unbound' : 'head-manifest-unbound';
-    const sentence = bound
-      ? 'the head capture ran without a StyleProof spec file'
-      : 'the head manifest is not bound to a full commit SHA and compatibility key';
 
-    const report = run(REPORT_BIN, [base, head, '--out', path.join(root, 'out')], root);
-    expect(report.status, `fail-closed exit code is unchanged\n${report.out}`).toBe(1);
-    expect(report.out).toContain(`release confidence not evaluated — projection refused (${reason}): ${sentence}`);
-    expect(report.out).not.toMatch(/projection failed$/m);
-
-    const md = fs.readFileSync(path.join(root, 'out', 'report.md'), 'utf8');
-    expect(md).toContain(`**Release confidence** — ⚠ not evaluated (projection refused — ${sentence}`);
-    expect(md).not.toMatch(/✗ blocked/);
-    expect(md).not.toMatch(/absent-legacy|manifest-absent/);
-    const json = JSON.parse(fs.readFileSync(path.join(root, 'out', 'report.json'), 'utf8'));
-    expect(json.releaseConfidence).toMatchObject({
-      presence: 'absent-legacy',
-      blocking: true,
-      reasons: ['manifest-absent'],
-    });
+    const outDir = path.join(root, 'out');
+    const report = run(REPORT_BIN, [base, head, '--out', outDir], root);
+    // No --expected-*-sha, so the binding is unverified: a diagnostic, not a green.
+    expect(report.status, `an unverified compare still fails closed\n${report.out}`).toBe(1);
+    expect(report.out).toMatch(/UNVERIFIED DIAGNOSTIC: no reviewable computed-style changes/);
+    // Nothing of the deleted layer is printed, written, or left behind.
+    expect(report.out).not.toMatch(/release confidence|projection/i);
+    const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
+    expect(md).not.toMatch(/Release confidence/);
+    expect(md).not.toMatch(/absent-legacy|manifest-absent|✗ blocked/);
+    const json = JSON.parse(fs.readFileSync(path.join(outDir, 'report.json'), 'utf8'));
+    expect(json.releaseConfidence).toBeUndefined();
+    expect(fs.existsSync(path.join(outDir, 'styleproof-release-confidence.json'))).toBe(false);
+    // The comparison itself is unchanged: the same page twice has no findings.
+    expect(json.counts).toMatchObject({ dom: 0, style: 0, state: 0 });
     fs.rmSync(root, { recursive: true, force: true });
   });
 

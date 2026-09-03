@@ -1,9 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
 import { hasDuplicateJsonKeys } from './map-store.js';
-import { parseReleaseConfidenceManifest } from './release-confidence-manifest.js';
-import { summarizeReleaseConfidence } from './release-confidence-summary.js';
 
 /** Publish a report folder to the report branch through the GitHub git-data API.
  *
@@ -282,8 +279,6 @@ type PublishedReceiptOptions = {
   reportPath: string;
   commitSha: string;
   expectedReceipt: string;
-  expectedManifestDigest: string;
-  expectedSourceSha: string;
   maximumAttempts?: number;
   fetchImplementation?: typeof fetch;
   sleepImplementation?: (milliseconds: number) => Promise<void>;
@@ -312,22 +307,18 @@ function publishedReceiptMatches(
   options: PublishedReceiptOptions,
   markdownBytes: Uint8Array | null,
   reportBytes: Uint8Array | null,
-  manifestBytes: Uint8Array | null,
 ): boolean {
-  if (!markdownBytes || !reportBytes || !manifestBytes) return false;
+  if (!markdownBytes || !reportBytes) return false;
   try {
     const markdown = new TextDecoder('utf-8', { fatal: true }).decode(markdownBytes);
     const reportSource = new TextDecoder('utf-8', { fatal: true }).decode(reportBytes);
+    // The receipt marker names this run's head SHA, run id and attempt, so a
+    // report published by any other run (or a stale one) fails the read-back.
+    // report.json must also come back well-formed and free of duplicate keys —
+    // a consumer parses it, so an unparseable one is not a trustworthy publish.
     if (hasDuplicateJsonKeys(reportSource)) return false;
-    const report = JSON.parse(reportSource) as { releaseConfidence?: unknown };
-    const manifest = parseReleaseConfidenceManifest(manifestBytes);
-    const summary = summarizeReleaseConfidence(manifest);
-    return (
-      markdown.includes(options.expectedReceipt) &&
-      manifest.sourceSha === options.expectedSourceSha &&
-      manifest.manifestDigest === options.expectedManifestDigest &&
-      isDeepStrictEqual(report.releaseConfidence, summary)
-    );
+    JSON.parse(reportSource);
+    return markdown.includes(options.expectedReceipt);
   } catch {
     return false;
   }
@@ -338,12 +329,11 @@ export async function verifyPublishedReceipt(options: PublishedReceiptOptions): 
   const sleep = options.sleepImplementation ?? realSleep;
   const maximumAttempts = options.maximumAttempts ?? 5;
   for (let attemptNumber = 1; attemptNumber <= maximumAttempts; attemptNumber += 1) {
-    const [markdownBytes, reportBytes, manifestBytes] = await Promise.all([
+    const [markdownBytes, reportBytes] = await Promise.all([
       readPublishedBytes(options, fetchImplementation, 'report.md'),
       readPublishedBytes(options, fetchImplementation, 'report.json'),
-      readPublishedBytes(options, fetchImplementation, 'styleproof-release-confidence.json'),
     ]);
-    if (publishedReceiptMatches(options, markdownBytes, reportBytes, manifestBytes)) return;
+    if (publishedReceiptMatches(options, markdownBytes, reportBytes)) return;
     if (attemptNumber < maximumAttempts) await sleep(attemptNumber * 2000);
   }
   throw new Error(
@@ -363,10 +353,6 @@ export function collectReportFiles(reportDirectory: string): ReportPublishFile[]
     {
       relativePath: 'report.json',
       content: fs.readFileSync(path.join(reportDirectory, 'report.json')),
-    },
-    {
-      relativePath: 'styleproof-release-confidence.json',
-      content: fs.readFileSync(path.join(reportDirectory, 'styleproof-release-confidence.json')),
     },
   ];
   const cropsDirectory = path.join(reportDirectory, 'crops');

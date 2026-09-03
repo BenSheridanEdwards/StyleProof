@@ -39,7 +39,7 @@ Report excerpt (`out/report.md`), crops copied here unmodified:
 
 ![highlighted before ◀ │ ▶ after](annotated.png)
 
-The `⚠ UNVERIFIED DIAGNOSTIC` and `Release confidence ✗ blocked` lines that the
-report also prints come from the two-directory compare having no coverage ledger,
-no determinism basis, and no trusted source SHAs. They are unrelated to this fix
-and are tracked in #474.
+The `⚠ UNVERIFIED DIAGNOSTIC` line that the report also prints comes from the
+two-directory compare having no trusted source SHAs. It is unrelated to this fix.
+(The `Release confidence ✗ blocked` line this transcript once showed alongside it
+is gone: #475 deleted that layer.)
