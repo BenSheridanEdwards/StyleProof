@@ -1,0 +1,15 @@
+## 🗺️ StyleProof report
+
+**Certification**
+- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
+- **Determinism** — ✓ proven (base self-checked, head self-checked)
+- **Inventory** — ✓ navigable set unchanged
+- **Confidence** — ✓ complete (1 captured)
+
+**Release confidence** — ✓ complete (1 declared surface(s), 6/6 domains complete)
+
+**Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
+
+✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
+
+<!-- styleproof-receipt head-sha:ffe619cb95d63134320fbc5928eb979fc890e2b9 run-id:33745475173 run-attempt:1 -->
