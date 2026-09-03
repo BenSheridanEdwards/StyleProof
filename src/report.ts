@@ -56,6 +56,11 @@ import {
   type ConfidenceLedgerFile,
   type ConfidenceSummary,
 } from './confidence-ledger.js';
+import {
+  describeReleaseConfidenceProjectReason,
+  releaseConfidenceProjectReason,
+  type ReleaseConfidenceProjectReason,
+} from './release-confidence-project.js';
 import { summarizeReleaseConfidence, type ReleaseConfidenceSummary } from './release-confidence-summary.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
@@ -160,6 +165,13 @@ export type ReportOptions = {
   maxReportBytes?: number;
   /** Canonical Release Confidence Manifest to summarize. Missing is explicitly blocking. */
   releaseConfidenceManifest?: unknown;
+  /**
+   * Why no manifest accompanies this comparison, when the caller tried to project
+   * one and the projection refused (#474). Rendered into report.md as a fixed
+   * sentence so a reviewer reads the cause, never the raw presence token. Only a
+   * known reason literal is honoured; anything else renders as the generic reason.
+   */
+  releaseConfidenceProjectionFailure?: ReleaseConfidenceProjectReason;
 };
 
 export type ReportComparison = ComparisonTruth & ComparabilitySummary;
@@ -2406,17 +2418,33 @@ function writeReportArtifacts(
   return { reportMdPath, reportJsonPath };
 }
 
-function releaseConfidenceLines(summary: ReleaseConfidenceSummary): string[] {
+function releaseConfidenceLines(
+  summary: ReleaseConfidenceSummary,
+  projectionFailure: ReleaseConfidenceProjectReason | undefined,
+): string[] {
   if (summary.certifies) {
     return [
       `**Release confidence** — ✓ complete (${summary.declared.surfaces} declared surface(s), ${summary.evidenced.completeDomains}/${summary.evidenced.requiredDomains} domains complete)`,
       '',
     ];
   }
-  return [
-    `**Release confidence** — ✗ blocked (${summary.presence}; ${summary.worstAxis}; ${summary.reasons.join(', ') || 'unproven'})`,
-    '',
-  ];
+  // No manifest at all: nothing was evaluated, so "blocked" would misread as a
+  // finding. Say what did not happen and why; the JSON summary still carries
+  // `blocking: true`, so release certification stays withheld exactly as before.
+  if (summary.presence === 'absent-legacy') {
+    const cause = projectionFailure
+      ? `projection refused — ${describeReleaseConfidenceProjectReason(releaseConfidenceProjectReason(projectionFailure))}`
+      : 'no release-confidence manifest accompanied this comparison';
+    return [
+      `**Release confidence** — ⚠ not evaluated (${cause}). The style comparison below stands on its own; release certification stays withheld.`,
+      '',
+    ];
+  }
+  const detail =
+    summary.presence === 'present-invalid'
+      ? `manifest invalid: ${summary.reasons.join(', ') || 'unspecified'}`
+      : `${summary.worstAxis}: ${summary.reasons.join(', ') || 'unproven'}`;
+  return [`**Release confidence** — ✗ blocked (${detail})`, ''];
 }
 
 function stateCoverageLines(afterDir: string): string[] {
@@ -2578,7 +2606,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const confidence = summarizeConfidence(confidenceLedger);
   const releaseConfidence = summarizeReleaseConfidence(opts.releaseConfidenceManifest);
   md.push(...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }));
-  md.push(...releaseConfidenceLines(releaseConfidence));
+  md.push(...releaseConfidenceLines(releaseConfidence, opts.releaseConfidenceProjectionFailure));
   // Baseline provenance (#367): when the run recorded where the base maps came
   // from, say so up front — an ancestor reuse must be visible, never inferred.
   const baselineProvenance = readBaselineProvenance(beforeDir);

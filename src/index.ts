@@ -272,10 +272,16 @@ export type {
   ReleaseConfidenceManifestReason,
   ReleaseConfidenceManifestReceipt,
 } from './release-confidence-manifest.js';
-export { projectReleaseConfidence, ReleaseConfidenceProjectError } from './release-confidence-project.js';
+export {
+  describeReleaseConfidenceProjectReason,
+  projectReleaseConfidence,
+  releaseConfidenceProjectReason,
+  ReleaseConfidenceProjectError,
+} from './release-confidence-project.js';
 export type {
   ReleaseConfidenceEvidenceInput,
   ReleaseConfidenceProjectInput,
+  ReleaseConfidenceProjectReason,
   ReleaseConfidenceProjectResult,
 } from './release-confidence-project.js';
 export { summarizeReleaseConfidence } from './release-confidence-summary.js';
