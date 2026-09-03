@@ -1,14 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  correspondBeforeMap,
   correspondenceSignature,
   correspondElementPaths,
   hasMeaningfulSharedPrefix,
-  presentationDiffStyleMaps,
+  isReNestedPath,
   remapBeforeStyleMap,
   sharedPathPrefix,
 } from '../dist/path-correspondence.js';
-import { diffStyleMaps } from '../dist/diff.js';
+import { diffStyleMaps, presentationDiffStyleMaps } from '../dist/diff.js';
 import { makeMap } from './helpers.mjs';
 
 test('correspondenceSignature uses tag + x/y/width + ownTextLength (not height or text)', () => {
@@ -263,7 +264,7 @@ test('remapBeforeStyleMap rewrites forced-state owner and target paths when safe
   });
 });
 
-test('raw certification differ is unchanged by presentation correspondence helpers', () => {
+test('raw diffStyleMaps is unchanged by the correspondence helpers (correspondence is applied by diffStyleMapDirs)', () => {
   const button = {
     tag: 'button',
     cls: 'cta',
@@ -301,4 +302,206 @@ test('raw certification differ is unchanged by presentation correspondence helpe
   assert.ok(rawA.filter((f) => f.kind === 'dom' && f.change === 'added').length >= 2);
   const presented = presentationDiffStyleMaps(before, after);
   assert.notDeepEqual(presented, rawA);
+});
+
+// ─── re-nesting (#472) ───────────────────────────────────────────────────────
+
+test('isReNestedPath: a wrapper added or removed around the same leaf is a re-nesting', () => {
+  const flat = 'div:nth-child(1) > button:nth-child(1)';
+  const wrapped = 'div:nth-child(1) > div:nth-child(1) > button:nth-child(1)';
+  assert.equal(isReNestedPath(flat, wrapped), true, 'wrapper added');
+  assert.equal(isReNestedPath(wrapped, flat), true, 'wrapper removed');
+  // The wrapped element's own index may change; hashed semantic segments may not.
+  assert.equal(isReNestedPath(flat, 'div:nth-child(1) > div:nth-child(1) > button:nth-child(2)'), true);
+  assert.equal(
+    isReNestedPath('div:sp-key(abc) > button:nth-child(1)', 'div:sp-key(xyz) > div:nth-child(1) > button:nth-child(1)'),
+    false,
+  );
+  // Different leaf, same length, or an unrelated subtree is never a re-nesting.
+  assert.equal(isReNestedPath(flat, 'div:nth-child(1) > div:nth-child(1) > a:nth-child(1)'), false);
+  assert.equal(isReNestedPath(flat, 'section:nth-child(1) > button:nth-child(1)'), false);
+  assert.equal(isReNestedPath(flat, 'aside:nth-child(2) > p:nth-child(1) > button:nth-child(1)'), false);
+});
+
+test('a wrapper inserted at the document root (no shared ancestor) still pairs the descendant', () => {
+  const button = {
+    tag: 'button',
+    cls: 'cta',
+    rect: [10, 10, 120, 40],
+    ownTextLength: 3,
+    style: { color: 'rgb(255, 0, 0)' },
+  };
+  const before = makeMap({ elements: { 'button:nth-child(1)': button } });
+  const after = makeMap({
+    elements: {
+      'div:nth-child(1)': { tag: 'div', cls: 'wrap', rect: [0, 0, 200, 80], ownTextLength: 0, style: {} },
+      'div:nth-child(1) > button:nth-child(1)': { ...button, style: { color: 'rgb(0, 128, 0)' } },
+    },
+  });
+  assert.equal(hasMeaningfulSharedPrefix('button:nth-child(1)', 'div:nth-child(1) > button:nth-child(1)'), false);
+  const mapping = correspondElementPaths(before, after);
+  assert.equal(mapping.get('button:nth-child(1)'), 'div:nth-child(1) > button:nth-child(1)');
+  const findings = presentationDiffStyleMaps(before, after, { includeStructure: false });
+  assert.deepEqual(
+    findings.map((f) => [f.kind, f.props?.map((p) => `${p.prop}:${p.before}->${p.after}`)]),
+    [['style', ['color:rgb(255, 0, 0)->rgb(0, 128, 0)']]],
+  );
+});
+
+test('correspondBeforeMap runs the nth-child shift first, then geometry among what is still one-sided', () => {
+  const button = {
+    tag: 'button',
+    cls: 'cta',
+    rect: [10, 60, 120, 40],
+    ownTextLength: 3,
+    style: { color: 'rgb(255, 0, 0)' },
+  };
+  const card = { tag: 'div', cls: 'card', rect: [0, 50, 200, 80], ownTextLength: 0, style: {} };
+  const before = makeMap({
+    elements: { 'div:nth-child(1)': card, 'div:nth-child(1) > button:nth-child(1)': button },
+    states: {
+      'div:nth-child(1) > button:nth-child(1)': {
+        hover: { 'div:nth-child(1) > button:nth-child(1)': { color: 'rgb(200, 0, 0)' } },
+      },
+    },
+  });
+  // Head: a banner inserted BEFORE the card (nth-child shift) AND the button re-nested in a wrapper.
+  const after = makeMap({
+    elements: {
+      'p:nth-child(1)': { tag: 'p', cls: 'banner', rect: [0, 0, 200, 40], ownTextLength: 12, style: {} },
+      'div:nth-child(2)': card,
+      'div:nth-child(2) > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'card__body',
+        rect: [0, 50, 200, 80],
+        ownTextLength: 0,
+        style: {},
+      },
+      'div:nth-child(2) > div:nth-child(1) > button:nth-child(1)': button,
+    },
+  });
+  const corresponded = correspondBeforeMap(before, after);
+  assert.deepEqual(Object.keys(corresponded.elements).sort(), [
+    'div:nth-child(2)',
+    'div:nth-child(2) > div:nth-child(1) > button:nth-child(1)',
+  ]);
+  assert.deepEqual(Object.keys(corresponded.states), ['div:nth-child(2) > div:nth-child(1) > button:nth-child(1)']);
+  assert.deepEqual(
+    Object.keys(corresponded.states['div:nth-child(2) > div:nth-child(1) > button:nth-child(1)'].hover),
+    ['div:nth-child(2) > div:nth-child(1) > button:nth-child(1)'],
+  );
+});
+
+test('an ambiguous geometry signature stays one-sided (fails closed) even when re-nested', () => {
+  const button = {
+    tag: 'button',
+    cls: 'cta',
+    rect: [10, 10, 120, 40],
+    ownTextLength: 3,
+    style: { color: 'rgb(255, 0, 0)' },
+  };
+  // Two overlapping buttons with identical geometry: no unique identity → no pairing.
+  const before = makeMap({ elements: { 'button:nth-child(1)': button, 'button:nth-child(2)': button } });
+  const after = makeMap({
+    elements: {
+      'div:nth-child(1)': { tag: 'div', cls: 'wrap', rect: [0, 0, 200, 80], ownTextLength: 0, style: {} },
+      'div:nth-child(1) > button:nth-child(1)': { ...button, style: { color: 'rgb(0, 128, 0)' } },
+      'div:nth-child(1) > button:nth-child(2)': button,
+    },
+  });
+  assert.equal(correspondElementPaths(before, after).size, 0);
+});
+
+test('certification never pairs an element whose hashed identity was replaced, even with identical geometry', () => {
+  // A row that lost its `data-style` identity: the same box, but a developer-authored
+  // identity replacement is structural (the 5.0.2 rule), never a restyle to pair back.
+  const row = { tag: 'tr', cls: '', rect: [0, 0, 400, 24], ownTextLength: 10, style: { color: 'rgb(0, 90, 180)' } };
+  const before = makeMap({ elements: { 'table:nth-child(1) > tbody:nth-child(1) > tr:sp-key(abc123)': row } });
+  const after = makeMap({
+    elements: {
+      'table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(1)': { ...row, style: { color: 'rgb(0, 0, 0)' } },
+    },
+  });
+  // Presentation (geometry-only) may still pair it for crops…
+  assert.equal(correspondElementPaths(before, after).size, 1);
+  // …but certification keeps it one-sided, so the gate reports no restyle here.
+  assert.deepEqual(Object.keys(correspondBeforeMap(before, after).elements), [
+    'table:nth-child(1) > tbody:nth-child(1) > tr:sp-key(abc123)',
+  ]);
+  assert.equal(diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }).length, 0);
+});
+
+test('certification keeps the DESCENDANTS of an identity-replaced element one-sided too', () => {
+  // The row lost its `data-style`; its cell kept the same box and inherits the row's
+  // colour. Pairing the cell alone would report the inherited change as a cell restyle.
+  const cell = { tag: 'td', cls: '', rect: [0, 0, 400, 24], ownTextLength: 10, style: { color: 'rgb(0, 90, 180)' } };
+  const before = makeMap({
+    elements: {
+      'table:nth-child(1) > tbody:nth-child(1) > tr:sp-key(abc123)': {
+        tag: 'tr',
+        cls: '',
+        rect: [0, 0, 400, 24],
+        ownTextLength: 0,
+        style: {},
+      },
+      'table:nth-child(1) > tbody:nth-child(1) > tr:sp-key(abc123) > td:nth-child(1)': cell,
+    },
+  });
+  const after = makeMap({
+    elements: {
+      'table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(1)': {
+        tag: 'tr',
+        cls: '',
+        rect: [0, 0, 400, 24],
+        ownTextLength: 0,
+        style: {},
+      },
+      'table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(1) > td:nth-child(1)': {
+        ...cell,
+        style: { color: 'rgb(0, 0, 0)' },
+      },
+    },
+  });
+  assert.equal(diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }).length, 0);
+  // A wrapper WITHOUT identity around the same cell still pairs (no hashed identity changed).
+  const wrapped = makeMap({
+    elements: {
+      'table:nth-child(1) > tbody:nth-child(1) > tr:sp-key(abc123)': {
+        tag: 'tr',
+        cls: '',
+        rect: [0, 0, 400, 24],
+        ownTextLength: 0,
+        style: {},
+      },
+      'table:nth-child(1) > tbody:nth-child(1) > tr:sp-key(abc123) > td:nth-child(1)': {
+        tag: 'td',
+        cls: '',
+        rect: [0, 0, 400, 24],
+        ownTextLength: 0,
+        style: {},
+      },
+      'table:nth-child(1) > tbody:nth-child(1) > tr:sp-key(abc123) > td:nth-child(1) > span:nth-child(1)': {
+        ...cell,
+        tag: 'span',
+        style: { color: 'rgb(0, 0, 0)' },
+      },
+    },
+  });
+  const beforeSpan = makeMap({
+    elements: {
+      'table:nth-child(1) > tbody:nth-child(1) > tr:sp-key(abc123)': {
+        tag: 'tr',
+        cls: '',
+        rect: [0, 0, 400, 24],
+        ownTextLength: 0,
+        style: {},
+      },
+      'table:nth-child(1) > tbody:nth-child(1) > tr:sp-key(abc123) > span:nth-child(1)': { ...cell, tag: 'span' },
+    },
+  });
+  const findings = diffStyleMaps(correspondBeforeMap(beforeSpan, wrapped), wrapped, { includeStructure: false });
+  assert.deepEqual(
+    findings.map((f) => [f.kind, f.props.map((p) => p.prop)]),
+    [['style', ['color']]],
+  );
 });

@@ -914,7 +914,8 @@ test('styleproof-init: unsafe generated destinations are reported as unmanaged d
   }
 });
 
-test('styleproof-init: permission-denied generated parents fail closed without crashes or writes', () => {
+test('styleproof-init: permission-denied generated parents fail closed without crashes or writes', (t) => {
+  if (process.getuid?.() === 0) return t.skip('file modes cannot deny root; run as a non-root user to exercise this');
   const cases = [
     { parent: 'e2e', generated: 'e2e/styleproof.spec.ts' },
     { parent: '.githooks', generated: '.githooks/pre-push' },
@@ -941,7 +942,8 @@ test('styleproof-init: permission-denied generated parents fail closed without c
   }
 });
 
-test('styleproof-init: unreadable or malformed .gitignore bytes remain unchanged and unmanaged', () => {
+test('styleproof-init: unreadable or malformed .gitignore bytes remain unchanged and unmanaged', (t) => {
+  if (process.getuid?.() === 0) return t.skip('file modes cannot deny root; run as a non-root user to exercise this');
   const cases = [
     { name: 'read-only', bytes: Buffer.from('repository-owned\n'), mode: 0o444 },
     { name: 'invalid-utf8', bytes: Buffer.from([0xff, 0x0a]), mode: 0o644 },
