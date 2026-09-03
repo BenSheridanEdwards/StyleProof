@@ -19,7 +19,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { captureStyleMap, diffStyleMaps, diffStyleMapDirs, auditRunInventory, type StyleMap } from '../dist/index.js';
+import {
+  captureStyleMap,
+  captureSurfaceScreenshots,
+  diffStyleMaps,
+  diffStyleMapDirs,
+  auditRunInventory,
+  type StyleMap,
+} from '../dist/index.js';
 import { correspondBeforeMap } from '../dist/path-correspondence.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -362,6 +369,72 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     const diff = run(DIFF_BIN, ['base', 'head', '--allow-unasserted'], root);
     expect(diff.status, `a no-op re-nesting is not a style change\n${diff.out}`).toBe(0);
     expect(diff.out).toMatch(/0 reviewable computed-style changes/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  // GAP CLOSED (#473, opt-in): a change computed styles cannot observe. The two
+  // <img> elements have identical computed styles (same box, same everything) but
+  // different pixels. Without --pixels the gate is green; with it the region is
+  // caught and attributed to the image element.
+  const PIXEL_CSS = '.card{display:block;padding:8px}.hero{display:block;width:120px;height:40px}';
+  // 1×1 PNGs stretched to 120×40: solid green vs solid red.
+  const GREEN =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkuMR8HgAD2AH3PE7ABQAAAABJRU5ErkJggg==';
+  const RED =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8Dw/wAF/AHOOxKrpwAAAABJRU5ErkJggg==';
+  const heroPage = (src: string) => `<div class="card"><img class="hero" alt="" src="${src}"></div>`;
+  async function capWithShots(dir: string, css: string, body: string): Promise<StyleMap> {
+    const map = await cap(page, css, body);
+    await captureSurfaceScreenshots(page, path.join(dir, 'home'));
+    return map;
+  }
+  // `page` is a fixture, so the helper above closes over it per test via a let.
+  let page: import('@playwright/test').Page;
+
+  test('image content changed with identical computed styles → green without --pixels, exit 1 and attributed with it', async ({
+    page: p,
+  }) => {
+    page = p;
+    const { root, base, head } = dirs();
+    writeMap(base, await capWithShots(base, PIXEL_CSS, heroPage(GREEN)));
+    writeMap(head, await capWithShots(head, PIXEL_CSS, heroPage(RED)));
+
+    const plain = run(DIFF_BIN, ['base', 'head', '--allow-unasserted'], root);
+    expect(plain.status, `computed styles alone cannot see the image change\n${plain.out}`).toBe(0);
+
+    const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels', '--json', 'diff.json'], root);
+    expect(gated.status, `the pixel gate blocks the image change\n${gated.out}`).toBe(1);
+    expect(gated.out).toMatch(/pixel gate: [1-9]\d* changed region/);
+    expect(gated.out).toMatch(/img:nth-child\(\d+\)\s+\(\.hero\)/);
+    const json = JSON.parse(fs.readFileSync(path.join(root, 'diff.json'), 'utf8'));
+    expect(json.counts, 'style counts stay untouched').toEqual({ dom: 0, style: 0, state: 0 });
+    expect(json.pixels.blocking).toBe(true);
+    expect(json.pixels.surfaces[0].layers[0].comparison.regions[0].elements[0].path).toMatch(/img/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test('the same page captured twice → the pixel gate certifies 0 regions (no false positives)', async ({
+    page: p,
+  }) => {
+    page = p;
+    const { root, base, head } = dirs();
+    writeMap(base, await capWithShots(base, PIXEL_CSS, heroPage(GREEN)));
+    writeMap(head, await capWithShots(head, PIXEL_CSS, heroPage(GREEN)));
+    const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels'], root);
+    expect(gated.status, `identical renders pass the pixel gate\n${gated.out}`).toBe(0);
+    expect(gated.out).toMatch(/pixel gate: 0 changed region/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test('a screenshot layer missing on one side fails the pixel gate closed', async ({ page: p }) => {
+    page = p;
+    const { root, base, head } = dirs();
+    writeMap(base, await capWithShots(base, PIXEL_CSS, heroPage(GREEN)));
+    writeMap(head, await capWithShots(head, PIXEL_CSS, heroPage(GREEN)));
+    fs.rmSync(path.join(head, 'home.hover.png'));
+    const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels'], root);
+    expect(gated.status, `an uncompared layer is not certified\n${gated.out}`).toBe(1);
+    expect(gated.out).toMatch(/\[hover\]: ✗ screenshot missing on the after side/);
     fs.rmSync(root, { recursive: true, force: true });
   });
 

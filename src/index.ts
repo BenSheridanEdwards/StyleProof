@@ -280,3 +280,12 @@ export type {
 } from './release-confidence-project.js';
 export { summarizeReleaseConfidence } from './release-confidence-summary.js';
 export type { ReleaseConfidenceSummary } from './release-confidence-summary.js';
+export { comparePngs, comparePngFiles, attributeRegion, pixelDiffSurface } from './pixel-diff.js';
+export type {
+  PixelOptions,
+  PixelRegion,
+  PixelLayer,
+  PixelComparison,
+  PixelLayerResult,
+  PixelSurfaceResult,
+} from './pixel-diff.js';

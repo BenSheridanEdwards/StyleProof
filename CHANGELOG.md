@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in pixel gate (`styleproof-diff --pixels`, `diffStyleMapDirs({ pixels: true })`):
+  the screenshots every capture already writes (`<surface>.png` plus the forced
+  `:hover` / `:focus` / `:active` layers) are compared pixel for pixel, and every
+  changed region is attributed to the captured elements under it, smallest box first.
+  Pixels are the rendered effect, so the gate sees what computed styles cannot —
+  image content, canvas paint, font rasterisation — and needs no base/head element
+  correspondence. Anti-aliasing noise is tolerated (YIQ threshold, minimum region
+  size); a region or a screenshot layer present on one side only exits 1. Results
+  land in `--json` under `pixels`, never in the computed-style counts. (#473)
+
 ### Fixed
 
 - A restyle on an element that a pull request re-nested (a wrapper added around it,

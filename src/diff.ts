@@ -6,6 +6,7 @@ export { isProductStateComparabilityStatus, type ProductStateComparabilityStatus
 import { isMapFile, MAP_MANIFEST } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
 import { correspondBeforeMap, correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
+import { pixelDiffSurface, type PixelOptions, type PixelSurfaceResult } from './pixel-diff.js';
 
 /**
  * Structured diff between two style maps. Custom properties (--*) are
@@ -162,6 +163,15 @@ export type DiffStyleOptions = {
    * structure belongs to the opt-in advisory content layer.
    */
   includeStructure?: boolean;
+  /**
+   * Also compare the captured screenshots (`<surface>.png` and the forced-state
+   * layers) and attribute every changed region to the captured elements under it.
+   * Opt-in pixel gate (issue #473): pixels are the rendered effect, so this sees
+   * what computed styles cannot — image content, canvas paint, font rasterisation —
+   * and needs no element correspondence. Results land in `pixels`, never in
+   * `counts`, so existing consumers are unchanged.
+   */
+  pixels?: boolean | PixelOptions;
 };
 
 /** Content and structural changes are an opt-in advisory layer. Kept out of
@@ -490,6 +500,8 @@ export function diffStyleMapDirs(
   volatile: number;
   statesUncertified: number;
   compared: number;
+  /** One entry per paired surface when `options.pixels` is set; absent otherwise. */
+  pixels?: PixelSurfaceResult[];
 } {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
@@ -515,6 +527,7 @@ export function diffStyleMapDirs(
 
   const surfaces: SurfaceDiff[] = [];
   const comparability: SurfaceComparability[] = [];
+  const pixels: PixelSurfaceResult[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
   const uncompared = { volatile: 0, statesUncertified: 0 };
   for (const surface of names) {
@@ -536,8 +549,28 @@ export function diffStyleMapDirs(
     comparability.push(pair.comparability);
     tallyCounts(pair.findings, counts);
     if (pair.findings.length) surfaces.push({ surface, findings: pair.findings });
+    if (options.pixels) {
+      const pixelOptions = typeof options.pixels === 'object' ? options.pixels : {};
+      pixels.push(
+        pixelDiffSurface(
+          dirA,
+          dirB,
+          surface,
+          loadStyleMap(indexA[surface]),
+          loadStyleMap(indexB[surface]),
+          pixelOptions,
+        ),
+      );
+    }
   }
-  return { surfaces, counts, comparability, ...uncompared, compared: names.length };
+  return {
+    surfaces,
+    counts,
+    comparability,
+    ...uncompared,
+    compared: names.length,
+    ...(options.pixels ? { pixels } : {}),
+  };
 }
 
 /** Diff one paired surface, tallying what was NOT compared (volatile subtrees;

@@ -212,6 +212,7 @@ it or acknowledge it in policy. The approval box cannot clear it.
 - [Any styling system, real breakpoints](#any-styling-system-real-breakpoints)
 - [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel)
 - [Forks and Dependabot](#forks-and-dependabot)
+- [Optional: pixel gate](#optional-pixel-gate)
 - [Optional: content layer](#optional-content-layer-advisory)
 - [Optional: React component layer](#optional-react-component-layer-advisory)
 - [Optional: selective remap](#optional-selective-remap-advisory)
@@ -1300,6 +1301,29 @@ That last point is why this works where `pull_request_target` does not: StylePro
 **Where the PR identity comes from.** The report stage comments on the PR and sets the `StyleProof` status against a specific PR number and head commit, so those values have to be trustworthy. It takes them from the trusted `workflow_run` event — `head_sha`, then the event's `pull_requests`, with a commit→PR lookup against that **same trusted head SHA** for fork PRs (whose association the event doesn't carry directly) — and **never** from the downloaded artifact. The artifact is produced by the untrusted capture job, so treating anything in it as identity would let a malicious PR point the privileged comment and status at a victim PR or an arbitrary commit (a confused-deputy attack). The artifact therefore carries only the style-map captures, consumed purely as diff input.
 
 Copy both `capture` and `report` files to `.github/workflows/` (the `report` one must be on your default branch, like `styleproof-approve.yml`), then require the `StyleProof` status in branch protection. A single combined `pull_request` job that captures base + head and diffs them is fine for repos that never see fork or bot PRs; this split is only needed for untrusted PRs.
+
+## Optional: pixel gate
+
+Computed styles are the cause; pixels are the effect. The computed-style gate
+cannot see image content, canvas paint, or font rasterisation, and it needs a
+base-to-head element correspondence before it can compare anything. The pixel
+gate needs neither. It compares the screenshots every capture already writes
+(`<surface>.png` plus the forced `:hover`, `:focus`, and `:active` layers) and
+attributes every changed region to the captured elements under it, innermost
+first, so the reviewer still gets an element name next to the crop.
+
+```bash
+styleproof-diff base head --pixels            # exit 1 on any changed region
+styleproof-diff --pixels --json diff.json     # regions, per layer, under `pixels`
+```
+
+Deterministic captures from the same compatibility environment render
+byte-identical, so the gate expects exact equality and tolerates only
+anti-aliasing noise: a per-pixel YIQ colour distance under `0.1` is not a change,
+and a connected region smaller than 4 pixels is dropped. A screenshot layer that
+exists on one side only cannot be certified and fails the gate closed. Pixel
+results never enter the computed-style counts; the two verdicts are reported
+side by side.
 
 ## Optional: content layer (advisory)
 

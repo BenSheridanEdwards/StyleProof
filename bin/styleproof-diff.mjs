@@ -318,6 +318,12 @@ options:
                    require the before manifest to bind to this trusted full commit SHA
   --expected-after-sha <sha>
                    require the after manifest to bind to this trusted full commit SHA
+  --pixels         arm the pixel gate: also compare the captured screenshots
+                   (<surface>.png and the :hover/:focus/:active layers) and attribute
+                   every changed region to the elements under it. Sees what computed
+                   styles cannot — image content, canvas paint, font rasterisation —
+                   with no element correspondence. Any region, or a layer captured on
+                   one side only, exits 1. Results land in --json under "pixels".
   -h, --help       show this help
 
 exit: 0 identical (certified), 1 differences found OR non-certifying evidence
@@ -333,6 +339,7 @@ let MAX = 40;
 let jsonOut = null;
 let allowUnasserted = false;
 let requireStateIdentity = false;
+let pixels = false;
 let expectedBeforeSha;
 let expectedAfterSha;
 let expectedBeforeShaSet = false;
@@ -355,6 +362,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
   else if (argv[i] === '--allow-unasserted') allowUnasserted = true;
   else if (argv[i] === '--require-state-identity') requireStateIdentity = true;
+  else if (argv[i] === '--pixels') pixels = true;
   else if (argv[i] === '--expected-before-sha') {
     expectedBeforeShaSet = true;
     expectedBeforeSha = argv[++i];
@@ -445,7 +453,7 @@ try {
     beforeSha: expectedBeforeSha,
     afterSha: expectedAfterSha,
   });
-  result = diffStyleMapDirs(dirA, dirB);
+  result = diffStyleMapDirs(dirA, dirB, { includeStructure: false, pixels });
   // Read inventory + the certification ledgers here, while the (possibly cached/restored)
   // dirs still exist — the finally below deletes them in cached-map mode. Coverage is the
   // HEAD bundle's completeness basis; determinism needs both sides.
@@ -484,6 +492,7 @@ try {
   cleanupCachedCaptureDirs(cacheCapture);
 }
 const { surfaces, counts, comparability, compared, volatile, statesUncertified } = result;
+const pixelSurfaces = result.pixels ?? [];
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned)
 // findings the report/crops can show. Prevents STYLE_REVIEW_REQUIRED without
 // evidence when only derived/reflow longhands differ.
@@ -648,6 +657,50 @@ if (confidenceBlocks) {
     `\n✗ incomplete UI confidence: ${confidenceSummary.counts.inaccessible} inaccessible blocked-continuation surface(s) — certification fails closed`,
   );
 }
+// Pixel gate (opt-in --pixels): every region is a rendered difference the reviewer
+// must see, attributed to the elements under it; a layer captured on one side only
+// cannot be certified and blocks too. Kept out of `counts` — those stay the
+// computed-style verdict — and reported on its own line and its own JSON field.
+const pixelRegions = pixelSurfaces.reduce((n, s) => n + s.regionCount, 0);
+const pixelUncompared = pixelSurfaces.reduce((n, s) => n + s.uncompared.length, 0);
+// One line per changed region: size, position, pixel count, and the elements under it.
+function pixelRegionLine(surface, layer, region) {
+  const [x, y, w, h] = region.rect;
+  const who = region.elements.length
+    ? region.elements.map((e) => findingLabel(e.path, e.cls)).join(', ')
+    : 'no captured element under the region';
+  return `  ${surface} [${layer}]: ${w}×${h} at ${x},${y} (${region.changedPixels} px) — ${who}`;
+}
+function printPixelLayer(surface, layer) {
+  if (layer.status !== 'compared') {
+    console.log(
+      `  ${surface} [${layer.layer}]: ✗ screenshot ${layer.status.replace('-', ' on the ')} side — layer uncertified`,
+    );
+    return;
+  }
+  for (const region of layer.comparison.regions) console.log(pixelRegionLine(surface, layer.layer, region));
+  const mismatch = layer.comparison.sizeMismatch;
+  if (mismatch)
+    console.log(
+      `    screenshot size ${mismatch.before[0]}×${mismatch.before[1]} → ${mismatch.after[0]}×${mismatch.after[1]}`,
+    );
+}
+function printPixelGate() {
+  if (!pixels) return;
+  const flagged = pixelSurfaces.filter((s) => s.regionCount > 0 || s.uncompared.length > 0);
+  if (!flagged.length) {
+    console.log(
+      `\n🖼 pixel gate: 0 changed region(s) across ${pixelSurfaces.length} paired capture(s), every screenshot layer compared`,
+    );
+    return;
+  }
+  console.log(
+    `\n🖼 pixel gate: ${pixelRegions} changed region(s) in ${flagged.filter((s) => s.regionCount > 0).length} surface(s)`,
+  );
+  for (const s of flagged) for (const layer of s.layers) printPixelLayer(s.surface, layer);
+}
+printPixelGate();
+const pixelBlocks = pixelRegions > 0 || pixelUncompared > 0;
 const total = counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
 const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;
@@ -680,6 +733,7 @@ const certifiesFully =
   !confidenceBlocks &&
   !coverageBlocks &&
   !determinismBlocks &&
+  !pixelBlocks &&
   greenfieldNewSurfaces === 0 &&
   coverageVerdict?.basis === 'complete' &&
   determinismVerdict?.status === 'proven';
@@ -728,6 +782,16 @@ if (jsonOut) {
           coverage: coverageVerdict,
           determinism: determinismVerdict,
           confidence: confidenceSummary,
+          // Additive pixel-gate field (#473): `null` unless --pixels armed it.
+          pixels: pixels
+            ? {
+                armed: true,
+                regions: pixelRegions,
+                uncomparedLayers: pixelUncompared,
+                blocking: pixelBlocks,
+                surfaces: pixelSurfaces,
+              }
+            : null,
           certifiesFully,
           diagnostic: allowUnasserted,
           // The inventory verdict, machine-readable — parallel to coverage/determinism and
@@ -799,6 +863,9 @@ const detNote = determinismBlocks
     ? ' + determinism unknown'
     : ' + determinism unproven'
   : '';
+const pixNote = pixelBlocks
+  ? ` + pixel gate: ${pixelRegions} changed region(s)${pixelUncompared ? `, ${pixelUncompared} uncertified layer(s)` : ''}`
+  : '';
 const clean =
   total === 0 &&
   !comparison.blocksCertification &&
@@ -807,7 +874,8 @@ const clean =
   residueFails === 0 &&
   !confidenceBlocks &&
   !coverageBlocks &&
-  !determinismBlocks;
+  !determinismBlocks &&
+  !pixelBlocks;
 if (truth.rawOnlyNoReviewable) {
   // Derived-only style findings now render (cleanFindingsForDisplay), so the one
   // shape left here is a delta with no displayable form at all — e.g. a forced-
@@ -834,8 +902,8 @@ console.log(
           ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
           : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : comparison.blocksCertification
-      ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`
-      : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}`,
+      ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}${pixNote}`
+      : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}${pixNote}`,
 );
 // 0 = identical certified, 1 = reviewable differences or non-certifying evidence
 // (unasserted completeness, unknown/unproven determinism, incomplete registry,
@@ -849,7 +917,8 @@ process.exit(
     residueFails > 0 ||
     confidenceBlocks ||
     coverageBlocks ||
-    determinismBlocks
+    determinismBlocks ||
+    pixelBlocks
     ? 1
     : greenfieldNewSurfaces > 0
       ? 3
