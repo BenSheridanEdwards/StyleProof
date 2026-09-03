@@ -2,11 +2,11 @@
 
 **Certification**
 - **Coverage** — ✓ complete (all 1 registered surface(s) captured)
-- **Determinism** — ✓ proven (base self-checked, head self-checked)
-- **Inventory** — ⚠ 1 navigable affordance(s) removed, unacknowledged: route:/b
-- **Confidence** — ✓ complete (1 captured)
+- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
+- **Inventory** — ✓ navigable set unchanged
+- **Confidence** — ⚠ limited (0 captured, 1 unproven-determinism)
 
-**Release confidence** — ✓ complete (1 declared surface(s), 6/6 domains complete)
+**Release confidence** — ✗ blocked (completeness: connector-partial, environment-unproven, integrity-mismatch)
 
 **Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
