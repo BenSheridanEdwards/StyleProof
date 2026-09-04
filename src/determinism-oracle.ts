@@ -168,6 +168,27 @@ function countMatchingReceipts(receipts: readonly NormalizedReceipt[]): number {
   return Math.max(0, ...counts.values());
 }
 
+/**
+ * Build one run's receipt from the maps a single capture wrote.
+ *
+ * Keys are sorted, so the receipt depends on WHICH surfaces were captured and what
+ * they rendered — never on the order the filesystem happened to list them in. Every
+ * producer (the capture CLI, the browser fixture) must build receipts through this
+ * one function, or two honest runs could disagree purely on key order.
+ */
+export function determinismRunReceipt(entries: Iterable<readonly [string, unknown]>): DeterminismRunReceipt {
+  const captured = [...entries];
+  const stateKeys = captured.map(([key]) => key).sort();
+  if (new Set(stateKeys).size !== stateKeys.length) {
+    throw new TypeError('determinism receipt requires unique state keys');
+  }
+  const maps = new Map(captured);
+  return {
+    stateKeys,
+    mapHashes: Object.fromEntries(stateKeys.map((key) => [key, hashDeterminismMap(maps.get(key))])),
+  };
+}
+
 /** Assess the exact five-run promotion oracle required for deterministic state classes. */
 export function assessDeterminismOracle(runs: readonly unknown[]): DeterminismOracleVerdict {
   const inputRuns = Array.isArray(runs) ? runs : [];
