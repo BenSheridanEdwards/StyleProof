@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Consumer-declared required state comparisons (#442).** `styleproof.config.json` can now require an exact product-state identity on a width-normalized surface. Diff, report, and the composite Action emit the same bounded receipt and fail certification when evidence is missing, contradictory, one-sided, or otherwise non-comparable. The checked-in requirement cannot be waived by a workflow input.
+
+### Added
+
 - Opt-in pixel gate (`styleproof-diff --pixels`, `diffStyleMapDirs({ pixels: true })`):
   the screenshots every capture already writes (`<surface>.png` plus the forced
   `:hover` / `:focus` / `:active` layers) are compared pixel for pixel, and every

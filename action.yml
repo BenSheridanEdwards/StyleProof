@@ -344,6 +344,7 @@ runs:
               comparisonCertificationReceipt(generated.comparison),
               comparisonCertificationReceipt(diff.comparison),
             ) || !isDeepStrictEqual(generated.comparability, diff.comparability) ||
+            !isDeepStrictEqual(generated.requiredStateComparisons, diff.requiredStateComparisons) ||
             !isDeepStrictEqual(generated.sourceBinding, diff.sourceBinding)) {
           throw new Error('styleproof-report/report.json report receipts disagree with the validated diff');
         }
@@ -382,7 +383,8 @@ runs:
             diff.coverage?.basis !== 'complete' ||
             diff.determinism?.status !== 'proven' ||
             (diff.confidence?.counts?.inaccessible ?? 0) > 0 ||
-            diff.comparison?.blocksCertification === true;
+            diff.comparison?.blocksCertification === true ||
+            diff.requiredStateComparisons?.blocksCertification === true;
           // Raw certification deltas that cleanFindings strips entirely: the durable
           // report has no crops/sections. Never map this to style review.
           const rawOnlyNoReviewable =

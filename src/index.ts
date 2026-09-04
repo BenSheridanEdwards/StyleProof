@@ -244,3 +244,15 @@ export type {
   PixelLayerResult,
   PixelSurfaceResult,
 } from './pixel-diff.js';
+
+export {
+  RequiredStateComparisonError,
+  parseRequiredStateComparisons,
+  auditRequiredStateComparisons,
+} from './required-state-comparisons.js';
+export type {
+  RequiredStateComparison,
+  RequiredStateComparisonFailureReason,
+  RequiredStateComparisonReceipt,
+  RequiredStateComparisonSummary,
+} from './required-state-comparisons.js';

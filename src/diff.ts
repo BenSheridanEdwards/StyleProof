@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadStyleMap, isUnder, validateProductStateIdentity, type StyleMap } from './capture.js';
+import { loadStyleMap, isUnder, mapFilesByCaptureKey, validateProductStateIdentity, type StyleMap } from './capture.js';
 import { isProductStateComparabilityStatus, type ProductStateComparabilityStatus } from './comparability-status.js';
 export { isProductStateComparabilityStatus, type ProductStateComparabilityStatus } from './comparability-status.js';
-import { isMapFile, MAP_MANIFEST } from './map-store.js';
+import { MAP_MANIFEST } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
 import { correspondBeforeMap, correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
 import { pixelDiffSurface, type PixelOptions, type PixelSurfaceResult } from './pixel-diff.js';
@@ -464,12 +464,7 @@ function tallyCounts(findings: Finding[], counts: DiffCounts): void {
 }
 
 function indexDir(dir: string): Record<string, string> {
-  return Object.fromEntries(
-    fs
-      .readdirSync(dir)
-      .filter(isMapFile)
-      .map((f) => [f.replace(/\.json(\.gz)?$/, ''), path.join(dir, f)]),
-  );
+  return Object.fromEntries(mapFilesByCaptureKey(dir));
 }
 
 /**

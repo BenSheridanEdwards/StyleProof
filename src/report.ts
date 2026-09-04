@@ -36,6 +36,7 @@ import {
   type SurfaceComparability,
   type SurfaceDiff,
 } from './diff.js';
+import { loadStyleProofConfig } from './config.js';
 import { presentationBeforeMap } from './path-correspondence.js';
 import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
 import {
@@ -56,6 +57,7 @@ import {
   type ConfidenceLedgerFile,
   type ConfidenceSummary,
 } from './confidence-ledger.js';
+import { auditRequiredStateComparisons, type RequiredStateComparisonSummary } from './required-state-comparisons.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 
@@ -157,6 +159,8 @@ export type ReportOptions = {
    * lost, just relocated. Default 400_000 (~0.4 MB). Set to Infinity to never cap.
    */
   maxReportBytes?: number;
+  /** Repository root containing styleproof.config.json. Defaults to process.cwd(). */
+  configRoot?: string;
 };
 
 export type ReportComparison = ComparisonTruth & ComparabilitySummary;
@@ -177,6 +181,8 @@ export type ReportResult = {
   comparison: ReportComparison;
   /** Bounded per-capture receipts; identity values and page observations are never included. */
   comparability: SurfaceComparability[];
+  /** Consumer-declared state × surface evidence. Unsatisfied entries block certification. */
+  requiredStateComparisons: RequiredStateComparisonSummary;
   /** Presentation-vs-certification coherence. Any false value must fail closed. */
   reportConsistency: ReportConsistency;
   /**
@@ -1653,11 +1659,12 @@ function summaryLines(args: {
           ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
           : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
         : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.';
-      return [
-        confidenceBlocked || comparisonBlocked
-          ? scopedSummary.replace(/^✓ /, 'Computed-style scope only: ')
-          : scopedSummary,
-      ];
+      if (comparisonBlocked) {
+        return [
+          '✗ Computed-style comparison found no reviewable deltas, but certification is blocked because required comparison evidence is incomplete.',
+        ];
+      }
+      return [confidenceBlocked ? scopedSummary.replace(/^✓ /, 'Computed-style scope only: ') : scopedSummary];
     }
   }
   const md = [
@@ -2369,6 +2376,7 @@ function writeReportArtifacts(
   surfacesJson: Array<Record<string, unknown>>,
   baselineProvenance: BaselineProvenance | null = null,
   confidence: ConfidenceSummary | null = null,
+  requiredStateComparisons: RequiredStateComparisonSummary,
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
@@ -2382,6 +2390,7 @@ function writeReportArtifacts(
         reviewableCounts: comparison.reviewableCounts,
         comparison,
         comparability,
+        requiredStateComparisons,
         reportConsistency,
         content,
         surfaces: surfacesJson,
@@ -2468,6 +2477,13 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     maxReportBytes = 400_000,
     requireStateIdentity = false,
   } = opts;
+
+  // Audit before creating output so malformed evidence cannot leave a plausible report.
+  const requiredStateComparisons = auditRequiredStateComparisons(
+    beforeDir,
+    afterDir,
+    loadStyleProofConfig(opts.configRoot ?? process.cwd()).requiredStateComparisons ?? [],
+  );
 
   const includeNoise = opts.includeLayoutNoise === true;
   const includeContent = opts.includeContent === true;
@@ -2562,6 +2578,20 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const baselineProvenance = readBaselineProvenance(beforeDir);
   md.push(...baselineProvenanceLines(baselineProvenance));
   md.push(...comparabilityLines(comparison));
+  if (requiredStateComparisons.status !== 'not-required') {
+    md.push(
+      '',
+      requiredStateComparisons.blocksCertification
+        ? `✗ **Required state comparisons incomplete** — ${requiredStateComparisons.counts.unsatisfied} of ${requiredStateComparisons.counts.declared} consumer-declared state × surface obligation(s) lack comparable evidence. Certification is blocked; approval cannot clear this.`
+        : `✓ **Required state comparisons satisfied** — ${requiredStateComparisons.counts.satisfied} consumer-declared obligation(s) have comparable base/head evidence.`,
+    );
+    for (const receipt of requiredStateComparisons.receipts) {
+      const suffix = receipt.status === 'satisfied' ? 'satisfied' : `blocked: ${receipt.failures.join(', ')}`;
+      md.push(
+        `  - \`${safeKey(receipt.surface)}\` · \`${safeKey(receipt.productState.id)}@${safeKey(receipt.productState.revision)}\` · ${suffix}`,
+      );
+    }
+  }
   md.push(
     ...reportHeadline({
       changeGroups,
@@ -2576,7 +2606,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
       confidenceBlocked: confidence.counts.inaccessible > 0,
-      comparisonBlocked: comparison.blocksCertification,
+      comparisonBlocked: comparison.blocksCertification || requiredStateComparisons.blocksCertification,
     }),
   );
   md.push(...stateCoverageLines(afterDir));
@@ -2646,6 +2676,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     json,
     baselineProvenance,
     confidence,
+    requiredStateComparisons,
   );
   return {
     changedSurfaces: preparedCertified.length - missing.length,
@@ -2654,6 +2685,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     contentChanges: contentSection.count,
     comparison,
     comparability,
+    requiredStateComparisons,
     reportConsistency,
     confidence,
     reportMdPath,

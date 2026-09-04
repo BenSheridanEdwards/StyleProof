@@ -38,6 +38,30 @@ Receipts contain only the capture key, status, required bit, and a bounded reaso
 - CLI, JSON, report, composite Action, commit status, and exit code must use the same comparison truth.
 - Approval can clear `STYLE_REVIEW_REQUIRED`; it cannot clear `CERTIFICATION_FAILED`.
 
+## Selective required state comparisons
+
+Consumers can make one state mandatory on one width-normalized surface in `styleproof.config.json`:
+
+```json
+{
+  "requiredStateComparisons": [
+    {
+      "surface": "agents",
+      "productState": {
+        "id": "client:jake:hunter",
+        "revision": "fleet-fixture-v1"
+      },
+      "owner": "fleet-hud",
+      "reason": "Prove the external client is visible before approving the agents surface"
+    }
+  ]
+}
+```
+
+A requirement is satisfied only when a shared base/head capture carries the exact declared `metadata.surfaceKey` and matching valid product-state identity on both sides. Width suffixes belong to capture keys, not `surface`. Missing surface metadata, wrong surface or revision, one-sided evidence, and existing pairwise comparability failures all block certification. Diff JSON, report JSON, Markdown, Action trust state, and exit code carry the same bounded receipt. This gate is checked-in policy, not a workflow input, so a caller cannot waive it by omitting a flag.
+
+`owner` and `reason` are bounded public metadata intended for repair routing. They must not contain secrets or personal data. StyleProof does not inspect application semantics: the consumer must still create the fixture and assert that the claimed state is visibly active before capture.
+
 ## Compatibility and migration
 
 StyleProof 6.2 remains the stable migration line. The 6.x-compatible path is opt-in:
@@ -51,4 +75,4 @@ A future major version may make explicit state identity mandatory by default if 
 
 ## Deliberate non-claims
 
-This contract does not prove that all product states were declared, that fixtures are semantically correct, or that all visual regression classes are detectable. It proves only whether the two supplied captures carry matching explicit product-state identity within the declared comparison scope.
+This contract does not prove that all product states were declared, that fixtures are semantically correct, or that all visual regression classes are detectable. `requiredStateComparisons` closes only consumer-declared omissions; it cannot detect an undeclared obligation or a dishonest fixture. It proves only whether the two supplied captures carry matching explicit product-state identity within the declared comparison scope.

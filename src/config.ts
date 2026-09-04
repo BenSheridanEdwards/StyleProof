@@ -17,6 +17,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseRequiredStateComparisons, type RequiredStateComparison } from './required-state-comparisons.js';
 
 const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
 
@@ -68,6 +69,8 @@ export type StyleProofConfig = {
   /** Git remote for the map store (default origin). */
   remote?: string;
   affected?: AffectedConfig;
+  /** Closed, consumer-owned state × surface comparisons required for certification. */
+  requiredStateComparisons?: RequiredStateComparison[];
   /** Closed-world crawl / auth-boundary adoption block. */
   crawl?: CrawlConfig;
 };
@@ -103,6 +106,77 @@ function plainObject(value: unknown, key: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/** Reject duplicate object keys before JSON.parse can erase checked-in policy. */
+function assertNoDuplicateJsonKeys(raw: string): void {
+  let at = 0;
+  const space = () => {
+    while (/\s/u.test(raw[at] ?? '')) at++;
+  };
+  const stringValue = (): string => {
+    const start = at++;
+    while (at < raw.length) {
+      if (raw[at] === '\\') {
+        at += 2;
+        continue;
+      }
+      if (raw[at++] === '"') return JSON.parse(raw.slice(start, at)) as string;
+    }
+    throw new SyntaxError('unterminated string');
+  };
+  const value = (): void => {
+    space();
+    if (raw[at] === '{') return object();
+    if (raw[at] === '[') return array();
+    if (raw[at] === '"') {
+      stringValue();
+      return;
+    }
+    while (at < raw.length && !/[\s,}\]]/u.test(raw[at]!)) at++;
+  };
+  const object = (): void => {
+    at++;
+    const keys = new Set<string>();
+    space();
+    if (raw[at] === '}') {
+      at++;
+      return;
+    }
+    while (at < raw.length) {
+      space();
+      const key = stringValue();
+      if (keys.has(key)) throw new StyleProofConfigError(`${STYLEPROOF_CONFIG_FILE}: duplicate object key`);
+      keys.add(key);
+      space();
+      if (raw[at++] !== ':') throw new SyntaxError('expected colon');
+      value();
+      space();
+      if (raw[at] === '}') {
+        at++;
+        return;
+      }
+      if (raw[at++] !== ',') throw new SyntaxError('expected comma');
+    }
+  };
+  const array = (): void => {
+    at++;
+    space();
+    if (raw[at] === ']') {
+      at++;
+      return;
+    }
+    while (at < raw.length) {
+      value();
+      space();
+      if (raw[at] === ']') {
+        at++;
+        return;
+      }
+      if (raw[at++] !== ',') throw new SyntaxError('expected comma');
+    }
+  };
+  value();
+}
+
 /** Read + parse the file; undefined when it does not exist. */
 function readConfigObject(cwd: string): Record<string, unknown> | undefined {
   let raw: string;
@@ -113,7 +187,9 @@ function readConfigObject(cwd: string): Record<string, unknown> | undefined {
     fail(`could not read the file — ${e instanceof Error ? e.message : String(e)}`);
   }
   try {
-    return plainObject(JSON.parse(raw), 'the file');
+    const parsed = JSON.parse(raw);
+    assertNoDuplicateJsonKeys(raw);
+    return plainObject(parsed, 'the file');
   } catch (e) {
     if (e instanceof StyleProofConfigError) throw e;
     fail(`invalid JSON — ${e instanceof Error ? e.message : String(e)}`);
@@ -173,6 +249,7 @@ const KNOWN_KEYS = [
   'cacheBranch',
   'remote',
   'affected',
+  'requiredStateComparisons',
   'crawl',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
@@ -196,6 +273,9 @@ const KNOWN_CRAWL_KEYS = [
 function warnUnknownKeys(record: Record<string, unknown>, known: string[], prefix: string): void {
   const unknown = Object.keys(record).filter((k) => !known.includes(k));
   if (unknown.length === 0) return;
+  if (prefix === '' && unknown.some((key) => /^requiredstatecompar/i.test(key))) {
+    fail('unknown certification-policy key; fix the spelling before certification');
+  }
   process.stderr.write(
     `styleproof: ${STYLEPROOF_CONFIG_FILE}: unknown ${prefix}key(s) ignored: ${unknown.join(', ')} ` +
       `(known: ${known.join(', ')}) — fix the spelling or remove them\n`,
@@ -220,6 +300,10 @@ export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
     cacheBranch: optionalString(record.cacheBranch, 'cacheBranch'),
     remote: optionalString(record.remote, 'remote'),
     affected: parseAffected(record.affected),
+    requiredStateComparisons:
+      record.requiredStateComparisons === undefined
+        ? undefined
+        : parseRequiredStateComparisons(record.requiredStateComparisons),
     crawl: parseCrawl(record.crawl),
   };
 }

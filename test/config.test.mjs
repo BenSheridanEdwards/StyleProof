@@ -94,6 +94,27 @@ test('loadStyleProofConfig: written-but-broken config fails LOUDLY, never silent
   });
 });
 
+test('loadStyleProofConfig: validates required state comparisons as a closed contract', () => {
+  const required = [
+    {
+      surface: 'agents-client-seat-visible',
+      productState: { id: 'client:jake:hunter', revision: 'fleet-fixture-v1' },
+      owner: 'hud',
+      reason: 'Hunter must be visible before the roster is certified.',
+    },
+  ];
+  withConfig({ requiredStateComparisons: required }, (dir) => {
+    const parsed = loadStyleProofConfig(dir).requiredStateComparisons;
+    assert.deepEqual(parsed, required);
+    assert.notEqual(parsed, required);
+  });
+  for (const invalid of ['bad', [{}], [{ ...required[0], extra: true }], [required[0], required[0]]]) {
+    withConfig({ requiredStateComparisons: invalid }, (dir) => {
+      assert.throws(() => loadStyleProofConfig(dir), /invalid requiredStateComparisons/);
+    });
+  }
+});
+
 test('styleproof-affected: a fully configured repo runs with no input flags at all', () => {
   // The config lives in the package the verdict is about: at cwd for a plain
   // repo, at --root for a monorepo subpackage. Both invocations below read the
@@ -284,4 +305,17 @@ test('README documents every top-level one-config adoption block', () => {
   assert.match(configReference, /\| `crawl`\s+\|/);
   assert.match(configReference, /`setup`/);
   assert.match(configReference, /`authBoundaryExclude`/);
+});
+
+test('loadStyleProofConfig: duplicate object keys fail before policy can be erased', () => {
+  withConfig(
+    '{"requiredStateComparisons":[{"surface":"home","productState":{"id":"ready","revision":"v1"},"owner":"ui","reason":"required"}],"requiredStateComparisons":[]}',
+    (dir) => assert.throws(() => loadStyleProofConfig(dir), /duplicate object key/),
+  );
+});
+
+test('loadStyleProofConfig: a near-miss certification-policy key fails closed', () => {
+  withConfig('{"requiredStateComparison":[]}', (dir) =>
+    assert.throws(() => loadStyleProofConfig(dir), /unknown certification-policy key/),
+  );
 });

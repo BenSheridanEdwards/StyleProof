@@ -1149,3 +1149,15 @@ test('report CLI exposes strict product-state identity mode and passes it to rep
   assert.match(reportCli, /requireStateIdentity/);
   assert.match(reportCli, /generateStyleMapReport\([\s\S]*?requireStateIdentity/);
 });
+
+test('required-state certification failure is receipt-parity checked and cannot be approved away', () => {
+  assert.match(actionYml, /isDeepStrictEqual\(generated\.requiredStateComparisons, diff\.requiredStateComparisons\)/);
+  assert.match(actionYml, /diff\.requiredStateComparisons\?\.blocksCertification === true/);
+  const certification = actionYml.indexOf(
+    "else if (certificationFailed || rawOnlyNoReviewable) state = 'CERTIFICATION_FAILED'",
+  );
+  const styleReview = actionYml.indexOf(
+    "else if ('${{ steps.diff.outputs.changed }}' === 'true') state = 'STYLE_REVIEW_REQUIRED'",
+  );
+  assert.ok(certification >= 0 && styleReview > certification);
+});

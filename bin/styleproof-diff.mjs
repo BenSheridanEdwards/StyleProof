@@ -70,6 +70,16 @@ import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
 import { isMapFile } from '../dist/map-store.js';
+import { loadStyleProofConfig } from '../dist/config.js';
+import { auditRequiredStateComparisons } from '../dist/required-state-comparisons.js';
+
+let requiredStateDeclarations;
+try {
+  requiredStateDeclarations = loadStyleProofConfig(process.cwd()).requiredStateComparisons ?? [];
+} catch (e) {
+  console.error(e.message);
+  process.exit(2);
+}
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 
@@ -443,6 +453,7 @@ let surfaceKeyOf = () => undefined;
 let baselineSurfaceFailures = [];
 let baselineProvenance = null;
 let baseMapCount = 0;
+let requiredStateComparisons;
 try {
   // v4: a side without a manifest is unsupported — the same-environment guard can't be
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
@@ -481,6 +492,7 @@ try {
   // First-adoption bare base: zero maps on the before side. Used so exit 3 is not
   // swallowed by unasserted/unknown fail-closed (filtered pairs still have maps).
   baseMapCount = fs.existsSync(dirA) ? fs.readdirSync(dirA).filter(isMapFile).length : 0;
+  requiredStateComparisons = auditRequiredStateComparisons(dirA, dirB, requiredStateDeclarations);
   evidenceBinding = captureEvidenceBindingReceipt(dirA, dirB);
   if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
     throw new Error('capture evidence changed while styleproof-diff was reading it');
@@ -498,6 +510,18 @@ const pixelSurfaces = result.pixels ?? [];
 // evidence when only derived/reflow longhands differ.
 const truth = assessComparisonTruth(surfaces, counts, comparability, { requireStateIdentity });
 const comparison = summarizeComparability(comparability, requireStateIdentity);
+if (requiredStateComparisons.status !== 'not-required') {
+  console.log(
+    requiredStateComparisons.blocksCertification
+      ? `\n✗ required state comparisons incomplete — ${requiredStateComparisons.counts.unsatisfied}/${requiredStateComparisons.counts.declared} blocked`
+      : `\n✓ required state comparisons satisfied — ${requiredStateComparisons.counts.satisfied}/${requiredStateComparisons.counts.declared}`,
+  );
+  for (const receipt of requiredStateComparisons.receipts.filter((entry) => entry.status === 'unsatisfied')) {
+    console.log(
+      `  ${receipt.surface} · ${receipt.productState.id}@${receipt.productState.revision}: ${receipt.failures.join(', ')}`,
+    );
+  }
+}
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
 const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
 
@@ -726,6 +750,7 @@ const certifiesFully =
   !allowUnasserted &&
   !truth.rawOnlyNoReviewable &&
   !comparison.blocksCertification &&
+  !requiredStateComparisons.blocksCertification &&
   total === 0 &&
   removedSurfaces === 0 &&
   invRemovals === 0 &&
@@ -755,6 +780,7 @@ if (jsonOut) {
           reviewableCounts: truth.reviewableCounts,
           comparison,
           comparability,
+          requiredStateComparisons,
           reportConsistency: truth.rawOnlyNoReviewable
             ? {
                 ok: false,
@@ -869,6 +895,7 @@ const pixNote = pixelBlocks
 const clean =
   total === 0 &&
   !comparison.blocksCertification &&
+  !requiredStateComparisons.blocksCertification &&
   removedSurfaces === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
@@ -912,6 +939,7 @@ console.log(
 process.exit(
   total > 0 ||
     comparison.blocksCertification ||
+    requiredStateComparisons.blocksCertification ||
     removedSurfaces > 0 ||
     invRemovals > 0 ||
     residueFails > 0 ||

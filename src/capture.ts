@@ -1615,19 +1615,31 @@ export function captureKeyFromMapFile(filename: string): string {
   return filename.replace(/\.json(\.gz)?$/, '');
 }
 
-/** Every capture key present as a map file in `dir`. */
+/** Map files indexed by logical capture key. Duplicate JSON/gzip artifacts fail closed. */
+export function mapFilesByCaptureKey(dir: string): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!fs.existsSync(dir)) return out;
+  for (const file of fs.readdirSync(dir).filter(isMapFile)) {
+    const key = captureKeyFromMapFile(file);
+    if (out.has(key)) {
+      throw new Error('styleproof: duplicate map artifacts for one logical capture key');
+    }
+    out.set(key, path.join(dir, file));
+  }
+  return out;
+}
+
+/** Every unique capture key present as a map file in `dir`. */
 export function captureKeysIn(dir: string): string[] {
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter(isMapFile).map(captureKeyFromMapFile);
+  return [...mapFilesByCaptureKey(dir).keys()];
 }
 
 /** Per capture key, the authoring `metadata.surfaceKey` from that map (if any). */
 export function surfaceKeyByCaptureKey(dir: string): Map<string, string | undefined> {
   const out = new Map<string, string | undefined>();
   if (!fs.existsSync(dir)) return out;
-  for (const f of fs.readdirSync(dir).filter(isMapFile)) {
-    const key = captureKeyFromMapFile(f);
-    const map = loadStyleMap(path.join(dir, f));
+  for (const [key, file] of mapFilesByCaptureKey(dir)) {
+    const map = loadStyleMap(file);
     out.set(key, map.metadata?.surfaceKey);
   }
   return out;

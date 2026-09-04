@@ -26,8 +26,16 @@ import {
   manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
+import { loadStyleProofConfig } from '../dist/config.js';
 
 const COMMAND = 'styleproof-report';
+let requiredStateDeclarations;
+try {
+  requiredStateDeclarations = loadStyleProofConfig(process.cwd()).requiredStateComparisons ?? [];
+} catch (e) {
+  console.error(e.message);
+  process.exit(2);
+}
 
 const HELP = `${COMMAND} — reviewable before/after report from two captures
 
@@ -206,6 +214,7 @@ try {
     includeLayoutNoise,
     includeContent,
     requireStateIdentity,
+    requiredStateComparisons: requiredStateDeclarations,
   });
   const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
   if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
@@ -237,6 +246,7 @@ try {
 const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';
 const consistencyFailed = result.reportConsistency?.ok === false;
 const comparisonFailed = result.comparison?.blocksCertification === true;
+const requiredStateFailed = result.requiredStateComparisons?.blocksCertification === true;
 // An unverified source binding is a diagnostic, never a certification. Until the
 // release-confidence layer was removed (#475) this fell out of that layer's
 // fail-closed default; state it directly so the exit code and the "⚠ UNVERIFIED
@@ -247,17 +257,19 @@ if (consistencyFailed) {
   console.log(`⚠ report consistency: ${result.reportConsistency.reason} — not a clean no-change (fail closed)`);
 }
 console.log(
-  result.changedSurfaces === 0
-    ? result.newSurfaces === 0
-      ? consistencyFailed
-        ? '⚠ no presentation changes — report consistency failure written'
-        : includeContent
-          ? result.contentChanges > 0
-            ? `${cleanPrefix} no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
-            : `${cleanPrefix} no reviewable computed-style or advisory content/structure changes`
-          : `${cleanPrefix} no reviewable computed-style changes — content/structure not evaluated`
-      : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
-    : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
+  requiredStateFailed
+    ? `✗ required state comparisons incomplete — ${result.requiredStateComparisons.counts.unsatisfied}/${result.requiredStateComparisons.counts.declared} blocked; certification failed`
+    : result.changedSurfaces === 0
+      ? result.newSurfaces === 0
+        ? consistencyFailed
+          ? '⚠ no presentation changes — report consistency failure written'
+          : includeContent
+            ? result.contentChanges > 0
+              ? `${cleanPrefix} no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
+              : `${cleanPrefix} no reviewable computed-style or advisory content/structure changes`
+            : `${cleanPrefix} no reviewable computed-style changes — content/structure not evaluated`
+        : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
+      : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );
 console.log(`report: ${result.reportMdPath}`);
 if (includeContent && result.contentChanges > 0) {
@@ -270,6 +282,7 @@ process.exit(
     result.newSurfaces === 0 &&
     !consistencyFailed &&
     !comparisonFailed &&
+    !requiredStateFailed &&
     !sourceBindingFailed
     ? 0
     : 1,

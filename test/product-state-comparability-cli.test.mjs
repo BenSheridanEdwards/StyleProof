@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
@@ -312,4 +312,113 @@ test('diff CLI makes asymmetric identity required-unproven even without the glob
   assert.equal(result.json.reviewableCounts.style, 0);
   assert.equal(result.json.certifiesFully, false);
   rmTmp(capture.root);
+});
+
+test('missing consumer-declared state × surface evidence blocks clean diff and report verdicts', () => {
+  const capture = fixture({});
+  const declaration = {
+    surface: 'home',
+    productState: { id: 'client:jake:hunter', revision: 'fleet-fixture-v1' },
+    owner: 'hud',
+    reason: 'Hunter must be visible before the roster is certified.',
+  };
+  fs.writeFileSync(
+    path.join(capture.root, 'styleproof.config.json'),
+    JSON.stringify({ requiredStateComparisons: [declaration] }),
+  );
+  const out = path.join(capture.root, 'required-report');
+  try {
+    const diff = runDiff(capture);
+    assert.equal(diff.status, 1, diff.stderr || diff.stdout);
+    assert.equal(diff.json.requiredStateComparisons.blocksCertification, true);
+    assert.deepEqual(diff.json.requiredStateComparisons.receipts[0].failures, ['surface-metadata-missing']);
+    assert.doesNotMatch(diff.stdout, /✓ 0 reviewable computed-style changes/);
+
+    const report = spawnSync(
+      process.execPath,
+      [
+        REPORT,
+        capture.before,
+        capture.after,
+        '--out',
+        out,
+        '--expected-before-sha',
+        BASE_SHA,
+        '--expected-after-sha',
+        HEAD_SHA,
+      ],
+      { cwd: capture.root, encoding: 'utf8' },
+    );
+    assert.equal(report.status, 1, report.stderr || report.stdout);
+    assert.match(report.stdout, /required state comparisons incomplete/i);
+    assert.doesNotMatch(report.stdout, /✓ no reviewable/i);
+    const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+    assert.deepEqual(reportJson.requiredStateComparisons, diff.json.requiredStateComparisons);
+    const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+    assert.match(markdown, /Required state comparisons incomplete/);
+    assert.match(markdown, /approval cannot clear this/i);
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
+test('duplicate JSON and gzip artifacts for one logical capture key fail closed', () => {
+  const required = { id: 'ready', revision: 'v1' };
+  const capture = fixture({ beforeState: required, afterState: required });
+  try {
+    for (const dir of [capture.before, capture.after]) {
+      fs.writeFileSync(
+        path.join(dir, 'home@1280.json'),
+        JSON.stringify(makeMap({ metadata: { surfaceKey: 'home', productState: { id: 'other', revision: 'v1' } } })),
+      );
+    }
+    fs.writeFileSync(
+      path.join(capture.root, 'styleproof.config.json'),
+      JSON.stringify({
+        requiredStateComparisons: [{ surface: 'home', productState: required, owner: 'ui', reason: 'required' }],
+      }),
+    );
+    const result = runDiffRaw(capture);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /duplicate map artifacts/);
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
+test('public report API loads checked-in required-state policy when the caller supplies no policy argument', () => {
+  const capture = fixture({});
+  const report = path.join(capture.root, 'report-api');
+  try {
+    fs.writeFileSync(
+      path.join(capture.root, 'styleproof.config.json'),
+      JSON.stringify({
+        requiredStateComparisons: [
+          {
+            surface: 'home',
+            productState: { id: 'client:jake:hunter', revision: 'fleet-fixture-v1' },
+            owner: 'fleet-hud',
+            reason: 'Hunter must be visible',
+          },
+        ],
+      }),
+    );
+    const script = `import { generateStyleMapReport } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'dist/report.js')).href)};
+const result = generateStyleMapReport({ beforeDir: ${JSON.stringify(capture.before)}, afterDir: ${JSON.stringify(capture.after)}, outDir: ${JSON.stringify(report)} });
+console.log(JSON.stringify(result.requiredStateComparisons));`;
+    const result = spawnSync(process.execPath, ['--input-type=module', '--eval', script], {
+      cwd: capture.root,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.blocksCertification, true);
+    assert.equal(receipt.status, 'unsatisfied');
+    assert.doesNotMatch(
+      fs.readFileSync(path.join(report, 'report.md'), 'utf8'),
+      /No reviewable computed-style changes/,
+    );
+  } finally {
+    rmTmp(capture.root);
+  }
 });
