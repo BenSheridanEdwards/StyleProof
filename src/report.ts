@@ -36,7 +36,7 @@ import {
   type SurfaceComparability,
   type SurfaceDiff,
 } from './diff.js';
-import { loadStyleProofConfig, resolveStyleProofConfigRoot } from './config.js';
+import { loadRequiredStateComparisonsForCaptureDirs } from './config.js';
 import { presentationBeforeMap } from './path-correspondence.js';
 import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
 import {
@@ -2482,8 +2482,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const requiredStateComparisons = auditRequiredStateComparisons(
     beforeDir,
     afterDir,
-    loadStyleProofConfig(resolveStyleProofConfigRoot([opts.beforeDir, opts.afterDir], opts.configRoot ?? process.cwd()))
-      .requiredStateComparisons ?? [],
+    loadRequiredStateComparisonsForCaptureDirs([opts.beforeDir, opts.afterDir], opts.configRoot ?? process.cwd()),
   );
 
   const includeNoise = opts.includeLayoutNoise === true;

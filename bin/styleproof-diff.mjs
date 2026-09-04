@@ -70,16 +70,10 @@ import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
 import { isMapFile } from '../dist/map-store.js';
-import { loadStyleProofConfig, resolveStyleProofConfigRoot } from '../dist/config.js';
+import { loadRequiredStateComparisonsForCaptureDirs } from '../dist/config.js';
 import { auditRequiredStateComparisons } from '../dist/required-state-comparisons.js';
 
 let requiredStateDeclarations;
-try {
-  requiredStateDeclarations = loadStyleProofConfig(process.cwd()).requiredStateComparisons ?? [];
-} catch (e) {
-  console.error(e.message);
-  process.exit(2);
-}
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 
@@ -480,8 +474,7 @@ try {
   // the dirs exist" rule as the ledgers above.
   surfacePaths = surfaceElementPaths(dirA, dirB);
   try {
-    requiredStateDeclarations =
-      loadStyleProofConfig(resolveStyleProofConfigRoot([dirA, dirB], process.cwd())).requiredStateComparisons ?? [];
+    requiredStateDeclarations = loadRequiredStateComparisonsForCaptureDirs([dirA, dirB], process.cwd());
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(2);

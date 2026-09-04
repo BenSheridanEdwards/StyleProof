@@ -26,16 +26,10 @@ import {
   manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
-import { loadStyleProofConfig, resolveStyleProofConfigRoot } from '../dist/config.js';
+import { loadRequiredStateComparisonsForCaptureDirs } from '../dist/config.js';
 
 const COMMAND = 'styleproof-report';
 let requiredStateDeclarations;
-try {
-  requiredStateDeclarations = loadStyleProofConfig(process.cwd()).requiredStateComparisons ?? [];
-} catch (e) {
-  console.error(e.message);
-  process.exit(2);
-}
 
 const HELP = `${COMMAND} — reviewable before/after report from two captures
 
@@ -195,9 +189,7 @@ try {
   // v4: refuse a manifest-less side (exit 2 via the catch) — same-environment
   // compatibility can't be verified without a manifest on both sides.
   try {
-    requiredStateDeclarations =
-      loadStyleProofConfig(resolveStyleProofConfigRoot([beforeDir, afterDir], process.cwd()))
-        .requiredStateComparisons ?? [];
+    requiredStateDeclarations = loadRequiredStateComparisonsForCaptureDirs([beforeDir, afterDir], process.cwd());
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(2);

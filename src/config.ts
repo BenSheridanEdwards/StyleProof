@@ -333,6 +333,13 @@ export function resolveStyleProofConfigRoot(captureDirs: readonly string[], fall
   return roots[0] ?? path.resolve(fallbackRoot);
 }
 
+export function loadRequiredStateComparisonsForCaptureDirs(
+  captureDirs: readonly string[],
+  fallbackRoot = process.cwd(),
+): RequiredStateComparison[] {
+  return loadStyleProofConfig(resolveStyleProofConfigRoot(captureDirs, fallbackRoot)).requiredStateComparisons ?? [];
+}
+
 /** Load and validate the repo's styleproof.config.json. Missing file → `{}`;
  *  unreadable/malformed file or a wrongly-typed known key → {@link StyleProofConfigError};
  *  unknown keys → a loud stderr warning (never silently dropped). */
