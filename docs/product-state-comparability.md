@@ -76,3 +76,7 @@ A future major version may make explicit state identity mandatory by default if 
 ## Deliberate non-claims
 
 This contract does not prove that all product states were declared, that fixtures are semantically correct, or that all visual regression classes are detectable. `requiredStateComparisons` closes only consumer-declared omissions; it cannot detect an undeclared obligation or a dishonest fixture. It proves only whether the two supplied captures carry matching explicit product-state identity within the declared comparison scope.
+
+## Config trust
+
+`styleproof-diff` and `styleproof-report` load policy only from the trusted working directory by default. Monorepo packages must pass `--config-root <package>`. A missing explicit root, nested untrusted config, symlink, FIFO, duplicate key, or unknown top-level key is a usage error and cannot certify.

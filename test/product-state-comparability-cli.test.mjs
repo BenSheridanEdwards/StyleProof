@@ -423,7 +423,7 @@ console.log(JSON.stringify(result.requiredStateComparisons));`;
   }
 });
 
-test('diff and report discover package-owned policy when invoked from a monorepo root', () => {
+test('diff and report require and honor explicit package policy when invoked from a monorepo root', () => {
   const capture = fixture({});
   const workspace = mkTmp('styleproof-monorepo-');
   const packageRoot = path.join(workspace, 'packages', 'app');
@@ -445,12 +445,22 @@ test('diff and report discover package-owned policy when invoked from a monorepo
   const json = path.join(workspace, 'diff.json');
   const out = path.join(workspace, 'report');
   try {
+    const implicit = spawnSync(process.execPath, [DIFF, capture.before, capture.after], {
+      cwd: workspace,
+      encoding: 'utf8',
+    });
+    assert.equal(implicit.status, 2);
+    assert.match(implicit.stderr, /requires an explicit --config-root/);
+    assert.doesNotMatch(implicit.stdout, /✓|certifiesFully/);
+
     const diff = spawnSync(
       process.execPath,
       [
         DIFF,
         capture.before,
         capture.after,
+        '--config-root',
+        packageRoot,
         '--json',
         json,
         '--expected-before-sha',
@@ -468,6 +478,8 @@ test('diff and report discover package-owned policy when invoked from a monorepo
         REPORT,
         capture.before,
         capture.after,
+        '--config-root',
+        packageRoot,
         '--out',
         out,
         '--expected-before-sha',
@@ -482,5 +494,31 @@ test('diff and report discover package-owned policy when invoked from a monorepo
     assert.doesNotMatch(report.stdout, /✓ no reviewable/i);
   } finally {
     rmTmp(workspace);
+  }
+});
+
+test('an explicitly missing config root is a usage error, never empty policy', () => {
+  const root = mkTmp('styleproof-missing-config-root-');
+  const capture = fixture({
+    beforeState: { name: 'ready', revision: 'v1' },
+    afterState: { name: 'ready', revision: 'v1' },
+  });
+  const missingRoot = path.join(root, 'packages', 'missing');
+
+  for (const [bin, extra] of [
+    [DIFF, ['--json']],
+    [REPORT, ['--out', path.join(root, 'report')]],
+  ]) {
+    const result = spawnSync(
+      process.execPath,
+      [bin, capture.before, capture.after, '--config-root', missingRoot, ...extra],
+      {
+        cwd: root,
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(result.status, 2, `${bin}: ${result.stdout} ${result.stderr}`);
+    assert.match(result.stderr, /explicit config root has no styleproof\.config\.json/i);
+    assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /certifiesFully|no reviewable computed-style changes/i);
   }
 });

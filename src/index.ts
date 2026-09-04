@@ -249,10 +249,10 @@ export {
   RequiredStateComparisonError,
   parseRequiredStateComparisons,
   auditRequiredStateComparisons,
-} from './required-state-comparisons.js';
+} from './required-state-api.js';
 export type {
   RequiredStateComparison,
   RequiredStateComparisonFailureReason,
   RequiredStateComparisonReceipt,
   RequiredStateComparisonSummary,
-} from './required-state-comparisons.js';
+} from './required-state-api.js';

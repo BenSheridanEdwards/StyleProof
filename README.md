@@ -1529,6 +1529,8 @@ Outputs include `changed`, `content-changes`, `report-url`, `trust-state`, and `
 | `requiredStateComparisons` | `[]`                     | Required consumer-declared state × surface evidence. Each entry is `{ "surface", "productState": { "id", "revision" }, "owner", "reason" }`; missing or contradictory base/head evidence fails certification and cannot be approved.                                                                                                                                                                             |
 | `crawl`                    | —                        | One-config crawl/auth defaults for `styleproof-capture`: `{ "baseUrl", "routes", "setup", "authBoundaryExclude", "strict", "out", "maxActions", "width", "height" }`. `setup` and `authBoundaryExclude` are repo-relative JSON files; setup values use `${ENV_VAR}` interpolation so secrets never enter config. `styleproof-map` refuses these auth knobs because its Playwright spec path cannot execute them. |
 
+For monorepos, pass `--config-root <package>` to `styleproof-diff` and `styleproof-report`. Capture-adjacent configs are never trusted implicitly. Unknown top-level config keys fail closed so an older binary cannot silently erase newer policy.
+
 Example for a protected app:
 
 ```json

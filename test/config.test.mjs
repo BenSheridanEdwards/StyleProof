@@ -239,14 +239,12 @@ test('styleproof-map: refuses crawl.setup / authBoundaryExclude (auth belongs on
   });
 });
 
-test('loadStyleProofConfig: unknown keys warn loudly instead of silently dropping', () => {
-  // A typo'd key silently reverting to defaults is the exact failure the
-  // loader's contract forbids — but it must stay a WARNING so a config written
-  // for a newer release doesn't brick every CLI during version skew.
+test('loadStyleProofConfig: unknown top-level keys fail closed; nested compatibility keys warn', () => {
   withConfig({ dirtyallow: ['tsconfig.json'], spec: 'e2e/styleproof.spec.ts' }, (dir) => {
     const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
-    assert.match(map.stderr, /unknown key\(s\) ignored: dirtyallow/);
-    assert.match(map.stderr, /known: .*dirtyAllow/);
+    assert.equal(map.status, 2);
+    assert.match(map.stderr, /unknown top-level key/);
+    assert.doesNotMatch(map.stderr, /dirtyallow/);
   });
   withConfig({ affected: { graph: 'dc.json', bsae: 'origin/main' } }, (dir) => {
     const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
@@ -325,23 +323,37 @@ test('loadStyleProofConfig: common certification-policy misspellings fail closed
     'requredStateComparisons',
     'requiredSateComparisons',
     'required_state_comparisons',
+    'requiredProductStateComparisons',
+    'requiredStateComparXYZ',
   ]) {
     withConfig(JSON.stringify({ [key]: [] }), (dir) =>
-      assert.throws(() => loadStyleProofConfig(dir), /unknown certification-policy key/),
+      assert.throws(() => loadStyleProofConfig(dir), /unknown top-level key/),
     );
   }
 });
 
-test('resolveStyleProofConfigRoot rejects capture directories owned by different configs', () => {
+test('resolveStyleProofConfigRoot requires explicit trust for nested monorepo policy', () => {
   const root = mkTmp('styleproof-config-roots-');
   try {
-    const left = path.join(root, 'packages', 'left', 'maps');
-    const right = path.join(root, 'packages', 'right', 'maps');
-    fs.mkdirSync(left, { recursive: true });
-    fs.mkdirSync(right, { recursive: true });
-    fs.writeFileSync(path.join(root, 'packages', 'left', STYLEPROOF_CONFIG_FILE), '{}');
-    fs.writeFileSync(path.join(root, 'packages', 'right', STYLEPROOF_CONFIG_FILE), '{}');
-    assert.throws(() => resolveStyleProofConfigRoot([left, right], root), /different styleproof\.config\.json/);
+    const packageRoot = path.join(root, 'packages', 'app');
+    const maps = path.join(packageRoot, 'maps');
+    fs.mkdirSync(maps, { recursive: true });
+    fs.writeFileSync(path.join(packageRoot, STYLEPROOF_CONFIG_FILE), '{}');
+    assert.throws(() => resolveStyleProofConfigRoot([maps], root), /requires an explicit --config-root/);
+    assert.equal(resolveStyleProofConfigRoot([maps], packageRoot), packageRoot);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('dangling config symlinks fail closed without absolute path disclosure', () => {
+  const root = mkTmp('styleproof-config-dangling-');
+  try {
+    fs.symlinkSync('missing-policy.json', path.join(root, STYLEPROOF_CONFIG_FILE));
+    assert.throws(
+      () => loadStyleProofConfig(root),
+      (error) => /symbolic-link config entry/.test(error.message) && !error.message.includes(root),
+    );
   } finally {
     rmTmp(root);
   }
@@ -357,4 +369,13 @@ test('loadStyleProofConfig rejects symlinked config files', () => {
   } finally {
     rmTmp(root);
   }
+});
+
+test('resolveStyleProofConfigRoot keeps the trusted repository policy authoritative', () => {
+  const root = mkTmp('styleproof-trusted-root-');
+  const captures = path.join(root, 'artifacts', 'maps');
+  fs.mkdirSync(captures, { recursive: true });
+  fs.writeFileSync(path.join(root, 'styleproof.config.json'), JSON.stringify({ requiredStateComparisons: [] }));
+  fs.writeFileSync(path.join(root, 'artifacts', 'styleproof.config.json'), '{}');
+  assert.equal(resolveStyleProofConfigRoot([captures, captures], root), root);
 });

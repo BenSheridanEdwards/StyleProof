@@ -58,6 +58,10 @@ test('required state public metadata rejects controls, markup, credential marker
     { reason: `opaque ${'a'.repeat(40)}` },
     { owner: 'api_token' },
     { owner: `opaque_${'z'.repeat(40)}` },
+    { owner: 'jake.hunter' },
+    { reason: 'Contact Jake Hunter at jake@example.com' },
+    { reason: 'Escalate using 123-45-6789' },
+    { reason: 'Call +44 7700 900123' },
   ]) {
     assert.throws(() => parseRequiredStateComparisons([{ ...requirement, ...patch }]), RequiredStateComparisonError);
   }

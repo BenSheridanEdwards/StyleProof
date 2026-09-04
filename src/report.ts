@@ -57,7 +57,7 @@ import {
   type ConfidenceLedgerFile,
   type ConfidenceSummary,
 } from './confidence-ledger.js';
-import { auditRequiredStateComparisons, type RequiredStateComparisonSummary } from './required-state-comparisons.js';
+import { auditRequiredStateComparisons, type RequiredStateComparisonSummary } from './required-state-api.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 
@@ -2482,7 +2482,11 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const requiredStateComparisons = auditRequiredStateComparisons(
     beforeDir,
     afterDir,
-    loadRequiredStateComparisonsForCaptureDirs([opts.beforeDir, opts.afterDir], opts.configRoot ?? process.cwd()),
+    loadRequiredStateComparisonsForCaptureDirs(
+      [opts.beforeDir, opts.afterDir],
+      opts.configRoot ?? process.cwd(),
+      opts.configRoot !== undefined,
+    ),
   );
 
   const includeNoise = opts.includeLayoutNoise === true;

@@ -18,7 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readRegularFileNoFollow } from './safe-filesystem.js';
-import { parseRequiredStateComparisons, type RequiredStateComparison } from './required-state-comparisons.js';
+import { parseRequiredStateComparisons, type RequiredStateComparison } from './required-state-policy.js';
 
 const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
 
@@ -180,12 +180,21 @@ function assertNoDuplicateJsonKeys(raw: string): void {
 
 /** Read + parse the file; undefined when it does not exist. */
 function readConfigObject(cwd: string): Record<string, unknown> | undefined {
+  const configPath = path.join(cwd, STYLEPROOF_CONFIG_FILE);
+  let stat: fs.Stats;
+  try {
+    stat = fs.lstatSync(configPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    fail('could not inspect the file');
+  }
+  if (stat.isSymbolicLink()) fail('refusing symbolic-link config entry');
+  if (!stat.isFile()) fail('refusing non-regular config entry');
   let raw: string;
   try {
-    raw = readRegularFileNoFollow(path.join(cwd, STYLEPROOF_CONFIG_FILE)).toString('utf8');
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-    fail(`could not read the file — ${e instanceof Error ? e.message : String(e)}`);
+    raw = readRegularFileNoFollow(configPath).toString('utf8');
+  } catch {
+    fail('could not read the file safely');
   }
   try {
     const parsed = JSON.parse(raw);
@@ -267,32 +276,6 @@ const KNOWN_CRAWL_KEYS = [
   'height',
 ];
 
-function normalizedConfigKey(key: string): string {
-  return key.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function editDistance(left: string, right: string): number {
-  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
-  for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
-    let diagonal = previous[0];
-    previous[0] = leftIndex;
-    for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
-      const above = previous[rightIndex];
-      previous[rightIndex] = Math.min(
-        previous[rightIndex] + 1,
-        previous[rightIndex - 1] + 1,
-        diagonal + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1),
-      );
-      diagonal = above;
-    }
-  }
-  return previous[right.length];
-}
-
-function isLikelyRequiredStateComparisonsTypo(key: string): boolean {
-  return editDistance(normalizedConfigKey(key), 'requiredstatecomparisons') <= 4;
-}
-
 /** Unknown keys are a LOUD stderr warning, not an error: a typo'd `dirtyallow`
  *  silently reverting to defaults is exactly the failure this file's contract
  *  forbids, but hard-failing would brick every CLI in a repo whose config
@@ -300,8 +283,8 @@ function isLikelyRequiredStateComparisonsTypo(key: string): boolean {
 function warnUnknownKeys(record: Record<string, unknown>, known: string[], prefix: string): void {
   const unknown = Object.keys(record).filter((k) => !known.includes(k));
   if (unknown.length === 0) return;
-  if (prefix === '' && unknown.some(isLikelyRequiredStateComparisonsTypo)) {
-    fail('unknown certification-policy key; fix the spelling before certification');
+  if (prefix === '') {
+    fail('unknown top-level key; remove it or upgrade StyleProof before certification');
   }
   process.stderr.write(
     `styleproof: ${STYLEPROOF_CONFIG_FILE}: unknown ${prefix}key(s) ignored: ${unknown.join(', ')} ` +
@@ -309,40 +292,57 @@ function warnUnknownKeys(record: Record<string, unknown>, known: string[], prefi
   );
 }
 
-function nearestConfigRoot(start: string): string | undefined {
-  let current = path.resolve(start);
+function configEntryExists(root: string): boolean {
   try {
-    if (!fs.statSync(current).isDirectory()) current = path.dirname(current);
-  } catch {
-    current = path.dirname(current);
-  }
-  while (true) {
-    if (fs.existsSync(path.join(current, STYLEPROOF_CONFIG_FILE))) return current;
-    const parent = path.dirname(current);
-    if (parent === current) return undefined;
-    current = parent;
+    fs.lstatSync(path.join(root, STYLEPROOF_CONFIG_FILE));
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    fail('could not inspect the config entry');
   }
 }
 
-/** Resolve checked-in policy from capture ownership, failing on cross-project ambiguity. */
-export function resolveStyleProofConfigRoot(captureDirs: readonly string[], fallbackRoot = process.cwd()): string {
-  const roots = [...new Set(captureDirs.map(nearestConfigRoot).filter((root): root is string => Boolean(root)))];
-  if (roots.length > 1) {
-    fail(`capture directories resolve to different ${STYLEPROOF_CONFIG_FILE} files`);
+function isInside(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function nearestNestedConfigRoot(start: string, trustedRoot: string): string | undefined {
+  let current = path.resolve(start);
+  if (!isInside(trustedRoot, current)) return undefined;
+  while (current !== trustedRoot) {
+    if (configEntryExists(current)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
   }
-  return roots[0] ?? path.resolve(fallbackRoot);
+  return undefined;
+}
+
+/** Resolve only explicitly trusted policy. Nested monorepo policy requires configRoot. */
+export function resolveStyleProofConfigRoot(captureDirs: readonly string[], fallbackRoot = process.cwd()): string {
+  const trustedRoot = path.resolve(fallbackRoot);
+  if (configEntryExists(trustedRoot)) return trustedRoot;
+  const nested = captureDirs.some((dir) => nearestNestedConfigRoot(dir, trustedRoot) !== undefined);
+  if (nested) fail(`nested ${STYLEPROOF_CONFIG_FILE} requires an explicit --config-root`);
+  return trustedRoot;
 }
 
 export function loadRequiredStateComparisonsForCaptureDirs(
   captureDirs: readonly string[],
   fallbackRoot = process.cwd(),
+  requireConfig = false,
 ): RequiredStateComparison[] {
-  return loadStyleProofConfig(resolveStyleProofConfigRoot(captureDirs, fallbackRoot)).requiredStateComparisons ?? [];
+  const root = resolveStyleProofConfigRoot(captureDirs, fallbackRoot);
+  if (requireConfig && !configEntryExists(root)) {
+    fail(`explicit config root has no ${STYLEPROOF_CONFIG_FILE}`);
+  }
+  return loadStyleProofConfig(root).requiredStateComparisons ?? [];
 }
 
 /** Load and validate the repo's styleproof.config.json. Missing file → `{}`;
  *  unreadable/malformed file or a wrongly-typed known key → {@link StyleProofConfigError};
- *  unknown keys → a loud stderr warning (never silently dropped). */
+ *  unknown top-level keys fail closed; unknown nested compatibility keys warn loudly. */
 export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
   const record = readConfigObject(cwd);
   if (!record) return {};

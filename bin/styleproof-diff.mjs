@@ -71,7 +71,7 @@ import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/covera
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
 import { isMapFile } from '../dist/map-store.js';
 import { loadRequiredStateComparisonsForCaptureDirs } from '../dist/config.js';
-import { auditRequiredStateComparisons } from '../dist/required-state-comparisons.js';
+import { auditRequiredStateComparisons } from '../dist/required-state-api.js';
 
 let requiredStateDeclarations;
 
@@ -307,6 +307,7 @@ options:
                    map store branch for default cached-map mode
                    (default: ${DEFAULT_MAP_STORE_BRANCH})
   --remote <name>   git remote for the map store (default: ${DEFAULT_REMOTE})
+  --config-root <dir> trusted directory containing styleproof.config.json
   --max <n>        max lines printed per surface before truncating (default: 40)
   --json <file>    also write the full structured diff to <file>
   --allow-unasserted
@@ -341,6 +342,8 @@ const argv = process.argv.slice(2);
 const args = [];
 let MAX = 40;
 let jsonOut = null;
+let configRoot = process.cwd();
+let configRootExplicit = false;
 let allowUnasserted = false;
 let requireStateIdentity = false;
 let pixels = false;
@@ -362,7 +365,13 @@ for (let i = 0; i < argv.length; i++) {
   if (isHelpArg(argv[i])) showHelpAndExit(HELP);
   else if (argv[i] === '--max') MAX = Number(argv[++i]);
   else if (argv[i].startsWith('--max=')) MAX = Number(argv[i].slice(6));
-  else if (argv[i] === '--json') jsonOut = argv[++i];
+  else if (argv[i] === '--config-root') {
+    configRoot = argv[++i];
+    configRootExplicit = true;
+  } else if (argv[i].startsWith('--config-root=')) {
+    configRoot = argv[i].slice(14);
+    configRootExplicit = true;
+  } else if (argv[i] === '--json') jsonOut = argv[++i];
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
   else if (argv[i] === '--allow-unasserted') allowUnasserted = true;
   else if (argv[i] === '--require-state-identity') requireStateIdentity = true;
@@ -383,6 +392,11 @@ for (let i = 0; i < argv.length; i++) {
     console.error(unknownFlagMessage(COMMAND, argv[i]));
     process.exit(2);
   } else args.push(argv[i]);
+}
+
+if (typeof configRoot !== 'string' || configRoot.length === 0) {
+  console.error('--config-root requires a non-empty directory');
+  process.exit(2);
 }
 
 const sourceShaError = expectedSourceShaFlagsError({
@@ -474,7 +488,11 @@ try {
   // the dirs exist" rule as the ledgers above.
   surfacePaths = surfaceElementPaths(dirA, dirB);
   try {
-    requiredStateDeclarations = loadRequiredStateComparisonsForCaptureDirs([dirA, dirB], process.cwd());
+    requiredStateDeclarations = loadRequiredStateComparisonsForCaptureDirs(
+      [dirA, dirB],
+      configRoot,
+      configRootExplicit,
+    );
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(2);

@@ -42,6 +42,7 @@ options:
   --cache-branch <b>         map store branch for default cached-map mode
                              (default: ${DEFAULT_MAP_STORE_BRANCH})
   --remote <name>            git remote for the map store (default: ${DEFAULT_REMOTE})
+  --config-root <dir>        trusted directory containing styleproof.config.json
   --out <dir>               output directory (default: styleproof-report)
   --image-base-url <url>    prefix for image URLs in report.md (default: relative)
   --pad <px>                padding around changed rects when cropping (default: 12)
@@ -68,6 +69,8 @@ exit: 0 no changes, 1 report generated, 2 usage error.
 const argv = process.argv.slice(2);
 const args = [];
 const flags = { out: 'styleproof-report', imageBaseUrl: '' };
+let configRoot = process.cwd();
+let configRootExplicit = false;
 let pad;
 let maxCrops;
 let foldDetailsAt;
@@ -91,7 +94,13 @@ for (let i = 0; i < argv.length; i++) {
     continue;
   }
   if (isHelpArg(a)) showHelpAndExit(HELP);
-  else if (a === '--out') flags.out = argv[++i];
+  else if (a === '--config-root') {
+    configRoot = argv[++i];
+    configRootExplicit = true;
+  } else if (a.startsWith('--config-root=')) {
+    configRoot = a.slice(14);
+    configRootExplicit = true;
+  } else if (a === '--out') flags.out = argv[++i];
   else if (a.startsWith('--out=')) flags.out = a.slice(6);
   else if (a === '--image-base-url') flags.imageBaseUrl = argv[++i];
   else if (a.startsWith('--image-base-url=')) flags.imageBaseUrl = a.slice(17);
@@ -128,6 +137,11 @@ for (let i = 0; i < argv.length; i++) {
     process.exit(2);
   } else args.push(a);
 }
+if (typeof configRoot !== 'string' || configRoot.length === 0) {
+  console.error('--config-root requires a non-empty directory');
+  process.exit(2);
+}
+
 const sourceShaError = expectedSourceShaFlagsError({
   beforeProvided: expectedBeforeShaSet,
   beforeSha: expectedBeforeSha,
@@ -189,7 +203,11 @@ try {
   // v4: refuse a manifest-less side (exit 2 via the catch) — same-environment
   // compatibility can't be verified without a manifest on both sides.
   try {
-    requiredStateDeclarations = loadRequiredStateComparisonsForCaptureDirs([beforeDir, afterDir], process.cwd());
+    requiredStateDeclarations = loadRequiredStateComparisonsForCaptureDirs(
+      [beforeDir, afterDir],
+      configRoot,
+      configRootExplicit,
+    );
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(2);
@@ -205,6 +223,7 @@ try {
   result = generateStyleMapReport({
     beforeDir,
     afterDir,
+    ...(configRootExplicit ? { configRoot } : {}),
     outDir: flags.out,
     imageBaseUrl: flags.imageBaseUrl || undefined,
     pad,
