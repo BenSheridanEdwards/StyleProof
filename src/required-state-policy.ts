@@ -22,13 +22,13 @@ const MAX_REQUIREMENTS = 256;
 const PUBLIC_PROSE = /^[\x20-\x7E]+$/;
 const MARKDOWN_OR_HTML = /[<>`*_{}]|\[|\]/;
 const CREDENTIAL_MARKER =
-  /(?:api[_-]?key|authorization|bearer|client[_-]?secret|password|private[_-]?key|secret|token)/i;
+  /(?:(?:api|access|private|secret)[\s_-]?key|authorization|bearer|client[\s_-]?secret|credential|password|secret|token)/i;
 const TOKEN_LIKE_RUN = /[A-Za-z0-9_-]{32,}/;
 const SEGMENTED_TOKEN_LIKE = /[A-Za-z0-9_-]{16,}(?:[.:/=-][A-Za-z0-9_-]{16,})+/;
 const PERSONAL_DATA_LIKE =
   /(?:[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+|\b\d{3}-\d{2}-\d{4}\b|\b(?:\+?\d[\d ()-]{7,}\d)\b|\b[a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*\b)/i;
 const PUBLIC_LOCATION_LIKE =
-  /(?:\b[a-z][a-z0-9+.-]*:(?:\/\/|\\\\)|(?:^|[\s=:'"(])\/(?:[^\s/]+\/)+|(?:^|[\s=:'"(])[a-z]:[\\/]|(?:^|[\s=:'"(])\\\\[^\s\\]+\\|(?:^|[\s=:'"(])(?:\.\.\\)+|\b(?:[0-9a-f]{0,4}:){2,}[0-9a-f]{0,4}\b)/i;
+  /(?:\b[a-z][a-z0-9+.-]*:(?:\/\/|\\\\)|(?:^|[^a-z0-9])\/(?:[^\s/]+\/)+|(?:^|[^a-z0-9])[a-z]:[\\/]|(?:^|[^a-z0-9])\\\\[^\s\\]+\\|(?:^|[^a-z0-9])(?:\.\.[\\/])+|\b(?:\d{1,3}\.){3}\d{1,3}\b|\b(?:[0-9a-f]{0,4}:){2,}[0-9a-f]{0,4}\b)/i;
 const PUBLIC_OWNER = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 function safePublicReason(value: string, label: string): string {

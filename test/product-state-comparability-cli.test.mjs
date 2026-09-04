@@ -520,7 +520,9 @@ test('diff and report auto-discover shared package policy from monorepo and sibl
   const capture = fixture({});
   const workspace = mkTmp('styleproof-monorepo-');
   const packageRoot = path.join(workspace, 'packages', 'app');
+  const sibling = path.join(workspace, 'tools');
   fs.mkdirSync(path.dirname(packageRoot), { recursive: true });
+  fs.mkdirSync(sibling, { recursive: true });
   fs.renameSync(capture.root, packageRoot);
   capture.root = packageRoot;
   capture.before = path.join(packageRoot, 'before');
@@ -538,8 +540,9 @@ test('diff and report auto-discover shared package policy from monorepo and sibl
   const json = path.join(workspace, 'diff.json');
   const out = path.join(workspace, 'report');
   try {
+    fs.writeFileSync(path.join(sibling, 'styleproof.config.json'), '{}');
     const implicit = spawnSync(process.execPath, [DIFF, capture.before, capture.after], {
-      cwd: workspace,
+      cwd: sibling,
       encoding: 'utf8',
     });
     assert.equal(implicit.status, 1, implicit.stderr || implicit.stdout);
@@ -561,7 +564,7 @@ test('diff and report auto-discover shared package policy from monorepo and sibl
         '--expected-after-sha',
         HEAD_SHA,
       ],
-      { cwd: workspace, encoding: 'utf8' },
+      { cwd: sibling, encoding: 'utf8' },
     );
     assert.equal(diff.status, 1, diff.stderr || diff.stdout);
     assert.equal(JSON.parse(fs.readFileSync(json, 'utf8')).requiredStateComparisons.blocksCertification, true);
@@ -580,13 +583,46 @@ test('diff and report auto-discover shared package policy from monorepo and sibl
         '--expected-after-sha',
         HEAD_SHA,
       ],
-      { cwd: workspace, encoding: 'utf8' },
+      { cwd: sibling, encoding: 'utf8' },
     );
     assert.equal(report.status, 1, report.stderr || report.stdout);
     assert.match(report.stdout, /required state comparisons incomplete/i);
     assert.doesNotMatch(report.stdout, /✓ no reviewable/i);
   } finally {
     rmTmp(workspace);
+  }
+});
+
+test('diff and report reject divergent capture policy roots as usage errors without emitting artifacts', () => {
+  const base = fixture({});
+  const head = fixture({});
+  const outside = mkTmp('styleproof-divergent-cli-');
+  const json = path.join(outside, 'diff.json');
+  const out = path.join(outside, 'report');
+  try {
+    fs.writeFileSync(path.join(base.root, 'styleproof.config.json'), JSON.stringify({ requiredStateComparisons: [] }));
+    fs.writeFileSync(path.join(head.root, 'styleproof.config.json'), '{}');
+    const diff = spawnSync(process.execPath, [DIFF, base.before, head.after, '--json', json], {
+      cwd: outside,
+      encoding: 'utf8',
+    });
+    assert.equal(diff.status, 2, diff.stderr || diff.stdout);
+    assert.match(diff.stderr, /divergent capture policy roots/);
+    assert.equal(diff.stdout, '');
+    assert.equal(fs.existsSync(json), false);
+
+    const report = spawnSync(process.execPath, [REPORT, base.before, head.after, '--out', out], {
+      cwd: outside,
+      encoding: 'utf8',
+    });
+    assert.equal(report.status, 2, report.stderr || report.stdout);
+    assert.match(report.stderr, /divergent capture policy roots/);
+    assert.equal(report.stdout, '');
+    assert.equal(fs.existsSync(out), false);
+  } finally {
+    rmTmp(base.root);
+    rmTmp(head.root);
+    rmTmp(outside);
   }
 });
 

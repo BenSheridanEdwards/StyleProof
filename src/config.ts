@@ -329,11 +329,41 @@ function nearestSharedConfigRoot(captureDirs: readonly string[]): string | undef
   return undefined;
 }
 
-/** Resolve checked-in policy from the invocation root or the captures' nearest shared ancestor. */
-export function resolveStyleProofConfigRoot(captureDirs: readonly string[], fallbackRoot = process.cwd()): string {
+function nearestConfigRoot(candidate: string): string | undefined {
+  let current = path.resolve(candidate);
+  for (;;) {
+    if (configEntryExists(current)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+}
+
+/** Resolve checked-in policy without allowing an unrelated invocation directory to shadow capture policy. */
+export function resolveStyleProofConfigRoot(
+  captureDirs: readonly string[],
+  fallbackRoot = process.cwd(),
+  explicitRoot = false,
+): string {
   const trustedRoot = path.resolve(fallbackRoot);
-  if (configEntryExists(trustedRoot)) return trustedRoot;
-  return nearestSharedConfigRoot(captureDirs) ?? trustedRoot;
+  if (explicitRoot) return trustedRoot;
+  const resolvedCaptures = captureDirs.map((candidate) => path.resolve(candidate));
+  if (
+    configEntryExists(trustedRoot) &&
+    resolvedCaptures.length > 0 &&
+    resolvedCaptures.every((candidate) => isInside(trustedRoot, candidate))
+  ) {
+    return trustedRoot;
+  }
+  const sharedRoot = nearestSharedConfigRoot(resolvedCaptures);
+  if (sharedRoot) return sharedRoot;
+  const captureRoots = resolvedCaptures.map(nearestConfigRoot);
+  const discoveredRoots = new Set(captureRoots.filter((root): root is string => root !== undefined));
+  if (discoveredRoots.size > 1 || (discoveredRoots.size === 1 && captureRoots.some((root) => root === undefined))) {
+    fail('divergent capture policy roots; pass --config-root for one authoritative policy');
+  }
+  if (discoveredRoots.size === 1) return [...discoveredRoots][0];
+  return commonAncestor(resolvedCaptures) ?? trustedRoot;
 }
 
 export function loadRequiredStateComparisonsForCaptureDirs(
@@ -341,7 +371,7 @@ export function loadRequiredStateComparisonsForCaptureDirs(
   fallbackRoot = process.cwd(),
   requireConfig = false,
 ): RequiredStateComparison[] {
-  const root = resolveStyleProofConfigRoot(captureDirs, fallbackRoot);
+  const root = resolveStyleProofConfigRoot(captureDirs, fallbackRoot, requireConfig);
   if (requireConfig && !configEntryExists(root)) {
     fail(`explicit config root has no ${STYLEPROOF_CONFIG_FILE}`);
   }

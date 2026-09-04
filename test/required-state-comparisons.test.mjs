@@ -116,6 +116,13 @@ test('required state public metadata rejects controls, markup, credential marker
     { reason: ['See ', '..\\..\\Users\\jane\\private\\roadmap'].join('') },
     { reason: ['See smb:', '\\\\', 'server\\share\\roadmap'].join('') },
     { reason: 'IPv6 2001:0db8:85a3:0000:0000:8a2e:0370:7334' },
+    { reason: 'Host 192.168.1.10 supplied evidence' },
+    { reason: 'Host 203.0.113.42 supplied evidence' },
+    { reason: 'See,/Users/alice/private/proof' },
+    { reason: 'See;C:\\Users\\alice\\private\\proof' },
+    { reason: 'See,\\\\server\\share\\private\\proof' },
+    { reason: 'See ../../Users/alice/private/proof' },
+    { reason: 'Fetch 10.42.0.8 then See,/Users/alice/private/proof with api key abc123' },
   ]) {
     assert.throws(() => parseRequiredStateComparisons([{ ...requirement, ...patch }]), RequiredStateComparisonError);
   }

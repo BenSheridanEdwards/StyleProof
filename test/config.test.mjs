@@ -343,8 +343,48 @@ test('resolveStyleProofConfigRoot discovers policy shared by both capture direct
     fs.mkdirSync(after, { recursive: true });
     fs.mkdirSync(sibling, { recursive: true });
     fs.writeFileSync(path.join(packageRoot, STYLEPROOF_CONFIG_FILE), '{}');
+    fs.writeFileSync(path.join(sibling, STYLEPROOF_CONFIG_FILE), '{}');
     assert.equal(resolveStyleProofConfigRoot([before, after], sibling), packageRoot);
     assert.equal(resolveStyleProofConfigRoot([before, after], packageRoot), packageRoot);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('resolveStyleProofConfigRoot rejects divergent capture policy roots without disclosing paths', () => {
+  const root = mkTmp('styleproof-divergent-roots-');
+  try {
+    const before = path.join(root, 'base', 'captures');
+    const after = path.join(root, 'head', 'captures');
+    const outside = path.join(root, 'tools');
+    fs.mkdirSync(before, { recursive: true });
+    fs.mkdirSync(after, { recursive: true });
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(root, 'base', STYLEPROOF_CONFIG_FILE), '{}');
+    fs.writeFileSync(path.join(root, 'head', STYLEPROOF_CONFIG_FILE), '{}');
+    assert.throws(
+      () => resolveStyleProofConfigRoot([before, after], outside),
+      (error) => /divergent capture policy roots/.test(error.message) && !error.message.includes(root),
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('resolveStyleProofConfigRoot rejects one-sided capture policy without disclosing paths', () => {
+  const root = mkTmp('styleproof-one-sided-root-');
+  try {
+    const before = path.join(root, 'base', 'captures');
+    const after = path.join(root, 'head', 'captures');
+    const outside = path.join(root, 'tools');
+    fs.mkdirSync(before, { recursive: true });
+    fs.mkdirSync(after, { recursive: true });
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(root, 'base', STYLEPROOF_CONFIG_FILE), '{}');
+    assert.throws(
+      () => resolveStyleProofConfigRoot([before, after], outside),
+      (error) => /divergent capture policy roots/.test(error.message) && !error.message.includes(root),
+    );
   } finally {
     rmTmp(root);
   }
