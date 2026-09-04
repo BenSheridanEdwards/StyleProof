@@ -74,6 +74,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Embed deterministic `BEFORE`/`AFTER` and product-state `BASE`/`HEAD` labels inside every comparison PNG so report evidence remains directional when opened outside Markdown.
+- A clean two-directory `styleproof-report` compare opened with
+  `**Release confidence** — ✗ blocked (absent-legacy; integrity; manifest-absent)`
+  and the CLI said only "release confidence projection failed". Nothing was
+  blocked by a finding: no manifest existed, and the projection had refused —
+  for a URL-only `styleproof-capture` run, because the capture carries no spec
+  file (`specHash: "missing"`), so no release scope can be bound. The report now
+  says `⚠ not evaluated` with the cause, the CLI names the same cause, and
+  `ReleaseConfidenceProjectError` carries a fixed `reason` literal
+  (`spec-hash-unbound`, `head-manifest-unbound`, `producer-version-mismatch`, …)
+  that never echoes input. `report.json` `releaseConfidence` is unchanged, so the
+  Action gate and the exit code decide exactly as before. (#474, first step)
 - A restyle on an element that a pull request re-nested (a wrapper added around it,
   or removed from around it) was certified clean: certification excludes structure,
   the element's structural path changed, and the real computed-style delta vanished
