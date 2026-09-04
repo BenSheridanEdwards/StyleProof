@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { PNG } from 'pngjs';
 import { diffContentMaps, diffContentDirs, diffStyleMaps } from '../dist/diff.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { makeMap, pairFixture, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
@@ -115,7 +116,25 @@ test('generateStyleMapReport renders the content section only when includeConten
   assert.ok(md.includes('## 📝 Content and structure changes (advisory)'));
   assert.ok(md.includes('Original demo copy'));
   assert.ok(md.includes('Updated demo copy'));
-  assert.ok(fs.existsSync(path.join(dirs.root, 'on', 'crops', 'landing-1280-content-1-composite.png')));
+  const compositePath = path.join(dirs.root, 'on', 'crops', 'landing-1280-content-1-composite.png');
+  assert.ok(fs.existsSync(compositePath));
+  const composite = PNG.sync.read(fs.readFileSync(compositePath));
+  const label = [139, 148, 158];
+  const labelPixels = [0, 0];
+  for (let y = 0; y < 20; y++) {
+    for (let x = 0; x < composite.width; x++) {
+      const offset = (y * composite.width + x) * 4;
+      if (
+        composite.data[offset] === label[0] &&
+        composite.data[offset + 1] === label[1] &&
+        composite.data[offset + 2] === label[2]
+      ) {
+        labelPixels[x < composite.width / 2 ? 0 : 1]++;
+      }
+    }
+  }
+  assert.equal(labelPixels[0], 416, 'content composite embeds the exact BEFORE glyphs');
+  assert.equal(labelPixels[1], 316, 'content composite embeds the exact AFTER glyphs');
 
   // …and it NEVER gates: styles are identical, so the surface count and exit basis stay 0.
   assert.equal(on.changedSurfaces, 0);

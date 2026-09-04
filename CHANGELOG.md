@@ -21,6 +21,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Embed deterministic `BEFORE`/`AFTER` and product-state `BASE`/`HEAD` labels inside every comparison PNG so report evidence remains directional when opened outside Markdown.
 - A clean two-directory `styleproof-report` compare opened with
   `**Release confidence** — ✗ blocked (absent-legacy; integrity; manifest-absent)`
   and the CLI said only "release confidence projection failed". Nothing was

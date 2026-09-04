@@ -1290,6 +1290,73 @@ test('end-to-end: a valid composite PNG of the expected size is written', () => 
   rmTmp(root);
 });
 
+test('end-to-end: composite PNG embeds durable before and after direction labels', () => {
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
+    after: sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
+    beforePng: solidPng(1280, 800),
+    afterPng: solidPng(1280, 800),
+  });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const compositePath = path.join(outDir, json.surfaces[0].regions[0].images.composite);
+  const png = PNG.sync.read(fs.readFileSync(compositePath));
+  const label = [139, 148, 158];
+  const countLabelPixels = (x0, x1) => {
+    let count = 0;
+    for (let y = 0; y < 20; y++) {
+      for (let x = x0; x < x1; x++) {
+        const offset = (y * png.width + x) * 4;
+        if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
+          count++;
+        }
+      }
+    }
+    return count;
+  };
+  assert.equal(countLabelPixels(20, 340), 416, 'left crop has the exact in-image BEFORE glyphs');
+  assert.equal(countLabelPixels(368, 688), 316, 'right crop has the exact in-image AFTER glyphs');
+  rmTmp(root);
+});
+
+test('end-to-end: narrow crops expand neutral chrome so direction labels never overlap or clip', () => {
+  const map = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1, 1], style: { color } },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'tiny@1',
+    before: map('rgb(0, 0, 0)'),
+    after: map('rgb(255, 0, 0)'),
+    beforePng: solidPng(1, 1),
+    afterPng: solidPng(1, 1),
+  });
+  const res = generateStyleMapReport({
+    beforeDir,
+    afterDir,
+    outDir,
+    crop: { pad: 0, minWidth: 1, minHeight: 1 },
+  });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const compositePath = path.join(outDir, json.surfaces[0].regions[0].images.composite);
+  const png = PNG.sync.read(fs.readFileSync(compositePath));
+  const label = [139, 148, 158];
+  const counts = [0, 0];
+  for (let y = 0; y < 20; y++) {
+    for (let x = 0; x < png.width; x++) {
+      const offset = (y * png.width + x) * 4;
+      if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
+        counts[x < png.width / 2 ? 0 : 1]++;
+      }
+    }
+  }
+  assert.deepEqual(counts, [416, 316], 'each narrow panel contains one complete, non-overlapping direction label');
+  rmTmp(root);
+});
+
 test('end-to-end: no differences certifies matched computed styles without claiming visual identity', () => {
   const same = sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 });
   const { beforeDir, afterDir, outDir, root } = pairFixture({ surface: 'home@1280', before: same, after: same });
@@ -1958,6 +2025,49 @@ test('state-only change crops hover vs hover, not rest vs rest', () => {
   const crops = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((f) => f.endsWith('-composite.png'));
   assert.equal(crops.length, 1);
   const png = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, 'crops', crops[0])));
+  const label = [139, 148, 158];
+  let baseLabelPixels = 0;
+  let headLabelPixels = 0;
+  for (let y = 0; y < 20; y++) {
+    for (let x = 0; x < png.width; x++) {
+      const offset = (y * png.width + x) * 4;
+      if (png.data[offset] !== label[0] || png.data[offset + 1] !== label[1] || png.data[offset + 2] !== label[2]) {
+        continue;
+      }
+      if (x < png.width / 2) baseLabelPixels++;
+      else headLabelPixels++;
+    }
+  }
+  assert.equal(baseLabelPixels, 284, 'state comparison embeds the exact BASE glyph count');
+  assert.equal(headLabelPixels, 284, 'state comparison embeds the exact HEAD glyph count');
+  const firstGlyphTopRow = (x0, x1) => {
+    const points = [];
+    for (let y = 0; y < 20; y++) {
+      for (let x = x0; x < x1; x++) {
+        const offset = (y * png.width + x) * 4;
+        if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
+          points.push([x, y]);
+        }
+      }
+    }
+    const minX = Math.min(...points.map(([x]) => x));
+    const minY = Math.min(...points.map(([, y]) => y));
+    const occupied = new Set(points.map(([x, y]) => `${x - minX}:${y - minY}`));
+    return Array.from({ length: 10 }, (_, x) => occupied.has(`${x}:0`));
+  };
+  assert.deepEqual(firstGlyphTopRow(0, png.width / 2), [true, true, true, true, true, true, true, true, false, false]);
+  assert.deepEqual(firstGlyphTopRow(png.width / 2, png.width), [
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+  ]);
   let sawCyan = false;
   let sawPink = false;
   for (let i = 0; i < png.data.length; i += 4) {

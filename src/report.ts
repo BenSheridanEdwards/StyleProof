@@ -617,27 +617,86 @@ function annotateCrop(crop: Crop, rects: Rect[]): { png: PNG; highlighted: boole
   return { png: out, highlighted };
 }
 
+const PAIR_LABEL_COLOR: RGB = [139, 148, 158];
+const PAIR_LABEL_SCALE = 2;
+const PAIR_LABEL_GLYPHS: Record<string, readonly string[]> = {
+  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+  F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+};
+
+function pairDirectionLabel(label: string, fallback: 'BEFORE' | 'AFTER'): string {
+  const normalized = label.trim().toUpperCase();
+  if (/^BASE(?:\s|:|$)/.test(normalized)) return 'BASE';
+  if (/^HEAD(?:\s|:|$)/.test(normalized)) return 'HEAD';
+  return fallback;
+}
+
+function pairLabelWidth(label: string): number {
+  const glyphWidth = 5 * PAIR_LABEL_SCALE;
+  const gap = PAIR_LABEL_SCALE;
+  return label.length * glyphWidth + (label.length - 1) * gap;
+}
+
+function drawPairLabel(canvas: PNG, label: string, x: number, width: number): void {
+  const glyphWidth = 5 * PAIR_LABEL_SCALE;
+  const gap = PAIR_LABEL_SCALE;
+  const textWidth = pairLabelWidth(label);
+  const startX = x + Math.floor((width - textWidth) / 2);
+  const startY = 3;
+  for (let glyphIndex = 0; glyphIndex < label.length; glyphIndex++) {
+    const glyph = PAIR_LABEL_GLYPHS[label[glyphIndex]];
+    if (!glyph) continue;
+    const glyphX = startX + glyphIndex * (glyphWidth + gap);
+    for (let row = 0; row < glyph.length; row++) {
+      for (let col = 0; col < glyph[row].length; col++) {
+        if (glyph[row][col] !== '1') continue;
+        fillRect(
+          canvas,
+          glyphX + col * PAIR_LABEL_SCALE,
+          startY + row * PAIR_LABEL_SCALE,
+          PAIR_LABEL_SCALE,
+          PAIR_LABEL_SCALE,
+          PAIR_LABEL_COLOR,
+        );
+      }
+    }
+  }
+}
+
 /**
  * One before|after image: the two equal-size crops on a dark canvas with a
- * neutral divider between them. Left is always before; before/after is labelled
- * by the caption under the image. The divider is identical on both sides, so the
- * ONLY thing that differs across the pair is the actual change — no extra chrome
- * (e.g. a coloured accent strip) that reads as a second diff.
+ * neutral divider between them. Direction labels live inside the top canvas
+ * padding, so the PNG remains understandable when detached from report prose
+ * without covering or mutating captured UI pixels.
  */
-function compositePair(before: PNG, after: PNG): PNG {
+function compositePair(before: PNG, after: PNG, leftLabel = 'before', rightLabel = 'after'): PNG {
   const PAD = 20;
   const GAP = 28;
   const w = Math.max(before.width, after.width);
   const h = Math.max(before.height, after.height);
-  const width = PAD + w + GAP + w + PAD;
+  const leftDirection = pairDirectionLabel(leftLabel, 'BEFORE');
+  const rightDirection = pairDirectionLabel(rightLabel, 'AFTER');
+  const panelWidth = Math.max(w, pairLabelWidth(leftDirection) + 8, pairLabelWidth(rightDirection) + 8);
+  const width = PAD + panelWidth + GAP + panelWidth + PAD;
   const height = PAD + h + PAD;
   const canvas = new PNG({ width, height });
   fillRect(canvas, 0, 0, width, height, [13, 17, 23]); // GitHub dark
-  const leftX = PAD;
-  const rightX = PAD + w + GAP;
-  PNG.bitblt(before, canvas, 0, 0, before.width, before.height, leftX, PAD);
-  PNG.bitblt(after, canvas, 0, 0, after.width, after.height, rightX, PAD);
-  fillRect(canvas, PAD + w + GAP / 2 - 1, PAD, 2, h, [48, 54, 61]); // divider
+  const leftPanelX = PAD;
+  const rightPanelX = PAD + panelWidth + GAP;
+  const captureOffset = Math.floor((panelWidth - w) / 2);
+  drawPairLabel(canvas, leftDirection, leftPanelX, panelWidth);
+  drawPairLabel(canvas, rightDirection, rightPanelX, panelWidth);
+  PNG.bitblt(before, canvas, 0, 0, before.width, before.height, leftPanelX + captureOffset, PAD);
+  PNG.bitblt(after, canvas, 0, 0, after.width, after.height, rightPanelX + captureOffset, PAD);
+  fillRect(canvas, PAD + panelWidth + GAP / 2 - 1, PAD, 2, h, [48, 54, 61]); // divider
   return canvas;
 }
 
@@ -1790,7 +1849,7 @@ function buildRegionImages(args: {
   const stem = `crops/${sd.surface.replace(/[^a-z0-9-]/gi, '-')}-${cropSeq}`;
   const before = cropPng(pngA, cropBox, w, h);
   const after = cropPng(pngB, cropBox, w, h);
-  const composite = compositePair(before.png, after.png);
+  const composite = compositePair(before.png, after.png, leftLabel, rightLabel);
   writePng(path.join(outDir, `${stem}-composite.png`), composite);
   // Annotated twin: outline the LEAF changed elements (the added avatars, the restyled
   // cards) on each side — not the merged container the crop anchors on, whose box would
@@ -1805,7 +1864,7 @@ function buildRegionImages(args: {
     composite: `${stem}-composite.png`,
   };
   if (annotatedBefore.highlighted || annotatedAfter.highlighted) {
-    const annotated = compositePair(annotatedBefore.png, annotatedAfter.png);
+    const annotated = compositePair(annotatedBefore.png, annotatedAfter.png, leftLabel, rightLabel);
     writePng(path.join(outDir, `${stem}-annotated.png`), annotated);
     images.annotated = `${stem}-annotated.png`;
   }
@@ -1834,7 +1893,12 @@ function buildRegionImages(args: {
   if (zoomBelow > 0 && changed && maxDim > 0 && maxDim <= zoomBelow) {
     const zBox = pad(changed, Math.max(maxDim, 16)); // ~3× the change for context
     zoomFactor = Math.min(8, Math.max(2, Math.round(240 / Math.max(zBox.w, zBox.h))));
-    const zoom = compositePair(zoomCrop(pngA, zBox, rectsA, zoomFactor), zoomCrop(pngB, zBox, rectsB, zoomFactor));
+    const zoom = compositePair(
+      zoomCrop(pngA, zBox, rectsA, zoomFactor),
+      zoomCrop(pngB, zBox, rectsB, zoomFactor),
+      leftLabel,
+      rightLabel,
+    );
     writePng(path.join(outDir, `${stem}-zoom.png`), zoom);
     images.zoom = `${stem}-zoom.png`;
   }
