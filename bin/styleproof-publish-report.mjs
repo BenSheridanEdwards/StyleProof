@@ -7,7 +7,7 @@
 // Usage:
 //   styleproof-publish-report.mjs --repository owner/repo --branch styleproof-reports \
 //     --report-path pr-123 --report-dir styleproof-report --head-sha <sha> \
-//     --manifest-digest <sha256> --run-id <id> --run-attempt <n>
+//     --run-id <id> --run-attempt <n>
 //
 // Requires GH_TOKEN. Honours GITHUB_API_URL and appends sha/url/raw-base to
 // GITHUB_OUTPUT when set.
@@ -20,7 +20,6 @@ Required:
   --report-path <path>  destination folder on the report branch
   --report-dir <dir>    generated report directory
   --head-sha <sha>      pull request head commit
-  --manifest-digest <d> validated release-confidence manifest SHA-256
   --run-id <id>         GitHub Actions run id
   --run-attempt <n>     GitHub Actions run attempt
 
@@ -49,16 +48,7 @@ for (let index = 0; index < argv.length; index += 1) {
   options[name] = value;
 }
 
-const required = [
-  'repository',
-  'branch',
-  'report-path',
-  'report-dir',
-  'head-sha',
-  'manifest-digest',
-  'run-id',
-  'run-attempt',
-];
+const required = ['repository', 'branch', 'report-path', 'report-dir', 'head-sha', 'run-id', 'run-attempt'];
 for (const name of required) {
   if (!options[name]) {
     console.error(`styleproof-publish-report: missing --${name}`);
@@ -99,8 +89,6 @@ try {
     reportPath: options['report-path'],
     commitSha,
     expectedReceipt,
-    expectedManifestDigest: options['manifest-digest'],
-    expectedSourceSha: options['head-sha'],
   });
   console.error(`report receipt verified at ${commitSha}/${options['report-path']}`);
   const outputs = [

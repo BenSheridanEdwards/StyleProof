@@ -61,8 +61,6 @@ function stagePackageDir(dest) {
     'docs/evidence-store-v2.md',
     'docs/component-manifest.md',
     'docs/product-state-comparability.md',
-    'docs/phase0-truth-contract.md',
-    'docs/release-confidence-manifest.md',
     'README.md',
     'CHANGELOG.md',
     'LICENSE',
@@ -111,10 +109,21 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       true,
       'README-linked component-manifest guide must ship in the tarball',
     );
+    // #475: the release-confidence layer is deleted; nothing of it may ship.
     assert.equal(
       fs.existsSync(path.join(app, 'node_modules/styleproof/docs/release-confidence-manifest.md')),
-      true,
-      'release-confidence manifest contract must ship in the tarball',
+      false,
+      'the deleted release-confidence contract must not ship in the tarball',
+    );
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/dist/release-confidence-manifest.js')),
+      false,
+      'the deleted release-confidence module must not ship in the tarball',
+    );
+    assert.equal(
+      fs.existsSync(path.join(app, 'node_modules/styleproof/dist/phase0-contract.js')),
+      false,
+      'the deleted Phase 0 contract module must not ship in the tarball',
     );
     assert.equal(
       fs.existsSync(path.join(app, 'node_modules/styleproof/test/fixtures/react-catalog')),
@@ -132,7 +141,7 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       process.execPath,
       [
         '-e',
-        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function' || typeof m.createEvidenceCapture !== 'function' || typeof m.writeEvidenceRef !== 'function' || typeof m.createReleaseConfidenceManifest !== 'function' || typeof m.parseReleaseConfidenceManifest !== 'function' || typeof m.serializeReleaseConfidenceManifest !== 'function' || typeof m.validateReleaseConfidenceManifest !== 'function' || typeof m.projectReleaseConfidence !== 'function') process.exit(1); })",
+        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function' || typeof m.createEvidenceCapture !== 'function' || typeof m.writeEvidenceRef !== 'function' || typeof m.diffStyleMapDirs !== 'function' || typeof m.pixelDiffSurface !== 'function' || m.createReleaseConfidenceManifest !== undefined || m.projectReleaseConfidence !== undefined || m.parsePhase0Contract !== undefined) process.exit(1); })",
       ],
       { cwd: app },
     );

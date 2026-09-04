@@ -9,13 +9,6 @@ import {
   publishReportFolder,
   verifyPublishedReceipt,
 } from '../dist/report-publish.js';
-import {
-  createReleaseConfidenceManifest,
-  serializeReleaseConfidenceManifest,
-} from '../dist/release-confidence-manifest.js';
-import { summarizeReleaseConfidence } from '../dist/release-confidence-summary.js';
-
-const PHASE0_FIXTURE = new URL('./fixtures/phase0-contract/valid-enumerated.json', import.meta.url);
 
 /** In-memory GitHub git-data API double. Tracks every request so tests can
  *  assert exactly what crossed the wire — the whole point of the API publisher
@@ -105,12 +98,13 @@ const reportFiles = [
   { relativePath: 'crops/hero.png', content: Buffer.from([1, 2, 3]) },
 ];
 
-test('collectReportFiles publishes report JSON, canonical confidence sidecar, markdown, and crops', (t) => {
+test('collectReportFiles publishes report JSON, markdown, and crops — and no deleted sidecar (#475)', (t) => {
   const reportDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-report-publish-'));
   t.after(() => fs.rmSync(reportDirectory, { recursive: true, force: true }));
   fs.mkdirSync(path.join(reportDirectory, 'crops'));
   fs.writeFileSync(path.join(reportDirectory, 'report.md'), '# report');
   fs.writeFileSync(path.join(reportDirectory, 'report.json'), '{"surfaces":[]}');
+  // A stale sidecar left in the directory must not travel with the publish.
   fs.writeFileSync(path.join(reportDirectory, 'styleproof-release-confidence.json'), '{"kind":"sidecar"}');
   fs.writeFileSync(path.join(reportDirectory, 'crops', 'hero.png'), Buffer.from([1, 2, 3]));
 
@@ -118,16 +112,18 @@ test('collectReportFiles publishes report JSON, canonical confidence sidecar, ma
 
   assert.deepEqual(
     files.map((file) => file.relativePath),
-    ['report.md', 'report.json', 'styleproof-release-confidence.json', 'crops/hero.png'],
+    ['report.md', 'report.json', 'crops/hero.png'],
   );
   assert.equal(files[1].content.toString('utf8'), '{"surfaces":[]}');
-  assert.equal(files[2].content.toString('utf8'), '{"kind":"sidecar"}');
 });
 
-test('collectReportFiles fails closed when the confidence sidecar is missing', (t) => {
+test('collectReportFiles fails closed when a required report artifact is missing', (t) => {
   const reportDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-report-publish-'));
   t.after(() => fs.rmSync(reportDirectory, { recursive: true, force: true }));
+  // Markdown alone is not a publishable report: the exhaustive JSON must exist.
   fs.writeFileSync(path.join(reportDirectory, 'report.md'), '# report');
+  assert.throws(() => collectReportFiles(reportDirectory));
+  fs.rmSync(path.join(reportDirectory, 'report.md'));
   fs.writeFileSync(path.join(reportDirectory, 'report.json'), '{"surfaces":[]}');
   assert.throws(() => collectReportFiles(reportDirectory));
 });
@@ -315,110 +311,64 @@ test('a truncated tree listing skips size telemetry instead of guessing', async 
   assert.deepEqual(warningLines, []);
 });
 
-test('receipt verification passes when all published confidence artifacts match this run', async () => {
-  const contract = JSON.parse(fs.readFileSync(PHASE0_FIXTURE, 'utf8'));
-  const sourceSha = contract.sourceRuns[0].sourceSha;
-  const manifest = createReleaseConfidenceManifest({
-    manifestId: 'rcm-published-control',
-    producerVersion: '6.2.2',
-    releaseScope: 'styleproof-report',
-    contract,
-  });
-  const summary = summarizeReleaseConfidence(manifest);
-  const byName = {
-    'report.md': 'report body\n<!-- styleproof-receipt head-sha:abc run-id:1 run-attempt:1 -->\n',
-    'report.json': JSON.stringify({ releaseConfidence: summary }),
-    'styleproof-release-confidence.json': serializeReleaseConfidenceManifest(manifest),
-  };
-  const fetchImplementation = async (url) => {
-    const name = Object.keys(byName).find((entry) => String(url).includes(`/${entry}?`));
-    return { ok: Boolean(name), status: name ? 200 : 404, text: async () => (name ? byName[name] : '') };
-  };
-  await verifyPublishedReceipt({
-    apiBaseUrl: 'https://api.example',
-    repository: 'acme/widgets',
-    token: 'test-token',
-    reportPath: 'pr-7',
-    commitSha: 'published-commit-sha',
-    expectedReceipt: 'styleproof-receipt head-sha:abc run-id:1 run-attempt:1',
-    expectedManifestDigest: manifest.manifestDigest,
-    expectedSourceSha: sourceSha,
-    fetchImplementation,
-  });
+const RECEIPT = 'styleproof-receipt head-sha:abc run-id:1 run-attempt:1';
+const publishedBody = (receipt = RECEIPT) => `report body\n<!-- ${receipt} -->\n`;
+const publishOptions = (fetchImplementation, overrides = {}) => ({
+  apiBaseUrl: 'https://api.example',
+  repository: 'acme/widgets',
+  token: 'test-token',
+  reportPath: 'pr-7',
+  commitSha: 'published-commit-sha',
+  expectedReceipt: RECEIPT,
+  maximumAttempts: 1,
+  fetchImplementation,
+  ...overrides,
 });
+const serveByName = (byName) => async (url) => {
+  const name = Object.keys(byName).find((entry) => String(url).includes(`/${entry}?`));
+  return { ok: Boolean(name), status: name ? 200 : 404, text: async () => (name ? byName[name] : '') };
+};
 
-test('receipt verification rejects merge-digest or trusted-source drift with all artifacts present', async () => {
-  const contract = JSON.parse(fs.readFileSync(PHASE0_FIXTURE, 'utf8'));
-  const sourceSha = contract.sourceRuns[0].sourceSha;
-  const manifest = createReleaseConfidenceManifest({
-    manifestId: 'rcm-published-drift',
-    producerVersion: '6.2.2',
-    releaseScope: 'styleproof-report',
-    contract,
-  });
-  const byName = {
-    'report.md': 'report body\n<!-- styleproof-receipt head-sha:abc run-id:1 run-attempt:1 -->\n',
-    'report.json': JSON.stringify({ releaseConfidence: summarizeReleaseConfidence(manifest) }),
-    'styleproof-release-confidence.json': serializeReleaseConfidenceManifest(manifest),
-  };
-  const fetchImplementation = async (url) => {
-    const name = Object.keys(byName).find((entry) => String(url).includes(`/${entry}?`));
-    return { ok: Boolean(name), status: name ? 200 : 404, text: async () => (name ? byName[name] : '') };
-  };
-  const options = {
-    apiBaseUrl: 'https://api.example',
-    repository: 'acme/widgets',
-    token: 'test-token',
-    reportPath: 'pr-7',
-    commitSha: 'published-commit-sha',
-    expectedReceipt: 'styleproof-receipt head-sha:abc run-id:1 run-attempt:1',
-    expectedManifestDigest: manifest.manifestDigest,
-    expectedSourceSha: sourceSha,
-    maximumAttempts: 1,
-    fetchImplementation,
-  };
-  await assert.rejects(
-    verifyPublishedReceipt({ ...options, expectedManifestDigest: 'f'.repeat(64) }),
-    /do not trust this run's report/,
-  );
-  await assert.rejects(
-    verifyPublishedReceipt({ ...options, expectedSourceSha: 'e'.repeat(40) }),
-    /do not trust this run's report/,
+test('receipt verification passes when the published markdown and JSON match this run (#475)', async () => {
+  // The receipt marker names head SHA + run id + attempt, so it binds the published
+  // report to THIS run without the deleted release-confidence sidecar.
+  await verifyPublishedReceipt(
+    publishOptions(serveByName({ 'report.md': publishedBody(), 'report.json': '{"surfaces":[]}' })),
   );
 });
 
-test('receipt verification rejects a published Markdown receipt without the confidence sidecar', async () => {
-  const digest = 'a'.repeat(64);
-  const fetchImplementation = async (url) => {
-    if (String(url).includes('/report.md?')) {
-      return {
-        ok: true,
-        status: 200,
-        text: async () => 'report body\n<!-- styleproof-receipt head-sha:abc run-id:1 run-attempt:1 -->\n',
-      };
-    }
-    if (String(url).includes('/report.json?')) {
-      return {
-        ok: true,
-        status: 200,
-        text: async () => JSON.stringify({ releaseConfidence: { manifestDigest: digest } }),
-      };
-    }
-    return { ok: false, status: 404, text: async () => '' };
-  };
+test('receipt verification rejects a report published by a different run or attempt', async () => {
+  for (const stale of [
+    'styleproof-receipt head-sha:def run-id:1 run-attempt:1',
+    'styleproof-receipt head-sha:abc run-id:2 run-attempt:1',
+    'styleproof-receipt head-sha:abc run-id:1 run-attempt:2',
+  ]) {
+    await assert.rejects(
+      verifyPublishedReceipt(
+        publishOptions(serveByName({ 'report.md': publishedBody(stale), 'report.json': '{"surfaces":[]}' })),
+      ),
+      /do not trust this run's report/,
+    );
+  }
+});
+
+test('receipt verification rejects a missing or unparseable published report.json', async () => {
+  // report.md alone is not enough: a consumer parses report.json, so an absent,
+  // malformed, or duplicate-keyed one is not a trustworthy publish.
   await assert.rejects(
-    verifyPublishedReceipt({
-      apiBaseUrl: 'https://api.example',
-      repository: 'acme/widgets',
-      token: 'test-token',
-      reportPath: 'pr-7',
-      commitSha: 'published-commit-sha',
-      expectedReceipt: 'styleproof-receipt head-sha:abc run-id:1 run-attempt:1',
-      expectedManifestDigest: digest,
-      expectedSourceSha: 'b'.repeat(40),
-      maximumAttempts: 1,
-      fetchImplementation,
-    }),
+    verifyPublishedReceipt(publishOptions(serveByName({ 'report.md': publishedBody() }))),
+    /do not trust this run's report/,
+  );
+  await assert.rejects(
+    verifyPublishedReceipt(
+      publishOptions(serveByName({ 'report.md': publishedBody(), 'report.json': '{"surfaces":' })),
+    ),
+    /do not trust this run's report/,
+  );
+  await assert.rejects(
+    verifyPublishedReceipt(
+      publishOptions(serveByName({ 'report.md': publishedBody(), 'report.json': '{"a":1,"a":2}' })),
+    ),
     /do not trust this run's report/,
   );
 });

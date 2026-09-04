@@ -270,7 +270,8 @@ test('report delivery contract documents artifacts, access, permissions, outputs
   assert.match(contract, /## Failure semantics/);
   assert.match(contract, /report\.md/);
   assert.match(contract, /report\.json/);
-  assert.match(contract, /styleproof-release-confidence\.json/);
+  // #475: the release-confidence sidecar is deleted and must not reappear.
+  assert.doesNotMatch(contract, /styleproof-release-confidence\.json/);
   assert.match(contract, /current pull request/);
   assert.match(contract, /No publication receipt means no new delivery claim/);
 });

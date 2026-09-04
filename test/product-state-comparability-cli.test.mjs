@@ -168,7 +168,11 @@ test('diff and report independently emit the same canonical source-binding recei
       HEAD_SHA,
     ];
     const report = spawnSync(process.execPath, reportArgs, { cwd: capture.root, encoding: 'utf8' });
-    assert.equal(report.status, 1, report.stderr || report.stdout);
+    // #475: a fully bound, clean compare is green in BOTH tools. Until the
+    // release-confidence layer was deleted, styleproof-diff exited 0 here while
+    // styleproof-report exited 1 on the same two directories.
+    assert.equal(report.status, 0, report.stderr || report.stdout);
+    assert.match(report.stdout, /✓ no reviewable computed-style changes/);
     const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
     assert.deepEqual(reportJson.sourceBinding, diff.json.sourceBinding);
     assert.deepEqual(reportJson.evidenceBinding, diff.json.evidenceBinding);
