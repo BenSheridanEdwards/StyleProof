@@ -9,6 +9,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- `styleproof-map --prove-determinism` runs the #400 five-run oracle over your own
+  captures. It captures the declared surface set five times in fresh contexts, requires
+  every canonical map hash to match, writes `styleproof-determinism.json` beside the maps,
+  and records the new `determinism: oracle-proven` basis in the coverage ledger — strictly
+  stronger than `self-checked`, and accepted by the gate exactly like it. A flake discards
+  the bundle before the manifest is stamped, so a nondeterministic capture can never become
+  a baseline; the four scratch bundles are always cleaned up. Opt-in, because it costs five
+  capture runs. `determinismRunReceipt(entries)` is exported so every producer builds run
+  receipts through one key-sorted code path. Until now the oracle ran only over StyleProof's
+  own browser fixture in CI: it was exported and CI-exercised, but no consumer could get the
+  five-run proof for their own surfaces, and nothing in `src/runner.ts` or `bin/*.mjs`
+  called it. (#476)
+
 - Opt-in pixel gate (`styleproof-diff --pixels`, `diffStyleMapDirs({ pixels: true })`):
   the screenshots every capture already writes (`<surface>.png` plus the forced
   `:hover` / `:focus` / `:active` layers) are compared pixel for pixel, and every

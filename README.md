@@ -1028,20 +1028,36 @@ fixture-required outcomes fail the command.
 Config-file recipe parsing and bare Escape without a target selector remain
 follow-up slices.
 
-Before promoting a new state class, capture it in at least five fresh browser
-contexts and pass the public determinism oracle:
+Before promoting a new state class, capture it in five fresh browser contexts and
+pass the determinism oracle. The capture CLI does this for you:
+
+```bash
+styleproof-map --prove-determinism
+```
+
+That captures your whole declared surface set five times, requires every canonical
+map hash to match, writes `styleproof-determinism.json` beside the maps, and records
+`determinism: oracle-proven` in the coverage ledger — the strongest of the four bases
+the gate accepts, and the only one that can see a flake which happens to repeat
+twice. A failing run discards the bundle rather than publishing it: a
+nondeterministic capture must never become a baseline. It costs five capture runs,
+so it is opt-in; the default single run still self-checks (captures twice and
+compares).
+
+The same oracle is a public API when you need to drive it yourself:
 
 ```ts
-import { assessDeterminismOracle, hashDeterminismMap } from 'styleproof';
+import { assessDeterminismOracle, determinismRunReceipt } from 'styleproof';
 
-const runs = captureDirs.map((dir) => ({
-  stateKeys: orderedKeys,
-  mapHashes: Object.fromEntries(orderedKeys.map((key) => [key, hashDeterminismMap(loadMap(dir, key))])),
-}));
+const runs = captureDirs.map((dir) => determinismRunReceipt(mapsIn(dir)));
 
 const verdict = assessDeterminismOracle(runs);
 if (verdict.status !== 'deterministic') throw new Error(JSON.stringify(verdict));
 ```
+
+`determinismRunReceipt` takes `[stateKey, map]` pairs and sorts the keys, so two
+honest runs can never disagree on filesystem ordering alone. `hashDeterminismMap`
+remains exported for callers that build receipts by hand.
 
 `deterministic` means exactly five valid runs were supplied and all five match.
 Every other result is `flake`, with a machine-readable reason: `run-count`,
