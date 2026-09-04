@@ -57,7 +57,13 @@ import {
   type ConfidenceLedgerFile,
   type ConfidenceSummary,
 } from './confidence-ledger.js';
-import { auditRequiredStateComparisons, type RequiredStateComparisonSummary } from './required-state-api.js';
+import {
+  auditRequiredStateComparisons,
+  parseRequiredStateComparisons,
+  type RequiredStateComparison,
+  type RequiredStateComparisonSummary,
+  type RequiredStateComparisonFailureReason,
+} from './required-state-api.js';
 // The pure grouping / classification brain — shared with the CLI. report.ts keeps
 // the crop-and-PNG rendering on top of these.
 
@@ -161,6 +167,8 @@ export type ReportOptions = {
   maxReportBytes?: number;
   /** Repository root containing styleproof.config.json. Defaults to process.cwd(). */
   configRoot?: string;
+  /** Explicit consumer-declared state × surface obligations. When supplied, these are parsed and audited directly. */
+  requiredStateComparisons?: readonly RequiredStateComparison[];
 };
 
 export type ReportComparison = ComparisonTruth & ComparabilitySummary;
@@ -1546,6 +1554,22 @@ function missingSurfaceSummaryLines(
   return md;
 }
 
+const REQUIRED_STATE_FAILURE_COPY: Readonly<Record<RequiredStateComparisonFailureReason, string>> = {
+  'missing-base': 'base evidence is missing',
+  'missing-head': 'head evidence is missing',
+  'missing-both': 'base and head evidence are missing',
+  'wrong-surface': 'evidence names a different surface',
+  'wrong-state': 'evidence names a different product state',
+  'wrong-revision': 'evidence names a different state revision',
+  'no-shared-capture-key': 'base and head have no shared capture key',
+  'not-comparable': 'base and head evidence is not comparable',
+  'surface-metadata-missing': 'base/head evidence is missing required surface metadata',
+};
+
+function requiredStateFailureCopy(failures: readonly RequiredStateComparisonFailureReason[]): string {
+  return failures.map((failure) => `${failure} (${REQUIRED_STATE_FAILURE_COPY[failure]})`).join(', ');
+}
+
 function comparabilityLines(comparison: ComparabilitySummary): string[] {
   const counts = comparison.counts;
   if (comparison.status === 'comparable') {
@@ -2482,11 +2506,13 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const requiredStateComparisons = auditRequiredStateComparisons(
     beforeDir,
     afterDir,
-    loadRequiredStateComparisonsForCaptureDirs(
-      [opts.beforeDir, opts.afterDir],
-      opts.configRoot ?? process.cwd(),
-      opts.configRoot !== undefined,
-    ),
+    opts.requiredStateComparisons === undefined
+      ? loadRequiredStateComparisonsForCaptureDirs(
+          [opts.beforeDir, opts.afterDir],
+          opts.configRoot ?? process.cwd(),
+          opts.configRoot !== undefined,
+        )
+      : parseRequiredStateComparisons(opts.requiredStateComparisons),
   );
 
   const includeNoise = opts.includeLayoutNoise === true;
@@ -2590,7 +2616,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
         : `✓ **Required state comparisons satisfied** — ${requiredStateComparisons.counts.satisfied} consumer-declared obligation(s) have comparable base/head evidence.`,
     );
     for (const receipt of requiredStateComparisons.receipts) {
-      const suffix = receipt.status === 'satisfied' ? 'satisfied' : `blocked: ${receipt.failures.join(', ')}`;
+      const suffix =
+        receipt.status === 'satisfied' ? 'satisfied' : `blocked: ${requiredStateFailureCopy(receipt.failures)}`;
       md.push(
         `  - \`${safeKey(receipt.surface)}\` · \`${safeKey(receipt.productState.id)}@${safeKey(receipt.productState.revision)}\` · ${suffix}`,
       );

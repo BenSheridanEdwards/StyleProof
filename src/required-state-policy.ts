@@ -23,7 +23,8 @@ const CREDENTIAL_MARKER =
   /(?:api[_-]?key|authorization|bearer|client[_-]?secret|password|private[_-]?key|secret|token)/i;
 const TOKEN_LIKE_RUN = /[A-Za-z0-9_-]{32,}/;
 const PERSONAL_DATA_LIKE =
-  /(?:[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+|\b\d{3}-\d{2}-\d{4}\b|\b(?:\+?\d[\d ()-]{7,}\d)\b)/i;
+  /(?:[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+|\b\d{3}-\d{2}-\d{4}\b|\b(?:\+?\d[\d ()-]{7,}\d)\b|\b[a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*\b)/i;
+const PUBLIC_LOCATION_LIKE = /(?:\b[a-z][a-z0-9+.-]*:\/\/|(?:^|\s)\/(?:[^\s/]+\/)+|(?:^|\s)[a-z]:[\\/])/i;
 const PUBLIC_OWNER = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 function safePublicReason(value: string, label: string): string {
@@ -33,8 +34,8 @@ function safePublicReason(value: string, label: string): string {
   if (CREDENTIAL_MARKER.test(value) || TOKEN_LIKE_RUN.test(value)) {
     throw new RequiredStateComparisonError(`${label} must not contain credential markers or token-like values`);
   }
-  if (PERSONAL_DATA_LIKE.test(value)) {
-    throw new RequiredStateComparisonError(`${label} must not contain personal data`);
+  if (PERSONAL_DATA_LIKE.test(value) || PUBLIC_LOCATION_LIKE.test(value)) {
+    throw new RequiredStateComparisonError(`${label} must not contain personal data or public locations`);
   }
   return value;
 }
@@ -72,59 +73,90 @@ function boundedString(value: unknown, label: string, max: number, opaque = fals
   return value;
 }
 
+function denseArrayDescriptors(value: unknown): { descriptors: PropertyDescriptorMap; length: number } {
+  if (!Array.isArray(value)) throw new RequiredStateComparisonError('expected an array');
+  let descriptors: PropertyDescriptorMap;
+  try {
+    descriptors = Object.getOwnPropertyDescriptors(value) as unknown as PropertyDescriptorMap;
+  } catch {
+    throw new RequiredStateComparisonError('array could not be read safely');
+  }
+  const length = plainValue(descriptors.length, 'array length');
+  if (typeof length !== 'number' || !Number.isSafeInteger(length) || length < 0) {
+    throw new RequiredStateComparisonError('array length must be a safe integer');
+  }
+  if (length > MAX_REQUIREMENTS) {
+    throw new RequiredStateComparisonError(`at most ${MAX_REQUIREMENTS} entries are allowed`);
+  }
+  const keys = Reflect.ownKeys(descriptors);
+  const expected = new Set<PropertyKey>(['length', ...Array.from({ length }, (_, index) => String(index))]);
+  if (keys.length !== expected.size || keys.some((key) => !expected.has(key))) {
+    throw new RequiredStateComparisonError('arrays must be dense and contain no extra properties');
+  }
+  return { descriptors, length };
+}
+
+function requiredSurface(descriptors: PropertyDescriptorMap, index: number): string {
+  const surface = boundedString(
+    plainValue(descriptors.surface, `entry ${index}.surface`),
+    `entry ${index}.surface`,
+    128,
+  );
+  try {
+    assertSafeCaptureKey(surface);
+  } catch {
+    throw new RequiredStateComparisonError(`entry ${index}.surface must be a safe width-normalized surface key`);
+  }
+  if (surfaceBase(surface) !== surface) {
+    throw new RequiredStateComparisonError(`entry ${index}.surface must not include a viewport width`);
+  }
+  return surface;
+}
+
+function requiredProductState(descriptors: PropertyDescriptorMap, index: number): ProductStateIdentity {
+  let productState: ProductStateIdentity | undefined;
+  try {
+    productState = validateProductStateIdentity(plainValue(descriptors.productState, `entry ${index}.productState`));
+  } catch {
+    throw new RequiredStateComparisonError(
+      `entry ${index}.productState must contain valid id and revision identifiers`,
+    );
+  }
+  if (!productState) throw new RequiredStateComparisonError(`entry ${index}.productState is required`);
+  return productState;
+}
+
+function parseRequiredStateEntry(entry: unknown, index: number): RequiredStateComparison {
+  const descriptors = descriptorsOf(entry, `entry ${index}`);
+  const fields = Reflect.ownKeys(descriptors);
+  const allowed = ['surface', 'productState', 'owner', 'reason'];
+  if (fields.length !== allowed.length || fields.some((key) => typeof key !== 'string' || !allowed.includes(key))) {
+    throw new RequiredStateComparisonError(`entry ${index} must contain only surface, productState, owner, and reason`);
+  }
+  const surface = requiredSurface(descriptors, index);
+  const productState = requiredProductState(descriptors, index);
+  const owner = boundedString(plainValue(descriptors.owner, `entry ${index}.owner`), `entry ${index}.owner`, 128, true);
+  safePublicOwner(owner, `entry ${index}.owner`);
+  const reason = safePublicReason(
+    boundedString(plainValue(descriptors.reason, `entry ${index}.reason`), `entry ${index}.reason`, 512),
+    `entry ${index}.reason`,
+  );
+  return { surface, productState: { ...productState }, owner, reason };
+}
+
 export function parseRequiredStateComparisons(value: unknown): RequiredStateComparison[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) throw new RequiredStateComparisonError('expected an array');
-  if (value.length > MAX_REQUIREMENTS)
-    throw new RequiredStateComparisonError(`at most ${MAX_REQUIREMENTS} entries are allowed`);
+  const { descriptors, length } = denseArrayDescriptors(value);
   const seen = new Set<string>();
-  return value.map((entry, index) => {
-    if (!(index in value)) throw new RequiredStateComparisonError('sparse arrays are not allowed');
-    const descriptors = descriptorsOf(entry, `entry ${index}`);
-    const fields = Reflect.ownKeys(descriptors);
-    const allowed = ['surface', 'productState', 'owner', 'reason'];
-    if (fields.length !== allowed.length || fields.some((key) => typeof key !== 'string' || !allowed.includes(key))) {
-      throw new RequiredStateComparisonError(
-        `entry ${index} must contain only surface, productState, owner, and reason`,
-      );
-    }
-    const surface = boundedString(
-      plainValue(descriptors.surface, `entry ${index}.surface`),
-      `entry ${index}.surface`,
-      128,
-    );
-    try {
-      assertSafeCaptureKey(surface);
-    } catch {
-      throw new RequiredStateComparisonError(`entry ${index}.surface must be a safe width-normalized surface key`);
-    }
-    if (surfaceBase(surface) !== surface) {
-      throw new RequiredStateComparisonError(`entry ${index}.surface must not include a viewport width`);
-    }
-    let productState: ProductStateIdentity | undefined;
-    try {
-      productState = validateProductStateIdentity(plainValue(descriptors.productState, `entry ${index}.productState`));
-    } catch {
-      throw new RequiredStateComparisonError(
-        `entry ${index}.productState must contain valid id and revision identifiers`,
-      );
-    }
-    if (!productState) throw new RequiredStateComparisonError(`entry ${index}.productState is required`);
-    const owner = boundedString(
-      plainValue(descriptors.owner, `entry ${index}.owner`),
-      `entry ${index}.owner`,
-      128,
-      true,
-    );
-    safePublicOwner(owner, `entry ${index}.owner`);
-    const reason = safePublicReason(
-      boundedString(plainValue(descriptors.reason, `entry ${index}.reason`), `entry ${index}.reason`, 512),
-      `entry ${index}.reason`,
-    );
-    const tuple = `${surface}\0${productState.id}\0${productState.revision}`;
-    if (seen.has(tuple))
+  const parsed: RequiredStateComparison[] = [];
+  for (let index = 0; index < length; index += 1) {
+    const requirement = parseRequiredStateEntry(plainValue(descriptors[String(index)], `entry ${index}`), index);
+    const tuple = `${requirement.surface}\0${requirement.productState.id}\0${requirement.productState.revision}`;
+    if (seen.has(tuple)) {
       throw new RequiredStateComparisonError(`entry ${index} duplicates an earlier state × surface tuple`);
+    }
     seen.add(tuple);
-    return { surface, productState: { ...productState }, owner, reason };
-  });
+    parsed.push(requirement);
+  }
+  return parsed;
 }

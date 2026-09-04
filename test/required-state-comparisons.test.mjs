@@ -49,6 +49,32 @@ test('required state declarations are closed-world, bounded, and copied', () => 
     assert.throws(() => parseRequiredStateComparisons(value), RequiredStateComparisonError);
 });
 
+test('required state arrays reject sparse indices, accessors, symbols, and extra properties without invoking getters', () => {
+  let getterCalls = 0;
+  const accessor = [];
+  Object.defineProperty(accessor, '0', {
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      return requirement;
+    },
+  });
+  accessor.length = 1;
+  assert.throws(() => parseRequiredStateComparisons(accessor), RequiredStateComparisonError);
+  assert.equal(getterCalls, 0);
+
+  const sparse = new Array(1);
+  assert.throws(() => parseRequiredStateComparisons(sparse), RequiredStateComparisonError);
+
+  const extra = [requirement];
+  extra.policy = 'shadow';
+  assert.throws(() => parseRequiredStateComparisons(extra), RequiredStateComparisonError);
+
+  const symbolic = [requirement];
+  symbolic[Symbol('policy')] = 'shadow';
+  assert.throws(() => parseRequiredStateComparisons(symbolic), RequiredStateComparisonError);
+});
+
 test('required state public metadata rejects controls, markup, credential markers, and token-like values', () => {
   for (const patch of [
     { reason: 'line one\nline two' },
@@ -62,6 +88,11 @@ test('required state public metadata rejects controls, markup, credential marker
     { reason: 'Contact Jake Hunter at jake@example.com' },
     { reason: 'Escalate using 123-45-6789' },
     { reason: 'Call +44 7700 900123' },
+    { reason: 'Ask jane.smith for approval' },
+    { reason: 'Review https://internal.example/users/jane' },
+    { reason: ['See ', '/', 'Users', '/jane.smith/private/roadmap'].join('') },
+    { reason: ['See file:', '//', '/Users', '/jane.smith/private/roadmap'].join('') },
+    { reason: ['See C:', '\\', 'Users\\jane.smith\\private\\roadmap'].join('') },
   ]) {
     assert.throws(() => parseRequiredStateComparisons([{ ...requirement, ...patch }]), RequiredStateComparisonError);
   }

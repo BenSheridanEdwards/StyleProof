@@ -10,5 +10,5 @@
 
 
 ✗ **Required state comparisons incomplete** — 1 of 1 consumer-declared state × surface obligation(s) lack comparable evidence. Certification is blocked; approval cannot clear this.
-  - `agents` · `client:jake:hunter@fleet-fixture-v1` · blocked: surface-metadata-missing
+  - `agents` · `client:jake:hunter@fleet-fixture-v1` · blocked: surface-metadata-missing (base/head evidence is missing required surface metadata)
 ✗ Computed-style comparison found no reviewable deltas, but certification is blocked because required comparison evidence is incomplete.

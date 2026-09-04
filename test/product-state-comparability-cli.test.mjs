@@ -357,6 +357,7 @@ test('missing consumer-declared state × surface evidence blocks clean diff and 
     const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
     assert.match(markdown, /Required state comparisons incomplete/);
     assert.match(markdown, /approval cannot clear this/i);
+    assert.match(markdown, /base\/head evidence is missing required surface metadata/i);
   } finally {
     rmTmp(capture.root);
   }
@@ -418,6 +419,58 @@ console.log(JSON.stringify(result.requiredStateComparisons));`;
       fs.readFileSync(path.join(report, 'report.md'), 'utf8'),
       /No reviewable computed-style changes/,
     );
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
+test('public report API audits caller-supplied required-state policy instead of silently ignoring it', () => {
+  const capture = fixture({});
+  const report = path.join(capture.root, 'report-api-explicit');
+  const declarations = [
+    {
+      surface: 'home',
+      productState: { id: 'client:jake:hunter', revision: 'fleet-fixture-v1' },
+      owner: 'fleet-hud',
+      reason: 'Hunter must be visible',
+    },
+  ];
+  try {
+    const script = `import { generateStyleMapReport } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'dist/report.js')).href)};
+const result = generateStyleMapReport({ beforeDir: ${JSON.stringify(capture.before)}, afterDir: ${JSON.stringify(capture.after)}, outDir: ${JSON.stringify(report)}, requiredStateComparisons: ${JSON.stringify(declarations)} });
+console.log(JSON.stringify(result.requiredStateComparisons));`;
+    const result = spawnSync(process.execPath, ['--input-type=module', '--eval', script], {
+      cwd: capture.root,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.blocksCertification, true);
+    assert.equal(receipt.status, 'unsatisfied');
+    assert.deepEqual(receipt.counts, { declared: 1, satisfied: 0, unsatisfied: 1 });
+    assert.doesNotMatch(
+      fs.readFileSync(path.join(report, 'report.md'), 'utf8'),
+      /No reviewable computed-style changes/,
+    );
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
+test('public report API rejects sparse supplied policy before creating output', () => {
+  const capture = fixture({});
+  const report = path.join(capture.root, 'report-api-sparse');
+  try {
+    const script = `import { generateStyleMapReport } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'dist/report.js')).href)};
+const policy = new Array(1);
+generateStyleMapReport({ beforeDir: ${JSON.stringify(capture.before)}, afterDir: ${JSON.stringify(capture.after)}, outDir: ${JSON.stringify(report)}, requiredStateComparisons: policy });`;
+    const result = spawnSync(process.execPath, ['--input-type=module', '--eval', script], {
+      cwd: capture.root,
+      encoding: 'utf8',
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /arrays must be dense/);
+    assert.equal(fs.existsSync(report), false);
   } finally {
     rmTmp(capture.root);
   }

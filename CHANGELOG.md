@@ -9,7 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- **Consumer-declared required state comparisons (#442).** `styleproof.config.json` can now require an exact product-state identity on a width-normalized surface. Diff, report, and the composite Action emit the same bounded receipt and fail certification when evidence is missing, contradictory, one-sided, or otherwise non-comparable. The checked-in requirement cannot be waived by a workflow input. Monorepo packages select policy explicitly with `--config-root`; capture-adjacent files cannot override the trusted repository policy, and unknown top-level config keys fail closed.
+- **Consumer-declared required state comparisons (#442).** `styleproof.config.json` can now require an exact product-state identity on a width-normalized surface. Diff, report, and the composite Action emit the same bounded receipt and fail certification when evidence is missing, contradictory, one-sided, or otherwise non-comparable. The checked-in requirement cannot be waived by a workflow input. Monorepo packages select policy explicitly with `--config-root`; capture-adjacent files cannot override the trusted repository policy, unknown top-level config keys fail closed, caller-supplied report API obligations are audited, hostile sparse/accessor arrays are rejected without invoking getters, and public receipt metadata rejects URL, host-path, and dotted-identifier forms.
 
 ### Added
 
