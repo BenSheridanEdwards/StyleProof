@@ -128,7 +128,7 @@ Interactive-state changes:
 
 ---
 
-_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, one tick signs it off. A new push that changes styles or surfaces re-opens it._
+_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._
 
 **[Quickstart](#quickstart)** ·
 **[Read the catch contract](docs/what-it-catches.md)**
@@ -150,6 +150,21 @@ approval can clear only `STYLE_REVIEW_REQUIRED`. Each state appears once.
 | `PARTIAL_BASELINE`                 | The base capture missed registered surfaces.                                       | Hidden. Repair the base branch.        |
 | `DEGRADED_BASELINE`                | The base capture failed. This is a head-only receipt.                              | Hidden. Not a comparison.              |
 | `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                               | Hidden. Delivery failed.               |
+
+#### Who may tick the box
+
+A sign-off needs write access **and** a login other than the pull request
+author's. `styleproof-approve.yml` refuses a self-approval: it unticks the box,
+leaves the `StyleProof` status red with `Needs a reviewer other than @author`,
+and replies once on the pull request. The rule holds however the author reaches
+a ticked box — including editing a comment a reviewer already ticked, which
+would otherwise transfer the sign-off to the editor.
+
+Two things stay allowed. The author may always **untick**, because withdrawing a
+sign-off only moves the gate red. And a solo repository may opt in by setting
+`STYLEPROOF_ALLOW_SELF_APPROVAL: 'true'` in
+[`example/styleproof-approve.yml`](example/styleproof-approve.yml). It is
+`'false'` by default, and any other value refuses, so a typo fails closed.
 
 ### Certified clean
 
