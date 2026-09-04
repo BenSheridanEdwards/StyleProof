@@ -75,6 +75,23 @@ test('required state arrays reject sparse indices, accessors, symbols, and extra
   assert.throws(() => parseRequiredStateComparisons(symbolic), RequiredStateComparisonError);
 });
 
+test('required state policy rejects proxies, exotic prototypes, and non-enumerable JSON fields', () => {
+  assert.throws(() => parseRequiredStateComparisons(new Proxy([requirement], {})), RequiredStateComparisonError);
+  assert.throws(
+    () => parseRequiredStateComparisons([Object.assign(Object.create({ inherited: true }), requirement)]),
+    RequiredStateComparisonError,
+  );
+  const hidden = {};
+  for (const [key, value] of Object.entries(requirement)) {
+    Object.defineProperty(hidden, key, { value, enumerable: false, writable: true, configurable: true });
+  }
+  assert.throws(() => parseRequiredStateComparisons([hidden]), RequiredStateComparisonError);
+  assert.throws(
+    () => parseRequiredStateComparisons([{ ...requirement, productState: new Proxy(requirement.productState, {}) }]),
+    RequiredStateComparisonError,
+  );
+});
+
 test('required state public metadata rejects controls, markup, credential markers, and token-like values', () => {
   for (const patch of [
     { reason: 'line one\nline two' },
@@ -82,6 +99,7 @@ test('required state public metadata rejects controls, markup, credential marker
     { reason: '<script>alert(1)</script>' },
     { reason: 'Authorization Bearer public receipt' },
     { reason: `opaque ${'a'.repeat(40)}` },
+    { reason: 'opaque abcdefghijklmnop:QRSTUVWXYZ012345' },
     { owner: 'api_token' },
     { owner: `opaque_${'z'.repeat(40)}` },
     { owner: 'jake.hunter' },
@@ -93,6 +111,11 @@ test('required state public metadata rejects controls, markup, credential marker
     { reason: ['See ', '/', 'Users', '/jane.smith/private/roadmap'].join('') },
     { reason: ['See file:', '//', '/Users', '/jane.smith/private/roadmap'].join('') },
     { reason: ['See C:', '\\', 'Users\\jane.smith\\private\\roadmap'].join('') },
+    { reason: ['See path=', '/', 'Users/alice/private/proof'].join('') },
+    { reason: ['See ', '\\\\', 'server\\share\\proof'].join('') },
+    { reason: ['See ', '..\\..\\Users\\jane\\private\\roadmap'].join('') },
+    { reason: ['See smb:', '\\\\', 'server\\share\\roadmap'].join('') },
+    { reason: 'IPv6 2001:0db8:85a3:0000:0000:8a2e:0370:7334' },
   ]) {
     assert.throws(() => parseRequiredStateComparisons([{ ...requirement, ...patch }]), RequiredStateComparisonError);
   }
@@ -124,7 +147,11 @@ test('required state audit fails closed for missing, wrong-surface, wrong-revisi
       'wrong-revision',
     ],
     [[exact('dashboard-seat-visible@1280')], [exact('dashboard-seat-visible@1440')], 'no-shared-capture-key'],
-    [[{ ...exact(), surface: undefined }], [{ ...exact(), surface: undefined }], 'surface-metadata-missing'],
+    [
+      [{ ...exact(), surface: undefined }],
+      [{ ...exact(), surface: undefined }],
+      ['base-surface-metadata-missing', 'head-surface-metadata-missing'],
+    ],
   ];
   for (const [before, after, reason] of cases) {
     // diffStyleMapDirs requires at least one map on each side; add an unrelated comparable control.
@@ -134,7 +161,7 @@ test('required state audit fails closed for missing, wrong-surface, wrong-revisi
       const result = auditRequiredStateComparisons(dirs.beforeDir, dirs.afterDir, [requirement]);
       assert.equal(result.status, 'unsatisfied');
       assert.equal(result.blocksCertification, true);
-      assert.deepEqual(result.receipts[0].failures, [reason]);
+      assert.deepEqual(result.receipts[0].failures, Array.isArray(reason) ? reason : [reason]);
     } finally {
       rmTmp(dirs.root);
     }

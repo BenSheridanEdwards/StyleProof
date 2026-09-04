@@ -26,10 +26,8 @@ import {
   manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
-import { loadRequiredStateComparisonsForCaptureDirs } from '../dist/config.js';
 
 const COMMAND = 'styleproof-report';
-let requiredStateDeclarations;
 
 const HELP = `${COMMAND} — reviewable before/after report from two captures
 
@@ -202,17 +200,6 @@ let sourceBinding;
 try {
   // v4: refuse a manifest-less side (exit 2 via the catch) — same-environment
   // compatibility can't be verified without a manifest on both sides.
-  try {
-    requiredStateDeclarations = loadRequiredStateComparisonsForCaptureDirs(
-      [beforeDir, afterDir],
-      configRoot,
-      configRootExplicit,
-    );
-  } catch (err) {
-    console.error(err instanceof Error ? err.message : String(err));
-    process.exit(2);
-  }
-
   const manifestless = manifestlessSide(beforeDir, afterDir);
   if (manifestless) throw new Error(manifestlessError(manifestless));
   const initialEvidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
@@ -234,7 +221,6 @@ try {
     includeLayoutNoise,
     includeContent,
     requireStateIdentity,
-    requiredStateComparisons: requiredStateDeclarations,
   });
   const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
   if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {

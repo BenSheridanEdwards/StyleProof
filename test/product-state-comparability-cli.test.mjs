@@ -331,7 +331,10 @@ test('missing consumer-declared state × surface evidence blocks clean diff and 
     const diff = runDiff(capture);
     assert.equal(diff.status, 1, diff.stderr || diff.stdout);
     assert.equal(diff.json.requiredStateComparisons.blocksCertification, true);
-    assert.deepEqual(diff.json.requiredStateComparisons.receipts[0].failures, ['surface-metadata-missing']);
+    assert.deepEqual(diff.json.requiredStateComparisons.receipts[0].failures, [
+      'base-surface-metadata-missing',
+      'head-surface-metadata-missing',
+    ]);
     assert.doesNotMatch(diff.stdout, /✓ 0 reviewable computed-style changes/);
 
     const report = spawnSync(
@@ -357,7 +360,9 @@ test('missing consumer-declared state × surface evidence blocks clean diff and 
     const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
     assert.match(markdown, /Required state comparisons incomplete/);
     assert.match(markdown, /approval cannot clear this/i);
-    assert.match(markdown, /base\/head evidence is missing required surface metadata/i);
+    assert.match(markdown, /base capture is missing metadata\.surfaceKey/i);
+    assert.match(markdown, /head capture is missing metadata\.surfaceKey/i);
+    assert.ok(markdown.indexOf('Certification blocked') < markdown.indexOf('**Certification**'));
   } finally {
     rmTmp(capture.root);
   }
@@ -424,6 +429,41 @@ console.log(JSON.stringify(result.requiredStateComparisons));`;
   }
 });
 
+test('public report API treats supplied policy as additive and an empty array cannot erase checked-in obligations', () => {
+  const capture = fixture({});
+  const report = path.join(capture.root, 'report-api-empty');
+  const checked = {
+    surface: 'home',
+    productState: { id: 'client:jake:hunter', revision: 'fleet-fixture-v1' },
+    owner: 'fleet-hud',
+    reason: 'Hunter must be visible',
+  };
+  try {
+    fs.writeFileSync(
+      path.join(capture.root, 'styleproof.config.json'),
+      JSON.stringify({ requiredStateComparisons: [checked] }),
+    );
+    const script = `import { generateStyleMapReport } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'dist/report.js')).href)};
+const result = generateStyleMapReport({ beforeDir: ${JSON.stringify(capture.before)}, afterDir: ${JSON.stringify(capture.after)}, outDir: ${JSON.stringify(report)}, requiredStateComparisons: [] });
+console.log(JSON.stringify(result.requiredStateComparisons));`;
+    const result = spawnSync(process.execPath, ['--input-type=module', '--eval', script], {
+      cwd: path.dirname(capture.root),
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.status, 'unsatisfied');
+    assert.equal(receipt.blocksCertification, true);
+    assert.equal(receipt.counts.declared, 1);
+    assert.doesNotMatch(
+      fs.readFileSync(path.join(report, 'report.md'), 'utf8'),
+      /No reviewable computed-style changes/,
+    );
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
 test('public report API audits caller-supplied required-state policy instead of silently ignoring it', () => {
   const capture = fixture({});
   const report = path.join(capture.root, 'report-api-explicit');
@@ -476,7 +516,7 @@ generateStyleMapReport({ beforeDir: ${JSON.stringify(capture.before)}, afterDir:
   }
 });
 
-test('diff and report require and honor explicit package policy when invoked from a monorepo root', () => {
+test('diff and report auto-discover shared package policy from monorepo and sibling working directories', () => {
   const capture = fixture({});
   const workspace = mkTmp('styleproof-monorepo-');
   const packageRoot = path.join(workspace, 'packages', 'app');
@@ -502,9 +542,9 @@ test('diff and report require and honor explicit package policy when invoked fro
       cwd: workspace,
       encoding: 'utf8',
     });
-    assert.equal(implicit.status, 2);
-    assert.match(implicit.stderr, /requires an explicit --config-root/);
-    assert.doesNotMatch(implicit.stdout, /✓|certifiesFully/);
+    assert.equal(implicit.status, 1, implicit.stderr || implicit.stdout);
+    assert.match(implicit.stdout, /required state comparisons incomplete/i);
+    assert.doesNotMatch(implicit.stdout, /✓ no reviewable computed-style changes/i);
 
     const diff = spawnSync(
       process.execPath,

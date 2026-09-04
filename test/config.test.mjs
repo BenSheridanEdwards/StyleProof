@@ -332,15 +332,19 @@ test('loadStyleProofConfig: common certification-policy misspellings fail closed
   }
 });
 
-test('resolveStyleProofConfigRoot requires explicit trust for nested monorepo policy', () => {
+test('resolveStyleProofConfigRoot discovers policy shared by both capture directories outside cwd', () => {
   const root = mkTmp('styleproof-config-roots-');
   try {
     const packageRoot = path.join(root, 'packages', 'app');
-    const maps = path.join(packageRoot, 'maps');
-    fs.mkdirSync(maps, { recursive: true });
+    const before = path.join(packageRoot, 'captures', 'before');
+    const after = path.join(packageRoot, 'captures', 'after');
+    const sibling = path.join(root, 'tools');
+    fs.mkdirSync(before, { recursive: true });
+    fs.mkdirSync(after, { recursive: true });
+    fs.mkdirSync(sibling, { recursive: true });
     fs.writeFileSync(path.join(packageRoot, STYLEPROOF_CONFIG_FILE), '{}');
-    assert.throws(() => resolveStyleProofConfigRoot([maps], root), /requires an explicit --config-root/);
-    assert.equal(resolveStyleProofConfigRoot([maps], packageRoot), packageRoot);
+    assert.equal(resolveStyleProofConfigRoot([before, after], sibling), packageRoot);
+    assert.equal(resolveStyleProofConfigRoot([before, after], packageRoot), packageRoot);
   } finally {
     rmTmp(root);
   }
@@ -353,6 +357,21 @@ test('dangling config symlinks fail closed without absolute path disclosure', ()
     assert.throws(
       () => loadStyleProofConfig(root),
       (error) => /symbolic-link config entry/.test(error.message) && !error.message.includes(root),
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfig rejects hard-linked config policy without disclosing its path', () => {
+  const root = mkTmp('styleproof-config-hardlink-');
+  try {
+    const source = path.join(root, 'source.json');
+    fs.writeFileSync(source, '{}');
+    fs.linkSync(source, path.join(root, STYLEPROOF_CONFIG_FILE));
+    assert.throws(
+      () => loadStyleProofConfig(root),
+      (error) => /could not read the file safely/.test(error.message) && !error.message.includes(root),
     );
   } finally {
     rmTmp(root);

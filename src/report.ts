@@ -1563,7 +1563,8 @@ const REQUIRED_STATE_FAILURE_COPY: Readonly<Record<RequiredStateComparisonFailur
   'wrong-revision': 'evidence names a different state revision',
   'no-shared-capture-key': 'base and head have no shared capture key',
   'not-comparable': 'base and head evidence is not comparable',
-  'surface-metadata-missing': 'base/head evidence is missing required surface metadata',
+  'base-surface-metadata-missing': 'base capture is missing metadata.surfaceKey',
+  'head-surface-metadata-missing': 'head capture is missing metadata.surfaceKey',
 };
 
 function requiredStateFailureCopy(failures: readonly RequiredStateComparisonFailureReason[]): string {
@@ -2503,16 +2504,17 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   } = opts;
 
   // Audit before creating output so malformed evidence cannot leave a plausible report.
+  const checkedInRequirements = loadRequiredStateComparisonsForCaptureDirs(
+    [opts.beforeDir, opts.afterDir],
+    opts.configRoot ?? process.cwd(),
+    opts.configRoot !== undefined,
+  );
+  const suppliedRequirements =
+    opts.requiredStateComparisons === undefined ? [] : parseRequiredStateComparisons(opts.requiredStateComparisons);
   const requiredStateComparisons = auditRequiredStateComparisons(
     beforeDir,
     afterDir,
-    opts.requiredStateComparisons === undefined
-      ? loadRequiredStateComparisonsForCaptureDirs(
-          [opts.beforeDir, opts.afterDir],
-          opts.configRoot ?? process.cwd(),
-          opts.configRoot !== undefined,
-        )
-      : parseRequiredStateComparisons(opts.requiredStateComparisons),
+    parseRequiredStateComparisons([...checkedInRequirements, ...suppliedRequirements]),
   );
 
   const includeNoise = opts.includeLayoutNoise === true;
@@ -2596,10 +2598,29 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     : { md: [], count: 0 };
 
   md.push('## 🗺️ StyleProof report', '');
-  // Lead with the source-of-truth gates (coverage / determinism / inventory /
-  // confidence) so a reviewer reads "is this green trustworthy?" before the
-  // pixel details. Confidence is resolved once and shared with report.json so
-  // the badge and the machine-readable summary can never disagree.
+  if (requiredStateComparisons.status !== 'not-required') {
+    if (requiredStateComparisons.blocksCertification) {
+      md.push(
+        '### ⛔ Certification blocked: required state evidence is incomplete',
+        '',
+        `**Required state comparisons incomplete** — ${requiredStateComparisons.counts.unsatisfied} of ${requiredStateComparisons.counts.declared} consumer-declared state × surface obligation(s) lack comparable evidence. Approval cannot clear this.`,
+      );
+    } else {
+      md.push(
+        `✓ **Required state comparisons satisfied** — ${requiredStateComparisons.counts.satisfied} consumer-declared obligation(s) have comparable base/head evidence.`,
+      );
+    }
+    for (const receipt of requiredStateComparisons.receipts) {
+      const suffix =
+        receipt.status === 'satisfied' ? 'satisfied' : `blocked: ${requiredStateFailureCopy(receipt.failures)}`;
+      md.push(
+        `  - \`${safeKey(receipt.surface)}\` · \`${safeKey(receipt.productState.id)}@${safeKey(receipt.productState.revision)}\` · ${suffix}`,
+      );
+    }
+    md.push('');
+  }
+  // Lead with any blocking required-state receipt, then show the remaining
+  // source-of-truth gates. Positive checks cannot visually outrank a blocker.
   const confidenceLedger = resolveBundleConfidence(afterDir);
   const confidence = summarizeConfidence(confidenceLedger);
   md.push(...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }));
@@ -2608,21 +2629,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const baselineProvenance = readBaselineProvenance(beforeDir);
   md.push(...baselineProvenanceLines(baselineProvenance));
   md.push(...comparabilityLines(comparison));
-  if (requiredStateComparisons.status !== 'not-required') {
-    md.push(
-      '',
-      requiredStateComparisons.blocksCertification
-        ? `✗ **Required state comparisons incomplete** — ${requiredStateComparisons.counts.unsatisfied} of ${requiredStateComparisons.counts.declared} consumer-declared state × surface obligation(s) lack comparable evidence. Certification is blocked; approval cannot clear this.`
-        : `✓ **Required state comparisons satisfied** — ${requiredStateComparisons.counts.satisfied} consumer-declared obligation(s) have comparable base/head evidence.`,
-    );
-    for (const receipt of requiredStateComparisons.receipts) {
-      const suffix =
-        receipt.status === 'satisfied' ? 'satisfied' : `blocked: ${requiredStateFailureCopy(receipt.failures)}`;
-      md.push(
-        `  - \`${safeKey(receipt.surface)}\` · \`${safeKey(receipt.productState.id)}@${safeKey(receipt.productState.revision)}\` · ${suffix}`,
-      );
-    }
-  }
   md.push(
     ...reportHeadline({
       changeGroups,

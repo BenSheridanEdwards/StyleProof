@@ -192,7 +192,7 @@ function readConfigObject(cwd: string): Record<string, unknown> | undefined {
   if (!stat.isFile()) fail('refusing non-regular config entry');
   let raw: string;
   try {
-    raw = readRegularFileNoFollow(configPath).toString('utf8');
+    raw = readRegularFileNoFollow(configPath, undefined, { requireSingleLink: true }).toString('utf8');
   } catch {
     fail('could not read the file safely');
   }
@@ -307,25 +307,33 @@ function isInside(root: string, candidate: string): boolean {
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
-function nearestNestedConfigRoot(start: string, trustedRoot: string): string | undefined {
-  let current = path.resolve(start);
-  if (!isInside(trustedRoot, current)) return undefined;
-  while (current !== trustedRoot) {
+function commonAncestor(paths: readonly string[]): string | undefined {
+  if (paths.length === 0) return undefined;
+  let current = path.resolve(paths[0]);
+  for (;;) {
+    if (paths.every((candidate) => isInside(current, path.resolve(candidate)))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return current;
+    current = parent;
+  }
+}
+
+function nearestSharedConfigRoot(captureDirs: readonly string[]): string | undefined {
+  let current = commonAncestor(captureDirs);
+  while (current) {
     if (configEntryExists(current)) return current;
     const parent = path.dirname(current);
-    if (parent === current) break;
+    if (parent === current) return undefined;
     current = parent;
   }
   return undefined;
 }
 
-/** Resolve only explicitly trusted policy. Nested monorepo policy requires configRoot. */
+/** Resolve checked-in policy from the invocation root or the captures' nearest shared ancestor. */
 export function resolveStyleProofConfigRoot(captureDirs: readonly string[], fallbackRoot = process.cwd()): string {
   const trustedRoot = path.resolve(fallbackRoot);
   if (configEntryExists(trustedRoot)) return trustedRoot;
-  const nested = captureDirs.some((dir) => nearestNestedConfigRoot(dir, trustedRoot) !== undefined);
-  if (nested) fail(`nested ${STYLEPROOF_CONFIG_FILE} requires an explicit --config-root`);
-  return trustedRoot;
+  return nearestSharedConfigRoot(captureDirs) ?? trustedRoot;
 }
 
 export function loadRequiredStateComparisonsForCaptureDirs(

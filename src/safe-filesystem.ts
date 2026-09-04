@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 
-export type UnsafeFilesystemEntryKind = 'symbolic-link' | 'non-regular' | 'changed-during-read' | 'oversized';
+export type UnsafeFilesystemEntryKind =
+  'symbolic-link' | 'non-regular' | 'hard-linked' | 'changed-during-read' | 'oversized';
 
 export class UnsafeFilesystemEntryError extends Error {
   readonly kind: UnsafeFilesystemEntryKind;
@@ -55,7 +56,18 @@ function assertWithinMaximum(filePath: string, size: number, maximumBytes?: numb
 }
 
 function assertStableIdentity(filePath: string, first: fs.Stats, second: fs.Stats): void {
-  if (!sameFileIdentity(first, second)) throw new UnsafeFilesystemEntryError(filePath, 'changed-during-read');
+  if (
+    !sameFileIdentity(first, second) ||
+    first.size !== second.size ||
+    first.mtimeMs !== second.mtimeMs ||
+    first.ctimeMs !== second.ctimeMs
+  ) {
+    throw new UnsafeFilesystemEntryError(filePath, 'changed-during-read');
+  }
+}
+
+function assertLinkCount(filePath: string, stat: fs.Stats, requireSingleLink: boolean): void {
+  if (requireSingleLink && stat.nlink !== 1) throw new UnsafeFilesystemEntryError(filePath, 'hard-linked');
 }
 
 function readDescriptor(filePath: string, descriptor: number, maximumBytes?: number): Buffer {
@@ -66,17 +78,24 @@ function readDescriptor(filePath: string, descriptor: number, maximumBytes?: num
 }
 
 /** Read one stable regular file without following a symlink or blocking on a FIFO. */
-export function readRegularFileNoFollow(filePath: string, maximumBytes?: number): Buffer {
+export function readRegularFileNoFollow(
+  filePath: string,
+  maximumBytes?: number,
+  options: { requireSingleLink?: boolean } = {},
+): Buffer {
   const beforeOpen = fs.lstatSync(filePath);
   assertRegularPath(filePath, beforeOpen);
+  assertLinkCount(filePath, beforeOpen, options.requireSingleLink === true);
   const descriptor = openRegularFileNoFollow(filePath);
   try {
     const opened = fs.fstatSync(descriptor);
     if (!opened.isFile()) throw new UnsafeFilesystemEntryError(filePath, 'non-regular');
+    assertLinkCount(filePath, opened, options.requireSingleLink === true);
     assertWithinMaximum(filePath, opened.size, maximumBytes);
 
     const pathBeforeRead = fs.lstatSync(filePath);
     assertRegularPath(filePath, pathBeforeRead);
+    assertLinkCount(filePath, pathBeforeRead, options.requireSingleLink === true);
     assertStableIdentity(filePath, beforeOpen, opened);
     assertStableIdentity(filePath, pathBeforeRead, opened);
 
@@ -84,6 +103,7 @@ export function readRegularFileNoFollow(filePath: string, maximumBytes?: number)
     const afterRead = fs.fstatSync(descriptor);
     const pathAfterRead = fs.lstatSync(filePath);
     assertRegularPath(filePath, pathAfterRead);
+    assertLinkCount(filePath, pathAfterRead, options.requireSingleLink === true);
     assertStableIdentity(filePath, opened, afterRead);
     assertStableIdentity(filePath, pathAfterRead, afterRead);
     return bytes;

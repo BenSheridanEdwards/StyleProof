@@ -27,7 +27,8 @@ export type RequiredStateComparisonFailureReason =
   | 'wrong-revision'
   | 'no-shared-capture-key'
   | 'not-comparable'
-  | 'surface-metadata-missing';
+  | 'base-surface-metadata-missing'
+  | 'head-surface-metadata-missing';
 
 export type RequiredStateComparisonReceipt = RequiredStateComparison &
   Readonly<{
@@ -79,11 +80,17 @@ function failureReasons(
   const shared = beforeExact.filter((left) => afterExact.some((right) => right.key === left.key));
   if (shared.some((entry) => comparability.get(entry.key) !== 'comparable')) return ['not-comparable'];
   if (beforeExact.length && afterExact.length) return ['no-shared-capture-key'];
+  const missingSurfaceMetadata: RequiredStateComparisonFailureReason[] = [];
+  if (before.some((entry) => entry.surface === undefined && surfaceBase(entry.key) === required.surface)) {
+    missingSurfaceMetadata.push('base-surface-metadata-missing');
+  }
+  if (after.some((entry) => entry.surface === undefined && surfaceBase(entry.key) === required.surface)) {
+    missingSurfaceMetadata.push('head-surface-metadata-missing');
+  }
+  if (missingSurfaceMetadata.length > 0) return missingSurfaceMetadata;
   if (!beforeExact.length && afterExact.length) return ['missing-base'];
   if (beforeExact.length && !afterExact.length) return ['missing-head'];
   const all = [...before, ...after];
-  if (all.some((entry) => entry.surface === undefined && surfaceBase(entry.key) === required.surface))
-    return ['surface-metadata-missing'];
   if (
     all.some(
       (entry) =>
