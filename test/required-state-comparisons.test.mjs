@@ -49,6 +49,20 @@ test('required state declarations are closed-world, bounded, and copied', () => 
     assert.throws(() => parseRequiredStateComparisons(value), RequiredStateComparisonError);
 });
 
+test('required state public metadata rejects controls, markup, credential markers, and token-like values', () => {
+  for (const patch of [
+    { reason: 'line one\nline two' },
+    { reason: '**rendered as emphasis**' },
+    { reason: '<script>alert(1)</script>' },
+    { reason: 'Authorization Bearer public receipt' },
+    { reason: `opaque ${'a'.repeat(40)}` },
+    { owner: 'api_token' },
+    { owner: `opaque_${'z'.repeat(40)}` },
+  ]) {
+    assert.throws(() => parseRequiredStateComparisons([{ ...requirement, ...patch }]), RequiredStateComparisonError);
+  }
+});
+
 test('required state audit certifies exact metadata identity across width-normalized surfaces', () => {
   const dirs = dirsWith([exact()], [exact()]);
   try {

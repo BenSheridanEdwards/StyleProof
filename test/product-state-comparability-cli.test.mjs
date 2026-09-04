@@ -422,3 +422,65 @@ console.log(JSON.stringify(result.requiredStateComparisons));`;
     rmTmp(capture.root);
   }
 });
+
+test('diff and report discover package-owned policy when invoked from a monorepo root', () => {
+  const capture = fixture({});
+  const workspace = mkTmp('styleproof-monorepo-');
+  const packageRoot = path.join(workspace, 'packages', 'app');
+  fs.mkdirSync(path.dirname(packageRoot), { recursive: true });
+  fs.renameSync(capture.root, packageRoot);
+  capture.root = packageRoot;
+  capture.before = path.join(packageRoot, 'before');
+  capture.after = path.join(packageRoot, 'after');
+  const declaration = {
+    surface: 'home',
+    productState: { id: 'client:jake:hunter', revision: 'fleet-fixture-v1' },
+    owner: 'fleet-hud',
+    reason: 'Hunter must be visible before roster certification.',
+  };
+  fs.writeFileSync(
+    path.join(packageRoot, 'styleproof.config.json'),
+    JSON.stringify({ requiredStateComparisons: [declaration] }),
+  );
+  const json = path.join(workspace, 'diff.json');
+  const out = path.join(workspace, 'report');
+  try {
+    const diff = spawnSync(
+      process.execPath,
+      [
+        DIFF,
+        capture.before,
+        capture.after,
+        '--json',
+        json,
+        '--expected-before-sha',
+        BASE_SHA,
+        '--expected-after-sha',
+        HEAD_SHA,
+      ],
+      { cwd: workspace, encoding: 'utf8' },
+    );
+    assert.equal(diff.status, 1, diff.stderr || diff.stdout);
+    assert.equal(JSON.parse(fs.readFileSync(json, 'utf8')).requiredStateComparisons.blocksCertification, true);
+    const report = spawnSync(
+      process.execPath,
+      [
+        REPORT,
+        capture.before,
+        capture.after,
+        '--out',
+        out,
+        '--expected-before-sha',
+        BASE_SHA,
+        '--expected-after-sha',
+        HEAD_SHA,
+      ],
+      { cwd: workspace, encoding: 'utf8' },
+    );
+    assert.equal(report.status, 1, report.stderr || report.stdout);
+    assert.match(report.stdout, /required state comparisons incomplete/i);
+    assert.doesNotMatch(report.stdout, /✓ no reviewable/i);
+  } finally {
+    rmTmp(workspace);
+  }
+});

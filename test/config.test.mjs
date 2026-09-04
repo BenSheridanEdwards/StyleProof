@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadStyleProofConfig } from '../dist/config.js';
+import { loadStyleProofConfig, resolveStyleProofConfigRoot } from '../dist/config.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
@@ -314,8 +314,47 @@ test('loadStyleProofConfig: duplicate object keys fail before policy can be eras
   );
 });
 
-test('loadStyleProofConfig: a near-miss certification-policy key fails closed', () => {
-  withConfig('{"requiredStateComparison":[]}', (dir) =>
-    assert.throws(() => loadStyleProofConfig(dir), /unknown certification-policy key/),
-  );
+test('loadStyleProofConfig: common certification-policy misspellings fail closed', () => {
+  for (const key of [
+    'requiredStateComparison',
+    'requiredStateComparsions',
+    'requirdStateComparisons',
+    'requiredStateComaprison',
+    'requireStateComparisons',
+    'requiredStatesComparisons',
+    'requredStateComparisons',
+    'requiredSateComparisons',
+    'required_state_comparisons',
+  ]) {
+    withConfig(JSON.stringify({ [key]: [] }), (dir) =>
+      assert.throws(() => loadStyleProofConfig(dir), /unknown certification-policy key/),
+    );
+  }
+});
+
+test('resolveStyleProofConfigRoot rejects capture directories owned by different configs', () => {
+  const root = mkTmp('styleproof-config-roots-');
+  try {
+    const left = path.join(root, 'packages', 'left', 'maps');
+    const right = path.join(root, 'packages', 'right', 'maps');
+    fs.mkdirSync(left, { recursive: true });
+    fs.mkdirSync(right, { recursive: true });
+    fs.writeFileSync(path.join(root, 'packages', 'left', STYLEPROOF_CONFIG_FILE), '{}');
+    fs.writeFileSync(path.join(root, 'packages', 'right', STYLEPROOF_CONFIG_FILE), '{}');
+    assert.throws(() => resolveStyleProofConfigRoot([left, right], root), /different styleproof\.config\.json/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfig rejects symlinked config files', () => {
+  const root = mkTmp('styleproof-config-symlink-');
+  try {
+    const target = path.join(root, 'target.json');
+    fs.writeFileSync(target, '{}');
+    fs.symlinkSync(target, path.join(root, STYLEPROOF_CONFIG_FILE));
+    assert.throws(() => loadStyleProofConfig(root), /regular file|symbolic[- ]link|nofollow/i);
+  } finally {
+    rmTmp(root);
+  }
 });

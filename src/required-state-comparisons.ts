@@ -47,6 +47,28 @@ export class RequiredStateComparisonError extends Error {
 
 const OPAQUE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const MAX_REQUIREMENTS = 256;
+const PUBLIC_PROSE = /^[\x20-\x7E]+$/;
+const MARKDOWN_OR_HTML = /[<>`*_{}]|\[|\]/;
+const CREDENTIAL_MARKER =
+  /(?:api[_-]?key|authorization|bearer|client[_-]?secret|password|private[_-]?key|secret|token)/i;
+const TOKEN_LIKE_RUN = /[A-Za-z0-9_-]{32,}/;
+
+function safePublicReason(value: string, label: string): string {
+  if (!PUBLIC_PROSE.test(value) || MARKDOWN_OR_HTML.test(value)) {
+    throw new RequiredStateComparisonError(`${label} must be plain printable prose without Markdown or HTML syntax`);
+  }
+  if (CREDENTIAL_MARKER.test(value) || TOKEN_LIKE_RUN.test(value)) {
+    throw new RequiredStateComparisonError(`${label} must not contain credential markers or token-like values`);
+  }
+  return value;
+}
+
+function safePublicOwner(value: string, label: string): string {
+  if (CREDENTIAL_MARKER.test(value) || TOKEN_LIKE_RUN.test(value)) {
+    throw new RequiredStateComparisonError(`${label} must be a low-entropy team or component slug`);
+  }
+  return value;
+}
 
 function descriptorsOf(value: unknown, label: string): PropertyDescriptorMap {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -118,7 +140,11 @@ export function parseRequiredStateComparisons(value: unknown): RequiredStateComp
       128,
       true,
     );
-    const reason = boundedString(plainValue(descriptors.reason, `entry ${index}.reason`), `entry ${index}.reason`, 512);
+    safePublicOwner(owner, `entry ${index}.owner`);
+    const reason = safePublicReason(
+      boundedString(plainValue(descriptors.reason, `entry ${index}.reason`), `entry ${index}.reason`, 512),
+      `entry ${index}.reason`,
+    );
     const tuple = `${surface}\0${productState.id}\0${productState.revision}`;
     if (seen.has(tuple))
       throw new RequiredStateComparisonError(`entry ${index} duplicates an earlier state × surface tuple`);

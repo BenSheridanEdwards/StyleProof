@@ -70,7 +70,7 @@ import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
 import { isMapFile } from '../dist/map-store.js';
-import { loadStyleProofConfig } from '../dist/config.js';
+import { loadStyleProofConfig, resolveStyleProofConfigRoot } from '../dist/config.js';
 import { auditRequiredStateComparisons } from '../dist/required-state-comparisons.js';
 
 let requiredStateDeclarations;
@@ -479,6 +479,14 @@ try {
   // Element-path sets per surface, for the shared-chrome tier — same "read while
   // the dirs exist" rule as the ledgers above.
   surfacePaths = surfaceElementPaths(dirA, dirB);
+  try {
+    requiredStateDeclarations =
+      loadStyleProofConfig(resolveStyleProofConfigRoot([dirA, dirB], process.cwd())).requiredStateComparisons ?? [];
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(2);
+  }
+
   // dirA = before/base, dirB = after/head — same order as generateStyleMapReport.
   surfaceKeyOf = mergeSurfaceKeyLookup(dirA, dirB);
   // The baseline's tolerated-failure ledger — same "read while the dirs exist"
