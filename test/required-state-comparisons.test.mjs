@@ -123,6 +123,11 @@ test('required state public metadata rejects controls, markup, credential marker
     { reason: 'See,\\\\server\\share\\private\\proof' },
     { reason: 'See ../../Users/alice/private/proof' },
     { reason: 'Fetch 10.42.0.8 then See,/Users/alice/private/proof with api key abc123' },
+    { reason: 'Endpoint ::1 supplied evidence' },
+    { reason: 'Call +44.7700.900123' },
+    { reason: 'Contact alice@localhost' },
+    { reason: 'Inspect /private' },
+    { reason: 'Call +44.7700.900123; contact alice@localhost; inspect,/private' },
   ]) {
     assert.throws(() => parseRequiredStateComparisons([{ ...requirement, ...patch }]), RequiredStateComparisonError);
   }

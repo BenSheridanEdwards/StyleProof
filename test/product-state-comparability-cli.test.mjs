@@ -626,6 +626,39 @@ test('diff and report reject divergent capture policy roots as usage errors with
   }
 });
 
+test('diff and report reject private receipt metadata before writing public artifacts', () => {
+  const capture = fixture({});
+  const json = path.join(capture.root, 'private-reason.json');
+  const out = path.join(capture.root, 'private-reason-report');
+  const privateReason = 'Call +44.7700.900123; contact alice@localhost; inspect,/private';
+  const declaration = {
+    surface: 'home',
+    productState: { id: 'client', revision: 'v1' },
+    owner: 'ui-platform',
+    reason: privateReason,
+  };
+  try {
+    fs.writeFileSync(
+      path.join(capture.root, 'styleproof.config.json'),
+      JSON.stringify({ requiredStateComparisons: [declaration] }),
+    );
+    for (const invocation of [
+      [DIFF, capture.before, capture.after, '--json', json],
+      [REPORT, capture.before, capture.after, '--out', out],
+    ]) {
+      const result = spawnSync(process.execPath, invocation, { encoding: 'utf8' });
+      assert.equal(result.status, 2, result.stderr || result.stdout);
+      assert.equal(result.stdout, '');
+      assert.match(result.stderr, /must not contain personal data or public locations/);
+      assert.doesNotMatch(result.stderr, /alice|localhost|private|7700/);
+    }
+    assert.equal(fs.existsSync(json), false);
+    assert.equal(fs.existsSync(out), false);
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
 test('an explicitly missing config root is a usage error, never empty policy', () => {
   const root = mkTmp('styleproof-missing-config-root-');
   const capture = fixture({

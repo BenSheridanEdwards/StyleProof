@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { types as utilTypes } from 'node:util';
 
 import { type ProductStateIdentity, validateProductStateIdentity } from './capture.js';
@@ -26,10 +27,17 @@ const CREDENTIAL_MARKER =
 const TOKEN_LIKE_RUN = /[A-Za-z0-9_-]{32,}/;
 const SEGMENTED_TOKEN_LIKE = /[A-Za-z0-9_-]{16,}(?:[.:/=-][A-Za-z0-9_-]{16,})+/;
 const PERSONAL_DATA_LIKE =
-  /(?:[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+|\b\d{3}-\d{2}-\d{4}\b|\b(?:\+?\d[\d ()-]{7,}\d)\b|\b[a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*\b)/i;
+  /(?:[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*|\b\d{3}-\d{2}-\d{4}\b|(?:^|[^a-z0-9])\+?\d[\d ().-]{7,}\d\b|\b[a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*\b)/i;
 const PUBLIC_LOCATION_LIKE =
-  /(?:\b[a-z][a-z0-9+.-]*:(?:\/\/|\\\\)|(?:^|[^a-z0-9])\/(?:[^\s/]+\/)+|(?:^|[^a-z0-9])[a-z]:[\\/]|(?:^|[^a-z0-9])\\\\[^\s\\]+\\|(?:^|[^a-z0-9])(?:\.\.[\\/])+|\b(?:\d{1,3}\.){3}\d{1,3}\b|\b(?:[0-9a-f]{0,4}:){2,}[0-9a-f]{0,4}\b)/i;
+  /(?:\b[a-z][a-z0-9+.-]*:(?:\/\/|\\\\)|(?:^|[^a-z0-9])\/[^\s/]+|(?:^|[^a-z0-9])[a-z]:[\\/]|(?:^|[^a-z0-9])\\\\[^\s\\]+\\|(?:^|[^a-z0-9])(?:\.\.[\\/])+|\b(?:\d{1,3}\.){3}\d{1,3}\b)/i;
 const PUBLIC_OWNER = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+
+function containsIpAddress(value: string): boolean {
+  return value.split(/\s+/).some((word) => {
+    const candidate = word.replace(/^[^0-9a-f:]+|[^0-9a-f:]+$/gi, '');
+    return candidate.length > 0 && isIP(candidate) !== 0;
+  });
+}
 
 function safePublicReason(value: string, label: string): string {
   if (!PUBLIC_PROSE.test(value) || MARKDOWN_OR_HTML.test(value)) {
@@ -38,7 +46,7 @@ function safePublicReason(value: string, label: string): string {
   if (CREDENTIAL_MARKER.test(value) || TOKEN_LIKE_RUN.test(value) || SEGMENTED_TOKEN_LIKE.test(value)) {
     throw new RequiredStateComparisonError(`${label} must not contain credential markers or token-like values`);
   }
-  if (PERSONAL_DATA_LIKE.test(value) || PUBLIC_LOCATION_LIKE.test(value)) {
+  if (PERSONAL_DATA_LIKE.test(value) || PUBLIC_LOCATION_LIKE.test(value) || containsIpAddress(value)) {
     throw new RequiredStateComparisonError(`${label} must not contain personal data or public locations`);
   }
   return value;

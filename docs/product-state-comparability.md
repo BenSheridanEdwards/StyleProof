@@ -58,7 +58,7 @@ Consumers can make one state mandatory on one width-normalized surface in `style
 }
 ```
 
-A requirement is satisfied only when a shared base/head capture carries the exact declared `metadata.surfaceKey` and matching valid product-state identity on both sides. Width suffixes belong to capture keys, not `surface`. Missing surface metadata, wrong surface or revision, one-sided evidence, and existing pairwise comparability failures all block certification. Diff JSON, report JSON, Markdown, Action trust state, and exit code carry the same bounded receipt. This gate is checked-in policy, not a workflow input, so a caller cannot waive it by omitting a flag.
+Public `owner` and `reason` fields are receipt content, so validation rejects markup, personal identifiers, network addresses, filesystem locations, credential markers, and token-like values before any artifact is written. A requirement is satisfied only when a shared base/head capture carries the exact declared `metadata.surfaceKey` and matching valid product-state identity on both sides. Width suffixes belong to capture keys, not `surface`. Missing surface metadata, wrong surface or revision, one-sided evidence, and existing pairwise comparability failures all block certification. Diff JSON, report JSON, Markdown, Action trust state, and exit code carry the same bounded receipt. This gate is checked-in policy, not a workflow input, so a caller cannot waive it by omitting a flag.
 
 `owner` and `reason` are bounded public metadata intended for repair routing. They must not contain secrets or personal data. StyleProof does not inspect application semantics: the consumer must still create the fixture and assert that the claimed state is visibly active before capture.
 
