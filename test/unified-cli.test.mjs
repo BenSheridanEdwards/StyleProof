@@ -9,6 +9,7 @@ import { mkTmp, rmTmp } from './helpers.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const cli = path.join(root, 'bin', 'styleproof.mjs');
+const init = path.join(root, 'bin', 'styleproof-init.mjs');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const pinnedStyleproofInstall = new RegExp(
   `npm install .*styleproof@${manifest.version.replaceAll('.', '\\.')}.*@playwright\\/test`,
@@ -191,6 +192,48 @@ test('styleproof setup uses packageManager to resolve intentionally mixed lockfi
     assert.doesNotMatch(result.stdout, /npm install --save-dev/);
   } finally {
     rmTmp(project);
+  }
+});
+
+test('styleproof init honors a declared pnpm manager over a stale npm lockfile', () => {
+  const project = mkTmp('styleproof-init-declared-manager-');
+  try {
+    fs.writeFileSync(
+      path.join(project, 'package.json'),
+      JSON.stringify({ packageManager: 'pnpm@10.0.0', scripts: { start: 'serve' } }),
+    );
+    fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
+
+    const result = spawnSync(process.execPath, [init], { cwd: project, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    const workflow = fs.readFileSync(path.join(project, '.github/workflows/styleproof.yml'), 'utf8');
+    assert.match(workflow, /pnpm install --frozen-lockfile/);
+    assert.match(workflow, /cache: pnpm/);
+    assert.doesNotMatch(workflow, /npm ci/);
+  } finally {
+    rmTmp(project);
+  }
+});
+
+test('styleproof init rejects unsupported and malformed packageManager declarations', () => {
+  for (const [label, packageManager, expected] of [
+    ['unsupported', 'deno@2.0.0', /unsupported package\.json#packageManager/],
+    ['malformed', { name: 'pnpm' }, /package\.json#packageManager must be a string/],
+  ]) {
+    const project = mkTmp(`styleproof-init-${label}-manager-`);
+    try {
+      fs.writeFileSync(
+        path.join(project, 'package.json'),
+        JSON.stringify({ packageManager, scripts: { start: 'serve' } }),
+      );
+      fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
+      const result = spawnSync(process.execPath, [init], { cwd: project, encoding: 'utf8' });
+      assert.equal(result.status, 2, `${label}\n${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, expected);
+      assert.equal(fs.existsSync(path.join(project, '.github')), false);
+    } finally {
+      rmTmp(project);
+    }
   }
 });
 

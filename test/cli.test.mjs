@@ -16,6 +16,15 @@ const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 const VARIANTS = path.join(here, '..', 'bin', 'styleproof-variants.mjs');
 
+function makeInitProject() {
+  const dir = mkTmp();
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({ name: 'fixture', private: true, scripts: { build: 'build', start: 'serve' } }),
+  );
+  return dir;
+}
+
 function run(script, args) {
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 }
@@ -1052,7 +1061,7 @@ test('report CLI exits 2 on a non-numeric --pad', () => {
 });
 
 test('init scaffolds a dedicated StyleProof Playwright config that serves a PRODUCTION build', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
@@ -1061,7 +1070,7 @@ test('init scaffolds a dedicated StyleProof Playwright config that serves a PROD
     assert.match(config, /webServer:/, 'scaffolds a webServer');
     // The exact command builds + serves a production build (not a dev server) — the
     // comment elsewhere mentions `next dev` as the thing to avoid, so assert the command.
-    assert.match(config, /command: 'npm run build && npm run start'/, 'the webServer serves a production build');
+    assert.match(config, /command: "npm run build && npm run start"/, 'the webServer serves a production build');
     // And it says WHY, so the choice is understood, not cargo-culted.
     assert.match(config, /PRODUCTION build/i);
     assert.match(config, /JIT-compile|timing-variable/i, 'explains why a dev server flakes');
@@ -1069,14 +1078,14 @@ test('init scaffolds a dedicated StyleProof Playwright config that serves a PROD
     assert.match(config, /fullyParallel: true/, 'scaffolds parallel surface capture');
     assert.match(config, /testDir: "\.\/e2e"/, 'scopes Playwright discovery to the StyleProof spec directory');
     assert.match(config, /testMatch: "styleproof\.spec\.ts"/, 'scopes Playwright discovery to the StyleProof spec');
-    assert.match(config, /env: \{ PORT: '3000' \}/, 'passes the configured port to production servers');
+    assert.match(config, /env: \{ PORT: "3000" \}/, 'passes the configured port to production servers');
   } finally {
     rmTmp(dir);
   }
 });
 
 test('init scaffolds a MINIMAL spec — StyleProof owns the settle, so go() is not boilerplate', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
@@ -1096,7 +1105,7 @@ test('init scaffolds a MINIMAL spec — StyleProof owns the settle, so go() is n
 });
 
 test('init scaffolds auto breakpoints — no hardcoded widths, by design', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
@@ -1111,7 +1120,7 @@ test('init scaffolds auto breakpoints — no hardcoded widths, by design', () =>
 });
 
 test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow + pre-push publish hook', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
@@ -1170,7 +1179,7 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
 });
 
 test('init in a git repo does not mutate core.hooksPath', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     spawnSync('git', ['init', '-q'], { cwd: dir });
     spawnSync('git', ['config', 'core.hooksPath', '.husky'], { cwd: dir });

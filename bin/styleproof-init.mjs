@@ -45,6 +45,7 @@ import { discoverComponentFiles } from '../dist/components.js';
 import { validateComponentManifest } from '../dist/component-manifest.js';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit } from '../dist/cli-errors.js';
 import { decodeSpecPathEnv, encodeSpecPath, SPEC_PATH_ENV, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
+import { detectPackageManager } from './package-manager.mjs';
 
 const HELP = `styleproof-init — scaffold a styleproof capture spec
 
@@ -373,17 +374,14 @@ const PACKAGE_MANAGERS = {
   },
 };
 
-function detectPackageManager(root) {
-  if (fs.existsSync(path.join(root, 'bun.lock')) || fs.existsSync(path.join(root, 'bun.lockb'))) {
-    return PACKAGE_MANAGERS.bun;
-  }
-  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) return PACKAGE_MANAGERS.pnpm;
-  if (fs.existsSync(path.join(root, 'yarn.lock'))) return PACKAGE_MANAGERS.yarn;
-  return PACKAGE_MANAGERS.npm;
+let PM;
+try {
+  PM = PACKAGE_MANAGERS[detectPackageManager(process.cwd())];
+} catch (error) {
+  const detail = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`styleproof-init: ${detail}\n`);
+  process.exit(2);
 }
-
-const PM = detectPackageManager(process.cwd());
-
 function readPackageJson(root) {
   try {
     return JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));

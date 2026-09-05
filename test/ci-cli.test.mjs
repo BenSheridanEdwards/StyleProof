@@ -482,7 +482,10 @@ test(
       git(repo, ['config', 'user.email', 'styleproof@example.test']);
       git(repo, ['config', 'user.name', 'StyleProof Test']);
       git(repo, ['remote', 'add', 'origin', remote]);
-      fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+      fs.writeFileSync(
+        path.join(repo, 'package.json'),
+        JSON.stringify({ private: true, scripts: { build: 'build', start: 'serve' } }),
+      );
       fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n.styleproof/\n');
       fs.writeFileSync(path.join(repo, 'app.txt'), 'base-app\n');
       git(repo, ['add', '-A']);
