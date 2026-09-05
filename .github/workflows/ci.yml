@@ -99,14 +99,14 @@ jobs:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium firefox
 
       - name: Browser shard
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: .styleproof/ci/shard.json
           STYLEPROOF_DETERMINISM_RECEIPT: .styleproof/ci/determinism-oracle.json
-        run: npx playwright test --shard=${{ matrix.shard }}/2 --reporter=line,json
+        run: npx playwright test --config=playwright.ci.config.ts --shard=${{ matrix.shard }}/2 --reporter=line,json
 
       - name: Upload browser shard evidence
         if: ${{ !cancelled() }}
@@ -132,7 +132,7 @@ jobs:
       - name: Collect full browser inventory
         run: |
           mkdir -p .styleproof/ci
-          npx playwright test --list --reporter=json > .styleproof/ci/inventory.json
+          npx playwright test --config=playwright.ci.config.ts --list --reporter=json > .styleproof/ci/inventory.json
       - uses: actions/download-artifact@v6
         with:
           pattern: e2e-shard-*
