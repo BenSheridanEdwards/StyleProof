@@ -1332,6 +1332,36 @@ test('styleproof-init --check / --upgrade: machine-owned files track the release
   }
 });
 
+test('styleproof-init --hook: does not require package-manager configuration', () => {
+  for (const fixture of [
+    { name: 'missing package.json', setup: () => {} },
+    {
+      name: 'mixed lockfiles',
+      setup: (root) => {
+        fs.writeFileSync(path.join(root, 'package.json'), '{"private":true}\n');
+        touch(root, 'package-lock.json');
+        touch(root, 'pnpm-lock.yaml');
+      },
+    },
+  ]) {
+    const root = mkNonGitTmp(`styleproof-hook-package-manager-${fixture.name.replaceAll(' ', '-')}-`);
+    try {
+      fixture.setup(root);
+      const result = spawnSync(process.execPath, [INIT, '--hook', '--dir', 'e2e/styleproof.spec.ts'], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+      assert.equal(result.status, 0, `${fixture.name}: ${result.stderr}`);
+      assert.match(result.stdout, /created \.githooks\/pre-push/);
+      assert.match(readFile(root, '.githooks/pre-push'), /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m);
+      assert.equal(fs.existsSync(path.join(root, 'package.json')), fixture.name === 'mixed lockfiles');
+      assert.equal(fs.existsSync(path.join(root, '.github')), false);
+    } finally {
+      rmTmp(root);
+    }
+  }
+});
+
 test('styleproof-init --hook: refreshes ONLY the pre-push hook, overwriting a stale copy', () => {
   const root = mkTmp();
   try {

@@ -3,11 +3,12 @@ import path from 'node:path';
 
 const SUPPORTED_PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
 
-export function detectPackageManager(root) {
+export function detectPackageManager(root, { allowMissingManifest = false } = {}) {
   let manifest;
   try {
     manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   } catch (error) {
+    if (allowMissingManifest && error && typeof error === 'object' && error.code === 'ENOENT') return 'npm';
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`could not read package.json: ${detail}`, { cause: error });
   }
