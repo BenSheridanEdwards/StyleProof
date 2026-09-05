@@ -2,12 +2,12 @@
 
 ⚠️ **Product-state comparison** — unproven on 3 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
-🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.
+🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
 
 **3 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
-## 🆕 New pages, states, or surfaces — review first
+## One-sided pages, states, or surfaces — review first
 
 ### `pricing@900` · new surface <!-- styleproof-new -->
 
@@ -17,7 +17,7 @@ _pricing @ 900_
 
 <sub>after · pricing @ 900</sub>
 
-_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._
+_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
 
 ## Element-level changes
 

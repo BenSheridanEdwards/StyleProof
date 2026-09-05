@@ -16,9 +16,11 @@ import {
 } from './capture.js';
 import {
   isMapFile,
+  baselineFailureReceipts,
   readBaselineProvenance,
   readMapManifest,
   surfaceMissingMatchesBaselineFailure,
+  type BaselineFailureReceipt,
   type BaselineProvenance,
   type SurfaceCaptureFailure,
 } from './map-store.js';
@@ -164,8 +166,10 @@ export type ReportComparison = ComparisonTruth & ComparabilitySummary;
 export type ReportResult = {
   /** Surfaces carrying a reviewable change (excludes new, one-sided surfaces). */
   changedSurfaces: number;
-  /** New surfaces present on only one side, with no baseline to compare. */
+  /** Genuinely new head surfaces with no baseline to compare. */
   newSurfaces: number;
+  /** Every one-sided surface: new, removed, or baseline repair debt. */
+  oneSidedSurfaces: number;
   totalFindings: number;
   /** Advisory content-layer changes rendered (0 unless includeContent + captured text). Never gates. */
   contentChanges: number;
@@ -179,6 +183,10 @@ export type ReportResult = {
   comparability: SurfaceComparability[];
   /** Presentation-vs-certification coherence. Any false value must fail closed. */
   reportConsistency: ReportConsistency;
+  /** Public baseline capture failures. Raw exception details are deliberately excluded. */
+  baselineFailures: BaselineFailureReceipt[];
+  /** True whenever the baseline receipt records one or more failed captures. */
+  partialBaseline: boolean;
   /**
    * The head bundle's confidence badge (#399): completeness + per-status counts,
    * separate from the visual verdict. `completeness: 'unknown'` on bundles from
@@ -1559,13 +1567,22 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
 const SURFACE_SCOPE_GLOSSARY =
   '_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._';
 
-function baselineFailureSummaryLines(failures: SurfaceCaptureFailure[]): string[] {
+function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]): string[] {
   if (failures.length === 0) return [];
-  const md = [
-    `⚠️ **${failures.length} baseline capture failure(s)** — these surfaces failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely as if they were greenfield new surfaces. Failure details remain in the local capture manifest and are not echoed from untrusted artifacts.`,
+  return [
+    `⚠️ **${failures.length} baseline capture failure(s)**: these captures failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely. Raw exception details stay private.`,
+  ];
+}
+
+function baselineFailureDetailLines(failures: BaselineFailureReceipt[]): string[] {
+  if (failures.length === 0) return [];
+  return [
+    '',
+    '### Baseline capture failure receipt',
+    '',
+    ...failures.map((failure) => `- \`${failure.key}\` · \`${failure.reason}\``),
     '',
   ];
-  return md;
 }
 
 function missingSurfaceSummaryLines(
@@ -1593,7 +1610,7 @@ function missingSurfaceSummaryLines(
   if (greenfieldMissing.length > 0) {
     md.push(
       `🆕 **${greenfieldMissing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(greenfieldMissing)}. ` +
-        `Approve them before they become the baseline.`,
+        `These are reviewable first-adoption surfaces; approve them before they become the baseline.`,
     );
   }
   return md;
@@ -1644,7 +1661,7 @@ function changedSurfaceSummaryLines(
 function reportConsistencyFailureSummaryLines(
   reportConsistency: ReportConsistency,
   rawCounts: DiffCounts | undefined,
-  baselineSurfaceFailures: SurfaceCaptureFailure[],
+  baselineFailures: BaselineFailureReceipt[],
 ): string[] | undefined {
   if (reportConsistency.ok || !rawCounts) return undefined;
 
@@ -1661,8 +1678,8 @@ function reportConsistencyFailureSummaryLines(
     '',
     remediation,
   ];
-  if (baselineSurfaceFailures.length > 0) {
-    md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
+  if (baselineFailures.length > 0) {
+    md.push('', ...baselineFailureSummaryLines(baselineFailures));
   }
   return md;
 }
@@ -1678,6 +1695,7 @@ function summaryLines(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
+  baselineFailures: BaselineFailureReceipt[];
   confidenceBlocked: boolean;
   comparisonBlocked: boolean;
 }): string[] {
@@ -1691,6 +1709,7 @@ function summaryLines(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    baselineFailures,
     confidenceBlocked,
     comparisonBlocked,
   } = args;
@@ -1704,7 +1723,7 @@ function summaryLines(args: {
     surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
   if (changeGroups.length === 0 && missing.length === 0) {
-    const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineSurfaceFailures);
+    const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineFailures);
     if (failureSummary) return failureSummary;
     if (baselineSurfaceFailures.length === 0) {
       const scopedSummary = contentEvaluated
@@ -1720,7 +1739,7 @@ function summaryLines(args: {
     }
   }
   const md = [
-    ...baselineFailureSummaryLines(baselineSurfaceFailures),
+    ...baselineFailureSummaryLines(baselineFailures),
     ...missingSurfaceSummaryLines(missing, greenfieldMissing, brokenBaseMissing),
   ];
   md.push(...changedSurfaceSummaryLines(changeGroups, shown, changedScope, md.length > 0));
@@ -1742,6 +1761,7 @@ function reportHeadline(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
+  baselineFailures: BaselineFailureReceipt[];
   confidenceBlocked: boolean;
   comparisonBlocked: boolean;
 }): string[] {
@@ -1757,6 +1777,7 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    baselineFailures,
     confidenceBlocked,
     comparisonBlocked,
   } = args;
@@ -1770,6 +1791,7 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
+    baselineFailures,
     confidenceBlocked,
     comparisonBlocked,
   });
@@ -2247,6 +2269,7 @@ function renderNewSurface(
   p: PreparedSurface,
   ctx: RenderCtx,
   cropSeq: number,
+  baselineStatus: 'new' | 'capture-failed' | 'removed',
 ): { md: string[]; json: Record<string, unknown>; cropSeq: number } {
   const { img, outDir, maxHeight } = ctx;
   const side = p.sd.missing === 'before' ? 'after' : 'before';
@@ -2257,16 +2280,25 @@ function renderNewSurface(
   // captured only on base (a REMOVED surface). Rendering a removal under a "new
   // surface 🆕" heading invited reviewers to approve a feature going invisible
   // believing it was an addition.
-  const isRemoved = p.sd.missing === 'after';
+  const isRemoved = baselineStatus === 'removed';
+  const isNew = baselineStatus === 'new';
   const md: string[] = [
     '',
     isRemoved
       ? `### \`${safeKey(p.sd.surface)}\` · REMOVED surface 🗑️`
-      : `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`,
+      : isNew
+        ? `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`
+        : `### \`${safeKey(p.sd.surface)}\` · baseline repair debt ⚠️`,
     '',
     `_${formatSurfaceWithContext(p.sd.surface, map)}_`,
   ];
-  const json: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: !isRemoved, isRemoved };
+  const json: Record<string, unknown> = {
+    surface: p.sd.surface,
+    missing: p.sd.missing,
+    isNew,
+    isRemoved,
+    baselineStatus,
+  };
   if (png) {
     cropSeq++;
     const h = Math.min(maxHeight, png.height, map.viewport?.height ?? png.height);
@@ -2275,7 +2307,7 @@ function renderNewSurface(
     writePng(path.join(outDir, `${stem}.png`), crop);
     md.push(
       '',
-      `![${isRemoved ? 'removed surface' : 'new surface'} — ${side}](${img(`${stem}.png`)})`,
+      `![${isRemoved ? 'removed surface' : isNew ? 'new surface' : 'baseline repair debt'} — ${side}](${img(`${stem}.png`)})`,
       '',
       `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top viewport of page)' : ''}</sub>`,
     );
@@ -2289,8 +2321,10 @@ function renderNewSurface(
   md.push(
     '',
     isRemoved
-      ? `_Present in the baseline but not captured on head — the surface stopped rendering (or its capture key changed). This is a **removal** to review, not an addition; approving accepts the disappearance._`
-      : `_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._`,
+      ? `_Present in the baseline but not captured on head. This is a **removal** to review, not an addition; approving accepts the disappearance._`
+      : isNew
+        ? `_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._`
+        : `_The matching baseline capture failed. This is **baseline repair debt**, not first adoption; repair the base capture and rerun._`,
   );
   return { md, json, cropSeq };
 }
@@ -2431,6 +2465,7 @@ function writeReportArtifacts(
   reportConsistency: ReportConsistency,
   content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
+  baselineFailures: BaselineFailureReceipt[],
   baselineProvenance: BaselineProvenance | null = null,
   confidence: ConfidenceSummary | null = null,
 ): { reportMdPath: string; reportJsonPath: string } {
@@ -2447,6 +2482,8 @@ function writeReportArtifacts(
         comparison,
         comparability,
         reportConsistency,
+        baselineFailures,
+        partialBaseline: baselineFailures.length > 0,
         content,
         surfaces: surfacesJson,
         // Additive (#399): the completeness badge, machine-readable — a consumer
@@ -2585,6 +2622,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
   const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
+  const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures);
   const comparison: ReportComparison = {
     ...comparisonForReport(rawComparison, includeNoise, preparedCertified.length - missing.length),
     ...comparabilitySummary,
@@ -2639,6 +2677,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       reportConsistency,
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
+      baselineFailures,
       confidenceBlocked: confidence.counts.inaccessible > 0,
       comparisonBlocked: comparison.blocksCertification,
     }),
@@ -2672,14 +2711,34 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const totalSurfaceBases = countCapturedSurfaceBases(captureKeysIn(afterDir), surfaceKeyOf);
   const chromeSet = new Set(chrome);
   let chromeHeaderEmitted = false;
-  if (missing.length > 0) {
-    md.push('', '## 🆕 New pages, states, or surfaces — review first');
+  if (baselineFailures.length > 0) {
+    emitDetail(
+      baselineFailureDetailLines(baselineFailures),
+      `- ${baselineFailures.length} baseline capture failure receipt(s) summarized here; full bounded identities are in report.json`,
+    );
   }
+  if (missing.length > 0) {
+    md.push('', '## One-sided pages, states, or surfaces — review first');
+  }
+  let greenfieldNewSurfaces = 0;
   for (const p of missing) {
-    const r = renderNewSurface(p, ctx, cropSeq);
+    const baselineStatus =
+      p.sd.missing === 'after'
+        ? 'removed'
+        : surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures)
+          ? 'capture-failed'
+          : 'new';
+    if (baselineStatus === 'new') greenfieldNewSurfaces++;
+    const r = renderNewSurface(p, ctx, cropSeq, baselineStatus);
     json.push(r.json);
     cropSeq = r.cropSeq;
-    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · new surface`);
+    const summaryLabel =
+      baselineStatus === 'removed'
+        ? 'removed surface'
+        : baselineStatus === 'capture-failed'
+          ? 'baseline repair debt'
+          : 'new surface';
+    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · ${summaryLabel}`);
   }
   if (orderedGroups.length > 0) {
     md.push('', '## Element-level changes');
@@ -2708,17 +2767,21 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reportConsistency,
     { evaluated: includeContent, changes: contentSection.count, advisory: true },
     json,
+    baselineFailures,
     baselineProvenance,
     confidence,
   );
   return {
     changedSurfaces: preparedCertified.length - missing.length,
-    newSurfaces: missing.length,
+    newSurfaces: greenfieldNewSurfaces,
+    oneSidedSurfaces: missing.length,
     totalFindings,
     contentChanges: contentSection.count,
     comparison,
     comparability,
     reportConsistency,
+    baselineFailures,
+    partialBaseline: baselineFailures.length > 0,
     confidence,
     reportMdPath,
     reportJsonPath,
