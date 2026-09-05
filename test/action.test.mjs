@@ -234,6 +234,40 @@ test('production diff and report receipts pass through the exact Action merge pr
     assert.equal(firstAdoptionMerged.sourceBinding.before.result, 'no-capture');
     assert.equal(firstAdoptionMerged.comparison.status, 'not-required');
 
+    const partialReport = structuredClone(firstAdoptionReport);
+    const partialDiff = structuredClone(firstAdoptionDiff);
+    const partialSurface = partialReport.surfaces[0];
+    partialSurface.isNew = false;
+    partialSurface.baselineStatus = 'capture-failed';
+    partialReport.baselineFailures = [
+      { key: partialSurface.surface.replace(/@[^@]+$/, '@auto'), reason: 'capture_failed' },
+    ];
+    partialReport.partialBaseline = true;
+    partialDiff.baselineFailures = structuredClone(partialReport.baselineFailures);
+    partialDiff.partialBaseline = true;
+    partialDiff.explainedMissingBaselineSurfaces = [partialSurface.surface];
+    fs.writeFileSync(reportJsonPath, JSON.stringify(partialReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(partialDiff));
+    const honestPartial = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(honestPartial.status, 0, honestPartial.stderr || honestPartial.stdout);
+
+    const contradictoryPartial = structuredClone(partialReport);
+    contradictoryPartial.surfaces[0].isNew = true;
+    contradictoryPartial.surfaces[0].baselineStatus = 'new';
+    fs.writeFileSync(reportJsonPath, JSON.stringify(contradictoryPartial));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(partialDiff));
+    const rejectedPartial = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(rejectedPartial.status, 1, rejectedPartial.stderr || rejectedPartial.stdout);
+    assert.match(rejectedPartial.stderr, /surface classification disagrees with the validated diff/i);
+
     const forgedNoCapturePairedReport = structuredClone(honestReport);
     const forgedNoCapturePairedDiff = structuredClone(honestDiff);
     for (const receipt of [forgedNoCapturePairedReport, forgedNoCapturePairedDiff]) {

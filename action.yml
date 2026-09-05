@@ -336,6 +336,46 @@ runs:
             diff.partialBaseline !== generated.partialBaseline) {
           throw new Error('StyleProof baseline-failure trust state disagrees with its receipts');
         }
+        const boundedSurfaceKey = (value) =>
+          typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value);
+        const explainedMissing = diff.explainedMissingBaselineSurfaces;
+        if (!Array.isArray(explainedMissing) || explainedMissing.some((key) => !boundedSurfaceKey(key)) ||
+            new Set(explainedMissing).size !== explainedMissing.length || !Array.isArray(diff.surfaces) ||
+            !Array.isArray(generated.surfaces)) {
+          throw new Error('StyleProof missing-baseline surface receipts are missing or malformed');
+        }
+        const diffMissing = diff.surfaces.filter((entry) => entry && (entry.missing === 'before' || entry.missing === 'after'));
+        const reportMissing = generated.surfaces.filter((entry) => entry && Object.hasOwn(entry, 'missing'));
+        const diffMissingBySurface = new Map();
+        for (const entry of diffMissing) {
+          if (!boundedSurfaceKey(entry.surface) || diffMissingBySurface.has(entry.surface)) {
+            throw new Error('StyleProof missing-baseline surface receipts are missing or malformed');
+          }
+          diffMissingBySurface.set(entry.surface, entry.missing);
+        }
+        const reportMissingSurfaces = new Set();
+        for (const entry of reportMissing) {
+          const allowedKeys = Object.hasOwn(entry, 'image')
+            ? ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus', 'image']
+            : ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus'];
+          if (!exactKeys(entry, allowedKeys) || !boundedSurfaceKey(entry.surface) ||
+              reportMissingSurfaces.has(entry.surface) || diffMissingBySurface.get(entry.surface) !== entry.missing ||
+              (Object.hasOwn(entry, 'image') && (typeof entry.image !== 'string' || entry.image.length === 0 || entry.image.length > 512))) {
+            throw new Error('StyleProof missing-baseline surface receipts are missing or malformed');
+          }
+          reportMissingSurfaces.add(entry.surface);
+          const explained = explainedMissing.includes(entry.surface);
+          const expectedStatus = entry.missing === 'after' ? 'removed' : explained ? 'capture-failed' : 'new';
+          if (entry.baselineStatus !== expectedStatus || entry.isNew !== (expectedStatus === 'new') ||
+              entry.isRemoved !== (expectedStatus === 'removed')) {
+            throw new Error('StyleProof missing-baseline surface classification disagrees with the validated diff');
+          }
+        }
+        if (reportMissingSurfaces.size !== diffMissingBySurface.size ||
+            [...diffMissingBySurface.keys()].some((surface) => !reportMissingSurfaces.has(surface)) ||
+            explainedMissing.some((surface) => diffMissingBySurface.get(surface) !== 'before')) {
+          throw new Error('StyleProof missing-baseline surface receipts disagree');
+        }
         if (!generated.reportConsistency || typeof generated.reportConsistency.ok !== 'boolean') {
           throw new Error('styleproof-report/report.json has no valid reportConsistency verdict');
         }
