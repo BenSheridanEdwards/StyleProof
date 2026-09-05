@@ -378,11 +378,11 @@ test('one-sided crops ignore unrelated elements occupying added paths and ancest
   const cropNames = fs.readdirSync(cropDir);
   const names = cropNames.filter((name) => name.endsWith('-annotated.png'));
   const composites = cropNames.filter((name) => name.endsWith('-composite.png'));
-  assert.equal(names.length, 2);
-  assert.equal(composites.length, 2);
+  assert.equal(names.length, 1, 'a newly added subtree should produce one parent-level proof');
+  assert.equal(composites.length, 1);
   assert.deepEqual(
     composites.map((name) => PNG.sync.read(fs.readFileSync(path.join(cropDir, name))).width),
-    [708, 708],
+    [708],
   );
   for (const name of names) {
     const png = PNG.sync.read(fs.readFileSync(path.join(cropDir, name)));
@@ -416,6 +416,13 @@ test('one-sided annotations preserve a removed element displaced by a shifted si
           text: 'Removed',
           rect: [330, 65, 70, 20],
         },
+        'body > div:nth-child(1) > button:nth-child(1)': {
+          tag: 'button',
+          cls: 'removed__button',
+          ownTextLength: 6,
+          text: 'Nested',
+          rect: [350, 67, 30, 16],
+        },
         'body > div:nth-child(2)': {
           tag: 'div',
           cls: 'toolbar',
@@ -446,7 +453,7 @@ test('one-sided annotations preserve a removed element displaced by a shifted si
     zoomBelow: 0,
   });
 
-  assert.equal(result.contentChanges, 1);
+  assert.equal(result.contentChanges, 1, 'a removed subtree should produce one parent-level proof');
   const cropDir = path.join(dirs.outDir, 'crops');
   const names = fs.readdirSync(cropDir).filter((name) => name.endsWith('-annotated.png'));
   assert.equal(names.length, 1);

@@ -1269,6 +1269,22 @@ function contentCropLines(
   return lines;
 }
 
+function withoutRedundantStructuralDescendants(changes: ContentChange[]): ContentChange[] {
+  const structural = changes.filter(
+    (change): change is Extract<ContentChange, { kind: 'structure' }> => change.kind === 'structure',
+  );
+  return changes.filter((change) => {
+    if (change.kind !== 'structure' || change.change === 'retagged') return true;
+    return !structural.some(
+      (ancestor) =>
+        ancestor !== change &&
+        ancestor.change === change.change &&
+        ancestor.change !== 'retagged' &&
+        isUnder(change.path, [ancestor.path]),
+    );
+  });
+}
+
 function reportContentChanges(mapA: StyleMap, mapB: StyleMap): ContentChange[] {
   const changes = diffContentMaps(mapA, mapB);
   const comparableBase = correspondContentShiftedPaths(mapA, mapB);
@@ -1282,7 +1298,9 @@ function reportContentChanges(mapA: StyleMap, mapB: StyleMap): ContentChange[] {
       path: elementPath,
       cls: entry.cls,
     }));
-  return [...displacedRemovals, ...changes].sort((left, right) => left.path.localeCompare(right.path));
+  return withoutRedundantStructuralDescendants([...displacedRemovals, ...changes]).sort((left, right) =>
+    left.path.localeCompare(right.path),
+  );
 }
 
 function reportContentSurfaces(ctx: ContentCtx): { surface: string; changes: ContentChange[] }[] {

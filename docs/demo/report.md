@@ -7,7 +7,7 @@
 **3 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
-📝 _4 advisory content change(s) below — they don't affect the check._
+📝 _3 advisory content change(s) below — they don't affect the check._
 
 ## One-sided pages, states, or surfaces — review first
 
@@ -112,7 +112,7 @@ Style:
 
 ## 📝 Content and structure changes (advisory)
 
-_4 content/structure change(s). **Advisory only** — content and DOM structure are not part of the computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are visible when content comparison is enabled._
+_3 content/structure change(s). **Advisory only** — content and DOM structure are not part of the computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are visible when content comparison is enabled._
 
 ### `duplicate-insertion@900` · 1 content/structure change(s)
 
@@ -147,7 +147,7 @@ _4 content/structure change(s). **Advisory only** — content and DOM structure 
 
 <sub>🔬 magnified 2×: content change too small to read at 1:1</sub>
 
-### `sibling-insertion@900` · 2 content/structure change(s)
+### `sibling-insertion@900` · 1 content/structure change(s)
 
 **`div.scope-switch`**
 
@@ -158,17 +158,5 @@ _4 content/structure change(s). **Advisory only** — content and DOM structure 
 <sub>◀ before  ·  after ▶ — sibling-insertion@900</sub>
 
 ![highlighted before ◀ │ ▶ after](crops/sibling-insertion-900-content-3-annotated.png)
-
-<sub>🔍 magenta boxes mark the changed content</sub>
-
-**`button.scope-option`**
-
-- element added
-
-![before ◀ │ ▶ after](crops/sibling-insertion-900-content-4-composite.png)
-
-<sub>◀ before  ·  after ▶ — sibling-insertion@900</sub>
-
-![highlighted before ◀ │ ▶ after](crops/sibling-insertion-900-content-4-annotated.png)
 
 <sub>🔍 magenta boxes mark the changed content</sub>
