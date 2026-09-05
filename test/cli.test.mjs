@@ -1436,22 +1436,45 @@ test('diff CLI surfaces the excluded-volatile count in output and --json', () =>
 
 // BOTH sides skipping the forced-state layer compares {} vs {} — certifying nothing.
 // The gate must say the layer is uncertified instead of "every state matches".
-test('diff CLI warns when the forced-state layer was skipped on both sides', () => {
-  const root = mkTmp();
-  const A = path.join(root, 'a');
-  const B = path.join(root, 'b');
-  const m = makeMap({ elements: { body: { tag: 'body' } } });
-  m.statesSkipped = true;
-  writeCapture(A, 'home@1280', m, null);
-  writeCapture(B, 'home@1280', m, null);
-  writeManifest(A, 'base-sha', 'same-env-key');
-  writeManifest(B, 'head-sha', 'same-env-key');
-  const jsonOut = path.join(root, 'out.json');
-  const r = run(DIFF, [A, B, '--json', jsonOut]);
-  assert.match(r.stdout, /forced-state layer uncertified on 1 surface/);
-  const j = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
-  assert.equal(j.statesUncertified, 1);
-  rmTmp(root);
+test('source-bound diff CLI fails certification when either forced-state layer is incomplete', () => {
+  const beforeSha = 'a'.repeat(40);
+  const afterSha = 'b'.repeat(40);
+  for (const [label, beforeEvidence, afterEvidence, expectedStatus, expectedUncertified] of [
+    ['both skipped', { statesSkipped: true }, { statesSkipped: true }, 1, 1],
+    ['before skipped', { statesSkipped: true }, {}, 1, 1],
+    ['after skipped', {}, { statesSkipped: true }, 1, 1],
+    ['captureStates false', { statesCaptured: false }, { statesCaptured: false }, 1, 1],
+    ['neither skipped', {}, {}, 0, 0],
+  ]) {
+    const root = mkTmp();
+    const A = path.join(root, 'a');
+    const B = path.join(root, 'b');
+    const map = (stateEvidence) => ({
+      ...makeMap({ elements: { body: { tag: 'body' } } }),
+      ...stateEvidence,
+    });
+    writeCapture(A, 'home@1280', map(beforeEvidence), null);
+    writeCapture(B, 'home@1280', map(afterEvidence), null);
+    writeManifest(A, beforeSha, 'same-env-key');
+    writeManifest(B, afterSha, 'same-env-key');
+    const jsonOut = path.join(root, 'out.json');
+    const r = run(DIFF, [
+      A,
+      B,
+      '--json',
+      jsonOut,
+      '--expected-before-sha',
+      beforeSha,
+      '--expected-after-sha',
+      afterSha,
+    ]);
+    assert.equal(r.status, expectedStatus, `${label}: ${r.stderr}\n${r.stdout}`);
+    const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+    assert.equal(receipt.statesUncertified, expectedUncertified, label);
+    assert.equal(receipt.certifiesFully, expectedUncertified === 0, label);
+    if (expectedUncertified > 0) assert.match(r.stdout, /forced-state layer uncertified on 1 surface/, label);
+    rmTmp(root);
+  }
 });
 
 // ── report / verdict consistency (raw derived-only vs reviewable report) ─────

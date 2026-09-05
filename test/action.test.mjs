@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import test from 'node:test';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { buildConfidenceLedger, writeConfidenceLedger } from '../dist/confidence-ledger.js';
@@ -88,9 +89,32 @@ const core = {
   setOutput(name, value) { outputs[name] = String(value); },
   info() {},
 };
+process.env.GITHUB_ACTION_PATH = ${JSON.stringify(path.join(here, '..'))};
+(async () => {
 ${script}
 require('fs').writeFileSync(process.env.STYLEPROOF_VERDICT_OUTPUT, JSON.stringify(outputs));
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
 `;
+}
+
+function certifyingVerdictReceipt(overrides = {}) {
+  return {
+    sourceBinding: { status: 'bound' },
+    coverage: { basis: 'complete' },
+    determinism: { status: 'proven' },
+    confidence: { counts: { inaccessible: 0 } },
+    comparison: { blocksCertification: false },
+    reportConsistency: { ok: true, reason: 'aligned' },
+    statesUncertified: 0,
+    reviewableCounts: { dom: 0, style: 0, state: 0 },
+    surfaces: [],
+    inventory: { added: [], removed: [], unacknowledged: [], staleAcknowledgements: [] },
+    dataResidue: { blocking: 0, unacknowledged: [] },
+    ...overrides,
+  };
 }
 
 test('production diff and report receipts pass through the exact Action merge program', () => {
@@ -903,62 +927,121 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /steps\.certfail\.outcome }}' = 'failure'/);
 });
 
-test('composite action classifies every non-certifying coverage/determinism basis as CERTIFICATION_FAILED', () => {
+test('composite action delegates closed-set certification policy to the shared typed verdict', () => {
   const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
   assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
-  assert.match(verdict[0], /diff\.coverage\?\.basis !== 'complete'/);
-  assert.match(verdict[0], /diff\.determinism\?\.status !== 'proven'/);
-  assert.doesNotMatch(verdict[0], /basis === 'incomplete'/);
-  assert.doesNotMatch(verdict[0], /status === 'unproven'/);
+  assert.match(verdict[0], /dist\/verdict\.js/);
+  assert.match(verdict[0], /classifyStyleProofVerdict\(diff/);
+  for (const receipt of [
+    certifyingVerdictReceipt({ coverage: { basis: 'incomplete' } }),
+    certifyingVerdictReceipt({ coverage: { basis: 'unasserted' } }),
+    certifyingVerdictReceipt({ determinism: { status: 'unproven' } }),
+    certifyingVerdictReceipt({ determinism: { status: 'unknown' } }),
+  ]) {
+    assert.equal(
+      classifyStyleProofVerdict(receipt, {
+        gateInventoryRemovals: true,
+        baseCaptureFailed: false,
+        changed: true,
+      }).state,
+      'CERTIFICATION_FAILED',
+    );
+  }
+});
+
+test('composite action treats incomplete forced-state evidence as unapprovable certification failure', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-state-uncertified-'));
+  try {
+    const diff = {
+      sourceBinding: { status: 'bound' },
+      coverage: { basis: 'complete' },
+      determinism: { status: 'proven' },
+      confidence: { counts: { inaccessible: 0 } },
+      comparison: { blocksCertification: false },
+      reportConsistency: { ok: true, reason: 'aligned' },
+      statesUncertified: 1,
+      reviewableCounts: { dom: 0, style: 0, state: 1 },
+      surfaces: [{ surface: 'home@1280', findings: [{ kind: 'state' }] }],
+      inventory: { added: [], removed: [], unacknowledged: [], staleAcknowledgements: [] },
+      dataResidue: { blocking: 0, unacknowledged: [] },
+    };
+    fs.writeFileSync(path.join(root, 'styleproof-diff.json'), JSON.stringify(diff));
+    fs.mkdirSync(path.join(root, 'styleproof-report'));
+    fs.writeFileSync(path.join(root, 'styleproof-report', 'report.json'), JSON.stringify(diff));
+    const script = path.join(root, 'verdict.cjs');
+    const output = path.join(root, 'verdict.json');
+    fs.writeFileSync(script, actionVerdictScript({ baseCaptureFailed: false, changed: true }));
+    const verdict = spawnSync(process.execPath, [script], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_VERDICT_OUTPUT: output },
+    });
+    assert.equal(verdict.status, 0, verdict.stderr || verdict.stdout);
+    const receipt = JSON.parse(fs.readFileSync(output, 'utf8'));
+    assert.equal(receipt.state, 'CERTIFICATION_FAILED');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('composite action treats inaccessible confidence as CERTIFICATION_FAILED', () => {
   const report = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
   assert.ok(report, 'report step should merge confidence into the machine diff payload');
   assert.match(report[0], /diff\.confidence = generated\.confidence/);
-  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
-  assert.ok(verdict);
-  assert.match(verdict[0], /diff\.confidence\?\.counts\?\.inaccessible/);
-  assert.match(verdict[0], /CERTIFICATION_FAILED/);
+  assert.equal(
+    classifyStyleProofVerdict(certifyingVerdictReceipt({ confidence: { counts: { inaccessible: 1 } } }), {
+      gateInventoryRemovals: true,
+      baseCaptureFailed: false,
+      changed: true,
+    }).state,
+    'CERTIFICATION_FAILED',
+  );
 });
 
 test('composite action carries no release-confidence layer (#475)', () => {
-  // The layer produced one Markdown line and one JSON sidecar that this repository
-  // then re-parsed. Deleting it must leave no vestigial wiring in the action.
   assert.doesNotMatch(actionYml, /releaseConfidence|release-confidence|manifest-digest/);
-  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
-  assert.ok(verdict);
-  // The certification gate keeps every axis that reads real capture evidence.
-  assert.match(verdict[0], /diff\.sourceBinding\?\.status !== 'bound'/);
-  assert.match(verdict[0], /diff\.coverage\?\.basis !== 'complete'/);
-  assert.match(verdict[0], /diff\.determinism\?\.status !== 'proven'/);
-  assert.match(verdict[0], /diff\.confidence\?\.counts\?\.inaccessible/);
-  assert.match(verdict[0], /diff\.comparison\?\.blocksCertification === true/);
-  assert.match(verdict[0], /CERTIFICATION_FAILED/);
+  assert.equal(assessCertificationEvidence(certifyingVerdictReceipt()).certifies, true);
+  for (const receipt of [
+    certifyingVerdictReceipt({ sourceBinding: { status: 'unbound' } }),
+    certifyingVerdictReceipt({ coverage: { basis: 'unasserted' } }),
+    certifyingVerdictReceipt({ determinism: { status: 'unknown' } }),
+    certifyingVerdictReceipt({ confidence: { counts: { inaccessible: 1 } } }),
+    certifyingVerdictReceipt({ comparison: { blocksCertification: true } }),
+    certifyingVerdictReceipt({ statesUncertified: undefined }),
+    certifyingVerdictReceipt({ statesUncertified: '0' }),
+  ]) {
+    assert.equal(assessCertificationEvidence(receipt).certifies, false);
+  }
 });
 
 test('composite action exposes one precedence-ordered machine-readable trust verdict', () => {
   assert.match(actionYml, /trust-state:[\s\S]*?steps\.trust\.outputs\.state/);
   assert.match(actionYml, /data-residue-keys:[\s\S]*?steps\.verdict\.outputs\.data-residue-keys/);
-  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
-  assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
-  const residue = verdict[0].indexOf("state = 'DATA_RESIDUE_UNACKNOWLEDGED'");
-  const inventory = verdict[0].indexOf("state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED'");
-  const certification = verdict[0].indexOf("state = 'CERTIFICATION_FAILED'");
-  const partial = verdict[0].indexOf("state = 'PARTIAL_BASELINE'");
-  const degraded = verdict[0].indexOf("state = 'DEGRADED_BASELINE'");
-  const styleReview = verdict[0].indexOf("state = 'STYLE_REVIEW_REQUIRED'");
-  assert.ok(
-    residue > 0 &&
-      inventory > residue &&
-      degraded > inventory &&
-      certification > degraded &&
-      partial > certification &&
-      styleReview > partial,
+  const options = { gateInventoryRemovals: true, baseCaptureFailed: false, changed: true };
+  assert.equal(
+    classifyStyleProofVerdict(certifyingVerdictReceipt({ dataResidue: { blocking: 1 } }), options).state,
+    'DATA_RESIDUE_UNACKNOWLEDGED',
   );
-  // The verdict's degraded-baseline check must accept the same values the
-  // GitHub-expression gate downstream accepts (case-insensitive 'true').
-  assert.match(verdict[0], /base-capture-failed[^\n]*\.toLowerCase\(\) === 'true'/);
+  assert.equal(
+    classifyStyleProofVerdict(
+      certifyingVerdictReceipt({ inventory: { unacknowledged: ['home'], staleAcknowledgements: [] } }),
+      options,
+    ).state,
+    'INVENTORY_REMOVAL_UNACKNOWLEDGED',
+  );
+  assert.equal(
+    classifyStyleProofVerdict(certifyingVerdictReceipt(), { ...options, baseCaptureFailed: true }).state,
+    'DEGRADED_BASELINE',
+  );
+  assert.equal(
+    classifyStyleProofVerdict(certifyingVerdictReceipt({ statesUncertified: 1 }), options).state,
+    'CERTIFICATION_FAILED',
+  );
+  assert.equal(
+    classifyStyleProofVerdict(certifyingVerdictReceipt({ partialBaseline: true }), options).state,
+    'PARTIAL_BASELINE',
+  );
+  assert.equal(classifyStyleProofVerdict(certifyingVerdictReceipt(), options).state, 'STYLE_REVIEW_REQUIRED');
   const terminal = actionYml.match(/- id: trust[\s\S]*$/);
   assert.ok(terminal, 'action.yml should always expose a terminal trust state');
   assert.match(terminal[0], /if: always\(\)/);
@@ -1037,20 +1120,11 @@ test('composite action hard-gates the canonical certification verdict the approv
 });
 
 test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILED not style review', () => {
-  const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
-  assert.ok(verdict, 'action.yml should classify the diff before approval/status logic');
-  assert.match(verdict[0], /reportConsistency/);
-  assert.match(verdict[0], /rawOnlyNoReviewable|raw_only_no_reviewable/);
-  // Assignment order: raw-only shares the CERTIFICATION_FAILED branch, which must
-  // appear before the STYLE_REVIEW_REQUIRED assignment (state = '…' only).
-  const certAssign = verdict[0].indexOf("state = 'CERTIFICATION_FAILED'");
-  const styleReviewAssign = verdict[0].indexOf("state = 'STYLE_REVIEW_REQUIRED'");
-  assert.ok(
-    certAssign > 0 && styleReviewAssign > certAssign,
-    'CERTIFICATION_FAILED assignment must outrank style review',
-  );
-  assert.match(verdict[0], /rawOnlyNoReviewable\) state = 'CERTIFICATION_FAILED'/);
-  // Approval checkbox only for STYLE_REVIEW_REQUIRED — never for consistency failure.
+  const state = classifyStyleProofVerdict(
+    certifyingVerdictReceipt({ reportConsistency: { ok: false, reason: 'raw_only_no_reviewable' } }),
+    { gateInventoryRemovals: true, baseCaptureFailed: false, changed: true },
+  ).state;
+  assert.equal(state, 'CERTIFICATION_FAILED');
   const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
   assert.ok(commentStep, 'PR comment step present');
   assert.match(commentStep[0], /trustState === 'STYLE_REVIEW_REQUIRED'/);
@@ -1268,11 +1342,14 @@ test('composite action makes required product-state identity a closed-set certif
   assert.match(reportStep[0], /isDeepStrictEqual\(generated\.comparability, diff\.comparability\)/);
   assert.doesNotMatch(reportStep[0], /diff\.comparison = generated\.comparison/);
   assert.doesNotMatch(reportStep[0], /diff\.comparability = generated\.comparability/);
-  assert.match(verdict[0], /diff\.comparison\?\.blocksCertification === true/);
-  assert.ok(
-    verdict[0].indexOf('diff.comparison?.blocksCertification === true') <
-      verdict[0].indexOf("state = 'STYLE_REVIEW_REQUIRED'"),
-    'comparison failure must be classified before approval-required evidence',
+  assert.match(verdict[0], /classifyStyleProofVerdict/);
+  assert.equal(
+    classifyStyleProofVerdict(certifyingVerdictReceipt({ comparison: { blocksCertification: true } }), {
+      gateInventoryRemovals: true,
+      baseCaptureFailed: false,
+      changed: true,
+    }).state,
+    'CERTIFICATION_FAILED',
   );
 });
 
