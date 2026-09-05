@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### CI
+
+- Run browser tests in two file-level shards, with a required aggregate that verifies
+  the complete test inventory and determinism receipt before passing. Retain both
+  shard results and the inventory as downloadable evidence. (#500)
+
 ### Added
 
 - Baseline capture failures now survive as bounded `{ key, reason }` receipts in diff JSON and `report.json`, while raw exception text stays private. Markdown renders from that same receipt within its display budget, matching failed baseline surfaces are labeled and counted as repair debt instead of first adoption, and unrelated head surfaces stay genuinely new. `styleproof-diff` fails closed with exit 1 for any partial baseline, never reports repair debt as clean or fully certified, and the Action rejects missing, malformed, or contradictory receipts before publishing its trust state. (#491)

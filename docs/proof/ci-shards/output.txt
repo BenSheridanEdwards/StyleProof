@@ -1,0 +1,27 @@
+CI browser shard evidence (local, self-attested, Node 22)
+Validator SHA-256: 458c031cde0a41168752016696edeb6c71387d6bcf47d7aca6d43f841fd70786
+{
+  "shards": 2,
+  "collected": 222,
+  "passed": 221,
+  "skipped": 1,
+  "oracle": "deterministic"
+}
+Full identity inventory: 222/222 unique source-path + line + column + suite + title + project identities accounted for exactly once
+Shard 1: 118 passed, 1 skipped; shard 2: 103 passed, 0 skipped
+Unsupported-state evidence: chromium expected=skipped outcome=skipped; firefox-unsupported-state expected=passed outcome=passed
+Determinism evidence: 1 receipt across both shard artifacts; runs 5/5; 5 state keys; 5 SHA-256 map hashes
+Missing shard: rejected (expected two browser shards
+
+1 !== 2
+)
+Unexpected self-declared skip: rejected (non-passing expectation: 712c813eeb531be204c2-c659235ad7da887bc570:chromium
++ actual - expected
+
++ 'skipped'
+- 'passed'
+)
+Missing oracle: rejected (missing or duplicate determinism oracle receipt
+
+0 !== 1
+)
