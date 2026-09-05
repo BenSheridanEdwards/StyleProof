@@ -2,9 +2,10 @@
 #
 # issue_comment workflows only ever run from the default branch, so this must
 # live on main (not on the feature branch) to take effect. It flips the
-# `StyleProof` commit status when a write-access reviewer ticks the single
-# "Approve all changes" box in the StyleProof report comment — one tick signs
-# off every changed or new surface. Pair it with the Action's `require-approval: true` input and
+# `StyleProof` commit status when a write-access reviewer who is NOT the pull
+# request author ticks the single "Approve all changes" box in the StyleProof
+# report comment — one tick signs off every changed or new surface. Pair it with
+# the Action's `require-approval: true` input and
 # either a branch-protection rule requiring the `StyleProof` status, or
 # `styleproof.config.json`'s `"blocking": true` to fail the job on unapproved
 # changes (the blocking option for repos without branch protection).
@@ -14,8 +15,8 @@ on:
   issue_comment:
     types: [edited] # ticking a checkbox edits the comment
 
-# statuses:write to flip the gate; pull-requests:read to resolve the PR head SHA;
-# issues:write only for the "needs write access" reply on an unauthorized tick.
+# statuses:write to flip the gate; pull-requests:read to resolve the PR head SHA
+# and author; issues:write only for the refusal replies on a rejected tick.
 permissions:
   statuses: write
   pull-requests: read
@@ -36,11 +37,19 @@ jobs:
     # PRIVATE repo without them, this job silently fails to start — point it at
     # the same self-hosted runner your CI uses, e.g. runs-on: [self-hosted, …].
     runs-on: ubuntu-latest
+    env:
+      # SOLO REPOSITORIES ONLY. Set to 'true' to let the pull request author tick
+      # their own "Approve all changes" box. The default refuses it, so the
+      # sign-off always comes from a second pair of eyes and the audit trail can
+      # never record a self-approval as a review. Anything other than the exact
+      # string 'true' refuses, so a typo here fails closed.
+      STYLEPROOF_ALLOW_SELF_APPROVAL: 'false'
     steps:
       - uses: actions/github-script@v7
         with:
           script: |
             const STATUS = 'StyleProof'; // must match the Action's status-context input
+            const allowSelfApproval = process.env.STYLEPROOF_ALLOW_SELF_APPROVAL === 'true';
 
             // Re-fetch the comment so concurrent ticks all compute from the LATEST
             // body and converge (the event payload is the body as of one edit). The
@@ -61,6 +70,34 @@ jobs:
             if (!allBox) return;
             const approved = /\[[xX]\]/.test(allBox);
 
+            // Rebuild the box line from scratch — glyph plus one suffix — so a re-tick
+            // by someone else replaces the note, an untick clears it, and a refusal can
+            // put the box back to unticked to match the red status it leaves behind.
+            // Editing our own comment via GITHUB_TOKEN never retriggers this workflow.
+            const boxRe = /^(\s*-\s+)\[[ xX]\](\s+\*\*Approve all changes\*\*).*$/m;
+            const renderBox = async (ticked, suffix) => {
+              const next = body.replace(boxRe, (_, lead, tail) => `${lead}[${ticked ? 'x' : ' '}]${tail}${suffix}`);
+              if (next === body) return;
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: context.payload.comment.id, body: next });
+            };
+
+            // One reply per refusal kind per reviewed commit. A refusal unticks the box,
+            // so without this an insistent re-tick would spam the thread.
+            const replyOnce = async (kind, text) => {
+              const tag = `<!-- styleproof-approve:${kind}:${reportSha} -->`;
+              const prior = await github.paginate(github.rest.issues.listComments, {
+                ...context.repo,
+                issue_number: context.payload.issue.number,
+                per_page: 100,
+              });
+              if (prior.some((comment) => (comment.body || '').includes(tag))) return;
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.payload.issue.number,
+                body: `${text}\n\n${tag}`,
+              });
+            };
+
             // The human who toggled the box must have write access. (`sender` on an
             // edited event is the editor; combined with the bot-authored + non-bot
             // guards in `if:`, that's the person who ticked.)
@@ -72,11 +109,10 @@ jobs:
               /* not a collaborator → stays 'none', fails closed */
             }
             if (!['admin', 'maintain', 'write'].includes(perm)) {
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: context.payload.issue.number,
-                body: `@${actor} — approving the StyleProof gate needs write access to this repo, so the check stays red.`,
-              });
+              await replyOnce(
+                'write-access',
+                `@${actor} — approving the StyleProof gate needs write access to this repo, so the check stays red.`,
+              );
               return;
             }
 
@@ -85,6 +121,31 @@ jobs:
             const pr = await github.rest.pulls.get({ ...context.repo, pull_number: context.payload.issue.number });
             const headSha = pr.data.head.sha;
             if (headSha !== reportSha) return;
+
+            // A sign-off must come from someone other than the author. GitHub reports
+            // only the EDITOR of the comment, so the editor whose edit leaves the box
+            // ticked is the approver of record — which also closes the transfer hole
+            // where the author edits a comment a reviewer already ticked and inherits
+            // the sign-off. An unresolvable author counts as self-approval: fail closed.
+            // Only the TICK is guarded. An untick moves the gate red, and the author is
+            // always allowed to withdraw a sign-off.
+            const prAuthor = (pr.data.user && pr.data.user.login) || '';
+            const selfApproval = !prAuthor || prAuthor.toLowerCase() === actor.toLowerCase();
+            if (approved && selfApproval && !allowSelfApproval) {
+              await github.rest.repos.createCommitStatus({
+                ...context.repo,
+                sha: headSha,
+                context: STATUS,
+                state: 'failure',
+                description: `Needs a reviewer other than @${prAuthor || actor}`,
+              });
+              await renderBox(false, ` — _self-approval by @${actor} refused_`);
+              await replyOnce(
+                'self-approval',
+                `@${actor} — you opened this pull request, so ticking your own **Approve all changes** box cannot sign off its visual changes. The check stays red until another reviewer with write access ticks it. On a solo repository, set \`STYLEPROOF_ALLOW_SELF_APPROVAL: 'true'\` in \`.github/workflows/styleproof-approve.yml\`.`,
+              );
+              return;
+            }
 
             // The status description is the source of truth for WHO approved, so a
             // later report re-run (e.g. to clear a blocking check) can reconstruct
@@ -97,12 +158,5 @@ jobs:
               description: approved ? `Approved by @${actor}` : 'Tick "Approve all changes" to sign off',
             });
 
-            // Reflect the approver in the comment itself for instant feedback. Rebuild
-            // the box line from scratch (dropping any prior "approved by" suffix) so a
-            // re-tick by someone else updates it and an untick clears it. Editing our
-            // own comment via GITHUB_TOKEN never retriggers this workflow.
-            const boxRe = /^(\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*).*$/m;
-            const newBody = body.replace(boxRe, (_, head) => (approved ? `${head} — _approved by @${actor}_` : head));
-            if (newBody !== body) {
-              await github.rest.issues.updateComment({ ...context.repo, comment_id: context.payload.comment.id, body: newBody });
-            }
+            // Reflect the approver in the comment itself for instant feedback.
+            await renderBox(approved, approved ? ` — _approved by @${actor}_` : '');

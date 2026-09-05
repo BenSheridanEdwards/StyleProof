@@ -77,6 +77,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Embed deterministic `BEFORE`/`AFTER` and product-state `BASE`/`HEAD` labels inside every comparison PNG so report evidence remains directional when opened outside Markdown.
+- The approval gate let a pull request author sign off their own visual changes.
+  `example/styleproof-approve.yml` checked write access and the reviewed commit but
+  never compared the approver with the author, so any author with write access could
+  tick their own **Approve all changes** box and the audit trail recorded a
+  self-approval as a review. It now refuses: the box is put back to unticked, the
+  `StyleProof` status stays red with `Needs a reviewer other than @author`, and the
+  workflow replies once per reviewed commit. The rule holds however the author reaches
+  a ticked box, including editing a comment a reviewer already ticked — which
+  previously transferred the sign-off to the editor. An unticking author is still
+  allowed, because withdrawing a sign-off only moves the gate red, and an unresolvable
+  author fails closed. Solo repositories opt in with
+  `STYLEPROOF_ALLOW_SELF_APPROVAL: 'true'` in the workflow's `env:` block; any other
+  value refuses, so a typo fails closed. The rendered comment caption and the README
+  comment-states section now state the rule. (#477)
+
 - A restyle on an element that a pull request re-nested (a wrapper added around it,
   or removed from around it) was certified clean: certification excludes structure,
   the element's structural path changed, and the real computed-style delta vanished
