@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveSpawnCommand } from './platform-command.mjs';
+import { detectPackageManager } from './package-manager.mjs';
 
 const binDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(binDir, '..');
@@ -129,42 +130,6 @@ if (preflight.error) {
 if (preflight.status !== 0) {
   process.stderr.write(preflight.stderr);
   process.exit(preflight.status ?? 5);
-}
-
-function detectPackageManager(root) {
-  let consumerManifest;
-  try {
-    consumerManifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`could not read package.json: ${detail}`, { cause: error });
-  }
-
-  const supported = new Set(['npm', 'pnpm', 'yarn', 'bun']);
-  if (consumerManifest.packageManager !== undefined) {
-    if (typeof consumerManifest.packageManager !== 'string') {
-      throw new Error('package.json#packageManager must be a string');
-    }
-    const declared = consumerManifest.packageManager.split('@', 1)[0];
-    if (!supported.has(declared)) {
-      throw new Error(`unsupported package.json#packageManager: ${consumerManifest.packageManager}`);
-    }
-    return declared;
-  }
-
-  const detected = [];
-  if (fs.existsSync(path.join(root, 'package-lock.json'))) detected.push('npm');
-  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) detected.push('pnpm');
-  if (fs.existsSync(path.join(root, 'yarn.lock'))) detected.push('yarn');
-  if (fs.existsSync(path.join(root, 'bun.lock')) || fs.existsSync(path.join(root, 'bun.lockb'))) {
-    detected.push('bun');
-  }
-  if (detected.length > 1) {
-    throw new Error(
-      `multiple package-manager lockfiles found (${detected.join(', ')}); set package.json#packageManager explicitly`,
-    );
-  }
-  return detected[0] ?? 'npm';
 }
 
 let manager;
