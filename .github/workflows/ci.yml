@@ -70,8 +70,12 @@ jobs:
   # Run the complete browser and determinism path beside the Node matrix instead
   # of placing it after every Node 22 static and unit gate.
   e2e:
-    name: e2e (node 22)
+    name: e2e (node 22, shard ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
 
@@ -95,20 +99,52 @@ jobs:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium firefox
 
-      - name: Smoke e2e
-        run: npx playwright test
+      - name: Browser shard
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: .styleproof/ci/shard.json
+          STYLEPROOF_DETERMINISM_RECEIPT: .styleproof/ci/determinism-oracle.json
+        run: npx playwright test --config=playwright.ci.config.ts --shard=${{ matrix.shard }}/2 --reporter=line,json
 
-      - name: Print determinism oracle receipt
-        run: node -e "const fs=require('node:fs');const p='test-results/determinism-oracle.json';if(!fs.existsSync(p))throw new Error('missing determinism oracle receipt');process.stdout.write(fs.readFileSync(p,'utf8'))"
-
-      - name: Upload determinism oracle receipt
+      - name: Upload browser shard evidence
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
         with:
-          name: determinism-oracle-node-22
-          path: test-results/determinism-oracle.json
+          name: e2e-shard-${{ matrix.shard }}
+          path: .styleproof/ci/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+
+  e2e-evidence:
+    name: e2e (node 22)
+    needs: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Collect full browser inventory
+        run: |
+          mkdir -p .styleproof/ci
+          npx playwright test --config=playwright.ci.config.ts --list --reporter=json > .styleproof/ci/inventory.json
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: e2e-shard-*
+          path: .styleproof/ci/shards
+      - name: Verify complete browser evidence and print determinism oracle receipt
+        run: node scripts/verify-e2e-shards.mjs .styleproof/ci/inventory.json .styleproof/ci/shards
+      - name: Upload verified browser evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: browser-evidence-node-22
+          path: .styleproof/ci/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
 
@@ -136,16 +172,18 @@ jobs:
   required:
     name: required
     if: always()
-    needs: [build, e2e, cli-smoke]
+    needs: [build, e2e, e2e-evidence, cli-smoke]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required CI evidence
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
+          E2E_EVIDENCE_RESULT: ${{ needs.e2e-evidence.result }}
           CLI_SMOKE_RESULT: ${{ needs.cli-smoke.result }}
         run: |
           set -euo pipefail
           test "$BUILD_RESULT" = success
           test "$E2E_RESULT" = success
+          test "$E2E_EVIDENCE_RESULT" = success
           test "$CLI_SMOKE_RESULT" = success
