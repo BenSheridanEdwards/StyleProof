@@ -62,19 +62,21 @@ const CONTENT_GLYPHS = {
   D: ['110', '101', '101', '101', '110'],
   E: ['111', '100', '110', '100', '111'],
   L: ['100', '100', '100', '100', '111'],
-  N: ['101', '111', '111', '111', '101'],
+  N: ['10001', '11001', '10101', '10011', '10001'],
   O: ['111', '101', '101', '101', '111'],
   W: ['101', '101', '111', '111', '101'],
 };
 
 function drawContentWord(png, word, x, y, scale = 2) {
-  for (const [index, letter] of [...word].entries()) {
+  let cursorX = x;
+  for (const letter of word) {
     const rows = CONTENT_GLYPHS[letter];
     for (const [row, pixels] of rows.entries()) {
       for (const [column, pixel] of [...pixels].entries()) {
-        if (pixel === '1') fill(png, x + index * 8 + column * scale, y + row * scale, scale, scale, BRAND);
+        if (pixel === '1') fill(png, cursorX + column * scale, y + row * scale, scale, scale, BRAND);
       }
     }
+    cursorX += (rows[0].length + 1) * scale;
   }
 }
 
