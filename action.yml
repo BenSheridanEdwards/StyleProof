@@ -290,8 +290,24 @@ runs:
           if (value.result === 'no-capture') return value.observed === null && emptyEvidenceSide(evidence);
           return false;
         };
+        const validLockfileProvenanceSide = (value) =>
+          exactKeys(value, ['lockfile', 'lockfileHash']) &&
+          typeof value.lockfile === 'string' && /^[A-Za-z0-9._/-]+$/.test(value.lockfile) &&
+          typeof value.lockfileHash === 'string' && /^[0-9a-f]{64}$/.test(value.lockfileHash);
+        const validApplicationDependencyProvenance = (value) => {
+          if (!exactKeys(value, ['status', 'before', 'after']) ||
+              !validLockfileProvenanceSide(value.before) || !validLockfileProvenanceSide(value.after)) return false;
+          const changed = value.before.lockfile !== value.after.lockfile ||
+            value.before.lockfileHash !== value.after.lockfileHash;
+          return value.status === (changed ? 'changed' : 'matched');
+        };
         const validSourceBinding = (value, evidence) => {
-          if (!exactKeys(value, ['status', 'compatibility', 'before', 'after']) || value.status !== 'bound') {
+          const keys = value?.applicationDependencyProvenance === undefined
+            ? ['status', 'compatibility', 'before', 'after']
+            : ['status', 'compatibility', 'applicationDependencyProvenance', 'before', 'after'];
+          if (!exactKeys(value, keys) || value.status !== 'bound' ||
+              (value.applicationDependencyProvenance !== undefined &&
+                !validApplicationDependencyProvenance(value.applicationDependencyProvenance))) {
             return false;
           }
           if (!validBoundSide(value.before, process.env.STYLEPROOF_EXPECTED_BASE_SHA, evidence.before)) return false;
