@@ -181,7 +181,9 @@ function recoverContextEdges(from: string, src: string, files: string[]): Module
     const base = contextDir(m[1], fromDir);
     if (base === 'unbounded') return 'unbounded';
     if (base === null) continue;
-    for (const f of files) if (dirOf(f) === base && isCode(f)) edges.push({ from, to: f, dynamic: true });
+    for (const f of files) {
+      if ((base === '' || f.startsWith(`${base}/`)) && isCode(f)) edges.push({ from, to: f, dynamic: true });
+    }
   }
   return edges;
 }

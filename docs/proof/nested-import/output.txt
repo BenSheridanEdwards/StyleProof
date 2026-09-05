@@ -1,0 +1,15 @@
+Nested computed import: changed components/nested/Card.tsx
+Local reproduction using public synthetic source fixtures.
+Advisory remap decisions; not a captured-style certification.
+Base: 6537938; current source SHA-256:
+390a8cfa97fa129ca83cd18e9d961ac6e46654f1ae27f5637674e16d210bf9c7
+
+BEFORE (main 6537938)
+selective remap: ON → re-capture 1, reuse 1 from base
+  ↻ static (re-capture — a changed file reaches it)
+  ✓ dynamic (reuse base map — no changed file reaches it)
+
+AFTER (this branch)
+selective remap: ON → re-capture 2, reuse 0 from base
+  ↻ dynamic (re-capture — a changed file reaches it)
+  ↻ static (re-capture — a changed file reaches it)
