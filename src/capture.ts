@@ -19,8 +19,8 @@ import { readRegularFileNoFollow } from './safe-filesystem.js';
  *              plus ::before / ::after / ::marker / ::placeholder.
  *   states   — for interactive elements, what :hover, :focus(-visible) and
  *              :active change (forced via CDP, no mouse involved), captured
- *              as a delta over the element's subtree. Rest screenshots cannot
- *              see these; the `*.hover.png` / `*.focus.png` / `*.active.png`
+ *              as a target-attributed delta across a bounded document scope. Rest
+ *              screenshots cannot see these; the `*.hover.png` / `*.focus.png` / `*.active.png`
  *              layers can. This is where dropped `hover:` variants get caught.
  *   motion   — transition/animation longhands are captured before the
  *              freeze-CSS below nulls them, so declared motion is verified
@@ -188,8 +188,8 @@ export type StyleMap = {
   states: Record<string, Record<string, Record<string, Props>>>;
   /**
    * True when the forced :hover/:focus/:active layer was not fully captured for
-   * this capture — either CDP/page interactive-element count skew, or because the
-   * interactive-element count exceeded `maxInteractive` and capture was truncated.
+   * this capture — a control detached, the interactive-element count exceeded
+   * `maxInteractive`, or a target's bounded document scan was truncated.
    * Persisted so a diff against a fully-captured side flags that the state layer
    * wasn't certified, instead of silently reading as "identical".
    */
@@ -768,47 +768,94 @@ function detectOverlayCandidates({ ignore }: OverlayCandidateArgs): CapturedOver
     });
 }
 
-type SubtreeArgs = { selector: string; index: number };
+const MAX_FORCED_STATE_ELEMENTS = 2_000;
+const STATE_BASELINE_KEY = '__spForcedStateBaseline';
 
-/** Full (unpruned) computed styles for an element and its descendants, pseudo-elements included. */
-// Serialized into the browser by page.evaluate; cannot call module helpers, so this
-// in-page fn (cog 16) can't be split into smaller ones. Pre-existing; refactor separately.
+type StateScopeArgs = {
+  selector: string;
+  skipSel: string;
+  skipPaths: string[];
+  maxElements: number;
+  baselineKey: string;
+  saveBaseline: boolean;
+};
+type StateScopeResult = { delta: Record<string, Props>; truncated: boolean };
+
+/**
+ * Read a target-first, bounded document scope. Target descendants retain priority,
+ * while the document-wide remainder catches sibling and ancestor/:has effects.
+ * Baselines stay in-page so each forced read returns only its delta over CDP.
+ */
+// Serialized into the browser by Runtime.evaluate; it cannot call module helpers.
 // fallow-ignore-next-line complexity
-function snapSubtree({ selector, index }: SubtreeArgs) {
-  const el = document.querySelectorAll(selector)[index];
+function snapSubtree({ selector, skipSel, skipPaths, maxElements, baselineKey, saveBaseline }: StateScopeArgs) {
+  const target = document.querySelector(selector);
   const pathOf = (window as unknown as WithPathOf).__spPathOf;
-  const out: Record<string, Record<string, string>> = {};
-  if (!el) return out;
-  for (const n of [el, ...el.querySelectorAll('*')]) {
-    for (const ps of [null, '::before', '::after']) {
-      const cs = getComputedStyle(n, ps);
-      if (ps && cs.getPropertyValue('content') === 'none') continue;
-      const o: Record<string, string> = {};
-      for (let i = 0; i < cs.length; i++) {
-        const p = cs.item(i);
-        if (/^(transition|animation)/.test(p)) continue; // frozen by FREEZE_CSS
-        o[p] = cs.getPropertyValue(p);
+  const stateWindow = window as unknown as Record<string, Record<string, Record<string, string>> | undefined>;
+  if (!target) return { delta: {}, truncated: true };
+
+  const seen = new Set<Element>();
+  const elements: Array<{ element: Element; path: string }> = [];
+  const targetFirst = [target, ...target.querySelectorAll('*')];
+  const documentOrder = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
+  let truncated = false;
+  for (const element of [...targetFirst, ...documentOrder]) {
+    if (seen.has(element)) continue;
+    seen.add(element);
+    const elementPath = pathOf(element);
+    if (
+      (skipSel && element.matches(skipSel)) ||
+      skipPaths.some((root) => elementPath === root || elementPath.startsWith(root + ' > '))
+    )
+      continue;
+    if (elements.length >= maxElements) {
+      truncated = true;
+      break;
+    }
+    elements.push({ element, path: elementPath });
+  }
+
+  const baseline = stateWindow[baselineKey];
+  const result: Record<string, Record<string, string>> = {};
+  for (const { element, path: elementPath } of elements) {
+    for (const pseudo of [null, '::before', '::after']) {
+      const style = getComputedStyle(element, pseudo);
+      const key = elementPath + (pseudo || '');
+      if (pseudo && style.getPropertyValue('content') === 'none') {
+        if (!saveBaseline && baseline?.[key]) {
+          result[key] = Object.fromEntries(Object.keys(baseline[key]).map((property) => [property, '(gone)']));
+        }
+        continue;
       }
-      out[pathOf(n) + (ps || '')] = o;
+      const resting = baseline?.[key] ?? {};
+      const properties: Record<string, string> = {};
+      const present = new Set<string>();
+      for (let index = 0; index < style.length; index++) {
+        const property = style.item(index);
+        if (/^(transition|animation)/.test(property)) continue;
+        const value = style.getPropertyValue(property);
+        present.add(property);
+        if (saveBaseline || resting[property] !== value) properties[property] = value;
+      }
+      if (!saveBaseline) {
+        for (const property of Object.keys(resting)) {
+          if (!present.has(property)) properties[property] = '(gone)';
+        }
+      }
+      if (saveBaseline || Object.keys(properties).length) result[key] = properties;
     }
   }
-  return out;
+
+  if (saveBaseline) {
+    stateWindow[baselineKey] = result;
+    return { delta: {}, truncated };
+  }
+  if (!baseline) return { delta: {}, truncated: true };
+  return { delta: result, truncated };
 }
 
-type Snap = Record<string, Props>;
-
-function deltaBetween(base: Snap, forced: Snap): Record<string, Props> {
-  const delta: Record<string, Props> = {};
-  for (const key of new Set([...Object.keys(base), ...Object.keys(forced)])) {
-    const a = base[key] || {};
-    const b = forced[key] || {};
-    const d: Props = {};
-    for (const p of new Set([...Object.keys(a), ...Object.keys(b)])) {
-      if (a[p] !== b[p]) d[p] = b[p] ?? '(gone)';
-    }
-    if (Object.keys(d).length) delta[key] = d;
-  }
-  return delta;
+function clearStateBaseline(baselineKey: string): void {
+  delete (window as unknown as Record<string, unknown>)[baselineKey];
 }
 
 const STATE_SETS: Record<string, string[]> = {
@@ -851,13 +898,13 @@ async function settleForcedState(client: CDPSession, selector: string): Promise<
   return result.value === true;
 }
 
-async function snapSubtreeInSession(client: CDPSession, args: SubtreeArgs): Promise<Snap> {
+async function snapStateScopeInSession(client: CDPSession, args: StateScopeArgs): Promise<StateScopeResult> {
   const { result, exceptionDetails } = await client.send('Runtime.evaluate', {
     expression: `(${snapSubtree.toString()})(${JSON.stringify(args)})`,
     returnByValue: true,
   });
   if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
-  return (result.value ?? {}) as Snap;
+  return (result.value ?? { delta: {}, truncated: true }) as StateScopeResult;
 }
 
 // Forced pseudo-class states on interactive elements, via CDP so no real
@@ -888,39 +935,65 @@ async function captureForcedStates(
   }
 
   const states: StyleMap['states'] = {};
+  const baselineKey = `${STATE_BASELINE_KEY}-${Math.random().toString(36).slice(2)}`;
+  let incomplete = truncated;
+  let scanWarningEmitted = false;
   try {
     for (const { id, path: p } of marked.slice(0, limit)) {
       const selector = `[${STATE_ID_ATTR}="${id}"]`;
       const { nodeId } = await client.send('DOM.querySelector', { nodeId: root.nodeId, selector });
       if (!nodeId) {
+        incomplete = true;
         // eslint-disable-next-line no-console
         console.warn(`styleproof: interactive element ${id} detached before forced-state capture; skipping it.`);
         continue;
       }
-      const baseSnap = await snapSubtreeInSession(client, { selector, index: 0 });
+      const scope = {
+        selector,
+        skipSel,
+        skipPaths,
+        maxElements: MAX_FORCED_STATE_ELEMENTS,
+        baselineKey,
+      };
+      const baseline = await snapStateScopeInSession(client, { ...scope, saveBaseline: true });
+      incomplete ||= baseline.truncated;
+      if (baseline.truncated && !scanWarningEmitted) {
+        scanWarningEmitted = true;
+        // eslint-disable-next-line no-console
+        console.warn(
+          `styleproof: forced-state document scan exceeds ${MAX_FORCED_STATE_ELEMENTS} elements; ` +
+            'capture is target-first and truncated, so the forced-state layer is not certified.',
+        );
+      }
       for (const [stateName, forcedPseudoClasses] of Object.entries(STATE_SETS)) {
         await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses });
         if (!(await settleForcedState(client, selector))) {
           await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+          incomplete = true;
           // eslint-disable-next-line no-console
           console.warn(`styleproof: interactive element ${id} detached during forced-state capture; skipping it.`);
           break;
         }
-        const forcedSnap = await snapSubtreeInSession(client, { selector, index: 0 });
+        const forced = await snapStateScopeInSession(client, { ...scope, saveBaseline: false });
+        incomplete ||= forced.truncated;
         await client.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
-        await settleForcedState(client, selector);
-        const delta = deltaBetween(baseSnap, forcedSnap);
-        if (Object.keys(delta).length) (states[p] ??= {})[stateName] = delta;
+        if (!(await settleForcedState(client, selector))) {
+          incomplete = true;
+          // eslint-disable-next-line no-console
+          console.warn(`styleproof: interactive element ${id} detached while resetting forced state; skipping it.`);
+          break;
+        }
+        if (Object.keys(forced.delta).length) (states[p] ??= {})[stateName] = forced.delta;
       }
     }
   } finally {
+    await page.evaluate(clearStateBaseline, baselineKey).catch(() => undefined);
     await page.evaluate(clearInteractiveMarks, STATE_ID_ATTR).catch(() => undefined);
     await client.detach();
   }
-  // When truncated, the elements past the limit have no forced-state delta —
-  // flag the layer so the diff reports it as uncertified instead of letting the
-  // missing states read as "identical" against a fully-captured side.
-  return { states, skipped: truncated };
+  // Any omitted target or document element leaves cross-element forced-state
+  // evidence incomplete, so fail closed instead of reading a partial layer as identical.
+  return { states, skipped: incomplete };
 }
 
 export const STATE_LAYER_NAMES = ['hover', 'focus', 'active'] as const;
