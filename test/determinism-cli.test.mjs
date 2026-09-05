@@ -139,3 +139,30 @@ test('missing coverage ledger (filtered one-surface bundle) fails closed', () =>
   assert.match(out, /completeness NOT asserted|determinism basis unknown/);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+// #476: `oracle-proven` is the five-run basis `styleproof-map --prove-determinism` records.
+// It is strictly stronger than self-checked, so it must satisfy the same gate — and it must
+// still be refused when the OTHER side proved nothing.
+test('an oracle-proven pair is proven determinism, clean greens (exit 0)', () => {
+  const { root, base, head } = fixture('oracle-proven', 'oracle-proven');
+  const { code, out } = run(base, head);
+  assert.equal(code, 0, `the five-run oracle is the strongest basis\n${out}`);
+  assert.match(out, /determinism proven/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('oracle-proven mixes with the weaker bases without downgrading the verdict (exit 0)', () => {
+  const { root, base, head } = fixture('self-checked', 'oracle-proven');
+  const { code, out } = run(base, head);
+  assert.equal(code, 0, `a stronger head basis cannot make a proven pair unproven\n${out}`);
+  assert.match(out, /determinism proven/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('oracle-proven on one side cannot rescue an unproven other side (exit 1)', () => {
+  const { root, base, head } = fixture('oracle-proven', 'unproven');
+  const { code, out } = run(base, head);
+  assert.equal(code, 1, `both sides must be proven; a strong base does not cover a blind head\n${out}`);
+  assert.match(out, /determinism NOT proven/);
+  fs.rmSync(root, { recursive: true, force: true });
+});

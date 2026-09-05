@@ -5,6 +5,8 @@ import { isProductStateComparabilityStatus, type ProductStateComparabilityStatus
 export { isProductStateComparabilityStatus, type ProductStateComparabilityStatus } from './comparability-status.js';
 import { isMapFile, MAP_MANIFEST } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
+import { correspondBeforeMap, correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
+import { pixelDiffSurface, type PixelOptions, type PixelSurfaceResult } from './pixel-diff.js';
 
 /**
  * Structured diff between two style maps. Custom properties (--*) are
@@ -161,6 +163,15 @@ export type DiffStyleOptions = {
    * structure belongs to the opt-in advisory content layer.
    */
   includeStructure?: boolean;
+  /**
+   * Also compare the captured screenshots (`<surface>.png` and the forced-state
+   * layers) and attribute every changed region to the captured elements under it.
+   * Opt-in pixel gate (issue #473): pixels are the rendered effect, so this sees
+   * what computed styles cannot — image content, canvas paint, font rasterisation —
+   * and needs no element correspondence. Results land in `pixels`, never in
+   * `counts`, so existing consumers are unchanged.
+   */
+  pixels?: boolean | PixelOptions;
 };
 
 /** Content and structural changes are an opt-in advisory layer. Kept out of
@@ -462,116 +473,18 @@ function indexDir(dir: string): Record<string, string> {
 }
 
 /**
- * Privacy-safe identity for correspondence across an nth-child shift. Positional
- * indexes are normalized, while hashed semantic path segments remain exact: a
- * sibling insertion can move the same element, but a developer-authored identity
- * replacement must stay structural instead of being paired back into a restyle.
- * A class is capture metadata already present in every map; own-text length and
- * React component name disambiguate repeated semantic classes without storing
- * copy. Empty anonymous elements stay unmatched rather than receiving invented
- * provenance.
+ * Presentation findings on a before map whose uniquely corresponded paths have
+ * been rewritten to the head path ({@link presentationBeforeMap}). Callers choose
+ * whether low-level structural inventory is included; production certification
+ * always passes false. Lives here (not in path-correspondence) so that module
+ * stays free of runtime imports from this one.
  */
-function contentCorrespondenceSignature(elementPath: string, element: StyleMap['elements'][string]): string | null {
-  const className = element.cls.trim();
-  const componentName = element.component?.name ?? '';
-  if (!className && !componentName && element.ownTextLength === undefined) return null;
-  const semanticPathPattern = elementPath.replace(/:nth-child\(\d+\)/g, ':nth-child(*)');
-  return JSON.stringify([semanticPathPattern, element.tag, className, element.ownTextLength ?? null, componentName]);
-}
-
-function pathsByContentSignature(map: StyleMap): Map<string, string[]> {
-  const pathsBySignature = new Map<string, string[]>();
-  for (const [elementPath, element] of Object.entries(map.elements)) {
-    const signature = contentCorrespondenceSignature(elementPath, element);
-    if (!signature) continue;
-    pathsBySignature.set(signature, [...(pathsBySignature.get(signature) ?? []), elementPath]);
-  }
-  return pathsBySignature;
-}
-
-/**
- * base path -> head path for every element whose identity is recognisable on both
- * sides but whose concrete path moved. A signature shared by several elements
- * (repeated same-shaped rows) pairs k-th to k-th in document order — map
- * insertion order is capture's DOM walk — but only while the group's size is
- * identical on both sides: pairing a count-preserving group can at worst re-label
- * a visually-equivalent remove+add as a matched pair, whereas a size change means
- * a real add/remove somewhere in the group, so those groups stay concrete and
- * therefore fail closed.
- */
-function correspondingPathsByContentSignature(before: StyleMap, after: StyleMap): Map<string, string> {
-  const bySignatureAfter = pathsByContentSignature(after);
-  const beforeToAfter = new Map<string, string>();
-  for (const [signature, beforePaths] of pathsByContentSignature(before)) {
-    const afterPaths = bySignatureAfter.get(signature) ?? [];
-    if (afterPaths.length !== beforePaths.length) continue;
-    beforePaths.forEach((beforePath, groupIndex) => {
-      const afterPath = afterPaths[groupIndex]!;
-      if (afterPath !== beforePath) beforeToAfter.set(beforePath, afterPath);
-    });
-  }
-  return beforeToAfter;
-}
-
-/**
- * Re-key identifiable base elements onto their head paths before a
- * content-disabled comparison. This prevents a sibling insertion or removal from
- * making unchanged elements at shifted nth-child paths compare against the wrong
- * siblings.
- */
-function correspondContentShiftedPaths(before: StyleMap, after: StyleMap): StyleMap {
-  const beforeToAfter = correspondingPathsByContentSignature(before, after);
-  if (beforeToAfter.size === 0) return before;
-
-  // A matched element can move onto a path occupied by an ambiguous element in
-  // the base capture. That occupant has no trustworthy head identity, so it
-  // must not overwrite the matched evidence when the object is re-keyed.
-  const displacedUnmatchedPaths = new Set(
-    [...beforeToAfter.values()].filter((afterPath) => afterPath in before.elements && !beforeToAfter.has(afterPath)),
-  );
-  const remapPath = (elementPath: string): string | null => {
-    const correspondingPath = beforeToAfter.get(elementPath);
-    if (correspondingPath) return correspondingPath;
-    return displacedUnmatchedPaths.has(elementPath) ? null : elementPath;
-  };
-  const elements: StyleMap['elements'] = {};
-  for (const [elementPath, element] of Object.entries(before.elements)) {
-    const correspondingPath = remapPath(elementPath);
-    if (correspondingPath) elements[correspondingPath] = element;
-  }
-
-  const states: StyleMap['states'] = {};
-  for (const [ownerPath, statesByName] of Object.entries(before.states ?? {})) {
-    const correspondingOwnerPath = remapPath(ownerPath);
-    if (!correspondingOwnerPath) continue;
-    const remappedStates: (typeof states)[string] = {};
-    for (const [stateName, targets] of Object.entries(statesByName)) {
-      remappedStates[stateName] = Object.fromEntries(
-        Object.entries(targets)
-          .map(([targetPath, properties]) => [remapPath(targetPath), properties] as const)
-          .filter((entry): entry is [string, (typeof entry)[1]] => entry[0] !== null),
-      );
-    }
-    states[correspondingOwnerPath] = remappedStates;
-  }
-
-  const remapKnownPaths = (elementPaths: string[] | undefined): string[] | undefined =>
-    elementPaths?.map(remapPath).filter((elementPath): elementPath is string => elementPath !== null);
-
-  return {
-    ...before,
-    elements,
-    states,
-    volatile: remapKnownPaths(before.volatile),
-    liveCandidates: before.liveCandidates?.flatMap((candidate) => {
-      const correspondingPath = remapPath(candidate.path);
-      return correspondingPath ? [{ ...candidate, path: correspondingPath }] : [];
-    }),
-    overlays: before.overlays?.flatMap((overlay) => {
-      const correspondingPath = remapPath(overlay.path);
-      return correspondingPath ? [{ ...overlay, path: correspondingPath }] : [];
-    }),
-  };
+export function presentationDiffStyleMaps(
+  before: StyleMap,
+  after: StyleMap,
+  options: DiffStyleOptions = {},
+): Finding[] {
+  return diffStyleMaps(presentationBeforeMap(before, after), after, options);
 }
 
 /** Diff every same-named capture between two directories. `volatile` is the
@@ -587,6 +500,8 @@ export function diffStyleMapDirs(
   volatile: number;
   statesUncertified: number;
   compared: number;
+  /** One entry per paired surface when `options.pixels` is set; absent otherwise. */
+  pixels?: PixelSurfaceResult[];
 } {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
@@ -612,6 +527,7 @@ export function diffStyleMapDirs(
 
   const surfaces: SurfaceDiff[] = [];
   const comparability: SurfaceComparability[] = [];
+  const pixels: PixelSurfaceResult[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
   const uncompared = { volatile: 0, statesUncertified: 0 };
   for (const surface of names) {
@@ -633,8 +549,28 @@ export function diffStyleMapDirs(
     comparability.push(pair.comparability);
     tallyCounts(pair.findings, counts);
     if (pair.findings.length) surfaces.push({ surface, findings: pair.findings });
+    if (options.pixels) {
+      const pixelOptions = typeof options.pixels === 'object' ? options.pixels : {};
+      pixels.push(
+        pixelDiffSurface(
+          dirA,
+          dirB,
+          surface,
+          loadStyleMap(indexA[surface]),
+          loadStyleMap(indexB[surface]),
+          pixelOptions,
+        ),
+      );
+    }
   }
-  return { surfaces, counts, comparability, ...uncompared, compared: names.length };
+  return {
+    surfaces,
+    counts,
+    comparability,
+    ...uncompared,
+    compared: names.length,
+    ...(options.pixels ? { pixels } : {}),
+  };
 }
 
 /** Diff one paired surface, tallying what was NOT compared (volatile subtrees;
@@ -650,7 +586,11 @@ function diffSurfacePair(
   const mapB = loadStyleMap(fileB);
   uncompared.volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
   if (mapA.statesSkipped && mapB.statesSkipped) uncompared.statesUncertified++;
-  const comparableBase = options.includeStructure === false ? correspondContentShiftedPaths(mapA, mapB) : mapA;
+  // Certification excludes structure, so an element that merely moved (an
+  // nth-child shift, a wrapper added or removed) must be paired back onto its
+  // head path first — otherwise a real restyle on it vanishes with the
+  // advisory remove+add (#472). Structural inventory mode stays raw.
+  const comparableBase = options.includeStructure === false ? correspondBeforeMap(mapA, mapB) : mapA;
   return {
     findings: diffStyleMaps(comparableBase, mapB, options),
     comparability: compareProductState(surface, mapA, mapB),

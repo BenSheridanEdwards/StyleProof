@@ -7,10 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { generateStyleMapReport } from '../dist/index.js';
-import { createReleaseConfidenceManifest } from '../dist/release-confidence-manifest.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
-
-const PHASE0_FIXTURE = new URL('./fixtures/phase0-contract/valid-enumerated.json', import.meta.url);
 
 const nav = (keys) => keys.map((k) => ({ key: `nav-button:${k}`, kind: 'nav-button', label: k.toUpperCase() }));
 const mapWith = (inventory) =>
@@ -60,7 +57,7 @@ test('a healthy bundle leads with all-green certification', () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('report projects one validated release-confidence summary without changing visual truth', () => {
+test('the report carries no release-confidence layer, and the confidence ledger still leads (#475)', () => {
   const { root, base, head, out } = bundle({
     captured: ['home'],
     baseNav: ['home'],
@@ -69,27 +66,19 @@ test('report projects one validated release-confidence summary without changing 
     baseDet: 'self-checked',
     headDet: 'self-checked',
   });
-  const contract = JSON.parse(fs.readFileSync(PHASE0_FIXTURE, 'utf8'));
-  const manifest = createReleaseConfidenceManifest({
-    manifestId: 'rcm-report-control',
-    producerVersion: '6.2.2',
-    releaseScope: 'styleproof-report',
-    contract,
-  });
-
-  const result = generateStyleMapReport({
-    beforeDir: base,
-    afterDir: head,
-    outDir: out,
-    releaseConfidenceManifest: manifest,
-  });
-  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  assert.equal(report.releaseConfidence.manifestDigest, manifest.manifestDigest);
-  assert.equal(report.releaseConfidence.certifies, true);
-  assert.equal(report.releaseConfidence.blocking, false);
+  const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   const md = readMd(out);
-  assert.match(md, /\*\*Release confidence\*\* — ✓ complete/);
-  assert.ok(md.indexOf('**Release confidence**') < md.indexOf('No reviewable computed-style changes'));
+  // Nothing of the deleted layer reaches the reviewer or the machine receipt.
+  assert.doesNotMatch(md, /Release confidence/);
+  assert.doesNotMatch(md, /absent-legacy|manifest-absent|release-confidence/);
+  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.equal(report.releaseConfidence, undefined);
+  assert.equal(result.releaseConfidence, undefined);
+  assert.equal(fs.existsSync(path.join(out, 'styleproof-release-confidence.json')), false);
+  // The reviewer-facing confidence line the layer duplicated is untouched, and the
+  // certification block still leads the report, ahead of the visual verdict.
+  assert.match(md, /\*\*Confidence\*\* — ✓ complete/);
+  assert.ok(md.indexOf('**Certification**') < md.indexOf('No reviewable computed-style changes'));
   fs.rmSync(root, { recursive: true, force: true });
 });
 

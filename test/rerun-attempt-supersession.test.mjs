@@ -11,11 +11,6 @@ import test from 'node:test';
 import { publishReportFolder, verifyPublishedReceipt } from '../dist/report-publish.js';
 import { buildReportDelivery } from '../dist/report-delivery.js';
 import {
-  createReleaseConfidenceManifest,
-  serializeReleaseConfidenceManifest,
-} from '../dist/release-confidence-manifest.js';
-import { summarizeReleaseConfidence } from '../dist/release-confidence-summary.js';
-import {
   formatRunAttemptReceiptMarker,
   parseRunAttemptReceiptMarker,
   shouldSupersedeExistingComment,
@@ -144,17 +139,7 @@ function buildStatefulGitHubRepository() {
   return { state, fetchImplementation };
 }
 
-const contract = JSON.parse(
-  fs.readFileSync(new URL('./fixtures/phase0-contract/valid-enumerated.json', import.meta.url), 'utf8'),
-);
-const MANIFEST = createReleaseConfidenceManifest({
-  manifestId: 'rcm-rerun-supersession',
-  producerVersion: '6.2.2',
-  releaseScope: 'styleproof-report',
-  contract,
-});
-const SUMMARY = summarizeReleaseConfidence(MANIFEST);
-const HEAD_SHA = MANIFEST.sourceSha;
+const HEAD_SHA = 'b'.repeat(40);
 const RUN_ID = '4242';
 const DELIVERY_SHA = 'd'.repeat(40);
 const DELIVERY_URL = `https://github.com/acme/widgets/blob/${DELIVERY_SHA}/pr-7/report.md`;
@@ -172,11 +157,7 @@ function reportFilesFor(runAttempt, verdictLine) {
     },
     {
       relativePath: 'report.json',
-      content: Buffer.from(JSON.stringify({ attempt: runAttempt, releaseConfidence: SUMMARY })),
-    },
-    {
-      relativePath: 'styleproof-release-confidence.json',
-      content: Buffer.from(serializeReleaseConfidenceManifest(MANIFEST)),
+      content: Buffer.from(JSON.stringify({ attempt: runAttempt })),
     },
   ];
 }
@@ -204,8 +185,6 @@ function verifyReceiptAt(repository, commitSha, runAttempt) {
     reportPath: 'pr-7',
     commitSha,
     expectedReceipt: receiptFor(runAttempt),
-    expectedManifestDigest: MANIFEST.manifestDigest,
-    expectedSourceSha: HEAD_SHA,
     maximumAttempts: 2,
     sleepImplementation: async () => {},
     fetchImplementation: repository.fetchImplementation,

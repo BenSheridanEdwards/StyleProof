@@ -45,6 +45,31 @@ import {
 // The capture selector lives beside the `test.describe` titles it must agree with.
 // Importing it keeps one source of truth instead of two string literals that drift.
 import { CAPTURE_TEST_GREP } from '../dist/runner.js';
+import { assessDeterminismOracle, determinismRunReceipt } from '../dist/determinism-oracle.js';
+import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { loadStyleMap } from '../dist/capture.js';
+
+/** One run's receipt: every map file in the bundle, keyed by its capture key. */
+function determinismReceiptForDir(runDir) {
+  return determinismRunReceipt(
+    fs
+      .readdirSync(runDir)
+      .filter(isMapFile)
+      .map((file) => [file.replace(/\.json(\.gz)?$/, ''), loadStyleMap(path.join(runDir, file))]),
+  );
+}
+
+/** Record the strongest basis in the ledger the runner already wrote for run 1. */
+function promoteLedgerToOracleProven(bundleDir) {
+  const ledgerPath = path.join(bundleDir, COVERAGE_LEDGER);
+  const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+  fs.writeFileSync(ledgerPath, `${JSON.stringify({ ...ledger, determinism: 'oracle-proven' }, null, 2)}\n`);
+}
+
+/** The five-run oracle receipt, written beside the maps it proves. */
+const DETERMINISM_RECEIPT = 'styleproof-determinism.json';
+/** #400 fixes the promotion oracle at exactly five runs; assessDeterminismOracle enforces it. */
+const DETERMINISM_ORACLE_RUNS = 5;
 
 const STYLEPROOF_PLAYWRIGHT_CONFIG = 'playwright.styleproof.config.ts';
 const STYLEPROOF_VARIANTS_SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'styleproof-variants.mjs');
@@ -78,6 +103,10 @@ options:
                       tracked file or directory whose changes never mark the capture
                       dirty (a dev tool rewriting e.g. tsconfig.json); repeatable,
                       also via STYLEPROOF_DIRTY_ALLOW (comma-separated)
+  --prove-determinism run the capture 5x in fresh contexts and require every
+                      canonical map hash to match (the #400 oracle). Records
+                      determinism: oracle-proven and writes
+                      ${DETERMINISM_RECEIPT}. Costs 5 capture runs.
   --tolerate-surface-failures
                       baseline-only (manual cold base capture): record per-surface
                       capture failures and continue when at least one map succeeds
@@ -149,6 +178,7 @@ const configuredAuthExclude =
 let tolerateSurfaceFailures =
   process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
   process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true';
+let proveDeterminism = false;
 // Allow paths accumulate across layers (config + env + flags) — they are all
 // "files my tooling rewrites", never mutually exclusive alternatives.
 const dirtyAllow = [
@@ -212,6 +242,7 @@ for (let i = 0; i < argv.length; i++) {
   } else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
   else if (a.startsWith('--dirty-allow=')) dirtyAllow.push(a.slice(14));
   else if (a === '--tolerate-surface-failures') tolerateSurfaceFailures = true;
+  else if (a === '--prove-determinism') proveDeterminism = true;
   else if (a === '--cache-branch' || a === '--remote') {
     const value = argv[++i];
     if (a === '--cache-branch') cacheBranch = value;
@@ -421,9 +452,9 @@ const configArgs =
   fs.existsSync(STYLEPROOF_PLAYWRIGHT_CONFIG) && !hasPlaywrightConfigArg(playwrightArgs)
     ? ['--config', STYLEPROOF_PLAYWRIGHT_CONFIG]
     : [];
-const env = {
+const captureEnv = (label) => ({
   ...process.env,
-  STYLEMAP_DIR: dir,
+  STYLEMAP_DIR: label,
   STYLEPROOF_BASEDIR: baseDir,
   STYLEPROOF_SCREENSHOTS: screenshots,
   // Freeze the SPEC PROCESS clock alongside the browser clock (the freezeClock
@@ -433,12 +464,15 @@ const env = {
   // clock into the render. Explicit STYLEPROOF_FREEZE_SPEC_CLOCK=0 opts out.
   STYLEPROOF_FREEZE_SPEC_CLOCK: process.env.STYLEPROOF_FREEZE_SPEC_CLOCK ?? '1',
   ...(tolerateSurfaceFailures ? { STYLEPROOF_TOLERATE_SURFACE_FAILURES: '1' } : {}),
-};
-runVariantCrawl(env);
-const result = spawnSync(command, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs], {
-  stdio: 'inherit',
-  env,
 });
+const env = captureEnv(dir);
+const runCapture = (label) =>
+  spawnSync(command, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs], {
+    stdio: 'inherit',
+    env: captureEnv(label),
+  });
+runVariantCrawl(env);
+const result = runCapture(dir);
 if (result.error) {
   console.error(playwrightMissingMessage(result.error.message));
   process.exit(2);
@@ -483,6 +517,70 @@ if (status === 0) {
       'styleproof-map: 0 surfaces captured — no manifest written; if this is the base side of a first adoption, the diff will treat it as no-baseline',
     );
     process.exit(status);
+  }
+  // The #400 five-run oracle, opt-in. Runs BEFORE the manifest write and the upload, so a
+  // bundle that fails it is never stamped and never published — the whole point is that a
+  // flake must not become a baseline. Two captures (the always-on self-check) cannot see a
+  // nondeterminism that happens to repeat; five fresh contexts with identical canonical
+  // hashes can.
+  if (proveDeterminism) {
+    const extraRunDirs = [];
+    // Nothing here may call process.exit() directly: that skips the cleanup below and
+    // would leave four extra bundles on disk for a later capture or diff to trip over.
+    // Record the outcome, always clean up, then exit.
+    let oracleExit = 0;
+    try {
+      for (let run = 2; run <= DETERMINISM_ORACLE_RUNS && oracleExit === 0; run += 1) {
+        const label = `${dir}.oracle-run-${run}`;
+        const runDir = path.isAbsolute(label) ? label : path.join(baseDir, label);
+        clearCaptureOutput(runDir);
+        extraRunDirs.push(runDir);
+        console.error(`styleproof-map: determinism oracle run ${run}/${DETERMINISM_ORACLE_RUNS}`);
+        const runResult = runCapture(label);
+        if (runResult.error) {
+          console.error(playwrightMissingMessage(runResult.error.message));
+          oracleExit = 2;
+        } else if ((runResult.status ?? 1) !== 0) {
+          console.error(
+            `styleproof-map: determinism oracle run ${run}/${DETERMINISM_ORACLE_RUNS} failed (exit ${runResult.status ?? 1})`,
+          );
+          oracleExit = runResult.status ?? 1;
+        }
+      }
+      if (oracleExit === 0) {
+        const verdict = assessDeterminismOracle([targetDir, ...extraRunDirs].map(determinismReceiptForDir));
+        if (verdict.status === 'deterministic') {
+          fs.writeFileSync(
+            path.join(targetDir, DETERMINISM_RECEIPT),
+            `${JSON.stringify({ schemaVersion: 1, producer: 'styleproof-map', verdict }, null, 2)}\n`,
+          );
+          promoteLedgerToOracleProven(targetDir);
+          console.error(
+            `styleproof-map: determinism oracle PASSED — ${verdict.observedRuns}/${verdict.requiredRuns} runs identical across ${verdict.stateKeys.length} surface map(s)`,
+          );
+        } else {
+          console.error(
+            `styleproof-map: determinism oracle FAILED (${verdict.reason}) — ${verdict.matchingRuns}/${verdict.requiredRuns} runs matched:`,
+          );
+          for (const diagnostic of verdict.diagnostics) console.error(`  ${diagnostic}`);
+          oracleExit = 1;
+        }
+      }
+    } catch (e) {
+      console.error(`styleproof-map: determinism oracle errored\n${e instanceof Error ? e.message : String(e)}`);
+      oracleExit = 2;
+    } finally {
+      // The extra bundles exist only to be hashed; never leave one where a later capture,
+      // upload, or diff could mistake it for a real baseline.
+      for (const runDir of extraRunDirs) {
+        fs.rmSync(runDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+      }
+    }
+    if (oracleExit !== 0) {
+      console.error('styleproof-map: discarding the capture — an unproven bundle must never become a baseline');
+      fs.rmSync(targetDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+      process.exit(oracleExit);
+    }
   }
   // Bind the map to the commit it actually started rendering (headBeforeCapture), not a
   // HEAD that may have moved mid-capture. `--sha` still wins for callers that know better.

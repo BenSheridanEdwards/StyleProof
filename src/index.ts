@@ -186,7 +186,7 @@ export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affe
 export { classifyAuthBoundary, isAuthPath } from './auth-boundary.js';
 export type { AuthBoundaryMetadata, AuthBoundaryDiagnostic } from './auth-boundary.js';
 
-export { assessDeterminismOracle, hashDeterminismMap } from './determinism-oracle.js';
+export { assessDeterminismOracle, determinismRunReceipt, hashDeterminismMap } from './determinism-oracle.js';
 export type { DeterminismRunReceipt, DeterminismFlakeReason, DeterminismOracleVerdict } from './determinism-oracle.js';
 
 export { classifyIncompleteUi } from './incomplete-ui.js';
@@ -235,48 +235,12 @@ export type {
 export { importMapBundleToEvidenceStore } from './evidence-import.js';
 export type { ImportMapBundleOptions } from './evidence-import.js';
 
-export {
-  assessPhase0Contract,
-  parsePhase0Contract,
-  serializePhase0Contract,
-  digestPhase0Contract,
-  Phase0ContractError,
-} from './phase0-contract.js';
+export { comparePngs, comparePngFiles, attributeRegion, pixelDiffSurface } from './pixel-diff.js';
 export type {
-  Phase0Assertion,
-  Phase0Authority,
-  Phase0AxisName,
-  Phase0AxisStatus,
-  Phase0CertificationReceipt,
-  Phase0Comparability,
-  Phase0ContractDocument,
-  Phase0Identity,
-  Phase0IntegrityJoin,
-  Phase0Obligation,
-  Phase0Presence,
-  Phase0Reason,
-  Phase0Relation,
-  Phase0SourceRun,
-} from './phase0-contract.js';
-
-export {
-  createReleaseConfidenceManifest,
-  digestReleaseConfidenceManifest,
-  parseReleaseConfidenceManifest,
-  serializeReleaseConfidenceManifest,
-  validateReleaseConfidenceManifest,
-  ReleaseConfidenceManifestError,
-} from './release-confidence-manifest.js';
-export type {
-  ReleaseConfidenceManifest,
-  ReleaseConfidenceManifestReason,
-  ReleaseConfidenceManifestReceipt,
-} from './release-confidence-manifest.js';
-export { projectReleaseConfidence, ReleaseConfidenceProjectError } from './release-confidence-project.js';
-export type {
-  ReleaseConfidenceEvidenceInput,
-  ReleaseConfidenceProjectInput,
-  ReleaseConfidenceProjectResult,
-} from './release-confidence-project.js';
-export { summarizeReleaseConfidence } from './release-confidence-summary.js';
-export type { ReleaseConfidenceSummary } from './release-confidence-summary.js';
+  PixelOptions,
+  PixelRegion,
+  PixelLayer,
+  PixelComparison,
+  PixelLayerResult,
+  PixelSurfaceResult,
+} from './pixel-diff.js';
