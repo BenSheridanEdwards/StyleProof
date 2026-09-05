@@ -1477,6 +1477,8 @@ It is **opt-in and never part of the default gate** — the gate still captures 
 
 The module graph is an **input**, so StyleProof stays framework-agnostic and adds no dependency. Produce it with any tool whose output you can shape into `{ from, to }` edges — [dependency-cruiser](https://www.npmjs.com/package/dependency-cruiser)'s `modules[].dependencies[]` maps directly:
 
+Multiple surface keys may share an entry module (for example, resting and open states). A change reaching that module selects every associated surface, including entries using equivalent `./` path spellings.
+
 ```ts
 import { affectedSurfaces } from 'styleproof';
 import { readFileSync } from 'node:fs';

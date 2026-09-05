@@ -79,6 +79,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Incomplete interaction evidence on either comparison side now fails certification independently of style approval. The CLI and Action share one typed verdict policy.
 - Forced hover, focus, and active capture now records sibling and ancestor CSS effects with bounded scanning. Omitted or disabled evidence fails closed. Regenerate baselines after upgrading.
 - Setup rejects uninferable production server commands before dependency installation or scaffolding. Explicit `--server-command` and `--external-server` choices support custom applications without inventing missing package scripts. Setup and generated commands share package-manager detection, including declared-manager precedence and invalid-metadata rejection. This is static command validation, not a runtime readiness claim.
+- Selective remap preserves every surface sharing an entry module, so edits to a
+  page or its dependencies recapture all associated states instead of reusing
+  stale maps for all but the last declared state. (#495)
+
 - Selective remap includes nested modules under a computed import's static
   directory, preventing stale base-map reuse for dynamic consumers when a nested
   component or its scoped stylesheet changes. Sibling directories remain outside
