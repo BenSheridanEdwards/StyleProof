@@ -1,6 +1,6 @@
 Map compaction race (local, self-attested API fixture)
 Source SHA-256:
-781c28944a5afb07330b0d2e975183fed9f24de94b97b7cf0f18222580ea8542
+9490f3364df0acca4873f4531d3dd9093f5c027579f650f78811ba866b22d656
 Before (main 4aaff438): racing capture LOST
   Compaction attempts: 1
   Expected-tip guard: none
