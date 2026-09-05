@@ -18,12 +18,10 @@
  *  dates over sidecar dates. A bundle with neither (a legacy bundle from before
  *  this tool) sorts oldest and is pruned first.
  *
- *  Concurrency: the ref update must force (an orphan commit is never a
- *  fast-forward), so a publish that lands in the seconds between the tip read
- *  and the ref update is discarded with the old tip. For a cache that loss is
- *  self-healing — the next run misses and recaptures — and accepting it keeps
- *  this tool a single bounded pass instead of a lease protocol. The run logs
- *  the tip it replaced so the loss is observable, never silent. */
+ *  Concurrency: GitHub's atomic updateRefs mutation permits the orphan update
+ *  only while the branch still points to the tip used for retention selection.
+ *  A racing publication causes a bounded retry from the new tip; there is no
+ *  unconditional force-update fallback. */
 
 export const MAP_STORE_PRUNE_SIDECAR = 'styleproof-map-store-prune.json';
 
@@ -281,9 +279,65 @@ async function createBlob(api: ReturnType<typeof buildClient>['api'], content: s
   return blob.sha;
 }
 
+type UpdateRefsResponseKind = 'acknowledged' | 'errors' | 'invalid';
+
+function classifyUpdateRefsResponse(result: unknown, beforeOid: string): UpdateRefsResponseKind {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) return 'invalid';
+  const responseObject = result as Record<string, unknown>;
+  const errors = responseObject.errors;
+  if (errors !== undefined && (!Array.isArray(errors) || errors.length > 0)) return 'errors';
+  const data = responseObject.data;
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return 'invalid';
+  const updateRefs = (data as Record<string, unknown>).updateRefs;
+  if (typeof updateRefs !== 'object' || updateRefs === null || Array.isArray(updateRefs)) return 'invalid';
+  return (updateRefs as Record<string, unknown>).clientMutationId === beforeOid ? 'acknowledged' : 'invalid';
+}
+
+/** Atomically replace exactly the tip used to select retained bundles. */
+async function updateCompactedRef(
+  api: ReturnType<typeof buildClient>['api'],
+  options: MapStorePruneApiOptions,
+  beforeOid: string,
+  afterOid: string,
+): Promise<void> {
+  const repository = await api<{ node_id: string }>('GET', '');
+  if (!repository.node_id) throw new MapStorePruneApiError('missing repository node ID', 502);
+  const apiBaseUrl = options.apiBaseUrl.replace(/\/$/, '');
+  const graphqlUrl = apiBaseUrl.endsWith('/api/v3')
+    ? `${apiBaseUrl.slice(0, -'/api/v3'.length)}/api/graphql`
+    : `${apiBaseUrl}/graphql`;
+  const response = await (options.fetchImplementation ?? fetch)(graphqlUrl, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${options.token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      query: 'mutation CompactMapStore($input: UpdateRefsInput!) { updateRefs(input: $input) { clientMutationId } }',
+      variables: {
+        input: {
+          repositoryId: repository.node_id,
+          clientMutationId: beforeOid,
+          refUpdates: [{ name: `refs/heads/${options.branch}`, beforeOid, afterOid, force: true }],
+        },
+      },
+    }),
+  });
+  if (!response.ok) throw new MapStorePruneApiError(`map compaction updateRefs -> ${response.status}`, response.status);
+  const resultKind = classifyUpdateRefsResponse(await response.json(), beforeOid);
+  if (resultKind === 'errors') {
+    const current = await api<{ object: { sha: string } }>(
+      'GET',
+      `/git/ref/${encodeURIComponent(`heads/${options.branch}`)}`,
+    );
+    const status = current.object.sha !== beforeOid ? 409 : 400;
+    throw new MapStorePruneApiError('map compaction updateRefs returned GraphQL errors', status);
+  }
+  if (resultKind !== 'acknowledged') {
+    throw new MapStorePruneApiError('map compaction updateRefs returned no matching acknowledgement', 502);
+  }
+}
+
 /** Write the squashed branch: a full new root tree (retained bundles + foreign
  *  entries by their existing SHAs, so nothing re-uploads), an orphan commit,
- *  and a forced ref update — an orphan commit is never a fast-forward. */
+ *  and a conditional non-fast-forward ref update. */
 async function writeCompactedBranch(
   api: ReturnType<typeof buildClient>['api'],
   options: MapStorePruneApiOptions,
@@ -318,10 +372,7 @@ async function writeCompactedBranch(
     tree: compactedTree.sha,
     parents: [],
   });
-  await api('PATCH', `/git/refs/${encodeURIComponent(`heads/${options.branch}`)}`, {
-    sha: compactionCommit.sha,
-    force: true,
-  });
+  await updateCompactedRef(api, options, branchState.tipCommitSha, compactionCommit.sha);
 }
 
 async function compactOnce(
@@ -371,13 +422,10 @@ async function compactOnce(
     ),
   };
   await writeCompactedBranch(api, options, branchState, selection, `${JSON.stringify(refreshedSidecar, null, 2)}\n`);
-  // A publish landing between the tip read and the forced ref update is
-  // discarded with the old tip — log the replaced tip so that (harmless,
-  // self-healing) loss is observable.
   log(
     `compacted ${options.branch}: ${selection.retainedDirectoryNames.length} bundles retained, ` +
       `${selection.prunedDirectoryNames.length} pruned, history squashed to one commit ` +
-      `(replaced tip ${branchState.tipCommitSha.slice(0, 12)} — a publish racing this window is recaptured on its next run)`,
+      `(conditionally replaced tip ${branchState.tipCommitSha.slice(0, 12)})`,
   );
   return { compacted: true, ...selection };
 }
@@ -402,7 +450,8 @@ export async function compactMapStoreBranch(options: MapStorePruneApiOptions): P
         error.status === 409 ||
         error.status >= 500;
       if (!retryable || attemptNumber === maximumAttempts) throw error;
-      log(`map store prune attempt ${attemptNumber} failed (${String(error)}); retrying`);
+      const diagnostic = error instanceof MapStorePruneApiError ? `HTTP ${error.status}` : 'unexpected error';
+      log(`map store prune attempt ${attemptNumber} failed (${diagnostic}); retrying`);
       await sleep(attemptNumber * 2000);
     }
   }
