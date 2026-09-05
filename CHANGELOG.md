@@ -74,6 +74,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Selective remap preserves every surface sharing an entry module, so edits to a
+  page or its dependencies recapture all associated states instead of reusing
+  stale maps for all but the last declared state. (#495)
+
 - The approval gate let a pull request author sign off their own visual changes.
   `example/styleproof-approve.yml` checked write access and the reviewed commit but
   never compared the approver with the author, so any author with write access could

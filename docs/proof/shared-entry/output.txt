@@ -1,0 +1,17 @@
+Shared entry states: changed page.tsx
+Local reproduction using public synthetic source fixtures.
+Advisory remap decisions; not a captured-style certification.
+Base: 6537938; current source SHA-256:
+6884facecdc164856fd6f9293fd48411ca6b344fd69b863969d8a0c93e9169fc
+
+BEFORE (main 6537938)
+selective remap: ON → re-capture 1, reuse 2 from base
+  ↻ open (re-capture — a changed file reaches it)
+  ✓ other (reuse base map — no changed file reaches it)
+  ✓ rest (reuse base map — no changed file reaches it)
+
+AFTER (this branch)
+selective remap: ON → re-capture 2, reuse 1 from base
+  ↻ open (re-capture — a changed file reaches it)
+  ↻ rest (re-capture — a changed file reaches it)
+  ✓ other (reuse base map — no changed file reaches it)
