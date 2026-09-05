@@ -166,6 +166,8 @@ sign-off only moves the gate red. And a solo repository may opt in by setting
 [`example/styleproof-approve.yml`](example/styleproof-approve.yml). It is
 `'false'` by default, and any other value refuses, so a typo fails closed.
 
+Approval is bound to the canonical bot publication and its immutable `STYLE_REVIEW_REQUIRED` machine verdict, not comment markers alone. **Private-repository rollout is blocked until `contents: read` is explicitly approved for the separate approval workflow.** This patch leaves permissions unchanged. See [approval binding](docs/report-delivery-contract.md#approval-binding).
+
 ### Certified clean
 
 [![A GitHub-rendered StyleProof report with complete coverage, proven determinism, unchanged inventory, no data residue, and no reviewable computed-style changes](docs/readme/check-clean.png)](docs/readme/certified-clean-report.md)
