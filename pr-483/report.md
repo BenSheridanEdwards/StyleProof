@@ -2,14 +2,12 @@
 
 **Certification**
 - **Coverage** — ✓ complete (all 1 registered surface(s) captured)
-- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
+- **Determinism** — ✓ proven (base self-checked, head self-checked)
 - **Inventory** — ✓ navigable set unchanged
-- **Confidence** — ⚠ limited (0 captured, 1 unproven-determinism)
-
-**Release confidence** — ✗ blocked (present; completeness; connector-partial, environment-unproven, integrity-mismatch)
+- **Confidence** — ✓ complete (1 captured)
 
 **Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
 ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
-<!-- styleproof-receipt head-sha:5cd43dffe59b1560734aa4c7dd6d8c98fe385a1f run-id:33693095077 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:62bc002a8b352d91b811e69e04e4a70a430a942c run-id:33979023079 run-attempt:1 -->
