@@ -69,12 +69,12 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 0,
+      "unproven-determinism": 1,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 1
+      "captured": 0
     },
-    "completeness": "complete"
+    "completeness": "limited"
   },
   "sourceBinding": {
     "status": "bound",
@@ -94,17 +94,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "1e51e3e6b78263ca014e9ab50a4f379eeaba7efd04b3900e990e16eb8d242f3a",
+      "digest": "cc2736d3b0529f9107b61acf68d8124a17eeb393bde9389144a78be2a6676077",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1578
+      "byteCount": 1638
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "c3f6a5e5632c068e4782a52cab609da6a52b3021f580177acf6b6759146981f2",
+      "digest": "3dcf3f2547c72fcfd9b082e63359d10837f97c2a0193267d18e721dccbda9d4f",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1566
+      "byteCount": 1638
     }
   }
 }
