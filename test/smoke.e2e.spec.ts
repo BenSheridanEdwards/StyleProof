@@ -3,8 +3,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import type { Page } from '@playwright/test';
-import { captureStyleMap, saveStyleMap, loadStyleMap, trackInflightRequests, captureUrlToDir } from '../dist/index.js';
+import { PNG } from 'pngjs';
+import type { CDPSession, Page } from '@playwright/test';
+import {
+  captureStateLayerScreenshots,
+  captureStyleMap,
+  saveStyleMap,
+  loadStyleMap,
+  trackInflightRequests,
+  captureUrlToDir,
+} from '../dist/index.js';
 import {
   diffContentMaps,
   diffStyleMapDirs,
@@ -72,6 +80,74 @@ function fixture(buttonColor: string, hoverColor: string): string {
 
 async function captureFixture(page: Page, html: string): Promise<ReturnType<typeof loadStyleMap>> {
   return withPage(page, html, () => captureStyleMap(page));
+}
+
+type CDPSendCall = { method: string; params?: Record<string, unknown> };
+type CDPSendForward = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
+type CDPSendInterceptor = (call: CDPSendCall, forward: CDPSendForward) => Promise<unknown>;
+type CDPSessionProbe = { detachCount: number };
+
+async function withInterceptedCDPSession<T>(
+  page: Page,
+  probe: CDPSessionProbe,
+  intercept: CDPSendInterceptor,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const context = page.context();
+  const ownDescriptor = Object.getOwnPropertyDescriptor(context, 'newCDPSession');
+  const newCDPSession = context.newCDPSession.bind(context);
+  Object.defineProperty(context, 'newCDPSession', {
+    configurable: true,
+    value: async (...args: Parameters<typeof context.newCDPSession>) => {
+      const session = await newCDPSession(...args);
+      const forward = session.send.bind(session) as unknown as CDPSendForward;
+      const detach = session.detach.bind(session);
+      return new Proxy(session, {
+        get(target, property, receiver) {
+          if (property === 'send')
+            return (method: string, params?: Record<string, unknown>) => intercept({ method, params }, forward);
+          if (property === 'detach')
+            return async () => {
+              probe.detachCount++;
+              return detach();
+            };
+          const value: unknown = Reflect.get(target, property, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }) as CDPSession;
+    },
+  });
+  try {
+    return await fn();
+  } finally {
+    if (ownDescriptor) Object.defineProperty(context, 'newCDPSession', ownDescriptor);
+    else Reflect.deleteProperty(context, 'newCDPSession');
+  }
+}
+
+function replacesMarkedNodeAfterResolution(page: Page, mode: 'unique' | 'missing' | 'ambiguous'): CDPSendInterceptor {
+  let replaced = false;
+  return async (call, forward) => {
+    const result = await forward(call.method, call.params);
+    const selector = call.params?.selector;
+    const resolved =
+      call.method === 'DOM.querySelector'
+        ? Number((result as { nodeId?: number }).nodeId) > 0
+        : call.method === 'DOM.querySelectorAll'
+          ? ((result as { nodeIds?: number[] }).nodeIds?.length ?? 0) > 0
+          : false;
+    if (!replaced && resolved && typeof selector === 'string' && selector.includes('data-styleproof-state-id')) {
+      replaced = true;
+      await page.evaluate((replacementMode) => {
+        const target = document.querySelector('[data-styleproof-state-id]');
+        if (!target) throw new Error('marked fixture target missing before replacement');
+        if (replacementMode === 'missing') target.remove();
+        else if (replacementMode === 'ambiguous') target.replaceWith(target.cloneNode(true), target.cloneNode(true));
+        else target.replaceWith(target.cloneNode(true));
+      }, mode);
+    }
+    return result;
+  };
 }
 
 test('captures a real page and reports an identical map as unchanged', async ({ page }) => {
@@ -400,6 +476,137 @@ test('forced-state capture keeps CDP and page elements aligned when snapshots re
     hoverDeltas.filter((delta) => delta.color === 'rgb(255, 0, 0)' || delta.color === 'rgb(0, 0, 255)').length,
     'both button hover colours are captured even when page querySelectorAll order differs from CDP order',
   ).toBe(2);
+});
+
+test('forced-state maps recover the same uniquely marked element after its node is replaced', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; }
+    .target { color: rgb(1, 2, 3); }
+    .target:hover { color: rgb(10, 20, 30); }
+  </style></head><body><button class="target">target</button></body></html>`;
+  const captureReplacingTarget = () =>
+    withPage(page, html, async () => {
+      const probe = { detachCount: 0 };
+      const map = await withInterceptedCDPSession(page, probe, replacesMarkedNodeAfterResolution(page, 'unique'), () =>
+        captureStyleMap(page),
+      );
+      expect(probe.detachCount, 'the capture CDP session detached').toBe(1);
+      expect(await page.locator('[data-styleproof-state-id]').count(), 'temporary identity marks were cleared').toBe(0);
+      return map;
+    });
+
+  const first = await captureReplacingTarget();
+  const replay = await captureReplacingTarget();
+  const targetPath = Object.entries(first.elements).find(([, element]) => element.cls === 'target')?.[0];
+  expect(targetPath, 'the marked target is in the base map').toBeTruthy();
+  expect(first.statesSkipped, 'unique marker recovery remains certified').toBeFalsy();
+  expect(
+    Object.values(first.states[targetPath!]?.hover ?? {}).some((delta) => delta.color === 'rgb(10, 20, 30)'),
+    'the uniquely re-resolved target receives :hover',
+  ).toBe(true);
+  expect(diffStyleMaps(first, replay), 'repeated replacement captures stay deterministic').toEqual([]);
+});
+
+test('state-layer screenshots recover a uniquely marked replacement before forcing each state', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    html, body { margin: 0; background: rgb(255, 255, 255); }
+    .target { display: block; width: 100px; height: 100px; border: 0; background: rgb(1, 2, 3); }
+    .target:hover { background: rgb(10, 20, 30); }
+    .target:focus-visible { background: rgb(40, 50, 60); }
+    .target:active { background: rgb(70, 80, 90); }
+  </style></head><body><button class="target">target</button></body></html>`;
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-forced-state-shot-'));
+  const stem = path.join(output, 'surface');
+  try {
+    await withPage(page, html, async () => {
+      const probe = { detachCount: 0 };
+      const written = await withInterceptedCDPSession(
+        page,
+        probe,
+        replacesMarkedNodeAfterResolution(page, 'unique'),
+        () => captureStateLayerScreenshots(page, stem),
+      );
+      expect(written).toEqual([`${stem}.hover.png`, `${stem}.focus.png`, `${stem}.active.png`]);
+      expect(probe.detachCount, 'the screenshot CDP session detached').toBe(1);
+      expect(await page.locator('[data-styleproof-state-id]').count(), 'temporary identity marks were cleared').toBe(0);
+    });
+
+    const pixelAt = (file: string): number[] => {
+      const png = PNG.sync.read(fs.readFileSync(file));
+      const offset = (10 * png.width + 10) * 4;
+      return [...png.data.subarray(offset, offset + 4)];
+    };
+    expect(pixelAt(`${stem}.hover.png`), 'replacement is forced to :hover in its state layer').toEqual([
+      10, 20, 30, 255,
+    ]);
+    expect(pixelAt(`${stem}.focus.png`), 'replacement is forced to :focus-visible in its state layer').toEqual([
+      40, 50, 60, 255,
+    ]);
+    expect(pixelAt(`${stem}.active.png`), 'replacement is forced to :active in its state layer').toEqual([
+      70, 80, 90, 255,
+    ]);
+  } finally {
+    fs.rmSync(output, { recursive: true, force: true });
+  }
+});
+
+test('missing or ambiguous marked replacements fail closed with bounded forced-state evidence', async ({ page }) => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    .target:hover { color: rgb(10, 20, 30); }
+  </style></head><body><button class="target">target</button></body></html>`;
+  for (const mode of ['missing', 'ambiguous'] as const) {
+    const probe = { detachCount: 0 };
+    const map = await withPage(page, html, () =>
+      withInterceptedCDPSession(page, probe, replacesMarkedNodeAfterResolution(page, mode), () =>
+        captureStyleMap(page),
+      ),
+    );
+    expect(map.states, `${mode} replacement does not target a different element`).toEqual({});
+    expect(map.statesSkipped, `${mode} replacement marks the forced-state layer uncertified`).toBe(true);
+    expect(probe.detachCount, `${mode} replacement detaches the CDP session`).toBe(1);
+    expect(await page.locator('[data-styleproof-state-id]').count(), `${mode} replacement marks were cleared`).toBe(0);
+  }
+});
+
+test('non-detachment force errors propagate after clearing applied states and detaching', async ({ page }) => {
+  const html = `<!doctype html><html><body><button>first</button><button>second</button></body></html>`;
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-forced-state-cleanup-'));
+  const probe = { detachCount: 0 };
+  const clearedNodeIds: number[] = [];
+  let firstAppliedNodeId: number | undefined;
+  let applyCount = 0;
+  const failure = new Error('Protocol error (CSS.forcePseudoState): deliberate non-detachment failure');
+  const intercept: CDPSendInterceptor = async (call, forward) => {
+    if (call.method === 'CSS.forcePseudoState') {
+      const nodeId = Number(call.params?.nodeId);
+      const forcedPseudoClasses = call.params?.forcedPseudoClasses;
+      if (Array.isArray(forcedPseudoClasses) && forcedPseudoClasses.length > 0) {
+        applyCount++;
+        if (applyCount === 2) throw failure;
+        const result = await forward(call.method, call.params);
+        firstAppliedNodeId = nodeId;
+        return result;
+      }
+      if (Array.isArray(forcedPseudoClasses) && forcedPseudoClasses.length === 0) clearedNodeIds.push(nodeId);
+    }
+    return forward(call.method, call.params);
+  };
+
+  try {
+    await expect(
+      withPage(page, html, () =>
+        withInterceptedCDPSession(page, probe, intercept, () =>
+          captureStateLayerScreenshots(page, path.join(output, 'surface')),
+        ),
+      ),
+    ).rejects.toThrow(failure.message);
+    expect(firstAppliedNodeId, 'the first target received a forced state before the unrelated failure').toBeTruthy();
+    expect(clearedNodeIds, 'cleanup clears the already-applied state').toContain(firstAppliedNodeId);
+    expect(probe.detachCount, 'cleanup detaches the CDP session').toBe(1);
+    expect(await page.locator('[data-styleproof-state-id]').count(), 'cleanup removes every temporary mark').toBe(0);
+  } finally {
+    fs.rmSync(output, { recursive: true, force: true });
+  }
 });
 
 test('neutralises real focus so a focused element still yields its forced :focus delta', async ({ page }) => {
