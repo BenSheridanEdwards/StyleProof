@@ -9,8 +9,21 @@ import { mkNonGitTmp, mkTmp, rmTmp } from './helpers.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 
-const runInit = (cwd, args = [], env = {}) =>
-  spawnSync(process.execPath, [INIT, ...args], { cwd, encoding: 'utf8', env: { ...process.env, ...env } });
+const runInit = (cwd, args = [], env = {}) => {
+  const hasServerChoice = args.some(
+    (arg) => arg === '--server-command' || arg.startsWith('--server-command=') || arg === '--external-server',
+  );
+  const packagePath = path.join(cwd, 'package.json');
+  const fixtureArgs =
+    !hasServerChoice && !fs.existsSync(packagePath)
+      ? [...args, '--server-command', 'npm run build && npm run start']
+      : args;
+  return spawnSync(process.execPath, [INIT, ...fixtureArgs], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
+};
 function touch(root, rel) {
   const f = path.join(root, rel);
   fs.mkdirSync(path.dirname(f), { recursive: true });
@@ -139,6 +152,10 @@ for (const manager of [
     const root = mkTmp();
     try {
       if (manager.lockfile) touch(root, manager.lockfile);
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({ scripts: { build: 'build', start: 'start' } }),
+      );
       const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
       assert.equal(res.status, 0, res.stderr);
 
@@ -243,7 +260,7 @@ test('styleproof-init: config-only first adoption sources the head harness', () 
     git(['add', '-A']);
     git(['commit', '-qm', 'test: base with spec only']);
 
-    const initialized = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const initialized = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--server-command', 'npm run serve']);
     assert.equal(initialized.status, 0, initialized.stderr);
     git(['add', '-A']);
     git(['commit', '-qm', 'test: head adds dedicated config']);
@@ -273,7 +290,16 @@ test('styleproof-init: generated scaffold check executes with a shell-hostile cu
     assert.ok(checkCommand, 'generated workflow contains an executable freshness command');
     const encodedSpecPath = workflow.match(/STYLEPROOF_SPEC_PATH_B64: ([A-Za-z0-9+/]+=*)/)?.[1];
     assert.ok(encodedSpecPath, 'generated workflow carries only encoded spec data');
-    const commandEnv = { ...process.env, STYLEPROOF_SPEC_PATH_B64: encodedSpecPath };
+    const serverMode = workflow.match(/STYLEPROOF_SERVER_MODE: (infer|custom|external)/)?.[1];
+    const encodedServerCommand = workflow.match(/STYLEPROOF_SERVER_COMMAND_B64: ([A-Za-z0-9+/]+=*)/)?.[1];
+    assert.equal(serverMode, 'custom');
+    assert.ok(encodedServerCommand, 'generated workflow carries only encoded server command data');
+    const commandEnv = {
+      ...process.env,
+      STYLEPROOF_SPEC_PATH_B64: encodedSpecPath,
+      STYLEPROOF_SERVER_MODE: serverMode,
+      STYLEPROOF_SERVER_COMMAND_B64: encodedServerCommand,
+    };
     fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
     fs.symlinkSync(path.join(here, '..'), path.join(root, 'node_modules', 'styleproof'), 'dir');
 
@@ -1367,6 +1393,24 @@ test('styleproof-init --upgrade: never overwrites a repository-owned Husky hook'
   }
 });
 
+test('styleproof-init: Next.js projects keep their production build and start inference', () => {
+  const root = mkTmp('styleproof-init-next-server-');
+  try {
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({ scripts: { build: 'next build' }, dependencies: { next: '^15.0.0' } }),
+    );
+    const result = runInit(root, ['--base-url', 'http://127.0.0.1:3100']);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(
+      readFile(root, 'playwright.styleproof.config.ts'),
+      /command: "npm run build && npx next start -p 3100"/,
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-init: Vite projects get a production preview command without needing a start script', () => {
   const root = mkTmp();
   try {
@@ -1386,7 +1430,7 @@ test('styleproof-init: Vite projects get a production preview command without ne
 
     const config = readFile(root, 'playwright.styleproof.config.ts');
     assert.match(config, /npm run build && npx vite preview --host 127\.0\.0\.1 --port 4173/);
-    assert.match(config, /env: \{ PORT: '4173' \}/);
+    assert.match(config, /env: \{ PORT: "4173" \}/);
     assert.doesNotMatch(config, /npm run start/);
   } finally {
     rmTmp(root);
@@ -1401,7 +1445,7 @@ test('styleproof-init: summary names exactly the files it wrote and leaves packa
   try {
     const pkg = JSON.stringify({ name: 'app', dependencies: { styleproof: '^3.0.0' } }, null, 2) + '\n';
     fs.writeFileSync(path.join(root, 'package.json'), pkg);
-    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts', '--server-command', 'npm run serve']);
     assert.equal(res.status, 0, res.stderr);
     // The summary enumerates only the files init actually wrote…
     assert.match(
@@ -1429,5 +1473,104 @@ test('styleproof-init: an existing app Playwright config is left alone while Sty
     assert.match(res.stdout, /app playwright\.config exists — left untouched/);
   } finally {
     rmTmp(root);
+  }
+});
+
+test('styleproof-init: unknown apps fail before scaffolding when no production server can be inferred', () => {
+  const root = mkTmp('styleproof-init-server-missing-');
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    const result = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /could not infer a production server command/i);
+    assert.match(result.stderr, /--server-command/);
+    assert.match(result.stderr, /--external-server/);
+    assert.equal(fs.existsSync(path.join(root, 'e2e/styleproof.spec.ts')), false);
+    assert.equal(fs.existsSync(path.join(root, 'playwright.styleproof.config.ts')), false);
+    const checked = runInit(root, ['--check']);
+    assert.equal(checked.status, 2);
+    assert.match(checked.stderr, /could not infer a production server command/i);
+
+    const upgraded = runInit(root, ['--upgrade']);
+    assert.equal(upgraded.status, 2);
+    assert.match(upgraded.stderr, /could not infer a production server command/i);
+    assert.equal(fs.existsSync(path.join(root, '.github/workflows/styleproof.yml')), false);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: empty scripts and missing custom command values are not runnable choices', () => {
+  const root = mkTmp('styleproof-init-empty-server-');
+  try {
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({ scripts: { build: ' ', start: '', preview: ' ' } }),
+    );
+    const inferred = runInit(root);
+    assert.equal(inferred.status, 2);
+    assert.match(inferred.stderr, /could not infer a production server command/i);
+
+    const missing = runInit(root, ['--server-command']);
+    assert.equal(missing.status, 2);
+    assert.match(missing.stderr, /--server-command requires a value/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: explicit server commands are generated as inert string data', () => {
+  const root = mkTmp('styleproof-init-server-command-');
+  const marker = path.join(root, 'command-ran');
+  const command = `node -e "require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'bad')"`;
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    const result = runInit(root, ['--server-command', command]);
+    assert.equal(result.status, 0, result.stderr);
+    const config = readFile(root, 'playwright.styleproof.config.ts');
+    assert.ok(config.includes(`command: ${JSON.stringify(command)}`));
+    const workflow = readFile(root, '.github/workflows/styleproof.yml');
+    assert.match(workflow, /STYLEPROOF_SERVER_MODE: custom/);
+    assert.ok(workflow.includes(`STYLEPROOF_SERVER_COMMAND_B64: ${Buffer.from(command, 'utf8').toString('base64')}`));
+    assert.doesNotMatch(workflow, new RegExp(marker.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.equal(fs.existsSync(marker), false, 'setup must never execute the configured production command');
+
+    const upgraded = runInit(root, ['--upgrade', '--server-command', command]);
+    assert.equal(upgraded.status, 0, upgraded.stderr);
+    assert.match(readFile(root, '.github/workflows/styleproof.yml'), /STYLEPROOF_SERVER_MODE: custom/);
+    assert.equal(fs.existsSync(marker), false, 'upgrade must never execute the configured production command');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: external-server mode omits the generated webServer command', () => {
+  const root = mkTmp('styleproof-init-external-server-');
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    const result = runInit(root, ['--external-server', '--base-url', 'http://127.0.0.1:4321']);
+    assert.equal(result.status, 0, result.stderr);
+    const config = readFile(root, 'playwright.styleproof.config.ts');
+    assert.doesNotMatch(config, /webServer:/);
+    assert.match(config, /baseURL: process\.env\.BASE_URL \|\| "http:\/\/127\.0\.0\.1:4321"/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: start and preview scripts remain supported production server choices', () => {
+  for (const [script, expected] of [
+    ['start', /command: "npm run start"/],
+    ['preview', /command: "npm run preview"/],
+  ]) {
+    const root = mkTmp(`styleproof-init-${script}-`);
+    try {
+      fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { [script]: `${script}-app` } }));
+      const result = runInit(root);
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(readFile(root, 'playwright.styleproof.config.ts'), expected);
+    } finally {
+      rmTmp(root);
+    }
   }
 });
