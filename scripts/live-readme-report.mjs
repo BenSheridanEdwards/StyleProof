@@ -105,7 +105,7 @@ const comment = [
   '- [ ] **Approve all changes**',
   '',
   '---',
-  '_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, one tick signs it off. A new push that changes styles or surfaces re-opens it._',
+  '_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._',
   '',
 ].join('\n');
 fs.writeFileSync(path.join(outDir, 'comment.md'), comment);

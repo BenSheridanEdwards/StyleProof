@@ -565,7 +565,7 @@ runs:
                 ? cleanGuidance
                 : approved
                   ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
-                  : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
+                  : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. One tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
               : advisoryGuidance),
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
             formatRunAttemptReceiptMarker({ runId, runAttempt }),
