@@ -1465,6 +1465,8 @@ It is **opt-in and never part of the default gate** — the gate still captures 
 
 The module graph is an **input**, so StyleProof stays framework-agnostic and adds no dependency. Produce it with any tool whose output you can shape into `{ from, to }` edges — [dependency-cruiser](https://www.npmjs.com/package/dependency-cruiser)'s `modules[].dependencies[]` maps directly:
 
+Multiple surface keys may share an entry module (for example, resting and open states). A change reaching that module selects every associated surface, including entries using equivalent `./` path spellings.
+
 ```ts
 import { affectedSurfaces } from 'styleproof';
 import { readFileSync } from 'node:fs';
@@ -1489,6 +1491,8 @@ const result = affectedSurfaces({
 Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)` is treated as a bundler **context module** (every file under that dir is a possible target, so precision there is directory-level, never a miss); and a CSS-Module (`.module.scss`/`.module.sass`) that carries a Sass `@use`/`@forward` load resolves to `'all'`, because those pull in a partial the JS import graph can't bound. One honest **residual** stays `'scope'` by design: the CSS-in-JS global list (`createGlobalStyle`, `injectGlobal`, `globalStyle`, …) must match the libraries you use — an allowlist can't fail closed on an _unknown_ member, so an unrecognized global API in a `.tsx` is the one way a scoped verdict could be unsound. Treat an unsupported styling system as a reason to skip selective remap. Because a PR-time miss would be silent, always let `main` (or a scheduled run) capture **all** surfaces as the trust-but-verify net.
 
 ### Show the skip list, then wire the pre-push hook
+
+Computed-import context directories include nested folders. For example, ``import(`../components/${name}`)`` can load `components/nested/Card.tsx`; changes to that module or its scoped stylesheet select the importing surface. Sibling directories such as `components-extra` remain outside that context.
 
 Before you trust a skip, print it. `explainAffectedSurfaces(result, allSurfaceKeys)` renders the verdict as reviewer-checkable lines — which surfaces re-capture and which reuse their restored base map — and takes an optional reason string for the `'all'` case:
 
