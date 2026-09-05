@@ -1057,6 +1057,41 @@ test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILE
   assert.match(commentStep[0], /report\/diff consistency|reflow source/i);
 });
 
+test('composite action does not expose raw-only findings as reviewable changes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-raw-only-'));
+  try {
+    const diff = {
+      sourceBinding: { status: 'bound' },
+      coverage: { basis: 'complete' },
+      determinism: { status: 'proven' },
+      confidence: { counts: { inaccessible: 0 } },
+      comparison: { blocksCertification: false },
+      reportConsistency: { ok: false, reason: 'raw_only_no_reviewable' },
+      reviewableCounts: { dom: 0, style: 0, state: 0 },
+      surfaces: [{ surface: 'home@320', findings: [{ kind: 'style', path: '#noise' }] }],
+      inventory: { added: [], removed: [], unacknowledged: [], staleAcknowledgements: [] },
+      dataResidue: { blocking: 0, unacknowledged: [] },
+    };
+    fs.writeFileSync(path.join(root, 'styleproof-diff.json'), JSON.stringify(diff));
+    fs.mkdirSync(path.join(root, 'styleproof-report'));
+    fs.writeFileSync(path.join(root, 'styleproof-report', 'report.json'), JSON.stringify(diff));
+    const script = path.join(root, 'verdict.cjs');
+    const output = path.join(root, 'verdict.json');
+    fs.writeFileSync(script, actionVerdictScript({ baseCaptureFailed: false, changed: true }));
+    const verdict = spawnSync(process.execPath, [script], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_VERDICT_OUTPUT: output },
+    });
+    assert.equal(verdict.status, 0, verdict.stderr || verdict.stdout);
+    const receipt = JSON.parse(fs.readFileSync(output, 'utf8'));
+    assert.equal(receipt.state, 'CERTIFICATION_FAILED');
+    assert.equal(receipt['reviewable-changed'], 'false');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('composite action validates baseline-failure receipt parity before trust classification', () => {
   const report = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
   assert.ok(report, 'action.yml should generate and reconcile the report before trust classification');

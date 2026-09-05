@@ -449,10 +449,14 @@ runs:
               : [],
           );
           const partialBaseline = (diff.partialBaseline === true) || explainedMissingBaselineSurfaces.size > 0;
+          const reviewableFindingCount = ['dom', 'style', 'state'].reduce(
+            (total, kind) => total + (Number.isFinite(diff.reviewableCounts?.[kind]) ? diff.reviewableCounts[kind] : 0),
+            0,
+          );
           const reviewableChanged =
+            reviewableFindingCount > 0 ||
             (Array.isArray(diff.surfaces) && diff.surfaces.some((surface) =>
               surface && (
-                (Array.isArray(surface.findings) && surface.findings.length > 0) ||
                 surface.missing === 'after' ||
                 (surface.missing === 'before' && !explainedMissingBaselineSurfaces.has(surface.surface))
               ),
