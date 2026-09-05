@@ -76,6 +76,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Map-store compaction atomically requires the expected branch tip before replacing
+  it, so a concurrent publication is retained after a bounded retry instead of
+  being discarded. GraphQL errors fail closed without an unconditional fallback. (#501)
 - Approval now requires the canonical bot publication, immutable report identity and `STYLE_REVIEW_REQUIRED` machine verdict. Copied comments, stale receipts and untick-retick laundering cannot grant a success status. Private-repository rollout requires a separately approved `contents: read` grant on the approval workflow; this patch does not change permissions.
 
 - Incomplete interaction evidence on either comparison side now fails certification independently of style approval. The CLI and Action share one typed verdict policy.
