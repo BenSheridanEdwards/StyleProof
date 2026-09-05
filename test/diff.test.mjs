@@ -647,6 +647,28 @@ test('no state-skip finding when both sides skipped (or neither)', () => {
   assert.deepEqual(diffStyleMaps(full(), full()), []);
 });
 
+test('diffStyleMapDirs marks forced-state certification incomplete when either capture skipped or disabled it', () => {
+  for (const [label, beforeEvidence, afterEvidence, expected] of [
+    ['both skipped', { statesSkipped: true }, { statesSkipped: true }, 1],
+    ['before skipped', { statesSkipped: true }, {}, 1],
+    ['after skipped', {}, { statesSkipped: true }, 1],
+    ['captureStates false is explicitly unsupported', { statesCaptured: false }, { statesCaptured: false }, 1],
+    ['neither', {}, {}, 0],
+  ]) {
+    const root = mkTmp();
+    const before = path.join(root, 'before');
+    const after = path.join(root, 'after');
+    const map = (stateEvidence) => ({
+      ...makeMap({ elements: { body: { tag: 'body' } } }),
+      ...stateEvidence,
+    });
+    writeCapture(before, 'home@1280', map(beforeEvidence), null);
+    writeCapture(after, 'home@1280', map(afterEvidence), null);
+    assert.equal(diffStyleMapDirs(before, after).statesUncertified, expected, label);
+    rmTmp(root);
+  }
+});
+
 test('a pseudo-element pruned against its OWN ua default (tag::pseudo) is not a change', () => {
   // `before` omits ::before content (pruned because it equals the pseudo's own
   // default '"x"'); `after` sets it explicitly to '"x"'. With the per-pseudo
