@@ -50,6 +50,7 @@ import {
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
+  baselineFailureReceipts,
   readBaselineProvenance,
   readMapManifest,
   resolveCachedCaptureDirs,
@@ -499,7 +500,8 @@ const pixelSurfaces = result.pixels ?? [];
 const truth = assessComparisonTruth(surfaces, counts, comparability, { requireStateIdentity });
 const comparison = summarizeComparability(comparability, requireStateIdentity);
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
-const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
+const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures);
+const partialBaseline = baselineFailures.length > 0;
 
 function printBaselineSurfaceFailureCallout() {
   if (!baselineSurfaceFailures.length) return;
@@ -765,7 +767,7 @@ if (jsonOut) {
             : { ok: true, reason: 'aligned' },
           surfaces,
           compared,
-          baselineSurfaceFailures,
+          baselineFailures,
           // Additive (#367): where the baseline maps came from, when the run
           // recorded it — restored from the exact base SHA, restored from a
           // nearest ancestor (with the changed-path-count proof), or captured.

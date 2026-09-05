@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isSelfCheckCaptureFailure } from '../dist/runner.js';
+import { generateStyleMapReport } from '../dist/report.js';
 import { removeSurfaceCaptureArtifacts } from '../dist/crawl-surfaces.js';
 import {
   MAP_MANIFEST,
@@ -379,8 +380,7 @@ test('diff CLI: partial base manifest with failures vs full head is not exit 2',
   assert.match(r.stdout, /BASELINE capture/);
   assert.match(r.stdout, /repair the base branch/);
   const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-  assert.equal(parsed.baselineSurfaceFailures.length, 1);
-  assert.equal(parsed.baselineSurfaceFailures[0].key, 'about@1280');
+  assert.deepEqual(parsed.baselineFailures, [{ key: 'about@1280', reason: 'capture_failed' }]);
   assert.equal(parsed.surfaces.find((s) => s.surface === 'about@1280')?.missing, 'before');
   rmTmp(root);
 });
@@ -403,9 +403,7 @@ test('diff CLI: about@auto baseline failure vs about@1280 head is repair-base no
   assert.match(r.stdout, /repair the base branch/);
   assert.doesNotMatch(r.stdout, /review before baselining/);
   const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-  assert.deepEqual(parsed.baselineSurfaceFailures, [
-    { key: 'about@auto', reason: 'viewport detection failed', kind: 'capture' },
-  ]);
+  assert.deepEqual(parsed.baselineFailures, [{ key: 'about@auto', reason: 'capture_failed' }]);
   assert.deepEqual(parsed.explainedMissingBaselineSurfaces, ['about@1280']);
   assert.equal(parsed.partialBaseline, true);
   rmTmp(root);
@@ -472,6 +470,138 @@ test('styleproof-report surfaces baseline capture failure callout', () => {
   rmTmp(root);
 });
 
+test('styleproof-report persists the complete bounded baseline-failure receipt without relabeling unrelated new surfaces', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const out = path.join(root, 'report');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  for (const key of ['new-a@1280', 'new-b@1280', 'new-c@1280']) writeCapture(B, key, m, null);
+  const failures = ['failed-a@1280', 'failed-b@1280', 'failed-c@1280', 'failed-d@1280', 'failed-e@1280'].map((key) => ({
+    key,
+    reason: `private exception for ${key}`,
+    kind: 'capture',
+  }));
+  writeManifest(A, 'base-sha', 'same-env-key', { surfaceCaptureFailures: failures });
+  writeManifest(B, 'head-sha', 'same-env-key');
+
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, r.stderr + r.stdout);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+
+  assert.deepEqual(
+    json.baselineFailures,
+    failures.map(({ key }) => ({ key, reason: 'capture_failed' })),
+  );
+  assert.equal(json.partialBaseline, true);
+  const diffPath = path.join(root, 'diff.json');
+  const diff = run(DIFF, [A, B, '--json', diffPath]);
+  assert.equal(diff.status, 3, diff.stderr + diff.stdout);
+  assert.equal(JSON.parse(fs.readFileSync(diffPath, 'utf8')).partialBaseline, true);
+  assert.equal(json.surfaces.filter((surface) => surface.isNew === true).length, 3);
+  assert.deepEqual(
+    json.surfaces
+      .filter((surface) => surface.isNew === true)
+      .map((surface) => surface.surface)
+      .sort(),
+    ['new-a@1280', 'new-b@1280', 'new-c@1280'],
+  );
+  for (const { key } of failures) assert.match(md, new RegExp(key.replace('@', '@')));
+  assert.match(md, /5 baseline capture failure\(s\)/i);
+  assert.match(md, /3 new surface\(s\).*review.*first[- ]adoption/is);
+  assert.doesNotMatch(md, /private exception/i);
+  rmTmp(root);
+});
+
+test('styleproof-report marks only a matching failed baseline surface as repair debt', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const out = path.join(root, 'report');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  writeCapture(B, 'failed@1280', m, null);
+  writeCapture(B, 'genuinely-new@1280', m, null);
+  writeManifest(A, 'base-sha', 'same-env-key', {
+    surfaceCaptureFailures: [{ key: 'failed@auto', reason: 'private viewport exception', kind: 'capture' }],
+  });
+  writeManifest(B, 'head-sha', 'same-env-key');
+
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, r.stderr + r.stdout);
+  assert.match(r.stdout, /1 new surface\(s\) with no baseline/);
+  assert.doesNotMatch(r.stdout, /2 new surface\(s\)/);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  const failed = json.surfaces.find((surface) => surface.surface === 'failed@1280');
+  const genuinelyNew = json.surfaces.find((surface) => surface.surface === 'genuinely-new@1280');
+
+  assert.deepEqual(failed, {
+    ...failed,
+    isNew: false,
+    baselineStatus: 'capture-failed',
+  });
+  assert.equal(genuinelyNew.isNew, true);
+  assert.equal(genuinelyNew.baselineStatus, 'new');
+  assert.match(md, /failed@1280.*baseline repair debt/is);
+  assert.match(md, /genuinely-new@1280.*reviewable first-adoption surface/is);
+  assert.doesNotMatch(md, /private viewport exception/i);
+  rmTmp(root);
+});
+
+test('styleproof-report fails closed for repair debt without misreporting it as new', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const out = path.join(root, 'report');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  writeCapture(B, 'failed@1280', m, null);
+  writeManifest(A, 'base-sha', 'same-env-key', {
+    surfaceCaptureFailures: [{ key: 'failed@auto', reason: 'private exception', kind: 'capture' }],
+  });
+  writeManifest(B, 'head-sha', 'same-env-key');
+
+  const r = run(REPORT, [A, B, '--out', out]);
+  assert.equal(r.status, 1, r.stderr + r.stdout);
+  assert.match(r.stdout, /1 removed or baseline-repair-debt surface\(s\)/);
+  assert.doesNotMatch(r.stdout, /new surface\(s\)/);
+  rmTmp(root);
+});
+
+test('styleproof-report keeps large baseline-failure receipts inside the markdown display budget', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const out = path.join(root, 'report');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  const failures = Array.from({ length: 10_000 }, (_, index) => ({
+    key: `failed-${String(index).padStart(5, '0')}@1280`,
+    reason: 'private exception',
+    kind: 'capture',
+  }));
+  writeManifest(A, 'base-sha', 'same-env-key', { surfaceCaptureFailures: failures });
+  writeManifest(B, 'head-sha', 'same-env-key');
+
+  generateStyleMapReport({ beforeDir: A, afterDir: B, outDir: out, maxReportBytes: 400_000 });
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.ok(Buffer.byteLength(md) < 410_000, `markdown bytes: ${Buffer.byteLength(md)}`);
+  assert.match(md, /display budget/);
+  assert.match(md, /full bounded identities are in report\.json/);
+  assert.equal(json.baselineFailures.length, failures.length);
+  assert.deepEqual(json.baselineFailures[0], { key: 'failed-00000@1280', reason: 'capture_failed' });
+  assert.deepEqual(json.baselineFailures.at(-1), { key: 'failed-09999@1280', reason: 'capture_failed' });
+  rmTmp(root);
+});
+
 test('styleproof-report never echoes untrusted baseline failure details', () => {
   const root = mkTmp();
   const A = path.join(root, 'a');
@@ -487,8 +617,11 @@ test('styleproof-report never echoes untrusted baseline failure details', () => 
   writeManifest(B, 'head-sha', 'same-env-key');
   run(REPORT, [A, B, '--out', out]);
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  const json = fs.readFileSync(path.join(out, 'report.json'), 'utf8');
   assert.match(md, /baseline capture failure/i);
   assert.doesNotMatch(md, /<script>|PRIVATE-BASELINE-FAILURE-MARKER|pwned/i);
+  assert.doesNotMatch(json, /<script>|PRIVATE-BASELINE-FAILURE-MARKER|pwned/i);
+  assert.match(json, /capture-[0-9a-f]{12}/);
   rmTmp(root);
 });
 

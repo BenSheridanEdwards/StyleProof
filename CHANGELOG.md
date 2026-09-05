@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Baseline capture failures now survive as bounded `{ key, reason }` receipts in diff JSON and `report.json`, while raw exception text stays private. Markdown renders from that same receipt within its display budget, matching failed baseline surfaces are labeled and counted as repair debt instead of first adoption, unrelated head surfaces stay genuinely new, and the Action rejects missing, malformed, or contradictory receipts before publishing its trust state. (#491)
+
 - `styleproof-map --prove-determinism` runs the #400 five-run oracle over your own
   captures. It captures the declared surface set five times in fresh contexts, requires
   every canonical map hash to match, writes `styleproof-determinism.json` beside the maps,
