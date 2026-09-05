@@ -1,32 +1,25 @@
 ## 🗺️ StyleProof report
 
 **Certification**
-- **Coverage** — ✓ complete (all 2 registered surface(s) captured)
-- **Determinism** — ✓ proven (base self-checked, head self-checked)
+- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
+- **Determinism** — ⚠ unknown (a capture predates the determinism ledger)
 - **Inventory** — ✓ navigable set unchanged
-- **Confidence** — ✓ complete (2 captured)
+- **Confidence** — ✓ complete (1 captured)
 
-**Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
+**Product-state comparison** — not required; there are no paired capture obligations.
 
-⚠️ **1 baseline capture failure(s)**: these captures failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely. Raw exception details stay private.
-⚠️ **1 head surface(s)** have no base map because baseline capture failed (not first adoption): `about @ 320`.
-
-
-### Baseline capture failure receipt
-
-- `about@auto` · `capture_failed`
-
+🆕 **1 new surface(s)** captured with no baseline to compare: `home @ 320`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
 
 ## One-sided pages, states, or surfaces — review first
 
-### `about@320` · baseline repair debt ⚠️
+### `home@320` · new surface <!-- styleproof-new -->
 
-_about @ 320_
+_home @ 320_
 
-![baseline repair debt — after](crops/about-320-1-new.png)
+![new surface — after](crops/home-320-1-new.png)
 
-<sub>after · about @ 320</sub>
+<sub>after · home @ 320</sub>
 
-_The matching baseline capture failed. This is **baseline repair debt**, not first adoption; repair the base capture and rerun._
+_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
 
 <!-- styleproof-receipt head-sha:842d0e7e0250e71764ef2f96a6643a9f02a54a6f run-id:33979033202 run-attempt:1 -->
