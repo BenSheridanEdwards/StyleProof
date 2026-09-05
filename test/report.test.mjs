@@ -1376,6 +1376,8 @@ test('end-to-end: a surface missing on one side renders by DIRECTION — head-on
   writeCapture(beforeDir, 'about@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null); // base only
   writeCapture(afterDir, 'launch@1280', sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }), null); // head only
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  assert.equal(res.newSurfaces, 1);
+  assert.equal(res.oneSidedSurfaces, 2);
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   // Head-only: a NEW surface, carrying the marker + approve-forward guidance.
   assert.match(md, /### `launch@1280` · new surface <!-- styleproof-new -->/);
@@ -3026,6 +3028,8 @@ test('end-to-end: a surface captured only on base renders as REMOVED, never as a
   writeCapture(afterDir, 'home@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
   writeCapture(beforeDir, 'pricing@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800)); // base only
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  assert.equal(res.newSurfaces, 0);
+  assert.equal(res.oneSidedSurfaces, 1);
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.match(md, /REMOVED surface 🗑️/);
   assert.match(md, /REMOVED surface\(s\)/);
