@@ -15,6 +15,7 @@ test.describe.configure({ mode: 'parallel' });
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
+const CLI = path.join(root, 'bin/styleproof.mjs');
 const INIT = path.join(root, 'bin/styleproof-init.mjs');
 const MAP = path.join(root, 'bin/styleproof-map.mjs');
 const DIFF = path.join(root, 'bin/styleproof-diff.mjs');
@@ -120,8 +121,9 @@ http.createServer((req, res) => {
   );
 }
 
-test('styleproof-init → styleproof-map → styleproof-diff works in a generated app', async () => {
+test('styleproof setup infers a production server and the generated capture runs it in a real browser', async () => {
   const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cli-flow-'));
+  const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cli-flow-remote-'));
   const port = await freePort();
   try {
     writeFixtureApp(app, port);
@@ -129,17 +131,26 @@ test('styleproof-init → styleproof-map → styleproof-diff works in a generate
     git(app, ['config', 'user.email', 'styleproof@example.test']);
     git(app, ['config', 'user.name', 'StyleProof Test']);
     git(app, ['checkout', '-qb', 'main']);
-    const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-cli-flow-remote-'));
     git(remote, ['init', '--bare', '-q']);
     git(app, ['remote', 'add', 'origin', remote]);
 
-    const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
-    expect(init.status, init.stderr).toBe(0);
-    expect(init.stdout).toContain('created e2e/styleproof.spec.ts');
+    const setup = run(app, process.execPath, [
+      CLI,
+      'setup',
+      '--skip-install',
+      '--skip-browser',
+      '--base-url',
+      `http://127.0.0.1:${port}`,
+    ]);
+    expect(setup.status, setup.stderr + setup.stdout).toBe(0);
+    expect(setup.stdout).toContain('StyleProof setup complete');
+    expect(fs.readFileSync(path.join(app, 'playwright.styleproof.config.ts'), 'utf8')).toContain(
+      'command: "npm run build && npm run start"',
+    );
     git(app, ['add', '-A']);
     git(app, ['commit', '-qm', 'styleproof setup']);
 
-    const baseMap = run(app, process.execPath, [MAP], { STYLEPROOF_UPLOAD: '1' });
+    const baseMap = run(app, process.execPath, [CLI, 'capture'], { STYLEPROOF_UPLOAD: '1' });
     expect(baseMap.status, baseMap.stderr + baseMap.stdout).toBe(0);
     // Crawl-by-default keys the root '/' as `index`; a link-less single-page app still
     // captures it (the crawl always covers `from`).
@@ -152,22 +163,29 @@ test('styleproof-init → styleproof-map → styleproof-diff works in a generate
     git(app, ['add', '-A']);
     git(app, ['commit', '-qm', 'feature']);
 
-    const headMap = run(app, process.execPath, [MAP], { STYLEPROOF_UPLOAD: '1' });
+    const headMap = run(app, process.execPath, [CLI, 'capture'], { STYLEPROOF_UPLOAD: '1' });
     expect(headMap.status, headMap.stderr + headMap.stdout).toBe(0);
 
-    const blocked = run(app, process.execPath, [DIFF]);
+    const blocked = run(app, process.execPath, [CLI, 'compare']);
     expect(blocked.status, blocked.stderr + blocked.stdout).toBe(1);
     expect(blocked.stdout).toContain('completeness NOT asserted');
 
     const diagnosticJson = path.join(app, 'styleproof-diagnostic.json');
-    const diff = run(app, process.execPath, [DIFF, '--allow-unasserted', '--json', diagnosticJson]);
+    const diff = run(app, process.execPath, [CLI, 'compare', '--allow-unasserted', '--json', diagnosticJson]);
     expect(diff.status, diff.stderr + diff.stdout).toBe(0);
     const diagnostic = JSON.parse(fs.readFileSync(diagnosticJson, 'utf8'));
     expect(diagnostic.certifiesFully).toBe(false);
     expect(diagnostic.diagnostic).toBe(true);
     expect(diff.stdout).toContain('content/structure not evaluated');
+
+    // Playwright owns the inferred webServer lifecycle. Once capture exits, the
+    // same port must be bindable so setup cannot leave a consumer server behind.
+    const cleanupProbe = http.createServer();
+    await listen(cleanupProbe, port);
+    await new Promise<void>((resolve, reject) => cleanupProbe.close((error) => (error ? reject(error) : resolve())));
   } finally {
     fs.rmSync(app, { recursive: true, force: true });
+    fs.rmSync(remote, { recursive: true, force: true });
   }
 });
 
