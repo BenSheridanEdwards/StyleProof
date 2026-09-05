@@ -1116,6 +1116,19 @@ function isFullPageContentShell(entry: ElementEntry, png: PNG): boolean {
 
 type ContentAncestorDecision = { kind: 'skip' } | { kind: 'fallback' } | { kind: 'use'; box: Box };
 
+function matchingContentAncestor(
+  entryA: ElementEntry | undefined,
+  entryB: ElementEntry | undefined,
+): [ElementEntry, ElementEntry] | null {
+  if (!entryA?.rect || !entryB?.rect) return null;
+  const sameIdentity =
+    entryA.tag === entryB.tag &&
+    entryA.cls === entryB.cls &&
+    (entryA.component?.name ?? '') === (entryB.component?.name ?? '') &&
+    entryA.ownTextLength === entryB.ownTextLength;
+  return sameIdentity ? [entryA, entryB] : null;
+}
+
 function contentAncestorDecision(
   entryA: ElementEntry | undefined,
   entryB: ElementEntry | undefined,
@@ -1125,16 +1138,14 @@ function contentAncestorDecision(
   pngA: PNG,
   pngB: PNG,
 ): ContentAncestorDecision {
-  if (!entryA?.rect || !entryB?.rect) return { kind: 'skip' };
-  const sameAncestor =
-    entryA.tag === entryB.tag &&
-    entryA.cls === entryB.cls &&
-    (entryA.component?.name ?? '') === (entryB.component?.name ?? '') &&
-    entryA.ownTextLength === entryB.ownTextLength;
-  if (!sameAncestor) return { kind: 'skip' };
-  if (isFullPageContentShell(entryA, pngA) || isFullPageContentShell(entryB, pngB)) return { kind: 'fallback' };
-  const ancestorA = paddedRect(entryA, padBy);
-  const ancestorB = paddedRect(entryB, padBy);
+  const matchingEntries = matchingContentAncestor(entryA, entryB);
+  if (!matchingEntries) return { kind: 'skip' };
+  const [matchingA, matchingB] = matchingEntries;
+  if (isFullPageContentShell(matchingA, pngA) || isFullPageContentShell(matchingB, pngB)) {
+    return { kind: 'fallback' };
+  }
+  const ancestorA = paddedRect(matchingA, padBy);
+  const ancestorB = paddedRect(matchingB, padBy);
   if (!ancestorA || !ancestorB) return { kind: 'skip' };
   const candidate = union(ancestorA, ancestorB);
   if (candidate.h > maxHeight || candidate.w > Math.min(pngA.width, pngB.width)) return { kind: 'fallback' };
@@ -1821,6 +1832,39 @@ function reportConsistencyFailureSummaryLines(
   return md;
 }
 
+function noChangedSurfaceSummary(args: {
+  changeGroups: ChangeGroup[];
+  missing: PreparedSurface[];
+  contentCount: number;
+  contentEvaluated: boolean;
+  reportConsistency: ReportConsistency;
+  rawCounts?: DiffCounts;
+  baselineSurfaceFailures: SurfaceCaptureFailure[];
+  baselineFailures: BaselineFailureReceipt[];
+  confidenceBlocked: boolean;
+  comparisonBlocked: boolean;
+}): string[] | undefined {
+  if (args.changeGroups.length > 0 || args.missing.length > 0) return undefined;
+  const failureSummary = reportConsistencyFailureSummaryLines(
+    args.reportConsistency,
+    args.rawCounts,
+    args.baselineFailures,
+  );
+  if (failureSummary || args.baselineSurfaceFailures.length > 0) return failureSummary;
+  let scopedSummary =
+    '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.';
+  if (args.contentEvaluated) {
+    scopedSummary =
+      args.contentCount > 0
+        ? `✓ No reviewable computed-style changes among semantically matched elements. See ${args.contentCount} advisory content/structure change(s) below.`
+        : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.';
+  }
+  if (args.confidenceBlocked || args.comparisonBlocked) {
+    scopedSummary = scopedSummary.replace(/^✓ /, 'Computed-style scope only: ');
+  }
+  return [scopedSummary];
+}
+
 function summaryLines(args: {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
@@ -1859,22 +1903,19 @@ function summaryLines(args: {
   const brokenBaseMissing = missingOnBase.filter((p) =>
     surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
-  if (changeGroups.length === 0 && missing.length === 0) {
-    const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineFailures);
-    if (failureSummary) return failureSummary;
-    if (baselineSurfaceFailures.length === 0) {
-      const scopedSummary = contentEvaluated
-        ? contentCount > 0
-          ? `✓ No reviewable computed-style changes among semantically matched elements. See ${contentCount} advisory content/structure change(s) below.`
-          : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.'
-        : '✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.';
-      return [
-        confidenceBlocked || comparisonBlocked
-          ? scopedSummary.replace(/^✓ /, 'Computed-style scope only: ')
-          : scopedSummary,
-      ];
-    }
-  }
+  const unchanged = noChangedSurfaceSummary({
+    changeGroups,
+    missing,
+    contentCount,
+    contentEvaluated,
+    reportConsistency,
+    rawCounts,
+    baselineSurfaceFailures,
+    baselineFailures,
+    confidenceBlocked,
+    comparisonBlocked,
+  });
+  if (unchanged) return unchanged;
   const md = [
     ...baselineFailureSummaryLines(baselineFailures),
     ...missingSurfaceSummaryLines(missing, greenfieldMissing, brokenBaseMissing),
@@ -2400,6 +2441,35 @@ function renderChangeGroup(
   return { md, json, findingCount: surfaceFindings.length, cropSeq };
 }
 
+type OneSidedPresentation = { heading: string; alt: string; note: string };
+
+function oneSidedPresentation(
+  surface: string,
+  side: 'before' | 'after',
+  baselineStatus: 'new' | 'capture-failed' | 'removed',
+): OneSidedPresentation {
+  const key = safeKey(surface);
+  if (baselineStatus === 'removed') {
+    return {
+      heading: `### \`${key}\` · REMOVED surface 🗑️`,
+      alt: 'removed surface',
+      note: `_Present in the baseline but not captured on head. This is a **removal** to review, not an addition; approving accepts the disappearance._`,
+    };
+  }
+  if (baselineStatus === 'new') {
+    return {
+      heading: `### \`${key}\` · new surface ${NEW_SURFACE_MARKER}`,
+      alt: 'new surface',
+      note: `_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._`,
+    };
+  }
+  return {
+    heading: `### \`${key}\` · baseline repair debt ⚠️`,
+    alt: 'baseline repair debt',
+    note: `_The matching baseline capture failed. This is **baseline repair debt**, not first adoption; repair the base capture and rerun._`,
+  };
+}
+
 // Render a new surface: present on only one side, so there's nothing to diff. Show the
 // captured side as a single screenshot and mark the heading for the PR comment.
 function renderNewSurface(
@@ -2419,16 +2489,8 @@ function renderNewSurface(
   // believing it was an addition.
   const isRemoved = baselineStatus === 'removed';
   const isNew = baselineStatus === 'new';
-  const md: string[] = [
-    '',
-    isRemoved
-      ? `### \`${safeKey(p.sd.surface)}\` · REMOVED surface 🗑️`
-      : isNew
-        ? `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`
-        : `### \`${safeKey(p.sd.surface)}\` · baseline repair debt ⚠️`,
-    '',
-    `_${formatSurfaceWithContext(p.sd.surface, map)}_`,
-  ];
+  const presentation = oneSidedPresentation(p.sd.surface, side, baselineStatus);
+  const md: string[] = ['', presentation.heading, '', `_${formatSurfaceWithContext(p.sd.surface, map)}_`];
   const json: Record<string, unknown> = {
     surface: p.sd.surface,
     missing: p.sd.missing,
@@ -2444,7 +2506,7 @@ function renderNewSurface(
     writePng(path.join(outDir, `${stem}.png`), crop);
     md.push(
       '',
-      `![${isRemoved ? 'removed surface' : isNew ? 'new surface' : 'baseline repair debt'} — ${side}](${img(`${stem}.png`)})`,
+      `![${presentation.alt} — ${side}](${img(`${stem}.png`)})`,
       '',
       `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top viewport of page)' : ''}</sub>`,
     );
@@ -2455,14 +2517,7 @@ function renderNewSurface(
       `_Captured only in the **${side}** set; no screenshot saved (run captures with \`screenshots: true\`)._`,
     );
   }
-  md.push(
-    '',
-    isRemoved
-      ? `_Present in the baseline but not captured on head. This is a **removal** to review, not an addition; approving accepts the disappearance._`
-      : isNew
-        ? `_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._`
-        : `_The matching baseline capture failed. This is **baseline repair debt**, not first adoption; repair the base capture and rerun._`,
-  );
+  md.push('', presentation.note);
   return { md, json, cropSeq };
 }
 
@@ -2686,6 +2741,107 @@ function stateCoverageLines(afterDir: string): string[] {
   ];
 }
 
+type DetailEmitter = (detail: string[], summary: string) => void;
+
+function markdownByteLength(lines: string[]): number {
+  return Buffer.byteLength(`${lines.join('\n')}\n`, 'utf8');
+}
+
+function appendReportLines(md: string[], lines: string[], maxBytes: number): boolean {
+  if (lines.length === 0) return true;
+  if (markdownByteLength([...md, ...lines]) > maxBytes) return false;
+  md.push(...lines);
+  return true;
+}
+
+function createDetailEmitter(md: string[], maxBytes: number): DetailEmitter {
+  while (md.length > 0 && markdownByteLength(md) > maxBytes) md.pop();
+  let capped = false;
+  return (detail: string[], summary: string): void => {
+    if (!capped && appendReportLines(md, detail, maxBytes)) return;
+    if (!capped) {
+      const notice = cappedNoticeLines(maxBytes);
+      if (!appendReportLines(md, notice, maxBytes)) {
+        appendReportLines(
+          md,
+          ['', `_Inline detail omitted at the ${maxBytes}-byte display budget; full data is in \`report.json\`._`, ''],
+          maxBytes,
+        );
+      }
+      capped = true;
+    }
+    appendReportLines(md, [summary], maxBytes);
+  };
+}
+
+function renderOneSidedSections(args: {
+  missing: PreparedSurface[];
+  baselineSurfaceFailures: SurfaceCaptureFailure[];
+  ctx: RenderCtx;
+  emitDetail: DetailEmitter;
+  md: string[];
+  json: Array<Record<string, unknown>>;
+  cropSeq: number;
+}): { cropSeq: number; greenfieldNewSurfaces: number } {
+  if (args.missing.length > 0) {
+    args.md.push('', '## One-sided pages, states, or surfaces — review first');
+  }
+  let greenfieldNewSurfaces = 0;
+  let cropSeq = args.cropSeq;
+  for (const prepared of args.missing) {
+    const baselineStatus =
+      prepared.sd.missing === 'after'
+        ? 'removed'
+        : surfaceMissingMatchesBaselineFailure(prepared.sd.surface, args.baselineSurfaceFailures)
+          ? 'capture-failed'
+          : 'new';
+    if (baselineStatus === 'new') greenfieldNewSurfaces++;
+    const rendered = renderNewSurface(prepared, args.ctx, cropSeq, baselineStatus);
+    args.json.push(rendered.json);
+    cropSeq = rendered.cropSeq;
+    const summaryLabel =
+      baselineStatus === 'removed'
+        ? 'removed surface'
+        : baselineStatus === 'capture-failed'
+          ? 'baseline repair debt'
+          : 'new surface';
+    args.emitDetail(rendered.md, `- \`${safeKey(prepared.sd.surface)}\` · ${summaryLabel}`);
+  }
+  return { cropSeq, greenfieldNewSurfaces };
+}
+
+function renderChangedSections(args: {
+  groups: ChangeGroup[];
+  chrome: ChangeGroup[];
+  totalSurfaceBases: number;
+  ctx: RenderCtx;
+  maxCrops: number;
+  img: (rel: string) => string;
+  emitDetail: DetailEmitter;
+  md: string[];
+  json: Array<Record<string, unknown>>;
+  cropSeq: number;
+}): { cropSeq: number; totalFindings: number } {
+  if (args.groups.length > 0) args.md.push('', '## Element-level changes');
+  const chromeSet = new Set(args.chrome);
+  let chromeHeaderEmitted = false;
+  let cropSeq = args.cropSeq;
+  let totalFindings = 0;
+  for (const group of args.groups) {
+    const rendered = renderChangeGroup(group, args.ctx, args.maxCrops, cropSeq);
+    args.json.push(rendered.json);
+    totalFindings += rendered.findingCount;
+    cropSeq = rendered.cropSeq;
+    let detail = rendered.md;
+    if (chromeSet.has(group) && !chromeHeaderEmitted) {
+      chromeHeaderEmitted = true;
+      detail = [...chromeCalloutLines(args.chrome.length, args.totalSurfaceBases), ...rendered.md];
+    }
+    args.emitDetail(detail, compactChangeSummary(group, rendered.json, args.img));
+  }
+  return { cropSeq, totalFindings };
+}
+
 function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: boolean): ReportResult {
   const {
     beforeDir,
@@ -2831,91 +2987,39 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     }),
   );
   md.push(...stateCoverageLines(afterDir));
-  let totalFindings = 0;
-  let cropSeq = 0;
   // report.md must stay renderable — GitHub refuses to render markdown past ~512 KB.
-  // Emit full detail greedily until the byte budget is reached, then list any remaining
-  // surfaces as one-liners. The exhaustive per-row detail is always in report.json and
-  // every crop in crops/, so the cap changes what's shown inline, never what's certified.
-  const markdownBytes = (lines: string[]): number => Buffer.byteLength(`${lines.join('\n')}\n`, 'utf8');
-  const appendWithinBudget = (lines: string[]): boolean => {
-    if (lines.length === 0) return true;
-    const next = [...md, ...lines];
-    if (markdownBytes(next) > maxReportBytes) return false;
-    md.push(...lines);
-    return true;
-  };
-  // A caller can request a budget smaller than the fixed report header. Keep the
-  // contract literal by dropping trailing header lines until the artifact fits;
-  // report.json remains exhaustive and authoritative at every budget.
-  while (md.length > 0 && markdownBytes(md) > maxReportBytes) md.pop();
-  let capped = false;
-  const emitDetail = (detail: string[], summary: string): void => {
-    if (!capped && appendWithinBudget(detail)) return;
-    if (!capped) {
-      const notice = cappedNoticeLines(maxReportBytes);
-      if (!appendWithinBudget(notice)) {
-        appendWithinBudget([
-          '',
-          `_Inline detail omitted at the ${maxReportBytes}-byte display budget; full data is in \`report.json\`._`,
-          '',
-        ]);
-      }
-      capped = true;
-    }
-    appendWithinBudget([summary]);
-  };
-  // The captured-surface-base count (all surfaces, not just changed ones) so the
-  // chrome callout can read "N of M surfaces". M is bases, matching the tier's
-  // base-keyed coverage rule.
+  // The exhaustive per-row detail remains in report.json while this emitter caps inline markdown.
+  const emitDetail = createDetailEmitter(md, maxReportBytes);
   const totalSurfaceBases = countCapturedSurfaceBases(captureKeysIn(afterDir), surfaceKeyOf);
-  const chromeSet = new Set(chrome);
-  let chromeHeaderEmitted = false;
   if (baselineFailures.length > 0) {
     emitDetail(
       baselineFailureDetailLines(baselineFailures),
       `- ${baselineFailures.length} baseline capture failure receipt(s) summarized here; full bounded identities are in report.json`,
     );
   }
-  if (missing.length > 0) {
-    md.push('', '## One-sided pages, states, or surfaces — review first');
-  }
-  let greenfieldNewSurfaces = 0;
-  for (const p of missing) {
-    const baselineStatus =
-      p.sd.missing === 'after'
-        ? 'removed'
-        : surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures)
-          ? 'capture-failed'
-          : 'new';
-    if (baselineStatus === 'new') greenfieldNewSurfaces++;
-    const r = renderNewSurface(p, ctx, cropSeq, baselineStatus);
-    json.push(r.json);
-    cropSeq = r.cropSeq;
-    const summaryLabel =
-      baselineStatus === 'removed'
-        ? 'removed surface'
-        : baselineStatus === 'capture-failed'
-          ? 'baseline repair debt'
-          : 'new surface';
-    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · ${summaryLabel}`);
-  }
-  if (orderedGroups.length > 0) {
-    md.push('', '## Element-level changes');
-  }
-  for (const cg of orderedGroups) {
-    const r = renderChangeGroup(cg, ctx, maxCrops, cropSeq);
-    json.push(r.json);
-    totalFindings += r.findingCount;
-    cropSeq = r.cropSeq;
-    // Prepend the shared-chrome banner once, above the first promoted group. It
-    // rides on the same emitDetail budget so the cap still applies.
-    const detail =
-      chromeSet.has(cg) && !chromeHeaderEmitted
-        ? ((chromeHeaderEmitted = true), [...chromeCalloutLines(chrome.length, totalSurfaceBases), ...r.md])
-        : r.md;
-    emitDetail(detail, compactChangeSummary(cg, r.json, img));
-  }
+  const oneSided = renderOneSidedSections({
+    missing,
+    baselineSurfaceFailures,
+    ctx,
+    emitDetail,
+    md,
+    json,
+    cropSeq: 0,
+  });
+  const changed = renderChangedSections({
+    groups: orderedGroups,
+    chrome,
+    totalSurfaceBases,
+    ctx,
+    maxCrops,
+    img,
+    emitDetail,
+    md,
+    json,
+    cropSeq: oneSided.cropSeq,
+  });
+  const greenfieldNewSurfaces = oneSided.greenfieldNewSurfaces;
+  const totalFindings = changed.totalFindings;
   if (contentSection.md.length > 0) {
     emitDetail(
       contentSection.md,
