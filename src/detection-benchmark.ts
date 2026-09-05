@@ -47,6 +47,7 @@ const COUNTERS = [
   'noOpFalsePositives',
   'noOpTrueNegatives',
 ] as const;
+const SCORED_OUTCOMES = new Set(['detected', 'missed', 'no-op-false-positive', 'no-op-true-negative']);
 const OUTCOMES = new Set([
   'detected',
   'missed',
@@ -291,6 +292,13 @@ function validateScoredCase(
   if (expected.detected) validatePositiveOutcome(outcome, findings, expected, index, reasons);
   else validateNoOpOutcome(outcome, count, index, reasons);
 }
+function validateNonScoredCase(item: JsonRecord, index: number, reasons: string[]): void {
+  const { findings, count } = inspectedFindings(item, index, reasons);
+  if (findings.length !== 0 || count !== 0) reasons.push(`cases[${index}] non-scored outcome must have zero findings`);
+  if (!Array.isArray(item.screenshots) || item.screenshots.length !== 0)
+    reasons.push(`cases[${index}] non-scored outcome must have zero screenshots`);
+  if ('renderProof' in item) reasons.push(`cases[${index}] non-scored outcome must not carry renderProof`);
+}
 function validateCase(
   item: JsonRecord | null,
   index: number,
@@ -301,8 +309,9 @@ function validateCase(
 ): void {
   if (!item || !expected) return;
   bindingMatches(item.class, expected.class, `cases[${index}].class`, reasons);
-  if (outcome && ['detected', 'missed', 'no-op-false-positive', 'no-op-true-negative'].includes(outcome))
-    validateScoredCase(item, expected, outcome, index, root, reasons);
+  if (!outcome) return;
+  if (SCORED_OUTCOMES.has(outcome)) validateScoredCase(item, expected, outcome, index, root, reasons);
+  else validateNonScoredCase(item, index, reasons);
 }
 function inspectCaseEntry(
   value: unknown,
@@ -393,6 +402,40 @@ function validateCounters(
   if (cases.length !== values.requested) reasons.push('cases cardinality conflicts with counts.requested');
   validateOutcomeCounts(values, inspectCases(cases, expected, reasons), reasons);
 }
+
+function validateArtifactInventory(
+  receipt: JsonRecord,
+  expected: DetectionBenchmarkReceiptExpectation,
+  reasons: string[],
+): void {
+  if (!expected.artifactRoot) return;
+  const root = fs.realpathSync(expected.artifactRoot);
+  const declared = new Set(['README.md', 'receipt.json']);
+  if (Array.isArray(receipt.cases)) {
+    for (const value of receipt.cases) {
+      const item = record(value);
+      const id = item ? exactString(item.id) : null;
+      const outcome = item ? exactString(item.outcome) : null;
+      if (id && outcome && SCORED_OUTCOMES.has(outcome)) {
+        declared.add(`cases/${id}/before.png`);
+        declared.add(`cases/${id}/after.png`);
+      }
+    }
+  }
+  const inspect = (directory: string): void => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      const relative = path.relative(root, absolute).split(path.sep).join('/');
+      const metadata = fs.lstatSync(absolute);
+      if (metadata.isSymbolicLink()) reasons.push(`artifact root contains symbolic link ${relative}`);
+      else if (metadata.isDirectory()) inspect(absolute);
+      else if (!metadata.isFile()) reasons.push(`artifact root contains non-regular artifact ${relative}`);
+      else if (!declared.has(relative)) reasons.push(`artifact root contains undeclared artifact ${relative}`);
+    }
+  };
+  inspect(root);
+}
+
 function validateScope(receipt: JsonRecord, expected: DetectionBenchmarkReceiptExpectation, reasons: string[]): void {
   const scope = requireRecord(receipt, 'scope', reasons);
   const full447 = requireRecord(receipt, 'full447', reasons);
@@ -415,6 +458,7 @@ function validateReceipt(
   validateScope(receipt, expected, reasons);
   validateBindings(receipt, expected, reasons);
   validateCounters(receipt, expected, reasons);
+  validateArtifactInventory(receipt, expected, reasons);
   return { ok: reasons.length === 0, reasons };
 }
 
@@ -485,8 +529,23 @@ export function createBenchmarkPublication(repositoryRoot: string, requested: st
   const stagingDirectory = fs.mkdtempSync(path.join(proofRoot, '.benchmark-staging-'));
   return { finalDirectory, stagingDirectory };
 }
-export function publishBenchmark(publication: BenchmarkPublication): void {
+export function publishBenchmark(
+  publication: BenchmarkPublication,
+  expected: DetectionBenchmarkReceiptExpectation,
+): void {
   if (fs.existsSync(publication.finalDirectory)) throw new Error('benchmark final output already exists');
+  const receiptPath = path.join(publication.stagingDirectory, 'receipt.json');
+  const readmePath = path.join(publication.stagingDirectory, 'README.md');
+  if (!fs.existsSync(receiptPath) || !fs.statSync(receiptPath).isFile())
+    throw new Error('benchmark publication requires a receipt.json regular file');
+  if (!fs.existsSync(readmePath) || !fs.statSync(readmePath).isFile())
+    throw new Error('benchmark publication requires a README.md regular file');
+  const receipt: unknown = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+  const validation = validateDetectionBenchmarkReceipt(receipt, {
+    ...expected,
+    artifactRoot: publication.stagingDirectory,
+  });
+  if (!validation.ok) throw new Error(`benchmark publication failed validation: ${validation.reasons.join('; ')}`);
   fs.renameSync(publication.stagingDirectory, publication.finalDirectory);
 }
 export function discardBenchmark(publication: BenchmarkPublication): void {

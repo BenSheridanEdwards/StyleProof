@@ -337,10 +337,26 @@ test('staged benchmark publication is atomic and failed staging can be discarded
     assert.equal(fs.existsSync(failed.stagingDirectory), false);
 
     const complete = createBenchmarkPublication(root, 'docs/proof/issue-447/complete');
-    fs.writeFileSync(path.join(complete.stagingDirectory, 'receipt.json'), '{}\n');
-    publishBenchmark(complete);
+    const receipt = validReceipt();
+    for (const item of receipt.cases) {
+      item.outcome = 'skipped';
+      item.findingCount = 0;
+      item.findings = [];
+      item.screenshots = [];
+      delete item.renderProof;
+    }
+    Object.assign(receipt.counts, {
+      executed: 0,
+      valid: 0,
+      detected: 0,
+      skipped: 4,
+      noOpTrueNegatives: 0,
+    });
+    fs.writeFileSync(path.join(complete.stagingDirectory, 'receipt.json'), `${JSON.stringify(receipt)}\n`);
+    fs.writeFileSync(path.join(complete.stagingDirectory, 'README.md'), '# benchmark\n');
+    publishBenchmark(complete, expected);
     assert.equal(fs.existsSync(complete.stagingDirectory), false);
-    assert.equal(fs.readFileSync(path.join(complete.finalDirectory, 'receipt.json'), 'utf8'), '{}\n');
+    assert.equal(fs.existsSync(path.join(complete.finalDirectory, 'receipt.json')), true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -373,4 +389,134 @@ test('timed out benchmark work is aborted and settled before timeout returns', a
   assert.deepEqual(events, ['aborted-and-settled']);
   await new Promise((resolve) => setTimeout(resolve, 110));
   assert.deepEqual(events, ['aborted-and-settled']);
+});
+
+test('all non-scored outcomes reject retained scored-case findings, screenshots, and render proof', () => {
+  for (const outcome of ['unsupported', 'skipped', 'timeout', 'invalid', 'duplicate']) {
+    const receipt = validReceipt();
+    receipt.cases[0].outcome = outcome;
+    receipt.counts.detected -= 1;
+    receipt.counts.valid -= 1;
+    if (outcome === 'skipped' || outcome === 'duplicate') {
+      receipt.counts.executed -= 1;
+      receipt.counts[outcome] += 1;
+    } else {
+      receipt.counts[outcome] += 1;
+    }
+    const result = validateDetectionBenchmarkReceipt(receipt, expected);
+    assert.equal(result.ok, false, `${outcome} retained scored-case data`);
+    assert.ok(
+      result.reasons.some((reason) => reason.includes('findings')),
+      `${outcome} findings`,
+    );
+    assert.ok(
+      result.reasons.some((reason) => reason.includes('screenshots')),
+      `${outcome} screenshots`,
+    );
+    assert.ok(
+      result.reasons.some((reason) => reason.includes('renderProof')),
+      `${outcome} renderProof`,
+    );
+  }
+});
+
+test('all non-scored outcomes accept only empty findings and screenshots without render proof', () => {
+  for (const outcome of ['unsupported', 'skipped', 'timeout', 'invalid', 'duplicate']) {
+    const receipt = validReceipt();
+    receipt.cases[0].outcome = outcome;
+    receipt.cases[0].findings = [];
+    receipt.cases[0].findingCount = 0;
+    receipt.cases[0].screenshots = [];
+    delete receipt.cases[0].renderProof;
+    receipt.counts.detected -= 1;
+    receipt.counts.valid -= 1;
+    if (outcome === 'skipped' || outcome === 'duplicate') {
+      receipt.counts.executed -= 1;
+      receipt.counts[outcome] += 1;
+    } else {
+      receipt.counts[outcome] += 1;
+    }
+    assert.deepEqual(validateDetectionBenchmarkReceipt(receipt, expected), { ok: true, reasons: [] }, outcome);
+  }
+});
+
+test('receipt validation rejects undeclared regular files and symbolic links in the artifact root', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-benchmark-inventory-'));
+  try {
+    const receipt = validReceipt();
+    const expectedWithArtifacts = { ...expected, artifactRoot: root };
+    for (const item of receipt.cases) {
+      for (const screenshot of item.screenshots) {
+        const absolute = path.join(root, screenshot.path);
+        fs.mkdirSync(path.dirname(absolute), { recursive: true });
+        const bytes = Buffer.from([
+          137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 10, 0, 0, 0, 10,
+        ]);
+        fs.writeFileSync(absolute, bytes);
+        screenshot.sha256 = '0'.repeat(64);
+        screenshot.bytes = bytes.length;
+      }
+    }
+    fs.writeFileSync(path.join(root, 'orphan.partial'), 'partial');
+    let result = validateDetectionBenchmarkReceipt(receipt, expectedWithArtifacts);
+    assert.equal(result.ok, false);
+    assert.ok(result.reasons.some((reason) => reason.includes('undeclared artifact')));
+    fs.rmSync(path.join(root, 'orphan.partial'));
+    fs.symlinkSync(path.join(root, receipt.cases[0].screenshots[0].path), path.join(root, 'orphan-link.png'));
+    result = validateDetectionBenchmarkReceipt(receipt, expectedWithArtifacts);
+    assert.equal(result.ok, false);
+    assert.ok(result.reasons.some((reason) => reason.includes('symbolic link')));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('timed-out partial and detached late writes cannot reach published output', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-benchmark-timeout-publish-'));
+  const publication = createBenchmarkPublication(root, 'docs/proof/issue-447/timeout');
+  try {
+    const receipt = validReceipt();
+    for (const item of receipt.cases) {
+      item.outcome = 'skipped';
+      item.findingCount = 0;
+      item.findings = [];
+      item.screenshots = [];
+      delete item.renderProof;
+    }
+    Object.assign(receipt.counts, {
+      executed: 0,
+      valid: 0,
+      detected: 0,
+      skipped: 4,
+      noOpTrueNegatives: 0,
+    });
+    fs.writeFileSync(path.join(publication.stagingDirectory, 'receipt.json'), `${JSON.stringify(receipt)}\n`);
+    fs.writeFileSync(path.join(publication.stagingDirectory, 'README.md'), '# benchmark\n');
+    const partial = path.join(publication.stagingDirectory, 'cases/a/before.png');
+    const late = path.join(publication.stagingDirectory, 'cases/a/late.png');
+    const result = await settleBenchmarkTask(
+      (signal) =>
+        new Promise((resolve) => {
+          fs.mkdirSync(path.dirname(partial), { recursive: true });
+          fs.writeFileSync(partial, 'partial');
+          signal.addEventListener(
+            'abort',
+            () => {
+              setTimeout(() => fs.writeFileSync(late, 'late'), 30);
+              setTimeout(resolve, 1);
+            },
+            { once: true },
+          );
+        }),
+      5,
+    );
+    assert.deepEqual(result, { timedOut: true });
+    assert.throws(() => publishBenchmark(publication, expected), /undeclared artifact/);
+    assert.equal(fs.existsSync(publication.finalDirectory), false);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(fs.existsSync(path.join(publication.finalDirectory, 'cases/a/late.png')), false);
+  } finally {
+    discardBenchmark(publication);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

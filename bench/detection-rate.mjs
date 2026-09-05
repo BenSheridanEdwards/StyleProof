@@ -447,7 +447,7 @@ try {
     { flag: 'wx' },
   );
   fs.writeFileSync(path.join(publication.stagingDirectory, 'README.md'), markdown(finalReceipt), { flag: 'wx' });
-  lifecycle.publishBenchmark(publication);
+  lifecycle.publishBenchmark(publication, expectation);
   published = true;
   process.stdout.write(
     `${JSON.stringify({ outputDirectory: publication.finalDirectory, counts: receipt.counts, validation }, null, 2)}\n`,
