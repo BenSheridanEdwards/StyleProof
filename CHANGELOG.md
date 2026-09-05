@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Incomplete interaction evidence on either comparison side now fails certification independently of style approval. The CLI and Action share one typed verdict policy.
+- Forced hover, focus, and active capture now records sibling and ancestor CSS effects with bounded scanning. Omitted or disabled evidence fails closed. Regenerate baselines after upgrading.
+- Setup rejects uninferable production server commands before dependency installation or scaffolding. Explicit `--server-command` and `--external-server` choices support custom applications without inventing missing package scripts. Setup and generated commands share package-manager detection, including declared-manager precedence and invalid-metadata rejection. This is static command validation, not a runtime readiness claim.
+
 ### Added
 
 - Baseline capture failures now survive as bounded `{ key, reason }` receipts in diff JSON and `report.json`, while raw exception text stays private. Markdown renders from that same receipt within its display budget, matching failed baseline surfaces are labeled and counted as repair debt instead of first adoption, and unrelated head surfaces stay genuinely new. `styleproof-diff` fails closed with exit 1 for any partial baseline, never reports repair debt as clean or fully certified, and the Action rejects missing, malformed, or contradictory receipts before publishing its trust state. (#491)
