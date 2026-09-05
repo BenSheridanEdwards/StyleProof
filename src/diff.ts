@@ -634,10 +634,22 @@ function compareProductState(surface: string, before: StyleMap, after: StyleMap)
 /** Normalise captured text (absent → empty) so undefined and '' compare equal. */
 const ownText = (t?: string): string => t ?? '';
 
+function displacedContentRemovals(a: StyleMap, comparableBase: StyleMap, volatile: string[]): ContentChange[] {
+  const retainedEntries = new Set(Object.values(comparableBase.elements));
+  return Object.entries(a.elements)
+    .filter(([elementPath, element]) => !retainedEntries.has(element) && !isUnder(elementPath, volatile))
+    .map(([elementPath, element]) => ({
+      kind: 'structure' as const,
+      path: elementPath,
+      cls: element.cls,
+      change: 'removed' as const,
+    }));
+}
+
 export function diffContentMaps(a: StyleMap, b: StyleMap): ContentChange[] {
   const comparableBase = correspondContentShiftedPaths(a, b);
-  const volatile = volatilePaths(comparableBase, b);
-  const out: ContentChange[] = [];
+  const volatile = volatilePaths(a, b);
+  const out: ContentChange[] = displacedContentRemovals(a, comparableBase, volatile);
   for (const p of [...new Set([...Object.keys(comparableBase.elements), ...Object.keys(b.elements)])].sort()) {
     if (isUnder(p, volatile)) continue;
     const elementA = comparableBase.elements[p];
@@ -666,7 +678,7 @@ export function diffContentMaps(a: StyleMap, b: StyleMap): ContentChange[] {
     const after = ownText(elementB.text);
     if (before !== after) out.push({ kind: 'text', path: p, cls: elementA.cls, before, after });
   }
-  return out;
+  return out.sort((left, right) => left.path.localeCompare(right.path));
 }
 
 /** Per-surface content diff across two capture dirs (opt-in layer). Mirrors
