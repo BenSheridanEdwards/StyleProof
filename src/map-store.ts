@@ -23,10 +23,29 @@ export const FATAL_CAPTURE_MARKER = 'styleproof-fatal-capture.flag';
 export type SurfaceCaptureFailure = {
   /** Capture key (`<surface>@<width>` or crawl label). */
   key: string;
+  /** Local diagnostic detail. Never publish this raw value. */
   reason: string;
   /** `self-check` failures are never tolerated and should not appear here. */
   kind?: 'capture';
 };
+
+/** Public, bounded failure receipt shared by diff JSON, report JSON, and Markdown. */
+export type BaselineFailureReceipt = {
+  key: string;
+  reason: 'capture_failed';
+};
+
+const PUBLIC_CAPTURE_FAILURE_KEY = /^[a-z0-9][a-z0-9._-]{0,199}@(auto|[1-9]\d{1,4})$/;
+
+/** Convert private capture diagnostics into stable public receipts without exception text. */
+export function baselineFailureReceipts(failures: readonly SurfaceCaptureFailure[]): BaselineFailureReceipt[] {
+  return failures.map((failure) => ({
+    key: PUBLIC_CAPTURE_FAILURE_KEY.test(failure.key)
+      ? failure.key
+      : `capture-${createHash('sha256').update(failure.key).digest('hex').slice(0, 12)}`,
+    reason: 'capture_failed',
+  }));
+}
 /** Sidecar written during a capture run (where a browser handle is in scope) recording
  *  the real browser build (`browser().version()`). `writeMapManifest` runs after Playwright
  *  has exited — no browser — so it reads the build back from here. Not a surface map. */

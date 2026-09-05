@@ -248,7 +248,7 @@ if (consistencyFailed) {
 }
 console.log(
   result.changedSurfaces === 0
-    ? result.newSurfaces === 0
+    ? result.oneSidedSurfaces === 0
       ? consistencyFailed
         ? '⚠ no presentation changes — report consistency failure written'
         : includeContent
@@ -256,7 +256,9 @@ console.log(
             ? `${cleanPrefix} no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
             : `${cleanPrefix} no reviewable computed-style or advisory content/structure changes`
           : `${cleanPrefix} no reviewable computed-style changes — content/structure not evaluated`
-      : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
+      : result.newSurfaces > 0
+        ? `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
+        : `⚠ ${result.oneSidedSurfaces} removed or baseline-repair-debt surface(s) — report written for review`
     : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );
 console.log(`report: ${result.reportMdPath}`);
@@ -267,7 +269,7 @@ if (includeContent && result.contentChanges > 0) {
 // exit 0 for "identical" when certification evidence was hidden by presentation).
 process.exit(
   result.changedSurfaces === 0 &&
-    result.newSurfaces === 0 &&
+    result.oneSidedSurfaces === 0 &&
     !consistencyFailed &&
     !comparisonFailed &&
     !sourceBindingFailed

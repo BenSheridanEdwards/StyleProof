@@ -449,6 +449,47 @@ test('production diff and report receipts pass through the exact Action merge pr
 
     fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
     fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const missingBaselineReceipt = structuredClone(honestReport);
+    delete missingBaselineReceipt.baselineFailures;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(missingBaselineReceipt));
+    const missingBaseline = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(missingBaseline.status, 1, missingBaseline.stderr || missingBaseline.stdout);
+    assert.match(missingBaseline.stderr, /baseline-failure receipts are missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const malformedBaselineReceipt = structuredClone(honestReport);
+    malformedBaselineReceipt.baselineFailures = [{ key: 'home@1280', reason: 'PRIVATE RAW EXCEPTION' }];
+    fs.writeFileSync(reportJsonPath, JSON.stringify(malformedBaselineReceipt));
+    const malformedBaseline = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(malformedBaseline.status, 1, malformedBaseline.stderr || malformedBaseline.stdout);
+    assert.match(malformedBaseline.stderr, /baseline-failure receipts are missing or malformed/i);
+    assert.doesNotMatch(malformedBaseline.stderr, /PRIVATE RAW EXCEPTION/);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const contradictoryBaselineReceipt = structuredClone(honestReport);
+    contradictoryBaselineReceipt.baselineFailures = [{ key: 'home@1280', reason: 'capture_failed' }];
+    contradictoryBaselineReceipt.partialBaseline = true;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(contradictoryBaselineReceipt));
+    const contradictoryBaseline = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(contradictoryBaseline.status, 1, contradictoryBaseline.stderr || contradictoryBaseline.stdout);
+    assert.match(contradictoryBaseline.stderr, /baseline-failure receipts disagree/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
     const contradictory = { ...honestReport };
     contradictory.comparison = {
       ...contradictory.comparison,
@@ -775,6 +816,11 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
       });
       assert.equal(verdict.status, 0, `${fixture} verdict: ${verdict.stderr || verdict.stdout}`);
       assert.equal(JSON.parse(fs.readFileSync(verdictOutput, 'utf8')).state, expectedState, fixture);
+      assert.equal(
+        JSON.parse(fs.readFileSync(path.join(caseRoot, 'styleproof-report', 'report.json'), 'utf8')).actionTrustState,
+        expectedState,
+        fixture,
+      );
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -969,6 +1015,18 @@ test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILE
   assert.ok(commentStep, 'PR comment step present');
   assert.match(commentStep[0], /trustState === 'STYLE_REVIEW_REQUIRED'/);
   assert.match(commentStep[0], /report\/diff consistency|reflow source/i);
+});
+
+test('composite action validates baseline-failure receipt parity before trust classification', () => {
+  const report = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(report, 'action.yml should generate and reconcile the report before trust classification');
+  assert.match(report[0], /validBaselineFailures/);
+  assert.match(report[0], /generated\.baselineFailures/);
+  assert.match(report[0], /diff\.baselineFailures/);
+  assert.match(report[0], /baseline-failure receipts are missing or malformed/i);
+  assert.match(report[0], /baseline-failure receipts disagree/i);
+  assert.match(report[0], /baseline-failure trust state disagrees with its receipts/i);
+  assert.match(actionYml, /report\.actionTrustState = state/);
 });
 
 test('composite action classifies report-time correspondence collapse before approval or publication', () => {
