@@ -25,11 +25,11 @@
       "style": 0,
       "state": 0
     },
-    "newSurfaces": 1,
+    "newSurfaces": 0,
     "removedSurfaces": 0,
     "rawChangedSurfaces": 0,
     "reviewableChangedSurfaces": 0,
-    "hasReviewableEvidence": true,
+    "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
     "incomparableSurfaces": 0,
@@ -43,18 +43,12 @@
       "comparable": 1,
       "incomparable": 0,
       "unproven": 0,
-      "notRequired": 1,
+      "notRequired": 0,
       "requiredUnproven": 0,
       "globalRequiredUnproven": 0
     }
   },
   "comparability": [
-    {
-      "surface": "about@320",
-      "status": "not-required",
-      "required": false,
-      "reason": "missing-before"
-    },
     {
       "surface": "home@320",
       "status": "comparable",
@@ -66,35 +60,21 @@
     "ok": true,
     "reason": "aligned"
   },
-  "baselineFailures": [
-    {
-      "key": "about@auto",
-      "reason": "capture_failed"
-    }
-  ],
-  "partialBaseline": true,
+  "baselineFailures": [],
+  "partialBaseline": false,
   "content": {
     "evaluated": false,
     "changes": 0,
     "advisory": true
   },
-  "surfaces": [
-    {
-      "surface": "about@320",
-      "missing": "before",
-      "isNew": false,
-      "isRemoved": false,
-      "baselineStatus": "capture-failed",
-      "image": "crops/about-320-1-new.png"
-    }
-  ],
+  "surfaces": [],
   "confidence": {
     "counts": {
       "inaccessible": 0,
       "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 2
+      "captured": 1
     },
     "completeness": "complete"
   },
@@ -107,8 +87,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "614f45bd25ef8cd458e63a144f369d2b25527513",
-      "observed": "614f45bd25ef8cd458e63a144f369d2b25527513",
+      "expected": "a6b62223c82e82efda0d30d925499b06e77ab9f6",
+      "observed": "a6b62223c82e82efda0d30d925499b06e77ab9f6",
       "result": "matched"
     }
   },
@@ -116,18 +96,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "33621cd8fdf670019e7eb8a8dcd788a724bad4dc997ee3d006b67f2c65125132",
+      "digest": "443f10825f9b6fe04db3fd81d74bb675828cb5b4d7cdd673d755801d8c060b7d",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1676
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "0ca4e50c53806246b03d267d5c0900ac307a18496a52554c1afc37ecd9d008fd",
-      "fileCount": 7,
-      "mapCount": 2,
-      "byteCount": 2447
+      "digest": "67cd1e75e68b82bc5c56bb71e79a0dec5b9ae66bff7c23b5735da60c42168456",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "PARTIAL_BASELINE"
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
 }
