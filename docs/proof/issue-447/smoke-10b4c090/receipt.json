@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "styleproof-detection-rate",
+  "scope": {
+    "kind": "smoke",
+    "issue": 447,
+    "full447": false
+  },
+  "bindings": {
+    "sourceSha": "10b4c090068f05746da02b5c937298f783ac200d",
+    "packageVersion": "6.3.0",
+    "browser": {
+      "name": "chromium",
+      "version": "149.0.7827.55"
+    },
+    "runner": {
+      "node": "v22.22.2",
+      "platform": "darwin",
+      "release": "25.3.0",
+      "arch": "arm64",
+      "osVersion": "26.3",
+      "osBuild": "25D125"
+    },
+    "sensor": {
+      "name": "captureStyleMap+diffStyleMaps",
+      "contractVersion": 2,
+      "digest": "12a9bb245b3228171d809ac63218a0d63fa8cd33d465f24da3ebdbc33d2ce7a9",
+      "sourceDigest": "34f791d485954008f5b86f1bc006824c07c7d2cd3b1d5ed0977b829e058011e9",
+      "buildCommand": "npm run clean && npm run build"
+    },
+    "corpus": {
+      "id": "styleproof-issue447-phase0-pilot",
+      "version": "1.0.0",
+      "digest": "d5204a2c44cb3d92ef10fe819b50b5732fa4ff1ccefd12f9f9022442f584ac27",
+      "expectationDigest": "e33f69ec9024e09a4e68ae22f4807deedc4daeac03e5cfde7739afd1c0f1ab91",
+      "reviewDigest": "6893a5375f3b22d310fbd5eafbb08e4ba13da3f430c082178d84340dfdd6b2c1",
+      "cardinality": 4,
+      "manifest": "bench/detection-corpus-v1.manifest.json"
+    }
+  },
+  "counts": {
+    "requested": 1,
+    "executed": 1,
+    "valid": 1,
+    "detected": 1,
+    "missed": 0,
+    "unsupported": 0,
+    "skipped": 0,
+    "timeout": 0,
+    "invalid": 0,
+    "duplicate": 0,
+    "noOpFalsePositives": 0,
+    "noOpTrueNegatives": 0
+  },
+  "cases": [
+    {
+      "id": "cross-element-hover-panel-v1",
+      "class": "cross-element-state",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 29530,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 0, 255)",
+        "after": "rgb(0, 128, 0)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "state",
+          "path": "body > main:nth-child(1) > button:nth-child(1)",
+          "cls": "",
+          "state": "hover",
+          "sub": "body > main:nth-child(1) > section:nth-child(2)",
+          "props": [
+            {
+              "prop": "background-color",
+              "before": "rgb(0, 0, 255)",
+              "after": "rgb(0, 128, 0)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/cross-element-hover-panel-v1/before.png",
+          "sha256": "7a1f71ff0d4f07c152c10c6ea134125ee9a2db554277881fae9fc60a791232c2",
+          "width": 592,
+          "height": 50,
+          "bytes": 865
+        },
+        {
+          "path": "cases/cross-element-hover-panel-v1/after.png",
+          "sha256": "b8a595ffe2cf7b8f218c7b95fd88f1d02048c6bb2d0a9ffa6d6d382b7df64ed3",
+          "width": 592,
+          "height": 50,
+          "bytes": 855
+        }
+      ]
+    }
+  ],
+  "full447": {
+    "status": "not-run",
+    "claimed": false
+  },
+  "validation": {
+    "ok": true,
+    "reasons": []
+  }
+}

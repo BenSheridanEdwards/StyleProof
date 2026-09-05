@@ -1682,6 +1682,14 @@ receipt. Missing, duplicated, skipped, failed, or retried tests fail verificatio
 The `browser-evidence-node-22` artifact retains the inventory, shard results, and
 oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
 
+The repository also carries a source-bound four-case detection benchmark for
+[#447](https://github.com/BenSheridanEdwards/StyleProof/issues/447). Run
+`npm run bench:detection -- --corpus bench/detection-corpus-v1.json --out <new-dir> --scope pilot --expect-source-sha $(git rev-parse HEAD)`
+from a clean checkout. The committed [pilot receipt](docs/proof/issue-447/pilot-654319ad/receipt.json)
+is diagnostic evidence for exactly two computed-style changes, one cross-element hover
+change, and one equivalent-color no-op. It is not the full #447 corpus, class-wide
+recall evidence, or whole-application coverage.
+
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
 for the dev loop, and [AGENTS.md](https://github.com/BenSheridanEdwards/StyleProof/blob/main/AGENTS.md)
 (the same file as `CLAUDE.md`) for the operating rules and agent tooling. The repo

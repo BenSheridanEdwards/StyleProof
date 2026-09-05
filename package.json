@@ -1,7 +1,7 @@
 {
   "name": "styleproof",
   "version": "6.3.0",
-  "description": "Catch every CSS change before it ships — review PRs and certify refactors by the browser's computed styles, not pixels. Works with any styling system.",
+  "description": "Catch every CSS change before it ships \u2014 review PRs and certify refactors by the browser's computed styles, not pixels. Works with any styling system.",
   "keywords": [
     "playwright",
     "css",
@@ -88,7 +88,8 @@
     "demo:check": "npm run build && node scripts/demo-report.mjs --check",
     "init": "node ./bin/styleproof-init.mjs",
     "prepare": "npm run build && node .husky/install.mjs",
-    "prepublishOnly": "npm run clean && npm run build && npm run typecheck && npm run lint && npm run format:check && npm run privacy:check && npm test && npm run test:e2e"
+    "prepublishOnly": "npm run clean && npm run build && npm run typecheck && npm run lint && npm run format:check && npm run privacy:check && npm test && npm run test:e2e",
+    "bench:detection": "node bench/detection-rate.mjs"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40"
