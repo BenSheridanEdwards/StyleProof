@@ -76,6 +76,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Selective remap preserves every surface sharing an entry module, so edits to a
+  page or its dependencies recapture all associated states instead of reusing
+  stale maps for all but the last declared state. (#495)
+
 - Selective remap includes nested modules under a computed import's static
   directory, preventing stale base-map reuse for dynamic consumers when a nested
   component or its scoped stylesheet changes. Sibling directories remain outside

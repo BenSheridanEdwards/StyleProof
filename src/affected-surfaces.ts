@@ -255,7 +255,7 @@ export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces
   if (rev === 'all') return 'all';
 
   // 3. Map each changed file to the surfaces that transitively import it.
-  const entryToKey = new Map(Object.entries(surfaces).map(([k, f]) => [f, k]));
+  const entryFiles = new Set(Object.values(surfaces));
 
   // A surface whose entry path appears in neither `files` nor any graph edge is
   // unplaceable: reverse reachability can never route a change to it, so a genuine
@@ -268,16 +268,17 @@ export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces
   }
   for (const f of Object.values(surfaces)) if (!placeable.has(f)) return 'all';
 
-  const hit = new Set<string>();
+  const affectedFiles = new Set<string>();
   for (const f of changed) {
     const reach = reverseReach(f, rev);
-    if (reach.size === 0 && !entryToKey.has(f)) return 'all';
-    for (const src of [f, ...reach]) {
-      const key = entryToKey.get(src);
-      if (key) hit.add(key);
-    }
+    if (reach.size === 0 && !entryFiles.has(f)) return 'all';
+    for (const src of [f, ...reach]) affectedFiles.add(src);
   }
-  return hit;
+  return new Set(
+    Object.entries(surfaces)
+      .filter(([, file]) => affectedFiles.has(file))
+      .map(([key]) => key),
+  );
 }
 
 /** A changed file whose kind participates in style scope (stylesheet, code, or config). */

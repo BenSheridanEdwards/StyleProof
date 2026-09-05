@@ -156,3 +156,28 @@ test('styleproof-affected: usage errors exit 2 and never fake a verdict', () => 
   const badRef = run(['--graph', GRAPH, '--surface', 'home=src/pages/Home.tsx', '--base', 'no-such-ref']);
   assert.equal(badRef.status, 2);
 });
+
+test('styleproof-affected: every state sharing an entry is recaptured for entry and dependency edits', () => {
+  for (const changed of ['src/pages/Home.tsx', 'src/components/Hero.tsx']) {
+    const res = run([
+      '--graph',
+      GRAPH,
+      '--surface',
+      'home=src/pages/Home.tsx',
+      '--surface',
+      'home-open=./src/pages/Home.tsx',
+      '--surface',
+      'pricing=src/pages/Pricing.tsx',
+      '--changed',
+      changed,
+      '--json',
+    ]);
+    assert.equal(res.status, 0, res.stderr);
+    const verdict = JSON.parse(res.stdout);
+    assert.deepEqual(verdict.recapture, ['home', 'home-open'], changed);
+    assert.deepEqual(verdict.reuse, ['pricing'], changed);
+    assert.match(res.stderr, /↻ home \(re-capture/);
+    assert.match(res.stderr, /↻ home-open \(re-capture/);
+    assert.doesNotMatch(res.stderr, /✓ home(?:-open)? \(reuse base map/);
+  }
+});
