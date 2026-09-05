@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveSpawnCommand } from './platform-command.mjs';
+import { detectPackageManager } from './package-manager.mjs';
 
 const binDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(binDir, '..');
@@ -18,6 +19,9 @@ options:
   --project-dir <path> consumer project root (default: current directory)
   --dir <path>       capture spec path inside the project (default: e2e/styleproof.spec.ts)
   --base-url <url>   application URL (default: http://localhost:3000)
+  --server-command <command>
+                      explicit production build/serve command
+  --external-server  do not manage a server; BASE_URL must already be available
   --force            overwrite the existing capture spec
   --skip-install     do not add StyleProof and Playwright to the project
   --skip-browser     do not install Playwright Chromium
@@ -69,7 +73,10 @@ for (let i = 0; i < argv.length; i++) {
       process.exit(2);
     }
   } else if (arg === '--force') initArgs.push(arg);
-  else if (arg === '--dir' || arg === '--base-url') {
+  else if (arg === '--external-server') {
+    initArgs.push(arg);
+    checkArgs.push(arg);
+  } else if (arg === '--dir' || arg === '--base-url' || arg === '--server-command') {
     const value = requireOptionValue(arg, i);
     i++;
     initArgs.push(arg, value);
@@ -88,6 +95,13 @@ for (let i = 0; i < argv.length; i++) {
     }
     initArgs.push(arg);
     checkArgs.push(arg);
+  } else if (arg.startsWith('--server-command=')) {
+    if (!arg.slice('--server-command='.length)) {
+      process.stderr.write('styleproof setup: --server-command requires a value\n');
+      process.exit(2);
+    }
+    initArgs.push(arg);
+    checkArgs.push(arg);
   } else {
     process.stderr.write(`styleproof setup: unknown option: ${arg}\nNext: run styleproof setup --help.\n`);
     process.exit(2);
@@ -101,40 +115,21 @@ if (!fs.existsSync(path.join(cwd, 'package.json'))) {
 }
 if (dryRun) process.stdout.write(`Project: ${cwd}\n`);
 
-function detectPackageManager(root) {
-  let consumerManifest;
-  try {
-    consumerManifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`could not read package.json: ${detail}`, { cause: error });
-  }
-
-  const supported = new Set(['npm', 'pnpm', 'yarn', 'bun']);
-  if (consumerManifest.packageManager !== undefined) {
-    if (typeof consumerManifest.packageManager !== 'string') {
-      throw new Error('package.json#packageManager must be a string');
-    }
-    const declared = consumerManifest.packageManager.split('@', 1)[0];
-    if (!supported.has(declared)) {
-      throw new Error(`unsupported package.json#packageManager: ${consumerManifest.packageManager}`);
-    }
-    return declared;
-  }
-
-  const detected = [];
-  if (fs.existsSync(path.join(root, 'package-lock.json'))) detected.push('npm');
-  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) detected.push('pnpm');
-  if (fs.existsSync(path.join(root, 'yarn.lock'))) detected.push('yarn');
-  if (fs.existsSync(path.join(root, 'bun.lock')) || fs.existsSync(path.join(root, 'bun.lockb'))) {
-    detected.push('bun');
-  }
-  if (detected.length > 1) {
-    throw new Error(
-      `multiple package-manager lockfiles found (${detected.join(', ')}); set package.json#packageManager explicitly`,
-    );
-  }
-  return detected[0] ?? 'npm';
+// Validate the generated server contract before dependency installation or
+// scaffolding. This read-only preflight also runs for --dry-run, so planning and
+// execution reject the same unrunnable project.
+const preflight = spawnSync(
+  process.execPath,
+  [path.join(binDir, 'styleproof-init.mjs'), ...checkArgs, '--validate-server'],
+  { cwd, encoding: 'utf8' },
+);
+if (preflight.error) {
+  process.stderr.write(`styleproof setup: server validation failed: ${preflight.error.message}\n`);
+  process.exit(5);
+}
+if (preflight.status !== 0) {
+  process.stderr.write(preflight.stderr);
+  process.exit(preflight.status ?? 5);
 }
 
 let manager;
@@ -165,7 +160,7 @@ const plans = {
 };
 
 function printable(command, args) {
-  return [command, ...args].join(' ');
+  return [command, ...args.map((arg) => (/\s/.test(arg) ? JSON.stringify(arg) : arg))].join(' ');
 }
 
 function run(command, args, label, display = printable(command, args)) {

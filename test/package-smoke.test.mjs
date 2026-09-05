@@ -174,9 +174,17 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
     const scaffold = path.join(tmp, 'scaffold');
     fs.mkdirSync(scaffold);
     fs.writeFileSync(path.join(scaffold, 'package.json'), JSON.stringify({ name: 'consumer', private: true }, null, 2));
+    // This packaging-only consumer has no app server; choose caller-managed
+    // server mode explicitly rather than weakening setup's fail-early contract.
     const setup = run(
       process.execPath,
-      [path.join(app, 'node_modules/styleproof/bin/styleproof.mjs'), 'setup', '--skip-install', '--skip-browser'],
+      [
+        path.join(app, 'node_modules/styleproof/bin/styleproof.mjs'),
+        'setup',
+        '--skip-install',
+        '--skip-browser',
+        '--external-server',
+      ],
       { cwd: scaffold },
     );
     assert.equal(setup.status, 0, commandFailure(setup));
