@@ -67,7 +67,7 @@ import {
 } from '../dist/cli-errors.js';
 import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
 import { readInventories, readResidue, surfaceElementPaths, mergeSurfaceKeyLookup } from '../dist/capture.js';
-import { auditRunInventory, readAckFile } from '../dist/inventory.js';
+import { auditRunInventory, hasCapturedInventory, readAckFile } from '../dist/inventory.js';
 import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
@@ -97,7 +97,7 @@ function loadAllowRemoved() {
 function readInventoryAudit(dirA, dirB) {
   const baseInv = readInventories(dirA);
   const headInv = readInventories(dirB);
-  if (![...baseInv, ...headInv].some((m) => m.inventory?.length)) return null;
+  if (!hasCapturedInventory(baseInv, headInv)) return null;
   const allowed = loadAllowRemoved();
   return { allowed, ...auditRunInventory(baseInv, headInv, allowed) };
 }

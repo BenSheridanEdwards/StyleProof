@@ -83,6 +83,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Incomplete interaction evidence on either comparison side now fails certification independently of style approval. The CLI and Action share one typed verdict policy.
 - Forced hover, focus, and active capture now records sibling and ancestor CSS effects with bounded scanning. Omitted or disabled evidence fails closed. Regenerate baselines after upgrading.
 - Setup rejects uninferable production server commands before dependency installation or scaffolding. Explicit `--server-command` and `--external-server` choices support custom applications without inventing missing package scripts. Setup and generated commands share package-manager detection, including declared-manager precedence and invalid-metadata rejection. This is static command validation, not a runtime readiness claim.
+- The navigable-removal gate reported a check it never ran. With no captured map
+  carrying an inventory, the audit is an empty diff of two empty sets —
+  indistinguishable from "nothing was removed" — so the report claimed
+  `Inventory — ✓ navigable set unchanged` and the Action printed a reassuring notice
+  and exited 0. A repository that never set `inventory: true` got a green inventory
+  gate that gated nothing. The report now reads `⚠ not checked`, naming the cause, in
+  the same spirit as determinism's `⚠ unknown`; the Action names it a COULD-NOT-RUN
+  warning instead of a notice. `hasCapturedInventory` is exported as the one
+  definition of "the gate had data to run on", and both the report and
+  `styleproof-diff` now ask it, so the two cannot drift. The gate itself is unchanged:
+  a captured inventory with a real removal still fails hard, and the armed-but-empty
+  case still exits 0, because the README scopes the gate to `inventory: true` and
+  failing closed would break every capture spec that predates it. (#478)
+
 - Selective remap preserves every surface sharing an entry module, so edits to a
   page or its dependencies recapture all associated states instead of reusing
   stale maps for all but the last declared state. (#495)

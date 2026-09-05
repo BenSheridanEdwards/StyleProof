@@ -707,12 +707,15 @@ runs:
       run: |
         set -euo pipefail
         [ -f styleproof-diff.json ] || { echo "no styleproof-diff.json — nothing to gate"; exit 0; }
-        # Armed but empty: the gate is on, yet neither map carried an inventory (j.inventory
-        # is null), so there is nothing to gate on. Say so loudly instead of silently passing
-        # green — a default capture spec must set `inventory: true` for this gate to have data.
-        # A notice, never a failure: existing specs that opt out of capture must not break.
+        # ARMED BUT NO DATA (#478): the gate is on, yet neither map carried an inventory
+        # (j.inventory is null), so it had nothing to run on. This is a COULD-NOT-RUN, not
+        # a pass — name it as a warning, and never let the run read as "inventory checked".
+        # The report says `⚠ not checked` for the same reason. Still exit 0: the README
+        # scopes this gate to `inventory: true`, so failing closed would break every spec
+        # that predates it; the warning plus the report line are the visible signal, and
+        # a team that wants enforcement sets `inventory: true` in the capture spec.
         if node -e "process.exit(require('./styleproof-diff.json').inventory == null ? 0 : 1)"; then
-          echo "::notice::StyleProof: inventory gate is on but the captured maps carry no inventory — nothing to gate. Set \`inventory: true\` in your capture spec (styleproof-init scaffolds this) or opt out with \"gateInventoryRemovals\": false."
+          echo "::warning::StyleProof: inventory gate COULD NOT RUN — it is armed, but no captured map carried an inventory, so no navigable removal could have been detected on this run. Set \`inventory: true\` in your capture spec (styleproof-init scaffolds this) to arm it with data, or opt out with \"gateInventoryRemovals\": false to stop arming it."
           exit 0
         fi
         # Unacknowledged removals AND stale acknowledgements both gate: a stale entry left

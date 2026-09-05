@@ -583,6 +583,11 @@ report leads with their verdicts:
   can't rot. Details and the keying rules:
   [docs/inventory-guard.md](docs/inventory-guard.md). Make it advisory in the
   Action with `"gateInventoryRemovals": false` in `styleproof.config.json`.
+  **Without `inventory: true` the check does not run, and StyleProof says so**:
+  the report reads `⚠ not checked` rather than `✓ navigable set unchanged`, and
+  the Action warns that the gate could not run. An empty inventory diff is
+  indistinguishable from "nothing was removed", so a ✓ there would claim a
+  guarantee the run never earned.
 - **Failed data request**: a data-boundary request that **failed** during capture
   means the fallback UI was captured, not the state its responses drive.
   Gating is the default (`dataResidue: 'gate'`): an unacknowledged failing
