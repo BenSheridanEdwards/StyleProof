@@ -234,6 +234,40 @@ test('production diff and report receipts pass through the exact Action merge pr
     assert.equal(firstAdoptionMerged.sourceBinding.before.result, 'no-capture');
     assert.equal(firstAdoptionMerged.comparison.status, 'not-required');
 
+    const partialReport = structuredClone(firstAdoptionReport);
+    const partialDiff = structuredClone(firstAdoptionDiff);
+    const partialSurface = partialReport.surfaces[0];
+    partialSurface.isNew = false;
+    partialSurface.baselineStatus = 'capture-failed';
+    partialReport.baselineFailures = [
+      { key: partialSurface.surface.replace(/@[^@]+$/, '@auto'), reason: 'capture_failed' },
+    ];
+    partialReport.partialBaseline = true;
+    partialDiff.baselineFailures = structuredClone(partialReport.baselineFailures);
+    partialDiff.partialBaseline = true;
+    partialDiff.explainedMissingBaselineSurfaces = [partialSurface.surface];
+    fs.writeFileSync(reportJsonPath, JSON.stringify(partialReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(partialDiff));
+    const honestPartial = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(honestPartial.status, 0, honestPartial.stderr || honestPartial.stdout);
+
+    const contradictoryPartial = structuredClone(partialReport);
+    contradictoryPartial.surfaces[0].isNew = true;
+    contradictoryPartial.surfaces[0].baselineStatus = 'new';
+    fs.writeFileSync(reportJsonPath, JSON.stringify(contradictoryPartial));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(partialDiff));
+    const rejectedPartial = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(rejectedPartial.status, 1, rejectedPartial.stderr || rejectedPartial.stdout);
+    assert.match(rejectedPartial.stderr, /surface classification disagrees with the validated diff/i);
+
     const forgedNoCapturePairedReport = structuredClone(honestReport);
     const forgedNoCapturePairedDiff = structuredClone(honestDiff);
     for (const receipt of [forgedNoCapturePairedReport, forgedNoCapturePairedDiff]) {
@@ -446,6 +480,47 @@ test('production diff and report receipts pass through the exact Action merge pr
     });
     assert.equal(malformedEqual.status, 1, malformedEqual.stderr || malformedEqual.stdout);
     assert.match(malformedEqual.stderr, /source-binding receipts are missing, malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const missingBaselineReceipt = structuredClone(honestReport);
+    delete missingBaselineReceipt.baselineFailures;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(missingBaselineReceipt));
+    const missingBaseline = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(missingBaseline.status, 1, missingBaseline.stderr || missingBaseline.stdout);
+    assert.match(missingBaseline.stderr, /baseline-failure receipts are missing or malformed/i);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const malformedBaselineReceipt = structuredClone(honestReport);
+    malformedBaselineReceipt.baselineFailures = [{ key: 'home@1280', reason: 'PRIVATE RAW EXCEPTION' }];
+    fs.writeFileSync(reportJsonPath, JSON.stringify(malformedBaselineReceipt));
+    const malformedBaseline = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(malformedBaseline.status, 1, malformedBaseline.stderr || malformedBaseline.stdout);
+    assert.match(malformedBaseline.stderr, /baseline-failure receipts are missing or malformed/i);
+    assert.doesNotMatch(malformedBaseline.stderr, /PRIVATE RAW EXCEPTION/);
+
+    fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
+    fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
+    const contradictoryBaselineReceipt = structuredClone(honestReport);
+    contradictoryBaselineReceipt.baselineFailures = [{ key: 'home@1280', reason: 'capture_failed' }];
+    contradictoryBaselineReceipt.partialBaseline = true;
+    fs.writeFileSync(reportJsonPath, JSON.stringify(contradictoryBaselineReceipt));
+    const contradictoryBaseline = spawnSync(process.execPath, [mergeScript], {
+      cwd: root,
+      encoding: 'utf8',
+      env: actionEnv,
+    });
+    assert.equal(contradictoryBaseline.status, 1, contradictoryBaseline.stderr || contradictoryBaseline.stdout);
+    assert.match(contradictoryBaseline.stderr, /baseline-failure receipts disagree/i);
 
     fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
     fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
@@ -774,7 +849,15 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
         env: { ...process.env, STYLEPROOF_VERDICT_OUTPUT: verdictOutput },
       });
       assert.equal(verdict.status, 0, `${fixture} verdict: ${verdict.stderr || verdict.stdout}`);
-      assert.equal(JSON.parse(fs.readFileSync(verdictOutput, 'utf8')).state, expectedState, fixture);
+      const verdictReceipt = JSON.parse(fs.readFileSync(verdictOutput, 'utf8'));
+      assert.equal(verdictReceipt.state, expectedState, fixture);
+      const expectedReviewableChanged = ['changed', 'new', 'degraded', 'removed'].includes(fixture);
+      assert.equal(verdictReceipt['reviewable-changed'], String(expectedReviewableChanged), fixture);
+      assert.equal(
+        JSON.parse(fs.readFileSync(path.join(caseRoot, 'styleproof-report', 'report.json'), 'utf8')).actionTrustState,
+        expectedState,
+        fixture,
+      );
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -894,6 +977,9 @@ test('composite action exposes one precedence-ordered machine-readable trust ver
 
 test('composite action hard-gates partial baseline repair debt', () => {
   assert.match(actionYml, /PARTIAL_BASELINE/);
+  assert.match(actionYml, /changed:[\s\S]*?steps\.verdict\.outputs\.reviewable-changed/);
+  assert.match(actionYml, /explainedMissingBaselineSurfaces/);
+  assert.match(actionYml, /reviewableChanged/);
   const gate = actionYml.match(/- name: Block on partial baseline[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/);
   assert.ok(gate, 'action.yml should fail rather than certify ledger-explained baseline gaps');
   assert.match(gate[0], /verdict\.outputs\.state == 'PARTIAL_BASELINE'/);
@@ -969,6 +1055,53 @@ test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILE
   assert.ok(commentStep, 'PR comment step present');
   assert.match(commentStep[0], /trustState === 'STYLE_REVIEW_REQUIRED'/);
   assert.match(commentStep[0], /report\/diff consistency|reflow source/i);
+});
+
+test('composite action does not expose raw-only findings as reviewable changes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-raw-only-'));
+  try {
+    const diff = {
+      sourceBinding: { status: 'bound' },
+      coverage: { basis: 'complete' },
+      determinism: { status: 'proven' },
+      confidence: { counts: { inaccessible: 0 } },
+      comparison: { blocksCertification: false },
+      reportConsistency: { ok: false, reason: 'raw_only_no_reviewable' },
+      reviewableCounts: { dom: 0, style: 0, state: 0 },
+      surfaces: [{ surface: 'home@320', findings: [{ kind: 'style', path: '#noise' }] }],
+      inventory: { added: [], removed: [], unacknowledged: [], staleAcknowledgements: [] },
+      dataResidue: { blocking: 0, unacknowledged: [] },
+    };
+    fs.writeFileSync(path.join(root, 'styleproof-diff.json'), JSON.stringify(diff));
+    fs.mkdirSync(path.join(root, 'styleproof-report'));
+    fs.writeFileSync(path.join(root, 'styleproof-report', 'report.json'), JSON.stringify(diff));
+    const script = path.join(root, 'verdict.cjs');
+    const output = path.join(root, 'verdict.json');
+    fs.writeFileSync(script, actionVerdictScript({ baseCaptureFailed: false, changed: true }));
+    const verdict = spawnSync(process.execPath, [script], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_VERDICT_OUTPUT: output },
+    });
+    assert.equal(verdict.status, 0, verdict.stderr || verdict.stdout);
+    const receipt = JSON.parse(fs.readFileSync(output, 'utf8'));
+    assert.equal(receipt.state, 'CERTIFICATION_FAILED');
+    assert.equal(receipt['reviewable-changed'], 'false');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('composite action validates baseline-failure receipt parity before trust classification', () => {
+  const report = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
+  assert.ok(report, 'action.yml should generate and reconcile the report before trust classification');
+  assert.match(report[0], /validBaselineFailures/);
+  assert.match(report[0], /generated\.baselineFailures/);
+  assert.match(report[0], /diff\.baselineFailures/);
+  assert.match(report[0], /baseline-failure receipts are missing or malformed/i);
+  assert.match(report[0], /baseline-failure receipts disagree/i);
+  assert.match(report[0], /baseline-failure trust state disagrees with its receipts/i);
+  assert.match(actionYml, /report\.actionTrustState = state/);
 });
 
 test('composite action classifies report-time correspondence collapse before approval or publication', () => {

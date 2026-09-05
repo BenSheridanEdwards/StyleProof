@@ -2,7 +2,7 @@ Shared entry states: changed page.tsx
 Local reproduction using public synthetic source fixtures.
 Advisory remap decisions; not a captured-style certification.
 Base: 6537938; current source SHA-256:
-6884facecdc164856fd6f9293fd48411ca6b344fd69b863969d8a0c93e9169fc
+2f8f191d3104852322ae753779c25c74d9df9e6ca379047d52ea5dd11c0096a5
 
 BEFORE (main 6537938)
 selective remap: ON → re-capture 1, reuse 2 from base
