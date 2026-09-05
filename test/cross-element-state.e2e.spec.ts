@@ -1,7 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { captureStateLayerScreenshots, captureStyleMap, diffStyleMaps } from '../dist/index.js';
+import {
+  captureStateLayerScreenshots,
+  captureStyleMap,
+  diffStyleMapDirs,
+  diffStyleMaps,
+  saveStyleMap,
+} from '../dist/index.js';
 
 const PROOF_DIR = path.resolve('.styleproof', 'fresh-fix');
 
@@ -74,6 +81,42 @@ test('detached interactive controls mark the forced-state layer incomplete', asy
   expect(map.statesSkipped).toBe(true);
 });
 
+test('captureStates false persists incomplete evidence through a real directory diff', async ({ page }) => {
+  await page.setContent('<button>Control</button>', { waitUntil: 'load' });
+  const complete = await captureStyleMap(page, { stabilize: false });
+  const disabled = await captureStyleMap(page, { stabilize: false, captureStates: false });
+
+  expect(complete.statesSkipped).toBeFalsy();
+  expect(disabled.states).toEqual({});
+  expect(disabled.statesSkipped).toBe(true);
+  expect(
+    diffStyleMaps(complete, disabled).some(
+      (finding) => finding.kind === 'state' && finding.state === 'forced-state capture',
+    ),
+  ).toBe(true);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-state-disabled-'));
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  try {
+    saveStyleMap(path.join(beforeDir, 'surface.json.gz'), complete);
+    saveStyleMap(path.join(afterDir, 'surface.json.gz'), disabled);
+    expect(diffStyleMapDirs(beforeDir, afterDir).statesUncertified).toBe(1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('non-Chromium capture persists unsupported forced-state evidence', async ({ browserName, page }) => {
+  test.skip(browserName === 'chromium', 'requires a non-Chromium Playwright project');
+  await page.setContent('<button>Control</button>', { waitUntil: 'load' });
+
+  const map = await captureStyleMap(page, { stabilize: false });
+  expect(Object.keys(map.elements).length).toBeGreaterThan(0);
+  expect(map.states).toEqual({});
+  expect(map.statesSkipped).toBe(true);
+});
+
 test('bounds document-wide forced-state work on a moderate multi-control page', async ({ page }) => {
   const controls = Array.from(
     { length: 24 },
@@ -99,6 +142,38 @@ test('bounds document-wide forced-state work on a moderate multi-control page', 
   expect(map.statesSkipped).toBeFalsy();
   expect(crossElementHoverTargets).toBe(24);
   expect(elapsedMs, 'moderate bounded scan completes inside the E2E performance budget').toBeLessThan(60_000);
+});
+
+test('exhausts one deterministic aggregate budget across targets and states', async ({ page }) => {
+  const controls = Array.from({ length: 800 }, (_, index) => `<button>Control ${index}</button>`).join('');
+  const html = `<!doctype html><html><head><style>
+    button:hover { color: rgb(0, 128, 0); }
+  </style></head><body>${controls}</body></html>`;
+  await page.setContent(html, { waitUntil: 'load' });
+
+  const map = await captureStyleMap(page, { stabilize: false });
+  const firstButtonPath = Object.entries(map.elements).find(([, element]) => element.tag === 'button')?.[0];
+  expect(firstButtonPath).toBeTruthy();
+  expect(map.states[firstButtonPath!]?.hover[firstButtonPath!]?.color).toBe('rgb(0, 128, 0)');
+  expect(Object.keys(map.states).length).toBeLessThan(800);
+  expect(map.statesSkipped, 'aggregate truncation fails closed').toBe(true);
+});
+
+test('bounds aggregate work across 800 controls on a document over the per-scan limit', async ({ page }) => {
+  const controls = Array.from({ length: 800 }, (_, index) => `<button>Control ${index}</button>`).join('');
+  const content = Array.from({ length: 1_250 }, (_, index) => `<div>Content ${index}</div>`).join('');
+  const html = `<!doctype html><html><head><style>
+    button:hover { color: rgb(0, 128, 0); }
+  </style></head><body>${controls}${content}</body></html>`;
+  await page.setContent(html, { waitUntil: 'load' });
+
+  const map = await captureStyleMap(page, { stabilize: false });
+  const firstButtonPath = Object.entries(map.elements).find(([, element]) => element.tag === 'button')?.[0];
+  expect(firstButtonPath).toBeTruthy();
+  expect(map.states[firstButtonPath!]?.hover[firstButtonPath!]?.color, 'target-first evidence is retained').toBe(
+    'rgb(0, 128, 0)',
+  );
+  expect(map.statesSkipped, 'exhausting the deterministic aggregate budget fails closed').toBe(true);
 });
 
 test('flags a target-first scan that reaches the document element bound', async ({ page }) => {
