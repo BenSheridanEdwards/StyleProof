@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Baseline capture failures now survive as bounded `{ key, reason }` receipts in diff JSON and `report.json`, while raw exception text stays private. Markdown renders from that same receipt within its display budget, matching failed baseline surfaces are labeled and counted as repair debt instead of first adoption, and unrelated head surfaces stay genuinely new. `styleproof-diff` fails closed with exit 1 for any partial baseline, never reports repair debt as clean or fully certified, and the Action rejects missing, malformed, or contradictory receipts before publishing its trust state. (#491)
+
 - `styleproof-map --prove-determinism` runs the #400 five-run oracle over your own
   captures. It captures the declared surface set five times in fresh contexts, requires
   every canonical map hash to match, writes `styleproof-determinism.json` beside the maps,
@@ -74,6 +76,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Embed deterministic `BEFORE`/`AFTER` and product-state `BASE`/`HEAD` labels inside every comparison PNG so report evidence remains directional when opened outside Markdown.
 - The approval gate let a pull request author sign off their own visual changes.
   `example/styleproof-approve.yml` checked write access and the reviewed commit but
   never compared the approver with the author, so any author with write access could
@@ -121,6 +124,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Advisory content evidence now frames the nearest useful shared control, outlines changed content on the side where it exists (including removals displaced by shifted siblings), and adds nearest-neighbor zoom for small labels without changing certification. `maxCrops` bounds generated advisory image sets as well as computed-style crops.
 - Capture-evidence receipts now accept bounded trees up to 512 MiB, while retaining
   the 100,000-file, 16 MiB per-file, regular-file, and no-follow safety checks.
   Exact-boundary coverage accepts the ceiling and rejects one byte above it.
