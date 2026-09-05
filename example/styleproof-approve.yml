@@ -56,19 +56,37 @@ jobs:
             // body is untrusted — only ever pattern-matched here, never evaluated.
             const fresh = await github.rest.issues.getComment({ ...context.repo, comment_id: context.payload.comment.id });
             const body = fresh.data.body || '';
+            // The event-level Bot check is not enough: any integration can author a
+            // bot comment. Approval only trusts the canonical comment written by the
+            // GitHub Actions app, and revalidates that identity from the API response.
+            if (fresh.data.user?.type !== 'Bot' || fresh.data.user?.login !== 'github-actions[bot]') return;
 
-            // Bind approval to the exact commit the report was generated for. A
-            // push after the report leaves this stale, so a new render can never
-            // inherit a green status.
-            const shaMatch = body.match(/<!-- styleproof-sha:([0-9a-f]{40}) -->/i);
-            if (!shaMatch) return;
-            const reportSha = shaMatch[1];
+            // Parse every identity exactly once. Duplicate markers are ambiguous, and
+            // case-folded SHAs are not repaired: an immutable publication identity is
+            // either canonical byte-for-byte or it is not approvable.
+            const reportMarkers = body.match(/<!-- styleproof-report -->/g) || [];
+            const shaMarkers = body.match(/<!-- styleproof-sha:/g) || [];
+            const runMarkers = body.match(/<!-- styleproof-run-id:/g) || [];
+            const shaMatches = [...body.matchAll(/<!-- styleproof-sha:([0-9a-f]{40}) -->/g)];
+            const runMatches = [...body.matchAll(/<!-- styleproof-run-id:(\d+) run-attempt:(\d+) -->/g)];
+            if (
+              reportMarkers.length !== 1 ||
+              shaMarkers.length !== 1 ||
+              runMarkers.length !== 1 ||
+              shaMatches.length !== 1 ||
+              runMatches.length !== 1
+            ) return;
+            const reportSha = shaMatches[0][1];
+            const runId = runMatches[0][1];
+            const runAttempt = runMatches[0][2];
 
             // One "Approve all changes" box signs off every changed or new surface.
             // No box means nothing to approve, leave the status as the Action set it.
-            const allBox = body.split('\n').find((l) => /^\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*/.test(l));
-            if (!allBox) return;
-            const approved = /\[[xX]\]/.test(allBox);
+            const allBoxes = body.split('\n').filter((line) =>
+              /^\s*-\s+\[[ xX]\]\s+\*\*Approve all changes\*\*/.test(line),
+            );
+            if (allBoxes.length !== 1) return;
+            const approved = /\[[xX]\]/.test(allBoxes[0]);
 
             // Rebuild the box line from scratch — glyph plus one suffix — so a re-tick
             // by someone else replaces the note, an untick clears it, and a refusal can
@@ -122,6 +140,136 @@ jobs:
             const headSha = pr.data.head.sha;
             if (headSha !== reportSha) return;
 
+            const escapedRepository = `${context.repo.owner}/${context.repo.repo}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const reportLinks = [...body.matchAll(new RegExp(
+              `https://github\\.com/${escapedRepository}/blob/([0-9a-f]{40})/pr-${context.payload.issue.number}/report\\.md\\)`,
+              'g',
+            ))];
+            let reportUrl = '';
+            if (reportLinks.length === 1) {
+              const publicationSha = reportLinks[0][1];
+              const candidateUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${publicationSha}/pr-${context.payload.issue.number}/report.md`;
+              if (reportLinks[0][0] === `${candidateUrl})`) reportUrl = candidateUrl;
+            }
+
+            // A tick is authority-bearing, so bind it to the one current immutable
+            // publication before evaluating self-approval. Unticks remain a safe way to
+            // withdraw approval and never need publication readback to turn the gate red.
+            if (approved) {
+              if (!reportUrl) return;
+              const publicationSha = reportLinks[0][1];
+
+              // The marker comment is an upsert. Reject a copied or superseded bot
+              // comment: exactly one current thread comment may own the marker, and it
+              // must be the comment whose edit triggered this run.
+              const threadComments = await github.paginate(github.rest.issues.listComments, {
+                ...context.repo,
+                issue_number: context.payload.issue.number,
+                per_page: 100,
+              });
+              const canonicalComments = threadComments.filter((comment) =>
+                (comment.body || '').includes('<!-- styleproof-report -->'),
+              );
+              if (
+                canonicalComments.length !== 1 ||
+                canonicalComments[0].id !== fresh.data.id ||
+                canonicalComments[0].body !== body ||
+                canonicalComments[0].user?.type !== 'Bot' ||
+                canonicalComments[0].user?.login !== 'github-actions[bot]'
+              ) return;
+
+              // The newest StyleProof status for this exact head is the canonical
+              // machine verdict. Only the Action's pending review verdict is eligible;
+              // certification failures, clean/approved reports, and stale target URLs
+              // cannot be waved through by a checkbox.
+              const readPendingStatus = async () => {
+                const response = await github.rest.repos.listCommitStatusesForRef({
+                  ...context.repo,
+                  ref: headSha,
+                  per_page: 100,
+                });
+                const latest = response.data.find((candidate) => candidate.context === STATUS);
+                const canonicalCreator =
+                  latest?.creator?.type === 'Bot' && latest.creator.login === 'github-actions[bot]';
+                const eligibleDescription =
+                  latest?.description === 'StyleProof changes need sign-off — tick the box in the report comment' ||
+                  latest?.description === 'Tick "Approve all changes" to sign off' ||
+                  latest?.description?.startsWith('Needs a reviewer other than @');
+                return canonicalCreator && latest?.state === 'failure' && eligibleDescription && latest.target_url === reportUrl;
+              };
+              if (!(await readPendingStatus())) return;
+
+              // Read both canonical artifacts at the publication commit named by the
+              // status and comment. This consumes the publisher's established receipt;
+              // it does not trust a new assertion invented by the approval workflow.
+              const readPublishedFile = async (name) => {
+                let response;
+                try {
+                  response = await github.rest.repos.getContent({
+                    ...context.repo,
+                    path: `pr-${context.payload.issue.number}/${name}`,
+                    ref: publicationSha,
+                  });
+                } catch (error) {
+                  throw new Error(
+                    'StyleProof approval verification could not read the immutable publication; the approval workflow requires contents: read',
+                    { cause: error },
+                  );
+                }
+                const file = response.data;
+                if (Array.isArray(file) || file?.type !== 'file' || file?.encoding !== 'base64' || typeof file.content !== 'string') {
+                  return null;
+                }
+                return Buffer.from(file.content.replace(/\s/g, ''), 'base64').toString('utf8');
+              };
+              const [publishedMarkdown, publishedJson] = await Promise.all([
+                readPublishedFile('report.md'),
+                readPublishedFile('report.json'),
+              ]);
+              if (!publishedMarkdown || !publishedJson) return;
+              const receiptMarkers = publishedMarkdown.match(/<!-- styleproof-receipt/g) || [];
+              const receipts = [...publishedMarkdown.matchAll(
+                /<!-- styleproof-receipt head-sha:([0-9a-f]{40}) run-id:(\d+) run-attempt:(\d+) -->/g,
+              )];
+              if (
+                receiptMarkers.length !== 1 ||
+                receipts.length !== 1 ||
+                receipts[0][1] !== reportSha ||
+                receipts[0][2] !== runId ||
+                receipts[0][3] !== runAttempt
+              ) return;
+              try {
+                const parsedReport = JSON.parse(publishedJson);
+                if (
+                  !parsedReport ||
+                  Array.isArray(parsedReport) ||
+                  typeof parsedReport !== 'object' ||
+                  parsedReport.actionTrustState !== 'STYLE_REVIEW_REQUIRED'
+                ) return;
+              } catch {
+                return;
+              }
+
+              // Close the practical rerun/push race immediately before mutation. A
+              // newer same-head publication changes the canonical status/comment; a
+              // new push changes the PR head. Either leaves this edit with no write.
+              const latestComment = await github.rest.issues.getComment({
+                ...context.repo,
+                comment_id: context.payload.comment.id,
+              });
+              if (
+                latestComment.data.body !== body ||
+                latestComment.data.user?.type !== 'Bot' ||
+                latestComment.data.user?.login !== 'github-actions[bot]' ||
+                !(await readPendingStatus())
+              ) return;
+              const latestPr = await github.rest.pulls.get({
+                ...context.repo,
+                pull_number: context.payload.issue.number,
+              });
+              if (latestPr.data.head.sha !== headSha) return;
+            }
+
             // A sign-off must come from someone other than the author. GitHub reports
             // only the EDITOR of the comment, so the editor whose edit leaves the box
             // ticked is the approver of record — which also closes the transfer hole
@@ -138,6 +286,7 @@ jobs:
                 context: STATUS,
                 state: 'failure',
                 description: `Needs a reviewer other than @${prAuthor || actor}`,
+                ...(reportUrl ? { target_url: reportUrl } : {}),
               });
               await renderBox(false, ` — _self-approval by @${actor} refused_`);
               await replyOnce(
@@ -156,6 +305,7 @@ jobs:
               context: STATUS,
               state: approved ? 'success' : 'failure',
               description: approved ? `Approved by @${actor}` : 'Tick "Approve all changes" to sign off',
+              ...(reportUrl ? { target_url: reportUrl } : {}),
             });
 
             // Reflect the approver in the comment itself for instant feedback.
