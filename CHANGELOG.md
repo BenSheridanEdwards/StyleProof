@@ -74,6 +74,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Selective remap includes nested modules under a computed import's static
+  directory, preventing stale base-map reuse for dynamic consumers when a nested
+  component or its scoped stylesheet changes. Sibling directories remain outside
+  the context. (#496)
+
 - The approval gate let a pull request author sign off their own visual changes.
   `example/styleproof-approve.yml` checked write access and the reviewed commit but
   never compared the approver with the author, so any author with write access could

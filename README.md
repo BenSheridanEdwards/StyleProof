@@ -1488,6 +1488,8 @@ Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)`
 
 ### Show the skip list, then wire the pre-push hook
 
+Computed-import context directories include nested folders. For example, ``import(`../components/${name}`)`` can load `components/nested/Card.tsx`; changes to that module or its scoped stylesheet select the importing surface. Sibling directories such as `components-extra` remain outside that context.
+
 Before you trust a skip, print it. `explainAffectedSurfaces(result, allSurfaceKeys)` renders the verdict as reviewer-checkable lines — which surfaces re-capture and which reuse their restored base map — and takes an optional reason string for the `'all'` case:
 
 ```ts
