@@ -1,0 +1,11 @@
+CI browser shard evidence (local, self-attested)
+Validator SHA-256:
+2e271e1b69b43fc3cc5fbf1a204b904b2c39ab73a29cc7747adb3fe90fe7d5ca
+{
+  "shards": 2,
+  "collected": 209,
+  "passed": 209,
+  "oracle": "deterministic"
+}
+Missing shard: rejected (expected two browser shards)
+Missing oracle: rejected (missing or duplicate determinism oracle receipt)

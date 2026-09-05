@@ -1654,6 +1654,13 @@ A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `gen
 
 ## Contributing
 
+Repository CI runs the full browser suite in two file-level shards alongside the
+Node 18/20/22 unit matrix. The `e2e (node 22)` aggregate compares completed test IDs
+against a separately collected full inventory and requires the five-run determinism
+receipt. Missing, duplicated, skipped, failed, or retried tests fail verification.
+The `browser-evidence-node-22` artifact retains the inventory, shard results, and
+oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
+
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
 for the dev loop, and [AGENTS.md](https://github.com/BenSheridanEdwards/StyleProof/blob/main/AGENTS.md)
 (the same file as `CLAUDE.md`) for the operating rules and agent tooling. The repo
