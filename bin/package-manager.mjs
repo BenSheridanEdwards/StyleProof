@@ -3,6 +3,17 @@ import path from 'node:path';
 
 const SUPPORTED_PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
 
+function declaredPackageManager(value) {
+  if (typeof value !== 'string') {
+    throw new Error('package.json#packageManager must be a string');
+  }
+  const declared = value.split('@', 1)[0];
+  if (!SUPPORTED_PACKAGE_MANAGERS.has(declared)) {
+    throw new Error(`unsupported package.json#packageManager: ${value}`);
+  }
+  return declared;
+}
+
 export function detectPackageManager(root, { allowMissingManifest = false } = {}) {
   let manifest;
   try {
@@ -14,14 +25,7 @@ export function detectPackageManager(root, { allowMissingManifest = false } = {}
   }
 
   if (manifest.packageManager !== undefined) {
-    if (typeof manifest.packageManager !== 'string') {
-      throw new Error('package.json#packageManager must be a string');
-    }
-    const declared = manifest.packageManager.split('@', 1)[0];
-    if (!SUPPORTED_PACKAGE_MANAGERS.has(declared)) {
-      throw new Error(`unsupported package.json#packageManager: ${manifest.packageManager}`);
-    }
-    return declared;
+    return declaredPackageManager(manifest.packageManager);
   }
 
   const detected = [];
