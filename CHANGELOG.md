@@ -15,6 +15,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add a source-bound, fail-closed detection benchmark runner and frozen four-case #447
+  pilot corpus. The committed receipt covers two computed-style changes, one
+  cross-element hover change, and one equivalent-color no-op, with exact artifact
+  hashes and atomic publication checks. This is diagnostic repository tooling only:
+  it does not claim the full #447 corpus, class-wide recall, whole-application
+  coverage, or a package release.
+
 - Baseline capture failures now survive as bounded `{ key, reason }` receipts in diff JSON and `report.json`, while raw exception text stays private. Markdown renders from that same receipt within its display budget, matching failed baseline surfaces are labeled and counted as repair debt instead of first adoption, and unrelated head surfaces stay genuinely new. `styleproof-diff` fails closed with exit 1 for any partial baseline, never reports repair debt as clean or fully certified, and the Action rejects missing, malformed, or contradictory receipts before publishing its trust state. (#491)
 
 - `styleproof-map --prove-determinism` runs the #400 five-run oracle over your own
