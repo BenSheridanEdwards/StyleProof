@@ -246,6 +246,16 @@ test('rejects swapped positive/no-op outcomes but allows an honest positive miss
   assert.equal(validateDetectionBenchmarkReceipt(honestMiss, expected).ok, true);
 });
 
+test('rejects invented classes and altered frozen expectation bindings', () => {
+  const receipt = validReceipt();
+  receipt.cases[0].class = 'invented';
+  receipt.bindings.corpus.expectationDigest = '9'.repeat(64);
+  const result = validateDetectionBenchmarkReceipt(receipt, expected);
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.some((reason) => reason.includes('cases[0].class')));
+  assert.ok(result.reasons.some((reason) => reason.includes('corpus.expectationDigest')));
+});
+
 test('rejects erased or mismatched findings and finding counts', () => {
   const erased = validReceipt();
   erased.cases[0].findings = [];
