@@ -11,7 +11,8 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.js
 
 test('CI runs E2E in parallel without deleting unit, platform, or determinism evidence', () => {
   const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
-  const e2eJob = ci.match(/ {2}e2e:[\s\S]*?(?=\n {2}cli-smoke:)/)?.[0] ?? '';
+  const e2eJob = ci.match(/ {2}e2e:[\s\S]*?(?=\n {2}e2e-evidence:)/)?.[0] ?? '';
+  const evidenceJob = ci.match(/ {2}e2e-evidence:[\s\S]*?(?=\n {2}cli-smoke:)/)?.[0] ?? '';
   const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*?(?=\n {2}required:)/)?.[0] ?? '';
   const required = ci.match(/ {2}required:[\s\S]*$/)?.[0] ?? '';
 
@@ -22,15 +23,21 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.doesNotMatch(buildJob, /playwright|determinism-oracle/);
   assert.doesNotMatch(buildJob, /npm test|npm run test:e2e|npm run typecheck/);
 
-  assert.match(e2eJob, /name: e2e \(node 22\)/);
+  assert.match(e2eJob, /name: e2e \(node 22, shard/);
+  assert.match(e2eJob, /shard: \[1, 2\]/);
   assert.match(e2eJob, /node-version: '22'/);
   assert.match(e2eJob, /run: npm ci/);
   assert.match(e2eJob, /run: npm run build/);
-  assert.match(e2eJob, /run: npx playwright test\n/);
-  assert.doesNotMatch(e2eJob, /--grep|--shard|needs:/);
-  assert.match(e2eJob, /missing determinism oracle receipt/);
-  assert.match(e2eJob, /name: determinism-oracle-node-22/);
+  assert.match(e2eJob, /run: npx playwright test --shard=\$\{\{ matrix.shard \}\}\/2 --reporter=line,json/);
+  assert.doesNotMatch(e2eJob, /--grep|needs:/);
+  assert.match(e2eJob, /STYLEPROOF_DETERMINISM_RECEIPT: .styleproof\/ci\/determinism-oracle.json/);
+  assert.match(e2eJob, /name: e2e-shard-\$\{\{ matrix.shard \}\}/);
   assert.match(e2eJob, /if-no-files-found: error/);
+  assert.match(evidenceJob, /name: e2e \(node 22\)/);
+  assert.match(evidenceJob, /needs: e2e/);
+  assert.match(evidenceJob, /npx playwright test --list --reporter=json/);
+  assert.match(evidenceJob, /node scripts\/verify-e2e-shards.mjs/);
+  assert.match(evidenceJob, /name: browser-evidence-node-22/);
 
   assert.match(cliSmoke, /npm run build/);
   assert.match(cliSmoke, /node --test test\/package-smoke\.test\.mjs/);
@@ -38,13 +45,15 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
 
   assert.match(required, /name: required/);
   assert.match(required, /if: always\(\)/);
-  assert.match(required, /needs: \[build, e2e, cli-smoke\]/);
+  assert.match(required, /needs: \[build, e2e, e2e-evidence, cli-smoke\]/);
   assert.match(required, /BUILD_RESULT: \$\{\{ needs\.build\.result \}\}/);
   assert.match(required, /E2E_RESULT: \$\{\{ needs\.e2e\.result \}\}/);
+  assert.match(required, /E2E_EVIDENCE_RESULT: \$\{\{ needs\.e2e-evidence\.result \}\}/);
   assert.match(required, /CLI_SMOKE_RESULT: \$\{\{ needs\.cli-smoke\.result \}\}/);
   assert.match(required, /set -euo pipefail/);
   assert.match(required, /test "\$BUILD_RESULT" = success/);
   assert.match(required, /test "\$E2E_RESULT" = success/);
+  assert.match(required, /test "\$E2E_EVIDENCE_RESULT" = success/);
   assert.match(required, /test "\$CLI_SMOKE_RESULT" = success/);
   assert.doesNotMatch(required, /actions\/checkout/);
 });
