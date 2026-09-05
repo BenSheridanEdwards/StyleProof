@@ -16,11 +16,9 @@ import {
 } from './capture.js';
 import {
   isMapFile,
-  baselineFailureReceipts,
   readBaselineProvenance,
   readMapManifest,
   surfaceMissingMatchesBaselineFailure,
-  type BaselineFailureReceipt,
   type BaselineProvenance,
   type SurfaceCaptureFailure,
 } from './map-store.js';
@@ -166,10 +164,8 @@ export type ReportComparison = ComparisonTruth & ComparabilitySummary;
 export type ReportResult = {
   /** Surfaces carrying a reviewable change (excludes new, one-sided surfaces). */
   changedSurfaces: number;
-  /** Genuinely new head surfaces with no baseline to compare. */
+  /** New surfaces present on only one side, with no baseline to compare. */
   newSurfaces: number;
-  /** Every one-sided surface: new, removed, or baseline repair debt. */
-  oneSidedSurfaces: number;
   totalFindings: number;
   /** Advisory content-layer changes rendered (0 unless includeContent + captured text). Never gates. */
   contentChanges: number;
@@ -183,10 +179,6 @@ export type ReportResult = {
   comparability: SurfaceComparability[];
   /** Presentation-vs-certification coherence. Any false value must fail closed. */
   reportConsistency: ReportConsistency;
-  /** Public baseline capture failures. Raw exception details are deliberately excluded. */
-  baselineFailures: BaselineFailureReceipt[];
-  /** True whenever the baseline receipt records one or more failed captures. */
-  partialBaseline: boolean;
   /**
    * The head bundle's confidence badge (#399): completeness + per-status counts,
    * separate from the visual verdict. `completeness: 'unknown'` on bundles from
@@ -1092,6 +1084,7 @@ type ContentCtx = {
   minWidth: number;
   minHeight: number;
   maxHeight: number;
+  zoomBelow: number;
 };
 
 /** An element's padded box on one side, or null when it has no visible rect. */
@@ -1102,12 +1095,78 @@ function paddedRect(entry: ElementEntry | undefined, padBy: number): Box | null 
 }
 
 /** Crop box for a content change: the union of where the element sits on each
- *  side (so the pair lines up), or null if it's not visible anywhere. */
-function contentBox(mapA: StyleMap, mapB: StyleMap, p: string, padBy: number): Box | null {
+ * side, expanded to the nearest useful shared visible ancestor. Body/full-page
+ * shells and ancestors outside the configured crop bounds do not manufacture
+ * context; those deterministically retain the leaf-centred crop. */
+function isFullPageContentShell(entry: ElementEntry, png: PNG): boolean {
+  if (entry.tag.toLowerCase() === 'body' || !entry.rect) return true;
+  const [, , w, h] = entry.rect;
+  return w >= png.width * 0.9 && h >= png.height * 0.9;
+}
+
+type ContentAncestorDecision = { kind: 'skip' } | { kind: 'fallback' } | { kind: 'use'; box: Box };
+
+function contentAncestorDecision(
+  entryA: ElementEntry | undefined,
+  entryB: ElementEntry | undefined,
+  leaf: Box,
+  padBy: number,
+  maxHeight: number,
+  pngA: PNG,
+  pngB: PNG,
+): ContentAncestorDecision {
+  if (!entryA?.rect || !entryB?.rect) return { kind: 'skip' };
+  if (isFullPageContentShell(entryA, pngA) || isFullPageContentShell(entryB, pngB)) return { kind: 'fallback' };
+  const ancestorA = paddedRect(entryA, padBy);
+  const ancestorB = paddedRect(entryB, padBy);
+  if (!ancestorA || !ancestorB) return { kind: 'skip' };
+  const candidate = union(ancestorA, ancestorB);
+  if (candidate.h > maxHeight || candidate.w > Math.min(pngA.width, pngB.width)) return { kind: 'fallback' };
+  return candidate.w > leaf.w || candidate.h > leaf.h ? { kind: 'use', box: candidate } : { kind: 'skip' };
+}
+
+function sharedContentAncestor(
+  mapA: StyleMap,
+  mapB: StyleMap,
+  pathKey: string,
+  leaf: Box,
+  padBy: number,
+  maxHeight: number,
+  pngA: PNG,
+  pngB: PNG,
+): Box | null {
+  let ancestorPath = pathKey;
+  while (ancestorPath.includes(' > ')) {
+    ancestorPath = ancestorPath.slice(0, ancestorPath.lastIndexOf(' > '));
+    const decision = contentAncestorDecision(
+      mapA.elements[ancestorPath],
+      mapB.elements[ancestorPath],
+      leaf,
+      padBy,
+      maxHeight,
+      pngA,
+      pngB,
+    );
+    if (decision.kind === 'fallback') return null;
+    if (decision.kind === 'use') return decision.box;
+  }
+  return null;
+}
+
+function contentBox(
+  mapA: StyleMap,
+  mapB: StyleMap,
+  p: string,
+  padBy: number,
+  maxHeight: number,
+  pngA: PNG,
+  pngB: PNG,
+): Box | null {
   const ba = paddedRect(mapA.elements[p], padBy);
   const bb = paddedRect(mapB.elements[p], padBy);
-  if (ba && bb) return union(ba, bb);
-  return bb ?? ba;
+  const leaf = ba && bb ? union(ba, bb) : (bb ?? ba);
+  if (!leaf) return null;
+  return sharedContentAncestor(mapA, mapB, p, leaf, padBy, maxHeight, pngA, pngB) ?? leaf;
 }
 
 /** before|after crop lines for one content change, or [] when there's no box or
@@ -1122,29 +1181,63 @@ function contentCropLines(
   pngB: PNG | null,
   seq: number,
 ): string[] {
-  const box = contentBox(mapA, mapB, c.path, ctx.padBy);
-  if (!box || !pngA || !pngB) return [];
+  if (!pngA || !pngB) return [];
+  const box = contentBox(mapA, mapB, c.path, ctx.padBy, ctx.maxHeight, pngA, pngB);
+  if (!box) return [];
   const w = Math.max(ctx.minWidth, box.w);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h));
-  const beforeCrop = cropPng(pngA, box, w, h).png;
-  const afterCrop = cropPng(pngB, box, w, h).png;
+  const beforeCrop = cropPng(pngA, box, w, h);
+  const afterCrop = cropPng(pngB, box, w, h);
   // A structural change whose location renders identically on both sides (an
   // element inside a collapsed <details>, for example) has no visual evidence —
   // presenting the same pixels twice as before/after proof reads as a broken
   // report, so name the absence instead. A consumer report repeated one such
   // identical pair 420 times.
-  if (beforeCrop.data.equals(afterCrop.data)) {
+  if (beforeCrop.png.data.equals(afterCrop.png.data)) {
     return ['', NO_CONTENT_PIXEL_DIFFERENCE_NOTE];
   }
-  const composite = compositePair(beforeCrop, afterCrop);
   const stem = `crops/${surface.replace(/[^a-z0-9-]/gi, '-')}-content-${seq}`;
-  writePng(path.join(ctx.outDir, `${stem}-composite.png`), composite);
-  return [
+  writePng(path.join(ctx.outDir, `${stem}-composite.png`), compositePair(beforeCrop.png, afterCrop.png));
+
+  const rectA = c.kind === 'structure' && c.change === 'added' ? undefined : mapA.elements[c.path]?.rect;
+  const rectB = c.kind === 'structure' && c.change === 'removed' ? undefined : mapB.elements[c.path]?.rect;
+  const rectsA = rectA ? [rectA] : [];
+  const rectsB = rectB ? [rectB] : [];
+  const annotatedBefore = annotateCrop(beforeCrop, rectsA);
+  const annotatedAfter = annotateCrop(afterCrop, rectsB);
+  const lines = [
     '',
     `![before ◀ │ ▶ after](${ctx.img(`${stem}-composite.png`)})`,
     '',
     `<sub>◀ before  ·  after ▶ — ${surface}</sub>`,
   ];
+  if (annotatedBefore.highlighted || annotatedAfter.highlighted) {
+    writePng(path.join(ctx.outDir, `${stem}-annotated.png`), compositePair(annotatedBefore.png, annotatedAfter.png));
+    lines.push(
+      '',
+      `![highlighted before ◀ │ ▶ after](${ctx.img(`${stem}-annotated.png`)})`,
+      '',
+      '<sub>🔍 magenta boxes mark the changed content</sub>',
+    );
+  }
+
+  const changed = unionRects([...rectsA, ...rectsB]);
+  const maxDim = changed ? Math.max(changed.w, changed.h) : 0;
+  if (ctx.zoomBelow > 0 && changed && maxDim > 0 && maxDim <= ctx.zoomBelow) {
+    const zoomBox = pad(changed, Math.max(maxDim, 16));
+    const zoomFactor = Math.min(8, Math.max(2, Math.round(240 / Math.max(zoomBox.w, zoomBox.h))));
+    writePng(
+      path.join(ctx.outDir, `${stem}-zoom.png`),
+      compositePair(zoomCrop(pngA, zoomBox, rectsA, zoomFactor), zoomCrop(pngB, zoomBox, rectsB, zoomFactor)),
+    );
+    lines.push(
+      '',
+      `![zoomed before ◀ │ ▶ after](${ctx.img(`${stem}-zoom.png`)})`,
+      '',
+      `<sub>🔬 magnified ${zoomFactor}×: content change too small to read at 1:1</sub>`,
+    );
+  }
+  return lines;
 }
 
 /** One surface's content block: heading, then per content/structure change
@@ -1567,22 +1660,13 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
 const SURFACE_SCOPE_GLOSSARY =
   '_**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._';
 
-function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]): string[] {
+function baselineFailureSummaryLines(failures: SurfaceCaptureFailure[]): string[] {
   if (failures.length === 0) return [];
-  return [
-    `⚠️ **${failures.length} baseline capture failure(s)**: these captures failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely. Raw exception details stay private.`,
-  ];
-}
-
-function baselineFailureDetailLines(failures: BaselineFailureReceipt[]): string[] {
-  if (failures.length === 0) return [];
-  return [
-    '',
-    '### Baseline capture failure receipt',
-    '',
-    ...failures.map((failure) => `- \`${failure.key}\` · \`${failure.reason}\``),
+  const md = [
+    `⚠️ **${failures.length} baseline capture failure(s)** — these surfaces failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely as if they were greenfield new surfaces. Failure details remain in the local capture manifest and are not echoed from untrusted artifacts.`,
     '',
   ];
+  return md;
 }
 
 function missingSurfaceSummaryLines(
@@ -1610,7 +1694,7 @@ function missingSurfaceSummaryLines(
   if (greenfieldMissing.length > 0) {
     md.push(
       `🆕 **${greenfieldMissing.length} new surface(s)** captured with no baseline to compare: ${newSurfaceSummary(greenfieldMissing)}. ` +
-        `These are reviewable first-adoption surfaces; approve them before they become the baseline.`,
+        `Approve them before they become the baseline.`,
     );
   }
   return md;
@@ -1661,7 +1745,7 @@ function changedSurfaceSummaryLines(
 function reportConsistencyFailureSummaryLines(
   reportConsistency: ReportConsistency,
   rawCounts: DiffCounts | undefined,
-  baselineFailures: BaselineFailureReceipt[],
+  baselineSurfaceFailures: SurfaceCaptureFailure[],
 ): string[] | undefined {
   if (reportConsistency.ok || !rawCounts) return undefined;
 
@@ -1678,8 +1762,8 @@ function reportConsistencyFailureSummaryLines(
     '',
     remediation,
   ];
-  if (baselineFailures.length > 0) {
-    md.push('', ...baselineFailureSummaryLines(baselineFailures));
+  if (baselineSurfaceFailures.length > 0) {
+    md.push('', ...baselineFailureSummaryLines(baselineSurfaceFailures));
   }
   return md;
 }
@@ -1695,7 +1779,6 @@ function summaryLines(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
-  baselineFailures: BaselineFailureReceipt[];
   confidenceBlocked: boolean;
   comparisonBlocked: boolean;
 }): string[] {
@@ -1709,7 +1792,6 @@ function summaryLines(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
-    baselineFailures,
     confidenceBlocked,
     comparisonBlocked,
   } = args;
@@ -1723,7 +1805,7 @@ function summaryLines(args: {
     surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures),
   );
   if (changeGroups.length === 0 && missing.length === 0) {
-    const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineFailures);
+    const failureSummary = reportConsistencyFailureSummaryLines(reportConsistency, rawCounts, baselineSurfaceFailures);
     if (failureSummary) return failureSummary;
     if (baselineSurfaceFailures.length === 0) {
       const scopedSummary = contentEvaluated
@@ -1739,7 +1821,7 @@ function summaryLines(args: {
     }
   }
   const md = [
-    ...baselineFailureSummaryLines(baselineFailures),
+    ...baselineFailureSummaryLines(baselineSurfaceFailures),
     ...missingSurfaceSummaryLines(missing, greenfieldMissing, brokenBaseMissing),
   ];
   md.push(...changedSurfaceSummaryLines(changeGroups, shown, changedScope, md.length > 0));
@@ -1761,7 +1843,6 @@ function reportHeadline(args: {
   reportConsistency: ReportConsistency;
   rawCounts?: DiffCounts;
   baselineSurfaceFailures: SurfaceCaptureFailure[];
-  baselineFailures: BaselineFailureReceipt[];
   confidenceBlocked: boolean;
   comparisonBlocked: boolean;
 }): string[] {
@@ -1777,7 +1858,6 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
-    baselineFailures,
     confidenceBlocked,
     comparisonBlocked,
   } = args;
@@ -1791,7 +1871,6 @@ function reportHeadline(args: {
     reportConsistency,
     rawCounts,
     baselineSurfaceFailures,
-    baselineFailures,
     confidenceBlocked,
     comparisonBlocked,
   });
@@ -2269,7 +2348,6 @@ function renderNewSurface(
   p: PreparedSurface,
   ctx: RenderCtx,
   cropSeq: number,
-  baselineStatus: 'new' | 'capture-failed' | 'removed',
 ): { md: string[]; json: Record<string, unknown>; cropSeq: number } {
   const { img, outDir, maxHeight } = ctx;
   const side = p.sd.missing === 'before' ? 'after' : 'before';
@@ -2280,25 +2358,16 @@ function renderNewSurface(
   // captured only on base (a REMOVED surface). Rendering a removal under a "new
   // surface 🆕" heading invited reviewers to approve a feature going invisible
   // believing it was an addition.
-  const isRemoved = baselineStatus === 'removed';
-  const isNew = baselineStatus === 'new';
+  const isRemoved = p.sd.missing === 'after';
   const md: string[] = [
     '',
     isRemoved
       ? `### \`${safeKey(p.sd.surface)}\` · REMOVED surface 🗑️`
-      : isNew
-        ? `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`
-        : `### \`${safeKey(p.sd.surface)}\` · baseline repair debt ⚠️`,
+      : `### \`${safeKey(p.sd.surface)}\` · new surface ${NEW_SURFACE_MARKER}`,
     '',
     `_${formatSurfaceWithContext(p.sd.surface, map)}_`,
   ];
-  const json: Record<string, unknown> = {
-    surface: p.sd.surface,
-    missing: p.sd.missing,
-    isNew,
-    isRemoved,
-    baselineStatus,
-  };
+  const json: Record<string, unknown> = { surface: p.sd.surface, missing: p.sd.missing, isNew: !isRemoved, isRemoved };
   if (png) {
     cropSeq++;
     const h = Math.min(maxHeight, png.height, map.viewport?.height ?? png.height);
@@ -2307,7 +2376,7 @@ function renderNewSurface(
     writePng(path.join(outDir, `${stem}.png`), crop);
     md.push(
       '',
-      `![${isRemoved ? 'removed surface' : isNew ? 'new surface' : 'baseline repair debt'} — ${side}](${img(`${stem}.png`)})`,
+      `![${isRemoved ? 'removed surface' : 'new surface'} — ${side}](${img(`${stem}.png`)})`,
       '',
       `<sub>${side} · ${formatSurfaceWithContext(p.sd.surface, map)}${png.height > h ? ' (top viewport of page)' : ''}</sub>`,
     );
@@ -2321,10 +2390,8 @@ function renderNewSurface(
   md.push(
     '',
     isRemoved
-      ? `_Present in the baseline but not captured on head. This is a **removal** to review, not an addition; approving accepts the disappearance._`
-      : isNew
-        ? `_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._`
-        : `_The matching baseline capture failed. This is **baseline repair debt**, not first adoption; repair the base capture and rerun._`,
+      ? `_Present in the baseline but not captured on head — the surface stopped rendering (or its capture key changed). This is a **removal** to review, not an addition; approving accepts the disappearance._`
+      : `_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._`,
   );
   return { md, json, cropSeq };
 }
@@ -2465,7 +2532,6 @@ function writeReportArtifacts(
   reportConsistency: ReportConsistency,
   content: { evaluated: boolean; changes: number; advisory: true },
   surfacesJson: Array<Record<string, unknown>>,
-  baselineFailures: BaselineFailureReceipt[],
   baselineProvenance: BaselineProvenance | null = null,
   confidence: ConfidenceSummary | null = null,
 ): { reportMdPath: string; reportJsonPath: string } {
@@ -2482,8 +2548,6 @@ function writeReportArtifacts(
         comparison,
         comparability,
         reportConsistency,
-        baselineFailures,
-        partialBaseline: baselineFailures.length > 0,
         content,
         surfaces: surfacesJson,
         // Additive (#399): the completeness badge, machine-readable — a consumer
@@ -2622,7 +2686,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
   const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
-  const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures);
   const comparison: ReportComparison = {
     ...comparisonForReport(rawComparison, includeNoise, preparedCertified.length - missing.length),
     ...comparabilitySummary,
@@ -2648,7 +2711,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Opt-in, advisory: computed here so its count can colour the headline, but its
   // markdown is appended at the very end and it NEVER feeds the gate below.
   const contentSection = includeContent
-    ? renderContentSection({ beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight })
+    ? renderContentSection({ beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight, zoomBelow })
     : { md: [], count: 0 };
 
   md.push('## 🗺️ StyleProof report', '');
@@ -2677,7 +2740,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       reportConsistency,
       rawCounts: comparison.rawCounts,
       baselineSurfaceFailures,
-      baselineFailures,
       confidenceBlocked: confidence.counts.inaccessible > 0,
       comparisonBlocked: comparison.blocksCertification,
     }),
@@ -2711,34 +2773,14 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const totalSurfaceBases = countCapturedSurfaceBases(captureKeysIn(afterDir), surfaceKeyOf);
   const chromeSet = new Set(chrome);
   let chromeHeaderEmitted = false;
-  if (baselineFailures.length > 0) {
-    emitDetail(
-      baselineFailureDetailLines(baselineFailures),
-      `- ${baselineFailures.length} baseline capture failure receipt(s) summarized here; full bounded identities are in report.json`,
-    );
-  }
   if (missing.length > 0) {
-    md.push('', '## One-sided pages, states, or surfaces — review first');
+    md.push('', '## 🆕 New pages, states, or surfaces — review first');
   }
-  let greenfieldNewSurfaces = 0;
   for (const p of missing) {
-    const baselineStatus =
-      p.sd.missing === 'after'
-        ? 'removed'
-        : surfaceMissingMatchesBaselineFailure(p.sd.surface, baselineSurfaceFailures)
-          ? 'capture-failed'
-          : 'new';
-    if (baselineStatus === 'new') greenfieldNewSurfaces++;
-    const r = renderNewSurface(p, ctx, cropSeq, baselineStatus);
+    const r = renderNewSurface(p, ctx, cropSeq);
     json.push(r.json);
     cropSeq = r.cropSeq;
-    const summaryLabel =
-      baselineStatus === 'removed'
-        ? 'removed surface'
-        : baselineStatus === 'capture-failed'
-          ? 'baseline repair debt'
-          : 'new surface';
-    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · ${summaryLabel}`);
+    emitDetail(r.md, `- \`${safeKey(p.sd.surface)}\` · new surface`);
   }
   if (orderedGroups.length > 0) {
     md.push('', '## Element-level changes');
@@ -2756,7 +2798,10 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
         : r.md;
     emitDetail(detail, compactChangeSummary(cg, r.json, img));
   }
-  md.push(...contentSection.md);
+  emitDetail(
+    contentSection.md,
+    `- ${contentSection.count} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
+  );
 
   const { reportMdPath, reportJsonPath } = writeReportArtifacts(
     outDir,
@@ -2767,21 +2812,17 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reportConsistency,
     { evaluated: includeContent, changes: contentSection.count, advisory: true },
     json,
-    baselineFailures,
     baselineProvenance,
     confidence,
   );
   return {
     changedSurfaces: preparedCertified.length - missing.length,
-    newSurfaces: greenfieldNewSurfaces,
-    oneSidedSurfaces: missing.length,
+    newSurfaces: missing.length,
     totalFindings,
     contentChanges: contentSection.count,
     comparison,
     comparability,
     reportConsistency,
-    baselineFailures,
-    partialBaseline: baselineFailures.length > 0,
     confidence,
     reportMdPath,
     reportJsonPath,
