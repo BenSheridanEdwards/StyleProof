@@ -1092,6 +1092,7 @@ type ContentCtx = {
   minWidth: number;
   minHeight: number;
   maxHeight: number;
+  zoomBelow: number;
 };
 
 /** An element's padded box on one side, or null when it has no visible rect. */
@@ -1102,12 +1103,43 @@ function paddedRect(entry: ElementEntry | undefined, padBy: number): Box | null 
 }
 
 /** Crop box for a content change: the union of where the element sits on each
- *  side (so the pair lines up), or null if it's not visible anywhere. */
-function contentBox(mapA: StyleMap, mapB: StyleMap, p: string, padBy: number): Box | null {
+ * side, expanded to the nearest useful shared visible ancestor. Body/full-page
+ * shells and ancestors outside the configured crop bounds do not manufacture
+ * context; those deterministically retain the leaf-centred crop. */
+function contentBox(
+  mapA: StyleMap,
+  mapB: StyleMap,
+  p: string,
+  padBy: number,
+  maxHeight: number,
+  pngA: PNG,
+  pngB: PNG,
+): Box | null {
   const ba = paddedRect(mapA.elements[p], padBy);
   const bb = paddedRect(mapB.elements[p], padBy);
-  if (ba && bb) return union(ba, bb);
-  return bb ?? ba;
+  const leaf = ba && bb ? union(ba, bb) : (bb ?? ba);
+  if (!leaf) return null;
+
+  const fullPage = (entry: ElementEntry, png: PNG): boolean => {
+    if (entry.tag.toLowerCase() === 'body' || !entry.rect) return true;
+    const [x, y, w, h] = entry.rect;
+    return x <= 0 && y <= 0 && w >= png.width * 0.9 && h >= png.height * 0.9;
+  };
+  let ancestorPath = p;
+  while (ancestorPath.includes(' > ')) {
+    ancestorPath = ancestorPath.slice(0, ancestorPath.lastIndexOf(' > '));
+    const entryA = mapA.elements[ancestorPath];
+    const entryB = mapB.elements[ancestorPath];
+    if (!entryA?.rect || !entryB?.rect) continue;
+    if (fullPage(entryA, pngA) || fullPage(entryB, pngB)) return leaf;
+    const ancestorA = paddedRect(entryA, padBy);
+    const ancestorB = paddedRect(entryB, padBy);
+    if (!ancestorA || !ancestorB) continue;
+    const candidate = union(ancestorA, ancestorB);
+    if (candidate.h > maxHeight || candidate.w > Math.min(pngA.width, pngB.width)) return leaf;
+    if (candidate.w > leaf.w || candidate.h > leaf.h) return candidate;
+  }
+  return leaf;
 }
 
 /** before|after crop lines for one content change, or [] when there's no box or
@@ -1122,29 +1154,63 @@ function contentCropLines(
   pngB: PNG | null,
   seq: number,
 ): string[] {
-  const box = contentBox(mapA, mapB, c.path, ctx.padBy);
-  if (!box || !pngA || !pngB) return [];
+  if (!pngA || !pngB) return [];
+  const box = contentBox(mapA, mapB, c.path, ctx.padBy, ctx.maxHeight, pngA, pngB);
+  if (!box) return [];
   const w = Math.max(ctx.minWidth, box.w);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h));
-  const beforeCrop = cropPng(pngA, box, w, h).png;
-  const afterCrop = cropPng(pngB, box, w, h).png;
+  const beforeCrop = cropPng(pngA, box, w, h);
+  const afterCrop = cropPng(pngB, box, w, h);
   // A structural change whose location renders identically on both sides (an
   // element inside a collapsed <details>, for example) has no visual evidence —
   // presenting the same pixels twice as before/after proof reads as a broken
   // report, so name the absence instead. A consumer report repeated one such
   // identical pair 420 times.
-  if (beforeCrop.data.equals(afterCrop.data)) {
+  if (beforeCrop.png.data.equals(afterCrop.png.data)) {
     return ['', NO_CONTENT_PIXEL_DIFFERENCE_NOTE];
   }
-  const composite = compositePair(beforeCrop, afterCrop);
   const stem = `crops/${surface.replace(/[^a-z0-9-]/gi, '-')}-content-${seq}`;
-  writePng(path.join(ctx.outDir, `${stem}-composite.png`), composite);
-  return [
+  writePng(path.join(ctx.outDir, `${stem}-composite.png`), compositePair(beforeCrop.png, afterCrop.png));
+
+  const rectA = mapA.elements[c.path]?.rect;
+  const rectB = mapB.elements[c.path]?.rect;
+  const rectsA = rectA ? [rectA] : [];
+  const rectsB = rectB ? [rectB] : [];
+  const annotatedBefore = annotateCrop(beforeCrop, rectsA);
+  const annotatedAfter = annotateCrop(afterCrop, rectsB);
+  const lines = [
     '',
     `![before ◀ │ ▶ after](${ctx.img(`${stem}-composite.png`)})`,
     '',
     `<sub>◀ before  ·  after ▶ — ${surface}</sub>`,
   ];
+  if (annotatedBefore.highlighted || annotatedAfter.highlighted) {
+    writePng(path.join(ctx.outDir, `${stem}-annotated.png`), compositePair(annotatedBefore.png, annotatedAfter.png));
+    lines.push(
+      '',
+      `![highlighted before ◀ │ ▶ after](${ctx.img(`${stem}-annotated.png`)})`,
+      '',
+      '<sub>🔍 magenta boxes mark the changed content</sub>',
+    );
+  }
+
+  const changed = unionRects([...rectsA, ...rectsB]);
+  const maxDim = changed ? Math.max(changed.w, changed.h) : 0;
+  if (ctx.zoomBelow > 0 && changed && maxDim > 0 && maxDim <= ctx.zoomBelow) {
+    const zoomBox = pad(changed, Math.max(maxDim, 16));
+    const zoomFactor = Math.min(8, Math.max(2, Math.round(240 / Math.max(zoomBox.w, zoomBox.h))));
+    writePng(
+      path.join(ctx.outDir, `${stem}-zoom.png`),
+      compositePair(zoomCrop(pngA, zoomBox, rectsA, zoomFactor), zoomCrop(pngB, zoomBox, rectsB, zoomFactor)),
+    );
+    lines.push(
+      '',
+      `![zoomed before ◀ │ ▶ after](${ctx.img(`${stem}-zoom.png`)})`,
+      '',
+      `<sub>🔬 magnified ${zoomFactor}×: content change too small to read at 1:1</sub>`,
+    );
+  }
+  return lines;
 }
 
 /** One surface's content block: heading, then per content/structure change
@@ -2648,7 +2714,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Opt-in, advisory: computed here so its count can colour the headline, but its
   // markdown is appended at the very end and it NEVER feeds the gate below.
   const contentSection = includeContent
-    ? renderContentSection({ beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight })
+    ? renderContentSection({ beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight, zoomBelow })
     : { md: [], count: 0 };
 
   md.push('## 🗺️ StyleProof report', '');
@@ -2756,7 +2822,12 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
         : r.md;
     emitDetail(detail, compactChangeSummary(cg, r.json, img));
   }
-  md.push(...contentSection.md);
+  if (contentSection.count > 0) {
+    emitDetail(
+      contentSection.md,
+      `- ${contentSection.count} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
+    );
+  }
 
   const { reportMdPath, reportJsonPath } = writeReportArtifacts(
     outDir,
