@@ -632,6 +632,49 @@ test('styleproof-report keeps large baseline-failure receipts inside the markdow
   rmTmp(root);
 });
 
+test('styleproof-report treats maxReportBytes as a strict UTF-8 ceiling for every report shape', () => {
+  const cases = [
+    { budget: 0, kind: 'empty' },
+    { budget: 1, kind: 'empty' },
+    { budget: 64, kind: 'one-sided' },
+    { budget: 64, kind: 'changed' },
+    { budget: 256, kind: 'unicode' },
+  ];
+  for (const { budget, kind } of cases) {
+    const root = mkTmp();
+    const A = path.join(root, 'a');
+    const B = path.join(root, 'b');
+    const out = path.join(root, 'report');
+    const baseText = kind === 'unicode' ? 'é'.repeat(40) : 'before';
+    const headText = kind === 'unicode' ? '界'.repeat(40) : 'after';
+    const base = makeMap({ elements: { body: { tag: 'body' }, 'body > p': { tag: 'p', text: baseText } } });
+    const head =
+      kind === 'one-sided'
+        ? makeMap({
+            elements: {
+              body: { tag: 'body' },
+              'body > p': { tag: 'p', text: baseText },
+              'body > aside': { tag: 'aside', text: headText },
+            },
+          })
+        : kind === 'changed' || kind === 'unicode'
+          ? makeMap({ elements: { body: { tag: 'body' }, 'body > p': { tag: 'p', text: headText } } })
+          : base;
+    writeCapture(A, 'home@1280', base, null);
+    writeCapture(B, 'home@1280', head, null);
+    writeManifest(A, 'base-sha', 'same-env-key');
+    writeManifest(B, 'head-sha', 'same-env-key');
+
+    generateStyleMapReport({ beforeDir: A, afterDir: B, outDir: out, includeContent: true, maxReportBytes: budget });
+    const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+    assert.ok(
+      Buffer.byteLength(md, 'utf8') <= budget,
+      `${kind} report used ${Buffer.byteLength(md, 'utf8')} of ${budget} bytes`,
+    );
+    rmTmp(root);
+  }
+});
+
 test('styleproof-report never echoes untrusted baseline failure details', () => {
   const root = mkTmp();
   const A = path.join(root, 'a');

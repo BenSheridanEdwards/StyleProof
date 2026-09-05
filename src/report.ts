@@ -2681,7 +2681,7 @@ function writeReportArtifacts(
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
-  fs.writeFileSync(reportMdPath, md.join('\n') + '\n');
+  fs.writeFileSync(reportMdPath, md.length > 0 ? `${md.join('\n')}\n` : '');
   fs.writeFileSync(
     reportJsonPath,
     JSON.stringify(
@@ -2800,9 +2800,10 @@ function renderOneSidedSections(args: {
   md: string[];
   json: Array<Record<string, unknown>>;
   cropSeq: number;
+  maxReportBytes: number;
 }): { cropSeq: number; greenfieldNewSurfaces: number } {
   if (args.missing.length > 0) {
-    args.md.push('', '## One-sided pages, states, or surfaces — review first');
+    appendReportLines(args.md, ['', '## One-sided pages, states, or surfaces — review first'], args.maxReportBytes);
   }
   let greenfieldNewSurfaces = 0;
   let cropSeq = args.cropSeq;
@@ -2839,8 +2840,9 @@ function renderChangedSections(args: {
   md: string[];
   json: Array<Record<string, unknown>>;
   cropSeq: number;
+  maxReportBytes: number;
 }): { cropSeq: number; totalFindings: number } {
-  if (args.groups.length > 0) args.md.push('', '## Element-level changes');
+  if (args.groups.length > 0) appendReportLines(args.md, ['', '## Element-level changes'], args.maxReportBytes);
   const chromeSet = new Set(args.chrome);
   let chromeHeaderEmitted = false;
   let cropSeq = args.cropSeq;
@@ -3023,6 +3025,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     md,
     json,
     cropSeq: 0,
+    maxReportBytes,
   });
   const changed = renderChangedSections({
     groups: orderedGroups,
@@ -3035,6 +3038,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     md,
     json,
     cropSeq: oneSided.cropSeq,
+    maxReportBytes,
   });
   const greenfieldNewSurfaces = oneSided.greenfieldNewSurfaces;
   const totalFindings = changed.totalFindings;
