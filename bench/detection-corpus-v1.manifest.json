@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "corpus": "bench/detection-corpus-v1.json",
+  "corpusSha256": "d5204a2c44cb3d92ef10fe819b50b5732fa4ff1ccefd12f9f9022442f584ac27",
+  "expectationSha256": "fbe06bb04b623bb658e62f102585c6e2f7ecb964b97b493887aab4f69df4bee7",
+  "cardinality": 4,
+  "review": {
+    "status": "approved-pre-result",
+    "record": "bench/detection-corpus-v1.review.md",
+    "basis": "fixture mutation rationale; no detector result observed"
+  },
+  "firstRunStatus": "not-run"
+}

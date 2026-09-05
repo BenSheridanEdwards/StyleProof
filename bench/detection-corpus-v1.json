@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "styleproof-issue447-phase0-pilot",
+  "corpusVersion": "1.0.0",
+  "scope": {
+    "kind": "pilot",
+    "issue": 447,
+    "full447": false,
+    "included": [
+      "resting computed-style change",
+      "pseudo-element computed-style change",
+      "cross-element forced-state change",
+      "computed-style no-op control"
+    ],
+    "excluded": [
+      "full issue #447 corpus",
+      "whole-application state coverage",
+      "unsupported sensor classes",
+      "class-wide recall"
+    ]
+  },
+  "expectations": {
+    "status": "frozen-pre-run",
+    "reviewBasis": "issue #447 acceptance contract and existing pr-surfacing/cross-element-state E2E fixtures",
+    "expectedCardinality": 4
+  },
+  "cases": [
+    {
+      "id": "computed-rest-background-v1",
+      "class": "computed-style",
+      "description": "A resting background color changes on the same element.",
+      "body": "<main><div class=\"box\">Resting box</div></main>",
+      "beforeCss": ".box{display:block;width:180px;height:72px;background-color:rgb(200,200,200)}",
+      "afterCss": ".box{display:block;width:180px;height:72px;background-color:rgb(80,120,200)}",
+      "proof": {
+        "selector": ".box",
+        "property": "backgroundColor",
+        "before": "rgb(200, 200, 200)",
+        "after": "rgb(80, 120, 200)"
+      },
+      "expected": {
+        "renderChanged": true,
+        "detected": true,
+        "findingKind": "style",
+        "findingProperty": "background-color"
+      }
+    },
+    {
+      "id": "computed-pseudo-color-v1",
+      "class": "computed-style",
+      "description": "A ::before marker color changes while content and geometry stay fixed.",
+      "body": "<main><div class=\"label\">Pseudo marker</div></main>",
+      "beforeCss": ".label{display:block;padding:16px}.label::before{content:'\u25cf';color:rgb(0,128,0);margin-right:8px}",
+      "afterCss": ".label{display:block;padding:16px}.label::before{content:'\u25cf';color:rgb(200,0,0);margin-right:8px}",
+      "proof": {
+        "selector": ".label",
+        "pseudo": "::before",
+        "property": "color",
+        "before": "rgb(0, 128, 0)",
+        "after": "rgb(200, 0, 0)"
+      },
+      "expected": {
+        "renderChanged": true,
+        "detected": true,
+        "findingKind": "style",
+        "findingProperty": "color"
+      }
+    },
+    {
+      "id": "cross-element-hover-panel-v1",
+      "class": "cross-element-state",
+      "description": "Hovering a button restyles its sibling panel, and that forced-state color changes.",
+      "body": "<main><button type=\"button\">Inspect</button><section class=\"panel\">Panel</section></main>",
+      "beforeCss": "button{padding:12px 18px} .panel{display:block;margin-top:12px;padding:16px;background:rgb(255,0,0)} button:hover + .panel{background-color:rgb(0,0,255)}",
+      "afterCss": "button{padding:12px 18px} .panel{display:block;margin-top:12px;padding:16px;background:rgb(255,0,0)} button:hover + .panel{background-color:rgb(0,128,0)}",
+      "proof": {
+        "action": "hover",
+        "actionSelector": "button",
+        "selector": ".panel",
+        "property": "backgroundColor",
+        "before": "rgb(0, 0, 255)",
+        "after": "rgb(0, 128, 0)"
+      },
+      "expected": {
+        "renderChanged": true,
+        "detected": true,
+        "findingKind": "state",
+        "findingState": "hover",
+        "findingProperty": "background-color"
+      }
+    },
+    {
+      "id": "computed-equivalent-color-noop-v1",
+      "class": "no-op-control",
+      "description": "Equivalent hex and rgb authoring resolve to the same computed background color.",
+      "body": "<main><div class=\"box\">Equivalent color</div></main>",
+      "beforeCss": ".box{display:block;width:180px;height:72px;background-color:#c8c8c8}",
+      "afterCss": ".box{display:block;width:180px;height:72px;background-color:rgb(200,200,200)}",
+      "proof": {
+        "selector": ".box",
+        "property": "backgroundColor",
+        "before": "rgb(200, 200, 200)",
+        "after": "rgb(200, 200, 200)"
+      },
+      "expected": {
+        "renderChanged": false,
+        "detected": false
+      }
+    }
+  ]
+}
