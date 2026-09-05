@@ -342,7 +342,7 @@ test('content structure crops highlight additions and removals only where each e
   rmTmp(dirs.root);
 });
 
-test('one-sided annotations ignore an unrelated element that previously occupied the added path', () => {
+test('one-sided crops ignore unrelated elements occupying added paths and ancestor paths', () => {
   const dirs = pairFixture({
     surface: 'path-collision@500',
     before: makeMap({
@@ -355,6 +355,11 @@ test('one-sided annotations ignore an unrelated element that previously occupied
       elements: {
         body: { tag: 'body', rect: [0, 0, 500, 240] },
         'body > div:nth-child(1)': { tag: 'div', cls: 'scope-switch', rect: [330, 65, 70, 20] },
+        'body > div:nth-child(1) > button:nth-child(1)': {
+          tag: 'button',
+          cls: 'scope-option',
+          rect: [350, 67, 30, 16],
+        },
         'body > div:nth-child(2)': { tag: 'div', cls: 'toolbar', rect: [20, 40, 400, 80] },
       },
     }),
@@ -369,22 +374,32 @@ test('one-sided annotations ignore an unrelated element that previously occupied
     zoomBelow: 0,
   });
 
-  const names = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((name) => name.endsWith('-annotated.png'));
-  assert.equal(names.length, 1);
-  const png = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, 'crops', names[0])));
-  const highlights = [0, 0];
-  for (let y = 0; y < png.height; y++) {
-    for (let x = 0; x < png.width; x++) {
-      const offset = (y * png.width + x) * 4;
-      if (png.data[offset] === 255 && png.data[offset + 1] === 0 && png.data[offset + 2] === 200) {
-        highlights[x < png.width / 2 ? 0 : 1]++;
+  const cropDir = path.join(dirs.outDir, 'crops');
+  const cropNames = fs.readdirSync(cropDir);
+  const names = cropNames.filter((name) => name.endsWith('-annotated.png'));
+  const composites = cropNames.filter((name) => name.endsWith('-composite.png'));
+  assert.equal(names.length, 2);
+  assert.equal(composites.length, 2);
+  assert.deepEqual(
+    composites.map((name) => PNG.sync.read(fs.readFileSync(path.join(cropDir, name))).width),
+    [708, 708],
+  );
+  for (const name of names) {
+    const png = PNG.sync.read(fs.readFileSync(path.join(cropDir, name)));
+    const highlights = [0, 0];
+    for (let y = 0; y < png.height; y++) {
+      for (let x = 0; x < png.width; x++) {
+        const offset = (y * png.width + x) * 4;
+        if (png.data[offset] === 255 && png.data[offset + 1] === 0 && png.data[offset + 2] === 200) {
+          highlights[x < png.width / 2 ? 0 : 1]++;
+        }
       }
     }
+    assert.deepEqual(
+      highlights.map((count) => count > 0),
+      [false, true],
+    );
   }
-  assert.deepEqual(
-    highlights.map((count) => count > 0),
-    [false, true],
-  );
   rmTmp(dirs.root);
 });
 
@@ -432,9 +447,13 @@ test('one-sided annotations preserve a removed element displaced by a shifted si
   });
 
   assert.equal(result.contentChanges, 1);
-  const names = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((name) => name.endsWith('-annotated.png'));
+  const cropDir = path.join(dirs.outDir, 'crops');
+  const names = fs.readdirSync(cropDir).filter((name) => name.endsWith('-annotated.png'));
   assert.equal(names.length, 1);
-  const png = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, 'crops', names[0])));
+  const compositeName = fs.readdirSync(cropDir).find((name) => name.endsWith('-composite.png'));
+  assert.ok(compositeName);
+  assert.equal(PNG.sync.read(fs.readFileSync(path.join(cropDir, compositeName))).width, 708);
+  const png = PNG.sync.read(fs.readFileSync(path.join(cropDir, names[0])));
   const highlights = [0, 0];
   for (let y = 0; y < png.height; y++) {
     for (let x = 0; x < png.width; x++) {
@@ -544,7 +563,7 @@ test('content evidence obeys the existing report budget without dropping generat
   const b = fixture('out-b');
   assert.equal(a.result.contentChanges, 1);
   assert.ok(a.md.length < 1_200, `content detail stays bounded near the report ceiling (was ${a.md.length})`);
-  assert.match(a.md, /summarized to keep this report renderable/);
+  assert.match(a.md, /display budget/);
   assert.match(a.md, /1 advisory content\/structure change\(s\); full image evidence remains/);
   assert.deepEqual(a.crops, ['budget-480-content-1-annotated.png', 'budget-480-content-1-composite.png']);
   assert.equal(a.md, b.md, 'the capped advisory report is byte-deterministic');

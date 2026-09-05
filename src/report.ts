@@ -1126,6 +1126,12 @@ function contentAncestorDecision(
   pngB: PNG,
 ): ContentAncestorDecision {
   if (!entryA?.rect || !entryB?.rect) return { kind: 'skip' };
+  const sameAncestor =
+    entryA.tag === entryB.tag &&
+    entryA.cls === entryB.cls &&
+    (entryA.component?.name ?? '') === (entryB.component?.name ?? '') &&
+    entryA.ownTextLength === entryB.ownTextLength;
+  if (!sameAncestor) return { kind: 'skip' };
   if (isFullPageContentShell(entryA, pngA) || isFullPageContentShell(entryB, pngB)) return { kind: 'fallback' };
   const ancestorA = paddedRect(entryA, padBy);
   const ancestorB = paddedRect(entryB, padBy);
@@ -1166,17 +1172,19 @@ function sharedContentAncestor(
 function contentBox(
   mapA: StyleMap,
   mapB: StyleMap,
-  p: string,
+  change: ContentChange,
   padBy: number,
   maxHeight: number,
   pngA: PNG,
   pngB: PNG,
 ): Box | null {
-  const ba = paddedRect(mapA.elements[p], padBy);
-  const bb = paddedRect(mapB.elements[p], padBy);
+  const entryA = change.kind === 'structure' && change.change === 'added' ? undefined : mapA.elements[change.path];
+  const entryB = change.kind === 'structure' && change.change === 'removed' ? undefined : mapB.elements[change.path];
+  const ba = paddedRect(entryA, padBy);
+  const bb = paddedRect(entryB, padBy);
   const leaf = ba && bb ? union(ba, bb) : (bb ?? ba);
   if (!leaf) return null;
-  return sharedContentAncestor(mapA, mapB, p, leaf, padBy, maxHeight, pngA, pngB) ?? leaf;
+  return sharedContentAncestor(mapA, mapB, change.path, leaf, padBy, maxHeight, pngA, pngB) ?? leaf;
 }
 
 /** before|after crop lines for one content change, or [] when there's no box or
@@ -1192,7 +1200,7 @@ function contentCropLines(
   seq: number,
 ): string[] {
   if (!pngA || !pngB) return [];
-  const box = contentBox(mapA, mapB, c.path, ctx.padBy, ctx.maxHeight, pngA, pngB);
+  const box = contentBox(mapA, mapB, c, ctx.padBy, ctx.maxHeight, pngA, pngB);
   if (!box) return [];
   const w = Math.max(ctx.minWidth, box.w);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h));
