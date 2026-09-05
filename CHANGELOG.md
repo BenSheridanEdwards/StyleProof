@@ -7,10 +7,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Fixed
-
-- Approval now requires the canonical bot publication, immutable report identity and `STYLE_REVIEW_REQUIRED` machine verdict. Copied comments, stale receipts and untick-retick laundering cannot grant a success status. Private-repository rollout requires a separately approved `contents: read` grant on the approval workflow; this patch does not change permissions.
-
 ### Added
 
 - Baseline capture failures now survive as bounded `{ key, reason }` receipts in diff JSON and `report.json`, while raw exception text stays private. Markdown renders from that same receipt within its display budget, matching failed baseline surfaces are labeled and counted as repair debt instead of first adoption, and unrelated head surfaces stay genuinely new. `styleproof-diff` fails closed with exit 1 for any partial baseline, never reports repair debt as clean or fully certified, and the Action rejects missing, malformed, or contradictory receipts before publishing its trust state. (#491)
@@ -79,6 +75,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   exists.
 
 ### Fixed
+
+- Approval now requires the canonical bot publication, immutable report identity and `STYLE_REVIEW_REQUIRED` machine verdict. Copied comments, stale receipts and untick-retick laundering cannot grant a success status. Private-repository rollout requires a separately approved `contents: read` grant on the approval workflow; this patch does not change permissions.
 
 - Incomplete interaction evidence on either comparison side now fails certification independently of style approval. The CLI and Action share one typed verdict policy.
 - Forced hover, focus, and active capture now records sibling and ancestor CSS effects with bounded scanning. Omitted or disabled evidence fails closed. Regenerate baselines after upgrading.
@@ -158,6 +156,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the application's full lockfile hash. Frontend dependency migrations can compare
   normally when the capture runtime is unchanged, while manifests and diff/report
   source-binding receipts retain both lockfile hashes as explicit provenance.
+- Forced pseudo-state capture now retries one stale CDP node through the same unique
+  temporary marker, fails closed when that marker is missing or ambiguous, and clears
+  already-applied states before detaching after unrelated protocol failures.
 - Advisory content evidence now frames the nearest useful shared control, outlines changed content on the side where it exists (including removals displaced by shifted siblings), and adds nearest-neighbor zoom for small labels without changing certification. `maxCrops` bounds generated advisory image sets as well as computed-style crops.
 - Capture-evidence receipts now accept bounded trees up to 512 MiB, while retaining
   the 100,000-file, 16 MiB per-file, regular-file, and no-follow safety checks.
