@@ -75,7 +75,10 @@ test('styleproof routes public command names to existing implementation CLIs', (
 test('styleproof setup dry-run plans installation, browser, scaffold, and verification without writing', () => {
   const project = mkTmp('styleproof-setup-plan-');
   try {
-    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    fs.writeFileSync(
+      path.join(project, 'package.json'),
+      JSON.stringify({ name: 'consumer', private: true, scripts: { start: 'serve' } }),
+    );
     fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
 
     const result = run(['setup', '--dry-run', '--dir=apps/web'], project);
@@ -95,7 +98,10 @@ test('styleproof setup targets a nested project without conflating it with the c
   const project = path.join(workspace, 'apps/web');
   try {
     fs.mkdirSync(project, { recursive: true });
-    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    fs.writeFileSync(
+      path.join(project, 'package.json'),
+      JSON.stringify({ name: 'consumer', private: true, scripts: { start: 'serve' } }),
+    );
     fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
 
     const result = run(
@@ -127,7 +133,10 @@ test('styleproof setup targets a nested project without conflating it with the c
 test('styleproof setup refuses ambiguous package-manager lockfiles without an explicit packageManager field', () => {
   const project = mkTmp('styleproof-setup-ambiguous-');
   try {
-    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    fs.writeFileSync(
+      path.join(project, 'package.json'),
+      JSON.stringify({ name: 'consumer', private: true, scripts: { start: 'serve' } }),
+    );
     fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
     fs.writeFileSync(path.join(project, 'pnpm-lock.yaml'), 'lockfileVersion: 9');
 
@@ -151,7 +160,10 @@ test('styleproof setup plans exact commands for npm, pnpm, Yarn, and Bun', () =>
   for (const [lockfile, contents, installPattern, browserPattern] of fixtures) {
     const project = mkTmp(`styleproof-setup-${lockfile.replaceAll('.', '-')}-`);
     try {
-      fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+      fs.writeFileSync(
+        path.join(project, 'package.json'),
+        JSON.stringify({ name: 'consumer', private: true, scripts: { start: 'serve' } }),
+      );
       fs.writeFileSync(path.join(project, lockfile), contents);
       const result = run(['setup', '--dry-run'], project);
       assert.equal(result.status, 0, `${lockfile}\n${result.stderr}`);
@@ -168,7 +180,7 @@ test('styleproof setup uses packageManager to resolve intentionally mixed lockfi
   try {
     fs.writeFileSync(
       path.join(project, 'package.json'),
-      JSON.stringify({ name: 'consumer', private: true, packageManager: 'pnpm@10.0.0' }),
+      JSON.stringify({ name: 'consumer', private: true, packageManager: 'pnpm@10.0.0', scripts: { start: 'serve' } }),
     );
     fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
     fs.writeFileSync(path.join(project, 'pnpm-lock.yaml'), 'lockfileVersion: 9');
@@ -185,14 +197,17 @@ test('styleproof setup uses packageManager to resolve intentionally mixed lockfi
 test('styleproof setup refuses another option where a path or URL value is required', () => {
   const project = mkTmp('styleproof-setup-option-value-');
   try {
-    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    fs.writeFileSync(
+      path.join(project, 'package.json'),
+      JSON.stringify({ name: 'consumer', private: true, scripts: { start: 'serve' } }),
+    );
 
-    for (const option of ['--project-dir', '--dir', '--base-url']) {
+    for (const option of ['--project-dir', '--dir', '--base-url', '--server-command']) {
       const result = run(['setup', '--skip-install', '--skip-browser', option, '--dry-run'], project);
       assert.equal(result.status, 2, `${option}\n${result.stdout}\n${result.stderr}`);
       assert.match(result.stderr, new RegExp(`${option} requires a value`));
     }
-    for (const option of ['--project-dir=', '--dir=', '--base-url=']) {
+    for (const option of ['--project-dir=', '--dir=', '--base-url=', '--server-command=']) {
       const result = run(['setup', '--skip-install', '--skip-browser', option], project);
       assert.equal(result.status, 2, `${option}\n${result.stdout}\n${result.stderr}`);
       assert.match(result.stderr, /requires a value/);
@@ -219,4 +234,62 @@ test('styleproof rejects unknown commands with discoverable help', () => {
   assert.equal(result.status, 2);
   assert.match(result.stderr, /unknown command: warp-drive/);
   assert.match(result.stderr, /styleproof --help/);
+});
+
+test('styleproof setup refuses an unknown app before install or scaffold work in normal and dry-run modes', () => {
+  for (const args of [[], ['--dry-run']]) {
+    const project = mkTmp('styleproof-setup-server-missing-');
+    try {
+      fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+      fs.writeFileSync(path.join(project, 'package-lock.json'), '{}');
+      const result = run(['setup', ...args], project);
+      assert.equal(result.status, 2, `${args.join(' ')}\n${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, /could not infer a production server command/i);
+      assert.match(result.stderr, /--server-command/);
+      assert.match(result.stderr, /--external-server/);
+      assert.doesNotMatch(result.stdout, /installing dependencies/);
+      assert.equal(fs.existsSync(path.join(project, 'playwright.styleproof.config.ts')), false);
+      assert.equal(fs.existsSync(path.join(project, 'node_modules')), false, 'preflight must run before installation');
+    } finally {
+      rmTmp(project);
+    }
+  }
+});
+
+test('styleproof setup carries a custom server override through dry-run, scaffold, and check without executing it', () => {
+  const project = mkTmp('styleproof-setup-server-override-');
+  const marker = path.join(project, 'command-ran');
+  const command = `node -e "require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'bad')"`;
+  try {
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    const dryRun = run(
+      ['setup', '--dry-run', '--skip-install', '--skip-browser', '--server-command', command],
+      project,
+    );
+    assert.equal(dryRun.status, 0, dryRun.stderr);
+    assert.match(dryRun.stdout, /styleproof-init --server-command/);
+    assert.match(dryRun.stdout, /--check/);
+    assert.equal(fs.existsSync(marker), false);
+
+    const setup = run(['setup', '--skip-install', '--skip-browser', '--server-command', command], project);
+    assert.equal(setup.status, 0, setup.stderr);
+    assert.match(setup.stdout, /StyleProof setup complete/);
+    assert.equal(fs.existsSync(marker), false);
+    const config = fs.readFileSync(path.join(project, 'playwright.styleproof.config.ts'), 'utf8');
+    assert.ok(config.includes(`command: ${JSON.stringify(command)}`));
+  } finally {
+    rmTmp(project);
+  }
+});
+
+test('styleproof setup supports a caller-managed external production server', () => {
+  const project = mkTmp('styleproof-setup-external-server-');
+  try {
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+    const result = run(['setup', '--skip-install', '--skip-browser', '--external-server'], project);
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(fs.readFileSync(path.join(project, 'playwright.styleproof.config.ts'), 'utf8'), /webServer:/);
+  } finally {
+    rmTmp(project);
+  }
 });
