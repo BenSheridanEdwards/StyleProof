@@ -74,6 +74,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- The navigable-removal gate reported a check it never ran. With no captured map
+  carrying an inventory, the audit is an empty diff of two empty sets —
+  indistinguishable from "nothing was removed" — so the report claimed
+  `Inventory — ✓ navigable set unchanged` and the Action printed a reassuring notice
+  and exited 0. A repository that never set `inventory: true` got a green inventory
+  gate that gated nothing. The report now reads `⚠ not checked`, naming the cause, in
+  the same spirit as determinism's `⚠ unknown`; the Action names it a COULD-NOT-RUN
+  warning instead of a notice. `hasCapturedInventory` is exported as the one
+  definition of "the gate had data to run on", and both the report and
+  `styleproof-diff` now ask it, so the two cannot drift. The gate itself is unchanged:
+  a captured inventory with a real removal still fails hard, and the armed-but-empty
+  case still exits 0, because the README scopes the gate to `inventory: true` and
+  failing closed would break every capture spec that predates it. (#478)
+
 - The approval gate let a pull request author sign off their own visual changes.
   `example/styleproof-approve.yml` checked write access and the reviewed commit but
   never compared the approver with the author, so any author with write access could

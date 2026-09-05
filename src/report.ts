@@ -45,7 +45,7 @@ import {
   type CoverageVerdict,
   type DeterminismVerdict,
 } from './coverage.js';
-import { auditRunInventory, readAckFile } from './inventory.js';
+import { auditRunInventory, hasCapturedInventory, readAckFile } from './inventory.js';
 import { auditRunResidue, readResidueAckFile } from './data-residue.js';
 import {
   bundleSurfaceKeys,
@@ -1186,7 +1186,13 @@ function additionsClause(added: { key: string }[]): string {
   return `; ${added.length} navigable affordance(s) added: ${keyList(added)} (additions don't gate)`;
 }
 
-function inventoryLine(inv: ReturnType<typeof auditRunInventory>): string {
+// `captured` = did any map on either side actually carry an inventory. Without it the
+// audit is an empty diff of two empty sets, which is indistinguishable from "nothing
+// was removed" — so reporting ✓ here would state a check that never ran. Say ⚠ not
+// checked instead, exactly as determinism says ⚠ unknown rather than ✓ proven. (#478)
+function inventoryLine(inv: ReturnType<typeof auditRunInventory>, captured: boolean): string {
+  if (!captured)
+    return '- **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)';
   const added = additionsClause(inv.delta.added);
   if (inv.unexplained.length > 0)
     return `- **Inventory** — ⚠ ${inv.unexplained.length} navigable affordance(s) removed, unacknowledged: ${keyList(inv.unexplained)}${added}`;
@@ -1301,7 +1307,10 @@ function certificationLines(
   // Lenient reads (advisory renderer): missing or corrupt sidecars degrade to null.
   const baseLedger = readCoverageLedgerLenient(beforeDir);
   const headLedger = readCoverageLedgerLenient(afterDir);
-  const inv = auditRunInventory(readInventories(beforeDir), readInventories(afterDir), readAcknowledgedRemovals());
+  const beforeInventories = readInventories(beforeDir);
+  const afterInventories = readInventories(afterDir);
+  const inventoryCaptured = hasCapturedInventory(beforeInventories, afterInventories);
+  const inv = auditRunInventory(beforeInventories, afterInventories, readAcknowledgedRemovals());
   const res = auditRunResidue(readResidue(afterDir), readAcknowledgedResidue(), headLedger?.dataResidue === 'gate');
 
   const hasLedger = baseLedger !== null || headLedger !== null || confidence.ledger !== null;
@@ -1318,7 +1327,7 @@ function certificationLines(
       explicitExclusionCount(headLedger),
     ),
     determinismLine(auditDeterminism(baseLedger, headLedger)),
-    inventoryLine(inv),
+    inventoryLine(inv, inventoryCaptured),
     // Only add the residue line when there's residue or the gate was armed — an ordinary
     // bundle (no failing endpoint, not armed) keeps its exact prior 3-line block.
     ...(hasResidue ? [dataResidueLine(res)] : []),
