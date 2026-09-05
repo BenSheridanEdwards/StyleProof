@@ -9,6 +9,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- `styleproof-map --prove-determinism` runs the #400 five-run oracle over your own
+  captures. It captures the declared surface set five times in fresh contexts, requires
+  every canonical map hash to match, writes `styleproof-determinism.json` beside the maps,
+  and records the new `determinism: oracle-proven` basis in the coverage ledger — strictly
+  stronger than `self-checked`, and accepted by the gate exactly like it. A flake discards
+  the bundle before the manifest is stamped, so a nondeterministic capture can never become
+  a baseline; the four scratch bundles are always cleaned up. Opt-in, because it costs five
+  capture runs. `determinismRunReceipt(entries)` is exported so every producer builds run
+  receipts through one key-sorted code path. Until now the oracle ran only over StyleProof's
+  own browser fixture in CI: it was exported and CI-exercised, but no consumer could get the
+  five-run proof for their own surfaces, and nothing in `src/runner.ts` or `bin/*.mjs`
+  called it. (#476)
+
 - Opt-in pixel gate (`styleproof-diff --pixels`, `diffStyleMapDirs({ pixels: true })`):
   the screenshots every capture already writes (`<surface>.png` plus the forced
   `:hover` / `:focus` / `:active` layers) are compared pixel for pixel, and every
@@ -19,20 +32,49 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   size); a region or a screenshot layer present on one side only exits 1. Results
   land in `--json` under `pixels`, never in the computed-style counts. (#473)
 
+### Removed
+
+- **BREAKING.** The Phase 0 truth contract and the Release Confidence layer are
+  deleted: `src/phase0-contract.ts`, `src/release-confidence-manifest.ts`,
+  `src/release-confidence-project.ts` and `src/release-confidence-summary.ts`,
+  about 3,300 lines that validated a JSON document against itself and then wrapped
+  it in a digest. They produced one Markdown line and one JSON sidecar that this
+  same repository re-parsed; no external consumer existed. They also could not
+  certify a real two-directory compare, so the fail-closed default read as a
+  finding on clean runs. Removed with them: every `phase0*` / `releaseConfidence*`
+  package export, the `releaseConfidence` field in `report.json`, the
+  `styleproof-release-confidence.json` sidecar, the `--manifest-digest` flag on
+  `styleproof-publish-report`, and the Action's `release-confidence-digest`
+  output. `src/confidence-ledger.ts` — the reviewer-facing completeness signal the
+  layer duplicated — is untouched, as is `docs/product-state-comparability.md`.
+  ADRs 0003 and 0004 are marked superseded rather than deleted. (#475)
+
+  Three consequences for the gate, all intended:
+  - `styleproof-report` no longer exits 1 merely because no manifest accompanied
+    the compare. It now states the rule it had been inheriting: an **unverified
+    source binding** (no `--expected-before-sha` / `--expected-after-sha`) exits 1
+    and is labelled `⚠ UNVERIFIED DIAGNOSTIC`, matching what it already printed.
+    A fully bound, clean compare is now green in `styleproof-diff` **and**
+    `styleproof-report`; previously the two disagreed on the same directories.
+  - A **new surface with no baseline** is `STYLE_REVIEW_REQUIRED`, a reviewable
+    state a reviewer can approve ("approve it before it becomes the baseline"),
+    instead of the unapprovable `CERTIFICATION_FAILED`.
+  - A **ledger-explained missing baseline** is `PARTIAL_BASELINE`, the state
+    designed for it, which reviewer approval still cannot clear.
+
+  Every other certification axis is unchanged: source binding, coverage basis,
+  determinism status, inaccessible confidence, product-state comparability,
+  report/diff consistency, inventory removals and data residue all gate exactly
+  as before. The publish read-back still binds a published report to its run
+  through the receipt marker in `report.md` (head SHA, run id, run attempt) and
+  still requires `report.json` to parse with no duplicate keys.
+
+- This supersedes the unreleased #474 wording fix: the line it reworded no longer
+  exists.
+
 ### Fixed
 
 - Embed deterministic `BEFORE`/`AFTER` and product-state `BASE`/`HEAD` labels inside every comparison PNG so report evidence remains directional when opened outside Markdown.
-- A clean two-directory `styleproof-report` compare opened with
-  `**Release confidence** — ✗ blocked (absent-legacy; integrity; manifest-absent)`
-  and the CLI said only "release confidence projection failed". Nothing was
-  blocked by a finding: no manifest existed, and the projection had refused —
-  for a URL-only `styleproof-capture` run, because the capture carries no spec
-  file (`specHash: "missing"`), so no release scope can be bound. The report now
-  says `⚠ not evaluated` with the cause, the CLI names the same cause, and
-  `ReleaseConfidenceProjectError` carries a fixed `reason` literal
-  (`spec-hash-unbound`, `head-manifest-unbound`, `producer-version-mismatch`, …)
-  that never echoes input. `report.json` `releaseConfidence` is unchanged, so the
-  Action gate and the exit code decide exactly as before. (#474, first step)
 - A restyle on an element that a pull request re-nested (a wrapper added around it,
   or removed from around it) was certified clean: certification excludes structure,
   the element's structural path changed, and the real computed-style delta vanished

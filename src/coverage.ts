@@ -117,11 +117,14 @@ export const COVERAGE_LEDGER = 'styleproof-coverage.json';
 
 /**
  * How a capture's determinism was established — the second half of a trustworthy green.
+ * `oracle-proven`: the five-run oracle (`styleproof-map --prove-determinism`) captured the
+ * whole surface set five times in fresh contexts and every canonical map hash matched — the
+ * strongest basis, and the only one that can see a flake which happens to repeat twice.
  * `self-checked`: captured twice and the computed styles matched (a drift would have
  * failed the capture). `replayed`: rendered against a recorded HAR, so deterministic by
  * construction. `unproven`: neither — the styles could have drifted and no one checked.
  */
-export type DeterminismBasis = 'self-checked' | 'replayed' | 'unproven';
+export type DeterminismBasis = 'oracle-proven' | 'self-checked' | 'replayed' | 'unproven';
 
 export type CoverageLedger = {
   version: 1;
@@ -150,11 +153,11 @@ export type DeterminismVerdict = {
   head: DeterminismBasis | 'unknown';
 };
 
-/** The gate's determinism call: a green needs BOTH sides proven (self-checked or replayed). */
+/** The gate's determinism call: a green needs BOTH sides proven (oracle, self-check, or replay). */
 export function auditDeterminism(base: CoverageLedger | null, head: CoverageLedger | null): DeterminismVerdict {
   const b = base?.determinism ?? 'unknown';
   const h = head?.determinism ?? 'unknown';
-  const proven = (d: DeterminismBasis | 'unknown') => d === 'self-checked' || d === 'replayed';
+  const proven = (d: DeterminismBasis | 'unknown') => d === 'oracle-proven' || d === 'self-checked' || d === 'replayed';
   if (b === 'unproven' || h === 'unproven') return { status: 'unproven', base: b, head: h };
   if (proven(b) && proven(h)) return { status: 'proven', base: b, head: h };
   return { status: 'unknown', base: b, head: h };

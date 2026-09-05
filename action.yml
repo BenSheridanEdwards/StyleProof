@@ -236,20 +236,12 @@ runs:
         import { pathToFileURL } from 'node:url';
         import { isDeepStrictEqual } from 'node:util';
         const mapStoreUrl = pathToFileURL(path.join(process.env.GITHUB_ACTION_PATH, 'dist/map-store.js')).href;
-        const manifestUrl = pathToFileURL(
-          path.join(process.env.GITHUB_ACTION_PATH, 'dist/release-confidence-manifest.js'),
-        ).href;
-        const summaryUrl = pathToFileURL(
-          path.join(process.env.GITHUB_ACTION_PATH, 'dist/release-confidence-summary.js'),
-        ).href;
         const {
           hasDuplicateJsonKeys,
           MAX_CAPTURE_EVIDENCE_FILES,
           MAX_CAPTURE_EVIDENCE_FILE_BYTES,
           MAX_CAPTURE_EVIDENCE_TOTAL_BYTES,
         } = await import(mapStoreUrl);
-        const { parseReleaseConfidenceManifest } = await import(manifestUrl);
-        const { summarizeReleaseConfidence } = await import(summaryUrl);
         const parseReceipt = (filePath) => {
           const source = fs.readFileSync(filePath, 'utf8');
           const parsed = JSON.parse(source);
@@ -258,14 +250,6 @@ runs:
         };
         const diff = parseReceipt('styleproof-diff.json');
         const generated = parseReceipt('styleproof-report/report.json');
-        const releaseConfidenceManifest = parseReleaseConfidenceManifest(
-          fs.readFileSync('styleproof-report/styleproof-release-confidence.json'),
-        );
-        const releaseConfidence = summarizeReleaseConfidence(releaseConfidenceManifest);
-        if (releaseConfidenceManifest.sourceSha !== process.env.STYLEPROOF_EXPECTED_HEAD_SHA ||
-            !isDeepStrictEqual(generated.releaseConfidence, releaseConfidence)) {
-          throw new Error('StyleProof release-confidence manifest and report receipt disagree');
-        }
         const exactKeys = (value, keys) =>
           value &&
           typeof value === 'object' &&
@@ -365,13 +349,8 @@ runs:
         }
         diff.reportConsistency = generated.reportConsistency;
         diff.confidence = generated.confidence;
-        diff.releaseConfidence = releaseConfidence;
         fs.writeFileSync('styleproof-diff.json', `${JSON.stringify(diff, null, 2)}\n`);
         fs.appendFileSync(process.env.GITHUB_OUTPUT, `content-changes=${generated.content.changes}\n`);
-        fs.appendFileSync(
-          process.env.GITHUB_OUTPUT,
-          `release-confidence-digest=${releaseConfidence.manifestDigest}\n`,
-        );
         NODE
 
     # One machine-readable verdict for every defined diff. Consumers should not
@@ -403,7 +382,6 @@ runs:
             diff.coverage?.basis !== 'complete' ||
             diff.determinism?.status !== 'proven' ||
             (diff.confidence?.counts?.inaccessible ?? 0) > 0 ||
-            diff.releaseConfidence?.blocking !== false ||
             diff.comparison?.blocksCertification === true;
           // Raw certification deltas that cleanFindings strips entirely: the durable
           // report has no crops/sections. Never map this to style review.
@@ -481,7 +459,6 @@ runs:
           --report-path "$REPORT_PATH" \
           --report-dir styleproof-report \
           --head-sha "$REPORT_SHA" \
-          --manifest-digest '${{ steps.report.outputs.release-confidence-digest }}' \
           --run-id '${{ github.run_id }}' \
           --run-attempt '${{ github.run_attempt }}'
 

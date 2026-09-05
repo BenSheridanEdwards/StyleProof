@@ -1,7 +1,5 @@
 ## 🗺️ StyleProof report
 
-**Release confidence** — ⚠ not evaluated (no release-confidence manifest accompanied this comparison). The style comparison below stands on its own; release certification stays withheld.
-
 ⚠️ **Product-state comparison** — unproven on 3 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.

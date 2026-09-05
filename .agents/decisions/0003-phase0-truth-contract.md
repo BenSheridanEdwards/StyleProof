@@ -1,8 +1,15 @@
 # 3. Phase 0 truth contract is a retrospective v0.1 kernel
 
-- Status: accepted
+- Status: superseded by #475 (2026-09-03) — the kernel was deleted
 - Date: 2026-08-28
 - Issues: #448 (this record), citing shipped #438 and #452
+
+> **Superseded.** `src/phase0-contract.ts` validated a JSON document against
+> itself and wired no capture producer, diff, report, Action, or CLI. It was
+> deleted in #475 along with the Release Confidence layer built on it
+> (ADR 0004). `src/confidence-ledger.ts` remains the reviewer-facing
+> completeness signal, and `docs/product-state-comparability.md` remains the
+> four-valued comparability clause. This record is kept for history only.
 
 ## Context
 

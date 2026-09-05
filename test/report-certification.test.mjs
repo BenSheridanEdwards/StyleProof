@@ -7,10 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { generateStyleMapReport } from '../dist/index.js';
-import { createReleaseConfidenceManifest } from '../dist/release-confidence-manifest.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
-
-const PHASE0_FIXTURE = new URL('./fixtures/phase0-contract/valid-enumerated.json', import.meta.url);
 
 const nav = (keys) => keys.map((k) => ({ key: `nav-button:${k}`, kind: 'nav-button', label: k.toUpperCase() }));
 const mapWith = (inventory) =>
@@ -60,40 +57,7 @@ test('a healthy bundle leads with all-green certification', () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('report projects one validated release-confidence summary without changing visual truth', () => {
-  const { root, base, head, out } = bundle({
-    captured: ['home'],
-    baseNav: ['home'],
-    headNav: ['home'],
-    expected: ['home'],
-    baseDet: 'self-checked',
-    headDet: 'self-checked',
-  });
-  const contract = JSON.parse(fs.readFileSync(PHASE0_FIXTURE, 'utf8'));
-  const manifest = createReleaseConfidenceManifest({
-    manifestId: 'rcm-report-control',
-    producerVersion: '6.2.2',
-    releaseScope: 'styleproof-report',
-    contract,
-  });
-
-  const result = generateStyleMapReport({
-    beforeDir: base,
-    afterDir: head,
-    outDir: out,
-    releaseConfidenceManifest: manifest,
-  });
-  const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  assert.equal(report.releaseConfidence.manifestDigest, manifest.manifestDigest);
-  assert.equal(report.releaseConfidence.certifies, true);
-  assert.equal(report.releaseConfidence.blocking, false);
-  const md = readMd(out);
-  assert.match(md, /\*\*Release confidence\*\* — ✓ complete/);
-  assert.ok(md.indexOf('**Release confidence**') < md.indexOf('No reviewable computed-style changes'));
-  fs.rmSync(root, { recursive: true, force: true });
-});
-
-test('a manifest-less compare reads "not evaluated", never "blocked", and still withholds certification (#474)', () => {
+test('the report carries no release-confidence layer, and the confidence ledger still leads (#475)', () => {
   const { root, base, head, out } = bundle({
     captured: ['home'],
     baseNav: ['home'],
@@ -104,81 +68,17 @@ test('a manifest-less compare reads "not evaluated", never "blocked", and still 
   });
   const result = generateStyleMapReport({ beforeDir: base, afterDir: head, outDir: out });
   const md = readMd(out);
-  assert.match(
-    md,
-    /\*\*Release confidence\*\* — ⚠ not evaluated \(no release-confidence manifest accompanied this comparison\)/,
-  );
-  assert.doesNotMatch(md, /✗ blocked/);
-  assert.doesNotMatch(md, /absent-legacy|manifest-absent/, 'raw presence tokens never reach the reviewer');
-  assert.match(md, /release certification stays withheld/);
-  // Gates-first ordering is unchanged: the line still precedes the visual verdict.
-  assert.ok(md.indexOf('**Release confidence**') < md.indexOf('No reviewable computed-style changes'));
-  // The machine summary is byte-for-byte what it was: the Action gate is untouched.
+  // Nothing of the deleted layer reaches the reviewer or the machine receipt.
+  assert.doesNotMatch(md, /Release confidence/);
+  assert.doesNotMatch(md, /absent-legacy|manifest-absent|release-confidence/);
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  assert.equal(report.releaseConfidence.presence, 'absent-legacy');
-  assert.equal(report.releaseConfidence.blocking, true);
-  assert.deepEqual(report.releaseConfidence.reasons, ['manifest-absent']);
-  assert.equal(result.releaseConfidence.blocking, true);
-  fs.rmSync(root, { recursive: true, force: true });
-});
-
-test('a refused projection names its cause in report.md from a fixed reason literal (#474)', () => {
-  const { root, base, head, out } = bundle({
-    captured: ['home'],
-    baseNav: ['home'],
-    headNav: ['home'],
-    expected: ['home'],
-    baseDet: 'self-checked',
-    headDet: 'self-checked',
-  });
-  generateStyleMapReport({
-    beforeDir: base,
-    afterDir: head,
-    outDir: out,
-    releaseConfidenceProjectionFailure: 'spec-hash-unbound',
-  });
-  const md = readMd(out);
-  assert.match(md, /not evaluated \(projection refused — the head capture ran without a StyleProof spec file/);
-  assert.doesNotMatch(md, /✗ blocked/);
-  fs.rmSync(root, { recursive: true, force: true });
-
-  const hostile = bundle({
-    captured: ['home'],
-    baseNav: ['home'],
-    headNav: ['home'],
-    expected: ['home'],
-    baseDet: 'self-checked',
-    headDet: 'self-checked',
-  });
-  generateStyleMapReport({
-    beforeDir: hostile.base,
-    afterDir: hostile.head,
-    outDir: hostile.out,
-    releaseConfidenceProjectionFailure: '<img src=x onerror=alert(1)>',
-  });
-  const hostileMd = readMd(hostile.out);
-  assert.doesNotMatch(hostileMd, /onerror/, 'an unknown reason never echoes into the report');
-  assert.match(hostileMd, /projection refused — the projection refused for an unclassified reason/);
-  fs.rmSync(hostile.root, { recursive: true, force: true });
-});
-
-test('an invalid or non-certifying manifest still reads "✗ blocked" with its axis and reasons', () => {
-  const { root, base, head, out } = bundle({
-    captured: ['home'],
-    baseNav: ['home'],
-    headNav: ['home'],
-    expected: ['home'],
-    baseDet: 'self-checked',
-    headDet: 'self-checked',
-  });
-  const result = generateStyleMapReport({
-    beforeDir: base,
-    afterDir: head,
-    outDir: out,
-    releaseConfidenceManifest: {},
-  });
-  assert.equal(result.releaseConfidence.presence, 'present-invalid');
-  assert.match(readMd(out), /\*\*Release confidence\*\* — ✗ blocked \(manifest invalid: manifest-invalid\)/);
+  assert.equal(report.releaseConfidence, undefined);
+  assert.equal(result.releaseConfidence, undefined);
+  assert.equal(fs.existsSync(path.join(out, 'styleproof-release-confidence.json')), false);
+  // The reviewer-facing confidence line the layer duplicated is untouched, and the
+  // certification block still leads the report, ahead of the visual verdict.
+  assert.match(md, /\*\*Confidence\*\* — ✓ complete/);
+  assert.ok(md.indexOf('**Certification**') < md.indexOf('No reviewable computed-style changes'));
   fs.rmSync(root, { recursive: true, force: true });
 });
 

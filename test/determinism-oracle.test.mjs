@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import * as styleproof from '../dist/index.js';
 
 test('five identical capture receipts produce a deterministic 5/5 oracle verdict', () => {
@@ -150,4 +151,65 @@ test('canonical map hashing preserves __proto__ data and rejects non-JSON-safe v
   const cyclic = {};
   cyclic.self = cyclic;
   assert.throws(() => styleproof.hashDeterminismMap?.(cyclic), /JSON-safe/);
+});
+
+// #476: the oracle used to be an export nothing in the capture path called. These pin the
+// shared receipt builder that `styleproof-map --prove-determinism` and the browser fixture
+// both go through, so two honest runs can never disagree on key order alone.
+test('determinismRunReceipt sorts state keys, so filesystem order cannot fake a flake', () => {
+  const maps = [
+    ['b@900', { defaults: {}, elements: {} }],
+    ['a@900', { defaults: {}, elements: { x: 1 } }],
+  ];
+  const forward = styleproof.determinismRunReceipt(maps);
+  const reversed = styleproof.determinismRunReceipt([...maps].reverse());
+
+  assert.deepEqual(forward.stateKeys, ['a@900', 'b@900']);
+  assert.deepEqual(forward, reversed);
+  // Five runs that listed their files in different orders still certify.
+  assert.equal(
+    styleproof.assessDeterminismOracle([forward, reversed, forward, reversed, forward]).status,
+    'deterministic',
+  );
+});
+
+test('determinismRunReceipt hashes the map content, so a real drift is still caught', () => {
+  const stable = styleproof.determinismRunReceipt([['a@900', { defaults: {}, elements: { color: 'red' } }]]);
+  const drifted = styleproof.determinismRunReceipt([['a@900', { defaults: {}, elements: { color: 'blue' } }]]);
+
+  assert.notEqual(stable.mapHashes['a@900'], drifted.mapHashes['a@900']);
+  const verdict = styleproof.assessDeterminismOracle([stable, stable, stable, stable, drifted]);
+  assert.equal(verdict.status, 'flake');
+  assert.equal(verdict.reason, 'mismatch');
+  assert.equal(verdict.matchingRuns, 4);
+});
+
+test('determinismRunReceipt refuses duplicate state keys rather than silently dropping one', () => {
+  assert.throws(
+    () =>
+      styleproof.determinismRunReceipt([
+        ['a@900', { defaults: {}, elements: {} }],
+        ['a@900', { defaults: {}, elements: {} }],
+      ]),
+    /unique state keys/,
+  );
+});
+
+// #476 REGRESSION GUARD: the oracle shipped as an export that nothing in the capture path
+// called, so "deterministic by default" rested only on the two-capture self-check and #400
+// read as closed work. These pin the wiring itself — an oracle nobody calls is not a proof.
+test('the capture path calls the oracle: styleproof-map wires --prove-determinism', () => {
+  const bin = fs.readFileSync(new URL('../bin/styleproof-map.mjs', import.meta.url), 'utf8');
+
+  assert.match(bin, /from '\.\.\/dist\/determinism-oracle\.js'/, 'the capture CLI must import the oracle');
+  assert.match(bin, /assessDeterminismOracle\(/, 'the capture CLI must CALL the oracle, not just import it');
+  assert.match(bin, /--prove-determinism/, 'the flag must be documented in --help');
+  assert.match(bin, /determinism: 'oracle-proven'/, 'a passing oracle must be recorded in the ledger');
+  // The proof must gate publication: the receipt and ledger promotion happen before the
+  // manifest is stamped, and a failure discards the bundle instead of publishing it.
+  assert.ok(
+    bin.indexOf('assessDeterminismOracle(') < bin.indexOf('writeMapManifest({'),
+    'the oracle must run BEFORE the manifest is written, so a flake can never be published',
+  );
+  assert.match(bin, /an unproven bundle must never become a baseline/);
 });

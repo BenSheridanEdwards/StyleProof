@@ -8,7 +8,6 @@ import test from 'node:test';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { buildConfidenceLedger, writeConfidenceLedger } from '../dist/confidence-ledger.js';
 import { readMapManifest } from '../dist/map-store.js';
-import { parseReleaseConfidenceManifest } from '../dist/release-confidence-manifest.js';
 import { fixtureCompatibilityKey, fixtureContentHash, makeMap, writeCapture } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -222,7 +221,18 @@ test('production diff and report receipts pass through the exact Action merge pr
       encoding: 'utf8',
       env: actionEnv,
     });
-    assert.equal(firstAdoption.status, 1, 'first adoption lacks a certifying baseline manifest');
+    // #475: first adoption is blocked EARLIER and harder than the merge program —
+    // `styleproof-diff` exits 3 and `styleproof-report` exits 1 (both asserted
+    // above), so the action never reaches this step for a first adoption. The merge
+    // program's own job is receipt integrity, and a first-adoption receipt is
+    // structurally honest: `validNoCaptureTopology` accepts a `no-capture` side
+    // whose comparison is `not-required` for exactly that reason. Until the
+    // release-confidence layer was deleted, an unprojectable manifest rejected it
+    // here as a side effect.
+    assert.equal(firstAdoption.status, 0, firstAdoption.stderr || firstAdoption.stdout);
+    const firstAdoptionMerged = JSON.parse(fs.readFileSync(diffJsonPath, 'utf8'));
+    assert.equal(firstAdoptionMerged.sourceBinding.before.result, 'no-capture');
+    assert.equal(firstAdoptionMerged.comparison.status, 'not-required');
 
     const forgedNoCapturePairedReport = structuredClone(honestReport);
     const forgedNoCapturePairedDiff = structuredClone(honestDiff);
@@ -257,7 +267,7 @@ test('production diff and report receipts pass through the exact Action merge pr
       env: actionEnv,
     });
     assert.equal(forgedEmpty.status, 1, forgedEmpty.stderr || forgedEmpty.stdout);
-    assert.match(forgedEmpty.stderr, /release-confidence manifest and report receipt disagree/i);
+    assert.match(forgedEmpty.stderr, /evidence-binding receipts are missing or malformed/i);
 
     fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
     fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
@@ -673,8 +683,14 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
       clean: 'NO_REVIEWABLE_STYLE_CHANGES',
       content: 'NO_REVIEWABLE_STYLE_CHANGES',
       changed: 'STYLE_REVIEW_REQUIRED',
-      new: 'CERTIFICATION_FAILED',
-      partial: 'CERTIFICATION_FAILED',
+      // #475: with the release-confidence layer deleted, these two fixtures reach
+      // the states actually designed for them instead of being swept into the
+      // unapprovable CERTIFICATION_FAILED by a manifest that could never certify.
+      // A new surface is reviewable ("approve it before it becomes the baseline");
+      // a ledger-explained missing baseline is PARTIAL_BASELINE, which approval
+      // still cannot clear.
+      new: 'STYLE_REVIEW_REQUIRED',
+      partial: 'PARTIAL_BASELINE',
       degraded: 'DEGRADED_BASELINE',
       residue: 'DATA_RESIDUE_UNACKNOWLEDGED',
       removed: 'INVENTORY_REMOVAL_UNACKNOWLEDGED',
@@ -715,10 +731,18 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
       if (fixture === 'content') reportArguments.push('--include-content');
       const report = spawnSync(process.execPath, reportArguments, { cwd: caseRoot, encoding: 'utf8' });
       assert.ok([0, 1].includes(report.status), `${fixture} report: ${report.stderr || report.stdout}`);
-      const confidence = parseReleaseConfidenceManifest(
-        fs.readFileSync(path.join(caseRoot, 'styleproof-report', 'styleproof-release-confidence.json')),
+      // #475: the release-confidence sidecar is gone. The report binds itself to the
+      // trusted head SHA through the source-binding receipt in report.json instead.
+      const reportReceipt = JSON.parse(
+        fs.readFileSync(path.join(caseRoot, 'styleproof-report', 'report.json'), 'utf8'),
       );
-      assert.equal(confidence.sourceSha, headSha, fixture);
+      assert.equal(reportReceipt.sourceBinding.after.expected, headSha, fixture);
+      assert.equal(reportReceipt.sourceBinding.status, 'bound', fixture);
+      assert.equal(
+        fs.existsSync(path.join(caseRoot, 'styleproof-report', 'styleproof-release-confidence.json')),
+        false,
+        `${fixture}: no release-confidence sidecar is written`,
+      );
 
       const mergeScript = path.join(caseRoot, 'merge.mjs');
       const githubOutput = path.join(caseRoot, 'github-output');
@@ -773,15 +797,17 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /action-dogfood\/degraded-base/);
   assert.match(dogfoodYml, /steps\.clean\.outputs\.report-url }}'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.changed }}' = 'true'/);
-  assert.match(dogfoodYml, /steps\.new-surface\.outcome }}' = 'failure'/);
+  // #475: a new surface is reviewable, so with both gates opted out the action
+  // succeeds — but `changed` must still be true, proving it is not silently green.
+  assert.match(dogfoodYml, /steps\.new-surface\.outputs\.changed }}' = 'true'/);
   assert.match(dogfoodYml, /steps\.clean\.outputs\.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'/);
   assert.match(dogfoodYml, /steps\.changed\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
-  assert.match(dogfoodYml, /steps\.new-surface\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
+  assert.match(dogfoodYml, /steps\.new-surface\.outputs\.trust-state }}' = 'STYLE_REVIEW_REQUIRED'/);
   assert.match(dogfoodYml, /steps\.content-advisory\.outputs\.content-changes }}' = '1'/);
   assert.match(dogfoodYml, /Content and structure changes \(advisory\)/);
   assert.match(dogfoodYml, /steps\.residue\.outputs\.trust-state }}' = 'DATA_RESIDUE_UNACKNOWLEDGED'/);
   assert.match(dogfoodYml, /action-dogfood\/partial-base/);
-  assert.match(dogfoodYml, /steps\.partial-baseline\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
+  assert.match(dogfoodYml, /steps\.partial-baseline\.outputs\.trust-state }}' = 'PARTIAL_BASELINE'/);
   assert.match(dogfoodYml, /steps\.degraded\.outputs\.trust-state }}' = 'DEGRADED_BASELINE'/);
   // The inventory removal must FAIL the action even with fail-on-diff off.
   assert.match(dogfoodYml, /steps\.removed\.outcome }}' = 'failure'/);
@@ -813,13 +839,18 @@ test('composite action treats inaccessible confidence as CERTIFICATION_FAILED', 
   assert.match(verdict[0], /CERTIFICATION_FAILED/);
 });
 
-test('composite action makes release confidence mandatory before visual approval', () => {
-  const report = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
-  assert.ok(report);
-  assert.match(report[0], /diff\.releaseConfidence = releaseConfidence/);
+test('composite action carries no release-confidence layer (#475)', () => {
+  // The layer produced one Markdown line and one JSON sidecar that this repository
+  // then re-parsed. Deleting it must leave no vestigial wiring in the action.
+  assert.doesNotMatch(actionYml, /releaseConfidence|release-confidence|manifest-digest/);
   const verdict = actionYml.match(/- id: verdict[\s\S]*?(?=\n\s{4}- id:|\n\s{4}- name:|\n\s{4}#)/);
   assert.ok(verdict);
-  assert.match(verdict[0], /diff\.releaseConfidence\?\.blocking !== false/);
+  // The certification gate keeps every axis that reads real capture evidence.
+  assert.match(verdict[0], /diff\.sourceBinding\?\.status !== 'bound'/);
+  assert.match(verdict[0], /diff\.coverage\?\.basis !== 'complete'/);
+  assert.match(verdict[0], /diff\.determinism\?\.status !== 'proven'/);
+  assert.match(verdict[0], /diff\.confidence\?\.counts\?\.inaccessible/);
+  assert.match(verdict[0], /diff\.comparison\?\.blocksCertification === true/);
   assert.match(verdict[0], /CERTIFICATION_FAILED/);
 });
 
@@ -1032,12 +1063,12 @@ test('composite action self-verifies the published receipt before advertising th
   assert.match(publishModule, /application\/vnd\.github\.raw/);
   assert.match(publishModule, /readPublishedBytes\(options, fetchImplementation, 'report\.md'\)/);
   assert.match(publishModule, /readPublishedBytes\(options, fetchImplementation, 'report\.json'\)/);
-  assert.match(
-    publishModule,
-    /readPublishedBytes\(options, fetchImplementation, 'styleproof-release-confidence\.json'\)/,
-  );
+  // #475: the receipt marker itself names head SHA + run id + attempt, so the
+  // read-back still proves the published report belongs to THIS run without the
+  // deleted release-confidence sidecar. report.json must still parse cleanly.
+  assert.doesNotMatch(publishModule, /release-confidence|manifestDigest/);
   assert.match(publishModule, /markdown\.includes\(options\.expectedReceipt\)/);
-  assert.match(publishModule, /manifest\.manifestDigest === options\.expectedManifestDigest/);
+  assert.match(publishModule, /hasDuplicateJsonKeys\(reportSource\)/);
   // Fail CLOSED on a dead or mismatched report — never a green run with a bad URL.
   assert.match(publishModule, /do not trust this run's report/);
   // The url/raw-base outputs exist ONLY once verification passed.

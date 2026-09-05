@@ -10,10 +10,9 @@ A complete publication contains:
 
 - `report.md`, the human review surface;
 - `report.json`, the machine-readable report;
-- `styleproof-release-confidence.json`, the canonical Release Confidence sidecar;
 - crop and annotation images referenced by relative paths from `report.md`.
 
-Publication succeeds only after the publisher reads the advertised commit back and verifies the source head SHA, run ID, run attempt, report digest, and Release Confidence digest. The Markdown, JSON, sidecar, and crop paths remain one committed evidence package.
+Publication succeeds only after the publisher reads the advertised commit back and verifies the run receipt embedded in `report.md`, which names the source head SHA, run ID and run attempt, and confirms `report.json` parses with no duplicate keys. The Markdown, JSON, and crop paths remain one committed evidence package.
 
 ## Pull-request comment
 
