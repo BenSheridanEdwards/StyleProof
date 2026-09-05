@@ -76,6 +76,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Map-store compaction atomically requires the expected branch tip before replacing
+  it, so a concurrent publication is retained after a bounded retry instead of
+  being discarded. GraphQL errors fail closed without an unconditional fallback. (#501)
+
 - Selective remap preserves every surface sharing an entry module, so edits to a
   page or its dependencies recapture all associated states instead of reusing
   stale maps for all but the last declared state. (#495)

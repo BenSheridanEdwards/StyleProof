@@ -9,7 +9,7 @@ The v1 map store uses a Git branch as identity, object storage, mutable index, t
 - capture identity is coupled to repository history rather than evidence content;
 - identical objects across captures have no explicit deduplication contract;
 - concurrent publishers contend on the whole branch;
-- compaction can discard a racing cache publication;
+- compaction contends with publishers, although conditional ref updates now prevent it from discarding a racing publication;
 - restore requires Git negotiation and sparse checkout;
 - retention reconstructs dates from commit history and a sidecar;
 - GitHub is the data model instead of one possible transport;
