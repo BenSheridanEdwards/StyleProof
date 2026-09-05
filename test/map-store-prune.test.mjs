@@ -193,7 +193,7 @@ test('exhausted contention leaves the racing publication untouched', async () =>
   });
   await assert.rejects(
     compactMapStoreBranch({ ...apiOptions, maximumAttempts: 1, fetchImplementation: fake.fetchImplementation }),
-    /reference does not match beforeOid/,
+    /returned GraphQL errors/,
   );
   assert.equal(fake.state.branchTip, 'published-tip-sha');
   assert.deepEqual(fake.state.refUpdates, []);
@@ -204,6 +204,8 @@ for (const [name, response, status, attempts] of [
   ['HTTP permission error', { message: 'Forbidden' }, 403, 1],
   ['missing acknowledgement', { data: { updateRefs: null } }, 200, 2],
   ['wrong acknowledgement', { data: { updateRefs: { clientMutationId: 'another-tip' } } }, 200, 2],
+  ['malformed errors object', { data: { updateRefs: { clientMutationId: 'tip-sha' } }, errors: {} }, 200, 1],
+  ['malformed errors string', { data: { updateRefs: { clientMutationId: 'tip-sha' } }, errors: 'none' }, 200, 1],
   [
     'partial GraphQL success',
     { data: { updateRefs: { clientMutationId: 'tip-sha' } }, errors: [{ message: 'failed' }] },
@@ -226,6 +228,44 @@ for (const [name, response, status, attempts] of [
     assert.equal(fake.state.branchTip, 'tip-sha');
   });
 }
+
+test('GraphQL provider details never enter errors or retry diagnostics', async () => {
+  const providerDetail = 'secret-provider-diagnostic';
+  const fake = buildFakeGitHub({
+    rootTreeEntries: [{ path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' }],
+    graphqlResponse: { errors: [{ message: providerDetail }] },
+  });
+  const logs = [];
+  let thrown;
+  try {
+    await compactMapStoreBranch({
+      ...apiOptions,
+      maximumAttempts: 2,
+      fetchImplementation: fake.fetchImplementation,
+      log: (line) => logs.push(line),
+    });
+  } catch (error) {
+    thrown = error;
+  }
+  assert.match(String(thrown), /returned GraphQL errors/);
+  assert.doesNotMatch(String(thrown), new RegExp(providerDetail));
+  assert.doesNotMatch(logs.join('\n'), new RegExp(providerDetail));
+});
+
+test('retry diagnostics omit raw API response details', async () => {
+  const fake = buildFakeGitHub({
+    rootTreeEntries: [{ path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' }],
+    serverFailuresBeforeSuccess: 1,
+  });
+  const logs = [];
+  await compactMapStoreBranch({
+    ...apiOptions,
+    fetchImplementation: fake.fetchImplementation,
+    log: (line) => logs.push(line),
+  });
+  assert.match(logs[0], /failed \(HTTP 500\); retrying/);
+  assert.doesNotMatch(logs[0], /flake/);
+});
 
 test('GitHub Enterprise compaction uses the same server API GraphQL endpoint', async () => {
   const apiBaseUrl = 'https://git.example/api/v3';

@@ -279,6 +279,20 @@ async function createBlob(api: ReturnType<typeof buildClient>['api'], content: s
   return blob.sha;
 }
 
+type UpdateRefsResponseKind = 'acknowledged' | 'errors' | 'invalid';
+
+function classifyUpdateRefsResponse(result: unknown, beforeOid: string): UpdateRefsResponseKind {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) return 'invalid';
+  const responseObject = result as Record<string, unknown>;
+  const errors = responseObject.errors;
+  if (errors !== undefined && (!Array.isArray(errors) || errors.length > 0)) return 'errors';
+  const data = responseObject.data;
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return 'invalid';
+  const updateRefs = (data as Record<string, unknown>).updateRefs;
+  if (typeof updateRefs !== 'object' || updateRefs === null || Array.isArray(updateRefs)) return 'invalid';
+  return (updateRefs as Record<string, unknown>).clientMutationId === beforeOid ? 'acknowledged' : 'invalid';
+}
+
 /** Atomically replace exactly the tip used to select retained bundles. */
 async function updateCompactedRef(
   api: ReturnType<typeof buildClient>['api'],
@@ -307,22 +321,16 @@ async function updateCompactedRef(
     }),
   });
   if (!response.ok) throw new MapStorePruneApiError(`map compaction updateRefs -> ${response.status}`, response.status);
-  const result = (await response.json()) as {
-    data?: { updateRefs?: { clientMutationId?: string } | null };
-    errors?: { message?: string }[];
-  };
-  if (result.errors?.length) {
+  const resultKind = classifyUpdateRefsResponse(await response.json(), beforeOid);
+  if (resultKind === 'errors') {
     const current = await api<{ object: { sha: string } }>(
       'GET',
       `/git/ref/${encodeURIComponent(`heads/${options.branch}`)}`,
     );
     const status = current.object.sha !== beforeOid ? 409 : 400;
-    throw new MapStorePruneApiError(
-      `map compaction updateRefs failed: ${result.errors[0]?.message?.slice(0, 300) ?? 'GraphQL error'}`,
-      status,
-    );
+    throw new MapStorePruneApiError('map compaction updateRefs returned GraphQL errors', status);
   }
-  if (result.data?.updateRefs?.clientMutationId !== beforeOid) {
+  if (resultKind !== 'acknowledged') {
     throw new MapStorePruneApiError('map compaction updateRefs returned no matching acknowledgement', 502);
   }
 }
@@ -442,7 +450,8 @@ export async function compactMapStoreBranch(options: MapStorePruneApiOptions): P
         error.status === 409 ||
         error.status >= 500;
       if (!retryable || attemptNumber === maximumAttempts) throw error;
-      log(`map store prune attempt ${attemptNumber} failed (${String(error)}); retrying`);
+      const diagnostic = error instanceof MapStorePruneApiError ? `HTTP ${error.status}` : 'unexpected error';
+      log(`map store prune attempt ${attemptNumber} failed (${diagnostic}); retrying`);
       await sleep(attemptNumber * 2000);
     }
   }
