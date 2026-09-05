@@ -623,7 +623,7 @@ test('styleproof-report keeps large baseline-failure receipts inside the markdow
   generateStyleMapReport({ beforeDir: A, afterDir: B, outDir: out, maxReportBytes: 400_000 });
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
-  assert.ok(Buffer.byteLength(md) < 410_000, `markdown bytes: ${Buffer.byteLength(md)}`);
+  assert.ok(Buffer.byteLength(md) <= 400_000, `markdown bytes: ${Buffer.byteLength(md)}`);
   assert.match(md, /display budget/);
   assert.match(md, /full bounded identities are in report\.json/);
   assert.equal(json.baselineFailures.length, failures.length);

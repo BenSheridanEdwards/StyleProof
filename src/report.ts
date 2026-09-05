@@ -2829,21 +2829,33 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Emit full detail greedily until the byte budget is reached, then list any remaining
   // surfaces as one-liners. The exhaustive per-row detail is always in report.json and
   // every crop in crops/, so the cap changes what's shown inline, never what's certified.
-  let reportBytes = md.join('\n').length;
+  const markdownBytes = (lines: string[]): number => Buffer.byteLength(`${lines.join('\n')}\n`, 'utf8');
+  const appendWithinBudget = (lines: string[]): boolean => {
+    if (lines.length === 0) return true;
+    const next = [...md, ...lines];
+    if (markdownBytes(next) > maxReportBytes) return false;
+    md.push(...lines);
+    return true;
+  };
+  // A caller can request a budget smaller than the fixed report header. Keep the
+  // contract literal by dropping trailing header lines until the artifact fits;
+  // report.json remains exhaustive and authoritative at every budget.
+  while (md.length > 0 && markdownBytes(md) > maxReportBytes) md.pop();
   let capped = false;
   const emitDetail = (detail: string[], summary: string): void => {
-    const cost = detail.join('\n').length + 1;
-    if (!capped && reportBytes + cost <= maxReportBytes) {
-      md.push(...detail);
-      reportBytes += cost;
-      return;
-    }
+    if (!capped && appendWithinBudget(detail)) return;
     if (!capped) {
-      md.push(...cappedNoticeLines(maxReportBytes));
+      const notice = cappedNoticeLines(maxReportBytes);
+      if (!appendWithinBudget(notice)) {
+        appendWithinBudget([
+          '',
+          `_Inline detail omitted at the ${maxReportBytes}-byte display budget; full data is in \`report.json\`._`,
+          '',
+        ]);
+      }
       capped = true;
     }
-    md.push(summary);
-    reportBytes += summary.length + 1;
+    appendWithinBudget([summary]);
   };
   // The captured-surface-base count (all surfaces, not just changed ones) so the
   // chrome callout can read "N of M surfaces". M is bases, matching the tier's
