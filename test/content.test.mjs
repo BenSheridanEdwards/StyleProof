@@ -348,19 +348,19 @@ test('one-sided crops ignore unrelated elements occupying added paths and ancest
     before: makeMap({
       elements: {
         body: { tag: 'body', rect: [0, 0, 500, 240] },
-        'body > div:nth-child(1)': { tag: 'div', cls: 'toolbar', rect: [20, 40, 400, 80] },
+        'body > div:nth-child(1)': { tag: 'div', cls: 'collision', ownTextLength: 0, rect: [20, 40, 400, 80] },
       },
     }),
     after: makeMap({
       elements: {
         body: { tag: 'body', rect: [0, 0, 500, 240] },
-        'body > div:nth-child(1)': { tag: 'div', cls: 'scope-switch', rect: [330, 65, 70, 20] },
+        'body > div:nth-child(1)': { tag: 'div', cls: 'collision', ownTextLength: 0, rect: [330, 65, 70, 20] },
         'body > div:nth-child(1) > button:nth-child(1)': {
           tag: 'button',
           cls: 'scope-option',
           rect: [350, 67, 30, 16],
         },
-        'body > div:nth-child(2)': { tag: 'div', cls: 'toolbar', rect: [20, 40, 400, 80] },
+        'body > div:nth-child(2)': { tag: 'div', cls: 'collision', ownTextLength: 0, rect: [20, 40, 400, 80] },
       },
     }),
     beforePng: solidPng(500, 240, [239, 68, 68]),
@@ -378,7 +378,7 @@ test('one-sided crops ignore unrelated elements occupying added paths and ancest
   const cropNames = fs.readdirSync(cropDir);
   const names = cropNames.filter((name) => name.endsWith('-annotated.png'));
   const composites = cropNames.filter((name) => name.endsWith('-composite.png'));
-  assert.equal(names.length, 1, 'a newly added subtree should produce one parent-level proof');
+  assert.equal(names.length, 1, 'the shifted same-metadata sibling is not reported as a second addition');
   assert.equal(composites.length, 1);
   assert.deepEqual(
     composites.map((name) => PNG.sync.read(fs.readFileSync(path.join(cropDir, name))).width),
@@ -403,6 +403,75 @@ test('one-sided crops ignore unrelated elements occupying added paths and ancest
   rmTmp(dirs.root);
 });
 
+test('shifted text changes annotate both corresponding sides instead of the reused raw path', () => {
+  const dirs = pairFixture({
+    surface: 'shifted-text@500',
+    before: makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 500, 240] },
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'label',
+          ownTextLength: 3,
+          text: 'Old',
+          rect: [40, 65, 70, 20],
+        },
+      },
+    }),
+    after: makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 500, 240] },
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'inserted',
+          ownTextLength: 3,
+          text: 'Add',
+          rect: [330, 65, 70, 20],
+        },
+        'body > div:nth-child(2)': {
+          tag: 'div',
+          cls: 'label',
+          ownTextLength: 3,
+          text: 'New',
+          rect: [40, 65, 70, 20],
+        },
+      },
+    }),
+    beforePng: solidPng(500, 240, [239, 68, 68]),
+    afterPng: solidPng(500, 240, [59, 130, 246]),
+  });
+  generateStyleMapReport({
+    beforeDir: dirs.beforeDir,
+    afterDir: dirs.afterDir,
+    outDir: dirs.outDir,
+    includeContent: true,
+    zoomBelow: 0,
+  });
+
+  const cropDir = path.join(dirs.outDir, 'crops');
+  const annotations = fs
+    .readdirSync(cropDir)
+    .filter((name) => name.endsWith('-annotated.png'))
+    .map((name) => PNG.sync.read(fs.readFileSync(path.join(cropDir, name))))
+    .map((png) => {
+      const bySide = [0, 0];
+      for (let y = 0; y < png.height; y++) {
+        for (let x = 0; x < png.width; x++) {
+          const offset = (y * png.width + x) * 4;
+          if (png.data[offset] === 255 && png.data[offset + 1] === 0 && png.data[offset + 2] === 200) {
+            bySide[x < png.width / 2 ? 0 : 1]++;
+          }
+        }
+      }
+      return bySide.map((count) => count > 0);
+    });
+  assert.ok(
+    annotations.some(([before, after]) => before && after),
+    'the shifted text change is outlined on both sides',
+  );
+  rmTmp(dirs.root);
+});
+
 test('one-sided annotations preserve a removed element displaced by a shifted sibling', () => {
   const dirs = pairFixture({
     surface: 'removal-collision@500',
@@ -411,9 +480,8 @@ test('one-sided annotations preserve a removed element displaced by a shifted si
         body: { tag: 'body', rect: [0, 0, 500, 240] },
         'body > div:nth-child(1)': {
           tag: 'div',
-          cls: 'removed',
-          ownTextLength: 7,
-          text: 'Removed',
+          cls: 'collision',
+          ownTextLength: 0,
           rect: [330, 65, 70, 20],
         },
         'body > div:nth-child(1) > button:nth-child(1)': {
@@ -425,7 +493,7 @@ test('one-sided annotations preserve a removed element displaced by a shifted si
         },
         'body > div:nth-child(2)': {
           tag: 'div',
-          cls: 'toolbar',
+          cls: 'collision',
           ownTextLength: 0,
           rect: [20, 40, 400, 80],
         },
@@ -436,7 +504,7 @@ test('one-sided annotations preserve a removed element displaced by a shifted si
         body: { tag: 'body', rect: [0, 0, 500, 240] },
         'body > div:nth-child(1)': {
           tag: 'div',
-          cls: 'toolbar',
+          cls: 'collision',
           ownTextLength: 0,
           rect: [20, 40, 400, 80],
         },
@@ -453,7 +521,7 @@ test('one-sided annotations preserve a removed element displaced by a shifted si
     zoomBelow: 0,
   });
 
-  assert.equal(result.contentChanges, 1, 'a removed subtree should produce one parent-level proof');
+  assert.equal(result.contentChanges, 1, 'the shifted same-metadata sibling is not reported as a second removal');
   const cropDir = path.join(dirs.outDir, 'crops');
   const names = fs.readdirSync(cropDir).filter((name) => name.endsWith('-annotated.png'));
   assert.equal(names.length, 1);

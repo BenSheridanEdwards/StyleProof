@@ -1195,6 +1195,11 @@ function contentBox(
   const bb = paddedRect(entryB, padBy);
   const leaf = ba && bb ? union(ba, bb) : (bb ?? ba);
   if (!leaf) return null;
+  // One-sided structure has no correspondence on the opposite side. Expanding
+  // through same-path ancestors can therefore union an unrelated shifted sibling
+  // into the crop even when its metadata happens to match. Keep these proofs
+  // leaf-centred; matched text changes may still use shared ancestor context.
+  if (change.kind === 'structure' && change.change !== 'retagged') return leaf;
   return sharedContentAncestor(mapA, mapB, change.path, leaf, padBy, maxHeight, pngA, pngB) ?? leaf;
 }
 
@@ -1285,6 +1290,29 @@ function withoutRedundantStructuralDescendants(changes: ContentChange[]): Conten
   });
 }
 
+function isShiftCollisionCorrespondence(change: ContentChange, mapA: StyleMap, mapB: StyleMap): boolean {
+  if (change.kind !== 'structure' || change.change === 'retagged') return false;
+  const source = change.change === 'added' ? mapB : mapA;
+  const opposite = change.change === 'added' ? mapA : mapB;
+  const entry = source.elements[change.path];
+  if (!entry?.rect) return false;
+  const matches = Object.entries(opposite.elements).filter(([candidatePath, candidate]) => {
+    if (candidatePath === change.path || !candidate.rect) return false;
+    const collidingOccupant = source.elements[candidatePath];
+    if (!collidingOccupant?.rect || collidingOccupant.rect.every((value, index) => value === entry.rect![index])) {
+      return false;
+    }
+    return (
+      candidate.tag === entry.tag &&
+      candidate.cls === entry.cls &&
+      (candidate.component?.name ?? '') === (entry.component?.name ?? '') &&
+      candidate.ownTextLength === entry.ownTextLength &&
+      candidate.rect.every((value, index) => value === entry.rect![index])
+    );
+  });
+  return matches.length === 1;
+}
+
 function reportContentChanges(mapA: StyleMap, mapB: StyleMap): ContentChange[] {
   const changes = diffContentMaps(mapA, mapB);
   const comparableBase = correspondContentShiftedPaths(mapA, mapB);
@@ -1298,7 +1326,10 @@ function reportContentChanges(mapA: StyleMap, mapB: StyleMap): ContentChange[] {
       path: elementPath,
       cls: entry.cls,
     }));
-  return withoutRedundantStructuralDescendants([...displacedRemovals, ...changes]).sort((left, right) =>
+  const concreteChanges = [...displacedRemovals, ...changes].filter(
+    (change) => !isShiftCollisionCorrespondence(change, mapA, mapB),
+  );
+  return withoutRedundantStructuralDescendants(concreteChanges).sort((left, right) =>
     left.path.localeCompare(right.path),
   );
 }
@@ -1324,8 +1355,12 @@ function renderContentSurface(
   changes: ContentChange[],
   seq: number,
 ): { md: string[]; seq: number } {
-  const mapA = loadStyleMap(findCapture(ctx.beforeDir, surface));
+  const rawMapA = loadStyleMap(findCapture(ctx.beforeDir, surface));
   const mapB = loadStyleMap(findCapture(ctx.afterDir, surface));
+  // Content correspondence reports shifted text at the head path. Render those
+  // bilateral changes against the same remapped base geometry, while retaining
+  // the raw base map for concrete one-sided structural inventory.
+  const comparableMapA = correspondContentShiftedPaths(rawMapA, mapB);
   const pngA = readPng(path.join(ctx.beforeDir, `${surface}.png`));
   const pngB = readPng(path.join(ctx.afterDir, `${surface}.png`));
   const md: string[] = ['', `### \`${safeKey(surface)}\` · ${changes.length} content/structure change(s)`];
@@ -1335,6 +1370,7 @@ function renderContentSurface(
         ? [`- before: \`${clipText(c.before) || '(empty)'}\``, `- after: \`${clipText(c.after) || '(empty)'}\``]
         : [`- ${c.change === 'retagged' ? `element retagged: \`${c.detail}\`` : `element ${c.change}`}`];
     const nextSeq = seq + 1;
+    const mapA = c.kind === 'text' ? comparableMapA : rawMapA;
     const cropLines = seq < ctx.maxCrops ? contentCropLines(ctx, surface, c, mapA, mapB, pngA, pngB, nextSeq) : [];
     if (cropLines.some((line) => line.startsWith('!['))) seq = nextSeq;
     md.push('', `**\`${prettyLabel(c.path, c.cls)}\`**`, '', ...changeLines, ...cropLines);
