@@ -7,7 +7,7 @@ Validator SHA-256: 458c031cde0a41168752016696edeb6c71387d6bcf47d7aca6d43f841fd70
   "skipped": 1,
   "oracle": "deterministic"
 }
-Full identity inventory: 222/222 unique source-path + line + column + suite + title + project identities executed exactly once
+Full identity inventory: 222/222 unique source-path + line + column + suite + title + project identities accounted for exactly once
 Shard 1: 118 passed, 1 skipped; shard 2: 103 passed, 0 skipped
 Unsupported-state evidence: chromium expected=skipped outcome=skipped; firefox-unsupported-state expected=passed outcome=passed
 Determinism evidence: 1 receipt across both shard artifacts; runs 5/5; 5 state keys; 5 SHA-256 map hashes
