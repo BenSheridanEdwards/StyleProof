@@ -1,15 +1,15 @@
 ## 🗺️ StyleProof report
 
-**Release confidence** — ✗ blocked (absent-legacy; integrity; manifest-absent)
-
 ⚠️ **Product-state comparison** — unproven on 3 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
-🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. Approve them before they become the baseline.
+🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
 
 **3 computed-style difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
 
-## 🆕 New pages, states, or surfaces — review first
+📝 _3 advisory content change(s) below — they don't affect the check._
+
+## One-sided pages, states, or surfaces — review first
 
 ### `pricing@900` · new surface <!-- styleproof-new -->
 
@@ -19,7 +19,7 @@ _pricing @ 900_
 
 <sub>after · pricing @ 900</sub>
 
-_No baseline to compare against — this surface is new. Review and approve it before it becomes part of the baseline._
+_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
 
 ## Element-level changes
 
@@ -107,3 +107,56 @@ Style:
 | `opacity` | `0.85` | `1` |
 
 </details>
+
+---
+
+## 📝 Content and structure changes (advisory)
+
+_3 content/structure change(s). **Advisory only** — content and DOM structure are not part of the computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are visible when content comparison is enabled._
+
+### `duplicate-insertion@900` · 1 content/structure change(s)
+
+**`button.duplicate-control`**
+
+- element added
+
+![before ◀ │ ▶ after](crops/duplicate-insertion-900-content-1-composite.png)
+
+<sub>◀ before  ·  after ▶ — duplicate-insertion@900</sub>
+
+![highlighted before ◀ │ ▶ after](crops/duplicate-insertion-900-content-1-annotated.png)
+
+<sub>🔍 magenta boxes mark the changed content</sub>
+
+### `home@900` · 1 content/structure change(s)
+
+**`span.content-label`**
+
+- before: `Old`
+- after: `New`
+
+![before ◀ │ ▶ after](crops/home-900-content-2-composite.png)
+
+<sub>◀ before  ·  after ▶ — home@900</sub>
+
+![highlighted before ◀ │ ▶ after](crops/home-900-content-2-annotated.png)
+
+<sub>🔍 magenta boxes mark the changed content</sub>
+
+![zoomed before ◀ │ ▶ after](crops/home-900-content-2-zoom.png)
+
+<sub>🔬 magnified 2×: content change too small to read at 1:1</sub>
+
+### `sibling-insertion@900` · 1 content/structure change(s)
+
+**`div.scope-switch`**
+
+- element added
+
+![before ◀ │ ▶ after](crops/sibling-insertion-900-content-3-composite.png)
+
+<sub>◀ before  ·  after ▶ — sibling-insertion@900</sub>
+
+![highlighted before ◀ │ ▶ after](crops/sibling-insertion-900-content-3-annotated.png)
+
+<sub>🔍 magenta boxes mark the changed content</sub>

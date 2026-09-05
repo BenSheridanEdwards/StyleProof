@@ -12,12 +12,7 @@
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { generateStyleMapReport } from '../dist/report.js';
-import { importMapBundleToEvidenceStore } from '../dist/evidence-import.js';
-import { serializeReleaseConfidenceManifest } from '../dist/release-confidence-manifest.js';
-import { projectReleaseConfidence } from '../dist/release-confidence-project.js';
 import { cachedMapsUnavailableMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
 import {
@@ -29,7 +24,6 @@ import {
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
-  readMapManifest,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
 
@@ -189,7 +183,6 @@ if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
 
 let result;
 let sourceBinding;
-let releaseConfidenceStoreRoot;
 try {
   // v4: refuse a manifest-less side (exit 2 via the catch) — same-environment
   // compatibility can't be verified without a manifest on both sides.
@@ -200,28 +193,6 @@ try {
     beforeSha: expectedBeforeSha,
     afterSha: expectedAfterSha,
   });
-  let releaseConfidenceManifest;
-  try {
-    const afterManifest = readMapManifest(afterDir);
-    if (!afterManifest) throw new Error('missing map manifest');
-    releaseConfidenceStoreRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-report-confidence-'));
-    const imported = importMapBundleToEvidenceStore({
-      bundleDirectory: afterDir,
-      storeRoot: releaseConfidenceStoreRoot,
-    });
-    releaseConfidenceManifest = projectReleaseConfidence({
-      beforeDir,
-      afterDir,
-      manifestId: `rcm-${afterManifest.sha}`,
-      producerVersion: afterManifest.packageVersion,
-      releaseScope: 'styleproof-report',
-      expectedBeforeSha,
-      expectedAfterSha,
-      evidence: { storeRoot: releaseConfidenceStoreRoot, capture: imported.capture },
-    }).manifest;
-  } catch {
-    console.error('styleproof-report: release confidence projection failed');
-  }
   result = generateStyleMapReport({
     beforeDir,
     afterDir,
@@ -235,14 +206,7 @@ try {
     includeLayoutNoise,
     includeContent,
     requireStateIdentity,
-    releaseConfidenceManifest,
   });
-  if (releaseConfidenceManifest) {
-    fs.writeFileSync(
-      path.join(flags.out, 'styleproof-release-confidence.json'),
-      serializeReleaseConfidenceManifest(releaseConfidenceManifest),
-    );
-  }
   const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
   if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
     throw new Error('capture evidence changed while styleproof-report was reading it');
@@ -267,21 +231,24 @@ try {
   console.error(e.message);
   process.exit(2);
 } finally {
-  if (releaseConfidenceStoreRoot) fs.rmSync(releaseConfidenceStoreRoot, { recursive: true, force: true });
   cleanupCachedCaptureDirs(cacheCapture);
 }
 
 const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';
 const consistencyFailed = result.reportConsistency?.ok === false;
 const comparisonFailed = result.comparison?.blocksCertification === true;
-const releaseConfidenceFailed = result.releaseConfidence?.blocking !== false;
-const cleanPrefix = sourceBinding.status === 'bound' ? '✓' : '⚠ UNVERIFIED DIAGNOSTIC:';
+// An unverified source binding is a diagnostic, never a certification. Until the
+// release-confidence layer was removed (#475) this fell out of that layer's
+// fail-closed default; state it directly so the exit code and the "⚠ UNVERIFIED
+// DIAGNOSTIC" label the CLI already prints can never disagree.
+const sourceBindingFailed = sourceBinding.status !== 'bound';
+const cleanPrefix = sourceBindingFailed ? '⚠ UNVERIFIED DIAGNOSTIC:' : '✓';
 if (consistencyFailed) {
   console.log(`⚠ report consistency: ${result.reportConsistency.reason} — not a clean no-change (fail closed)`);
 }
 console.log(
   result.changedSurfaces === 0
-    ? result.newSurfaces === 0
+    ? result.oneSidedSurfaces === 0
       ? consistencyFailed
         ? '⚠ no presentation changes — report consistency failure written'
         : includeContent
@@ -289,7 +256,9 @@ console.log(
             ? `${cleanPrefix} no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
             : `${cleanPrefix} no reviewable computed-style or advisory content/structure changes`
           : `${cleanPrefix} no reviewable computed-style changes — content/structure not evaluated`
-      : `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
+      : result.newSurfaces > 0
+        ? `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
+        : `⚠ ${result.oneSidedSurfaces} removed or baseline-repair-debt surface(s) — report written for review`
     : `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`,
 );
 console.log(`report: ${result.reportMdPath}`);
@@ -300,10 +269,10 @@ if (includeContent && result.contentChanges > 0) {
 // exit 0 for "identical" when certification evidence was hidden by presentation).
 process.exit(
   result.changedSurfaces === 0 &&
-    result.newSurfaces === 0 &&
+    result.oneSidedSurfaces === 0 &&
     !consistencyFailed &&
     !comparisonFailed &&
-    !releaseConfidenceFailed
+    !sourceBindingFailed
     ? 0
     : 1,
 );

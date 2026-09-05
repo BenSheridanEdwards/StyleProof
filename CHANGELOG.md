@@ -7,6 +7,112 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Baseline capture failures now survive as bounded `{ key, reason }` receipts in diff JSON and `report.json`, while raw exception text stays private. Markdown renders from that same receipt within its display budget, matching failed baseline surfaces are labeled and counted as repair debt instead of first adoption, and unrelated head surfaces stay genuinely new. `styleproof-diff` fails closed with exit 1 for any partial baseline, never reports repair debt as clean or fully certified, and the Action rejects missing, malformed, or contradictory receipts before publishing its trust state. (#491)
+
+- `styleproof-map --prove-determinism` runs the #400 five-run oracle over your own
+  captures. It captures the declared surface set five times in fresh contexts, requires
+  every canonical map hash to match, writes `styleproof-determinism.json` beside the maps,
+  and records the new `determinism: oracle-proven` basis in the coverage ledger — strictly
+  stronger than `self-checked`, and accepted by the gate exactly like it. A flake discards
+  the bundle before the manifest is stamped, so a nondeterministic capture can never become
+  a baseline; the four scratch bundles are always cleaned up. Opt-in, because it costs five
+  capture runs. `determinismRunReceipt(entries)` is exported so every producer builds run
+  receipts through one key-sorted code path. Until now the oracle ran only over StyleProof's
+  own browser fixture in CI: it was exported and CI-exercised, but no consumer could get the
+  five-run proof for their own surfaces, and nothing in `src/runner.ts` or `bin/*.mjs`
+  called it. (#476)
+
+- Opt-in pixel gate (`styleproof-diff --pixels`, `diffStyleMapDirs({ pixels: true })`):
+  the screenshots every capture already writes (`<surface>.png` plus the forced
+  `:hover` / `:focus` / `:active` layers) are compared pixel for pixel, and every
+  changed region is attributed to the captured elements under it, smallest box first.
+  Pixels are the rendered effect, so the gate sees what computed styles cannot —
+  image content, canvas paint, font rasterisation — and needs no base/head element
+  correspondence. Anti-aliasing noise is tolerated (YIQ threshold, minimum region
+  size); a region or a screenshot layer present on one side only exits 1. Results
+  land in `--json` under `pixels`, never in the computed-style counts. (#473)
+
+### Removed
+
+- **BREAKING.** The Phase 0 truth contract and the Release Confidence layer are
+  deleted: `src/phase0-contract.ts`, `src/release-confidence-manifest.ts`,
+  `src/release-confidence-project.ts` and `src/release-confidence-summary.ts`,
+  about 3,300 lines that validated a JSON document against itself and then wrapped
+  it in a digest. They produced one Markdown line and one JSON sidecar that this
+  same repository re-parsed; no external consumer existed. They also could not
+  certify a real two-directory compare, so the fail-closed default read as a
+  finding on clean runs. Removed with them: every `phase0*` / `releaseConfidence*`
+  package export, the `releaseConfidence` field in `report.json`, the
+  `styleproof-release-confidence.json` sidecar, the `--manifest-digest` flag on
+  `styleproof-publish-report`, and the Action's `release-confidence-digest`
+  output. `src/confidence-ledger.ts` — the reviewer-facing completeness signal the
+  layer duplicated — is untouched, as is `docs/product-state-comparability.md`.
+  ADRs 0003 and 0004 are marked superseded rather than deleted. (#475)
+
+  Three consequences for the gate, all intended:
+  - `styleproof-report` no longer exits 1 merely because no manifest accompanied
+    the compare. It now states the rule it had been inheriting: an **unverified
+    source binding** (no `--expected-before-sha` / `--expected-after-sha`) exits 1
+    and is labelled `⚠ UNVERIFIED DIAGNOSTIC`, matching what it already printed.
+    A fully bound, clean compare is now green in `styleproof-diff` **and**
+    `styleproof-report`; previously the two disagreed on the same directories.
+  - A **new surface with no baseline** is `STYLE_REVIEW_REQUIRED`, a reviewable
+    state a reviewer can approve ("approve it before it becomes the baseline"),
+    instead of the unapprovable `CERTIFICATION_FAILED`.
+  - A **ledger-explained missing baseline** is `PARTIAL_BASELINE`, the state
+    designed for it, which reviewer approval still cannot clear.
+
+  Every other certification axis is unchanged: source binding, coverage basis,
+  determinism status, inaccessible confidence, product-state comparability,
+  report/diff consistency, inventory removals and data residue all gate exactly
+  as before. The publish read-back still binds a published report to its run
+  through the receipt marker in `report.md` (head SHA, run id, run attempt) and
+  still requires `report.json` to parse with no duplicate keys.
+
+- This supersedes the unreleased #474 wording fix: the line it reworded no longer
+  exists.
+
+### Fixed
+
+- Selective remap preserves every surface sharing an entry module, so edits to a
+  page or its dependencies recapture all associated states instead of reusing
+  stale maps for all but the last declared state. (#495)
+
+- Selective remap includes nested modules under a computed import's static
+  directory, preventing stale base-map reuse for dynamic consumers when a nested
+  component or its scoped stylesheet changes. Sibling directories remain outside
+  the context. (#496)
+
+- Embed deterministic `BEFORE`/`AFTER` and product-state `BASE`/`HEAD` labels inside every comparison PNG so report evidence remains directional when opened outside Markdown.
+- The approval gate let a pull request author sign off their own visual changes.
+  `example/styleproof-approve.yml` checked write access and the reviewed commit but
+  never compared the approver with the author, so any author with write access could
+  tick their own **Approve all changes** box and the audit trail recorded a
+  self-approval as a review. It now refuses: the box is put back to unticked, the
+  `StyleProof` status stays red with `Needs a reviewer other than @author`, and the
+  workflow replies once per reviewed commit. The rule holds however the author reaches
+  a ticked box, including editing a comment a reviewer already ticked — which
+  previously transferred the sign-off to the editor. An unticking author is still
+  allowed, because withdrawing a sign-off only moves the gate red, and an unresolvable
+  author fails closed. Solo repositories opt in with
+  `STYLEPROOF_ALLOW_SELF_APPROVAL: 'true'` in the workflow's `env:` block; any other
+  value refuses, so a typo fails closed. The rendered comment caption and the README
+  comment-states section now state the rule. (#477)
+
+- A restyle on an element that a pull request re-nested (a wrapper added around it,
+  or removed from around it) was certified clean: certification excludes structure,
+  the element's structural path changed, and the real computed-style delta vanished
+  with the advisory remove+add. The certification diff (`styleproof-diff`, the
+  report counts, and the Action gate) now runs the same before-map correspondence
+  the report already used for presentation — nth-child shift first, then geometry
+  among one-sided elements — and pairs a re-nested element back onto its head path
+  by tag, rect, and own-text length, whether or not the paths share an ancestor.
+  Ambiguous signatures and replaced hashed identities (`id`, `data-testid`,
+  `data-style`) stay one-sided and fail closed as before; a wrapper-only change
+  still certifies as no reviewable change. (#472)
+
 ## [6.3.0] - 2026-09-02
 
 > **StyleProof 6.3.0: Release Confidence Manifest**
@@ -30,6 +136,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Forced pseudo-state capture now retries one stale CDP node through the same unique
   temporary marker, fails closed when that marker is missing or ambiguous, and clears
   already-applied states before detaching after unrelated protocol failures.
+- Advisory content evidence now frames the nearest useful shared control, outlines changed content on the side where it exists (including removals displaced by shifted siblings), and adds nearest-neighbor zoom for small labels without changing certification. `maxCrops` bounds generated advisory image sets as well as computed-style crops.
 - Capture-evidence receipts now accept bounded trees up to 512 MiB, while retaining
   the 100,000-file, 16 MiB per-file, regular-file, and no-follow safety checks.
   Exact-boundary coverage accepts the ceiling and rejects one byte above it.

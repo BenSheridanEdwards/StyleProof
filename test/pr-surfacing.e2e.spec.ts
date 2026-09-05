@@ -19,11 +19,20 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { captureStyleMap, diffStyleMaps, diffStyleMapDirs, auditRunInventory, type StyleMap } from '../dist/index.js';
+import {
+  captureStyleMap,
+  captureSurfaceScreenshots,
+  diffStyleMaps,
+  diffStyleMapDirs,
+  auditRunInventory,
+  type StyleMap,
+} from '../dist/index.js';
+import { correspondBeforeMap } from '../dist/path-correspondence.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIFF_BIN = path.join(ROOT, 'bin', 'styleproof-diff.mjs');
 const REPORT_BIN = path.join(ROOT, 'bin', 'styleproof-report.mjs');
+const CAPTURE_BIN = path.join(ROOT, 'bin', 'styleproof-capture.mjs');
 
 // Build a minimal deterministic document. No fonts, no animation → never flaky.
 const doc = (css: string, body: string): string =>
@@ -210,6 +219,48 @@ test.describe('every PR change class is surfaced in the diff', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  // GAP CLOSED (#472): certification excludes structure, so a wrapper added around
+  // (or removed from around) an element re-keyed every descendant and a real restyle
+  // on it vanished with the advisory remove+add — the surface certified clean. The
+  // certification correspondence now pairs the re-nested element back by geometry.
+  const CARD_CSS = '.card{display:block}.wrap{display:block}';
+  const CTA = (color: string) => `.cta{display:block;width:120px;height:40px;color:${color};background:rgb(0,0,255)}`;
+  const FLAT = '<div class="card"><button class="cta">Go</button></div>';
+  const WRAPPED = '<div class="card"><div class="wrap"><button class="cta">Go</button></div></div>';
+  // Exactly what diffStyleMapDirs runs for certification (structure excluded).
+  const certify = (base: StyleMap, head: StyleMap) =>
+    diffStyleMaps(correspondBeforeMap(base, head), head, { includeStructure: false });
+
+  test('a wrapper added around a RESTYLED element → the style finding still names the property', async ({ page }) => {
+    const base = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), FLAT);
+    const head = await cap(page, CARD_CSS + CTA('rgb(0,128,0)'), WRAPPED);
+    const f = certify(base, head).find((x) => x.kind === 'style' && x.props.some((p) => p.prop === 'color'));
+    expect(f, 'the colour change on the re-nested button is surfaced').toBeTruthy();
+    expect(f!.path, 'the finding sits on the head path').toContain(' > button:');
+  });
+
+  test('a wrapper removed from around a RESTYLED element → the style finding still names the property', async ({
+    page,
+  }) => {
+    const base = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), WRAPPED);
+    const head = await cap(page, CARD_CSS + CTA('rgb(0,128,0)'), FLAT);
+    const f = certify(base, head).find((x) => x.kind === 'style' && x.props.some((p) => p.prop === 'color'));
+    expect(f, 'the colour change on the un-nested button is surfaced').toBeTruthy();
+  });
+
+  test('a wrapper added around an element whose :hover was dropped → a state finding for hover', async ({ page }) => {
+    const base = await cap(page, CARD_CSS + CTA('rgb(255,0,0)') + '.cta:hover{color:rgb(200,0,0)}', FLAT);
+    const head = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), WRAPPED);
+    const f = certify(base, head).find((x) => x.kind === 'state' && x.state === 'hover');
+    expect(f, 'the dropped :hover on the re-nested button is surfaced').toBeTruthy();
+  });
+
+  test('a wrapper added around an UNCHANGED element surfaces NOTHING (zero false positives)', async ({ page }) => {
+    const base = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), FLAT);
+    const head = await cap(page, CARD_CSS + CTA('rgb(255,0,0)'), WRAPPED);
+    expect(certify(base, head)).toEqual([]);
+  });
+
   test('a clean no-op change surfaces NOTHING (zero false positives)', async ({ page }) => {
     const base = await cap(page, boxCss('background-color:rgb(200,200,200)'), BOX);
     const head = await cap(page, boxCss('background-color:rgb(200,200,200)'), BOX);
@@ -267,6 +318,164 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     expect(report.status, `styleproof-report ran and flagged the change\n${report.out}`).toBe(1);
     const md = fs.readFileSync(path.join(root, 'report', 'report.md'), 'utf8');
     expect(md, 'the report names the changed property').toMatch(/background/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  // GAP CLOSED (#472): the same re-nesting through the real gate + report bins.
+  test('styleproof-diff exits 1 and styleproof-report NAMES a restyle hidden behind a new wrapper', async ({
+    page,
+  }) => {
+    const { root, base, head } = dirs();
+    const cardCss = '.card{display:block}.wrap{display:block}';
+    const ctaCss = (bg: string) => `.cta{display:block;width:120px;height:40px;background-color:${bg}}`;
+    writeMap(
+      base,
+      await cap(page, cardCss + ctaCss('rgb(200,200,200)'), '<div class="card"><button class="cta">Go</button></div>'),
+    );
+    writeMap(
+      head,
+      await cap(
+        page,
+        cardCss + ctaCss('rgb(80,120,200)'),
+        '<div class="card"><div class="wrap"><button class="cta">Go</button></div></div>',
+      ),
+    );
+
+    const diff = run(DIFF_BIN, ['base', 'head'], root);
+    expect(diff.status, `styleproof-diff blocks the re-nested restyle\n${diff.out}`).toBe(1);
+    expect(diff.out).toMatch(/background-color/);
+
+    const report = run(REPORT_BIN, ['base', 'head', '--out', 'report'], root);
+    expect(report.status, `styleproof-report ran and flagged the change\n${report.out}`).toBe(1);
+    const md = fs.readFileSync(path.join(root, 'report', 'report.md'), 'utf8');
+    expect(md, 'the report names the changed property').toMatch(/background-color/);
+    expect(md, 'the report does not claim a clean match').not.toMatch(/No reviewable computed-style changes/);
+    const json = JSON.parse(fs.readFileSync(path.join(root, 'report', 'report.json'), 'utf8'));
+    expect(json.counts.style, 'the machine-readable count agrees with the gate').toBe(1);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test('styleproof-diff certifies a wrapper-only change as 0 reviewable changes (diagnostic compare)', async ({
+    page,
+  }) => {
+    const { root, base, head } = dirs();
+    const css =
+      '.card{display:block}.wrap{display:block}.cta{display:block;width:120px;height:40px;background-color:rgb(200,200,200)}';
+    writeMap(base, await cap(page, css, '<div class="card"><button class="cta">Go</button></div>'));
+    writeMap(
+      head,
+      await cap(page, css, '<div class="card"><div class="wrap"><button class="cta">Go</button></div></div>'),
+    );
+
+    const diff = run(DIFF_BIN, ['base', 'head', '--allow-unasserted'], root);
+    expect(diff.status, `a no-op re-nesting is not a style change\n${diff.out}`).toBe(0);
+    expect(diff.out).toMatch(/0 reviewable computed-style changes/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  // GAP CLOSED (#473, opt-in): a change computed styles cannot observe. The two
+  // <img> elements have identical computed styles (same box, same everything) but
+  // different pixels. Without --pixels the gate is green; with it the region is
+  // caught and attributed to the image element.
+  const PIXEL_CSS = '.card{display:block;padding:8px}.hero{display:block;width:120px;height:40px}';
+  // 1×1 PNGs stretched to 120×40: solid green vs solid red.
+  const GREEN =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkuMR8HgAD2AH3PE7ABQAAAABJRU5ErkJggg==';
+  const RED =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8Dw/wAF/AHOOxKrpwAAAABJRU5ErkJggg==';
+  const heroPage = (src: string) => `<div class="card"><img class="hero" alt="" src="${src}"></div>`;
+  async function capWithShots(dir: string, css: string, body: string): Promise<StyleMap> {
+    const map = await cap(page, css, body);
+    await captureSurfaceScreenshots(page, path.join(dir, 'home'));
+    return map;
+  }
+  // `page` is a fixture, so the helper above closes over it per test via a let.
+  let page: import('@playwright/test').Page;
+
+  test('image content changed with identical computed styles → green without --pixels, exit 1 and attributed with it', async ({
+    page: p,
+  }) => {
+    page = p;
+    const { root, base, head } = dirs();
+    writeMap(base, await capWithShots(base, PIXEL_CSS, heroPage(GREEN)));
+    writeMap(head, await capWithShots(head, PIXEL_CSS, heroPage(RED)));
+
+    const plain = run(DIFF_BIN, ['base', 'head', '--allow-unasserted'], root);
+    expect(plain.status, `computed styles alone cannot see the image change\n${plain.out}`).toBe(0);
+
+    const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels', '--json', 'diff.json'], root);
+    expect(gated.status, `the pixel gate blocks the image change\n${gated.out}`).toBe(1);
+    expect(gated.out).toMatch(/pixel gate: [1-9]\d* changed region/);
+    expect(gated.out).toMatch(/img:nth-child\(\d+\)\s+\(\.hero\)/);
+    const json = JSON.parse(fs.readFileSync(path.join(root, 'diff.json'), 'utf8'));
+    expect(json.counts, 'style counts stay untouched').toEqual({ dom: 0, style: 0, state: 0 });
+    expect(json.pixels.blocking).toBe(true);
+    expect(json.pixels.surfaces[0].layers[0].comparison.regions[0].elements[0].path).toMatch(/img/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test('the same page captured twice → the pixel gate certifies 0 regions (no false positives)', async ({
+    page: p,
+  }) => {
+    page = p;
+    const { root, base, head } = dirs();
+    writeMap(base, await capWithShots(base, PIXEL_CSS, heroPage(GREEN)));
+    writeMap(head, await capWithShots(head, PIXEL_CSS, heroPage(GREEN)));
+    const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels'], root);
+    expect(gated.status, `identical renders pass the pixel gate\n${gated.out}`).toBe(0);
+    expect(gated.out).toMatch(/pixel gate: 0 changed region/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test('a screenshot layer missing on one side fails the pixel gate closed', async ({ page: p }) => {
+    page = p;
+    const { root, base, head } = dirs();
+    writeMap(base, await capWithShots(base, PIXEL_CSS, heroPage(GREEN)));
+    writeMap(head, await capWithShots(head, PIXEL_CSS, heroPage(GREEN)));
+    fs.rmSync(path.join(head, 'home.hover.png'));
+    const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels'], root);
+    expect(gated.status, `an uncompared layer is not certified\n${gated.out}`).toBe(1);
+    expect(gated.out).toMatch(/\[hover\]: ✗ screenshot missing on the after side/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  // #475: two real URL-only captures of the SAME page, compared with the real
+  // report CLI. This compare used to open with three warnings a reviewer could not
+  // rank, led by "**Release confidence** — ✗ blocked (absent-legacy; integrity;
+  // manifest-absent)" — a fail-closed default reading as a finding, from a layer
+  // that could never certify a real two-directory compare. The layer is deleted:
+  // nothing of it reaches report.md, report.json, stderr, or the output directory.
+  // The one honest caveat that remains is the unverified source binding, which now
+  // states its own fail-closed rule instead of inheriting it.
+  test('a clean URL-only compare carries no release-confidence layer, only the source-binding caveat', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-flow-rc-'));
+    const pageFile = path.join(root, 'page.html');
+    fs.writeFileSync(
+      pageFile,
+      doc('.hero{display:block;width:200px;height:80px;background:rgb(0,128,128)}', '<div class="hero">Hi</div>'),
+    );
+    const base = path.join(root, 'base');
+    const head = path.join(root, 'head');
+    for (const out of [base, head]) {
+      const cap = run(CAPTURE_BIN, ['file://' + pageFile, '--out', out, '--key', 'home', '--widths', '1280'], root);
+      expect(cap.status, `real capture must succeed\n${cap.out}`).toBe(0);
+    }
+
+    const outDir = path.join(root, 'out');
+    const report = run(REPORT_BIN, [base, head, '--out', outDir], root);
+    // No --expected-*-sha, so the binding is unverified: a diagnostic, not a green.
+    expect(report.status, `an unverified compare still fails closed\n${report.out}`).toBe(1);
+    expect(report.out).toMatch(/UNVERIFIED DIAGNOSTIC: no reviewable computed-style changes/);
+    // Nothing of the deleted layer is printed, written, or left behind.
+    expect(report.out).not.toMatch(/release confidence|projection/i);
+    const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
+    expect(md).not.toMatch(/Release confidence/);
+    expect(md).not.toMatch(/absent-legacy|manifest-absent|✗ blocked/);
+    const json = JSON.parse(fs.readFileSync(path.join(outDir, 'report.json'), 'utf8'));
+    expect(json.releaseConfidence).toBeUndefined();
+    expect(fs.existsSync(path.join(outDir, 'styleproof-release-confidence.json'))).toBe(false);
+    // The comparison itself is unchanged: the same page twice has no findings.
+    expect(json.counts).toMatchObject({ dom: 0, style: 0, state: 0 });
     fs.rmSync(root, { recursive: true, force: true });
   });
 

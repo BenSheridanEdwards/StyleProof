@@ -661,3 +661,98 @@ test('a pseudo-element pruned against its OWN ua default (tag::pseudo) is not a 
   });
   assert.deepEqual(diffStyleMaps(a, b), []);
 });
+
+// ------------------------------------------------------- re-nesting (#472)
+// A wrapper added around (or removed from around) an element changes the path of
+// every descendant. Certification excludes structure, so before the fix a real
+// restyle on the re-nested element vanished with the advisory remove+add and the
+// surface certified clean. These pin the user-visible contract through the same
+// entry point the diff CLI and the report use.
+
+const cta = (color) => ({
+  tag: 'button',
+  cls: 'cta',
+  rect: [10, 10, 120, 40],
+  ownTextLength: 3,
+  style: { color, 'background-color': 'rgb(0, 0, 255)' },
+});
+const card = { tag: 'div', cls: 'card', rect: [0, 0, 200, 100], ownTextLength: 0, style: {} };
+const wrap = { tag: 'div', cls: 'card__body', rect: [0, 0, 200, 100], ownTextLength: 0, style: {} };
+const flat = (color) =>
+  makeMap({ elements: { 'div:nth-child(1)': card, 'div:nth-child(1) > button:nth-child(1)': cta(color) } });
+const wrapped = (color) =>
+  makeMap({
+    elements: {
+      'div:nth-child(1)': card,
+      'div:nth-child(1) > div:nth-child(1)': wrap,
+      'div:nth-child(1) > div:nth-child(1) > button:nth-child(1)': cta(color),
+    },
+  });
+function dirsFor(before, after) {
+  const root = mkTmp();
+  writeCapture(path.join(root, 'a'), 'home@1280', before, null);
+  writeCapture(path.join(root, 'b'), 'home@1280', after, null);
+  return { root, A: path.join(root, 'a'), B: path.join(root, 'b') };
+}
+const colorChanges = (surfaces) =>
+  surfaces.flatMap((s) =>
+    s.findings
+      .filter((f) => f.kind === 'style')
+      .flatMap((f) => f.props.filter((p) => p.prop === 'color').map((p) => `${p.before}->${p.after}`)),
+  );
+
+test('diffStyleMapDirs surfaces a restyle on an element that a new wrapper re-nested', () => {
+  const { root, A, B } = dirsFor(flat('rgb(255, 0, 0)'), wrapped('rgb(0, 128, 0)'));
+  const { surfaces, counts } = diffStyleMapDirs(A, B);
+  assert.equal(counts.style, 1);
+  assert.equal(counts.dom, 0, 'structure stays advisory: no dom findings in certification');
+  assert.deepEqual(colorChanges(surfaces), ['rgb(255, 0, 0)->rgb(0, 128, 0)']);
+  assert.equal(surfaces[0].findings[0].path, 'div:nth-child(1) > div:nth-child(1) > button:nth-child(1)');
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs surfaces a restyle on an element whose wrapper was removed', () => {
+  const { root, A, B } = dirsFor(wrapped('rgb(255, 0, 0)'), flat('rgb(0, 128, 0)'));
+  const { surfaces, counts } = diffStyleMapDirs(A, B);
+  assert.equal(counts.style, 1);
+  assert.deepEqual(colorChanges(surfaces), ['rgb(255, 0, 0)->rgb(0, 128, 0)']);
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs stays clean when only the nesting changed (no false positive)', () => {
+  const { root, A, B } = dirsFor(flat('rgb(255, 0, 0)'), wrapped('rgb(255, 0, 0)'));
+  const { surfaces, counts } = diffStyleMapDirs(A, B);
+  assert.deepEqual(counts, { dom: 0, style: 0, state: 0 });
+  assert.equal(surfaces.length, 0);
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs carries forced-state deltas across a re-nesting', () => {
+  const before = {
+    ...flat('rgb(255, 0, 0)'),
+    states: {
+      'div:nth-child(1) > button:nth-child(1)': {
+        hover: { 'div:nth-child(1) > button:nth-child(1)': { color: 'rgb(200, 0, 0)' } },
+      },
+    },
+  };
+  // Head re-nests the button and DROPS its :hover colour.
+  const { root, A, B } = dirsFor(before, wrapped('rgb(255, 0, 0)'));
+  const { surfaces, counts } = diffStyleMapDirs(A, B);
+  assert.equal(counts.style, 0);
+  assert.equal(counts.state, 1);
+  assert.equal(surfaces[0].findings[0].kind, 'state');
+  assert.equal(surfaces[0].findings[0].state, 'hover');
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs structural inventory mode (includeStructure: true) is unchanged: raw remove + add', () => {
+  const { root, A, B } = dirsFor(flat('rgb(255, 0, 0)'), wrapped('rgb(0, 128, 0)'));
+  const { surfaces } = diffStyleMapDirs(A, B, { includeStructure: true });
+  const dom = surfaces[0].findings.filter((f) => f.kind === 'dom');
+  assert.ok(dom.some((f) => f.change === 'removed' && f.path === 'div:nth-child(1) > button:nth-child(1)'));
+  assert.ok(
+    dom.some((f) => f.change === 'added' && f.path === 'div:nth-child(1) > div:nth-child(1) > button:nth-child(1)'),
+  );
+  rmTmp(root);
+});

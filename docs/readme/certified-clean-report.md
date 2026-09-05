@@ -1,7 +1,5 @@
 ## 🗺️ StyleProof report
 
-**Release confidence** — ✓ complete (1 declared surface(s), 6/6 domains complete)
-
 **Certification**
 - **Coverage** — ✓ complete (all 1 registered surface(s) captured)
 - **Determinism** — ✓ proven (base self-checked, head self-checked)

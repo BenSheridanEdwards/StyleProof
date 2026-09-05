@@ -128,7 +128,7 @@ Interactive-state changes:
 
 ---
 
-_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, one tick signs it off. A new push that changes styles or surfaces re-opens it._
+_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._
 
 **[Quickstart](#quickstart)** ·
 **[Read the catch contract](docs/what-it-catches.md)**
@@ -150,6 +150,21 @@ approval can clear only `STYLE_REVIEW_REQUIRED`. Each state appears once.
 | `PARTIAL_BASELINE`                 | The base capture missed registered surfaces.                                       | Hidden. Repair the base branch.        |
 | `DEGRADED_BASELINE`                | The base capture failed. This is a head-only receipt.                              | Hidden. Not a comparison.              |
 | `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                               | Hidden. Delivery failed.               |
+
+#### Who may tick the box
+
+A sign-off needs write access **and** a login other than the pull request
+author's. `styleproof-approve.yml` refuses a self-approval: it unticks the box,
+leaves the `StyleProof` status red with `Needs a reviewer other than @author`,
+and replies once on the pull request. The rule holds however the author reaches
+a ticked box — including editing a comment a reviewer already ticked, which
+would otherwise transfer the sign-off to the editor.
+
+Two things stay allowed. The author may always **untick**, because withdrawing a
+sign-off only moves the gate red. And a solo repository may opt in by setting
+`STYLEPROOF_ALLOW_SELF_APPROVAL: 'true'` in
+[`example/styleproof-approve.yml`](example/styleproof-approve.yml). It is
+`'false'` by default, and any other value refuses, so a typo fails closed.
 
 ### Certified clean
 
@@ -212,6 +227,7 @@ it or acknowledge it in policy. The approval box cannot clear it.
 - [Any styling system, real breakpoints](#any-styling-system-real-breakpoints)
 - [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel)
 - [Forks and Dependabot](#forks-and-dependabot)
+- [Optional: pixel gate](#optional-pixel-gate)
 - [Optional: content layer](#optional-content-layer-advisory)
 - [Optional: React component layer](#optional-react-component-layer-advisory)
 - [Optional: selective remap](#optional-selective-remap-advisory)
@@ -236,6 +252,8 @@ It catches:
 - a modal, menu, listbox, popover, sheet, or toast whose open state changed;
 - a supposedly no-op refactor, such as CSS-to-Tailwind, that changed rendered
   output;
+- a restyle on an element the PR also re-nested (a wrapper added or removed),
+  paired back by geometry so the structural churn cannot hide it;
 - a required route, component, or UI state that exists but has no capture.
 
 The end-to-end catch contract lives in
@@ -335,12 +353,6 @@ verifies first, writes into a temporary directory, then exposes the result with
 one atomic rename. Git-backed remote publication still uses the v1 adapter while
 the dual-write and remote CAS migration is completed; see
 [`docs/evidence-store-v2.md`](docs/evidence-store-v2.md).
-
-For canonical exact-source release evidence, see the
-[Release Confidence Manifest v0.1 contract](docs/release-confidence-manifest.md).
-It projects existing capture, comparability, ledger, source-binding and verified
-evidence-store artifacts without replacing their truth rules. The manifest is not
-yet the report or Action gate; that consumer policy remains separate.
 
 `styleproof setup` detects your app and wires **surface discovery** for you — there is nothing to hand-list for the first capture:
 
@@ -1031,20 +1043,36 @@ fixture-required outcomes fail the command.
 Config-file recipe parsing and bare Escape without a target selector remain
 follow-up slices.
 
-Before promoting a new state class, capture it in at least five fresh browser
-contexts and pass the public determinism oracle:
+Before promoting a new state class, capture it in five fresh browser contexts and
+pass the determinism oracle. The capture CLI does this for you:
+
+```bash
+styleproof-map --prove-determinism
+```
+
+That captures your whole declared surface set five times, requires every canonical
+map hash to match, writes `styleproof-determinism.json` beside the maps, and records
+`determinism: oracle-proven` in the coverage ledger — the strongest of the four bases
+the gate accepts, and the only one that can see a flake which happens to repeat
+twice. A failing run discards the bundle rather than publishing it: a
+nondeterministic capture must never become a baseline. It costs five capture runs,
+so it is opt-in; the default single run still self-checks (captures twice and
+compares).
+
+The same oracle is a public API when you need to drive it yourself:
 
 ```ts
-import { assessDeterminismOracle, hashDeterminismMap } from 'styleproof';
+import { assessDeterminismOracle, determinismRunReceipt } from 'styleproof';
 
-const runs = captureDirs.map((dir) => ({
-  stateKeys: orderedKeys,
-  mapHashes: Object.fromEntries(orderedKeys.map((key) => [key, hashDeterminismMap(loadMap(dir, key))])),
-}));
+const runs = captureDirs.map((dir) => determinismRunReceipt(mapsIn(dir)));
 
 const verdict = assessDeterminismOracle(runs);
 if (verdict.status !== 'deterministic') throw new Error(JSON.stringify(verdict));
 ```
+
+`determinismRunReceipt` takes `[stateKey, map]` pairs and sorts the keys, so two
+honest runs can never disagree on filesystem ordering alone. `hashDeterminismMap`
+remains exported for callers that build receipts by hand.
 
 `deterministic` means exactly five valid runs were supplied and all five match.
 Every other result is `flake`, with a machine-readable reason: `run-count`,
@@ -1299,6 +1327,29 @@ That last point is why this works where `pull_request_target` does not: StylePro
 
 Copy both `capture` and `report` files to `.github/workflows/` (the `report` one must be on your default branch, like `styleproof-approve.yml`), then require the `StyleProof` status in branch protection. A single combined `pull_request` job that captures base + head and diffs them is fine for repos that never see fork or bot PRs; this split is only needed for untrusted PRs.
 
+## Optional: pixel gate
+
+Computed styles are the cause; pixels are the effect. The computed-style gate
+cannot see image content, canvas paint, or font rasterisation, and it needs a
+base-to-head element correspondence before it can compare anything. The pixel
+gate needs neither. It compares the screenshots every capture already writes
+(`<surface>.png` plus the forced `:hover`, `:focus`, and `:active` layers) and
+attributes every changed region to the captured elements under it, innermost
+first, so the reviewer still gets an element name next to the crop.
+
+```bash
+styleproof-diff base head --pixels            # exit 1 on any changed region
+styleproof-diff --pixels --json diff.json     # regions, per layer, under `pixels`
+```
+
+Deterministic captures from the same compatibility environment render
+byte-identical, so the gate expects exact equality and tolerates only
+anti-aliasing noise: a per-pixel YIQ colour distance under `0.1` is not a change,
+and a connected region smaller than 4 pixels is dropped. A screenshot layer that
+exists on one side only cannot be certified and fails the gate closed. Pixel
+results never enter the computed-style counts; the two verdicts are reported
+side by side.
+
 ## Optional: content layer (advisory)
 
 StyleProof is **computed-styles first**, and stays that way: copy and DOM
@@ -1412,6 +1463,8 @@ It is **opt-in and never part of the default gate** — the gate still captures 
 
 The module graph is an **input**, so StyleProof stays framework-agnostic and adds no dependency. Produce it with any tool whose output you can shape into `{ from, to }` edges — [dependency-cruiser](https://www.npmjs.com/package/dependency-cruiser)'s `modules[].dependencies[]` maps directly:
 
+Multiple surface keys may share an entry module (for example, resting and open states). A change reaching that module selects every associated surface, including entries using equivalent `./` path spellings.
+
 ```ts
 import { affectedSurfaces } from 'styleproof';
 import { readFileSync } from 'node:fs';
@@ -1436,6 +1489,8 @@ const result = affectedSurfaces({
 Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)` is treated as a bundler **context module** (every file under that dir is a possible target, so precision there is directory-level, never a miss); and a CSS-Module (`.module.scss`/`.module.sass`) that carries a Sass `@use`/`@forward` load resolves to `'all'`, because those pull in a partial the JS import graph can't bound. One honest **residual** stays `'scope'` by design: the CSS-in-JS global list (`createGlobalStyle`, `injectGlobal`, `globalStyle`, …) must match the libraries you use — an allowlist can't fail closed on an _unknown_ member, so an unrecognized global API in a `.tsx` is the one way a scoped verdict could be unsound. Treat an unsupported styling system as a reason to skip selective remap. Because a PR-time miss would be silent, always let `main` (or a scheduled run) capture **all** surfaces as the trust-but-verify net.
 
 ### Show the skip list, then wire the pre-push hook
+
+Computed-import context directories include nested folders. For example, ``import(`../components/${name}`)`` can load `components/nested/Card.tsx`; changes to that module or its scoped stylesheet select the importing surface. Sibling directories such as `components-extra` remain outside that context.
 
 Before you trust a skip, print it. `explainAffectedSurfaces(result, allSurfaceKeys)` renders the verdict as reviewer-checkable lines — which surfaces re-capture and which reuse their restored base map — and takes an optional reason string for the `'all'` case:
 

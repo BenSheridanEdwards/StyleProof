@@ -1,8 +1,16 @@
 # ADR 0004: Release Confidence Manifest v0.1
 
-- **Status:** proposed for #437 review
+- **Status:** superseded by #475 (2026-09-03) — the manifest was deleted
 - **Date:** 2026-08-30
 - **Depends on:** #448 Phase 0 truth contract, #438 product-state comparability, #452 source/evidence binding
+
+> **Superseded.** About 3,300 lines across the Phase 0 kernel, the manifest and
+> the projector produced one Markdown line and one JSON sidecar that this same
+> repository then re-parsed, and no external consumer ever existed. The layer
+> also could not certify a real two-directory compare, so its fail-closed
+> default read as a finding on clean runs (#474). It was deleted in #475.
+> Revisit only when a second user asks for a machine-readable release receipt.
+> This record is kept for history only.
 
 ## Context
 
