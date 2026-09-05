@@ -375,12 +375,19 @@ const PACKAGE_MANAGERS = {
 };
 
 let PM;
-try {
-  PM = PACKAGE_MANAGERS[detectPackageManager(process.cwd())];
-} catch (error) {
-  const detail = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`styleproof-init: ${detail}\n`);
-  process.exit(2);
+if (hookOnly) {
+  // The hook shim is package-manager agnostic. Keep --hook usable as a standalone
+  // refresh/install operation even before a manifest exists or while lockfiles are
+  // being migrated; npm is only a harmless placeholder for templates we never write.
+  PM = PACKAGE_MANAGERS.npm;
+} else {
+  try {
+    PM = PACKAGE_MANAGERS[detectPackageManager(process.cwd(), { allowMissingManifest: true })];
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`styleproof-init: ${detail}\n`);
+    process.exit(2);
+  }
 }
 function readPackageJson(root) {
   try {
