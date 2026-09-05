@@ -42,6 +42,10 @@ const TOOLBAR = [55, 65, 81];
 const SWITCH = [88, 28, 135];
 const GRID = [229, 231, 235];
 const DUPLICATE_CONTROL = [37, 99, 235];
+const CONTENT_CONTROL = [31, 41, 55];
+const CONTENT_ADJACENT = [16, 185, 129];
+const CONTENT_BASE = [239, 68, 68];
+const CONTENT_HEAD = [59, 130, 246];
 
 function newPng(w, h, [r, g, b]) {
   const png = new PNG({ width: w, height: h });
@@ -54,6 +58,28 @@ function newPng(w, h, [r, g, b]) {
   return png;
 }
 
+const CONTENT_GLYPHS = {
+  D: ['110', '101', '101', '101', '110'],
+  E: ['111', '100', '110', '100', '111'],
+  L: ['100', '100', '100', '100', '111'],
+  N: ['10001', '11001', '10101', '10011', '10001'],
+  O: ['111', '101', '101', '101', '111'],
+  W: ['101', '101', '111', '111', '101'],
+};
+
+function drawContentWord(png, word, x, y, scale = 2) {
+  let cursorX = x;
+  for (const letter of word) {
+    const rows = CONTENT_GLYPHS[letter];
+    for (const [row, pixels] of rows.entries()) {
+      for (const [column, pixel] of [...pixels].entries()) {
+        if (pixel === '1') fill(png, cursorX + column * scale, y + row * scale, scale, scale, BRAND);
+      }
+    }
+    cursorX += (rows[0].length + 1) * scale;
+  }
+}
+
 // One landing "screenshot": dark header with a small caret icon, a CTA button,
 // and a card. `tone` picks the base (before) or head (after) palette.
 function homeScreenshot(tone) {
@@ -63,6 +89,10 @@ function homeScreenshot(tone) {
   fill(png, 150, 40, 12, 16, tone === 'base' ? CARET_BASE : CARET_HEAD); // tiny caret
   fill(png, 40, 110, 180, 52, tone === 'base' ? CTA_BASE : CTA_HEAD); // CTA
   fill(png, 40, 200, 360, 150, CARD); // card
+  fill(png, 450, 200, 400, 80, CONTENT_CONTROL); // contextual content control
+  fill(png, 470, 220, 100, 40, CONTENT_ADJACENT); // adjacent control proves context
+  fill(png, 790, 232, 40, 16, tone === 'base' ? CONTENT_BASE : CONTENT_HEAD); // changed label
+  drawContentWord(png, tone === 'base' ? 'OLD' : 'NEW', 798, 235);
   return PNG.sync.write(png);
 }
 function homeMap(tone) {
@@ -91,6 +121,25 @@ function homeMap(tone) {
       cls: 'card',
       rect: [40, 200, 360, 150],
       style: { 'background-color': rgb(CARD) },
+    },
+    'body > main:nth-child(2) > div:nth-child(3)': {
+      tag: 'div',
+      cls: 'content-control',
+      rect: [450, 200, 400, 80],
+      style: { 'background-color': rgb(CONTENT_CONTROL) },
+    },
+    'body > main:nth-child(2) > div:nth-child(3) > button:nth-child(1)': {
+      tag: 'button',
+      cls: 'adjacent-action',
+      rect: [470, 220, 100, 40],
+      style: { 'background-color': rgb(CONTENT_ADJACENT) },
+    },
+    'body > main:nth-child(2) > div:nth-child(3) > span:nth-child(2)': {
+      tag: 'span',
+      cls: 'content-label',
+      rect: [790, 232, 40, 16],
+      text: tone === 'base' ? 'Old' : 'New',
+      style: { color: rgb(BRAND) },
     },
     // The property change is auditable, but the element is fully left of the
     // screenshot canvas. The report must name that limitation instead of
@@ -215,7 +264,13 @@ function duplicateInsertionMap(tone) {
 function makeMap(elements) {
   const els = {};
   for (const [p, e] of Object.entries(elements)) {
-    els[p] = { tag: e.tag, cls: e.cls ?? '', ...(e.rect ? { rect: e.rect } : {}), style: e.style ?? {} };
+    els[p] = {
+      tag: e.tag,
+      cls: e.cls ?? '',
+      ...(e.rect ? { rect: e.rect } : {}),
+      ...(e.text !== undefined ? { text: e.text } : {}),
+      style: e.style ?? {},
+    };
   }
   return { defaults: {}, elements: els, states: {} };
 }
@@ -252,7 +307,7 @@ function render(outDir) {
 
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, includeContent: true });
   fs.rmSync(res.reportJsonPath, { force: true }); // commit the human report + images only
   fs.rmSync(work, { recursive: true, force: true });
   return res.reportMdPath;
