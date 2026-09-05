@@ -7,6 +7,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Approval now requires the canonical bot publication, immutable report identity and `STYLE_REVIEW_REQUIRED` machine verdict. Copied comments, stale receipts and untick-retick laundering cannot grant a success status. Private-repository rollout requires a separately approved `contents: read` grant on the approval workflow; this patch does not change permissions.
+
 ### Added
 
 - Baseline capture failures now survive as bounded `{ key, reason }` receipts in diff JSON and `report.json`, while raw exception text stays private. Markdown renders from that same receipt within its display budget, matching failed baseline surfaces are labeled and counted as repair debt instead of first adoption, and unrelated head surfaces stay genuinely new. `styleproof-diff` fails closed with exit 1 for any partial baseline, never reports repair debt as clean or fully certified, and the Action rejects missing, malformed, or contradictory receipts before publishing its trust state. (#491)
