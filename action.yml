@@ -51,7 +51,7 @@ outputs:
       "true" when style review is required: a semantically matched element changed
       computed style, pseudo-element, or forced state; or a surface was added or
       removed and must be reviewed before changing the baseline.
-    value: ${{ steps.diff.outputs.changed }}
+    value: ${{ steps.verdict.outputs.reviewable-changed }}
   report-url:
     description: 'Blob URL of the durable report receipt for this run.'
     value: ${{ steps.publish.outputs.url }}
@@ -443,9 +443,22 @@ runs:
           const rawOnlyNoReviewable =
             diff.reportConsistency?.ok === false ||
             diff.reportConsistency?.reason === 'raw_only_no_reviewable';
-          const partialBaseline = (diff.partialBaseline === true) ||
-            (Array.isArray(diff.explainedMissingBaselineSurfaces) &&
-              diff.explainedMissingBaselineSurfaces.length > 0);
+          const explainedMissingBaselineSurfaces = new Set(
+            Array.isArray(diff.explainedMissingBaselineSurfaces)
+              ? diff.explainedMissingBaselineSurfaces
+              : [],
+          );
+          const partialBaseline = (diff.partialBaseline === true) || explainedMissingBaselineSurfaces.size > 0;
+          const reviewableChanged =
+            (Array.isArray(diff.surfaces) && diff.surfaces.some((surface) =>
+              surface && (
+                (Array.isArray(surface.findings) && surface.findings.length > 0) ||
+                surface.missing === 'after' ||
+                (surface.missing === 'before' && !explainedMissingBaselineSurfaces.has(surface.surface))
+              ),
+            )) ||
+            (Array.isArray(diff.inventory?.added) && diff.inventory.added.length > 0) ||
+            (Array.isArray(diff.inventory?.removed) && diff.inventory.removed.length > 0);
           let state = 'NO_REVIEWABLE_STYLE_CHANGES';
           if ((diff.dataResidue?.blocking ?? 0) > 0) state = 'DATA_RESIDUE_UNACKNOWLEDGED';
           else if (inventoryFailures > 0) state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED';
@@ -463,6 +476,7 @@ runs:
           report.actionTrustState = state;
           fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
           core.setOutput('state', state);
+          core.setOutput('reviewable-changed', reviewableChanged ? 'true' : 'false');
           core.setOutput('data-residue-keys', JSON.stringify(residueKeys));
           core.info(`StyleProof trust state: ${state}`);
 

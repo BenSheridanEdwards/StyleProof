@@ -849,7 +849,10 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
         env: { ...process.env, STYLEPROOF_VERDICT_OUTPUT: verdictOutput },
       });
       assert.equal(verdict.status, 0, `${fixture} verdict: ${verdict.stderr || verdict.stdout}`);
-      assert.equal(JSON.parse(fs.readFileSync(verdictOutput, 'utf8')).state, expectedState, fixture);
+      const verdictReceipt = JSON.parse(fs.readFileSync(verdictOutput, 'utf8'));
+      assert.equal(verdictReceipt.state, expectedState, fixture);
+      const expectedReviewableChanged = ['changed', 'new', 'degraded', 'removed'].includes(fixture);
+      assert.equal(verdictReceipt['reviewable-changed'], String(expectedReviewableChanged), fixture);
       assert.equal(
         JSON.parse(fs.readFileSync(path.join(caseRoot, 'styleproof-report', 'report.json'), 'utf8')).actionTrustState,
         expectedState,
@@ -974,6 +977,9 @@ test('composite action exposes one precedence-ordered machine-readable trust ver
 
 test('composite action hard-gates partial baseline repair debt', () => {
   assert.match(actionYml, /PARTIAL_BASELINE/);
+  assert.match(actionYml, /changed:[\s\S]*?steps\.verdict\.outputs\.reviewable-changed/);
+  assert.match(actionYml, /explainedMissingBaselineSurfaces/);
+  assert.match(actionYml, /reviewableChanged/);
   const gate = actionYml.match(/- name: Block on partial baseline[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/);
   assert.ok(gate, 'action.yml should fail rather than certify ledger-explained baseline gaps');
   assert.match(gate[0], /verdict\.outputs\.state == 'PARTIAL_BASELINE'/);
