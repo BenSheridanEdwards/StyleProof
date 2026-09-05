@@ -50,6 +50,7 @@ import {
   cleanupCachedCaptureDirs,
   manifestlessError,
   manifestlessSide,
+  baselineFailureReceipts,
   readBaselineProvenance,
   readMapManifest,
   resolveCachedCaptureDirs,
@@ -499,7 +500,8 @@ const pixelSurfaces = result.pixels ?? [];
 const truth = assessComparisonTruth(surfaces, counts, comparability, { requireStateIdentity });
 const comparison = summarizeComparability(comparability, requireStateIdentity);
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
-const partialBaseline = explainedMissingBaselineSurfaceKeys.length > 0;
+const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures);
+const partialBaseline = baselineFailures.length > 0;
 
 function printBaselineSurfaceFailureCallout() {
   if (!baselineSurfaceFailures.length) return;
@@ -587,17 +589,17 @@ function elementLines(findings) {
   return lines;
 }
 
-// One-sided surfaces keep their own line. The two directions are NOT the same
-// verdict: only-in-after is a NEW surface (no baseline, review before
-// baselining); only-in-before is a REMOVED surface — a route or width that
-// existed and is gone, which is a change, never an onboarding case.
+// One-sided surfaces keep their own line. A baseline-capture failure is repair
+// debt, not first adoption; only an unexplained after-only surface is NEW.
+function oneSidedSurfaceLine(sd) {
+  if (sd.missing === 'after')
+    return `\n${sd.surface}: ✗ REMOVED surface — captured only in the before set; the head no longer renders it`;
+  if (surfaceMissingMatchesBaselineFailure(sd.surface, baselineSurfaceFailures))
+    return `\n${sd.surface}: ✗ baseline repair debt — captured only in the after set because baseline capture failed; repair the base branch`;
+  return `\n${sd.surface}: new surface — captured only in the after set, no baseline to compare; review before baselining`;
+}
 for (const sd of surfaces) {
-  if (!sd.missing) continue;
-  console.log(
-    sd.missing === 'before'
-      ? `\n${sd.surface}: new surface — captured only in the after set, no baseline to compare`
-      : `\n${sd.surface}: ✗ REMOVED surface — captured only in the before set; the head no longer renders it`,
-  );
+  if (sd.missing) console.log(oneSidedSurfaceLine(sd));
 }
 
 // Group the changed surfaces the way the report does, so an identical change
@@ -725,6 +727,7 @@ const certifiesFully =
   sourceBinding?.status === 'bound' &&
   !allowUnasserted &&
   !truth.rawOnlyNoReviewable &&
+  !partialBaseline &&
   !comparison.blocksCertification &&
   total === 0 &&
   removedSurfaces === 0 &&
@@ -765,7 +768,7 @@ if (jsonOut) {
             : { ok: true, reason: 'aligned' },
           surfaces,
           compared,
-          baselineSurfaceFailures,
+          baselineFailures,
           // Additive (#367): where the baseline maps came from, when the run
           // recorded it — restored from the exact base SHA, restored from a
           // nearest ancestor (with the changed-path-count proof), or captured.
@@ -868,6 +871,7 @@ const pixNote = pixelBlocks
   : '';
 const clean =
   total === 0 &&
+  !partialBaseline &&
   !comparison.blocksCertification &&
   removedSurfaces === 0 &&
   invRemovals === 0 &&
@@ -911,6 +915,7 @@ console.log(
 // first-adoption bare base (or greenfield with proven ledgers). 2 = usage.
 process.exit(
   total > 0 ||
+    partialBaseline ||
     comparison.blocksCertification ||
     removedSurfaces > 0 ||
     invRemovals > 0 ||
