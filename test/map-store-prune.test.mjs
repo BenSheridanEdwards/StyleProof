@@ -66,31 +66,50 @@ function buildFakeGitHub({
   commitPages = [[]],
   blobContentsBySha = {},
   serverFailuresBeforeSuccess = 0,
+  racingPublication,
+  graphqlResponse,
+  graphqlStatus = 200,
+  apiBaseUrl = 'https://api.example',
 } = {}) {
-  const state = { createdTrees: [], createdCommits: [], createdBlobs: [], refUpdates: [] };
+  const state = { createdTrees: [], createdCommits: [], createdBlobs: [], refUpdates: [], branchTip, rootTreeEntries };
   let remainingServerFailures = serverFailuresBeforeSuccess;
   const fetchImplementation = async (url, options = {}) => {
     const method = options.method ?? 'GET';
-    const apiPath = String(url).replace('https://api.example/repos/acme/widgets', '');
+    const apiPath = String(url).replace(`${apiBaseUrl}/repos/acme/widgets`, '');
     const respond = (status, body) => ({
       ok: status < 400,
       status,
       json: async () => body,
       text: async () => JSON.stringify(body),
     });
+    if (method === 'GET' && apiPath === '') return respond(200, { node_id: 'repository-id' });
+    const graphqlUrl = apiBaseUrl.endsWith('/api/v3')
+      ? apiBaseUrl.replace(/\/api\/v3$/, '/api/graphql')
+      : `${apiBaseUrl}/graphql`;
+    if (method === 'POST' && String(url) === graphqlUrl) {
+      if (graphqlResponse) return respond(graphqlStatus, graphqlResponse);
+      const { variables } = JSON.parse(options.body);
+      const update = variables.input.refUpdates[0];
+      if (update.beforeOid !== state.branchTip) {
+        return respond(200, { errors: [{ message: 'reference does not match beforeOid', type: 'UNPROCESSABLE' }] });
+      }
+      state.refUpdates.push(update);
+      state.branchTip = update.afterOid;
+      return respond(200, { data: { updateRefs: { clientMutationId: variables.input.clientMutationId } } });
+    }
     if (remainingServerFailures > 0) {
       remainingServerFailures -= 1;
       return respond(500, { message: 'flake' });
     }
     if (method === 'GET' && apiPath.startsWith('/git/ref/')) {
-      if (branchTip === null) return respond(404, { message: 'Not Found' });
-      return respond(200, { object: { sha: branchTip } });
+      if (state.branchTip === null) return respond(404, { message: 'Not Found' });
+      return respond(200, { object: { sha: state.branchTip } });
     }
     if (method === 'GET' && apiPath.startsWith('/git/commits/')) {
       return respond(200, { tree: { sha: 'tip-tree-sha' } });
     }
     if (method === 'GET' && apiPath.startsWith('/git/trees/')) {
-      return respond(200, { tree: rootTreeEntries });
+      return respond(200, { tree: state.rootTreeEntries });
     }
     if (method === 'GET' && apiPath.startsWith('/git/blobs/')) {
       const blobSha = apiPath.slice('/git/blobs/'.length);
@@ -113,10 +132,16 @@ function buildFakeGitHub({
     }
     if (method === 'POST' && apiPath === '/git/commits') {
       state.createdCommits.push(JSON.parse(options.body));
+      if (racingPublication && state.createdCommits.length === 1) {
+        state.branchTip = 'published-tip-sha';
+        state.rootTreeEntries = [...state.rootTreeEntries, racingPublication];
+        commitPages = [[publishCommit(racingPublication.path.slice(0, 12), 0), ...commitPages[0]]];
+      }
       return respond(201, { sha: 'compaction-commit-sha' });
     }
     if (method === 'PATCH' && apiPath.startsWith('/git/refs/')) {
       state.refUpdates.push(JSON.parse(options.body));
+      state.branchTip = JSON.parse(options.body).sha;
       return respond(200, {});
     }
     throw new Error(`unexpected request: ${method} ${apiPath}`);
@@ -147,6 +172,116 @@ const FRESH_SHA = 'aaaaaaaaaaaa1111111111111111111111111111';
 const STALE_SHA = 'bbbbbbbbbbbb2222222222222222222222222222';
 const LEGACY_SHA = 'cccccccccccc3333333333333333333333333333';
 
+test('a publication racing compaction survives the conditional ref update', async () => {
+  const racingSha = 'dddddddddddd4444444444444444444444444444';
+  const fake = buildFakeGitHub({
+    rootTreeEntries: [{ path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' }],
+    racingPublication: { path: racingSha, type: 'tree', mode: '040000', sha: 'racing-tree' },
+  });
+  const result = await compactMapStoreBranch({ ...apiOptions, fetchImplementation: fake.fetchImplementation });
+  assert.deepEqual(result.retainedDirectoryNames, [racingSha], 'the newly published capture must remain restorable');
+  assert.equal(fake.state.createdCommits.length, 2, 'retry must recalculate retention from the new tip');
+  assert.equal(fake.state.refUpdates.length, 1, 'the stale compaction must not update the ref');
+  assert.equal(fake.state.refUpdates[0].beforeOid, 'published-tip-sha');
+  assert.ok(fake.state.createdTrees.at(-1).tree.some((entry) => entry.sha === 'racing-tree'));
+});
+
+test('exhausted contention leaves the racing publication untouched', async () => {
+  const fake = buildFakeGitHub({
+    rootTreeEntries: [{ path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' }],
+    racingPublication: { path: FRESH_SHA, type: 'tree', mode: '040000', sha: 'fresh-tree' },
+  });
+  await assert.rejects(
+    compactMapStoreBranch({ ...apiOptions, maximumAttempts: 1, fetchImplementation: fake.fetchImplementation }),
+    /returned GraphQL errors/,
+  );
+  assert.equal(fake.state.branchTip, 'published-tip-sha');
+  assert.deepEqual(fake.state.refUpdates, []);
+});
+
+for (const [name, response, status, attempts] of [
+  ['GraphQL permission error', { errors: [{ message: 'Resource not accessible', type: 'FORBIDDEN' }] }, 200, 1],
+  ['HTTP permission error', { message: 'Forbidden' }, 403, 1],
+  ['missing acknowledgement', { data: { updateRefs: null } }, 200, 2],
+  ['wrong acknowledgement', { data: { updateRefs: { clientMutationId: 'another-tip' } } }, 200, 2],
+  ['malformed errors object', { data: { updateRefs: { clientMutationId: 'tip-sha' } }, errors: {} }, 200, 1],
+  ['malformed errors string', { data: { updateRefs: { clientMutationId: 'tip-sha' } }, errors: 'none' }, 200, 1],
+  [
+    'partial GraphQL success',
+    { data: { updateRefs: { clientMutationId: 'tip-sha' } }, errors: [{ message: 'failed' }] },
+    200,
+    1,
+  ],
+]) {
+  test(`${name} cannot become a successful or unconditional compaction`, async () => {
+    const fake = buildFakeGitHub({
+      rootTreeEntries: [{ path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' }],
+      graphqlResponse: response,
+      graphqlStatus: status,
+    });
+    await assert.rejects(
+      compactMapStoreBranch({ ...apiOptions, maximumAttempts: 2, fetchImplementation: fake.fetchImplementation }),
+      /updateRefs/,
+    );
+    assert.deepEqual(fake.state.refUpdates, []);
+    assert.equal(fake.state.createdCommits.length, attempts);
+    assert.equal(fake.state.branchTip, 'tip-sha');
+  });
+}
+
+test('GraphQL provider details never enter errors or retry diagnostics', async () => {
+  const providerDetail = 'secret-provider-diagnostic';
+  const fake = buildFakeGitHub({
+    rootTreeEntries: [{ path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' }],
+    graphqlResponse: { errors: [{ message: providerDetail }] },
+  });
+  const logs = [];
+  let thrown;
+  try {
+    await compactMapStoreBranch({
+      ...apiOptions,
+      maximumAttempts: 2,
+      fetchImplementation: fake.fetchImplementation,
+      log: (line) => logs.push(line),
+    });
+  } catch (error) {
+    thrown = error;
+  }
+  assert.match(String(thrown), /returned GraphQL errors/);
+  assert.doesNotMatch(String(thrown), new RegExp(providerDetail));
+  assert.doesNotMatch(logs.join('\n'), new RegExp(providerDetail));
+});
+
+test('retry diagnostics omit raw API response details', async () => {
+  const fake = buildFakeGitHub({
+    rootTreeEntries: [{ path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' }],
+    serverFailuresBeforeSuccess: 1,
+  });
+  const logs = [];
+  await compactMapStoreBranch({
+    ...apiOptions,
+    fetchImplementation: fake.fetchImplementation,
+    log: (line) => logs.push(line),
+  });
+  assert.match(logs[0], /failed \(HTTP 500\); retrying/);
+  assert.doesNotMatch(logs[0], /flake/);
+});
+
+test('GitHub Enterprise compaction uses the same server API GraphQL endpoint', async () => {
+  const apiBaseUrl = 'https://git.example/api/v3';
+  const fake = buildFakeGitHub({
+    apiBaseUrl,
+    rootTreeEntries: [{ path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' }],
+  });
+  const result = await compactMapStoreBranch({
+    ...apiOptions,
+    apiBaseUrl,
+    fetchImplementation: fake.fetchImplementation,
+  });
+  assert.equal(result.compacted, true);
+  assert.equal(fake.state.refUpdates[0].beforeOid, 'tip-sha');
+});
+
 test('compaction retains dated fresh bundles and squashes to an orphan commit', async () => {
   const fake = buildFakeGitHub({
     rootTreeEntries: [
@@ -174,7 +309,9 @@ test('compaction retains dated fresh bundles and squashes to an orphan commit', 
 
   const [commitPayload] = fake.state.createdCommits;
   assert.deepEqual(commitPayload.parents, [], 'the compaction commit is an orphan — history is squashed');
-  assert.deepEqual(fake.state.refUpdates, [{ sha: 'compaction-commit-sha', force: true }]);
+  assert.deepEqual(fake.state.refUpdates, [
+    { name: 'refs/heads/styleproof-maps', beforeOid: 'tip-sha', afterOid: 'compaction-commit-sha', force: true },
+  ]);
 
   const sidecar = JSON.parse(fake.state.createdBlobs[0]);
   assert.equal(sidecar.version, 1);
