@@ -109,6 +109,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Advisory content evidence now frames the nearest useful shared control, outlines changed content on the side where it exists, and adds nearest-neighbor zoom for small labels without changing certification.
 - Capture-evidence receipts now accept bounded trees up to 512 MiB, while retaining
   the 100,000-file, 16 MiB per-file, regular-file, and no-follow safety checks.
   Exact-boundary coverage accepts the ceiling and rejects one byte above it.
