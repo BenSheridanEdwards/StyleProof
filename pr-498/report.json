@@ -61,8 +61,8 @@
     "reason": "aligned"
   },
   "content": {
-    "evaluated": false,
-    "changes": 0,
+    "evaluated": true,
+    "changes": 1,
     "advisory": true
   },
   "surfaces": [],
@@ -101,10 +101,10 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "a914db1c4033019199ff543b91996ce130beb29b51290d64765e10e1af728f9f",
+      "digest": "46ad47d98932be9b39e13e0b2291623e607e33570d57c39659d4748f4e1fca75",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1555
     }
   }
 }
