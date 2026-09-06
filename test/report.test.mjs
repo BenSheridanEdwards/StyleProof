@@ -2775,6 +2775,94 @@ test('report.md stays under its byte budget (GitHub-renderable); report.json kee
   rmTmp(root);
 });
 
+test('report generation fails closed when the immutable trust preamble exceeds a custom byte budget', () => {
+  const { beforeDir, afterDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: makeMap(),
+    after: makeMap(),
+  });
+  const coverage = JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' });
+  fs.writeFileSync(path.join(beforeDir, COVERAGE_LEDGER), coverage);
+  fs.writeFileSync(path.join(afterDir, COVERAGE_LEDGER), coverage);
+  const budgets = [200, 400, reportPayloadByteBudget(1_000)];
+
+  for (const maxReportBytes of budgets) {
+    const outDir = path.join(root, `fresh-${maxReportBytes}`);
+    assert.throws(
+      () => generateStyleMapReport({ beforeDir, afterDir, outDir, maxReportBytes }),
+      new RegExp(`immutable trust preamble.*required \\d+ UTF-8 bytes.*allowed ${maxReportBytes} UTF-8 bytes`, 'i'),
+    );
+    assert.equal(fs.existsSync(path.join(outDir, 'report.md')), false, 'failure must not write a reduced report.md');
+    assert.equal(
+      fs.existsSync(path.join(outDir, 'report.json')),
+      false,
+      'failure must not write a partial report.json',
+    );
+  }
+
+  rmTmp(root);
+});
+
+test('tiny-budget failure does not overwrite a valid report in a reused output directory', () => {
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: makeMap(),
+    after: makeMap(),
+  });
+  const coverage = JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' });
+  fs.writeFileSync(path.join(beforeDir, COVERAGE_LEDGER), coverage);
+  fs.writeFileSync(path.join(afterDir, COVERAGE_LEDGER), coverage);
+  const valid = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const priorMarkdown = fs.readFileSync(valid.reportMdPath);
+  const priorJson = fs.readFileSync(valid.reportJsonPath);
+
+  for (const maxReportBytes of [200, 400, reportPayloadByteBudget(1_000)]) {
+    assert.throws(
+      () => generateStyleMapReport({ beforeDir, afterDir, outDir, maxReportBytes }),
+      /immutable trust preamble.*required \d+ UTF-8 bytes.*allowed \d+ UTF-8 bytes/i,
+    );
+    assert.deepEqual(
+      fs.readFileSync(valid.reportMdPath),
+      priorMarkdown,
+      'failure must not replace the prior valid report.md',
+    );
+    assert.deepEqual(
+      fs.readFileSync(valid.reportJsonPath),
+      priorJson,
+      'failure must not replace the prior valid report.json',
+    );
+  }
+
+  rmTmp(root);
+});
+
+test('compact fallback names only the detail retained in report artifacts', () => {
+  const map = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 320, 180], style: { color } },
+      },
+    });
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@320',
+    before: map('rgb(0, 0, 0)'),
+    after: map('rgb(255, 0, 0)'),
+    beforePng: solidPng(320, 180),
+    afterPng: solidPng(320, 180),
+  });
+
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir, maxReportBytes: 800 });
+  const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  assert.match(markdown, /`report\.json` retains the `surfaces`, `baselineFailures`, and `content` fields/);
+  assert.match(markdown, /generated images remain in `crops\/`/);
+  assert.doesNotMatch(markdown, /full data is in `report\.json`/i);
+  assert.equal(json.surfaces.length, 1);
+  assert.ok(fs.readdirSync(path.join(outDir, 'crops')).length > 0, 'the named crop artifact exists');
+
+  rmTmp(root);
+});
+
 // ----------------------------------------------- hostile CSS values are escaped
 
 // A CSS property value is author/attacker-influenced. A `|` would split a report

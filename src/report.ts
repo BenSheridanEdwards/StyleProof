@@ -2820,7 +2820,12 @@ function appendReportLines(md: string[], lines: string[], maxBytes: number): boo
 }
 
 function createDetailEmitter(md: string[], maxBytes: number): DetailEmitter {
-  while (md.length > 0 && markdownByteLength(md) > maxBytes) md.pop();
+  const requiredBytes = markdownByteLength(md);
+  if (requiredBytes > maxBytes) {
+    throw new Error(
+      `StyleProof report immutable trust preamble exceeds budget: required ${requiredBytes} UTF-8 bytes; allowed ${maxBytes} UTF-8 bytes`,
+    );
+  }
   let capped = false;
   return (detail: string[], summary: string): void => {
     if (!capped && appendReportLines(md, detail, maxBytes)) return;
@@ -2829,7 +2834,12 @@ function createDetailEmitter(md: string[], maxBytes: number): DetailEmitter {
       if (!appendReportLines(md, notice, maxBytes)) {
         appendReportLines(
           md,
-          ['', `_Inline detail omitted at the ${maxBytes}-byte display budget; full data is in \`report.json\`._`, ''],
+          [
+            '',
+            `_Inline detail omitted at the ${maxBytes}-byte display budget; \`report.json\` retains the ` +
+              `\`surfaces\`, \`baselineFailures\`, and \`content\` fields, and any generated images remain in \`crops/\`._`,
+            '',
+          ],
           maxBytes,
         );
       }
