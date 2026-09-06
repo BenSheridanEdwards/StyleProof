@@ -16,6 +16,7 @@ const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
 const dogfoodYml = fs.readFileSync(path.join(here, '..', '.github/workflows/action-dogfood.yml'), 'utf8');
 const publishBin = fs.readFileSync(path.join(here, '..', 'bin', 'styleproof-publish-report.mjs'), 'utf8');
 const publishModule = fs.readFileSync(path.join(here, '..', 'src', 'report-publish.ts'), 'utf8');
+const reportDeliveryModule = fs.readFileSync(path.join(here, '..', 'src', 'report-delivery.ts'), 'utf8');
 
 function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
@@ -67,6 +68,17 @@ function stampActionFixture(dir, sha) {
 function actionReportMergeScript() {
   const match = actionYml.match(/ {8}node --input-type=module <<'NODE'\n([\s\S]*?)\n {8}NODE/);
   assert.ok(match, 'action.yml should contain the report merge Node program');
+  return `${match[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {8}/, ''))
+    .join('\n')}\n`;
+}
+
+function actionDecisionBindingScript() {
+  const step = extractActionStep('- name: Bind canonical decision to report', '\\n\\s{4}- id: publish');
+  assert.ok(step, 'action.yml should bind the classified decision before publication');
+  const match = step[0].match(/node --input-type=module <<'NODE'\n([\s\S]*?)\n {8}NODE/);
+  assert.ok(match, 'decision binding step should contain a Node program');
   return `${match[1]
     .split('\n')
     .map((line) => line.replace(/^ {8}/, ''))
@@ -684,10 +696,8 @@ test('composite action names style certification precisely and can publish advis
   assert.match(reportStep[0], /generated\.content\.changes/);
   assert.match(actionYml, /NO_REVIEWABLE_STYLE_CHANGES/);
   assert.match(actionYml, /STYLE_REVIEW_REQUIRED/);
-  assert.match(commentStep[0], /Content\/structure was not evaluated/);
-  assert.match(commentStep[0], /advisory content\/structure change/);
-  assert.match(commentStep[0], /StyleProof is advisory/);
-  assert.doesNotMatch(commentStep[0], /To accept: rebuild the map/);
+  assert.match(commentStep[0], /const summary = \(headEnd >= 0 \? lines\.slice\(0, headEnd\) : lines\)/);
+  assert.doesNotMatch(commentStep[0], /trustGuidance|cleanGuidance|advisoryGuidance/);
   assert.match(statusStep[0], /No reviewable computed-style changes/);
   assert.doesNotMatch(actionYml, /NO_VISUAL_CHANGES|VISUAL_APPROVAL_REQUIRED|No visual changes/);
 });
@@ -749,6 +759,16 @@ test('composite action marks certify-mode comments with their source head SHA', 
 
   assert.ok(commentStep, 'action.yml should include a PR comment step');
   assert.match(commentStep[0], /\.\.\.\(headSha \? \[`<!-- styleproof-sha:\$\{headSha\} -->`\] : \[\]\)/);
+});
+
+test('composite action binds the classified decision before report publication', () => {
+  const bindStep = extractActionStep('- name: Bind canonical decision to report', '\\n\\s{4}- id: publish');
+  assert.ok(bindStep, 'action.yml should include a decision-binding step');
+  assert.match(bindStep[0], /steps\.verdict\.outputs\.state/);
+  assert.match(bindStep[0], /steps\.context\.outputs\.base-sha/);
+  assert.match(bindStep[0], /steps\.context\.outputs\.head-sha/);
+  assert.match(bindStep[0], /bindReportDecision/);
+  assert.ok(actionYml.indexOf('- name: Bind canonical decision to report') < actionYml.indexOf('- id: publish'));
 });
 
 test('action dogfood fixtures are asserted and deterministic unless the scenario overrides trust', () => {
@@ -882,6 +902,23 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
         expectedState,
         fixture,
       );
+      const decisionScript = path.join(caseRoot, 'decision.mjs');
+      fs.writeFileSync(decisionScript, actionDecisionBindingScript());
+      const decision = spawnSync(process.execPath, [decisionScript], {
+        cwd: caseRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_ACTION_PATH: path.join(here, '..'),
+          STYLEPROOF_TRUST_STATE: expectedState,
+          STYLEPROOF_BASE_SHA: baseSha,
+          STYLEPROOF_HEAD_SHA: headSha,
+        },
+      });
+      assert.equal(decision.status, 0, `${fixture} decision: ${decision.stderr || decision.stdout}`);
+      const publishedMarkdown = fs.readFileSync(path.join(caseRoot, 'styleproof-report', 'report.md'), 'utf8');
+      assert.match(publishedMarkdown, /^## StyleProof decision: (BLOCKED|REVIEW REQUIRED|CLEAN)\n/);
+      assert.ok(publishedMarkdown.indexOf('## StyleProof decision:') < publishedMarkdown.indexOf('**Certification**'));
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -1128,7 +1165,7 @@ test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILE
   const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
   assert.ok(commentStep, 'PR comment step present');
   assert.match(commentStep[0], /trustState === 'STYLE_REVIEW_REQUIRED'/);
-  assert.match(commentStep[0], /report\/diff consistency|reflow source/i);
+  assert.match(reportDeliveryModule, /report-consistency failure/i);
 });
 
 test('composite action does not expose raw-only findings as reviewable changes', () => {

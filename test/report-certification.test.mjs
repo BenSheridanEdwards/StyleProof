@@ -277,6 +277,7 @@ test('a clean healthy bundle (no residue, not armed) omits the data-residue line
 // carries the confidence line, the headline stays the visual verdict, and a green
 // on one never implies the other.
 import { writeConfidenceLedger, buildConfidenceLedger, CONFIDENCE_LEDGER } from '../dist/confidence-ledger.js';
+import { bindReportDecision } from '../dist/report-delivery.js';
 
 test('a healthy asserted bundle renders Confidence ✓ complete, and report.json carries the summary', () => {
   const { root, base, head, out } = bundle({
@@ -432,4 +433,13 @@ test('a malformed confidence sidecar still renders an explicit unknown warning',
   );
   assert.equal(result.confidence.completeness, 'unknown');
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('the canonical decision stays above certification evidence', () => {
+  const markdown = bindReportDecision(
+    '## 🗺️ StyleProof report\n\n**Certification**\n- **Coverage** — ✗ INCOMPLETE\n\n### Evidence\n\nDetails',
+    { trustState: 'CERTIFICATION_FAILED', baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40) },
+  );
+  assert.ok(markdown.indexOf('## StyleProof decision: BLOCKED') < markdown.indexOf('**Certification**'));
+  assert.match(markdown.slice(markdown.indexOf('**Certification**')), /### Evidence\n\nDetails/);
 });

@@ -1,6 +1,17 @@
 <!-- styleproof-report -->
+## StyleProof decision: REVIEW REQUIRED
+
+**Reason:** Changed or new surfaces need human review; reviewer approval can clear this review gate.
+
+**Next action:** Inspect the side-by-side evidence, then approve only if every change is intentional; write access required, and not the pull request author.
+
+**Compared capture maps:** base `b36a5dedeef1901ae547c81317029ea3925cc07d` → head `e29bf63a0e533d5b3627b19a8f2dcc70ce26e0d1`
+
+**Report revision:** unavailable until publication (the publication commit cannot contain its own identity).
 
 ## 🗺️ StyleProof report
+
+⚠️ **Product-state comparison** — unproven on 1 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
 **2 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
@@ -106,5 +117,3 @@ Interactive-state changes:
 - [ ] **Approve all changes**
 
 ---
-
-_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._

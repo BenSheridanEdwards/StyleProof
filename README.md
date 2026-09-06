@@ -15,13 +15,26 @@ On a pull request, the PR comment is the same linked summary for public and priv
 Crops stay as relative files inside the committed report instead of being duplicated into the comment.
 Private-repository viewers need repository access and an authenticated GitHub session.
 If publication or receipt verification fails, StyleProof posts no delivery claim for that run.
-The README can carry the crops directly. This is the unmodified product report: Save at rest comes
-first, followed by Docs hover, focus, and active. Both sides of each interaction-state crop are in
-that state.
+The README can carry the crops directly. This is the product report in a forced review state: Save at
+rest comes first, followed by Docs hover, focus, and active. Both sides of each interaction-state
+crop are in that state. The visible base/head hashes bind these generated capture maps; a live Action
+run shows validated commit identities and links the immutable published report revision.
 
 <!-- styleproof-report -->
 
+## StyleProof decision: REVIEW REQUIRED
+
+**Reason:** Changed or new surfaces need human review; reviewer approval can clear this review gate.
+
+**Next action:** Inspect the side-by-side evidence, then approve only if every change is intentional; write access required, and not the pull request author.
+
+**Compared capture maps:** base `b36a5dedeef1901ae547c81317029ea3925cc07d` → head `e29bf63a0e533d5b3627b19a8f2dcc70ce26e0d1`
+
+**Report revision:** unavailable until publication (the publication commit cannot contain its own identity).
+
 ## 🗺️ StyleProof report
+
+⚠️ **Product-state comparison** — unproven on 1 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
 **2 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
@@ -127,8 +140,6 @@ Interactive-state changes:
 - [ ] **Approve all changes**
 
 ---
-
-_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._
 
 **[Quickstart](#quickstart)** ·
 **[Read the catch contract](docs/what-it-catches.md)**
