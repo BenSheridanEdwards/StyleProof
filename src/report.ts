@@ -1921,7 +1921,7 @@ function noChangedSurfaceSummary(args: {
   if (args.contentEvaluated) {
     scopedSummary =
       args.contentCount > 0
-        ? `✓ No reviewable computed-style changes among semantically matched elements. See ${args.contentCount} advisory content/structure change(s) below.`
+        ? `✓ No reviewable computed-style changes among semantically matched elements. ${args.contentCount} advisory content/structure change(s); count: \`report.json\` \`content\`, images: \`crops/\`.`
         : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.';
   }
   if (args.confidenceBlocked || args.comparisonBlocked) {
@@ -2048,7 +2048,10 @@ function reportHeadline(args: {
     );
   }
   if (contentCount > 0 && (changeGroups.length > 0 || missing.length > 0)) {
-    md.push('', `📝 _${contentCount} advisory content change(s) below — they don't affect the check._`);
+    md.push(
+      '',
+      `📝 _${contentCount} advisory content change(s) — count: \`report.json\` \`content\`, images: \`crops/\`; they don't affect the check._`,
+    );
   }
   return md;
 }
@@ -2836,8 +2839,8 @@ function createDetailEmitter(md: string[], maxBytes: number): DetailEmitter {
           md,
           [
             '',
-            `_Inline detail omitted at the ${maxBytes}-byte display budget; \`report.json\` retains the ` +
-              `\`surfaces\`, \`baselineFailures\`, and \`content\` fields, and any generated images remain in \`crops/\`._`,
+            `_${maxBytes}-byte display budget: inline detail omitted. \`report.json\`: \`surfaces\`, ` +
+              `\`baselineFailures\`, \`content\`; generated images: \`crops/\`._`,
             '',
           ],
           maxBytes,

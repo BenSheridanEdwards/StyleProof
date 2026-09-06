@@ -634,17 +634,19 @@ test('styleproof-report keeps large baseline-failure receipts inside the markdow
 
 test('styleproof-report treats maxReportBytes as a strict UTF-8 ceiling for every report shape', () => {
   const cases = [
-    { budget: 0, kind: 'empty' },
-    { budget: 1, kind: 'empty' },
-    { budget: 64, kind: 'one-sided' },
-    { budget: 64, kind: 'changed' },
-    { budget: 256, kind: 'unicode' },
+    { insufficientBudget: 0, kind: 'empty' },
+    { insufficientBudget: 1, kind: 'empty' },
+    { insufficientBudget: 64, kind: 'one-sided' },
+    { insufficientBudget: 64, kind: 'changed' },
+    { insufficientBudget: 256, kind: 'unicode' },
   ];
-  for (const { budget, kind } of cases) {
+  const feasibleBudget = 2_000;
+  for (const { insufficientBudget, kind } of cases) {
     const root = mkTmp();
     const A = path.join(root, 'a');
     const B = path.join(root, 'b');
-    const out = path.join(root, 'report');
+    const insufficientOut = path.join(root, 'report-insufficient');
+    const boundedOut = path.join(root, 'report-bounded');
     const baseText = kind === 'unicode' ? 'é'.repeat(40) : 'before';
     const headText = kind === 'unicode' ? '界'.repeat(40) : 'after';
     const base = makeMap({ elements: { body: { tag: 'body' }, 'body > p': { tag: 'p', text: baseText } } });
@@ -665,12 +667,53 @@ test('styleproof-report treats maxReportBytes as a strict UTF-8 ceiling for ever
     writeManifest(A, 'base-sha', 'same-env-key');
     writeManifest(B, 'head-sha', 'same-env-key');
 
-    generateStyleMapReport({ beforeDir: A, afterDir: B, outDir: out, includeContent: true, maxReportBytes: budget });
-    const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
-    assert.ok(
-      Buffer.byteLength(md, 'utf8') <= budget,
-      `${kind} report used ${Buffer.byteLength(md, 'utf8')} of ${budget} bytes`,
+    let budgetError;
+    try {
+      generateStyleMapReport({
+        beforeDir: A,
+        afterDir: B,
+        outDir: insufficientOut,
+        includeContent: true,
+        maxReportBytes: insufficientBudget,
+      });
+    } catch (error) {
+      budgetError = error;
+    }
+    assert.ok(budgetError instanceof Error, `${kind} must fail when its immutable preamble cannot fit`);
+    const measurement = budgetError.message.match(
+      new RegExp(
+        `immutable trust preamble.*required ([0-9]+) UTF-8 bytes.*allowed ${insufficientBudget} UTF-8 bytes`,
+        'i',
+      ),
     );
+    assert.ok(measurement, budgetError.message);
+    assert.ok(Number(measurement[1]) > insufficientBudget, `${kind} reports the measured budget shortfall`);
+    assert.equal(fs.existsSync(path.join(insufficientOut, 'report.md')), false, `${kind} writes no reduced report.md`);
+    assert.equal(
+      fs.existsSync(path.join(insufficientOut, 'report.json')),
+      false,
+      `${kind} writes no partial report.json`,
+    );
+
+    const result = generateStyleMapReport({
+      beforeDir: A,
+      afterDir: B,
+      outDir: boundedOut,
+      includeContent: true,
+      maxReportBytes: feasibleBudget,
+    });
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+    assert.ok(
+      Buffer.byteLength(md, 'utf8') <= feasibleBudget,
+      `${kind} report used ${Buffer.byteLength(md, 'utf8')} of ${feasibleBudget} bytes`,
+    );
+    assert.ok(Array.isArray(json.surfaces), `${kind} retains the machine-readable surfaces field`);
+    assert.deepEqual(json.content, {
+      evaluated: true,
+      changes: kind === 'empty' ? 0 : 1,
+      advisory: true,
+    });
     rmTmp(root);
   }
 });

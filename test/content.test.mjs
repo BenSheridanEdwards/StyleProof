@@ -581,7 +581,7 @@ test('maxCrops bounds advisory content image sets without hiding textual finding
   rmTmp(dirs.root);
 });
 
-test('a capped report does not claim content artifacts when content comparison is disabled', () => {
+test('a capped report fails closed at zero bytes and reports disabled content accurately at a feasible cap', () => {
   const map = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 320, 180] } } });
   const dirs = pairFixture({
     surface: 'content-disabled@320',
@@ -590,15 +590,44 @@ test('a capped report does not claim content artifacts when content comparison i
     beforePng: solidPng(320, 180),
     afterPng: solidPng(320, 180),
   });
+  const insufficientOut = path.join(dirs.root, 'out-insufficient');
+  let budgetError;
+  try {
+    generateStyleMapReport({
+      beforeDir: dirs.beforeDir,
+      afterDir: dirs.afterDir,
+      outDir: insufficientOut,
+      maxReportBytes: 0,
+    });
+  } catch (error) {
+    budgetError = error;
+  }
+  assert.ok(budgetError instanceof Error, 'zero bytes cannot contain the immutable trust preamble');
+  const measurement = budgetError.message.match(
+    /immutable trust preamble.*required (\d+) UTF-8 bytes.*allowed 0 UTF-8 bytes/i,
+  );
+  assert.ok(measurement, budgetError.message);
+  assert.ok(Number(measurement[1]) > 0, 'the error reports a positive measured preamble size');
+  assert.equal(fs.existsSync(path.join(insufficientOut, 'report.md')), false);
+  assert.equal(fs.existsSync(path.join(insufficientOut, 'report.json')), false);
+
+  const feasibleBudget = 600;
   const result = generateStyleMapReport({
     beforeDir: dirs.beforeDir,
     afterDir: dirs.afterDir,
     outDir: dirs.outDir,
-    maxReportBytes: 0,
+    maxReportBytes: feasibleBudget,
   });
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+  const crops = fs.readdirSync(path.join(dirs.outDir, 'crops'));
+  assert.ok(Buffer.byteLength(md, 'utf8') <= feasibleBudget);
+  assert.equal(result.contentChanges, 0);
+  assert.deepEqual(json.content, { evaluated: false, changes: 0, advisory: true });
+  assert.match(md, /Content\/structure was not evaluated/);
+  assert.deepEqual(crops, [], 'disabled content comparison generates no content crops');
   assert.doesNotMatch(md, /advisory content\/structure change/);
-  assert.doesNotMatch(md, /full image evidence remains in the published report artifacts/);
+  assert.doesNotMatch(md, /generated images remain in `crops\/`/);
   rmTmp(dirs.root);
 });
 
@@ -630,6 +659,7 @@ test('content evidence obeys the existing report budget without dropping generat
       dirs,
       result,
       md: fs.readFileSync(result.reportMdPath, 'utf8'),
+      json: JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')),
       crops: fs.readdirSync(path.join(dirs.root, outDir, 'crops')).sort(),
     };
   };
@@ -637,9 +667,16 @@ test('content evidence obeys the existing report budget without dropping generat
   const a = fixture('out-a');
   const b = fixture('out-b');
   assert.equal(a.result.contentChanges, 1);
-  assert.ok(a.md.length < 1_200, `content detail stays bounded near the report ceiling (was ${a.md.length})`);
+  assert.ok(
+    Buffer.byteLength(a.md, 'utf8') <= 600,
+    `content report stays inside its UTF-8 ceiling (was ${Buffer.byteLength(a.md, 'utf8')} bytes)`,
+  );
   assert.match(a.md, /display budget/);
-  assert.match(a.md, /1 advisory content\/structure change\(s\); full image evidence remains/);
+  assert.doesNotMatch(a.md, /See 1 advisory content\/structure change\(s\) below/i);
+  assert.match(a.md, /1 advisory content\/structure change\(s\).*`report\.json`.*`content`.*`crops\/`/s);
+  assert.match(a.md, /`report\.json`: `surfaces`, `baselineFailures`, `content`/);
+  assert.match(a.md, /generated images: `crops\/`/);
+  assert.deepEqual(a.json.content, { evaluated: true, changes: 1, advisory: true });
   assert.deepEqual(a.crops, ['budget-480-content-1-annotated.png', 'budget-480-content-1-composite.png']);
   assert.equal(a.md, b.md, 'the capped advisory report is byte-deterministic');
   assert.deepEqual(a.crops, b.crops, 'the capped artifact set is deterministic');

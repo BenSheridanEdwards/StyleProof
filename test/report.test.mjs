@@ -2854,8 +2854,8 @@ test('compact fallback names only the detail retained in report artifacts', () =
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir, maxReportBytes: 800 });
   const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  assert.match(markdown, /`report\.json` retains the `surfaces`, `baselineFailures`, and `content` fields/);
-  assert.match(markdown, /generated images remain in `crops\/`/);
+  assert.match(markdown, /`report\.json`: `surfaces`, `baselineFailures`, `content`/);
+  assert.match(markdown, /generated images: `crops\/`/);
   assert.doesNotMatch(markdown, /full data is in `report\.json`/i);
   assert.equal(json.surfaces.length, 1);
   assert.ok(fs.readdirSync(path.join(outDir, 'crops')).length > 0, 'the named crop artifact exists');
