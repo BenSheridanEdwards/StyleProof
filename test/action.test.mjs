@@ -112,6 +112,82 @@ require('fs').writeFileSync(process.env.STYLEPROOF_VERDICT_OUTPUT, JSON.stringif
 `;
 }
 
+function actionGateScript({ reviewableChanged, statusState, statusDescription = '' }) {
+  const match = actionYml.match(/- id: gate[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/);
+  assert.ok(match, 'action.yml should contain the approval gate github-script program');
+  const script = match[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {10}/, ''))
+    .join('\n')
+    .replace("'${{ steps.context.outputs.head-sha }}'", "'head-sha'")
+    .replace("'${{ inputs.status-context }}'", "'StyleProof'")
+    .replace("'${{ steps.verdict.outputs.reviewable-changed }}'", `'${reviewableChanged ? 'true' : 'false'}'`);
+  return `
+const outputs = {};
+let statusLookups = 0;
+const core = {
+  setOutput(name, value) { outputs[name] = String(value); },
+};
+const context = { repo: { owner: 'owner', repo: 'repo' } };
+const github = {
+  rest: {
+    repos: {
+      async listCommitStatusesForRef() {
+        statusLookups += 1;
+        return { data: [{ context: 'StyleProof', state: ${JSON.stringify(statusState)}, description: ${JSON.stringify(statusDescription)} }] };
+      },
+    },
+  },
+};
+(async () => {
+${script}
+require('fs').writeFileSync(
+  process.env.STYLEPROOF_GATE_OUTPUT,
+  JSON.stringify({ outputs, statusLookups }),
+);
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+`;
+}
+
+function actionTrustScript({
+  prNumber = '42',
+  requireApproval = true,
+  bindingOutcome,
+  publishOutcome,
+  commentOutcome,
+  statusOutcome,
+  diffState,
+}) {
+  const match = actionYml.match(/- id: trust[\s\S]*?script: \|\n([\s\S]*)$/);
+  assert.ok(match, 'action.yml should contain the terminal trust github-script program');
+  const replacements = new Map([
+    ["'${{ steps.context.outputs.pr-number }}'", `'${prNumber}'`],
+    ["'${{ inputs.require-approval }}'", `'${requireApproval ? 'true' : 'false'}'`],
+    ["'${{ steps.binding.outcome }}'", `'${bindingOutcome}'`],
+    ["'${{ steps.publish.outcome }}'", `'${publishOutcome}'`],
+    ["'${{ steps.comment.outcome }}'", `'${commentOutcome}'`],
+    ["'${{ steps.status.outcome }}'", `'${statusOutcome}'`],
+    ["'${{ steps.verdict.outputs.state }}'", `'${diffState}'`],
+  ]);
+  let script = match[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {10}/, ''))
+    .join('\n');
+  for (const [expression, value] of replacements) script = script.replaceAll(expression, value);
+  return `
+const outputs = {};
+const core = {
+  setOutput(name, value) { outputs[name] = String(value); },
+  info() {},
+};
+${script}
+require('fs').writeFileSync(process.env.STYLEPROOF_TRUST_OUTPUT, JSON.stringify(outputs));
+`;
+}
+
 function certifyingVerdictReceipt(overrides = {}) {
   return {
     sourceBinding: { status: 'bound' },
@@ -128,6 +204,40 @@ function certifyingVerdictReceipt(overrides = {}) {
     ...overrides,
   };
 }
+
+test('composite action executes approval lookup from the canonical reviewable-change output', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-gate-'));
+  try {
+    const fixtures = [
+      { name: 'clean', reviewableChanged: false, statusState: 'success', approved: 'false', approver: '', lookups: 0 },
+      { name: 'changed', reviewableChanged: true, statusState: 'failure', approved: 'false', approver: '', lookups: 1 },
+      {
+        name: 'approved',
+        reviewableChanged: true,
+        statusState: 'success',
+        statusDescription: 'Approved by @reviewer',
+        approved: 'true',
+        approver: 'reviewer',
+        lookups: 1,
+      },
+    ];
+    for (const fixture of fixtures) {
+      const script = path.join(root, `${fixture.name}.cjs`);
+      const output = path.join(root, `${fixture.name}.json`);
+      fs.writeFileSync(script, actionGateScript(fixture));
+      const result = spawnSync(process.execPath, [script], {
+        encoding: 'utf8',
+        env: { ...process.env, STYLEPROOF_GATE_OUTPUT: output },
+      });
+      assert.equal(result.status, 0, `${fixture.name}: ${result.stderr || result.stdout}`);
+      const receipt = JSON.parse(fs.readFileSync(output, 'utf8'));
+      assert.deepEqual(receipt.outputs, { approved: fixture.approved, approver: fixture.approver }, fixture.name);
+      assert.equal(receipt.statusLookups, fixture.lookups, fixture.name);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('production diff and report receipts pass through the exact Action merge program', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-receipts-'));
@@ -1051,6 +1161,119 @@ test('composite action carries no release-confidence layer (#475)', () => {
   }
 });
 
+test('terminal trust requires successful report binding and publication', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-trust-'));
+  try {
+    const fixtures = [
+      {
+        name: 'pr-clean',
+        bindingOutcome: 'success',
+        publishOutcome: 'success',
+        commentOutcome: 'success',
+        statusOutcome: 'success',
+        expected: 'NO_REVIEWABLE_STYLE_CHANGES',
+      },
+      {
+        name: 'non-pr-clean',
+        prNumber: '',
+        bindingOutcome: 'success',
+        publishOutcome: 'success',
+        commentOutcome: 'skipped',
+        statusOutcome: 'skipped',
+        expected: 'NO_REVIEWABLE_STYLE_CHANGES',
+      },
+      {
+        name: 'pr-certify-clean',
+        requireApproval: false,
+        bindingOutcome: 'success',
+        publishOutcome: 'success',
+        commentOutcome: 'success',
+        statusOutcome: 'skipped',
+        expected: 'NO_REVIEWABLE_STYLE_CHANGES',
+      },
+      {
+        name: 'pr-comment-skipped',
+        bindingOutcome: 'success',
+        publishOutcome: 'success',
+        commentOutcome: 'skipped',
+        statusOutcome: 'skipped',
+        expected: 'REPORT_PUBLICATION_FAILED',
+      },
+      {
+        name: 'pr-delivery-cancelled',
+        bindingOutcome: 'success',
+        publishOutcome: 'success',
+        commentOutcome: 'cancelled',
+        statusOutcome: 'cancelled',
+        expected: 'REPORT_PUBLICATION_FAILED',
+      },
+      {
+        name: 'pr-status-cancelled',
+        bindingOutcome: 'success',
+        publishOutcome: 'success',
+        commentOutcome: 'success',
+        statusOutcome: 'cancelled',
+        expected: 'REPORT_PUBLICATION_FAILED',
+      },
+      {
+        name: 'root-capture-failed',
+        bindingOutcome: 'skipped',
+        publishOutcome: 'skipped',
+        commentOutcome: 'skipped',
+        statusOutcome: 'skipped',
+        diffState: '',
+        expected: 'CERTIFICATION_FAILED',
+      },
+      {
+        name: 'binding-failed',
+        bindingOutcome: 'failure',
+        publishOutcome: 'skipped',
+        commentOutcome: 'skipped',
+        statusOutcome: 'skipped',
+        expected: 'REPORT_PUBLICATION_FAILED',
+      },
+      {
+        name: 'binding-skipped',
+        bindingOutcome: 'skipped',
+        publishOutcome: 'skipped',
+        commentOutcome: 'skipped',
+        statusOutcome: 'skipped',
+        expected: 'REPORT_PUBLICATION_FAILED',
+      },
+      {
+        name: 'publication-failed',
+        bindingOutcome: 'success',
+        publishOutcome: 'failure',
+        commentOutcome: 'skipped',
+        statusOutcome: 'skipped',
+        expected: 'REPORT_PUBLICATION_FAILED',
+      },
+      {
+        name: 'publication-skipped',
+        bindingOutcome: 'success',
+        publishOutcome: 'skipped',
+        commentOutcome: 'skipped',
+        statusOutcome: 'skipped',
+        expected: 'REPORT_PUBLICATION_FAILED',
+      },
+    ];
+    for (const fixture of fixtures) {
+      const script = path.join(root, `${fixture.name}.cjs`);
+      const output = path.join(root, `${fixture.name}.json`);
+      fs.writeFileSync(script, actionTrustScript({ diffState: 'NO_REVIEWABLE_STYLE_CHANGES', ...fixture }));
+      const result = spawnSync(process.execPath, [script], {
+        encoding: 'utf8',
+        env: { ...process.env, STYLEPROOF_TRUST_OUTPUT: output },
+      });
+      assert.equal(result.status, 0, `${fixture.name}: ${result.stderr || result.stdout}`);
+      const receipt = JSON.parse(fs.readFileSync(output, 'utf8'));
+      assert.equal(receipt.state, fixture.expected, fixture.name);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('composite action exposes one precedence-ordered machine-readable trust verdict', () => {
   assert.match(actionYml, /trust-state:[\s\S]*?steps\.trust\.outputs\.state/);
   assert.match(actionYml, /data-residue-keys:[\s\S]*?steps\.verdict\.outputs\.data-residue-keys/);
@@ -1083,11 +1306,10 @@ test('composite action exposes one precedence-ordered machine-readable trust ver
   assert.ok(terminal, 'action.yml should always expose a terminal trust state');
   assert.match(terminal[0], /if: always\(\)/);
   assert.match(terminal[0], /REPORT_PUBLICATION_FAILED/);
-  // The trust step names failure DOMAINS, not just "publish wasn't success":
-  // publish failure and delivery (comment/status) failure both mean the reviewer
-  // may be looking at a stale or absent report; a merely-skipped publish must NOT
-  // masquerade as a publication failure.
-  assert.match(terminal[0], /publishOutcome === 'failure'/);
+  // Required report binding/publication fail closed on every non-success outcome.
+  // PR-only comment/status skips remain valid for intentional non-PR runs.
+  assert.match(terminal[0], /steps\.binding\.outcome/);
+  assert.match(terminal[0], /bindingOutcome !== 'success'/);
   assert.match(terminal[0], /publishOutcome !== 'success'/);
   assert.match(terminal[0], /steps\.comment\.outcome/);
   assert.match(terminal[0], /steps\.status\.outcome/);

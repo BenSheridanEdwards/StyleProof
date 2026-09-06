@@ -462,6 +462,7 @@ runs:
         script: |
           const sha = '${{ steps.context.outputs.head-sha }}';
           const STATUS = '${{ inputs.status-context }}';
+          const changed = '${{ steps.verdict.outputs.reviewable-changed }}' === 'true';
           let approved = false;
           let approver = '';
           if (changed) {
@@ -482,6 +483,7 @@ runs:
     # validated commit-bound link is added to the comment after publication.
     # The canonical REVIEW REQUIRED next action also states: write access required, and not the pull request author.
     - name: Bind canonical decision to report
+      id: binding
       shell: bash
       env:
         STYLEPROOF_TRUST_STATE: ${{ steps.verdict.outputs.state }}
@@ -772,21 +774,25 @@ runs:
       uses: actions/github-script@v9
       with:
         script: |
-          // Name the FAILURE DOMAIN precisely, so automation retries the right thing:
-          //   publish 'failure'            → the publish step itself broke → REPORT_PUBLICATION_FAILED;
-          //   publish 'skipped'/'cancelled' → an EARLIER step (capture/diff/config) failed —
-          //     not a publication fault; report the verdict if one exists, else the
-          //     capture/certification domain;
-          //   comment/status delivery failed after a successful publish → the consumer-
-          //     visible half of publication never landed → REPORT_PUBLICATION_FAILED,
-          //     never a green classification from a run that delivered nothing.
+          // Required binding and publication must both complete before a prepublication
+          // verdict can become terminal trust. Before a verdict exists, skipped report
+          // steps preserve the earlier capture/certification failure domain.
+          const prNumber = '${{ steps.context.outputs.pr-number }}';
+          const requireApproval = '${{ inputs.require-approval }}' === 'true';
+          const bindingOutcome = '${{ steps.binding.outcome }}';
           const publishOutcome = '${{ steps.publish.outcome }}';
           const diffState = '${{ steps.verdict.outputs.state }}';
-          const deliveryFailed =
-            '${{ steps.comment.outcome }}' === 'failure' || '${{ steps.status.outcome }}' === 'failure';
-          let state;
-          if (publishOutcome === 'failure') state = 'REPORT_PUBLICATION_FAILED';
-          else if (publishOutcome !== 'success') state = diffState || 'CERTIFICATION_FAILED';
-          else state = deliveryFailed ? 'REPORT_PUBLICATION_FAILED' : (diffState || 'CERTIFICATION_FAILED');
+          const publicationFailed =
+            bindingOutcome === 'failure' || publishOutcome === 'failure' ||
+            (!!diffState && (bindingOutcome !== 'success' || publishOutcome !== 'success'));
+          // Comment delivery is required for every PR; commit-status delivery is required
+          // only in review-gate mode. Their skips remain intentional on non-PR runs.
+          const commentOutcome = '${{ steps.comment.outcome }}';
+          const statusOutcome = '${{ steps.status.outcome }}';
+          const deliveryFailed = publishOutcome === 'success' && prNumber !== '' &&
+            (commentOutcome !== 'success' || (requireApproval && statusOutcome !== 'success'));
+          const state = publicationFailed || deliveryFailed
+            ? 'REPORT_PUBLICATION_FAILED'
+            : (diffState || 'CERTIFICATION_FAILED');
           core.setOutput('state', state);
           core.info(`StyleProof terminal trust state: ${state}`);
