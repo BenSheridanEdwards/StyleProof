@@ -8,6 +8,7 @@ coverage/
 stylemaps/
 .gitnexus/
 graphify-out/
+.show-me/
 *.tgz
 .DS_Store
 

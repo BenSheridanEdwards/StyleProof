@@ -32,6 +32,19 @@ order, and none may be placeholder-only:
 - Behaviour/CLI/guard changes paste real command or test output.
 - Every bug fix ships its regression test in the same change.
 
+## Review comprehension
+
+For a non-trivial PR, include the smallest view that lets the reviewer
+understand the changed behaviour or structure without reconstructing it from
+the diff. Use `/show-me` when it is available. Pick one useful representation,
+such as a control-flow sketch, component tree, state transition, sequence, or
+focused before-and-after diff. Do not add a diagram to a trivial change.
+
+Every label must trace to real files, symbols, states, or evidence in the PR.
+Keep warnings and uncertainty visible. This view explains the change; it does
+not replace behavioural tests, StyleProof reports, screenshots, command output,
+or exact-head CI.
+
 ### Semantic evidence audit
 
 Proof must be true in substance, not merely present:
