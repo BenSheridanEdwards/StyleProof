@@ -640,6 +640,7 @@ runs:
         script: |
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const trustState = '${{ steps.verdict.outputs.state }}';
+          const changed = '${{ steps.verdict.outputs.reviewable-changed }}' === 'true';
           const sha = '${{ steps.context.outputs.head-sha }}';
           const url = '${{ steps.publish.outputs.url }}';
           // Green when no review is needed OR a prior sign-off already approved this commit

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { Linter } from 'eslint';
 import { fileURLToPath } from 'node:url';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import test from 'node:test';
@@ -20,6 +21,25 @@ const reportDeliveryModule = fs.readFileSync(path.join(here, '..', 'src', 'repor
 
 function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
+}
+
+function actionGithubScripts() {
+  const lines = actionYml.split('\n');
+  const scripts = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!lines[index].includes('uses: actions/github-script@')) continue;
+    const scriptLine = lines.findIndex((line, candidate) => candidate > index && /^ {8}script: \|$/.test(line));
+    assert.notEqual(scriptLine, -1, `github-script step at line ${index + 1} should include a script body`);
+    const body = [];
+    for (let bodyLine = scriptLine + 1; bodyLine < lines.length; bodyLine += 1) {
+      const line = lines[bodyLine];
+      if (line && !line.startsWith('          ')) break;
+      body.push(line.replace(/^ {10}/, ''));
+    }
+    scripts.push(body.join('\n'));
+    index = scriptLine + body.length;
+  }
+  return scripts;
 }
 
 function actionRuntimeInstallScript() {
@@ -152,6 +172,41 @@ require('fs').writeFileSync(
 `;
 }
 
+function actionStatusScript({ reviewableChanged, approved, trustState, url = 'https://example.test/report' }) {
+  const match = actionYml.match(
+    /- name: Set review status[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- id:|\n\s{4}- name:)/,
+  );
+  assert.ok(match, 'action.yml should contain the review status github-script program');
+  const script = match[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {10}/, ''))
+    .join('\n')
+    .replace("'${{ steps.gate.outputs.approved }}'", `'${approved ? 'true' : 'false'}'`)
+    .replace("'${{ steps.verdict.outputs.state }}'", `'${trustState}'`)
+    .replace("'${{ steps.verdict.outputs.reviewable-changed }}'", `'${reviewableChanged ? 'true' : 'false'}'`)
+    .replace("'${{ steps.context.outputs.head-sha }}'", "'head-sha'")
+    .replace("'${{ steps.publish.outputs.url }}'", `'${url}'`)
+    .replace("'${{ inputs.status-context }}'", "'StyleProof'");
+  return `
+let statusPayload;
+const context = { repo: { owner: 'owner', repo: 'repo' } };
+const github = {
+  rest: {
+    repos: {
+      async createCommitStatus(payload) { statusPayload = payload; },
+    },
+  },
+};
+(async () => {
+${script}
+require('fs').writeFileSync(process.env.STYLEPROOF_STATUS_OUTPUT, JSON.stringify(statusPayload));
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+`;
+}
+
 function actionTrustScript({
   prNumber = '42',
   requireApproval = true,
@@ -236,6 +291,96 @@ test('composite action executes approval lookup from the canonical reviewable-ch
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('composite action executes review status delivery for clean, changed, approved, and blocked verdicts', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-status-'));
+  try {
+    const fixtures = [
+      {
+        name: 'clean',
+        reviewableChanged: false,
+        approved: false,
+        trustState: 'NO_REVIEWABLE_STYLE_CHANGES',
+        state: 'success',
+        description: 'No reviewable computed-style changes',
+      },
+      {
+        name: 'changed',
+        reviewableChanged: true,
+        approved: false,
+        trustState: 'STYLE_REVIEW_REQUIRED',
+        state: 'failure',
+        description: 'StyleProof changes need sign-off — tick the box in the report comment',
+        targetUrl: 'https://example.test/report',
+      },
+      {
+        name: 'approved',
+        reviewableChanged: true,
+        approved: true,
+        trustState: 'STYLE_REVIEW_REQUIRED',
+        state: 'success',
+        description: 'StyleProof changes approved',
+      },
+      {
+        name: 'blocked',
+        reviewableChanged: true,
+        approved: true,
+        trustState: 'DATA_RESIDUE_UNACKNOWLEDGED',
+        state: 'failure',
+        description: 'Data residue must be fixed or acknowledged — approval cannot clear it',
+      },
+    ];
+    for (const fixture of fixtures) {
+      const script = path.join(root, `${fixture.name}.cjs`);
+      const output = path.join(root, `${fixture.name}.json`);
+      fs.writeFileSync(script, actionStatusScript(fixture));
+      const result = spawnSync(process.execPath, [script], {
+        encoding: 'utf8',
+        env: { ...process.env, STYLEPROOF_STATUS_OUTPUT: output },
+      });
+      assert.equal(result.status, 0, `${fixture.name}: ${result.stderr || result.stdout}`);
+      const payload = JSON.parse(fs.readFileSync(output, 'utf8'));
+      assert.deepEqual(
+        payload,
+        {
+          owner: 'owner',
+          repo: 'repo',
+          sha: 'head-sha',
+          context: 'StyleProof',
+          state: fixture.state,
+          description: fixture.description,
+          ...(fixture.targetUrl ? { target_url: fixture.targetUrl } : {}),
+        },
+        fixture.name,
+      );
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('composite action github-script programs have no isolated-scope undefined variables', () => {
+  const scripts = actionGithubScripts();
+  assert.equal(scripts.length, 7);
+  const linter = new Linter();
+  const globals = Object.fromEntries(
+    ['github', 'context', 'core', 'process', 'require', 'console', 'Buffer', 'fetch', 'URL', 'setTimeout'].map(
+      (name) => [name, 'readonly'],
+    ),
+  );
+  for (const [index, script] of scripts.entries()) {
+    const executable = `(async function () {\n${script.replace(/\$\{\{[\s\S]*?\}\}/g, 'undefined')}\n})`;
+    const messages = linter.verify(executable, {
+      languageOptions: { ecmaVersion: 'latest', sourceType: 'script', globals },
+      rules: { 'no-undef': 'error' },
+    });
+    assert.deepEqual(
+      messages.filter((message) => message.ruleId === 'no-undef'),
+      [],
+      `github-script program ${index + 1}`,
+    );
   }
 });
 
