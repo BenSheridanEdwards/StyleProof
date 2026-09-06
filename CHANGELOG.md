@@ -7,6 +7,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-09-06
+
+### Migration
+
+- Regenerate every committed baseline with StyleProof 7.0.0 before evaluating later
+  changes. Forced-state capture now records bounded sibling and ancestor/`:has` effects,
+  so an unchanged page can differ from a 6.x baseline; omitted or disabled interaction
+  evidence now fails certification instead of being treated as complete.
+- Remove imports and calls for every `phase0*` and `releaseConfidence*` package export.
+  The Phase 0 and Release Confidence modules no longer ship. Continue to use the
+  confidence ledger for reviewer-facing completeness evidence.
+- Stop reading `report.json.releaseConfidence` or the
+  `styleproof-release-confidence.json` sidecar. Remove the
+  `styleproof-publish-report --manifest-digest` argument and any dependency on the
+  Action's `release-confidence-digest` output.
+- Bind reports with `--expected-before-sha` and `--expected-after-sha`. Without both,
+  `styleproof-report` exits 1 as an unverified diagnostic. New surfaces are now
+  reviewable; ledger-explained missing baselines remain unapprovable partial baselines.
+
 ### CI
 
 - Run browser tests in two file-level shards, with a required aggregate that verifies
@@ -3618,7 +3637,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.3.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.0.0...HEAD
+[7.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.3.0...v7.0.0
 [6.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.2...v6.3.0
 [6.2.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.1...v6.2.2
 [6.2.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.0...v6.2.1
