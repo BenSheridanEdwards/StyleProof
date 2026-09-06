@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as publicApi from '../dist/index.js';
-import { bindReportDecision, buildReportDecision, buildReportDelivery } from '../dist/report-delivery.js';
+import {
+  bindReportDecision,
+  buildReportDecision,
+  buildReportDelivery,
+  reportPayloadByteBudget,
+  verifyReportArtifactRevision,
+} from '../dist/report-delivery.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
@@ -90,6 +97,7 @@ async function executeActionComment({ repositoryPrivate, url, sha, created = [],
 
 const baseSha = 'b'.repeat(40);
 const headSha = 'c'.repeat(40);
+const artifactRevision = 'd'.repeat(64);
 const trustStates = {
   NO_REVIEWABLE_STYLE_CHANGES: 'CLEAN',
   STYLE_REVIEW_REQUIRED: 'REVIEW REQUIRED',
@@ -105,56 +113,95 @@ function decisionBlock(markdown) {
   return markdown.split('\n\n## 🗺️ StyleProof report')[0];
 }
 
-test('every closed-set trust state renders one bounded first-visible decision', () => {
+function independentlyComputeArtifactRevision(markdown) {
+  const revisionPattern = /(?<=\*\*Linked report artifact revision \(SHA-256\):\*\* `)[0-9a-f]{64}(?=`)/g;
+  assert.equal((markdown.match(revisionPattern) ?? []).length, 1, 'report carries exactly one artifact revision');
+  const canonicalBytes = Buffer.from(markdown.replace(revisionPattern, '0'.repeat(64)), 'utf8');
+  return createHash('sha256').update(canonicalBytes).digest('hex');
+}
+
+function boundDecision(trustState, options = {}) {
+  return decisionBlock(
+    bindReportDecision('## 🗺️ StyleProof report\n\n**Certification**\n- **Coverage** — ✓ complete\n', {
+      trustState,
+      baseSha,
+      headSha,
+      ...options,
+    }),
+  );
+}
+
+test('every closed-set trust state renders one bounded first-visible decision with an independently verifiable revision', () => {
   for (const [trustState, decision] of Object.entries(trustStates)) {
-    const block = buildReportDecision({ trustState, baseSha, headSha });
+    const report = bindReportDecision('## 🗺️ StyleProof report\n\n**Certification**\n- **Coverage** — ✓ complete\n', {
+      trustState,
+      baseSha,
+      headSha,
+    });
+    const block = decisionBlock(report);
     assert.match(block, new RegExp(`^## StyleProof decision: ${decision}$`, 'm'), trustState);
     assert.equal(block.split('\n').filter((line) => line.startsWith('**Reason:**')).length, 1, trustState);
     assert.equal(block.split('\n').filter((line) => line.startsWith('**Next action:**')).length, 1, trustState);
     assert.ok(block.includes(`**Compared commits:** base \`${baseSha}\` → head \`${headSha}\``), trustState);
+    const renderedRevision = block.match(/Linked report artifact revision \(SHA-256\):\*\* `([0-9a-f]{64})`/)[1];
+    assert.equal(renderedRevision, independentlyComputeArtifactRevision(report), trustState);
     assert.match(
       block,
-      /\*\*Report revision:\*\* unavailable until publication \(the publication commit cannot contain its own identity\)\./,
-      trustState,
+      /canonical bytes are the linked report's exact UTF-8 bytes with only that 64-hex value replaced by 64 ASCII zeroes/i,
     );
-    assert.ok(Buffer.byteLength(block, 'utf8') <= 900, trustState);
+    assert.ok(Buffer.byteLength(block, 'utf8') <= 1_100, trustState);
   }
 });
 
 test('blocked decisions cannot read as approvable', () => {
   for (const trustState of Object.keys(trustStates).filter((state) => trustStates[state] === 'BLOCKED')) {
-    const block = buildReportDecision({ trustState, baseSha, headSha });
+    const block = boundDecision(trustState);
     assert.match(block, /reviewer approval cannot clear this block\./i, trustState);
     assert.doesNotMatch(block, /Approve all changes|approval can clear/i, trustState);
   }
-  assert.match(
-    buildReportDecision({ trustState: 'STYLE_REVIEW_REQUIRED', baseSha, headSha }),
-    /reviewer approval can clear this review gate\./i,
-  );
+  assert.match(boundDecision('STYLE_REVIEW_REQUIRED'), /reviewer approval can clear this review gate\./i);
 });
 
 test('decision identity fails closed instead of guessing', () => {
   for (const options of [
-    { trustState: '', baseSha, headSha },
-    { trustState: 'UNKNOWN', baseSha, headSha },
-    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha: '', headSha },
-    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha: 'abc', headSha },
-    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha, headSha: 'C'.repeat(40) },
-    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha, headSha, identityKind: 'unknown' },
+    { trustState: '', baseSha, headSha, reportArtifactRevision: artifactRevision },
+    { trustState: 'UNKNOWN', baseSha, headSha, reportArtifactRevision: artifactRevision },
+    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha: '', headSha, reportArtifactRevision: artifactRevision },
+    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha: 'abc', headSha, reportArtifactRevision: artifactRevision },
+    {
+      trustState: 'NO_REVIEWABLE_STYLE_CHANGES',
+      baseSha,
+      headSha: 'C'.repeat(40),
+      reportArtifactRevision: artifactRevision,
+    },
+    {
+      trustState: 'NO_REVIEWABLE_STYLE_CHANGES',
+      baseSha,
+      headSha,
+      identityKind: 'unknown',
+      reportArtifactRevision: artifactRevision,
+    },
+    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha, headSha, reportArtifactRevision: 'abc' },
   ]) {
     assert.throws(() => buildReportDecision(options), /report decision/i);
   }
 });
 
-test('binding puts the decision first and preserves all report evidence below it', () => {
+test('binding puts the decision first, binds payload mutations, and preserves report evidence', () => {
   const evidence =
-    '## 🗺️ StyleProof report\n\n**Certification**\n- **Coverage** — ✓ complete\n\n### `button`\n\n![proof](crops/proof.png)';
-  const bound = bindReportDecision(evidence, {
-    trustState: 'STYLE_REVIEW_REQUIRED',
-    baseSha,
-    headSha,
-  });
-  assert.equal(decisionBlock(bound), buildReportDecision({ trustState: 'STYLE_REVIEW_REQUIRED', baseSha, headSha }));
+    '## 🗺️ StyleProof report\n\n**Certification**\n- **Coverage** — ✓ complete\n\n### `button`\n\n![proof](crops/proof.png)\n';
+  const options = { trustState: 'STYLE_REVIEW_REQUIRED', baseSha, headSha };
+  const bound = bindReportDecision(evidence, options);
+  const mutated = bindReportDecision(evidence.replace('proof.png', 'mutated.png'), options);
+  assert.notEqual(
+    decisionBlock(bound).match(/[0-9a-f]{64}/)[0],
+    decisionBlock(mutated).match(/[0-9a-f]{64}/)[0],
+    'mutating payload bytes changes the immutable artifact revision',
+  );
+  assert.equal(
+    decisionBlock(bound),
+    buildReportDecision({ ...options, reportArtifactRevision: independentlyComputeArtifactRevision(bound) }),
+  );
   assert.ok(bound.indexOf('## StyleProof decision: REVIEW REQUIRED') < bound.indexOf('**Certification**'));
   assert.match(bound, /### `button`/);
   assert.match(bound, /!\[proof\]\(crops\/proof\.png\)/);
@@ -163,6 +210,85 @@ test('binding puts the decision first and preserves all report evidence below it
       bindReportDecision('not a StyleProof report', { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha, headSha }),
     /report decision/i,
   );
+});
+
+test('capture-map identities are independently recomputed and never labeled as Git commits', () => {
+  const baseMap = { version: 1, surface: 'home', elements: { body: { style: { color: 'rgb(0, 0, 0)' } } } };
+  const headMap = { version: 1, surface: 'home', elements: { body: { style: { color: 'rgb(255, 0, 0)' } } } };
+  const digest = (map) =>
+    createHash('sha1')
+      .update(Buffer.from(JSON.stringify(map), 'utf8'))
+      .digest('hex');
+  const baseMapDigest = digest(baseMap);
+  const headMapDigest = digest(headMap);
+  const block = decisionBlock(
+    bindReportDecision('## 🗺️ StyleProof report\n', {
+      trustState: 'STYLE_REVIEW_REQUIRED',
+      baseSha: baseMapDigest,
+      headSha: headMapDigest,
+      identityKind: 'capture-map',
+    }),
+  );
+  assert.ok(block.includes(`**Compared capture maps:** base \`${baseMapDigest}\` → head \`${headMapDigest}\``));
+  assert.doesNotMatch(block, /Compared commits|Git commit/i);
+});
+
+test('uncoordinated oversized payloads fail explicitly instead of deleting certification evidence', () => {
+  const generatedReport = `## 🗺️ StyleProof report
+
+**Certification**
+- **Coverage** — ✓ complete
+
+${'界'.repeat(400_000)}`;
+  assert.throws(
+    () =>
+      bindReportDecision(generatedReport, {
+        trustState: 'STYLE_REVIEW_REQUIRED',
+        baseSha,
+        headSha,
+        identityKind: 'commit',
+      }),
+    /final report.*exceeds.*byte ceiling|byte ceiling.*exceeds/i,
+  );
+});
+
+test('payload budget reserves the worst valid decision header across every trust state and identity label', () => {
+  const finalBudget = 1_200;
+  const payloadBudget = reportPayloadByteBudget(finalBudget);
+  assert.ok(payloadBudget > 0 && payloadBudget < finalBudget);
+  for (const trustState of Object.keys(trustStates)) {
+    for (const identityKind of ['commit', 'capture-map']) {
+      const payload = `## 🗺️ StyleProof report
+${'界'.repeat(Math.floor((payloadBudget - 36) / 3))}`;
+      const bound = bindReportDecision(payload, {
+        trustState,
+        baseSha,
+        headSha,
+        identityKind,
+        maxReportBytes: finalBudget,
+      });
+      assert.ok(Buffer.byteLength(bound, 'utf8') <= finalBudget, `${trustState}/${identityKind}`);
+      assert.equal(verifyReportArtifactRevision(bound), true);
+    }
+  }
+});
+
+test('small multibyte final ceilings are exact and impossible budgets fail without hiding evidence', () => {
+  const evidence = `## 🗺️ StyleProof report
+
+**Certification**
+- **Coverage** — ✓ complete
+- **Diagnostic** — é界
+`;
+  const options = { trustState: 'CERTIFICATION_FAILED', baseSha, headSha };
+  const unbounded = bindReportDecision(evidence, { ...options, maxReportBytes: Infinity });
+  const exactBytes = Buffer.byteLength(unbounded, 'utf8');
+  assert.equal(bindReportDecision(evidence, { ...options, maxReportBytes: exactBytes }), unbounded);
+  assert.throws(
+    () => bindReportDecision(evidence, { ...options, maxReportBytes: exactBytes - 1 }),
+    /final report.*exceeds.*byte ceiling|byte ceiling.*exceeds/i,
+  );
+  assert.throws(() => reportPayloadByteBudget(128), /cannot fit.*decision|decision.*cannot fit/i);
 });
 
 test('public and private reports use one commit-bound linked-delivery contract', () => {
@@ -326,7 +452,7 @@ test('report delivery rejects malformed contract identity instead of guessing', 
   );
 });
 
-test('generated live report dogfoods the canonical decision without invented publication identity', () => {
+test('generated live report dogfoods one verifiable artifact revision and truthful capture-map identities', () => {
   const generator = fs.readFileSync(path.join(root, 'scripts', 'live-readme-report.mjs'), 'utf8');
   const report = fs.readFileSync(path.join(root, 'docs', 'readme', 'live-report', 'report.md'), 'utf8');
   const comment = fs.readFileSync(path.join(root, 'docs', 'readme', 'live-report', 'comment.md'), 'utf8');
@@ -334,9 +460,11 @@ test('generated live report dogfoods the canonical decision without invented pub
   const block = decisionBlock(report);
 
   assert.match(generator, /bindReportDecision/);
-  assert.match(generator, /createHash\('sha1'\)/);
+  assert.match(generator, /identityKind: 'capture-map'/);
   assert.match(block, /^## StyleProof decision: REVIEW REQUIRED/);
-  assert.match(block, /Report revision:\*\* unavailable until publication/);
+  assert.match(block, /\*\*Compared capture maps:\*\* base `[0-9a-f]{40}` → head `[0-9a-f]{40}`/);
+  assert.doesNotMatch(block, /Compared commits|Git commit/i);
+  assert.equal(block.match(/[0-9a-f]{64}/)[0], independentlyComputeArtifactRevision(report));
   assert.ok(
     comment.startsWith(`<!-- styleproof-report -->
 ${block}`),

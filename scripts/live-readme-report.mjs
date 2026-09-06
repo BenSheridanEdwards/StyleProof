@@ -14,7 +14,7 @@ import { gzipSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { format } from 'prettier';
 import { captureStyleMap, captureStateLayerScreenshots, generateStyleMapReport } from '../dist/index.js';
-import { bindReportDecision } from '../dist/report-delivery.js';
+import { bindReportDecision, verifyReportArtifactRevision } from '../dist/report-delivery.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -103,18 +103,22 @@ function captureIdentity(map) {
 }
 
 const generated = `${restingChangesFirst(fs.readFileSync(res.reportMdPath, 'utf8')).trimEnd()}\n`;
-// The shared REVIEW REQUIRED caption states: write access required, and not the pull request author.
-const report = await format(
-  bindReportDecision(generated, {
-    trustState: 'STYLE_REVIEW_REQUIRED',
-    baseSha: captureIdentity(base.map),
-    headSha: captureIdentity(head.map),
-    identityKind: 'capture-map',
-  }),
-  { parser: 'markdown', printWidth: 120, singleQuote: true },
-);
+const formattedPayload = await format(generated, { parser: 'markdown', printWidth: 120, singleQuote: true });
+// Bind identity last: canonical bytes include every decision and evidence byte, so
+// no formatter or other transform may mutate the report after this call.
+const report = bindReportDecision(formattedPayload, {
+  trustState: 'STYLE_REVIEW_REQUIRED',
+  baseSha: captureIdentity(base.map),
+  headSha: captureIdentity(head.map),
+  identityKind: 'capture-map',
+});
 fs.writeFileSync(res.reportMdPath, report);
-const inlined = report.replaceAll('(crops/', '(docs/readme/live-report/crops/');
+const persistedReport = fs.readFileSync(res.reportMdPath, 'utf8');
+if (!verifyReportArtifactRevision(persistedReport)) {
+  throw new Error('written live report does not match its linked report artifact revision');
+}
+const inlined = persistedReport.replaceAll('(crops/', '(docs/readme/live-report/crops/');
+// The shared REVIEW REQUIRED caption states: write access required, and not the pull request author.
 const comment = ['<!-- styleproof-report -->', inlined.trim(), '', '- [ ] **Approve all changes**', '', '---', ''].join(
   '\n',
 );

@@ -26,6 +26,7 @@ import {
   type SurfaceCaptureFailure,
 } from './map-store.js';
 import { fillRect, type RGB } from './png-util.js';
+import { reportPayloadByteBudget } from './report-delivery.js';
 import {
   diffStyleMapDirs,
   diffContentMaps,
@@ -152,12 +153,13 @@ export type ReportOptions = {
   /** Require explicit matching productState identity on every paired capture. */
   requireStateIdentity?: boolean;
   /**
-   * Byte ceiling for report.md so GitHub can always render it (its markdown viewer
-   * refuses to render files past ~512 KB). Once the accumulated report would exceed
-   * this, the remaining changed surfaces are listed as one-liners (name · change
-   * count · crop link) instead of full property tables — the exhaustive per-row
-   * detail is always kept in report.json and every crop in crops/, so nothing is
-   * lost, just relocated. Default 400_000 (~0.4 MB). Set to Infinity to never cap.
+   * UTF-8 byte ceiling for the generated report.md payload. Once accumulation would
+   * exceed it, remaining changed surfaces become one-liners while report.json and
+   * crops/ retain the per-row/crop detail. The default reserves the worst-case
+   * canonical decision header so later binding stays within the 400_000-byte final
+   * Action ceiling. An explicit value is a payload ceiling; callers with a custom
+   * final ceiling must pass reportPayloadByteBudget(finalCeiling). Infinity disables
+   * payload compaction.
    */
   maxReportBytes?: number;
 };
@@ -2924,7 +2926,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     // own focused frame rather than one wide merged one.
     maxCrops = 8,
     foldDetailsAt = 0,
-    maxReportBytes = 400_000,
+    maxReportBytes = reportPayloadByteBudget(),
     requireStateIdentity = false,
   } = opts;
 

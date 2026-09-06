@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import {
@@ -13,7 +14,23 @@ import {
   toHex,
   propertyGlanceLine,
 } from '../dist/report.js';
+import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { reportPayloadByteBudget, verifyReportArtifactRevision } from '../dist/report-delivery.js';
 import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture } from './helpers.mjs';
+
+const repoRoot = process.cwd();
+const actionYml = fs.readFileSync(path.join(repoRoot, 'action.yml'), 'utf8');
+
+function literalActionDecisionBindingScript() {
+  const step = actionYml.match(/- name: Bind canonical decision to report[\s\S]*?(?=\n\s{4}- id: publish)/);
+  assert.ok(step, 'action.yml should bind the classified decision before publication');
+  const program = step[0].match(/node --input-type=module <<'NODE'\n([\s\S]*?)\n {8}NODE/);
+  assert.ok(program, 'decision binding step should contain a Node program');
+  return `${program[1]
+    .split('\n')
+    .map((line) => line.replace(/^ {8}/, ''))
+    .join('\n')}\n`;
+}
 
 // NOTE: summarizeProps and prettyLabel must be exported from report.ts (and
 // re-exported from index.ts) for these direct unit tests. See the drafted
@@ -2692,21 +2709,56 @@ test('report.md stays under its byte budget (GitHub-renderable); report.json kee
         ]),
       ),
     });
+  const expectedSurfaces = [];
   for (let s = 0; s < N; s++) {
-    const surface = `surface-${s}@1280`;
+    const surfaceBase = `surface-${s}`;
+    const surface = `${surfaceBase}@1280`;
+    expectedSurfaces.push(surfaceBase);
     writeCapture(beforeDir, surface, surfaceMap(s, 0), solidPng(1280, 800));
     writeCapture(afterDir, surface, surfaceMap(s, 5), solidPng(1280, 800));
   }
+  const coverage = JSON.stringify({ version: 1, expected: expectedSurfaces, exclude: {}, determinism: 'self-checked' });
+  fs.writeFileSync(path.join(beforeDir, COVERAGE_LEDGER), coverage);
+  fs.writeFileSync(path.join(afterDir, COVERAGE_LEDGER), coverage);
 
-  const budget = 15_000;
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, maxReportBytes: budget });
+  const finalBudget = 15_000;
+  const payloadBudget = reportPayloadByteBudget(finalBudget);
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, maxReportBytes: payloadBudget });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
 
-  assert.ok(md.length < budget * 2, `report.md must stay bounded near the budget (was ${md.length})`);
+  assert.ok(Buffer.byteLength(md, 'utf8') <= payloadBudget, `generated payload exceeds reserved budget`);
+  assert.match(md, /Product-state comparison/i, 'visible trust diagnostic survives structured report compaction');
   assert.match(md, /summarized to keep this report renderable/, 'the cap is announced, not silent');
   assert.match(md, /· \d+ change\(s\)/, 'capped surfaces appear as one-line summaries');
   assert.equal(json.surfaces.length, N, 'report.json keeps every surface — the cap relocates detail, never drops it');
+
+  // Execute the literal production Action binding program. Generation owns
+  // structured compaction; the binder only authenticates and enforces final bytes.
+  const actionRoot = path.join(root, 'literal-action');
+  const actionReportDir = path.join(actionRoot, 'styleproof-report');
+  fs.mkdirSync(actionReportDir, { recursive: true });
+  fs.copyFileSync(res.reportMdPath, path.join(actionReportDir, 'report.md'));
+  const decisionScript = path.join(actionRoot, 'decision.mjs');
+  fs.writeFileSync(decisionScript, literalActionDecisionBindingScript());
+  const decision = spawnSync(process.execPath, [decisionScript], {
+    cwd: actionRoot,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GITHUB_ACTION_PATH: repoRoot,
+      STYLEPROOF_TRUST_STATE: 'STYLE_REVIEW_REQUIRED',
+      STYLEPROOF_BASE_SHA: 'b'.repeat(40),
+      STYLEPROOF_HEAD_SHA: 'c'.repeat(40),
+    },
+  });
+  assert.equal(decision.status, 0, decision.stderr || decision.stdout);
+  const bound = fs.readFileSync(path.join(actionReportDir, 'report.md'), 'utf8');
+  assert.ok(Buffer.byteLength(bound, 'utf8') <= finalBudget, 'final decision-bound report exceeds its ceiling');
+  assert.match(bound, /\*\*Certification\*\*/i);
+  assert.match(bound, /Coverage.*✓ complete/i);
+  assert.match(bound, /Determinism.*✓ proven/i);
+  assert.equal(verifyReportArtifactRevision(bound), true);
 
   // The cap must actually shrink a large report (uncapped is far bigger).
   const full = generateStyleMapReport({
