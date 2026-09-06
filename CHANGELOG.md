@@ -15,6 +15,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add HumanLayer's repository-scoped `show-me` skill with pinned provenance,
+  MIT attribution, and StyleProof-specific review guidance. Compact views must
+  stay tied to real source and evidence, preserve uncertainty, and never replace
+  tests, StyleProof reports, screenshots, or exact-head CI. (#487)
+
 - Add a source-bound, fail-closed detection benchmark runner and frozen four-case #447
   pilot corpus. The committed receipt covers two computed-style changes, one
   cross-element hover change, and one equivalent-color no-op, with exact artifact

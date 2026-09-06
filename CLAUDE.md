@@ -7,7 +7,7 @@ Claude Code tooling and the auto-generated GitNexus block below.
 
 ## Agent tooling
 
-This repo is wired for three Claude Code tools.
+This repo is wired for four Claude Code tools.
 
 - **Ponytail** — the default working mode for coding, review, refactor, and design
   (see _Simplicity First_ in `AGENTS.md`). Installed as a global plugin; switch
@@ -24,6 +24,15 @@ This repo is wired for three Claude Code tools.
 - **Graphify** — `/graphify` turns this repo (or any path/URL) into a navigable
   knowledge graph under `graphify-out/` (gitignored). Reach for it for
   architecture, file-relationship, or "how does this fit together" questions.
+- **Show Me** — `/show-me` creates a concise visual explanation of a change.
+  For a non-trivial PR, choose the smallest view that removes review ambiguity.
+  Keep every label grounded in the changed files, symbols, states, or evidence.
+  The explanation supports the proof in the PR. It does not replace tests,
+  StyleProof reports, screenshots, or exact-head CI. Read
+  `.claude/skills/show-me/REPOSITORY.md` with the upstream skill.
+  Installed from HumanLayer with `npx skills add humanlayer/skills --skill show-me`,
+  pinned to source commit `3c2629142c5d437428269b1b722b08c0b87f574d`, and
+  distributed here under HumanLayer's MIT license.
 
 Machine-specific Claude settings belong in `.claude/settings.local.json`
 (gitignored) — never commit absolute paths or usernames to this public repo.
