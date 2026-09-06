@@ -45,6 +45,7 @@ import { discoverComponentFiles } from '../dist/components.js';
 import { validateComponentManifest } from '../dist/component-manifest.js';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit } from '../dist/cli-errors.js';
 import { decodeSpecPathEnv, encodeSpecPath, SPEC_PATH_ENV, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
+import { detectPackageManager } from './package-manager.mjs';
 
 const HELP = `styleproof-init — scaffold a styleproof capture spec
 
@@ -52,8 +53,10 @@ usage: styleproof-init [options]
 
 options:
   --dir <path>        spec output path (default: e2e/styleproof.spec.ts)
-  --base-url <url>    baseURL for a generated playwright.styleproof.config.ts
-                      (default: http://localhost:3000)
+  --base-url <url>    application URL (default: http://localhost:3000)
+  --server-command <command>
+                      explicit production build/serve command
+  --external-server   do not manage a server; BASE_URL must already be available
   --manifest <path>   write a typed starter component manifest
   --component-roots <dirs>
                       comma-separated component roots; repeatable
@@ -105,6 +108,9 @@ let force = false;
 let hookOnly = false;
 let upgrade = false;
 let checkOnly = false;
+let validateServerOnly = false;
+let serverCommand;
+let externalServer = false;
 let manifestPath;
 const componentRoots = [];
 for (let i = 0; i < argv.length; i++) {
@@ -118,6 +124,15 @@ for (let i = 0; i < argv.length; i++) {
     specPath = a.slice(6);
   } else if (a === '--base-url') baseUrl = argv[++i];
   else if (a.startsWith('--base-url=')) baseUrl = a.slice(11);
+  else if (a === '--server-command') {
+    serverCommand = argv[++i];
+    if (serverCommand === undefined || serverCommand.startsWith('--')) {
+      console.error('styleproof-init: --server-command requires a value');
+      process.exit(2);
+    }
+  } else if (a.startsWith('--server-command=')) serverCommand = a.slice('--server-command='.length);
+  else if (a === '--external-server') externalServer = true;
+  else if (a === '--validate-server') validateServerOnly = true;
   else if (a === '--manifest') manifestPath = argv[++i];
   else if (a.startsWith('--manifest=')) manifestPath = a.slice('--manifest='.length);
   else if (a === '--component-roots') componentRoots.push(...String(argv[++i] ?? '').split(','));
@@ -132,8 +147,29 @@ for (let i = 0; i < argv.length; i++) {
     process.exit(2);
   }
 }
+if (serverCommand === undefined && !externalServer) {
+  const serverMode = process.env.STYLEPROOF_SERVER_MODE;
+  if (serverMode === 'external') externalServer = true;
+  else if (serverMode === 'custom') {
+    const encoded = process.env.STYLEPROOF_SERVER_COMMAND_B64 ?? '';
+    try {
+      serverCommand = Buffer.from(encoded, 'base64').toString('utf8');
+    } catch {
+      serverCommand = '';
+    }
+  }
+}
+
 if (Boolean(manifestPath) !== Boolean(componentRoots.length)) {
   console.error('styleproof-init: --manifest and --component-roots must be provided together');
+  process.exit(2);
+}
+if (serverCommand !== undefined && (!serverCommand.trim() || serverCommand.includes('\0'))) {
+  console.error('styleproof-init: --server-command requires a non-empty command without NUL bytes');
+  process.exit(2);
+}
+if (serverCommand !== undefined && externalServer) {
+  console.error('styleproof-init: --server-command and --external-server are mutually exclusive');
   process.exit(2);
 }
 if (manifestPath) {
@@ -165,6 +201,8 @@ try {
   process.exit(2);
 }
 const encodedSpecPath = encodeSpecPath(specPath);
+const serverMode = externalServer ? 'external' : serverCommand === undefined ? 'infer' : 'custom';
+const encodedServerCommand = serverCommand === undefined ? '' : Buffer.from(serverCommand, 'utf8').toString('base64');
 
 // Captures read whatever is in front of them, so the page must be settled and
 // deterministic first — this helper is shared by both spec variants below.
@@ -336,17 +374,21 @@ const PACKAGE_MANAGERS = {
   },
 };
 
-function detectPackageManager(root) {
-  if (fs.existsSync(path.join(root, 'bun.lock')) || fs.existsSync(path.join(root, 'bun.lockb'))) {
-    return PACKAGE_MANAGERS.bun;
+let PM;
+if (hookOnly) {
+  // The hook shim is package-manager agnostic. Keep --hook usable as a standalone
+  // refresh/install operation even before a manifest exists or while lockfiles are
+  // being migrated; npm is only a harmless placeholder for templates we never write.
+  PM = PACKAGE_MANAGERS.npm;
+} else {
+  try {
+    PM = PACKAGE_MANAGERS[detectPackageManager(process.cwd(), { allowMissingManifest: true })];
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`styleproof-init: ${detail}\n`);
+    process.exit(2);
   }
-  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) return PACKAGE_MANAGERS.pnpm;
-  if (fs.existsSync(path.join(root, 'yarn.lock'))) return PACKAGE_MANAGERS.yarn;
-  return PACKAGE_MANAGERS.npm;
 }
-
-const PM = detectPackageManager(process.cwd());
-
 function readPackageJson(root) {
   try {
     return JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -357,6 +399,10 @@ function readPackageJson(root) {
 
 function hasDep(pkg, name) {
   return Boolean(pkg.dependencies?.[name] ?? pkg.devDependencies?.[name]);
+}
+
+function hasScript(pkg, script) {
+  return typeof pkg.scripts?.[script] === 'string' && pkg.scripts[script].trim().length > 0;
 }
 
 function scriptIncludes(pkg, script, text) {
@@ -374,9 +420,12 @@ function portFromBaseUrl(url) {
 }
 
 function productionServerCommand(root, base) {
+  if (externalServer) return undefined;
+  if (serverCommand !== undefined) return serverCommand;
+
   const pkg = readPackageJson(root);
   const port = portFromBaseUrl(base);
-  const build = pkg.scripts?.build ? `${PM.run('build')} && ` : '';
+  const build = hasScript(pkg, 'build') ? `${PM.run('build')} && ` : '';
   const looksLikeVite =
     hasDep(pkg, 'vite') || scriptIncludes(pkg, 'dev', 'vite') || scriptIncludes(pkg, 'build', 'vite');
   const looksLikeNext =
@@ -384,12 +433,24 @@ function productionServerCommand(root, base) {
 
   if (looksLikeVite) return `${build}${PM.exec(`vite preview --host 127.0.0.1 --port ${port}`)}`;
   if (looksLikeNext) {
-    const start = pkg.scripts?.start ? PM.run('start') : PM.exec(`next start -p ${port}`);
+    const start = hasScript(pkg, 'start') ? PM.run('start') : PM.exec(`next start -p ${port}`);
     return `${build}${start}`;
   }
-  if (pkg.scripts?.start) return `${build}${PM.run('start')}`;
-  if (pkg.scripts?.preview) return `${build}${PM.run('preview')}`;
-  return `${PM.run('build')} && ${PM.run('start')}`;
+  if (hasScript(pkg, 'start')) return `${build}${PM.run('start')}`;
+  if (hasScript(pkg, 'preview')) return `${build}${PM.run('preview')}`;
+  return undefined;
+}
+
+function productionServerOrExit() {
+  const command = productionServerCommand(process.cwd(), baseUrl);
+  if (!externalServer && command === undefined) {
+    console.error(
+      'styleproof-init: could not infer a production server command from Next.js, Vite, or package.json scripts.start/scripts.preview.\n' +
+        'Next: pass --server-command "<build-and-serve command>", or --external-server when BASE_URL is managed separately.',
+    );
+    process.exit(2);
+  }
+  return command;
 }
 
 function configTestDir(spec) {
@@ -398,7 +459,19 @@ function configTestDir(spec) {
   return rel ? `./${rel}` : '.';
 }
 
-const CONFIG = `import { defineConfig, devices } from '@playwright/test';
+function playwrightConfig(command) {
+  const webServer =
+    command === undefined
+      ? ''
+      : `  webServer: {
+    command: ${JSON.stringify(command)},
+    url: process.env.BASE_URL || ${JSON.stringify(baseUrl)},
+    env: { PORT: ${JSON.stringify(portFromBaseUrl(baseUrl))} },
+    reuseExistingServer: !process.env.CI,
+    timeout: 600_000, // a cold production build can take a few minutes
+  },
+`;
+  return `import { defineConfig, devices } from '@playwright/test';
 
 // Generated by styleproof-init.
 //
@@ -421,22 +494,21 @@ export default defineConfig({
   // dir.) Tune \`workers\` to your machine if needed.
   fullyParallel: true,
   use: {
-    baseURL: process.env.BASE_URL || '${baseUrl}',
+    baseURL: process.env.BASE_URL || ${JSON.stringify(baseUrl)},
   },
-  // Build once, then serve THAT production build for the captures — so you can't
-  // accidentally capture a dev server. styleproof-init detected the production
-  // serve command from your package scripts/dependencies; tune it here if your
-  // framework needs a custom preview command.
-  webServer: {
-    command: '${productionServerCommand(process.cwd(), baseUrl)}',
-    url: process.env.BASE_URL || '${baseUrl}',
-    env: { PORT: '${portFromBaseUrl(baseUrl)}' },
-    reuseExistingServer: !process.env.CI,
-    timeout: 600_000, // a cold production build can take a few minutes
-  },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // When present, this builds once and serves THAT production build for captures.
+  // --external-server omits webServer so the caller-provided BASE_URL is used as-is.
+${webServer}  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });
 `;
+}
+
+if (validateServerOnly) {
+  productionServerOrExit();
+  process.exit(0);
+}
+
+const selectedProductionServer = hookOnly ? undefined : productionServerOrExit();
 
 const CI_PATH = '.github/workflows/styleproof.yml';
 const CI_OWNERSHIP_MARKER = '# StyleProof CI workflow';
@@ -468,6 +540,8 @@ jobs:
       actions: read
     env:
       ${SPEC_PATH_ENV}: ${encodedSpecPath}
+      STYLEPROOF_SERVER_MODE: ${serverMode}
+      STYLEPROOF_SERVER_COMMAND_B64: ${encodedServerCommand}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1200,7 +1274,7 @@ if (spec.wrote) {
 }
 
 const configPath = 'playwright.styleproof.config.ts';
-const config = writeFileSafe(configPath, CONFIG, { force });
+const config = writeFileSafe(configPath, playwrightConfig(selectedProductionServer), { force });
 if (config.wrote) {
   touched.push(configPath);
   console.log(`${config.exists ? 'overwrote' : 'created'} ${configPath} (dedicated StyleProof capture config)`);

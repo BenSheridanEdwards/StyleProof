@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,15 @@ const DIFF = path.join(here, '..', 'bin', 'styleproof-diff.mjs');
 const REPORT = path.join(here, '..', 'bin', 'styleproof-report.mjs');
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 const VARIANTS = path.join(here, '..', 'bin', 'styleproof-variants.mjs');
+
+function makeInitProject() {
+  const dir = mkTmp();
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({ name: 'fixture', private: true, scripts: { build: 'build', start: 'serve' } }),
+  );
+  return dir;
+}
 
 function run(script, args) {
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
@@ -675,7 +685,7 @@ function addBareOrigin(repo) {
   return remote;
 }
 
-function writeManifest(dir, sha, compatibilityKey) {
+function writeManifest(dir, sha, compatibilityKey, lockfileProvenance) {
   fs.writeFileSync(
     path.join(dir, MAP_MANIFEST),
     JSON.stringify(
@@ -686,6 +696,9 @@ function writeManifest(dir, sha, compatibilityKey) {
         dirty: false,
         spec: 'e2e/styleproof.spec.ts',
         specHash: '1'.repeat(64),
+        ...(lockfileProvenance
+          ? { lockfile: lockfileProvenance.lockfile, lockfileHash: lockfileProvenance.lockfileHash }
+          : {}),
         platform: process.platform,
         arch: process.arch,
         nodeMajor: process.versions.node.split('.')[0],
@@ -749,19 +762,35 @@ function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main'
     commitAll(repo, baseBranch);
   }
   const baseRefSha = spawnSync('git', ['rev-parse', baseBranch], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+  const baseLockfileHash = changeLockfile
+    ? createHash('sha256')
+        .update(fs.readFileSync(path.join(repo, 'package-lock.json')))
+        .digest('hex')
+    : undefined;
   const baseCompatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
   spawnSync('git', ['checkout', '-qb', 'feature'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'feature.txt'), 'feature');
   if (changeLockfile) fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"fixture":"head"}\n');
   const headSha = commitAll(repo, 'feature');
 
+  const headLockfileHash = changeLockfile
+    ? createHash('sha256')
+        .update(fs.readFileSync(path.join(repo, 'package-lock.json')))
+        .digest('hex')
+    : undefined;
   const headCompatibilityKey = expectedCompatibilityKey({ cwd: repo, spec: 'e2e/styleproof.spec.ts' });
   const baseDir = path.join(repo, 'seed-base');
   const headDir = path.join(repo, 'seed-head');
   writeCapture(baseDir, 'home@1280', mapWith('rgb(0, 0, 0)'), null);
   writeCapture(headDir, 'home@1280', mapWith(headColor), null);
-  writeManifest(baseDir, baseRefSha, baseCompatibilityKey);
-  writeManifest(headDir, headSha, headCompatibilityKey);
+  const baseLockfileProvenance = baseLockfileHash
+    ? { lockfile: 'package-lock.json', lockfileHash: baseLockfileHash }
+    : undefined;
+  const headLockfileProvenance = headLockfileHash
+    ? { lockfile: 'package-lock.json', lockfileHash: headLockfileHash }
+    : undefined;
+  writeManifest(baseDir, baseRefSha, baseCompatibilityKey, baseLockfileProvenance);
+  writeManifest(headDir, headSha, headCompatibilityKey, headLockfileProvenance);
   seedMapStore(repo, [
     {
       sha: baseRefSha,
@@ -772,7 +801,15 @@ function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main'
   ]);
   fs.rmSync(baseDir, { recursive: true, force: true });
   fs.rmSync(headDir, { recursive: true, force: true });
-  return { repo, baseSha, headSha, baseCompatibilityKey, headCompatibilityKey };
+  return {
+    repo,
+    baseSha,
+    headSha,
+    baseCompatibilityKey,
+    headCompatibilityKey,
+    baseLockfileHash,
+    headLockfileHash,
+  };
 }
 
 test('diff defaults to cached maps against the inferred main branch', () => {
@@ -806,12 +843,20 @@ test('diff accepts a single base ref and uses cached maps', () => {
   rmTmp(repo);
 });
 
-test('diff restores each cached side but refuses to compare distinct compatibility contracts', () => {
-  const { repo, baseCompatibilityKey, headCompatibilityKey } = setupCachedComparison({ changeLockfile: true });
-  assert.notEqual(baseCompatibilityKey, headCompatibilityKey, 'the lockfile-only fixture must exercise distinct keys');
-  const r = runIn(repo, DIFF, ['main']);
-  assert.equal(r.status, 2, r.stderr);
-  assert.match(r.stderr, /different capture compatibility contracts/);
+test('diff compares an application dependency migration and reports both lockfile hashes as provenance', () => {
+  const { repo, baseCompatibilityKey, headCompatibilityKey, baseLockfileHash, headLockfileHash } =
+    setupCachedComparison({ changeLockfile: true });
+  assert.equal(baseCompatibilityKey, headCompatibilityKey, 'application dependency bytes are not a sensor contract');
+  const jsonPath = path.join(repo, 'dependency-migration-diff.json');
+  const r = runIn(repo, DIFF, ['main', '--json', jsonPath]);
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.equal(receipt.sourceBinding.compatibility, 'matched');
+  assert.deepEqual(receipt.sourceBinding.applicationDependencyProvenance, {
+    status: 'changed',
+    before: { lockfile: 'package-lock.json', lockfileHash: baseLockfileHash },
+    after: { lockfile: 'package-lock.json', lockfileHash: headLockfileHash },
+  });
   rmTmp(repo);
 });
 
@@ -1052,7 +1097,7 @@ test('report CLI exits 2 on a non-numeric --pad', () => {
 });
 
 test('init scaffolds a dedicated StyleProof Playwright config that serves a PRODUCTION build', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
@@ -1061,7 +1106,7 @@ test('init scaffolds a dedicated StyleProof Playwright config that serves a PROD
     assert.match(config, /webServer:/, 'scaffolds a webServer');
     // The exact command builds + serves a production build (not a dev server) — the
     // comment elsewhere mentions `next dev` as the thing to avoid, so assert the command.
-    assert.match(config, /command: 'npm run build && npm run start'/, 'the webServer serves a production build');
+    assert.match(config, /command: "npm run build && npm run start"/, 'the webServer serves a production build');
     // And it says WHY, so the choice is understood, not cargo-culted.
     assert.match(config, /PRODUCTION build/i);
     assert.match(config, /JIT-compile|timing-variable/i, 'explains why a dev server flakes');
@@ -1069,14 +1114,14 @@ test('init scaffolds a dedicated StyleProof Playwright config that serves a PROD
     assert.match(config, /fullyParallel: true/, 'scaffolds parallel surface capture');
     assert.match(config, /testDir: "\.\/e2e"/, 'scopes Playwright discovery to the StyleProof spec directory');
     assert.match(config, /testMatch: "styleproof\.spec\.ts"/, 'scopes Playwright discovery to the StyleProof spec');
-    assert.match(config, /env: \{ PORT: '3000' \}/, 'passes the configured port to production servers');
+    assert.match(config, /env: \{ PORT: "3000" \}/, 'passes the configured port to production servers');
   } finally {
     rmTmp(dir);
   }
 });
 
 test('init scaffolds a MINIMAL spec — StyleProof owns the settle, so go() is not boilerplate', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
@@ -1096,7 +1141,7 @@ test('init scaffolds a MINIMAL spec — StyleProof owns the settle, so go() is n
 });
 
 test('init scaffolds auto breakpoints — no hardcoded widths, by design', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
@@ -1111,7 +1156,7 @@ test('init scaffolds auto breakpoints — no hardcoded widths, by design', () =>
 });
 
 test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow + pre-push publish hook', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
@@ -1170,7 +1215,7 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
 });
 
 test('init in a git repo does not mutate core.hooksPath', () => {
-  const dir = mkTmp();
+  const dir = makeInitProject();
   try {
     spawnSync('git', ['init', '-q'], { cwd: dir });
     spawnSync('git', ['config', 'core.hooksPath', '.husky'], { cwd: dir });
@@ -1436,22 +1481,45 @@ test('diff CLI surfaces the excluded-volatile count in output and --json', () =>
 
 // BOTH sides skipping the forced-state layer compares {} vs {} — certifying nothing.
 // The gate must say the layer is uncertified instead of "every state matches".
-test('diff CLI warns when the forced-state layer was skipped on both sides', () => {
-  const root = mkTmp();
-  const A = path.join(root, 'a');
-  const B = path.join(root, 'b');
-  const m = makeMap({ elements: { body: { tag: 'body' } } });
-  m.statesSkipped = true;
-  writeCapture(A, 'home@1280', m, null);
-  writeCapture(B, 'home@1280', m, null);
-  writeManifest(A, 'base-sha', 'same-env-key');
-  writeManifest(B, 'head-sha', 'same-env-key');
-  const jsonOut = path.join(root, 'out.json');
-  const r = run(DIFF, [A, B, '--json', jsonOut]);
-  assert.match(r.stdout, /forced-state layer uncertified on 1 surface/);
-  const j = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
-  assert.equal(j.statesUncertified, 1);
-  rmTmp(root);
+test('source-bound diff CLI fails certification when either forced-state layer is incomplete', () => {
+  const beforeSha = 'a'.repeat(40);
+  const afterSha = 'b'.repeat(40);
+  for (const [label, beforeEvidence, afterEvidence, expectedStatus, expectedUncertified] of [
+    ['both skipped', { statesSkipped: true }, { statesSkipped: true }, 1, 1],
+    ['before skipped', { statesSkipped: true }, {}, 1, 1],
+    ['after skipped', {}, { statesSkipped: true }, 1, 1],
+    ['captureStates false', { statesCaptured: false }, { statesCaptured: false }, 1, 1],
+    ['neither skipped', {}, {}, 0, 0],
+  ]) {
+    const root = mkTmp();
+    const A = path.join(root, 'a');
+    const B = path.join(root, 'b');
+    const map = (stateEvidence) => ({
+      ...makeMap({ elements: { body: { tag: 'body' } } }),
+      ...stateEvidence,
+    });
+    writeCapture(A, 'home@1280', map(beforeEvidence), null);
+    writeCapture(B, 'home@1280', map(afterEvidence), null);
+    writeManifest(A, beforeSha, 'same-env-key');
+    writeManifest(B, afterSha, 'same-env-key');
+    const jsonOut = path.join(root, 'out.json');
+    const r = run(DIFF, [
+      A,
+      B,
+      '--json',
+      jsonOut,
+      '--expected-before-sha',
+      beforeSha,
+      '--expected-after-sha',
+      afterSha,
+    ]);
+    assert.equal(r.status, expectedStatus, `${label}: ${r.stderr}\n${r.stdout}`);
+    const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+    assert.equal(receipt.statesUncertified, expectedUncertified, label);
+    assert.equal(receipt.certifiesFully, expectedUncertified === 0, label);
+    if (expectedUncertified > 0) assert.match(r.stdout, /forced-state layer uncertified on 1 surface/, label);
+    rmTmp(root);
+  }
 });
 
 // ── report / verdict consistency (raw derived-only vs reviewable report) ─────

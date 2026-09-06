@@ -13,6 +13,10 @@ const liveComment = fs.readFileSync(path.join(root, 'docs/readme/live-report/com
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
 const REPORT_SHA = 'a'.repeat(40);
+const PUBLICATION_SHA = 'c'.repeat(40);
+const RUN_ID = '9001';
+const RUN_ATTEMPT = '2';
+const REPORT_URL = `https://github.com/acme/app/blob/${PUBLICATION_SHA}/pr-7/report.md`;
 const AUTHOR = 'pr-author';
 const REVIEWER = 'a-reviewer';
 
@@ -35,7 +39,11 @@ function reportComment({ ticked = false, suffix = '', sha = REPORT_SHA } = {}) {
     '',
     `- [${ticked ? 'x' : ' '}] **Approve all changes**${suffix}`,
     '',
+    `### 📊 [**View the side-by-side visual report →**](${REPORT_URL})`,
+    '',
+    '---',
     `<!-- styleproof-sha:${sha} -->`,
+    `<!-- styleproof-run-id:${RUN_ID} run-attempt:${RUN_ATTEMPT} -->`,
     '',
   ].join('\n');
 }
@@ -57,7 +65,12 @@ async function runApprove({
   const statuses = [];
   const created = [];
   const updated = [];
-  const listed = [...existingComments];
+  const canonicalComment = {
+    id: 99,
+    body,
+    user: { login: 'github-actions[bot]', type: 'Bot' },
+  };
+  const listed = [canonicalComment, ...existingComments];
   const github = {
     paginate: async (route, params) => {
       assert.equal(route, github.rest.issues.listComments);
@@ -69,7 +82,7 @@ async function runApprove({
         listComments: () => {
           throw new Error('list comments must go through github.paginate');
         },
-        getComment: async () => ({ data: { body } }),
+        getComment: async () => ({ data: canonicalComment }),
         createComment: async (input) => {
           created.push(input);
           listed.push({ body: input.body });
@@ -87,6 +100,30 @@ async function runApprove({
         getCollaboratorPermissionLevel: async () => {
           if (permission === 'none') throw new Error('not a collaborator');
           return { data: { permission } };
+        },
+        listCommitStatusesForRef: async () => ({
+          data: [
+            {
+              context: 'StyleProof',
+              state: 'failure',
+              description: 'StyleProof changes need sign-off — tick the box in the report comment',
+              target_url: REPORT_URL,
+              creator: { login: 'github-actions[bot]', type: 'Bot' },
+            },
+          ],
+        }),
+        getContent: async ({ path: reportPath, ref }) => {
+          assert.equal(ref, PUBLICATION_SHA);
+          const source = reportPath.endsWith('/report.md')
+            ? `# report\n<!-- styleproof-receipt head-sha:${REPORT_SHA} run-id:${RUN_ID} run-attempt:${RUN_ATTEMPT} -->\n`
+            : '{"surfaces":[],"actionTrustState":"STYLE_REVIEW_REQUIRED"}';
+          return {
+            data: {
+              type: 'file',
+              encoding: 'base64',
+              content: Buffer.from(source).toString('base64'),
+            },
+          };
         },
         createCommitStatus: async (input) => {
           statuses.push(input);

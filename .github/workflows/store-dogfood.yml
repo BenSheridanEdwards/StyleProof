@@ -59,7 +59,14 @@ jobs:
             --sha "$HEAD_SHA" --upload \
             -- --config example/store-dogfood.playwright.config.ts
 
-      - name: Restore the published bundle into a clean directory
+      - name: Compact the scratch branch with an atomic expected-tip update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node bin/styleproof-prune-maps.mjs --repository "$GITHUB_REPOSITORY" \
+            --branch "$STYLEPROOF_CACHE_BRANCH" --history-limit 0
+
+      - name: Restore the published bundle after compaction into a clean directory
         run: |
           set -euo pipefail
           node bin/styleproof-map.mjs --restore --sha "$HEAD_SHA" \

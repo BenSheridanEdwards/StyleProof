@@ -200,6 +200,20 @@ export async function harvestInventory(page: { evaluate: <T>(fn: () => T) => Pro
 
 // ── pure diff / union / guard ───────────────────────────────────────────────────
 
+/**
+ * Did ANY captured map on either side actually carry an inventory?
+ *
+ * This is the one definition of "the navigable-removal gate had data to run on".
+ * An empty union is indistinguishable from "nothing was removed" once diffed, so
+ * every consumer that reports or gates on inventory must ask this FIRST — or it
+ * will state `navigable set unchanged` about a set it never captured. Keeping the
+ * rule here, rather than re-deriving it per caller, stops the report and the diff
+ * CLI drifting into two subtly different answers.
+ */
+export function hasCapturedInventory(...sides: Array<Array<{ inventory?: NavigableItem[] } | undefined>>): boolean {
+  return sides.some((maps) => maps.some((map) => (map?.inventory?.length ?? 0) > 0));
+}
+
 /** Union the per-surface inventories of a whole run into one reachable set. */
 export function unionInventory(perSurface: Array<{ inventory?: NavigableItem[] } | undefined>): NavigableItem[] {
   const byKey = new Map<string, NavigableItem>();
