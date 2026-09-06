@@ -574,17 +574,7 @@ export function diffStyleMapDirs(
 }
 
 /** Diff one paired surface, tallying what was NOT compared (volatile subtrees;
- *  a forced-state layer skipped or unsupported on EITHER side — an incomplete layer certifies nothing). */
-
-type StyleMapWithStateEvidence = StyleMap & {
-  /** Explicit false when captureStates was disabled; produced by the capture path that owns this additive map field. */
-  statesCaptured?: boolean;
-};
-
-function forcedStateEvidenceIncomplete(map: StyleMap): boolean {
-  return map.statesSkipped === true || (map as StyleMapWithStateEvidence).statesCaptured === false;
-}
-
+ *  a forced-state layer skipped on BOTH sides — {} vs {} certifies nothing). */
 function diffSurfacePair(
   surface: string,
   fileA: string,
@@ -595,7 +585,7 @@ function diffSurfacePair(
   const mapA = loadStyleMap(fileA);
   const mapB = loadStyleMap(fileB);
   uncompared.volatile += new Set([...(mapA.volatile ?? []), ...(mapB.volatile ?? [])]).size;
-  if (forcedStateEvidenceIncomplete(mapA) || forcedStateEvidenceIncomplete(mapB)) uncompared.statesUncertified++;
+  if (mapA.statesSkipped && mapB.statesSkipped) uncompared.statesUncertified++;
   // Certification excludes structure, so an element that merely moved (an
   // nth-child shift, a wrapper added or removed) must be paired back onto its
   // head path first — otherwise a real restyle on it vanishes with the

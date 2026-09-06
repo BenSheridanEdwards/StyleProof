@@ -26,7 +26,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { diffStyleMapDirs, findingLabel, summarizeComparability } from '../dist/diff.js';
-import { assessCertificationEvidence } from '../dist/verdict.js';
 // The shared grouping brain (leaf — no Playwright-adjacent imports) that already
 // dedupes the report: group identical change-sets across surfaces and fold derived
 // longhands. Used for the HUMAN output only; --json stays the raw machine contract.
@@ -67,7 +66,7 @@ import {
 } from '../dist/cli-errors.js';
 import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
 import { readInventories, readResidue, surfaceElementPaths, mergeSurfaceKeyLookup } from '../dist/capture.js';
-import { auditRunInventory, hasCapturedInventory, readAckFile } from '../dist/inventory.js';
+import { auditRunInventory, readAckFile } from '../dist/inventory.js';
 import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
@@ -97,7 +96,7 @@ function loadAllowRemoved() {
 function readInventoryAudit(dirA, dirB) {
   const baseInv = readInventories(dirA);
   const headInv = readInventories(dirB);
-  if (!hasCapturedInventory(baseInv, headInv)) return null;
+  if (![...baseInv, ...headInv].some((m) => m.inventory?.length)) return null;
   const allowed = loadAllowRemoved();
   return { allowed, ...auditRunInventory(baseInv, headInv, allowed) };
 }
@@ -723,30 +722,24 @@ const firstAdoptionBareBase =
   residueFails === 0;
 const coverageBlocks = coverageFails && !(firstAdoptionBareBase && coverageVerdict?.basis === 'unasserted');
 const determinismBlocks = determinismFails && !(firstAdoptionBareBase && determinismVerdict?.status === 'unknown');
-const certificationEvidence = assessCertificationEvidence({
-  sourceBinding,
-  coverage: coverageVerdict,
-  determinism: determinismVerdict,
-  confidence: confidenceSummary,
-  comparison,
-  reportConsistency: truth.rawOnlyNoReviewable
-    ? { ok: false, reason: 'raw_only_no_reviewable' }
-    : { ok: true, reason: 'aligned' },
-  statesUncertified,
-  partialBaseline,
-  explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
-});
 // True only when the run would exit 0 as a full certification (not diagnostic).
 const certifiesFully =
-  certificationEvidence.certifies &&
+  sourceBinding?.status === 'bound' &&
   !allowUnasserted &&
+  !truth.rawOnlyNoReviewable &&
   !partialBaseline &&
+  !comparison.blocksCertification &&
   total === 0 &&
   removedSurfaces === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
+  !confidenceBlocks &&
+  !coverageBlocks &&
+  !determinismBlocks &&
   !pixelBlocks &&
-  greenfieldNewSurfaces === 0;
+  greenfieldNewSurfaces === 0 &&
+  coverageVerdict?.basis === 'complete' &&
+  determinismVerdict?.status === 'proven';
 
 if (jsonOut) {
   // A write failure (bad --json path, unwritable dir) is a usage/setup error, not a
@@ -786,8 +779,8 @@ if (jsonOut) {
           // auto-detected them as volatile (still mutating at capture settle).
           // Changes inside them are NOT certified by this diff.
           volatileExcluded: volatile,
-          // Surfaces whose forced-state layer was skipped or unsupported on EITHER side —
-          // :hover/:focus/:active evidence is incomplete and certifies nothing.
+          // Surfaces whose forced-state layer was skipped on BOTH sides — the
+          // :hover/:focus/:active layer compared {} vs {} and certifies nothing.
           statesUncertified,
           coverage: coverageVerdict,
           determinism: determinismVerdict,
@@ -852,8 +845,8 @@ if (volatile > 0)
   );
 if (statesUncertified > 0)
   console.log(
-    `\n⚠ forced-state layer uncertified on ${statesUncertified} surface(s): at least one capture skipped or did not support it, so\n` +
-      '  :hover/:focus/:active differences there were not fully compared.',
+    `\n⚠ forced-state layer uncertified on ${statesUncertified} surface(s): BOTH captures skipped it, so\n` +
+      '  :hover/:focus/:active differences there were never compared.',
   );
 const newNote = greenfieldNewSurfaces > 0 ? ` (+${greenfieldNewSurfaces} new surface(s) with no baseline)` : '';
 const removedNote = removedSurfaces ? ` + ${removedSurfaces} REMOVED surface(s)` : '';
@@ -886,7 +879,6 @@ const clean =
   !confidenceBlocks &&
   !coverageBlocks &&
   !determinismBlocks &&
-  certificationEvidence.interactionStatesComplete &&
   !pixelBlocks;
 if (truth.rawOnlyNoReviewable) {
   // Derived-only style findings now render (cleanFindingsForDisplay), so the one
@@ -931,7 +923,6 @@ process.exit(
     confidenceBlocks ||
     coverageBlocks ||
     determinismBlocks ||
-    !certificationEvidence.interactionStatesComplete ||
     pixelBlocks
     ? 1
     : greenfieldNewSurfaces > 0

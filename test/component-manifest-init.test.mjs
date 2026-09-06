@@ -11,10 +11,7 @@ const init = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 
 function makeProject() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-manifest-init-'));
-  fs.writeFileSync(
-    path.join(root, 'package.json'),
-    JSON.stringify({ name: 'fixture', private: true, scripts: { start: 'serve' } }),
-  );
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'fixture', private: true }));
   for (const relative of ['src/components/Button.tsx', 'src/widgets/Card.tsx']) {
     const absolute = path.join(root, relative);
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
