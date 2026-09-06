@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "styleproof-detection-rate",
+  "scope": {
+    "kind": "pilot",
+    "issue": 447,
+    "full447": false
+  },
+  "bindings": {
+    "sourceSha": "6747081983f44c632ad1290c18947e8ba3d6710d",
+    "packageVersion": "6.3.0",
+    "browser": {
+      "name": "chromium",
+      "version": "149.0.7827.55"
+    },
+    "runner": {
+      "node": "v22.22.2",
+      "platform": "darwin",
+      "release": "25.3.0",
+      "arch": "arm64",
+      "osVersion": "26.3",
+      "osBuild": "25D125"
+    },
+    "sensor": {
+      "name": "captureStyleMap+diffStyleMaps",
+      "contractVersion": 1,
+      "digest": "9d80c53daa0933e3e312ab204ba37ac5444f6196892e8645ea1c961e4671f5fb",
+      "sourceDigest": "020af8c7aa19e6a2a35f58d4a2d27f3cb5be9311489644753303f96c345097ea",
+      "buildCommand": "npm run build"
+    },
+    "corpus": {
+      "id": "styleproof-issue447-phase0-pilot",
+      "version": "1.0.0",
+      "digest": "d5204a2c44cb3d92ef10fe819b50b5732fa4ff1ccefd12f9f9022442f584ac27",
+      "cardinality": 4,
+      "manifest": "bench/detection-corpus-v1.manifest.json"
+    }
+  },
+  "counts": {
+    "requested": 4,
+    "executed": 4,
+    "valid": 4,
+    "detected": 3,
+    "missed": 0,
+    "unsupported": 0,
+    "skipped": 0,
+    "timeout": 0,
+    "invalid": 0,
+    "duplicate": 0,
+    "noOpFalsePositives": 0,
+    "noOpTrueNegatives": 1
+  },
+  "cases": [
+    {
+      "id": "computed-rest-background-v1",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 12801,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(200, 200, 200)",
+        "after": "rgb(80, 120, 200)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "background-color",
+              "before": "rgb(200, 200, 200)",
+              "after": "rgb(80, 120, 200)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "cases/computed-rest-background-v1/before.png",
+        "cases/computed-rest-background-v1/after.png"
+      ]
+    },
+    {
+      "id": "computed-pseudo-color-v1",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 55,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 128, 0)",
+        "after": "rgb(200, 0, 0)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "label",
+          "pseudo": "::before",
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "caret-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "outline-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "cases/computed-pseudo-color-v1/before.png",
+        "cases/computed-pseudo-color-v1/after.png"
+      ]
+    },
+    {
+      "id": "cross-element-hover-panel-v1",
+      "class": "cross-element-state",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 29530,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 0, 255)",
+        "after": "rgb(0, 128, 0)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "state",
+          "path": "body > main:nth-child(1) > button:nth-child(1)",
+          "cls": "",
+          "state": "hover",
+          "sub": "body > main:nth-child(1) > section:nth-child(2)",
+          "props": [
+            {
+              "prop": "background-color",
+              "before": "rgb(0, 0, 255)",
+              "after": "rgb(0, 128, 0)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        "cases/cross-element-hover-panel-v1/before.png",
+        "cases/cross-element-hover-panel-v1/after.png"
+      ]
+    },
+    {
+      "id": "computed-equivalent-color-noop-v1",
+      "class": "no-op-control",
+      "outcome": "no-op-true-negative",
+      "renderProof": {
+        "expectedChange": false,
+        "observedPropertyChange": false,
+        "observedPixelChange": false,
+        "changedPixels": 0,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(200, 200, 200)",
+        "after": "rgb(200, 200, 200)"
+      },
+      "findingCount": 0,
+      "findings": [],
+      "screenshots": [
+        "cases/computed-equivalent-color-noop-v1/before.png",
+        "cases/computed-equivalent-color-noop-v1/after.png"
+      ]
+    }
+  ],
+  "full447": {
+    "status": "not-run",
+    "claimed": false
+  },
+  "validation": {
+    "ok": true,
+    "reasons": []
+  }
+}
