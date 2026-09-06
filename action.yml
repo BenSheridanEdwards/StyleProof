@@ -454,6 +454,33 @@ runs:
           core.setOutput('approved', approved ? 'true' : 'false');
           core.setOutput('approver', approver);
 
+    # Bind one human decision to the already-classified trust state before the
+    # report bytes become immutable. The publication commit cannot name itself
+    # inside those bytes, so the block says that revision is unavailable; the
+    # validated commit-bound link is added to the comment after publication.
+    - name: Bind canonical decision to report
+      shell: bash
+      env:
+        STYLEPROOF_TRUST_STATE: ${{ steps.verdict.outputs.state }}
+        STYLEPROOF_BASE_SHA: ${{ steps.context.outputs.base-sha }}
+        STYLEPROOF_HEAD_SHA: ${{ steps.context.outputs.head-sha }}
+      run: |
+        set -euo pipefail
+        node --input-type=module <<'NODE'
+        import fs from 'node:fs';
+        import path from 'node:path';
+        import { pathToFileURL } from 'node:url';
+        const deliveryUrl = pathToFileURL(path.join(process.env.GITHUB_ACTION_PATH, 'dist/report-delivery.js')).href;
+        const { bindReportDecision } = await import(deliveryUrl);
+        const reportPath = 'styleproof-report/report.md';
+        const report = fs.readFileSync(reportPath, 'utf8');
+        fs.writeFileSync(reportPath, bindReportDecision(report, {
+          trustState: process.env.STYLEPROOF_TRUST_STATE,
+          baseSha: process.env.STYLEPROOF_BASE_SHA,
+          headSha: process.env.STYLEPROOF_HEAD_SHA,
+        }));
+        NODE
+
     # Report images use RELATIVE paths so they render from the committed file (do
     # NOT pass --image-base-url — a raw.githubusercontent URL is fetched anonymously
     # by GitHub's Camo proxy and 404s on private repos).
@@ -546,7 +573,7 @@ runs:
           const reportMd = fs.existsSync('styleproof-report/report.md') ? fs.readFileSync('styleproof-report/report.md', 'utf8') : '';
           const lines = reportMd.split('\n');
           const headEnd = lines.findIndex((l) => l.startsWith('### '));
-          const summary = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
+          const summary = (headEnd >= 0 ? lines.slice(0, headEnd) : lines).join('\n').trim();
 
           const requireApproval = '${{ inputs.require-approval }}' === 'true';
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
@@ -564,32 +591,8 @@ runs:
           const box = requireApproval && trustState === 'STYLE_REVIEW_REQUIRED'
             ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
             : [];
-          const trustGuidance = {
-            DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
-            INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — repair the capture or reflow source; reviewer approval cannot clear this failure._',
-            PARTIAL_BASELINE: '_Base capture is incomplete — repair baseline capture on the base branch; reviewer approval cannot clear missing baseline surfaces._',
-            DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; reviewer approval cannot clear this failure._',
-          }[trustState];
-          const contentEvaluated = '${{ inputs.include-content }}' === 'true';
-          const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
-          const cleanGuidance = contentEvaluated
-            ? contentChanges > 0
-              ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
-              : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
-            : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
-          const advisoryGuidance = changed
-            ? `_StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
-            : cleanGuidance;
           const footer = [
             '---',
-            trustGuidance || (requireApproval
-              ? !changed
-                ? cleanGuidance
-                : approved
-                  ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
-                  : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, one tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
-              : advisoryGuidance),
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
             formatRunAttemptReceiptMarker({ runId, runAttempt }),
           ];

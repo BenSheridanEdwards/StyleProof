@@ -15,13 +15,27 @@ On a pull request, the PR comment is the same linked summary for public and priv
 Crops stay as relative files inside the committed report instead of being duplicated into the comment.
 Private-repository viewers need repository access and an authenticated GitHub session.
 If publication or receipt verification fails, StyleProof posts no delivery claim for that run.
-The README can carry the crops directly. This is the unmodified product report: Save at rest comes
-first, followed by Docs hover, focus, and active. Both sides of each interaction-state crop are in
-that state.
+The README can carry the crops directly. This is the product report with a forced review state:
+Save at rest comes first, followed by Docs hover, focus, and active. Both sides of each
+interaction-state crop are in that state. Its visible base/head hashes bind the generated capture
+map bytes; a live Action run shows validated commit identities and an immutable report link.
 
 <!-- styleproof-report -->
+## StyleProof decision: REVIEW REQUIRED
+
+**Reason:** Changed or new surfaces need human review; reviewer approval can clear this review gate.
+
+**Next action:** Inspect the side-by-side evidence, then approve only if every change is intentional.
+
+**Compared:** `b36a5dedeef1901ae547c81317029ea3925cc07d` → `e29bf63a0e533d5b3627b19a8f2dcc70ce26e0d1`
+
+**Report revision:** unavailable until publication (the publication commit cannot contain its own identity).
 
 ## 🗺️ StyleProof report
+
+**Release confidence** — ⚠ not evaluated (no release-confidence manifest accompanied this comparison). The style comparison below stands on its own; release certification stays withheld.
+
+⚠️ **Product-state comparison** — unproven on 1 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
 
 **2 computed-style difference(s) · 3 state-delta difference(s)** across 1 distinct change(s) in 1 changed surface base with an existing baseline.
 _**Surface base** = one product UI state; capture keys with `@width` or live-state/popup variants are width or state captures of that base._
@@ -37,7 +51,7 @@ _demo-button @ 900_
 
 ![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
 
-<sub>◀ before · after ▶ — demo-button @ 900</sub>
+<sub>◀ before  ·  after ▶ — demo-button @ 900</sub>
 
 ![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
 
@@ -47,11 +61,10 @@ _demo-button @ 900_
 
 Style:
 
-| Property           | Before      | After       |
-| ------------------ | ----------- | ----------- |
-| `padding`          | `14px 28px` | `18px 32px` |
-| `background-color` | `#14b8a6`   | `#dc2626`   |
-
+| Property | Before | After |
+| --- | --- | --- |
+| `padding` | `14px 28px` | `18px 32px` |
+| `background-color` | `#14b8a6` | `#dc2626` |
 ### `a.link` · 1 element restyled `:hover`
 
 _demo-button @ 900_
@@ -62,7 +75,7 @@ _Both sides are :hover. Left is the old :hover. Right is the new :hover._
 
 ![base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/demo-button-900-1-composite.png)
 
-<sub>◀ base :hover · head :hover ▶ — both sides are :hover</sub>
+<sub>◀ base :hover  ·  head :hover ▶ — both sides are :hover</sub>
 
 ![highlighted base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/demo-button-900-1-annotated.png)
 
@@ -72,9 +85,9 @@ _Both sides are :hover. Left is the old :hover. Right is the new :hover._
 
 Interactive-state changes:
 
-| State    | Property | Before → After        |
-| -------- | -------- | --------------------- |
-| `:hover` | `color`  | `#a5f3fc` → `#fca5a5` |
+| State | Property | Before → After |
+| --- | --- | --- |
+| `:hover` | `color` | `#a5f3fc` → `#fca5a5` |
 
 ### `a.link` · 1 element restyled `:focus`
 
@@ -86,7 +99,7 @@ _Both sides are :focus. Left is the old :focus. Right is the new :focus._
 
 ![base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/demo-button-900-2-composite.png)
 
-<sub>◀ base :focus · head :focus ▶ — both sides are :focus</sub>
+<sub>◀ base :focus  ·  head :focus ▶ — both sides are :focus</sub>
 
 ![highlighted base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/demo-button-900-2-annotated.png)
 
@@ -96,8 +109,8 @@ _Both sides are :focus. Left is the old :focus. Right is the new :focus._
 
 Interactive-state changes:
 
-| State    | Property        | Before → After        |
-| -------- | --------------- | --------------------- |
+| State | Property | Before → After |
+| --- | --- | --- |
 | `:focus` | `outline-color` | `#5eead4` → `#fca5a5` |
 
 ### `a.link` · 1 element restyled `:active`
@@ -110,7 +123,7 @@ _Both sides are :active. Left is the old :active. Right is the new :active._
 
 ![base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/demo-button-900-3-composite.png)
 
-<sub>◀ base :active · head :active ▶ — both sides are :active</sub>
+<sub>◀ base :active  ·  head :active ▶ — both sides are :active</sub>
 
 ![highlighted base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/demo-button-900-3-annotated.png)
 
@@ -120,15 +133,13 @@ _Both sides are :active. Left is the old :active. Right is the new :active._
 
 Interactive-state changes:
 
-| State     | Property | Before → After        |
-| --------- | -------- | --------------------- |
-| `:active` | `color`  | `#2dd4bf` → `#f87171` |
+| State | Property | Before → After |
+| --- | --- | --- |
+| `:active` | `color` | `#2dd4bf` → `#f87171` |
 
 - [ ] **Approve all changes**
 
 ---
-
-_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, one tick signs it off. A new push that changes styles or surfaces re-opens it._
 
 **[Quickstart](#quickstart)** ·
 **[Read the catch contract](docs/what-it-catches.md)**

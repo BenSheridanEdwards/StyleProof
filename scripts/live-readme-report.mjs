@@ -5,6 +5,7 @@
  *
  * Save: rest style + size. Docs: hover / focus / active from state-layer shots.
  */
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { captureStyleMap, captureStateLayerScreenshots, generateStyleMapReport } from '../dist/index.js';
+import { bindReportDecision } from '../dist/report-delivery.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -95,20 +97,31 @@ function restingChangesFirst(markdown) {
   return markdown.slice(0, bodyStart) + [...resting, ...states].join('');
 }
 
-const report = restingChangesFirst(fs.readFileSync(res.reportMdPath, 'utf8'));
+function captureIdentity(map) {
+  return createHash('sha1').update(JSON.stringify(map)).digest('hex');
+}
+
+const generated = restingChangesFirst(fs.readFileSync(res.reportMdPath, 'utf8'));
+const report = bindReportDecision(generated, {
+  trustState: 'STYLE_REVIEW_REQUIRED',
+  baseSha: captureIdentity(base.map),
+  headSha: captureIdentity(head.map),
+});
 fs.writeFileSync(res.reportMdPath, report);
 const inlined = report.replaceAll('(crops/', '(docs/readme/live-report/crops/');
-const comment = [
-  '<!-- styleproof-report -->',
-  inlined.trim(),
-  '',
-  '- [ ] **Approve all changes**',
-  '',
-  '---',
-  '_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, one tick signs it off. A new push that changes styles or surfaces re-opens it._',
-  '',
-].join('\n');
+const comment = ['<!-- styleproof-report -->', inlined.trim(), '', '- [ ] **Approve all changes**', '', '---', ''].join(
+  '\n',
+);
 fs.writeFileSync(path.join(outDir, 'comment.md'), comment);
+
+const readmePath = path.join(root, 'README.md');
+const readme = fs.readFileSync(readmePath, 'utf8');
+const marker = '<!-- styleproof-report -->';
+const nextSection = '**[Quickstart](#quickstart)**';
+const start = readme.indexOf(marker);
+const end = readme.indexOf(nextSection, start);
+if (start === -1 || end === -1) throw new Error('README live-report boundaries are missing');
+fs.writeFileSync(readmePath, `${readme.slice(0, start)}${comment.trim()}\n\n${readme.slice(end)}`);
 console.log('wrote', path.relative(root, res.reportMdPath));
 console.log('findings', res.totalFindings, 'changed', res.changedSurfaces);
 const crops = fs.existsSync(path.join(outDir, 'crops')) ? fs.readdirSync(path.join(outDir, 'crops')) : [];

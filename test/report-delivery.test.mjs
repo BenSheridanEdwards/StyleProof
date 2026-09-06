@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as publicApi from '../dist/index.js';
-import { buildReportDelivery } from '../dist/report-delivery.js';
+import { bindReportDecision, buildReportDecision, buildReportDelivery } from '../dist/report-delivery.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
@@ -50,7 +50,7 @@ function actionCommentScript({ url = reportUrl, sha = publicationSha } = {}) {
   return new AsyncFunction('require', 'github', 'context', 'core', script);
 }
 
-async function executeActionComment({ repositoryPrivate, url, sha, created = [] } = {}) {
+async function executeActionComment({ repositoryPrivate, url, sha, created = [], reportMarkdown = '' } = {}) {
   const outputs = new Map();
   const github = {
     rest: {
@@ -74,7 +74,7 @@ async function executeActionComment({ repositoryPrivate, url, sha, created = [] 
     info: () => {},
   };
   const requireForScript = (specifier) => {
-    if (specifier === 'fs') return { existsSync: () => false };
+    if (specifier === 'fs') return { existsSync: () => reportMarkdown !== '', readFileSync: () => reportMarkdown };
     return nativeRequire(specifier);
   };
   const previousActionPath = process.env.GITHUB_ACTION_PATH;
@@ -87,6 +87,82 @@ async function executeActionComment({ repositoryPrivate, url, sha, created = [] 
   }
   return { created, outputs };
 }
+
+const baseSha = 'b'.repeat(40);
+const headSha = 'c'.repeat(40);
+const trustStates = {
+  NO_REVIEWABLE_STYLE_CHANGES: 'CLEAN',
+  STYLE_REVIEW_REQUIRED: 'REVIEW REQUIRED',
+  DATA_RESIDUE_UNACKNOWLEDGED: 'BLOCKED',
+  INVENTORY_REMOVAL_UNACKNOWLEDGED: 'BLOCKED',
+  CERTIFICATION_FAILED: 'BLOCKED',
+  PARTIAL_BASELINE: 'BLOCKED',
+  DEGRADED_BASELINE: 'BLOCKED',
+  REPORT_PUBLICATION_FAILED: 'BLOCKED',
+};
+
+function decisionBlock(markdown) {
+  return markdown.split('\n\n## 🗺️ StyleProof report')[0];
+}
+
+test('every closed-set trust state renders one bounded first-visible decision', () => {
+  for (const [trustState, decision] of Object.entries(trustStates)) {
+    const block = buildReportDecision({ trustState, baseSha, headSha });
+    assert.match(block, new RegExp(`^## StyleProof decision: ${decision}$`, 'm'), trustState);
+    assert.equal(block.split('\n').filter((line) => line.startsWith('**Reason:**')).length, 1, trustState);
+    assert.equal(block.split('\n').filter((line) => line.startsWith('**Next action:**')).length, 1, trustState);
+    assert.ok(block.includes(`**Compared:** \`${baseSha}\` → \`${headSha}\``), trustState);
+    assert.match(
+      block,
+      /\*\*Report revision:\*\* unavailable until publication \(the publication commit cannot contain its own identity\)\./,
+      trustState,
+    );
+    assert.ok(Buffer.byteLength(block, 'utf8') <= 900, trustState);
+  }
+});
+
+test('blocked decisions cannot read as approvable', () => {
+  for (const trustState of Object.keys(trustStates).filter((state) => trustStates[state] === 'BLOCKED')) {
+    const block = buildReportDecision({ trustState, baseSha, headSha });
+    assert.match(block, /reviewer approval cannot clear this block\./i, trustState);
+    assert.doesNotMatch(block, /Approve all changes|approval can clear/i, trustState);
+  }
+  assert.match(
+    buildReportDecision({ trustState: 'STYLE_REVIEW_REQUIRED', baseSha, headSha }),
+    /reviewer approval can clear this review gate\./i,
+  );
+});
+
+test('decision identity fails closed instead of guessing', () => {
+  for (const options of [
+    { trustState: '', baseSha, headSha },
+    { trustState: 'UNKNOWN', baseSha, headSha },
+    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha: '', headSha },
+    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha: 'abc', headSha },
+    { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha, headSha: 'C'.repeat(40) },
+  ]) {
+    assert.throws(() => buildReportDecision(options), /report decision/i);
+  }
+});
+
+test('binding puts the decision first and preserves all report evidence below it', () => {
+  const evidence =
+    '## 🗺️ StyleProof report\n\n**Certification**\n- **Coverage** — ✓ complete\n\n### `button`\n\n![proof](crops/proof.png)';
+  const bound = bindReportDecision(evidence, {
+    trustState: 'STYLE_REVIEW_REQUIRED',
+    baseSha,
+    headSha,
+  });
+  assert.equal(decisionBlock(bound), buildReportDecision({ trustState: 'STYLE_REVIEW_REQUIRED', baseSha, headSha }));
+  assert.ok(bound.indexOf('## StyleProof decision: REVIEW REQUIRED') < bound.indexOf('**Certification**'));
+  assert.match(bound, /### `button`/);
+  assert.match(bound, /!\[proof\]\(crops\/proof\.png\)/);
+  assert.throws(
+    () =>
+      bindReportDecision('not a StyleProof report', { trustState: 'NO_REVIEWABLE_STYLE_CHANGES', baseSha, headSha }),
+    /report decision/i,
+  );
+});
 
 test('public and private reports use one commit-bound linked-delivery contract', () => {
   const publicDelivery = buildReportDelivery({
@@ -130,6 +206,20 @@ test('literal Action comment uses the same one-link body for public and private 
   assert.match(publicBody, /- \[ \] \*\*Approve all changes\*\*/);
   assert.doesNotMatch(publicBody, /!\[|raw\.githubusercontent|\]\(crops\//);
   assert.equal(publicRun.outputs.get('stale-delivery'), 'false');
+});
+
+test('published Markdown and literal PR comment share the exact canonical decision block', async () => {
+  const reportMarkdown = bindReportDecision(
+    '## 🗺️ StyleProof report\n\n**Certification**\n- **Coverage** — ✓ complete\n\n### `button`\n\nEvidence remains here.',
+    { trustState: 'STYLE_REVIEW_REQUIRED', baseSha, headSha },
+  );
+  const run = await executeActionComment({ repositoryPrivate: false, reportMarkdown });
+  const body = run.created[0].body;
+  const block = decisionBlock(reportMarkdown);
+  assert.ok(reportMarkdown.startsWith(block));
+  assert.ok(body.startsWith(`<!-- styleproof-report -->\n${block}`));
+  assert.equal(body.split(block).length - 1, 1);
+  assert.match(body, new RegExp(reportUrl.replaceAll('/', '\\/')));
 });
 
 test('literal Action comment makes no GitHub write without exact delivery identity', async () => {
@@ -232,6 +322,27 @@ test('report delivery rejects malformed contract identity instead of guessing', 
         repositoryVisibility: 'internal',
       }),
     /report delivery/i,
+  );
+});
+
+test('generated live report dogfoods the canonical decision without invented publication identity', () => {
+  const generator = fs.readFileSync(path.join(root, 'scripts', 'live-readme-report.mjs'), 'utf8');
+  const report = fs.readFileSync(path.join(root, 'docs', 'readme', 'live-report', 'report.md'), 'utf8');
+  const comment = fs.readFileSync(path.join(root, 'docs', 'readme', 'live-report', 'comment.md'), 'utf8');
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  const block = decisionBlock(report);
+
+  assert.match(generator, /bindReportDecision/);
+  assert.match(generator, /createHash\('sha1'\)/);
+  assert.match(block, /^## StyleProof decision: REVIEW REQUIRED/);
+  assert.match(block, /Report revision:\*\* unavailable until publication/);
+  assert.ok(
+    comment.startsWith(`<!-- styleproof-report -->
+${block}`),
+  );
+  assert.ok(
+    readme.includes(`<!-- styleproof-report -->
+${block}`),
   );
 });
 
