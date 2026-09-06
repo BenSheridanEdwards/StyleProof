@@ -19,6 +19,15 @@ import { COVERAGE_LEDGER } from '../dist/coverage.js';
 
 const coverage = (over = {}) => ({ version: 1, expected: null, exclude: {}, ...over });
 
+test('oracle-proven capture retains complete confidence for an asserted registry', () => {
+  const ledger = buildConfidenceLedger({
+    capturedKeys: ['home'],
+    coverage: coverage({ expected: ['home'], determinism: 'oracle-proven' }),
+  });
+  assert.equal(ledger.entries[0].status, 'captured');
+  assert.equal(summarizeConfidence(ledger).completeness, 'complete');
+});
+
 test('captured surfaces with an asserted registry and proven determinism read complete', () => {
   const ledger = buildConfidenceLedger({
     capturedKeys: ['home', 'about'],

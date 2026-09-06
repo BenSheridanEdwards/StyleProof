@@ -173,6 +173,13 @@ The current branch implements and tests:
 - `styleproof store import <bundle> [--json]` with an idempotent commit/compatibility ref;
 - `styleproof store verify <ref>` full-object verification;
 - `styleproof store restore <ref> <out-dir>` verified atomic restoration.
+- `oracle-proven` coverage-ledger import with the original determinism receipt
+  retained as metadata. Missing or explicitly unproven evidence is not promoted.
+- Map store dogfood captures the example with the five-run oracle, restores it
+  from GitHub, then exercises local v2 CLI import/verify/restore. A downloadable
+  receipt verifies source identity, repeated-import identity, unchanged trust,
+  and exact bundle paths and bytes. This proves the local migration bridge;
+  it does not exercise a remote v2 adapter or claim application completeness.
 
 Not yet implemented:
 

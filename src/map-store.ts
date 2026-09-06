@@ -85,6 +85,7 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
   BROWSER_BUILD_SIDECAR,
   BASELINE_PROVENANCE_FILE,
   CONFIDENCE_LEDGER,
+  'styleproof-determinism.json',
 ]);
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */

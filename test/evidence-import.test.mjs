@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { importMapBundleToEvidenceStore } from '../dist/evidence-import.js';
 import { materializeEvidenceCapture, EvidenceStoreError } from '../dist/evidence-store.js';
+import { isMapFile, isOwnedCaptureArtifact } from '../dist/map-store.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 function writeBundle(root, options = {}) {
@@ -39,6 +40,57 @@ function writeBundle(root, options = {}) {
     );
   }
 }
+
+for (const [basis, expected] of [
+  ['oracle-proven', 'proven'],
+  ['self-checked', 'proven'],
+  ['replayed', 'proven'],
+  ['unproven', 'unproven'],
+  [undefined, 'unknown'],
+]) {
+  test(`v2 import preserves ${basis ?? 'missing'} determinism and original ledger bytes`, () => {
+    const workspace = mkTmp('styleproof-import-determinism-');
+    try {
+      const bundle = path.join(workspace, 'bundle');
+      writeBundle(bundle);
+      const ledger = JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism: basis });
+      fs.writeFileSync(path.join(bundle, 'styleproof-coverage.json'), ledger);
+      const imported = importMapBundleToEvidenceStore({
+        bundleDirectory: bundle,
+        storeRoot: path.join(workspace, 'store'),
+      });
+      assert.equal(imported.manifest.trust.determinismStatus, expected);
+      const out = path.join(workspace, 'restored');
+      materializeEvidenceCapture(path.join(workspace, 'store'), imported.capture, out);
+      assert.equal(fs.readFileSync(path.join(out, 'styleproof-coverage.json'), 'utf8'), ledger);
+    } finally {
+      rmTmp(workspace);
+    }
+  });
+}
+
+test('v2 import restores the oracle receipt as metadata, not a surface map', () => {
+  const workspace = mkTmp('styleproof-import-oracle-');
+  try {
+    const bundle = path.join(workspace, 'bundle');
+    writeBundle(bundle);
+    const name = 'styleproof-determinism.json';
+    const receipt = '{"schemaVersion":1,"producer":"styleproof-map","verdict":{"status":"deterministic"}}\n';
+    fs.writeFileSync(path.join(bundle, name), receipt);
+    const imported = importMapBundleToEvidenceStore({
+      bundleDirectory: bundle,
+      storeRoot: path.join(workspace, 'store'),
+    });
+    const out = path.join(workspace, 'restored');
+    materializeEvidenceCapture(path.join(workspace, 'store'), imported.capture, out);
+    assert.equal(fs.existsSync(path.join(out, name)), true, 'the oracle proof receipt must survive migration');
+    assert.equal(fs.readFileSync(path.join(out, name), 'utf8'), receipt);
+    assert.equal(isMapFile(name), false);
+    assert.equal(isOwnedCaptureArtifact(name), true);
+  } finally {
+    rmTmp(workspace);
+  }
+});
 
 test('v1 map import creates verified complete/proven v2 evidence and excludes HAR by default', () => {
   const workspace = mkTmp('styleproof-evidence-import-');

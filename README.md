@@ -364,6 +364,10 @@ styleproof store restore commits/<sha>/<compatibility-key> ./restored-maps
 
 Import derives coverage and determinism from the bundle's own ledgers, excludes
 HAR and unrelated user files by default, and fails on malformed trust evidence.
+Five-run `oracle-proven` evidence remains proven during import; the original
+`styleproof-determinism.json` receipt is retained as metadata, not a surface map.
+The store dogfood workflow exercises this path with a real oracle-backed capture
+and verifies identical bundle paths and bytes after local v2 restoration.
 `verify` hashes the capture manifest and every referenced object. `restore`
 verifies first, writes into a temporary directory, then exposes the result with
 one atomic rename. Git-backed remote publication still uses the v1 adapter while

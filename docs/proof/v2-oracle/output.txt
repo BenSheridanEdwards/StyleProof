@@ -1,0 +1,10 @@
+Oracle-backed v2 migration (local, self-attested)
+Capture platform: darwin; dirty: true
+Production-source SHA-256 (three changed modules, listed order):
+9b2bfcb07a6f7de5771bb70db1ec4c0b904928e35b0c2f7829e2d0eabdde9261
+Before: malformed styleproof-coverage.json in <bundle>
+After: coverage=unasserted; determinism=proven
+Restored: 19 files; 3 maps; 303358 bytes
+Repeated import: identical; restored paths/bytes: identical
+Original five-run oracle receipt retained as metadata.
+Local storage equivalence; application completeness not asserted.

@@ -131,7 +131,10 @@ function addEntry(byKey: Map<string, ConfidenceEntry>, entry: ConfidenceEntry): 
 function capturedEntries(captured: ReadonlySet<string>, coverage: CoverageLedger | null): ConfidenceEntry[] {
   // A missing basis is legacy provenance, not proof. Keep the confidence badge
   // limited until the capture records a self-check or replay basis explicitly.
-  const unproven = coverage?.determinism !== 'self-checked' && coverage?.determinism !== 'replayed';
+  const unproven =
+    coverage?.determinism !== 'oracle-proven' &&
+    coverage?.determinism !== 'self-checked' &&
+    coverage?.determinism !== 'replayed';
   return [...captured].map((surface) =>
     unproven
       ? {
@@ -350,7 +353,10 @@ export function readCoverageLedgerLenient(dir: string): CoverageLedger | null {
     if (parsed?.version !== 1) return null;
     if (parsed.expected !== null && !stringArray(parsed.expected)) return null;
     if (!plainReasonMap(parsed.exclude)) return null;
-    if (parsed.determinism !== undefined && !['self-checked', 'replayed', 'unproven'].includes(parsed.determinism))
+    if (
+      parsed.determinism !== undefined &&
+      !['oracle-proven', 'self-checked', 'replayed', 'unproven'].includes(parsed.determinism)
+    )
       return null;
     if (parsed.dataResidue !== undefined && parsed.dataResidue !== 'warn' && parsed.dataResidue !== 'gate') return null;
     return parsed;

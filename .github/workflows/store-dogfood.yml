@@ -9,6 +9,8 @@ name: Map store dogfood
 #     → restored into a clean directory by that SHA + compatibility key
 #     → compared byte-identically by styleproof-diff in explicit diagnostic mode
 #       (store fidelity is proven; application completeness is not claimed)
+#     → imported into local v2, verified, and restored with identical bundle bytes
+#       and preserved five-run oracle proof (no remote v2 adapter is exercised)
 #   plus the miss taxonomy: restoring an absent SHA must stay exit 4, never a
 #   fake hit and never an infra-fault code.
 #
@@ -56,7 +58,7 @@ jobs:
           PATH="$PWD/node_modules/.bin:$PATH" node bin/styleproof-map.mjs \
             --spec example/styleproof.spec.ts \
             --dir captured --base-dir "$MAP_ROOT" \
-            --sha "$HEAD_SHA" --upload \
+            --sha "$HEAD_SHA" --upload --prove-determinism \
             -- --config example/store-dogfood.playwright.config.ts
 
       - name: Compact the scratch branch with an atomic expected-tip update
@@ -85,6 +87,20 @@ jobs:
             throw new Error('store round-trip must remain diagnostic, never masquerade as full certification');
           }
           NODE
+
+      - name: Preserve five-run proof through v2 import, verify, and restore
+        run: |
+          node scripts/store-v2-dogfood.mjs "$MAP_ROOT/restored" "$MAP_ROOT/v2" "$HEAD_SHA" \
+            > "$MAP_ROOT/v2-round-trip.json"
+          cat "$MAP_ROOT/v2-round-trip.json"
+
+      - name: Upload v2 migration receipt
+        uses: actions/upload-artifact@v6
+        with:
+          name: v2-store-round-trip
+          path: ${{ env.MAP_ROOT }}/v2-round-trip.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: A genuine miss stays exit 4 (never a fake hit, never an infra code)
         run: |

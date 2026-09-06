@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### CI
 
+- Exercise the v2 store CLI with a real five-run oracle capture and retain a
+  source-bound receipt proving stable import identity, preserved trust, and
+  byte-identical restoration. This tests the local migration bridge. (#510)
+
 - Run browser tests in two file-level shards, with a required aggregate that verifies
   the complete test inventory and determinism receipt before passing. Retain both
   shard results and the inventory as downloadable evidence. (#500)
@@ -88,6 +92,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   exists.
 
 ### Fixed
+
+- Preserve `oracle-proven` determinism through coverage reading, confidence
+  summaries, and v2 import. Register the oracle receipt as capture metadata so
+  migration keeps it and map enumeration does not treat it as a surface. (#510)
 
 - Map-store compaction atomically requires the expected branch tip before replacing
   it, so a concurrent publication is retained after a bounded retry instead of

@@ -23,6 +23,11 @@ test('store dogfood runs the whole chain: capture+publish → restore → certif
   assert.ok(restoreIndex > captureIndex, 'restores the published bundle after capture');
   assert.ok(certifyIndex > restoreIndex, 'diagnostically compares restored == captured after restore');
   assert.ok(missIndex > certifyIndex, 'checks the miss taxonomy last');
+  const v2Index = workflow.indexOf('node scripts/store-v2-dogfood.mjs');
+  assert.ok(v2Index > restoreIndex && v2Index < missIndex, 'migrates the real restored bundle through v2');
+  assert.match(workflow, /--upload --prove-determinism/);
+  assert.match(workflow, /name: v2-store-round-trip/);
+  assert.match(workflow, /if-no-files-found: error/);
   // Store dogfood proves round-trip fidelity, not application completeness. It must
   // opt into diagnostic mode and verify the receipt cannot be mistaken for certification.
   assert.match(workflow, /styleproof-diff\.mjs[\s\S]*?--allow-unasserted --json "\$MAP_ROOT\/round-trip\.json"/);
