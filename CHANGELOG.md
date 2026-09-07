@@ -7,6 +7,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-09-07
+
+> **StyleProof 7.0.0: Comparable captures, explicit certification**
+>
+> This major release removes the Phase 0 and Release Confidence APIs, sidecar,
+> report field, CLI flag, and Action output. The remaining certification gates
+> still apply; incomplete captures cannot be approved into a passing result.
+> Upgrade the npm package and Action together, refresh generated workflows,
+> and regenerate baselines for the expanded forced-state evidence.
+
+### Changed
+
+- Generated report workflows and supported Action examples now use `@v7`.
+- Remove the deleted Phase 0 and Release Confidence guides from the package file list.
+
 ### CI
 
 - Run browser tests in two file-level shards, with a required aggregate that verifies
@@ -93,6 +108,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   exists.
 
 ### Fixed
+
+- Compare benchmark output paths against the canonical temporary root in the test,
+  including macOS hosts where `/var` resolves through `/private/var`.
 
 - Map-store compaction atomically requires the expected branch tip before replacing
   it, so a concurrent publication is retained after a bounded retry instead of
@@ -3623,7 +3641,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.3.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.0.0...HEAD
+[7.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.3.0...v7.0.0
 [6.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.2...v6.3.0
 [6.2.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.1...v6.2.2
 [6.2.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.0...v6.2.1

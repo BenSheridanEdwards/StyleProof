@@ -1,6 +1,6 @@
 {
   "name": "styleproof",
-  "version": "6.3.0",
+  "version": "7.0.0",
   "description": "Catch every CSS change before it ships \u2014 review PRs and certify refactors by the browser's computed styles, not pixels. Works with any styling system.",
   "keywords": [
     "playwright",
@@ -61,8 +61,6 @@
     "docs/product-state-comparability.md",
     "docs/forced-state-capture.md",
     "docs/setup.md",
-    "docs/phase0-truth-contract.md",
-    "docs/release-confidence-manifest.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"

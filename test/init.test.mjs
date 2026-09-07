@@ -99,7 +99,7 @@ for (const manager of [
       /--no-upload/,
       /path: \$\{\{ runner\.temp \}\}\/styleproof-maps/,
     ],
-    workflowAbsent: [/npx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v6/],
+    workflowAbsent: [/npx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v7/],
     hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
   },
   {
@@ -117,7 +117,7 @@ for (const manager of [
     workflowAbsent: [
       /npx -y yarn@1\.22\.22 styleproof-map/,
       /STYLEPROOF_MAP_STORE_TOKEN/,
-      /BenSheridanEdwards\/StyleProof@v6/,
+      /BenSheridanEdwards\/StyleProof@v7/,
     ],
     hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
   },
@@ -134,7 +134,7 @@ for (const manager of [
       /--no-upload/,
     ],
     absent: [/npm ci/],
-    workflowAbsent: [/pnpm exec styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v6/],
+    workflowAbsent: [/pnpm exec styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v7/],
     hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
   },
   {
@@ -144,7 +144,7 @@ for (const manager of [
     config: /bun run build && bun run start/,
     workflow: [/oven-sh\/setup-bun@v2/, /bun install --frozen-lockfile/, /actions\/upload-artifact@/, /--no-upload/],
     absent: [/npm ci/],
-    workflowAbsent: [/bunx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v6/],
+    workflowAbsent: [/bunx styleproof-map/, /STYLEPROOF_MAP_STORE_TOKEN/, /BenSheridanEdwards\/StyleProof@v7/],
     hookExec: /exec \.\/node_modules\/\.bin\/styleproof-prepush$/m,
   },
 ]) {
@@ -180,7 +180,7 @@ for (const manager of [
       for (const pattern of manager.workflow) assert.match(workflow, pattern);
       for (const pattern of manager.absent ?? []) assert.doesNotMatch(workflow, pattern);
       for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(workflow, pattern);
-      assert.match(reportWorkflow, /BenSheridanEdwards\/StyleProof@v6/);
+      assert.match(reportWorkflow, /BenSheridanEdwards\/StyleProof@v7/);
       assert.match(reportWorkflow, /workflow_run:/);
       const scaffoldCheck = 'node node_modules/styleproof/bin/styleproof-init.mjs --check';
       assert.match(workflow, /- name: Verify StyleProof scaffold matches the installed release/);
@@ -438,7 +438,7 @@ test('styleproof-init: untrusted PR capture never receives write credentials', (
     assert.doesNotMatch(captureJob, /statuses:\s*write/);
     assert.match(captureJob, /persist-credentials:\s*false/);
     assert.match(captureJob, /styleproof-ci\.mjs[\s\S]*--no-upload/);
-    assert.doesNotMatch(captureJob, /BenSheridanEdwards\/StyleProof@v6/);
+    assert.doesNotMatch(captureJob, /BenSheridanEdwards\/StyleProof@v7/);
     assert.match(captureJob, /actions\/upload-artifact@/);
     assert.match(captureJob, /name: styleproof-stylemaps/);
 
@@ -456,7 +456,7 @@ test('styleproof-init: untrusted PR capture never receives write credentials', (
     assert.match(report, /statuses:\s*write/);
     assert.match(report, /actions:\s*read/);
     assert.match(report, /actions\/download-artifact@/);
-    assert.match(report, /BenSheridanEdwards\/StyleProof@v6/);
+    assert.match(report, /BenSheridanEdwards\/StyleProof@v7/);
     assert.match(report, /base-capture-failed:/);
     assert.match(report, /styleproof-ci-outputs\.json/);
     assert.doesNotMatch(report, /actions\/checkout@/);

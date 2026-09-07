@@ -287,6 +287,21 @@ each merge forces every other open PR to rebase. `.styleproof/` and
 
 ## Quickstart
 
+### Upgrading to 7.0.0
+
+Upgrade the npm package and report Action to major 7 together. Refresh generated
+workflows with `styleproof-init --upgrade`, then verify them with
+`styleproof-init --check` after installing the new package. Pass the original
+server and spec options to both commands. Regenerate baselines for the expanded
+forced-state evidence.
+Remove integrations with the deleted `phase0*` / `releaseConfidence*` exports,
+`report.json.releaseConfidence`, `styleproof-release-confidence.json`,
+`styleproof-publish-report --manifest-digest`, and the Action's
+`release-confidence-digest` output. Source binding, coverage, determinism,
+product-state comparability, and the other certification gates still apply;
+a partial baseline requires a repaired capture and cannot be cleared by approval.
+See [the 7.0.0 changelog](CHANGELOG.md#700---2026-09-07) for the release details.
+
 ### 0. Set up everything
 
 ```bash
@@ -298,8 +313,8 @@ Playwright; installs Chromium; scaffolds the capture spec, dedicated Playwright
 config, split GitHub workflows, and pre-push integration; then verifies every
 machine-owned file against the installed release. Preview the exact operations
 without writing with `npx styleproof setup --dry-run`. Existing installations
-can use `styleproof setup --skip-install --skip-browser` to refresh scaffolding
-without network work. In a monorepo, target the consumer application explicitly:
+can use `styleproof-init --upgrade` followed by `styleproof-init --check`, with
+their original options, to refresh and verify scaffolding without network work. In a monorepo, target the consumer application explicitly:
 
 ```bash
 styleproof setup --project-dir apps/web
@@ -445,7 +460,7 @@ then use the Action on those dirs:
 # (cold base rebuild under the head's exact release, HAR replay for the head).
 - id: maps
   run: npx styleproof-ci --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --base-dir __stylemaps__
-- uses: BenSheridanEdwards/StyleProof@v6
+- uses: BenSheridanEdwards/StyleProof@v7
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
@@ -1398,7 +1413,7 @@ styleproof-report before after --out report --include-content
 For the GitHub Action, set the equivalent explicit input:
 
 ```yaml
-- uses: BenSheridanEdwards/StyleProof@v6
+- uses: BenSheridanEdwards/StyleProof@v7
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
@@ -1557,7 +1572,7 @@ The capture-the-subset step stays yours (it depends on your map layout), but the
 
 ## Reference
 
-**Action `BenSheridanEdwards/StyleProof@v6`** — key inputs:
+**Action `BenSheridanEdwards/StyleProof@v7`** — key inputs:
 
 | Input                 | Default      | Purpose                                                                                                    |
 | --------------------- | ------------ | ---------------------------------------------------------------------------------------------------------- |

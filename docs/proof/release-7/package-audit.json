@@ -1,0 +1,25 @@
+{
+  "scope": "Local package audit; npm publication has not occurred.",
+  "version": "7.0.0",
+  "sha256": "631cea37383aa478c2142b54690fb690cc84d0a25dfefc1d52538336ae0d0c6e",
+  "integrity": "sha512-UxY6fuaVcUFgEkrziUPi51WXK2B7MC05H2ECMy7+lL+xQDly3UvFic8yxV6T58uonFh9ZL3SoohmVxx0TCeeXg==",
+  "size": 573929,
+  "entryCount": 156,
+  "dryRunMatchesActualPack": true,
+  "removedModulesAbsent": true,
+  "generatedWorkflowMajor": 7,
+  "expectedRuntimeAndGuidesPresent": true,
+  "baseCommit": "58d3a90c9f52982a31b771ae1b5f8996063ecb26",
+  "sourceFiles": {
+    "CHANGELOG.md": "e6af46effe29ad049117916f25485a6abfcf97b36b291b181e84cb2872622bfa",
+    "README.md": "c2c0ff9bf700b26bbbe32d79b86c37bbb364427f33f81146db7be6707eb309df",
+    "bin/styleproof-init.mjs": "cf1c3b174dd0794f3968e40a55f74888fd056326ddb5577f4ea46a7e36aa39f9",
+    "example/styleproof-report.yml": "81ed4338860a1a388fa14294e2519639f84c1f4b4e26fb7840d2b6028186f4dc",
+    "package-lock.json": "98eb5c235fdf70940390b2437636c252cc7452b564445a17c70f84661aaa7783",
+    "package.json": "d6c7b4d7515fc22bbf42886bf5d15eef963bae5d36becec3603829bd98d09f29",
+    "test/cli.test.mjs": "6084e39157138df94c75ab0cde3f1efc921177762b3a82cc13d3fe679edb0fc0",
+    "test/detection-benchmark.test.mjs": "a6d30a74f090d25b2ab9e1b0a540d69f28173e72c01d6a1e57cebcf7e87708f0",
+    "test/init.test.mjs": "11e16623315d4e5511878e64c848297ed944f0e1085eb316deac5493d43d0a43"
+  },
+  "node": "22.22.2"
+}

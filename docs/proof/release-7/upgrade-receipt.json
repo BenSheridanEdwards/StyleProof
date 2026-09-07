@@ -1,0 +1,21 @@
+{
+  "scope": "Generated example project, with report Action deliberately changed from v7 to v6 before upgrade.",
+  "steps": [
+    {
+      "phase": "initial",
+      "arguments": ["--external-server"],
+      "exitCode": 0
+    },
+    {
+      "phase": "upgrade",
+      "arguments": ["--upgrade", "--external-server"],
+      "exitCode": 0
+    },
+    {
+      "phase": "check",
+      "arguments": ["--check", "--external-server"],
+      "exitCode": 0
+    }
+  ],
+  "result": "upgrade restores v7 and check passes"
+}
