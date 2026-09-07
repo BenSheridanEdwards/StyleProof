@@ -1,0 +1,11 @@
+{
+  "scope": "Unmodified browser viewport screenshot of public upgrade documentation. Documentation proof only; package and runtime verification are separate.",
+  "sourceUrl": "https://github.com/BenSheridanEdwards/StyleProof/blob/75df4e9c16bbeaa2235c8564a9fd8d3767fa0699/README.md#upgrading-to-700",
+  "sourceCommit": "75df4e9c16bbeaa2235c8564a9fd8d3767fa0699",
+  "file": "upgrade-docs.png",
+  "sha256": "1ae4bc75fca269894dabd6cf1d92e9c9752e6495927d292dc1388c3223d72838",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  }
+}

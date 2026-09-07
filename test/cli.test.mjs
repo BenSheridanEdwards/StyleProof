@@ -1194,10 +1194,10 @@ test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow
       /"styleproof@\$STYLEPROOF_VERSION"/,
       'the exact-release pin lives inside styleproof-ci now',
     );
-    assert.doesNotMatch(ci, /BenSheridanEdwards\/StyleProof@v6/, 'capture workflow never holds the report action');
+    assert.doesNotMatch(ci, /BenSheridanEdwards\/StyleProof@v7/, 'capture workflow never holds the report action');
     assert.doesNotMatch(ci, /require-approval: true/, 'approval gate lives on the trusted report workflow');
     const report = fs.readFileSync(path.join(dir, '.github/workflows/styleproof-report.yml'), 'utf8');
-    assert.match(report, /BenSheridanEdwards\/StyleProof@v6/, 'report workflow uses the current report action');
+    assert.match(report, /BenSheridanEdwards\/StyleProof@v7/, 'report workflow uses the current report action');
     assert.match(report, /require-approval: true/, 'report workflow enables the approval report gate');
     assert.match(report, /base-capture-failed:/, 'report workflow forwards the durable base-capture-failed sidecar');
     assert.doesNotMatch(ci, /git add stylemaps/);
