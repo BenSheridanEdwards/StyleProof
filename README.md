@@ -30,7 +30,9 @@ run shows validated commit identities and links the immutable published report r
 
 **Compared capture maps:** base `b36a5dedeef1901ae547c81317029ea3925cc07d` → head `e29bf63a0e533d5b3627b19a8f2dcc70ce26e0d1`
 
-**Report revision:** unavailable until publication (the publication commit cannot contain its own identity).
+**Linked report artifact revision (SHA-256):** `abd5fcd5aebccbc71b17eef8d433e19021ce725e3c84074e6ce02bc08bc0babc`
+
+_Canonical bytes are the linked report's exact UTF-8 bytes with only that 64-hex value replaced by 64 ASCII zeroes._
 
 ## 🗺️ StyleProof report
 
