@@ -13,7 +13,15 @@ scripts/validate-pr-body.mjs). To pass:
 
 # Why does this feature exist?
 
-<!-- The user, product, or technical reason for the change. Link any issue. Replace the "-" below. -->
+<!--
+First, answer these three questions in 2-3 plain-English sentences (no ticket numbers yet):
+1. What real pain or incident motivated this change?
+2. Why does this PR exist — what problem does it solve?
+3. Why would the project owner want this in main?
+
+After answering those, you may link related issues below the motivation paragraph.
+Replace the "-" placeholder with your answers.
+-->
 
 -
 
