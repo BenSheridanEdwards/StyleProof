@@ -15,8 +15,13 @@ On a pull request, the PR comment is the same linked summary for public and priv
 Crops stay as relative files inside the committed report instead of being duplicated into the comment.
 Private-repository viewers need repository access and an authenticated GitHub session.
 If publication or receipt verification fails, StyleProof posts no delivery claim for that run.
-The README can carry the crops directly. This is the unmodified product report: Save at rest comes
-first, followed by Docs hover, focus, and active. Both sides of each interaction-state crop are in
+The README can carry the crops directly. The block below is a real run, not a mockup:
+`scripts/live-readme-report.mjs` captures `example/demo/index.html` in Chromium twice, injecting a
+fixed CSS change between the captures, then renders the report and the PR comment it would post. The
+block is that comment, with three edits for this page: crop links repointed at
+`docs/readme/live-report/crops/`, element-level sections reordered so Save at rest comes before the
+Docs hover, focus, and active states, and `report.json` left out of the committed bundle. Every
+finding, value, and crop is what the run produced. Both sides of each interaction-state crop are in
 that state.
 
 <!-- styleproof-report -->

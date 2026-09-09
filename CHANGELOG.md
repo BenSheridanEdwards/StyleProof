@@ -94,6 +94,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- The README called its embedded StyleProof block "the unmodified product report". It is a
+  genuine run, but not unmodified: `scripts/live-readme-report.mjs` feeds a hard-coded CSS
+  string to the static `example/demo/index.html`, then reorders the report's element-level
+  sections, drops `report.json` from the committed bundle, repoints the crop links, and
+  appends the approval box — so the block is the PR **comment**, not the report. The preamble
+  now states that provenance exactly. `test/readme-live-report-provenance.test.mjs` pins each
+  disclosed fact to a detectable feature of the script in both directions, so the prose and the
+  script cannot drift apart again, and the count of edits is asserted rather than described. (#479)
+
 - Map-store compaction atomically requires the expected branch tip before replacing
   it, so a concurrent publication is retained after a bounded retry instead of
   being discarded. GraphQL errors fail closed without an unconditional fallback. (#501)
