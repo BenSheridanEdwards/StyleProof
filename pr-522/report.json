@@ -50,24 +50,29 @@
   },
   "comparability": [
     {
+      "surface": "about@320",
+      "status": "not-required",
+      "required": false,
+      "reason": "missing-before"
+    },
+    {
       "surface": "home@320",
       "status": "comparable",
       "required": true,
       "reason": "explicit-state-match"
-    },
-    {
-      "surface": "pricing@320",
-      "status": "not-required",
-      "required": false,
-      "reason": "missing-before"
     }
   ],
   "reportConsistency": {
     "ok": true,
     "reason": "aligned"
   },
-  "baselineFailures": [],
-  "partialBaseline": false,
+  "baselineFailures": [
+    {
+      "key": "about@auto",
+      "reason": "capture_failed"
+    }
+  ],
+  "partialBaseline": true,
   "content": {
     "evaluated": false,
     "changes": 0,
@@ -75,12 +80,12 @@
   },
   "surfaces": [
     {
-      "surface": "pricing@320",
+      "surface": "about@320",
       "missing": "before",
-      "isNew": true,
+      "isNew": false,
       "isRemoved": false,
-      "baselineStatus": "new",
-      "image": "crops/pricing-320-1-new.png"
+      "baselineStatus": "capture-failed",
+      "image": "crops/about-320-1-new.png"
     }
   ],
   "confidence": {
@@ -111,18 +116,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "2e4142353deb20f980789e0f73680a18e6569c31322cfc95523735deee84a697",
+      "digest": "b26f47c0b7b4729d8dd0cd7d1938bd034f225119c0517b2e503e5892c3de031f",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1676
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "5bc06f751d2a28b746e5d3c687324f11a87f612a517c615d999fb0f82849ddd5",
+      "digest": "f5dbb1a19fbcc44c7868966f392eb0b863430989a55965e613f3f8e86ec828ef",
       "fileCount": 7,
       "mapCount": 2,
-      "byteCount": 2451
+      "byteCount": 2447
     }
   },
-  "actionTrustState": "STYLE_REVIEW_REQUIRED"
+  "actionTrustState": "PARTIAL_BASELINE"
 }
