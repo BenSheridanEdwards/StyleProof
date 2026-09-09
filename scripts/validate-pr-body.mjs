@@ -44,6 +44,58 @@ function sectionsByHeading(body) {
 }
 
 const PROOF_SECTION = 'Behavioural Proof (with video and screenshots)';
+const WHY_SECTION = 'Why does this feature exist?';
+
+// Detects ticket-dump openings that fail the buyer-legible bar.
+// The "Why does this feature exist?" section must open with prose motivation,
+// not ticket references. This heuristic catches clear patterns while allowing
+// ticket refs AFTER establishing context.
+function ticketDumpErrors(sections) {
+  if (!sections.has(WHY_SECTION)) return [];
+  const lines = sections.get(WHY_SECTION);
+
+  // Find the first non-blank, non-comment, non-placeholder line.
+  let firstParagraph = '';
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    if (trimmed.startsWith('<!--') || trimmed.endsWith('-->')) continue;
+    if (/^-\s*$/.test(trimmed)) continue;
+    firstParagraph = trimmed;
+    break;
+  }
+
+  if (!firstParagraph) return [];
+
+  // Patterns that indicate a ticket-dump opening:
+  // 1. Starts with issue-closing keywords followed by #N (possibly with words in between)
+  const startsWithIssueTerm = /^(Fixes|Implements|Closes|Resolves|Addresses)\s+(#|\[#)/i;
+  // 2. "Part of" followed by anything that leads to #N (e.g., "Part of parent chain #491")
+  const startsWithPartOf = /^Part of\b.*#\d+/i;
+  // 3. Starts with markdown issue link [#N] or inline (#N)
+  const startsWithIssueLink = /^(\[#\d+\]|\(#\d+\))/;
+  // 4. Starts with a numbered list (technical requirement dump)
+  const startsWithNumberedList = /^[1-9]\.\s/;
+  // 5. First word is literally an issue ref like "#521" or "(#521)"
+  const startsWithBareIssueRef = /^#\d+|^\(#\d+\)/;
+
+  const isBadOpening =
+    startsWithIssueTerm.test(firstParagraph) ||
+    startsWithPartOf.test(firstParagraph) ||
+    startsWithIssueLink.test(firstParagraph) ||
+    startsWithNumberedList.test(firstParagraph) ||
+    startsWithBareIssueRef.test(firstParagraph);
+
+  if (isBadOpening) {
+    return [
+      '"Why does this feature exist?" must open with buyer-legible motivation ' +
+        '(what pain, why it exists, why merge it). Ticket references (#N) should ' +
+        'come after the motivation paragraph.',
+    ];
+  }
+
+  return [];
+}
 
 function titleErrors(title) {
   if (CONVENTIONAL_TITLE.test(title)) return [];
@@ -100,6 +152,7 @@ export function validatePullRequest({ title, body }) {
     ...sectionPresenceErrors(sections),
     ...placeholderErrors(sections),
     ...proofErrors(sections),
+    ...ticketDumpErrors(sections),
   ];
 
   return { valid: errors.length === 0, errors };
