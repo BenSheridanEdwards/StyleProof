@@ -38,29 +38,46 @@ Full baseline: [CI_CRITICAL_PATH_BASELINE.md](CI_CRITICAL_PATH_BASELINE.md)
 
 **Critical-path wall-clock:** 3m 28s (208s)
 
+### Warm-cache run (rebased head)
+
+**Measured head:** `aa304e90` (PR #551, rebased onto #549 + #550 folded)  
+**CI run:** 2026-09-09T22:33Z  
+**Cache state:** Playwright browser cache **HIT** (warm run)
+
+| Job | Duration | Notes |
+| --- | -------- | ----- |
+| e2e shard 1/3 | 2m 44s | **30s faster** with cache hit |
+| e2e shard 2/3 | 1m 26s | Rebalanced |
+| e2e shard 3/3 | 2m 3s | Rebalanced |
+| e2e-evidence | 6s | Slim (no npm ci) |
+| Queue gap | 4s | shard 1 → evidence |
+| required | 3s | Aggregator |
+
+**Critical-path wall-clock:** 3m 0s (180s)
+
 ## Delta
 
-| Metric | Before | After | Delta | % Change |
-| ------ | ------ | ----- | ----- | -------- |
-| **Critical path** | 4m 11s | 3m 28s | −43s | **−17.1%** |
+| Scenario | Before | After | Delta | % Change |
+| -------- | ------ | ----- | ----- | -------- |
+| **Cold cache** | 4m 11s | 3m 28s | −43s | **−17.1%** |
+| **Warm cache** | 4m 11s | 3m 0s | −71s | **−28.3%** |
 | Target | — | 2m 5s | — | ~50% |
 
-**Result:** 17.1% reduction achieved. **Target not met.**
+**Result:** 17–28% reduction achieved depending on cache state. **Target not met.**
 
 ## Gap analysis
 
 The ~50% target required reducing critical path from 251s to ~125s. The
-measured 208s is 83s above target (33 percentage points short).
+measured 180s (warm) is 55s above target (22 percentage points short).
 
 ### Why the gap?
 
-1. **Shard 1 still dominates (3m 14s).** The 3-shard rebalance helped shards
-   2/3 but did not substantially shorten shard 1, which runs the slowest
-   browser tests. More granular rebalancing or test optimization needed.
+1. **Shard 1 still dominates (2m 44s warm).** The 3-shard rebalance helped
+   shards 2/3 but shard 1 still runs the slowest browser tests. More granular
+   rebalancing or test optimization needed.
 
-2. **Playwright cache missed.** This run downloaded browsers with `--with-deps`
-   (apt install). Cache hits should save ~20-30s on each shard, but the first
-   run after changing the cache key pays the cold penalty.
+2. **Playwright cache helps but isn't enough.** Cache hit saves ~30s on shard 1
+   (3m 14s cold → 2m 44s warm), closing the gap from 33% to 22%, but not 50%.
 
 3. **e2e-evidence slim cut was small.** The job went from ~20s to 6s — a 14s
    absolute savings, but the critical path is dominated by shard 1.
@@ -119,8 +136,7 @@ Ticket references follow the problem framing, not lead the body.
 
 ## Required CI evidence
 
-**PR #551 CI status:** All 17 check contexts passed except `Validate PR body`
-(non-blocking formatting issue, to be fixed).
+**PR #551 CI status:** All 17 check contexts passed on head `aa304e90`.
 
 | Context | Status |
 | ------- | ------ |
@@ -140,29 +156,33 @@ Ticket references follow the problem framing, not lead the body.
 | CodeQL | ✓ SUCCESS |
 | CodeQL analyze | ✓ SUCCESS |
 | fallow | ✓ SUCCESS |
-| Validate PR body | ✗ FAILURE (non-blocking) |
+| Validate PR body | ✓ SUCCESS |
 
 ## Conclusion
 
-Mission 2 cuts achieved **17.1% reduction** (43s) in critical-path wall-clock.
-The ~50% target was **not met** — gap of 33 percentage points remains.
+Mission 2 cuts achieved **17–28% reduction** (43–71s) in critical-path
+wall-clock, depending on Playwright cache state. The ~50% target was **not
+met** — gap of 22–33 percentage points remains.
 
 ### Honest assessment
 
-The cuts were waste-only (no evidence weakened), but the waste identified in
-#544/#545/#546 was less impactful than estimated. The dominant cost center
-(shard 1 browser tests) requires more aggressive optimization — either finer
-shard rebalancing, test runtime improvements, or parallel build restructuring.
+The cuts were waste-only (no evidence weakened). The Playwright cache
+optimization provides meaningful savings (28% warm vs 17% cold), but the
+dominant cost center (shard 1 browser tests at 2m 44s warm) still determines
+the critical path. More aggressive test optimization or parallelization would
+be needed to reach 50%.
 
 ### Recommendation
 
 1. Merge the waste cuts (#548, #549, #550) — they provide real savings with no
    evidence regression.
-2. Track ~17% as the verified improvement; do not claim ~50%.
-3. Open follow-up tickets for deeper shard optimization if 50% remains a goal.
+2. Track 17–28% as the verified improvement range; do not claim ~50%.
+3. The warm-cache path (28%) is the steady-state benefit after first run.
+4. Open follow-up tickets for deeper shard optimization if 50% remains a goal.
 
 ---
 
 **Receipt author:** Cursor Cloud Agent  
-**Verification method:** GitHub Actions timestamps on PR #551 head `e6f32883`  
+**Verification method:** GitHub Actions timestamps on PR #551 heads  
+**Measured SHAs:** `e6f32883` (cold), `aa304e90` (warm)  
 **North star unchanged:** Evidence confidence was not weakened.
