@@ -63,8 +63,8 @@
   "baselineFailures": [],
   "partialBaseline": false,
   "content": {
-    "evaluated": false,
-    "changes": 0,
+    "evaluated": true,
+    "changes": 1,
     "advisory": true
   },
   "surfaces": [],
@@ -103,10 +103,10 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "1680661c753b46b572dea6e776d8743f8d1c6ba77cb8b67937c781e6d3521d7d",
+      "digest": "4f8dd603b14b472ff4bcd51a67de3f1bea5a7fd0598b92e24c2d3901ab32a9b5",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1555
     }
   },
   "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
