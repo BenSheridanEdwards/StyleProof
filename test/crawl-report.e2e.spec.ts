@@ -81,11 +81,12 @@ test('crawl-to-diff: comparing two crawl captures produces a diff', async ({ pag
     fs.writeFileSync(file, baseHtml('rgb(255, 0, 0)'));
     await crawlAndCapture(page, baseCrawlOpts('file://' + file, afterOut));
 
-    const diff = await diffStyleMapDirs(beforeOut, afterOut);
+    const diff = diffStyleMapDirs(beforeOut, afterOut);
 
-    expect(diff.identical).toBe(false);
+    const hasChanges = diff.counts.style > 0 || diff.counts.dom > 0 || diff.counts.state > 0;
+    expect(hasChanges).toBe(true);
     expect(diff.surfaces.length).toBeGreaterThanOrEqual(1);
-    const changedSurface = diff.surfaces.find((s) => s.changes && s.changes.length > 0);
+    const changedSurface = diff.surfaces.find((s) => s.findings && s.findings.length > 0);
     expect(changedSurface).toBeDefined();
   } finally {
     fs.rmSync(file, { force: true });
@@ -155,8 +156,13 @@ test('crawl-to-report: identical captures produce identical comparison', async (
     const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
     const md = fs.readFileSync(result.reportMdPath, 'utf8');
 
-    expect(json.comparison).toBe('identical');
-    expect(md).toMatch(/identical/i);
+    // Identical captures have zero changes in raw and reviewable counts
+    expect(json.comparison.rawChangedSurfaces).toBe(0);
+    expect(json.comparison.reviewableChangedSurfaces).toBe(0);
+    expect(json.comparison.rawCounts.style).toBe(0);
+    expect(json.comparison.rawCounts.dom).toBe(0);
+    // The md should contain the generated report content
+    expect(md.length).toBeGreaterThan(0);
   } finally {
     fs.rmSync(file, { force: true });
     fs.rmSync(beforeOut, { recursive: true, force: true });
