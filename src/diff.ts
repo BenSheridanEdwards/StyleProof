@@ -3,7 +3,16 @@ import path from 'node:path';
 import { loadStyleMap, isUnder, validateProductStateIdentity, type StyleMap } from './capture.js';
 import { isProductStateComparabilityStatus, type ProductStateComparabilityStatus } from './comparability-status.js';
 export { isProductStateComparabilityStatus, type ProductStateComparabilityStatus } from './comparability-status.js';
-import { isMapFile, MAP_MANIFEST } from './map-store.js';
+import {
+  isMapFile,
+  MAP_MANIFEST,
+  readMapManifest,
+  baselineFailureReceipts,
+  surfaceMissingMatchesBaselineFailure,
+  type BaselineFailureReceipt,
+  type SurfaceCaptureFailure,
+} from './map-store.js';
+export type { BaselineFailureReceipt } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
 import { correspondBeforeMap, correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
 import { pixelDiffSurface, type PixelOptions, type PixelSurfaceResult } from './pixel-diff.js';
@@ -82,11 +91,25 @@ export type Finding =
     }
   | { kind: 'state'; path: string; cls: string; state: string; sub: string; props: PropChange[] };
 
+/**
+ * Surface classification distinguishing genuinely new surfaces from baseline repair debt (#514).
+ * - `genuinely-new`: Head-only surface with no prior baseline (first adoption, reviewable).
+ * - `baseline-repair-debt`: Head-only surface whose prior baseline capture failed (not first adoption, needs repair).
+ * - `removed`: Base-only surface absent on head.
+ * - `changed`: Surface present on both sides with computed-style differences.
+ * - `unchanged`: Surface present on both sides with no differences.
+ */
+export type SurfaceClassification = 'genuinely-new' | 'baseline-repair-debt' | 'removed' | 'changed' | 'unchanged';
+
 export type SurfaceDiff = {
   surface: string;
   /** Set when the surface was captured in only one of the two sets. */
   missing?: 'before' | 'after';
   findings: Finding[];
+  /** Classification distinguishing genuinely new surfaces from baseline repair debt (#514). */
+  classification?: SurfaceClassification;
+  /** True for genuinely new surfaces (backward compatibility, derived from classification). */
+  isNew?: boolean;
 };
 
 export type SurfaceComparability = {
@@ -500,11 +523,15 @@ export function diffStyleMapDirs(
   volatile: number;
   statesUncertified: number;
   compared: number;
+  /** Bounded baseline capture failures read from the base manifest (#513). */
+  baselineFailures: BaselineFailureReceipt[];
   /** One entry per paired surface when `options.pixels` is set; absent otherwise. */
   pixels?: PixelSurfaceResult[];
 } {
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
+  const baselineManifest = readMapManifest(dirA);
+  const baselineFailures = baselineFailureReceipts(baselineManifest?.surfaceCaptureFailures ?? []);
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
   if (names.length === 0) throw new Error(`no .json(.gz) captures found in ${dirA} or ${dirB}`);
   // A whole side with zero captures is a missing MAP, not a set of genuinely
@@ -530,13 +557,22 @@ export function diffStyleMapDirs(
   const pixels: PixelSurfaceResult[] = [];
   const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
   const uncompared = { volatile: 0, statesUncertified: 0 };
+  const baselineSurfaceFailures: SurfaceCaptureFailure[] = baselineManifest?.surfaceCaptureFailures ?? [];
   for (const surface of names) {
     if (!indexA[surface] || !indexB[surface]) {
       // A surface present on only one side has no baseline to diff against — it's
       // a NEW surface, not a style change. It does NOT count toward the change
       // tallies (those drive the review gate); the consumer flags it separately
       // off the `missing` marker and shows it for reference without blocking.
-      surfaces.push({ surface, missing: indexA[surface] ? 'after' : 'before', findings: [] });
+      const missing: 'before' | 'after' = indexA[surface] ? 'after' : 'before';
+      const classification: SurfaceClassification =
+        missing === 'after'
+          ? 'removed'
+          : surfaceMissingMatchesBaselineFailure(surface, baselineSurfaceFailures)
+            ? 'baseline-repair-debt'
+            : 'genuinely-new';
+      const isNew = classification === 'genuinely-new';
+      surfaces.push({ surface, missing, findings: [], classification, isNew });
       comparability.push({
         surface,
         status: 'not-required',
@@ -548,7 +584,8 @@ export function diffStyleMapDirs(
     const pair = diffSurfacePair(surface, indexA[surface], indexB[surface], uncompared, options);
     comparability.push(pair.comparability);
     tallyCounts(pair.findings, counts);
-    if (pair.findings.length) surfaces.push({ surface, findings: pair.findings });
+    const classification: SurfaceClassification = pair.findings.length > 0 ? 'changed' : 'unchanged';
+    if (pair.findings.length) surfaces.push({ surface, findings: pair.findings, classification, isNew: false });
     if (options.pixels) {
       const pixelOptions = typeof options.pixels === 'object' ? options.pixels : {};
       pixels.push(
@@ -569,6 +606,7 @@ export function diffStyleMapDirs(
     comparability,
     ...uncompared,
     compared: names.length,
+    baselineFailures,
     ...(options.pixels ? { pixels } : {}),
   };
 }

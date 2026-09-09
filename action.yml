@@ -372,8 +372,8 @@ runs:
         const reportMissingSurfaces = new Set();
         for (const entry of reportMissing) {
           const allowedKeys = Object.hasOwn(entry, 'image')
-            ? ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus', 'image']
-            : ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus'];
+            ? ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus', 'image', 'classification']
+            : ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus', 'classification'];
           if (!exactKeys(entry, allowedKeys) || !boundedSurfaceKey(entry.surface) ||
               reportMissingSurfaces.has(entry.surface) || diffMissingBySurface.get(entry.surface) !== entry.missing ||
               (Object.hasOwn(entry, 'image') && (typeof entry.image !== 'string' || entry.image.length === 0 || entry.image.length > 512))) {
