@@ -112,6 +112,15 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install chromium firefox
 
+      # Shard 1 generates the full test inventory so the evidence job can verify
+      # completeness without installing Playwright again. If-condition ensures
+      # only one shard produces the canonical inventory.
+      - name: Collect test inventory
+        if: matrix.shard == 1
+        run: |
+          mkdir -p .styleproof/ci
+          npx playwright test --config=playwright.ci.config.ts --list --reporter=json > .styleproof/ci/inventory.json
+
       - name: Browser shard
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: .styleproof/ci/shard.json
@@ -128,6 +137,10 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # The evidence job verifies that the shards cover the full inventory and that
+  # the determinism oracle proved repeatability. The inventory is produced by
+  # shard 1 (no separate Playwright install needed here), so this job only needs
+  # Node.js to run the verification script — a pure-Node path with no npm ci.
   e2e-evidence:
     name: e2e (node 22)
     needs: e2e
@@ -137,23 +150,17 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-          cache: npm
-      - run: npm ci
-      - name: Collect full browser inventory
-        run: |
-          mkdir -p .styleproof/ci
-          npx playwright test --config=playwright.ci.config.ts --list --reporter=json > .styleproof/ci/inventory.json
       - uses: actions/download-artifact@v6
         with:
           pattern: e2e-shard-*
           path: .styleproof/ci/shards
       - name: Verify complete browser evidence and print determinism oracle receipt
-        run: node scripts/verify-e2e-shards.mjs .styleproof/ci/inventory.json .styleproof/ci/shards 3
+        run: node scripts/verify-e2e-shards.mjs .styleproof/ci/shards/e2e-shard-1/inventory.json .styleproof/ci/shards 3
       - name: Upload verified browser evidence
         uses: actions/upload-artifact@v6
         with:
           name: browser-evidence-node-22
-          path: .styleproof/ci/
+          path: .styleproof/ci/shards/
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
