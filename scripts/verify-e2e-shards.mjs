@@ -36,7 +36,7 @@ function reportTests(report) {
 }
 
 /** Compare completed shard results with an independently collected full suite. */
-export function verifyE2eShards(expectedReport, shardReports, receipts) {
+export function verifyE2eShards(expectedReport, shardReports, receipts, shardCount = 3) {
   const expectedTests = reportTests(expectedReport);
   const expected = expectedTests.map((test) => test.identity);
   assert.ok(expected.length > 0, 'empty browser test inventory');
@@ -49,11 +49,11 @@ export function verifyE2eShards(expectedReport, shardReports, receipts) {
     ['chromium', 'firefox-unsupported-state'],
     'unsupported-state inventory must contain the exact Chromium exclusion and Firefox regression',
   );
-  assert.equal(shardReports.length, 2, 'expected two browser shards');
+  assert.equal(shardReports.length, shardCount, `expected ${shardCount} browser shards`);
   const observed = [];
   let skipped = 0;
   for (const [index, report] of shardReports.entries()) {
-    assert.deepEqual(report.config.shard, { current: index + 1, total: 2 }, 'missing or mismatched shard');
+    assert.deepEqual(report.config.shard, { current: index + 1, total: shardCount }, 'missing or mismatched shard');
     for (const test of reportTests(report)) {
       const isAllowedChromiumExclusion =
         test.file === unsupportedStateTest.file &&
@@ -95,7 +95,7 @@ export function verifyE2eShards(expectedReport, shardReports, receipts) {
   }
   assert.equal(skipped, 1, 'missing or duplicate declared Chromium exclusion');
   return {
-    shards: 2,
+    shards: shardCount,
     collected: expected.length,
     passed: observed.length - skipped,
     skipped,
@@ -104,10 +104,15 @@ export function verifyE2eShards(expectedReport, shardReports, receipts) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  const [expectedPath, shardDirectory] = process.argv.slice(2);
-  assert.ok(expectedPath && shardDirectory, 'usage: verify-e2e-shards.mjs <inventory.json> <shard-directory>');
+  const [expectedPath, shardDirectory, shardCountArg] = process.argv.slice(2);
+  assert.ok(
+    expectedPath && shardDirectory,
+    'usage: verify-e2e-shards.mjs <inventory.json> <shard-directory> [shard-count]',
+  );
+  const shardCount = shardCountArg ? parseInt(shardCountArg, 10) : 3;
+  assert.ok(shardCount >= 1 && shardCount <= 10, 'shard count must be between 1 and 10');
   const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
-  const directories = [1, 2].map((index) => path.join(shardDirectory, `e2e-shard-${index}`));
+  const directories = Array.from({ length: shardCount }, (_, i) => path.join(shardDirectory, `e2e-shard-${i + 1}`));
   const receipts = directories
     .map((directory) => path.join(directory, 'determinism-oracle.json'))
     .filter((file) => fs.existsSync(file))
@@ -116,6 +121,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     readJson(expectedPath),
     directories.map((directory) => readJson(path.join(directory, 'shard.json'))),
     receipts,
+    shardCount,
   );
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify(receipts[0], null, 2)}\n`);

@@ -70,7 +70,7 @@ function fixture() {
 
 test('two successful shards cover the complete inventory and preserve the oracle', () => {
   const { expected, shards, receipts } = fixture();
-  assert.deepEqual(verifyE2eShards(expected, shards, receipts), {
+  assert.deepEqual(verifyE2eShards(expected, shards, receipts, 2), {
     shards: 2,
     collected: 4,
     passed: 3,
@@ -80,7 +80,7 @@ test('two successful shards cover the complete inventory and preserve the oracle
 });
 
 for (const [name, mutate, error] of [
-  ['missing shard', (f) => f.shards.pop(), /two browser shards/],
+  ['missing shard', (f) => f.shards.pop(), /expected 2 browser shards/],
   [
     'wrong shard identity',
     (f) => {
@@ -207,6 +207,6 @@ for (const [name, mutate, error] of [
   test(`shard evidence rejects ${name}`, () => {
     const f = fixture();
     mutate(f);
-    assert.throws(() => verifyE2eShards(f.expected, f.shards, f.receipts), error);
+    assert.throws(() => verifyE2eShards(f.expected, f.shards, f.receipts, 2), error);
   });
 }

@@ -25,14 +25,15 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.doesNotMatch(buildJob, /npm test|npm run test:e2e|npm run typecheck/);
 
   assert.match(e2eJob, /name: e2e \(node 22, shard/);
-  assert.match(e2eJob, /shard: \[1, 2\]/);
+  assert.match(e2eJob, /shard: \[1, 2, 3\]/);
   assert.match(e2eJob, /node-version: '22'/);
   assert.match(e2eJob, /run: npm ci/);
   assert.match(e2eJob, /run: npm run build/);
   assert.match(e2eJob, /npx playwright install --with-deps chromium firefox/);
+  assert.match(e2eJob, /npx playwright install chromium firefox/);
   assert.match(
     e2eJob,
-    /run: npx playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/2 --reporter=line,json/,
+    /run: npx playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/3 --reporter=line,json/,
   );
   assert.doesNotMatch(e2eJob, /--grep|needs:/);
   assert.match(e2eJob, /STYLEPROOF_DETERMINISM_RECEIPT: .styleproof\/ci\/determinism-oracle.json/);
