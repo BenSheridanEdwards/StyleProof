@@ -24,6 +24,37 @@ order, and none may be placeholder-only:
 4. **Verification Summary** — the commands run after the last code change, with
    pass/fail results, and any skipped checks with reason/risk/owner.
 
+### Opening quality
+
+The first paragraph of "Why does this feature exist?" must answer the buyer
+questions:
+
+1. What real pain or incident motivated this change?
+2. Why does this PR exist — what problem does it solve?
+3. Why would the project owner want this in main?
+
+Ticket-dump openings fail the validator:
+
+- ❌ `Fixes #517, #518, #519 in the v2 import pipeline.`
+- ❌ `Implements [#520](url) - TDD fixture coverage plan.`
+- ❌ `Part of parent chain #491. Closes #513, #514.`
+- ❌ `1. Propagate baseline capture failures (#513)\n2. Distinguish new surfaces (#514)`
+- ❌ `Closes #500. The system needed this change.`
+- ❌ `(#521) This PR addresses the linked issue.`
+- ❌ `Resolves #100 by updating the config.`
+
+Buyer-legible openings pass:
+
+- ✅ `Users importing oracle-proven bundles lost their proven status, breaking CI gates. This PR fixes the import pipeline. Fixes #517.`
+- ✅ `When a baseline capture fails, reviewers cannot distinguish genuine new surfaces from repair debt. This PR adds classification. Part of #491.`
+- ✅ `Reviewers opening a PR could not immediately understand why it mattered — they saw ticket numbers, not user pain. This change gates PR bodies on buyer-legible prose.`
+
+The validator error message:
+
+> "Why does this feature exist?" must open with buyer-legible motivation (what
+> pain, why it exists, why merge it). Ticket references (#N) should come after
+> the motivation paragraph.
+
 ## Proof
 
 - Screenshots are committed to the branch (normally under `docs/proof/<scope>/`)

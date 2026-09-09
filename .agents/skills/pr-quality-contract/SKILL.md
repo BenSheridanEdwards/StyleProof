@@ -11,8 +11,9 @@ description: Use before completing work or opening a PR in this repository.
 2. Map behaviour changes to tests. Completion criterion: every user-visible behaviour changed by the PR has an automated behaviour/E2E test (or an exported-function unit test for pure logic), or an explicit technical reason it cannot be automated.
 3. Produce behavioural proof for UI changes. Completion criterion: the PR contains current video and screenshots from the changed branch, or states `Not applicable` with the reason.
 4. Run verification on the final branch. Completion criterion: `npm run build && npm run typecheck && npm run lint && npm run format:check`, `npm run privacy:check`, `npm test`, and `npm run test:e2e` (when the capture/diff/report/engine path changed) have been run after the last code change.
-5. Write the PR body using `.github/PULL_REQUEST_TEMPLATE.md` exactly. Completion criterion: the PR body contains, in order, `Why does this feature exist?`, `What changed?`, `Behavioural Proof (with video and screenshots)`, and `Verification Summary`. Confirm with `node scripts/validate-pr-body.mjs` against the fetched title and body.
-6. Do not mark work complete with placeholders. Completion criterion: every proof link, screenshot path, video path, test command, failure, skipped check, and residual risk is explicit.
+5. Write a buyer-legible opening. Completion criterion: the first paragraph of "Why does this feature exist?" answers the three buyer questions (what pain, why it exists, why merge it) before any ticket references (`#N`, `Fixes #N`, `Implements #N`). The validator rejects ticket-dump openings.
+6. Write the PR body using `.github/PULL_REQUEST_TEMPLATE.md` exactly. Completion criterion: the PR body contains, in order, `Why does this feature exist?`, `What changed?`, `Behavioural Proof (with video and screenshots)`, and `Verification Summary`. Confirm with `node scripts/validate-pr-body.mjs` against the fetched title and body.
+7. Do not mark work complete with placeholders. Completion criterion: every proof link, screenshot path, video path, test command, failure, skipped check, and residual risk is explicit.
 
 ## Evidence Rules
 
