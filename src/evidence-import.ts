@@ -109,7 +109,7 @@ export function importMapBundleToEvidenceStore(options: ImportMapBundleOptions) 
   const coverage = auditCoverage(bundleSurfaceKeys(bundleDirectory, coverageLedger?.expected ?? null), coverageLedger);
   const determinism = coverageLedger?.determinism;
   const determinismStatus =
-    determinism === 'self-checked' || determinism === 'replayed'
+    determinism === 'oracle-proven' || determinism === 'self-checked' || determinism === 'replayed'
       ? 'proven'
       : determinism === 'unproven'
         ? 'unproven'

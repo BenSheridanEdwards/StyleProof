@@ -14,6 +14,7 @@ import {
   writeConfidenceLedger,
   readConfidenceLedger,
   resolveBundleConfidence,
+  readCoverageLedgerLenient,
 } from '../dist/confidence-ledger.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 
@@ -382,6 +383,23 @@ test('resolveBundleConfidence returns null for a bundle with neither source (old
   try {
     fs.writeFileSync(path.join(dir, 'home@1440.json'), JSON.stringify({ defaults: {}, elements: {}, states: {} }));
     assert.equal(resolveBundleConfidence(dir), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// #517: coverage ledger reader accepts oracle-proven determinism
+test('readCoverageLedgerLenient accepts oracle-proven as a valid determinism value (#517)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-conf-oracle-proven-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, COVERAGE_LEDGER),
+      JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism: 'oracle-proven' }),
+    );
+    const ledger = readCoverageLedgerLenient(dir);
+    assert.notEqual(ledger, null, 'oracle-proven determinism should parse successfully');
+    assert.equal(ledger.determinism, 'oracle-proven');
+    assert.deepEqual(ledger.expected, ['home']);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

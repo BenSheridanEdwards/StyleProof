@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "packageVersion": "6.2.0",
+  "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "dirty": false,
+  "spec": "e2e/styleproof.spec.ts",
+  "specHash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "platform": "linux",
+  "arch": "x64",
+  "nodeMajor": "22",
+  "screenshots": true,
+  "har": false,
+  "compatibilityKey": "1111111111111111",
+  "createdAt": "2026-09-01T00:00:00.000Z"
+}

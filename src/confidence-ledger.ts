@@ -350,7 +350,10 @@ export function readCoverageLedgerLenient(dir: string): CoverageLedger | null {
     if (parsed?.version !== 1) return null;
     if (parsed.expected !== null && !stringArray(parsed.expected)) return null;
     if (!plainReasonMap(parsed.exclude)) return null;
-    if (parsed.determinism !== undefined && !['self-checked', 'replayed', 'unproven'].includes(parsed.determinism))
+    if (
+      parsed.determinism !== undefined &&
+      !['oracle-proven', 'self-checked', 'replayed', 'unproven'].includes(parsed.determinism)
+    )
       return null;
     if (parsed.dataResidue !== undefined && parsed.dataResidue !== 'warn' && parsed.dataResidue !== 'gate') return null;
     return parsed;

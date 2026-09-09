@@ -31,11 +31,12 @@ function writeBundle(root, options = {}) {
   fs.writeFileSync(path.join(root, 'home@1280.har'), 'private-network-payload');
   fs.writeFileSync(path.join(root, 'secret.env'), 'SHOULD_NOT_LEAVE_THE_CAPTURE_DIRECTORY');
   if (options.coverage !== false) {
+    const determinism = options.determinism ?? 'self-checked';
     fs.writeFileSync(
       path.join(root, 'styleproof-coverage.json'),
       options.coverage === 'malformed'
         ? '{broken'
-        : JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism: 'self-checked' }),
+        : JSON.stringify({ version: 1, expected: ['home'], exclude: {}, determinism }),
     );
   }
 }
@@ -127,6 +128,92 @@ test('v1 map import preserves missing trust as unasserted/unknown and rejects ma
         }),
       (error) => error instanceof EvidenceStoreError && /malformed styleproof-coverage\.json/.test(error.message),
     );
+  } finally {
+    rmTmp(workspace);
+  }
+});
+
+// #518: importer maps oracle-proven determinism to proven trust status
+test('v1 map import maps oracle-proven determinism to proven trust status (#518)', () => {
+  const workspace = mkTmp('styleproof-evidence-import-oracle-proven-');
+  try {
+    const bundle = path.join(workspace, 'bundle');
+    writeBundle(bundle, { determinism: 'oracle-proven' });
+
+    const imported = importMapBundleToEvidenceStore({
+      bundleDirectory: bundle,
+      storeRoot: path.join(workspace, 'store'),
+    });
+    assert.equal(
+      imported.manifest.trust.determinismStatus,
+      'proven',
+      'oracle-proven determinism should map to proven trust status',
+    );
+    assert.equal(imported.manifest.trust.coverageBasis, 'complete');
+  } finally {
+    rmTmp(workspace);
+  }
+});
+
+// #519: integration test for oracle-proven import with byte-identical restoration
+test('v1 oracle-proven bundle import preserves SHA, trust, byte-identical ledger, and idempotent identity (#519)', () => {
+  const workspace = mkTmp('styleproof-evidence-import-oracle-proven-integration-');
+  try {
+    const bundle = path.join(workspace, 'bundle');
+    const store = path.join(workspace, 'store');
+    const restored = path.join(workspace, 'restored');
+
+    const coverageLedger = { version: 1, expected: ['home'], exclude: {}, determinism: 'oracle-proven' };
+    const originalLedgerBytes = Buffer.from(JSON.stringify(coverageLedger));
+    const expectedSha = 'a'.repeat(40);
+    const expectedCompatKey = '1111111111111111';
+
+    fs.mkdirSync(bundle, { recursive: true });
+    fs.writeFileSync(
+      path.join(bundle, 'styleproof-manifest.json'),
+      JSON.stringify({
+        version: 1,
+        packageVersion: '6.2.0',
+        sha: expectedSha,
+        dirty: false,
+        spec: 'e2e/styleproof.spec.ts',
+        specHash: '2'.repeat(64),
+        platform: 'linux',
+        arch: 'x64',
+        nodeMajor: '22',
+        screenshots: true,
+        har: false,
+        compatibilityKey: expectedCompatKey,
+        createdAt: '2026-09-01T00:00:00.000Z',
+      }),
+    );
+    fs.writeFileSync(path.join(bundle, 'home@1280.json'), JSON.stringify({ defaults: {}, elements: {}, states: {} }));
+    fs.writeFileSync(path.join(bundle, 'home@1280.png'), Buffer.from([1, 2, 3, 4]));
+    fs.writeFileSync(path.join(bundle, 'styleproof-coverage.json'), originalLedgerBytes);
+
+    const firstImport = importMapBundleToEvidenceStore({ bundleDirectory: bundle, storeRoot: store });
+
+    assert.equal(firstImport.manifest.source.sha, expectedSha, 'source SHA preserved');
+    assert.equal(firstImport.manifest.source.compatibilityKey, expectedCompatKey, 'compatibility key preserved');
+    assert.equal(firstImport.manifest.trust.determinismStatus, 'proven', 'trust status is proven');
+    assert.equal(firstImport.manifest.trust.coverageBasis, 'complete', 'coverage basis is complete');
+
+    materializeEvidenceCapture(store, firstImport.capture, restored);
+    const restoredLedgerBytes = fs.readFileSync(path.join(restored, 'styleproof-coverage.json'));
+    assert.equal(
+      Buffer.compare(originalLedgerBytes, restoredLedgerBytes),
+      0,
+      'coverage ledger bytes are byte-identical after restoration',
+    );
+
+    const secondImport = importMapBundleToEvidenceStore({ bundleDirectory: bundle, storeRoot: store });
+
+    assert.equal(
+      firstImport.capture.digest,
+      secondImport.capture.digest,
+      'repeated import produces stable capture identity (idempotent)',
+    );
+    assert.deepEqual(firstImport.manifest, secondImport.manifest, 'repeated import manifest is identical');
   } finally {
     rmTmp(workspace);
   }
