@@ -28,6 +28,7 @@ import {
   DEFAULT_MAP_LABEL,
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
+  DETERMINISM_RECEIPT,
   MapStoreError,
   MapStorePreconditionError,
   MapStoreNotFoundError,
@@ -66,8 +67,6 @@ function promoteLedgerToOracleProven(bundleDir) {
   fs.writeFileSync(ledgerPath, `${JSON.stringify({ ...ledger, determinism: 'oracle-proven' }, null, 2)}\n`);
 }
 
-/** The five-run oracle receipt, written beside the maps it proves. */
-const DETERMINISM_RECEIPT = 'styleproof-determinism.json';
 /** #400 fixes the promotion oracle at exactly five runs; assessDeterminismOracle enforces it. */
 const DETERMINISM_ORACLE_RUNS = 5;
 

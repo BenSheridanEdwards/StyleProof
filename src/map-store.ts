@@ -76,6 +76,12 @@ export const BASELINE_PROVENANCE_FILE = 'styleproof-baseline-provenance.json';
  *  re-exports it) so {@link RESERVED_BUNDLE_FILES} needs no import cycle. */
 export const CONFIDENCE_LEDGER = 'styleproof-confidence.json';
 
+/** The five-run oracle determinism proof receipt (#400, #534) — written by
+ *  `styleproof-map --prove-determinism` beside the maps it proves. Defined here
+ *  (not in determinism-oracle.ts) so {@link RESERVED_BUNDLE_FILES} needs no
+ *  import cycle. Must be preserved during v2 import as owned metadata. */
+export const DETERMINISM_RECEIPT = 'styleproof-determinism.json';
+
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
  *  these, or a sidecar reads as a phantom "new surface". */
@@ -85,6 +91,7 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
   BROWSER_BUILD_SIDECAR,
   BASELINE_PROVENANCE_FILE,
   CONFIDENCE_LEDGER,
+  DETERMINISM_RECEIPT,
 ]);
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */
