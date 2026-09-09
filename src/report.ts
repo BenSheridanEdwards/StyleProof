@@ -2474,6 +2474,7 @@ function renderChangeGroup(
         findings: surfaceFindings,
         visualEvidence: 'not-rendered',
         reason,
+        classification: sd.classification,
       },
       findingCount: surfaceFindings.length,
       cropSeq,
@@ -2500,6 +2501,7 @@ function renderChangeGroup(
     representative: sd.surface,
     regions,
     findings: surfaceFindings,
+    classification: sd.classification,
   };
   return { md, json, findingCount: surfaceFindings.length, cropSeq };
 }
@@ -2527,9 +2529,9 @@ function oneSidedPresentation(
     };
   }
   return {
-    heading: `### \`${key}\` · baseline repair debt ⚠️`,
-    alt: 'baseline repair debt',
-    note: `_The matching baseline capture failed. This is **baseline repair debt**, not first adoption; repair the base capture and rerun._`,
+    heading: `### \`${key}\` · baseline repair needed ⚠️`,
+    alt: 'baseline repair needed',
+    note: `_The matching baseline capture failed. This is **baseline repair needed**, not first adoption; repair the base capture and rerun._`,
   };
 }
 
@@ -2560,6 +2562,7 @@ function renderNewSurface(
     isNew,
     isRemoved,
     baselineStatus,
+    classification: p.sd.classification,
   };
   if (png) {
     cropSeq++;
@@ -2867,7 +2870,7 @@ function renderOneSidedSections(args: {
       baselineStatus === 'removed'
         ? 'removed surface'
         : baselineStatus === 'capture-failed'
-          ? 'baseline repair debt'
+          ? 'baseline repair needed'
           : 'new surface';
     args.emitDetail(rendered.md, `- \`${safeKey(prepared.sd.surface)}\` · ${summaryLabel}`);
   }

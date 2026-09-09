@@ -3042,3 +3042,177 @@ test('end-to-end: a surface captured only on base renders as REMOVED, never as a
   assert.equal(removedEntry.isNew, false);
   rmTmp(root);
 });
+
+// --------------------------------------------------------- #515 report.json persists baselineFailures + classification
+
+test('end-to-end: report.json includes baselineFailures and classification per surface (#515)', () => {
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  const outDir = path.join(root, 'out');
+  const box = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': { tag: 'div', cls: 'box', rect: [0, 0, 200, 100], style: { color } },
+      },
+    });
+  writeCapture(beforeDir, 'home@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  writeCapture(afterDir, 'home@1280', box('rgb(255, 0, 0)'), solidPng(1280, 800));
+  writeCapture(afterDir, 'about@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  writeCapture(afterDir, 'pricing@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  fs.writeFileSync(
+    path.join(beforeDir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'a'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+      surfaceCaptureFailures: [
+        { key: 'about@1280', reason: 'timeout on base', kind: 'capture' },
+        { key: 'faq@auto', reason: 'viewport detection failed', kind: 'capture' },
+        { key: 'team@900', reason: 'network error', kind: 'capture' },
+        { key: 'blog@1280', reason: 'assertion failed', kind: 'capture' },
+        { key: 'contact@1440', reason: 'element not found', kind: 'capture' },
+      ],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(afterDir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'b'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.ok(Array.isArray(json.baselineFailures), 'report.json should have baselineFailures array');
+  assert.equal(json.baselineFailures.length, 5, 'should have 5 baseline failures');
+  assert.ok(
+    json.baselineFailures.every((f) => f.reason === 'capture_failed'),
+    'all failures should have bounded reason',
+  );
+  const homeSurface = json.surfaces.find((s) => s.representative === 'home@1280' || s.surface === 'home@1280');
+  const aboutSurface = json.surfaces.find((s) => s.surface === 'about@1280');
+  const pricingSurface = json.surfaces.find((s) => s.surface === 'pricing@1280');
+  assert.ok(homeSurface, 'home surface should be in report');
+  assert.ok(aboutSurface, 'about surface should be in report');
+  assert.ok(pricingSurface, 'pricing surface should be in report');
+  assert.equal(homeSurface.classification, 'changed', 'home should have classification changed');
+  assert.equal(
+    aboutSurface.classification,
+    'baseline-repair-debt',
+    'about should have classification baseline-repair-debt',
+  );
+  assert.equal(pricingSurface.classification, 'genuinely-new', 'pricing should have classification genuinely-new');
+  assert.equal(aboutSurface.isNew, false, 'baseline-repair-debt surface should NOT be isNew');
+  assert.equal(pricingSurface.isNew, true, 'genuinely-new surface should be isNew');
+  rmTmp(root);
+});
+
+// --------------------------------------------------------- #516 Markdown labels from classification
+
+test('end-to-end: Markdown surface labels match classification from report.json (#516)', () => {
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before');
+  const afterDir = path.join(root, 'after');
+  const outDir = path.join(root, 'out');
+  const box = (color) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+        'body > div:nth-child(1)': { tag: 'div', cls: 'box', rect: [0, 0, 200, 100], style: { color } },
+      },
+    });
+  // before: home
+  writeCapture(beforeDir, 'home@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  // after: home (changed), about (baseline-repair-debt - failed in baseline), pricing (genuinely-new)
+  writeCapture(afterDir, 'home@1280', box('rgb(255, 0, 0)'), solidPng(1280, 800));
+  writeCapture(afterDir, 'about@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  writeCapture(afterDir, 'pricing@1280', box('rgb(0, 0, 0)'), solidPng(1280, 800));
+  // baseline manifest with capture failures for about
+  fs.writeFileSync(
+    path.join(beforeDir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'a'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+      surfaceCaptureFailures: [{ key: 'about@1280', reason: 'timeout on base', kind: 'capture' }],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(afterDir, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'b'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Verify JSON classifications (prerequisite)
+  const aboutSurface = json.surfaces.find((s) => s.surface === 'about@1280');
+  const pricingSurface = json.surfaces.find((s) => s.surface === 'pricing@1280');
+  assert.equal(aboutSurface.classification, 'baseline-repair-debt', 'about should be baseline-repair-debt in JSON');
+  assert.equal(pricingSurface.classification, 'genuinely-new', 'pricing should be genuinely-new in JSON');
+
+  // #516: Markdown labels must match classifications
+  // baseline-repair-debt surfaces should use "baseline repair needed" label per issue spec (not "new surface")
+  const aboutHeadingMatch = md.match(/`about@1280`[^`]*·[^`\n]*baseline repair needed/i);
+  assert.ok(aboutHeadingMatch, 'about@1280 should have "baseline repair needed" in Markdown heading per #516 spec');
+  assert.ok(!md.includes('`about@1280` · new surface'), 'about@1280 should NOT be labeled "new surface" in Markdown');
+
+  // genuinely-new surfaces should use "new surface" label
+  const pricingHeadingMatch = md.match(/`pricing@1280`[^`]*·[^`\n]*new surface/i);
+  assert.ok(pricingHeadingMatch, 'pricing@1280 should have "new surface" in Markdown heading');
+
+  // baseline failure count in Markdown should match JSON
+  const baselineFailureCount = json.baselineFailures.length;
+  const mdFailureCountMatch = md.match(/(\d+)\s+baseline\s+capture\s+failure/i);
+  assert.ok(mdFailureCountMatch, 'Markdown should mention baseline capture failure count');
+  assert.equal(parseInt(mdFailureCountMatch[1], 10), baselineFailureCount, 'Markdown failure count should match JSON');
+
+  rmTmp(root);
+});

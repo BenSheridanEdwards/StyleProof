@@ -778,3 +778,280 @@ test('diffStyleMapDirs structural inventory mode (includeStructure: true) is unc
   );
   rmTmp(root);
 });
+
+// --------------------------------------------------------- #513 baselineFailures in DiffResult
+
+test('diffStyleMapDirs returns baselineFailures populated from baseline manifest (#513)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'before');
+  const B = path.join(root, 'after');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(A, 'about@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  writeCapture(B, 'about@1280', m, null);
+  writeCapture(B, 'pricing@1280', m, null);
+  fs.writeFileSync(
+    path.join(A, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'a'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+      surfaceCaptureFailures: [
+        { key: 'pricing@1280', reason: 'timeout on base', kind: 'capture' },
+        { key: 'contact@auto', reason: 'viewport detection failed', kind: 'capture' },
+        { key: 'faq@900', reason: 'network error', kind: 'capture' },
+        { key: 'team@1440', reason: 'element not found', kind: 'capture' },
+        { key: 'blog@1280', reason: 'assertion failed', kind: 'capture' },
+      ],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(B, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'b'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+  const result = diffStyleMapDirs(A, B);
+  assert.ok(Array.isArray(result.baselineFailures), 'baselineFailures should be an array');
+  assert.equal(result.baselineFailures.length, 5, 'should have 5 baseline failures');
+  assert.deepEqual(
+    result.baselineFailures.map((f) => f.key).sort(),
+    ['blog@1280', 'contact@auto', 'faq@900', 'pricing@1280', 'team@1440'].sort(),
+  );
+  assert.ok(
+    result.baselineFailures.every((f) => f.reason === 'capture_failed'),
+    'all failures should have bounded reason',
+  );
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs returns empty baselineFailures when baseline manifest has no failures (#513)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'before');
+  const B = path.join(root, 'after');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  fs.writeFileSync(
+    path.join(A, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'a'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+  fs.writeFileSync(
+    path.join(B, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'b'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+  const result = diffStyleMapDirs(A, B);
+  assert.ok(Array.isArray(result.baselineFailures), 'baselineFailures should be an array');
+  assert.equal(result.baselineFailures.length, 0, 'should have no baseline failures');
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs returns empty baselineFailures when baseline manifest is missing (#513)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'before');
+  const B = path.join(root, 'after');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  const result = diffStyleMapDirs(A, B);
+  assert.ok(Array.isArray(result.baselineFailures), 'baselineFailures should be an array');
+  assert.equal(result.baselineFailures.length, 0, 'should have no baseline failures when manifest is missing');
+  rmTmp(root);
+});
+
+// --------------------------------------------------------- #514 SurfaceClassification
+
+test('diffStyleMapDirs classifies genuinely-new surfaces vs baseline-repair-debt (#514)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'before');
+  const B = path.join(root, 'after');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  writeCapture(B, 'about@1280', m, null);
+  writeCapture(B, 'pricing@1280', m, null);
+  fs.writeFileSync(
+    path.join(A, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'a'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+      surfaceCaptureFailures: [{ key: 'about@1280', reason: 'timeout on base', kind: 'capture' }],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(B, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'b'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+  const result = diffStyleMapDirs(A, B);
+  const aboutSurface = result.surfaces.find((s) => s.surface === 'about@1280');
+  const pricingSurface = result.surfaces.find((s) => s.surface === 'pricing@1280');
+  const homeSurface = result.surfaces.find((s) => s.surface === 'home@1280');
+  assert.ok(aboutSurface, 'about surface should be in results');
+  assert.ok(pricingSurface, 'pricing surface should be in results');
+  assert.equal(aboutSurface.classification, 'baseline-repair-debt', 'about should be baseline-repair-debt');
+  assert.equal(pricingSurface.classification, 'genuinely-new', 'pricing should be genuinely-new');
+  assert.equal(homeSurface, undefined, 'home has no findings so may not be in surfaces list');
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs classifies removed surfaces (#514)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'before');
+  const B = path.join(root, 'after');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(A, 'about@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  const result = diffStyleMapDirs(A, B);
+  const aboutSurface = result.surfaces.find((s) => s.surface === 'about@1280');
+  assert.ok(aboutSurface, 'about surface should be in results');
+  assert.equal(aboutSurface.classification, 'removed', 'about should be classified as removed');
+  assert.equal(aboutSurface.missing, 'after', 'about should be missing after');
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs classifies changed surfaces (#514)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'before');
+  const B = path.join(root, 'after');
+  const ma = makeMap({ elements: { body: { tag: 'body', style: { color: 'red' } } } });
+  const mb = makeMap({ elements: { body: { tag: 'body', style: { color: 'blue' } } } });
+  writeCapture(A, 'home@1280', ma, null);
+  writeCapture(B, 'home@1280', mb, null);
+  const result = diffStyleMapDirs(A, B);
+  const homeSurface = result.surfaces.find((s) => s.surface === 'home@1280');
+  assert.ok(homeSurface, 'home surface should be in results');
+  assert.equal(homeSurface.classification, 'changed', 'home should be classified as changed');
+  assert.equal(homeSurface.missing, undefined, 'home should not be missing');
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs returns isNew derived from classification for backward compatibility (#514)', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'before');
+  const B = path.join(root, 'after');
+  const m = makeMap({ elements: { body: { tag: 'body' } } });
+  writeCapture(A, 'home@1280', m, null);
+  writeCapture(B, 'home@1280', m, null);
+  writeCapture(B, 'about@1280', m, null);
+  writeCapture(B, 'pricing@1280', m, null);
+  fs.writeFileSync(
+    path.join(A, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'a'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+      surfaceCaptureFailures: [{ key: 'about@1280', reason: 'timeout on base', kind: 'capture' }],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(B, 'styleproof-manifest.json'),
+    JSON.stringify({
+      version: 1,
+      packageVersion: 'test',
+      sha: 'b'.repeat(40),
+      dirty: false,
+      spec: 'e2e/styleproof.spec.ts',
+      specHash: '0'.repeat(64),
+      platform: process.platform,
+      arch: process.arch,
+      nodeMajor: process.versions.node.split('.')[0],
+      screenshots: true,
+      har: false,
+      compatibilityKey: '0'.repeat(16),
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }),
+  );
+  const result = diffStyleMapDirs(A, B);
+  const aboutSurface = result.surfaces.find((s) => s.surface === 'about@1280');
+  const pricingSurface = result.surfaces.find((s) => s.surface === 'pricing@1280');
+  assert.equal(aboutSurface.isNew, false, 'baseline-repair-debt should NOT be isNew');
+  assert.equal(pricingSurface.isNew, true, 'genuinely-new should be isNew');
+  rmTmp(root);
+});
