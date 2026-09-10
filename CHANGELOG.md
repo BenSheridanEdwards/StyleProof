@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [6.5.0] - 2026-09-10
+
 ### Added
 
 - Optional `maxForcedStateElements` and `maxForcedStateScanWork` capture limits.
