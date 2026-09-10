@@ -1,0 +1,3 @@
+v18.20.8: PASS packed init, static JSON spec, all three module rejections without execution, malformed JSON
+v20.20.2: PASS packed init, static JSON spec, all three module rejections without execution, malformed JSON
+v22.22.2: PASS packed init, static JSON spec, all three module rejections without execution, malformed JSON

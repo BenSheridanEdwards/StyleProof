@@ -260,15 +260,17 @@ test('state recipes: transient observation requires continuous visibility and em
     await page.goto(page.url(), { waitUntil: 'load' });
     await applyStateRecipe(page, {
       action: 'click',
-      selector: '#flash',
+      selector: '#notify',
       stateKey: 'brief-toast',
-      observeSelector: '#flash-toast',
+      observeSelector: '#toast',
       observeMs: 50,
     });
+    // Disappear after observation, without racing a short browser timer on CI.
+    await page.locator('#toast').evaluate((toast) => toast.remove());
     await expect(
       captureStyleMap(page, {
         captureStates: false,
-        requiredVisibleState: { selector: '#flash-toast', stateKey: 'brief-toast' },
+        requiredVisibleState: { selector: '#toast', stateKey: 'brief-toast' },
       }),
     ).rejects.toThrow(/brief-toast.*pre-capture/);
   });
