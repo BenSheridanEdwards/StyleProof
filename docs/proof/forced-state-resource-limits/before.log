@@ -1,0 +1,110 @@
+
+Running 5 tests using 1 worker
+
+
+(node:72586) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/5] [chromium] › test/forced-state-exact-budget.e2e.spec.ts:4:1 › spending the final default work allowance still completes the last state
+
+[chromium] › test/forced-state-exact-budget.e2e.spec.ts:4:1 › spending the final default work allowance still completes the last state
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+  1) [chromium] › test/forced-state-exact-budget.e2e.spec.ts:4:1 › spending the final default work allowance still completes the last state 
+
+    Error: expect(received).toBeFalsy()
+
+    Received: true
+
+      14 |   expect(Object.keys(map.elements)).toHaveLength(200);
+      15 |   expect(Object.keys(map.states)).toHaveLength(40);
+    > 16 |   expect(map.statesSkipped).toBeFalsy();
+         |                             ^
+      17 |   for (const states of Object.values(map.states)) {
+      18 |     expect(Object.values(states.active).some((properties) => properties.color === 'rgb(0, 0, 200)')).toBe(true);
+      19 |   }
+        at /private/tmp/sp-resource-4aebgj4a/baseline/test/forced-state-exact-budget.e2e.spec.ts:16:29
+
+    Error Context: test-results/test-forced-state-exact-bu-2173c-ll-completes-the-last-state-chromium/error-context.md
+
+
+
+(node:72764) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2/5] [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 5 and aggregate 40 limits at the exact boundary
+[3/5] [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 5 and aggregate 39 limits at the exact boundary
+  2) [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 5 and aggregate 39 limits at the exact boundary 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      25 |     });
+      26 |     expect(Object.keys(map.elements)).toHaveLength(5);
+    > 27 |     expect(map.statesSkipped === true).toBe(incomplete);
+         |                                        ^
+      28 |     if (!incomplete) {
+      29 |       expect(Object.keys(map.states)).toHaveLength(2);
+      30 |       for (const states of Object.values(map.states))
+        at /private/tmp/sp-resource-4aebgj4a/baseline/test/forced-state-limits.e2e.spec.ts:27:40
+
+    Error Context: test-results/test-forced-state-limits.e-a7ab1-imits-at-the-exact-boundary-chromium/error-context.md
+
+
+
+(node:72782) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[4/5] [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 4 and aggregate 40 limits at the exact boundary
+  3) [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 4 and aggregate 40 limits at the exact boundary 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      25 |     });
+      26 |     expect(Object.keys(map.elements)).toHaveLength(5);
+    > 27 |     expect(map.statesSkipped === true).toBe(incomplete);
+         |                                        ^
+      28 |     if (!incomplete) {
+      29 |       expect(Object.keys(map.states)).toHaveLength(2);
+      30 |       for (const states of Object.values(map.states))
+        at /private/tmp/sp-resource-4aebgj4a/baseline/test/forced-state-limits.e2e.spec.ts:27:40
+
+    Error Context: test-results/test-forced-state-limits.e-4a181-imits-at-the-exact-boundary-chromium/error-context.md
+
+
+
+(node:72796) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[5/5] [chromium] › test/forced-state-limits.e2e.spec.ts:36:1 › explicit aggregate capacity captures every control beyond the default limit
+
+[chromium] › test/forced-state-limits.e2e.spec.ts:36:1 › explicit aggregate capacity captures every control beyond the default limit
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+  4) [chromium] › test/forced-state-limits.e2e.spec.ts:36:1 › explicit aggregate capacity captures every control beyond the default limit 
+
+    Error: expect(received).toBeFalsy()
+
+    Received: true
+
+      38 |   const map = await captureStyleMap(page, { stabilize: false, maxForcedStateScanWork: 70_000 });
+      39 |   expect(Object.keys(map.elements)).toHaveLength(298);
+    > 40 |   expect(map.statesSkipped).toBeFalsy();
+         |                             ^
+      41 |   expect(Object.keys(map.states)).toHaveLength(53);
+      42 |   for (const states of Object.values(map.states)) {
+      43 |     expect(Object.values(states.hover).some((properties) => properties.color === 'rgb(200, 0, 0)')).toBe(true);
+        at /private/tmp/sp-resource-4aebgj4a/baseline/test/forced-state-limits.e2e.spec.ts:40:29
+
+    Error Context: test-results/test-forced-state-limits.e-f6fb1-ol-beyond-the-default-limit-chromium/error-context.md
+
+
+  4 failed
+    [chromium] › test/forced-state-exact-budget.e2e.spec.ts:4:1 › spending the final default work allowance still completes the last state 
+    [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 5 and aggregate 39 limits at the exact boundary 
+    [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 4 and aggregate 40 limits at the exact boundary 
+    [chromium] › test/forced-state-limits.e2e.spec.ts:36:1 › explicit aggregate capacity captures every control beyond the default limit 
+  1 passed (14.6s)

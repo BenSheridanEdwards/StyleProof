@@ -1,0 +1,25 @@
+{
+  "evidenceClass": "self-attested local real Chromium regression tests",
+  "baseCommit": "f0d35f50b75971f7e91f1dda0e0a29bf6a835433",
+  "codeCommit": "1a11b4496b2684f402c9e07811497d67275f521b",
+  "node": "v22.22.2",
+  "browser": "Playwright Chromium headless shell 149.0.7827.55, build 1228",
+  "beforeCommand": "npx playwright test test/forced-state-limits.e2e.spec.ts test/forced-state-exact-budget.e2e.spec.ts --workers=1 --reporter=line",
+  "beforeResult": "4 failed, 1 passed (14.6s); expected reproduction on unmodified compiled base with identical regression tests",
+  "afterCommand": "npx playwright test test/forced-state-limits.e2e.spec.ts test/forced-state-exact-budget.e2e.spec.ts test/forced-state-runner-limits.e2e.spec.ts --workers=2 --reporter=line --output=<isolated output directory>",
+  "afterResult": "14 passed (20.1s)",
+  "sha256": {
+    "before.log": "d0165f567f0f69805eaf5ff55e2ea800ef9c4c6d7dfc50a07c6371656d23da43",
+    "after.log": "876eaac3f65028125394338df9687458b79fbad6e7fa3b3fb176dace5f43a682"
+  },
+  "testSha256": {
+    "test/forced-state-limits.e2e.spec.ts": "68df9d08d6987937dc87a633ab9ee74005b2cadebc059df0ce4e74c3b66da12a",
+    "test/forced-state-runner-limits.e2e.spec.ts": "72efa90caa4f41682ac9cbc4cecfec0b4ec71ee25dbdbd02453e9c536e961e2f",
+    "test/forced-state-exact-budget.e2e.spec.ts": "80634f09a2256e535c5ea93604c8bdccefea977a2cbc201885d629825d8659a4"
+  },
+  "logCompletedAt": {
+    "before.log": "2026-09-10T19:12:38.233847+00:00",
+    "after.log": "2026-09-10T19:13:41.321279+00:00"
+  },
+  "environment": "Node 22 prepended to PATH; TMPDIR canonicalized outside the repository for macOS temp-path consistency"
+}

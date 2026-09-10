@@ -1,0 +1,90 @@
+
+Running 14 tests using 2 workers
+
+
+(node:98379) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:98380) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/14] [chromium] › test/forced-state-exact-budget.e2e.spec.ts:4:1 › spending the final default work allowance still completes the last state
+[2/14] [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 5 and aggregate 40 limits at the exact boundary
+[3/14] [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 5 and aggregate 39 limits at the exact boundary
+
+[chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 5 and aggregate 39 limits at the exact boundary
+styleproof: forced-state aggregate scan exhausted its 39-element work budget; capture stopped and the forced-state layer is not certified.
+[4/14] [chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 4 and aggregate 40 limits at the exact boundary
+
+[chromium] › test/forced-state-limits.e2e.spec.ts:19:3 › honors document 4 and aggregate 40 limits at the exact boundary
+styleproof: forced-state document scan reached maxForcedStateElements=4 or the remaining maxForcedStateScanWork=40 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+[5/14] [chromium] › test/forced-state-limits.e2e.spec.ts:36:1 › explicit aggregate capacity captures every control beyond the default limit
+[6/14] [chromium] › dist/runner.js:823:5 › styleproof capture › styleproof coverage ledger
+[7/14] [chromium] › dist/runner.js:868:5 › styleproof capture › styleproof browser build
+[8/14] [chromium] › dist/runner.js:954:21 › styleproof capture › inherited @ 720
+
+[chromium] › dist/runner.js:954:21 › styleproof capture › inherited @ 720
+
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+
+styleproof: surface 1/6 (inherited@720) captured in 1.6s (self-check 0.7s)
+
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+[9/14] [chromium] › dist/runner.js:954:21 › styleproof capture › inherited-variant @ 720
+
+[chromium] › dist/runner.js:954:21 › styleproof capture › inherited-variant @ 720
+
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+
+styleproof: surface 2/6 (inherited-variant@720) captured in 1.5s (self-check 0.7s)
+
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+[10/14] [chromium] › dist/runner.js:954:21 › styleproof capture › override @ 720
+
+[chromium] › dist/runner.js:954:21 › styleproof capture › override @ 720
+styleproof: surface 3/6 (override@720) captured in 1.5s (self-check 0.7s)
+[11/14] [chromium] › dist/runner.js:954:21 › styleproof capture › override-complete @ 720
+
+[chromium] › dist/runner.js:954:21 › styleproof capture › override-complete @ 720
+styleproof: surface 4/6 (override-complete@720) captured in 1.5s (self-check 0.7s)
+[12/14] [chromium] › dist/runner.js:954:21 › styleproof capture › override-limited @ 720
+
+[chromium] › dist/runner.js:954:21 › styleproof capture › override-limited @ 720
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+
+styleproof: forced-state document scan reached maxForcedStateElements=2000 or the remaining maxForcedStateScanWork=1 budget; capture is target-first and truncated, so the forced-state layer is not certified.
+
+styleproof: forced-state aggregate scan exhausted its 1-element work budget; capture stopped and the forced-state layer is not certified.
+
+styleproof: surface 5/6 (override-limited@720) captured in 1.5s (self-check 0.7s)
+[13/14] [chromium] › dist/runner.js:954:21 › styleproof capture › live-loaded @ 720
+
+[chromium] › dist/runner.js:954:21 › styleproof capture › live-loaded @ 720
+styleproof: surface 6/6 (live-loaded@720) captured in 1.5s (self-check 0.7s)
+[14/14] [chromium] › test/forced-state-runner-limits.e2e.spec.ts:51:1 › runner budgets reach primary, self-check, variants, live states, and popups
+  14 passed (20.1s)
