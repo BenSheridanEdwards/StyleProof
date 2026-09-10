@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { CiWorktreeSession, consumerRelativeFromRepoRoot, gitRepoRoot, worktreeRunCwd } from './ci-worktree.js';
-import { readEvidenceRef, writeEvidenceRef } from './evidence-store.js';
+import { materializeEvidenceCapture, readEvidenceRef, writeEvidenceRef } from './evidence-store.js';
 import { inferBaseRef } from './gitref.js';
 import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
@@ -1672,6 +1672,57 @@ function restoreMapStoreAttempt(options: {
   }
 }
 
+/** Provenance source for a restored map bundle: v2 local evidence store or v1 Git-branch. */
+export type RestoreSource = 'v2-local' | 'v1-git-branch';
+
+/** Result of a successful {@link restoreMapBundle}, including provenance source. */
+export type RestoreMapBundleResult = MapManifest & {
+  /** Where the bundle was restored from: v2 local evidence store or v1 Git-branch. */
+  restoreSource: RestoreSource;
+};
+
+/** Try to restore from v2 local evidence store first (#554).
+ *  Returns the manifest on hit, or null on miss/error (fall through to v1). */
+function tryRestoreFromV2EvidenceStore(options: {
+  cwd: string;
+  sha: string;
+  compatibilityKey: string | undefined;
+  outDir: string;
+}): MapManifest | null {
+  const { cwd, sha, compatibilityKey, outDir } = options;
+  if (!compatibilityKey) return null;
+
+  const evidenceStoreRoot = path.join(cwd, DEFAULT_EVIDENCE_STORE_ROOT);
+  const refKey = `commits/${sha}/${compatibilityKey}`;
+
+  try {
+    const captureRef = readEvidenceRef(evidenceStoreRoot, refKey);
+    if (!captureRef) return null;
+
+    // v2 hit: materialize the capture to the output directory
+    materializeEvidenceCapture(evidenceStoreRoot, captureRef, outDir);
+
+    // Read the v1 manifest from the materialized directory for compatibility
+    const manifest = readMapManifest(outDir);
+    if (!manifest) {
+      // This shouldn't happen if the v2 store is consistent, but fail gracefully
+      removeDirRecursive(outDir);
+      return null;
+    }
+
+    return manifest;
+  } catch {
+    // Any v2 error falls through to v1 restore — fail-soft
+    // Clean up partial materialization if any
+    try {
+      if (fs.existsSync(outDir)) removeDirRecursive(outDir);
+    } catch {
+      // Ignore cleanup errors
+    }
+    return null;
+  }
+}
+
 export function restoreMapBundle(options: {
   sha: string;
   outDir: string;
@@ -1679,7 +1730,7 @@ export function restoreMapBundle(options: {
   remote?: string;
   cwd?: string;
   compatibilityKey?: string;
-}): MapManifest {
+}): RestoreMapBundleResult {
   const cwd = options.cwd ?? process.cwd();
   const branch = options.branch ?? DEFAULT_MAP_STORE_BRANCH;
   const remote = options.remote ?? DEFAULT_REMOTE;
@@ -1687,13 +1738,21 @@ export function restoreMapBundle(options: {
   const compatibilityKey = options.compatibilityKey
     ? safeSegment(options.compatibilityKey, 'compatibility key')
     : undefined;
+
+  // Try v2 local evidence store first (#554)
+  const v2Manifest = tryRestoreFromV2EvidenceStore({ cwd, sha, compatibilityKey, outDir: options.outDir });
+  if (v2Manifest) {
+    return { ...v2Manifest, restoreSource: 'v2-local' };
+  }
+
+  // Fall back to v1 Git-branch restore
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
 
   const attempts = mapStoreRestoreAttempts();
   let lastInfraError = '';
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const result = restoreMapStoreAttempt({ cwd, remote, branch, sha, compatibilityKey, outDir: options.outDir });
-    if (result.status === 'hit') return result.manifest;
+    if (result.status === 'hit') return { ...result.manifest, restoreSource: 'v1-git-branch' };
     // A genuine miss is terminal — the cold path recaptures. Only infra faults retry.
     if (result.status === 'miss') throw new MapStoreNotFoundError(result.message);
     lastInfraError = result.message;

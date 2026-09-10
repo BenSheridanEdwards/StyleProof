@@ -1832,3 +1832,271 @@ test('publishMapBundle dual-write is fail-soft: v2 failure logs warning but does
     rmTmp(root);
   }
 });
+
+// ── #554: remote-read from v2 evidence store with v1 Git-branch fallback ──
+
+test('restoreMapBundle restores from v2 local store first, skipping network (#554)', async () => {
+  const root = mkTmp('styleproof-v2-restore-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const restored = path.join(root, 'restored');
+  const shimDirectory = path.join(root, 'bin');
+  const invocationLog = path.join(root, 'git-invocations.log');
+  const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  const git = (cwd, ...args) => execFileSync(realGit, args, { cwd, stdio: 'pipe' }).toString().trim();
+  const previousPath = process.env.PATH;
+  const previousRealGit = process.env.STYLEPROOF_TEST_REAL_GIT;
+  const previousInvocationLog = process.env.STYLEPROOF_TEST_GIT_LOG;
+  try {
+    // Set up repo with a v2 evidence store populated via dual-write
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{"v2restore":"test"}');
+    const manifest = writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: repo,
+    });
+
+    // Dual-write populates both v1 Git-branch and v2 evidence store
+    await publishMapBundle({ dir: capture, cwd: repo });
+
+    // Set up git shim to log invocations (detects network calls)
+    fs.mkdirSync(shimDirectory);
+    const gitShim = path.join(shimDirectory, 'git');
+    fs.writeFileSync(
+      gitShim,
+      '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STYLEPROOF_TEST_GIT_LOG"\nexec "$STYLEPROOF_TEST_REAL_GIT" "$@"\n',
+    );
+    fs.chmodSync(gitShim, 0o755);
+    process.env.PATH = `${shimDirectory}${path.delimiter}${previousPath ?? ''}`;
+    process.env.STYLEPROOF_TEST_REAL_GIT = realGit;
+    process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
+
+    // Restore should hit v2 store and skip network
+    const result = restoreMapBundle({
+      sha: manifest.sha,
+      outDir: restored,
+      cwd: repo,
+      compatibilityKey: manifest.compatibilityKey,
+    });
+
+    // Verify restore succeeded
+    assert.equal(result.sha, manifest.sha);
+    assert.equal(result.compatibilityKey, manifest.compatibilityKey);
+    assert.equal(fs.readFileSync(path.join(restored, 'home@1280.json'), 'utf8'), '{"v2restore":"test"}');
+
+    // Verify NO network git calls were made (no clone/fetch for map store)
+    const invocations = fs.existsSync(invocationLog) ? fs.readFileSync(invocationLog, 'utf8') : '';
+    assert.doesNotMatch(
+      invocations,
+      /clone.*styleproof-maps|ls-remote.*styleproof-maps/i,
+      'v2 hit should skip network git calls to map store branch',
+    );
+
+    // Verify provenance records v2-local source
+    assert.equal(result.restoreSource, 'v2-local', 'provenance should record v2-local source');
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousRealGit === undefined) delete process.env.STYLEPROOF_TEST_REAL_GIT;
+    else process.env.STYLEPROOF_TEST_REAL_GIT = previousRealGit;
+    if (previousInvocationLog === undefined) delete process.env.STYLEPROOF_TEST_GIT_LOG;
+    else process.env.STYLEPROOF_TEST_GIT_LOG = previousInvocationLog;
+    rmTmp(root);
+  }
+});
+
+test('restoreMapBundle falls back to v1 Git-branch when v2 store miss (#554)', async () => {
+  const root = mkTmp('styleproof-v2-fallback-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const restored = path.join(root, 'restored');
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+  try {
+    // Set up repo and publish to v1 ONLY (simulate pre-dual-write bundle)
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{"v1fallback":"test"}');
+    const manifest = writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: repo,
+    });
+
+    // Dual-write would populate v2, but we'll remove it to simulate v2 miss
+    await publishMapBundle({ dir: capture, cwd: repo });
+
+    // Clear the v2 evidence store to force fallback to v1
+    const evidenceRoot = path.join(repo, DEFAULT_EVIDENCE_STORE_ROOT);
+    if (fs.existsSync(evidenceRoot)) {
+      fs.rmSync(evidenceRoot, { recursive: true, force: true });
+    }
+
+    // Restore should fall back to v1 Git-branch
+    const result = restoreMapBundle({
+      sha: manifest.sha,
+      outDir: restored,
+      cwd: repo,
+      compatibilityKey: manifest.compatibilityKey,
+    });
+
+    // Verify restore succeeded via v1 fallback
+    assert.equal(result.sha, manifest.sha);
+    assert.equal(result.compatibilityKey, manifest.compatibilityKey);
+    assert.equal(fs.readFileSync(path.join(restored, 'home@1280.json'), 'utf8'), '{"v1fallback":"test"}');
+
+    // Verify provenance records v1-git-branch source
+    assert.equal(result.restoreSource, 'v1-git-branch', 'provenance should record v1-git-branch source on v2 miss');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('restoreMapBundle v2 miss + v1 miss throws MapStoreNotFoundError unchanged (#554)', async () => {
+  const root = mkTmp('styleproof-v2-both-miss-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const restored = path.join(root, 'restored');
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+  try {
+    // Set up repo with empty map store branch (no bundles)
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+
+    // Create styleproof-maps branch with README but no bundles
+    const seed = path.join(root, 'seed');
+    git(root, 'clone', '-q', remote, seed);
+    git(seed, 'checkout', '-q', '-b', 'styleproof-maps');
+    git(seed, 'config', 'user.email', 'styleproof@example.test');
+    git(seed, 'config', 'user.name', 'StyleProof Test');
+    fs.writeFileSync(path.join(seed, 'README.md'), '# maps\n');
+    git(seed, 'add', '-A');
+    git(seed, 'commit', '-qm', 'seed');
+    git(seed, 'push', '-q', 'origin', 'styleproof-maps');
+
+    // Attempt to restore a SHA that doesn't exist in either store
+    const missingSha = 'c'.repeat(40);
+    let error;
+    try {
+      restoreMapBundle({
+        sha: missingSha,
+        outDir: restored,
+        cwd: repo,
+        compatibilityKey: 'deadbeefdeadbeef',
+      });
+    } catch (thrown) {
+      error = thrown;
+    }
+
+    assert.ok(error instanceof MapStoreNotFoundError, `expected MapStoreNotFoundError, got ${error}`);
+    assert.match(error.message, /no cached map/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('restoreMapBundle output is byte-identical regardless of v2 or v1 source (#554)', async () => {
+  const root = mkTmp('styleproof-v2-byte-identical-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const restoredV2 = path.join(root, 'restored-v2');
+  const restoredV1 = path.join(root, 'restored-v1');
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+  try {
+    // Set up repo with dual-write
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{"byte":"identical"}');
+    fs.writeFileSync(path.join(capture, 'home@1280.png'), Buffer.from([1, 2, 3, 4, 5]));
+    const manifest = writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: true,
+      dirty: false,
+      cwd: repo,
+    });
+
+    // Dual-write populates both stores
+    await publishMapBundle({ dir: capture, cwd: repo });
+
+    // First restore: v2 store hit
+    const resultV2 = restoreMapBundle({
+      sha: manifest.sha,
+      outDir: restoredV2,
+      cwd: repo,
+      compatibilityKey: manifest.compatibilityKey,
+    });
+    assert.equal(resultV2.restoreSource, 'v2-local');
+
+    // Clear v2 store
+    const evidenceRoot = path.join(repo, DEFAULT_EVIDENCE_STORE_ROOT);
+    fs.rmSync(evidenceRoot, { recursive: true, force: true });
+
+    // Second restore: v1 fallback
+    const resultV1 = restoreMapBundle({
+      sha: manifest.sha,
+      outDir: restoredV1,
+      cwd: repo,
+      compatibilityKey: manifest.compatibilityKey,
+    });
+    assert.equal(resultV1.restoreSource, 'v1-git-branch');
+
+    // Compare file contents — should be byte-identical
+    const v2Files = fs.readdirSync(restoredV2).sort();
+    const v1Files = fs.readdirSync(restoredV1).sort();
+    assert.deepEqual(v2Files, v1Files, 'same files in both restores');
+
+    for (const file of v2Files) {
+      const v2Content = fs.readFileSync(path.join(restoredV2, file));
+      const v1Content = fs.readFileSync(path.join(restoredV1, file));
+      assert.deepEqual(v2Content, v1Content, `${file} should be byte-identical`);
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
