@@ -1574,6 +1574,46 @@ fi
 
 The capture-the-subset step stays yours (it depends on your map layout), but the graph mapping, diffing, verdict, and skip-list printing no longer are. `main` re-captures everything, so a PR-time miss is still caught at merge. The programmatic `affectedSurfaces` API above remains for custom pipelines.
 
+## Forced-state capture resource limits
+
+Forced hover, focus and active capture reads the whole unignored document for
+each control, including sibling and ancestor effects. It defaults to 2,000
+elements per read and 32,000 total element reads. A static page with `E` elements
+and `T` controls needs `4 * E * T` reads: one resting read and three forced reads
+per control. Going over either allowance persists `statesSkipped: true` and
+prevents state certification.
+
+Set `maxForcedStateElements` and `maxForcedStateScanWork` on
+`captureStyleMap`, `defineStyleMapCapture`, or `defineCrawlCapture` to choose an
+explicit allowance. Both must be positive safe integers. For example:
+
+```ts
+defineStyleMapCapture({
+  dir: process.env.STYLEPROOF_DIR,
+  maxForcedStateScanWork: 80_000,
+  surfaces: [
+    {
+      key: 'home',
+      widths: [1280],
+      go: async (page) => {
+        await page.goto('/');
+      },
+    },
+  ],
+});
+```
+
+Surfaces can override either value. Variants and live states inherit their
+surface's values and can override them independently. State recipes and popup
+captures inherit their surface's values. Each primary capture and self-check
+gets the same resolved limits and a fresh allowance.
+
+Increasing a limit does not make capture faster or extend `surfaceTimeoutMs`.
+Measure complete capture and self-check time before increasing allowances for
+large pages. Raising `maxInteractive` alone does not change either scan limit.
+These options do not disable states, sample controls, or certify truncated maps.
+CLI URL/crawl commands do not expose these options.
+
 ## Reference
 
 **Action `BenSheridanEdwards/StyleProof@v6`** — key inputs:

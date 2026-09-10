@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Optional `maxForcedStateElements` and `maxForcedStateScanWork` capture limits.
+  Direct capture and explicit/crawl runners can increase or decrease resource
+  allowances without dropping interactive targets. Runner, surface, variant,
+  and live-state settings apply to primary captures, self-checks, and popups.
+  Defaults remain 2,000 elements per read and 32,000 total element reads.
+
+### Fixed
+
+- A forced-state capture that uses its exact work allowance on the final state
+  is complete. Further required reads still fail closed, and truncation warnings
+  name both the document and aggregate limits.
+
 ## [6.4.0] - 2026-09-10
 
 > **StyleProof 6.4.0: Migration Mode**

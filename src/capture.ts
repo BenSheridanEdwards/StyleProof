@@ -298,6 +298,10 @@ export type CaptureOptions = {
    * minutes; raise it deliberately if you need full coverage of a huge page.
    */
   maxInteractive?: number;
+  /** Maximum elements per forced-state document read (default 2000). Positive safe integer. */
+  maxForcedStateElements?: number;
+  /** Maximum element reads across all controls/states (default 32000). Positive safe integer. */
+  maxForcedStateScanWork?: number;
   /**
    * Opt-in content layer (default OFF). When true, each element's own rendered
    * text is recorded on `ElementEntry.text` so {@link diffContentMaps} can
@@ -773,6 +777,23 @@ const MAX_FORCED_STATE_ELEMENTS = 2_000;
 const MAX_FORCED_STATE_SCAN_WORK = 32_000;
 const STATE_BASELINE_KEY = '__spForcedStateBaseline';
 
+export type ForcedStateLimits = Pick<CaptureOptions, 'maxForcedStateElements' | 'maxForcedStateScanWork'>;
+
+/** Resolve a finite caller-owned resource budget before touching the browser. */
+export function resolveForcedStateLimits(options: ForcedStateLimits): Required<ForcedStateLimits> {
+  const limits = {
+    maxForcedStateElements:
+      options.maxForcedStateElements === undefined ? MAX_FORCED_STATE_ELEMENTS : options.maxForcedStateElements,
+    maxForcedStateScanWork:
+      options.maxForcedStateScanWork === undefined ? MAX_FORCED_STATE_SCAN_WORK : options.maxForcedStateScanWork,
+  };
+  for (const [name, value] of Object.entries(limits)) {
+    if (!Number.isSafeInteger(value) || value <= 0)
+      throw new TypeError(`styleproof: ${name} must be a positive safe integer`);
+  }
+  return limits;
+}
+
 type StateScopeArgs = {
   selector: string;
   skipSel: string;
@@ -962,6 +983,7 @@ type ForcedStateCaptureContext = {
   incomplete: boolean;
   scanWarningEmitted: boolean;
   scanWorkRemaining: number;
+  limits: Required<ForcedStateLimits>;
 };
 
 type ForcedStateCaptureFlow = 'continue' | 'next-target' | 'stop-capture';
@@ -1002,6 +1024,10 @@ async function captureForcedStateVariation(
   forcedPseudoClasses: string[],
   scope: Omit<StateScopeArgs, 'saveBaseline'>,
 ): Promise<ForcedStateCaptureFlow> {
+  if (context.scanWorkRemaining === 0) {
+    context.incomplete = true;
+    return 'stop-capture';
+  }
   if (!(await forcePseudoState(context.client, context.rootNodeId, target, forcedPseudoClasses))) {
     context.incomplete = true;
     warnDetachedForcedStateTarget(id);
@@ -1017,7 +1043,7 @@ async function captureForcedStateVariation(
 
   const forced = await snapStateScopeInSession(context.client, {
     ...scope,
-    maxElements: Math.min(MAX_FORCED_STATE_ELEMENTS, context.scanWorkRemaining),
+    maxElements: Math.min(context.limits.maxForcedStateElements, context.scanWorkRemaining),
     saveBaseline: false,
   });
   context.scanWorkRemaining -= forced.scanned;
@@ -1029,10 +1055,9 @@ async function captureForcedStateVariation(
     return 'next-target';
   }
   if (Object.keys(forced.delta).length) (context.states[elementPath] ??= {})[stateName] = forced.delta;
-  if (context.scanWorkRemaining > 0) return 'continue';
-
-  context.incomplete = true;
-  return 'stop-capture';
+  // Spending the last read is complete if this was the final state/target.
+  // The next attempted read, if any, establishes actual omitted work.
+  return 'continue';
 }
 
 function warnTruncatedForcedStateScan(context: ForcedStateCaptureContext): void {
@@ -1040,7 +1065,8 @@ function warnTruncatedForcedStateScan(context: ForcedStateCaptureContext): void 
   context.scanWarningEmitted = true;
   // eslint-disable-next-line no-console
   console.warn(
-    `styleproof: forced-state document scan exceeds ${MAX_FORCED_STATE_ELEMENTS} elements; ` +
+    `styleproof: forced-state document scan reached maxForcedStateElements=${context.limits.maxForcedStateElements} ` +
+      `or the remaining maxForcedStateScanWork=${context.limits.maxForcedStateScanWork} budget; ` +
       'capture is target-first and truncated, so the forced-state layer is not certified.',
   );
 }
@@ -1060,7 +1086,7 @@ async function captureForcedStateTarget(
     selector: target.selector,
     skipSel: context.skipSel,
     skipPaths: context.skipPaths,
-    maxElements: Math.min(MAX_FORCED_STATE_ELEMENTS, context.scanWorkRemaining),
+    maxElements: Math.min(context.limits.maxForcedStateElements, context.scanWorkRemaining),
     baselineKey: context.baselineKey,
   };
   const baseline = await snapStateScopeInSession(context.client, { ...scope, saveBaseline: true });
@@ -1109,6 +1135,7 @@ async function captureForcedStates(
   page: Page,
   ignore: string[],
   maxInteractive: number,
+  limits: Required<ForcedStateLimits>,
   skipPaths: string[] = [],
 ): Promise<{ states: StyleMap['states']; skipped: boolean }> {
   const client = await page.context().newCDPSession(page);
@@ -1122,7 +1149,8 @@ async function captureForcedStates(
     skipPaths,
     incomplete: false,
     scanWarningEmitted: false,
-    scanWorkRemaining: MAX_FORCED_STATE_SCAN_WORK,
+    scanWorkRemaining: limits.maxForcedStateScanWork,
+    limits,
   };
   let truncated: boolean;
   try {
@@ -1151,10 +1179,10 @@ async function captureForcedStates(
     for (const markedElement of marked.slice(0, Math.min(marked.length, maxInteractive))) {
       if ((await captureForcedStateTarget(context, markedElement)) === 'stop-capture') break;
     }
-    if (context.scanWorkRemaining === 0) {
+    if (context.scanWorkRemaining === 0 && context.incomplete) {
       // eslint-disable-next-line no-console
       console.warn(
-        `styleproof: forced-state aggregate scan exhausted its ${MAX_FORCED_STATE_SCAN_WORK}-element work budget; ` +
+        `styleproof: forced-state aggregate scan exhausted its ${limits.maxForcedStateScanWork}-element work budget; ` +
           'capture stopped and the forced-state layer is not certified.',
       );
     }
@@ -1677,6 +1705,7 @@ async function harvestInventoryFor(page: Page, enabled: boolean | undefined): Pr
 }
 
 export async function captureStyleMap(page: Page, options: CaptureOptions = {}): Promise<StyleMap> {
+  const forcedStateLimits = resolveForcedStateLimits(options);
   // Framework/non-visual noise is always skipped, so it can't read as a DOM
   // change; the caller's `ignore` adds to it (not replaces it).
   const ignore = [...FRAMEWORK_IGNORE, ...(options.ignore ?? [])];
@@ -1765,7 +1794,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     const forcedStatesSupported = browserName === 'chromium';
     let statesSkipped = !captureStates || !forcedStatesSupported;
     if (captureStates && forcedStatesSupported) {
-      const forced = await captureForcedStates(page, ignore, maxInteractive, volatile);
+      const forced = await captureForcedStates(page, ignore, maxInteractive, forcedStateLimits, volatile);
       states = forced.states;
       statesSkipped = forced.skipped;
     } else if (captureStates) {
