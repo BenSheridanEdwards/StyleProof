@@ -7,13 +7,42 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### CI
+## [6.4.0] - 2026-09-10
+
+> **StyleProof 6.4.0: Migration Mode**
+>
+> This release adds migration mode for framework and design-system migrations, where
+> structural changes are expected and need review alongside style changes. New
+> surfaces, changed surfaces, and new/removed elements appear in dedicated gallery
+> sections. V2 evidence store improves artifact integrity, and the never-again guard
+> prevents committed map artifacts from blocking CI.
+
+### Added
+
+- **Migration mode** (`--migration` / `mode: migration`): opt-in comparison mode for
+  framework or design-system migrations where structural changes are expected. When
+  enabled, `styleproof-diff` and `styleproof-report` include structure changes (new
+  and removed elements) as reviewable evidence alongside computed-style deltas. The
+  report renders three gallery sections — **Changed styles**, **New surfaces**, and
+  **New/removed elements** — giving reviewers clear visibility into migration-specific
+  differences. Default certify and review-gate modes are unchanged; structure remains
+  advisory unless `--migration` is explicitly passed. (#564, #566)
+
+- **V2 evidence store with v1 fallback**: map publication now dual-writes to a v2
+  evidence store layout alongside the existing v1 store, and remote reads prefer v2
+  with transparent fallback to v1. This prepares for future artifact integrity
+  improvements without breaking existing baselines or requiring immediate migration.
+  (#553, #554)
+
+- **Never-again guard** for committed map artifacts: CI and `.gitignore` now reject
+  any committed `styleproof-maps/` or `.styleproof/` artifacts that would block
+  clean-checkout builds. The guard runs in CI before tests and documents the
+  recovery path for repositories that accidentally committed capture artifacts.
+  (#558)
 
 - Run browser tests in two file-level shards, with a required aggregate that verifies
   the complete test inventory and determinism receipt before passing. Retain both
   shard results and the inventory as downloadable evidence. (#500)
-
-### Added
 
 - Add HumanLayer's repository-scoped `show-me` skill with pinned provenance,
   MIT attribution, and StyleProof-specific review guidance. Compact views must
