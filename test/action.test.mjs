@@ -1246,8 +1246,8 @@ test('composite action blocks unapproved changes by default (opt out with "block
   assert.doesNotMatch(configStep[0], /ignoring unreadable styleproof\.config\.json/);
   assert.match(
     configStep[0],
-    /core\.setOutput\('blocking', cfg\.blocking === false \? 'false' : 'true'\);/,
-    'blocking must default to true — only an explicit false opts out',
+    /core\.setOutput\('blocking', cfg\.blocking === 'advisory' \? 'advisory' : cfg\.blocking === false \? 'false' : 'true'\);/,
+    'blocking must default to true — only an explicit false or advisory opts out',
   );
 
   // The block step fails the job on UNAPPROVED review-gate changes, so a repo without a
@@ -1417,16 +1417,16 @@ test('composite action passes --migration to report step when mode=migration', (
 test('composite action validates mode input values in diff step', () => {
   const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
   assert.ok(diffStep);
-  assert.match(diffStep[0], /certify\|review-gate\)/);
-  assert.match(diffStep[0], /mode must be certify, review-gate, or migration/);
+  assert.match(diffStep[0], /certify\|review-gate\|advisory\)/);
+  assert.match(diffStep[0], /mode must be certify, review-gate, migration, or advisory/);
   assert.match(diffStep[0], /exit 2/);
 });
 
 test('composite action validates mode input values in report step', () => {
   const reportStep = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
   assert.ok(reportStep);
-  assert.match(reportStep[0], /certify\|review-gate\)/);
-  assert.match(reportStep[0], /mode must be certify, review-gate, or migration/);
+  assert.match(reportStep[0], /certify\|review-gate\|advisory\)/);
+  assert.match(reportStep[0], /mode must be certify, review-gate, migration, or advisory/);
   assert.match(reportStep[0], /exit 2/);
 });
 
@@ -1464,7 +1464,10 @@ test('composite action comment step handles migration mode with approval box', (
   const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
   assert.ok(commentStep, 'action.yml should include the comment step');
   assert.match(commentStep[0], /const migrationMode = mode === 'migration'/);
-  assert.match(commentStep[0], /const useReviewGate = requireApproval \|\| mode === 'review-gate' \|\| migrationMode/);
+  assert.match(
+    commentStep[0],
+    /const useReviewGate = !advisoryMode && \(requireApproval \|\| mode === 'review-gate' \|\| migrationMode\)/,
+  );
   assert.match(commentStep[0], /Migration mode:/);
   assert.match(commentStep[0], /Changed styles.*New surfaces.*New\/removed elements/);
 });
@@ -1472,5 +1475,70 @@ test('composite action comment step handles migration mode with approval box', (
 test('composite action migration mode does not pass --migration without explicit mode input', () => {
   const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
   assert.ok(diffStep);
-  assert.match(diffStep[0], /certify\|review-gate\) ;;/);
+  assert.match(diffStep[0], /certify\|review-gate\|advisory\) ;;/);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// advisory mode tests (#580)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('composite action exposes mode input with advisory value (#580)', () => {
+  assert.match(actionYml, /mode:\n\s+description:/);
+  // Advisory mode should be listed in the description alongside certify/review-gate/migration
+  assert.match(actionYml, /'advisory'/);
+  assert.match(actionYml, /certify.*review-gate.*migration.*advisory|advisory.*certify.*review-gate.*migration/);
+});
+
+test('composite action validates advisory as valid mode value in diff step (#580)', () => {
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  assert.ok(diffStep, 'action.yml should include the diff step');
+  // The case statement should accept advisory alongside certify/review-gate
+  assert.match(diffStep[0], /certify\|review-gate\|advisory\)/);
+});
+
+test('composite action validates advisory as valid mode value in report step (#580)', () => {
+  const reportStep = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
+  assert.ok(reportStep, 'action.yml should include the report step');
+  // The case statement should accept advisory alongside certify/review-gate
+  assert.match(reportStep[0], /certify\|review-gate\|advisory\)/);
+});
+
+test('composite action config step outputs blocking=advisory when config has blocking: advisory (#580)', () => {
+  const configStep = actionYml.match(/- id: config[\s\S]*?(?=\n\s{4}- id: diff)/);
+  assert.ok(configStep, 'action.yml should include the config step');
+  // Should output 'advisory' when config.blocking === 'advisory'
+  assert.match(configStep[0], /cfg\.blocking === 'advisory'/);
+  assert.match(configStep[0], /setOutput\('blocking'.*'advisory'/);
+});
+
+test('composite action advisory mode skips all blocking steps (#580)', () => {
+  // Advisory mode should never fail the job, so it must skip:
+  // 1. Block on unapproved changes
+  // 2. Fail on diff
+  // 3. Block on unapprovable certification failures (this one may still run)
+
+  const blockUnapprovedStep = actionYml.match(/- name: Block on unapproved changes[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+  assert.ok(blockUnapprovedStep);
+  // Advisory mode should be excluded from the blocking step condition
+  assert.match(blockUnapprovedStep[0], /inputs\.mode != 'advisory'|steps\.config\.outputs\.blocking != 'advisory'/);
+
+  const failOnDiffStep = actionYml.match(/- name: Fail on diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+  assert.ok(failOnDiffStep);
+  // Advisory mode should not trigger fail-on-diff
+  assert.match(failOnDiffStep[0], /inputs\.mode != 'advisory'|inputs\.mode == 'certify'/);
+});
+
+test('composite action advisory mode sets status to success always (#580)', () => {
+  const statusStep = actionYml.match(/- name: Set review status[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+  assert.ok(statusStep, 'action.yml should include the status step');
+  // Advisory mode should always set green status
+  assert.match(statusStep[0], /mode === 'advisory'.*success|advisory.*green/i);
+});
+
+test('composite action advisory mode comment shows advisory guidance (#580)', () => {
+  const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+  assert.ok(commentStep, 'action.yml should include the comment step');
+  // Advisory mode should have specific guidance text
+  assert.match(commentStep[0], /const advisoryMode = mode === 'advisory'/);
+  assert.match(commentStep[0], /advisory.*check remains green|advisory-only/i);
 });
