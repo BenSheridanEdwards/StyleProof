@@ -1387,3 +1387,90 @@ test('report CLI exposes strict product-state identity mode and passes it to rep
   assert.match(reportCli, /requireStateIdentity/);
   assert.match(reportCli, /generateStyleMapReport\([\s\S]*?requireStateIdentity/);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mode input tests (#565)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('composite action exposes mode input with certify/review-gate/migration values', () => {
+  assert.match(actionYml, /mode:\n\s+description:/);
+  assert.match(actionYml, /default: 'certify'/);
+  assert.match(actionYml, /certify.*review-gate.*migration/);
+});
+
+test('composite action passes --migration to diff step when mode=migration', () => {
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  assert.ok(diffStep, 'action.yml should include the diff step');
+  assert.match(diffStep[0], /STYLEPROOF_MODE: \$\{\{ inputs\.mode \}\}/);
+  assert.match(diffStep[0], /migration\) migration_arguments\+=\(--migration\)/);
+  assert.match(diffStep[0], /\$\{migration_arguments\[@\]\+"\$\{migration_arguments\[@\]\}"\}/);
+});
+
+test('composite action passes --migration to report step when mode=migration', () => {
+  const reportStep = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
+  assert.ok(reportStep, 'action.yml should include the report step');
+  assert.match(reportStep[0], /STYLEPROOF_MODE: \$\{\{ inputs\.mode \}\}/);
+  assert.match(reportStep[0], /migration\) migration_arguments\+=\(--migration\)/);
+  assert.match(reportStep[0], /\$\{migration_arguments\[@\]\+"\$\{migration_arguments\[@\]\}"\}/);
+});
+
+test('composite action validates mode input values in diff step', () => {
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  assert.ok(diffStep);
+  assert.match(diffStep[0], /certify\|review-gate\)/);
+  assert.match(diffStep[0], /mode must be certify, review-gate, or migration/);
+  assert.match(diffStep[0], /exit 2/);
+});
+
+test('composite action validates mode input values in report step', () => {
+  const reportStep = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);
+  assert.ok(reportStep);
+  assert.match(reportStep[0], /certify\|review-gate\)/);
+  assert.match(reportStep[0], /mode must be certify, review-gate, or migration/);
+  assert.match(reportStep[0], /exit 2/);
+});
+
+test('composite action runs gate step for review-gate and migration modes', () => {
+  const gateStep = actionYml.match(/- id: gate[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  assert.ok(gateStep, 'action.yml should include the gate step');
+  assert.match(gateStep[0], /inputs\.require-approval == 'true'/);
+  assert.match(gateStep[0], /inputs\.mode == 'review-gate'/);
+  assert.match(gateStep[0], /inputs\.mode == 'migration'/);
+});
+
+test('composite action runs status step for review-gate and migration modes', () => {
+  const statusStep = actionYml.match(/- name: Set review status[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+  assert.ok(statusStep, 'action.yml should include the status step');
+  assert.match(statusStep[0], /inputs\.require-approval == 'true'/);
+  assert.match(statusStep[0], /inputs\.mode == 'review-gate'/);
+  assert.match(statusStep[0], /inputs\.mode == 'migration'/);
+});
+
+test('composite action skips fail-on-diff step when mode is not certify', () => {
+  const failOnDiffStep = actionYml.match(/- name: Fail on diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+  assert.ok(failOnDiffStep, 'action.yml should include the fail-on-diff step');
+  assert.match(failOnDiffStep[0], /inputs\.mode == 'certify'/);
+});
+
+test('composite action blocks on unapproved changes for review-gate and migration modes', () => {
+  const blockStep = actionYml.match(/- name: Block on unapproved changes[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+  assert.ok(blockStep, 'action.yml should include the block step');
+  assert.match(blockStep[0], /inputs\.require-approval == 'true'/);
+  assert.match(blockStep[0], /inputs\.mode == 'review-gate'/);
+  assert.match(blockStep[0], /inputs\.mode == 'migration'/);
+});
+
+test('composite action comment step handles migration mode with approval box', () => {
+  const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}#|\n\s{4}- name:)/);
+  assert.ok(commentStep, 'action.yml should include the comment step');
+  assert.match(commentStep[0], /const migrationMode = mode === 'migration'/);
+  assert.match(commentStep[0], /const useReviewGate = requireApproval \|\| mode === 'review-gate' \|\| migrationMode/);
+  assert.match(commentStep[0], /Migration mode:/);
+  assert.match(commentStep[0], /Changed styles.*New surfaces.*New\/removed elements/);
+});
+
+test('composite action migration mode does not pass --migration without explicit mode input', () => {
+  const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
+  assert.ok(diffStep);
+  assert.match(diffStep[0], /certify\|review-gate\) ;;/);
+});

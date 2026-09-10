@@ -68,6 +68,7 @@ const EMPTY_ARRAY_ENVIRONMENT = {
   // broke every macOS consumer.
   STYLEPROOF_REQUIRE_STATE_IDENTITY: 'false',
   STYLEPROOF_INCLUDE_CONTENT: 'false',
+  STYLEPROOF_MODE: 'certify', // default mode produces empty migration_arguments array
   STYLEPROOF_EXPECTED_BASE_SHA: 'a'.repeat(40),
   STYLEPROOF_EXPECTED_HEAD_SHA: 'b'.repeat(40),
   GITHUB_ACTION_PATH: path.join(here, '..'),
