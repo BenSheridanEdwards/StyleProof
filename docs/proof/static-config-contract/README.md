@@ -81,3 +81,22 @@ try {
   fs.rmSync(root, { recursive: true, force: true });
 }
 ```
+
+## Hosted timing failure and test repair
+
+The first hosted run on `aae57a9b` found an existing test race in the third
+phase of the transient-state test: a 75 ms toast was expected to survive a
+50 ms observation before testing the separate pre-capture guard.
+[The failed job](https://github.com/BenSheridanEdwards/StyleProof/actions/runs/34530151971/job/103048631057)
+records the failure before that intended guard was reached.
+
+Test-only commit `dd4a58f2d94cec6c644ef41a35720a14d95a8bee` observes a persistent
+toast, removes it explicitly, then requires the same pre-capture failure. The
+first successful observation and the negative continuous-visibility case are
+unchanged; no production timing, threshold, assertion, or retry is relaxed.
+
+[Twenty repeated runs](transient-repeat.log) pass with four workers and no
+retries. The log retains harmless conflicting color-environment warnings.
+The affected Chromium shard also passed all 84 tests locally. These are
+additional test-only results; the earlier full-suite and packed-package
+results above remain bound to the original source commit.
