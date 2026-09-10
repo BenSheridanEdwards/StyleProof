@@ -4,10 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadStyleProofConfig } from '../dist/config.js';
+import { loadStyleProofConfig, loadStyleProofConfigAsync, defineConfig } from '../dist/config.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
-const STYLEPROOF_CONFIG_FILE = 'styleproof.config.json';
+const STYLEPROOF_CONFIG_JSON = 'styleproof.config.json';
+const STYLEPROOF_CONFIG_MJS = 'styleproof.config.mjs';
+const STYLEPROOF_CONFIG_FILE = STYLEPROOF_CONFIG_JSON;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const AFFECTED = path.join(here, '..', 'bin', 'styleproof-affected.mjs');
@@ -23,6 +25,16 @@ function withConfig(config, fn) {
       typeof config === 'string' ? config : JSON.stringify(config, null, 2),
     );
     return fn(dir);
+  } finally {
+    rmTmp(dir);
+  }
+}
+
+async function withMjsConfigAsync(configContent, fn) {
+  const dir = mkTmp('styleproof-mjs-config-');
+  try {
+    fs.writeFileSync(path.join(dir, STYLEPROOF_CONFIG_MJS), configContent);
+    return await fn(dir);
   } finally {
     rmTmp(dir);
   }
@@ -284,4 +296,131 @@ test('README documents every top-level one-config adoption block', () => {
   assert.match(configReference, /\| `crawl`\s+\|/);
   assert.match(configReference, /`setup`/);
   assert.match(configReference, /`authBoundaryExclude`/);
+});
+
+// --- New tests for #579: One root styleproof.config.ts ---
+
+test('defineConfig: returns the config unchanged (identity function for type safety)', () => {
+  const input = { blocking: true, spec: 'e2e/spec.ts', roots: ['hud'] };
+  const result = defineConfig(input);
+  assert.deepEqual(result, input);
+  assert.strictEqual(result, input);
+});
+
+test('loadStyleProofConfig: reads the roots array for multi-directory projects', () => {
+  withConfig({ roots: ['hud', 'admin'], spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.deepEqual(config.roots, ['hud', 'admin']);
+  });
+});
+
+test('loadStyleProofConfig: validates roots must be an array of strings', () => {
+  withConfig({ roots: 'hud' }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"roots" must be an array/);
+  });
+  withConfig({ roots: [42] }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"roots" must be an array of non-empty strings/);
+  });
+});
+
+test('loadStyleProofConfig: reads the requireApproval field', () => {
+  withConfig({ requireApproval: true, blocking: true }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.requireApproval, true);
+    assert.equal(config.blocking, true);
+  });
+});
+
+test('loadStyleProofConfig: validates requireApproval must be a boolean', () => {
+  withConfig({ requireApproval: 'true' }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"requireApproval" must be a boolean/);
+  });
+});
+
+test('loadStyleProofConfig: reads the auth block with env/secret references', () => {
+  withConfig({ auth: { hudPassword: '${STYLEPROOF_HUD_PASSWORD}' } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.deepEqual(config.auth, { hudPassword: '${STYLEPROOF_HUD_PASSWORD}' });
+  });
+  withConfig({ auth: { hudPassword: '$HUD_PASS' } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.deepEqual(config.auth, { hudPassword: '$HUD_PASS' });
+  });
+});
+
+test('loadStyleProofConfig: auth.hudPassword rejects plaintext (must be env/secret reference)', () => {
+  withConfig({ auth: { hudPassword: 'my-secret-password' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /must reference an env\/secret name/);
+  });
+});
+
+test('loadStyleProofConfig: auth block warns on unknown keys', () => {
+  withConfig({ auth: { hudPassword: '${X}', husPasword: '${Y}' }, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.match(map.stderr, /unknown "auth" key\(s\) ignored: husPasword/);
+  });
+});
+
+test('loadStyleProofConfig: emits deprecation warning when only JSON config exists', () => {
+  withConfig({ blocking: true }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.match(map.stderr, /styleproof\.config\.json is deprecated/);
+    assert.match(map.stderr, /migrate to styleproof\.config\.ts/);
+  });
+});
+
+test('loadStyleProofConfigAsync: returns empty config when no config file exists', async () => {
+  const dir = mkTmp('styleproof-no-config-');
+  try {
+    const config = await loadStyleProofConfigAsync(dir);
+    assert.deepEqual(config, {});
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('loadStyleProofConfigAsync: loads JSON config with deprecation warning', async () => {
+  const dir = mkTmp('styleproof-json-async-');
+  try {
+    fs.writeFileSync(path.join(dir, STYLEPROOF_CONFIG_JSON), JSON.stringify({ blocking: true, spec: 'test.spec.ts' }));
+    const config = await loadStyleProofConfigAsync(dir);
+    assert.equal(config.blocking, true);
+    assert.equal(config.spec, 'test.spec.ts');
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('loadStyleProofConfig: known keys list includes roots, requireApproval, and auth', () => {
+  withConfig({ roots: ['hud'], requireApproval: true, auth: { hudPassword: '${X}' } }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.doesNotMatch(map.stderr, /unknown key\(s\) ignored:.*roots/);
+    assert.doesNotMatch(map.stderr, /unknown key\(s\) ignored:.*requireApproval/);
+    assert.doesNotMatch(map.stderr, /unknown key\(s\) ignored:.*auth/);
+  });
+});
+
+test('loadStyleProofConfigAsync: loads ESM config (.mjs) with defineConfig', async () => {
+  await withMjsConfigAsync(
+    `export default { blocking: true, spec: 'e2e/spec.ts', roots: ['hud', 'admin'] };`,
+    async (dir) => {
+      const config = await loadStyleProofConfigAsync(dir);
+      assert.equal(config.blocking, true);
+      assert.equal(config.spec, 'e2e/spec.ts');
+      assert.deepEqual(config.roots, ['hud', 'admin']);
+    },
+  );
+});
+
+test('loadStyleProofConfigAsync: ESM config takes precedence over JSON', async () => {
+  const dir = mkTmp('styleproof-esm-precedence-');
+  try {
+    fs.writeFileSync(path.join(dir, STYLEPROOF_CONFIG_JSON), JSON.stringify({ blocking: false, spec: 'json.spec.ts' }));
+    fs.writeFileSync(path.join(dir, STYLEPROOF_CONFIG_MJS), `export default { blocking: true, spec: 'mjs.spec.ts' };`);
+    const config = await loadStyleProofConfigAsync(dir);
+    assert.equal(config.blocking, true);
+    assert.equal(config.spec, 'mjs.spec.ts');
+  } finally {
+    rmTmp(dir);
+  }
 });
