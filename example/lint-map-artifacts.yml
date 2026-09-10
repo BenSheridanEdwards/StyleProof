@@ -1,0 +1,78 @@
+# StyleProof map artifact lint — optional CI guard against committed maps.
+#
+# Copy to .github/workflows/ if you want CI to fail when StyleProof map
+# artifacts are accidentally committed to a PR branch. This is a belt-and-
+# suspenders guard: styleproof-init already gitignores these patterns, but a
+# misconfigured .gitignore or force-add can still land them. Committed maps
+# bloat the repository with binary-like blobs that cannot be garbage collected,
+# and because every PR writes the same paths, each merge forces every other
+# open PR to rebase.
+#
+# Maps should travel via the styleproof-maps branch or CI artifacts — never
+# as files committed to the PR branch.
+name: Lint map artifacts
+
+on:
+  pull_request:
+    paths:
+      # Trigger only when these patterns might be touched — keeps the check
+      # cheap for docs-only PRs. The job itself checks staged files, not paths.
+      - '**/*.json.gz'
+      - '**/styleproof-manifest.json'
+      - '.styleproof/**'
+      - 'stylemaps/**'
+      - '__stylemaps__/**'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail if StyleProof map artifacts are committed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Patterns that should NEVER appear in the PR branch diff.
+          # - *.json.gz: compressed style maps
+          # - styleproof-manifest.json: capture manifest
+          # - .styleproof/: current default output dir
+          # - stylemaps/: legacy output dir
+          # - __stylemaps__/: legacy CI artifact dir
+          PATTERNS=(
+            '\.json\.gz$'
+            'styleproof-manifest\.json$'
+            '^\.styleproof/'
+            '^stylemaps/'
+            '^__stylemaps__/'
+          )
+
+          # Build a single regex from all patterns
+          COMBINED="$(IFS='|'; echo "${PATTERNS[*]}")"
+
+          # Check files added or modified in this PR (not the whole history)
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+
+          FOUND="$(git diff --name-only --diff-filter=ACMR "$BASE" "$HEAD" | grep -E "$COMBINED" || true)"
+
+          if [ -n "$FOUND" ]; then
+            echo "::error::StyleProof map artifacts must not be committed to PR branches."
+            echo ""
+            echo "The following files should be removed from this PR:"
+            echo "$FOUND"
+            echo ""
+            echo "Maps travel via the styleproof-maps branch or CI artifacts."
+            echo "Run: git rm --cached <file> && git commit --amend"
+            echo ""
+            echo "To prevent this, ensure .gitignore includes:"
+            echo "  .styleproof/"
+            echo "  stylemaps/"
+            echo "  __stylemaps__/"
+            exit 1
+          fi
+
+          echo "No StyleProof map artifacts found in this PR — OK"

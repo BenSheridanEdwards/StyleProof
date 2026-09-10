@@ -282,8 +282,27 @@ longhands, pseudo-elements, layout boxes, motion longhands, and forced
 Maps travel via the SHA-keyed `styleproof-maps` branch (or a CI artifact for
 forks) — **never as files committed to the PR branch**. Committed maps show up
 as changed files in every review, and because every PR writes the same paths,
-each merge forces every other open PR to rebase. `.styleproof/` and
-`stylemaps/` are gitignored to keep that door shut.
+each merge forces every other open PR to rebase. `.styleproof/`, `stylemaps/`,
+and `__stylemaps__/` are gitignored to keep that door shut.
+
+**Never-commit guards.** `styleproof-init` writes gitignore entries for all map
+artifact patterns (current and legacy). If you want belt-and-suspenders CI
+enforcement, copy [`example/lint-map-artifacts.yml`](example/lint-map-artifacts.yml)
+to `.github/workflows/` — it fails the PR if map artifacts slip through a
+misconfigured `.gitignore` or `git add -f`. For a local pre-commit hook, add
+this to your `.pre-commit-config.yaml`:
+
+```yaml
+- repo: local
+  hooks:
+    - id: no-styleproof-maps
+      name: Block committed StyleProof maps
+      entry: bash -c 'git diff --cached --name-only | grep -qE "\.json\.gz$|styleproof-manifest\.json$|^\.styleproof/|^stylemaps/|^__stylemaps__/" && echo "Error: StyleProof maps must not be committed" && exit 1 || exit 0'
+      language: system
+      pass_filenames: false
+```
+
+Both guards are optional — the gitignore is the primary defense.
 
 ## Quickstart
 
@@ -382,7 +401,7 @@ Either way the generated spec runs as-is. It also wires everything around it so 
 - a dedicated **`playwright.styleproof.config.ts`** that builds and serves a **production build** (never a flaky dev server), scopes discovery to the StyleProof spec, and captures surfaces **in parallel** (`fullyParallel`) without disturbing your app's existing Playwright config;
 - widths you never set — **omit `widths`** and StyleProof sweeps your app's real `@media` breakpoints automatically;
 - determinism you never set up — network settle, frozen clock, animation freeze, and framework-noise filtering are all on by default (see [Deterministic by default](#deterministic-by-default));
-- `.gitignore` entries for `.styleproof/`, `test-results/`, and `playwright-report/`;
+- `.gitignore` entries for `.styleproof/`, `stylemaps/`, `__stylemaps__/`, `test-results/`, and `playwright-report/`;
 - a **cache-first CI workflow** that restores reusable maps from the `styleproof-maps` branch, captures only a missing head when the base is compatible, and publishes every cold fallback so later runs stay browserless;
 - a **pre-push hook** (`.husky/` if present, else `.githooks/`) that restores an already-published commit or captures and publishes it once — CI's hot path stays report-only, repeated pushes do no browser work, and maps never get committed to the PR branch;
 - the **approval workflow** (`styleproof-approve.yml`) that turns the `StyleProof` status green when a reviewer ticks **Approve all changes** — so the review gate is complete, not half-wired (it activates once the init PR merges, since GitHub runs `issue_comment` workflows only from your default branch).
