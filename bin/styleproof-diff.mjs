@@ -326,6 +326,10 @@ options:
                    styles cannot — image content, canvas paint, font rasterisation —
                    with no element correspondence. Any region, or a layer captured on
                    one side only, exits 1. Results land in --json under "pixels".
+  --migration      migration showcase mode: structure changes (added/removed elements)
+                   become reviewable and affect the exit code. In default certify mode,
+                   structure changes are advisory and do not block. In migration mode,
+                   exit 1 when structure or style changes exist.
   -h, --help       show this help
 
 exit: 0 identical (certified), 1 differences found OR non-certifying evidence
@@ -342,6 +346,7 @@ let jsonOut = null;
 let allowUnasserted = false;
 let requireStateIdentity = false;
 let pixels = false;
+let migration = false;
 let expectedBeforeSha;
 let expectedAfterSha;
 let expectedBeforeShaSet = false;
@@ -365,6 +370,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i] === '--allow-unasserted') allowUnasserted = true;
   else if (argv[i] === '--require-state-identity') requireStateIdentity = true;
   else if (argv[i] === '--pixels') pixels = true;
+  else if (argv[i] === '--migration') migration = true;
   else if (argv[i] === '--expected-before-sha') {
     expectedBeforeShaSet = true;
     expectedBeforeSha = argv[++i];
@@ -455,7 +461,7 @@ try {
     beforeSha: expectedBeforeSha,
     afterSha: expectedAfterSha,
   });
-  result = diffStyleMapDirs(dirA, dirB, { includeStructure: false, pixels });
+  result = diffStyleMapDirs(dirA, dirB, { includeStructure: migration, pixels });
   // Read inventory + the certification ledgers here, while the (possibly cached/restored)
   // dirs still exist — the finally below deletes them in cached-map mode. Coverage is the
   // HEAD bundle's completeness basis; determinism needs both sides.
@@ -758,6 +764,7 @@ if (jsonOut) {
       JSON.stringify(
         {
           counts,
+          ...(migration ? { migration: true } : {}),
           sourceBinding,
           evidenceBinding,
           // Reviewable tallies after cleanFindings (what the durable report shows).

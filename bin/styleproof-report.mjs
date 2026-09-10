@@ -58,6 +58,10 @@ options:
   --require-state-identity require explicit matching product-state identity for every paired surface
   --expected-before-sha <sha> trusted full base commit SHA; must be paired with --expected-after-sha
   --expected-after-sha <sha>  trusted full head commit SHA; must be paired with --expected-before-sha
+  --migration              migration showcase mode: structure changes (added/removed elements)
+                            become part of the report layout. In default certify mode, structure
+                            changes are not reported. In migration mode, the report includes
+                            gallery sections for new/changed/removed elements.
   -h, --help                show this help
 
 exit: 0 no changes, 1 report generated, 2 usage error.
@@ -74,6 +78,7 @@ let minHeight;
 let includeLayoutNoise = false;
 let includeContent = false;
 let requireStateIdentity = false;
+let migration = false;
 let expectedBeforeSha;
 let expectedAfterSha;
 let expectedBeforeShaSet = false;
@@ -109,6 +114,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--include-content=')) includeContent = a.slice(18) !== 'false';
   else if (a === '--require-state-identity') requireStateIdentity = true;
   else if (a.startsWith('--require-state-identity=')) requireStateIdentity = a.slice(25) !== 'false';
+  else if (a === '--migration') migration = true;
+  else if (a.startsWith('--migration=')) migration = a.slice(12) !== 'false';
   else if (a === '--expected-before-sha') {
     expectedBeforeShaSet = true;
     expectedBeforeSha = argv[++i];
@@ -206,6 +213,7 @@ try {
     includeLayoutNoise,
     includeContent,
     requireStateIdentity,
+    migration,
   });
   const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
   if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
@@ -214,7 +222,7 @@ try {
   const reportJson = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
   fs.writeFileSync(
     result.reportJsonPath,
-    `${JSON.stringify({ ...reportJson, sourceBinding, evidenceBinding }, null, 2)}\n`,
+    `${JSON.stringify({ ...reportJson, ...(migration ? { migration: true } : {}), sourceBinding, evidenceBinding }, null, 2)}\n`,
   );
   if (sourceBinding.status !== 'bound') {
     const markdown = fs.readFileSync(result.reportMdPath, 'utf8');

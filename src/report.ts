@@ -160,6 +160,14 @@ export type ReportOptions = {
    * lost, just relocated. Default 400_000 (~0.4 MB). Set to Infinity to never cap.
    */
   maxReportBytes?: number;
+  /**
+   * Migration showcase mode: structure changes (added/removed elements) become part
+   * of the report layout. In default certify mode, structure changes are not
+   * reported. In migration mode, the report includes gallery sections for
+   * new/changed/removed elements. This flag is passed through for report metadata
+   * and future gallery rendering (see #566).
+   */
+  migration?: boolean;
 };
 
 export type ReportComparison = ComparisonTruth & ComparabilitySummary;
