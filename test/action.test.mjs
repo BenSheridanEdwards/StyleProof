@@ -1131,6 +1131,34 @@ test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILE
   assert.match(commentStep[0], /report\/diff consistency|reflow source/i);
 });
 
+test('migration mode: structure-only changes yield STYLE_REVIEW_REQUIRED when changed=true (#567)', () => {
+  const receipt = certifyingVerdictReceipt({ reviewableCounts: { dom: 1, style: 0, state: 0 } });
+  const migrationVerdict = classifyStyleProofVerdict(receipt, {
+    gateInventoryRemovals: false,
+    baseCaptureFailed: false,
+    changed: true,
+    migration: true,
+  });
+  assert.equal(
+    migrationVerdict.state,
+    'STYLE_REVIEW_REQUIRED',
+    'migration mode with structure changes should require review',
+  );
+  assert.equal(migrationVerdict.reviewableChanged, true, 'structure changes should be reviewable');
+
+  const certifyVerdict = classifyStyleProofVerdict(receipt, {
+    gateInventoryRemovals: false,
+    baseCaptureFailed: false,
+    changed: false,
+    migration: false,
+  });
+  assert.equal(
+    certifyVerdict.state,
+    'NO_REVIEWABLE_STYLE_CHANGES',
+    'certify mode with structure-only should not require review',
+  );
+});
+
 test('composite action does not expose raw-only findings as reviewable changes', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-raw-only-'));
   try {
