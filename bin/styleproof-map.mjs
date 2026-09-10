@@ -316,7 +316,7 @@ function shouldAutoUpload() {
   return uploadMode === 'auto' && !process.env.CI;
 }
 
-function upload(dirPath) {
+async function upload(dirPath) {
   if (uploadMode === 'off') return;
   if (!shouldAutoUpload() && uploadMode !== 'required') return;
   const platformWarning = nonLinuxUploadWarning(
@@ -325,7 +325,7 @@ function upload(dirPath) {
   );
   if (platformWarning) console.error(platformWarning);
   try {
-    const res = publishMapBundle({ dir: dirPath, branch: cacheBranch, remote });
+    const res = await publishMapBundle({ dir: dirPath, branch: cacheBranch, remote });
     console.error(`styleproof-map: uploaded ${res.sha.slice(0, 12)} (${res.compatibilityKey}) to ${res.branch}`);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -611,6 +611,6 @@ if (status === 0) {
     console.error(`styleproof-map: could not write map manifest\n${e instanceof Error ? e.message : String(e)}`);
     process.exit(2);
   }
-  upload(targetDir);
+  await upload(targetDir);
 }
 process.exit(status);
