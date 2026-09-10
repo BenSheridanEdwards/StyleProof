@@ -161,16 +161,40 @@ export type ReportOptions = {
    */
   maxReportBytes?: number;
   /**
-   * Migration showcase mode: structure changes (added/removed elements) become part
-   * of the report layout. In default certify mode, structure changes are not
-   * reported. In migration mode, the report includes gallery sections for
-   * new/changed/removed elements. This flag is passed through for report metadata
-   * and future gallery rendering (see #566).
+   * Migration mode (#566): render the gallery with distinct sections for
+   * **Changed styles**, **New surfaces**, and **New/removed elements**.
+   * Elevates structure changes from advisory to reviewable. Does NOT soft-green
+   * style findings — certification gates remain fail-closed. Removed surfaces
+   * (Q10) stay separate and are not folded into migration gallery buckets.
    */
   migration?: boolean;
 };
 
 export type ReportComparison = ComparisonTruth & ComparabilitySummary;
+
+/**
+ * Migration gallery section labels (#566 Q9 lockdown).
+ * These labels are locked and must not be changed.
+ */
+export const MIGRATION_GALLERY_LABELS = {
+  changedStyles: 'Changed styles',
+  newSurfaces: 'New surfaces',
+  newRemovedElements: 'New/removed elements',
+} as const;
+
+/**
+ * Migration gallery sections for the migration-mode report (#566).
+ * Each section contains surfaces/changes matching its classification.
+ * Removed surfaces (Q10) stay separate and are not included here.
+ */
+export type MigrationGallery = {
+  /** Surfaces with computed-style differences (classification: 'changed'). */
+  changedStyles: { surface: string; findingCount: number }[];
+  /** Genuinely new surfaces present only on head (classification: 'genuinely-new'). */
+  newSurfaces: { surface: string }[];
+  /** Element-level structure changes within surfaces (ContentChange kind: 'structure'). */
+  newRemovedElements: { surface: string; added: number; removed: number; retagged: number }[];
+};
 
 export type ReportResult = {
   /** Surfaces carrying a reviewable change (excludes new, one-sided surfaces). */
@@ -204,6 +228,12 @@ export type ReportResult = {
   confidence: ConfidenceSummary;
   reportMdPath: string;
   reportJsonPath: string;
+  /**
+   * Migration gallery sections (#566) — present only when `migration: true`.
+   * Contains classified surfaces for Changed styles, New surfaces, and
+   * New/removed elements. Removed surfaces (Q10) stay separate.
+   */
+  migrationGallery?: MigrationGallery;
 };
 
 type Box = { x: number; y: number; w: number; h: number };
@@ -1415,6 +1445,108 @@ function renderContentSection(ctx: ContentCtx): { md: string[]; count: number } 
     seq = out.seq;
   }
   return { md, count };
+}
+
+// ── Migration gallery renderers (#566) ───────────────────────────────────────────
+// Build and render the migration-mode gallery sections with locked Q9 labels:
+// - Changed styles (classification: 'changed')
+// - New surfaces (classification: 'genuinely-new')
+// - New/removed elements (ContentChange kind: 'structure')
+// Removed surfaces (Q10) stay SEPARATE from migration gallery buckets.
+
+/**
+ * Build the migration gallery data structure from diff results (#566).
+ * Classifies surfaces into the three Q9-locked gallery sections.
+ * Removed surfaces are intentionally excluded per Q10.
+ */
+function buildMigrationGallery(surfaces: SurfaceDiff[], contentCtx: ContentCtx | null): MigrationGallery {
+  const changedStyles: MigrationGallery['changedStyles'] = [];
+  const newSurfaces: MigrationGallery['newSurfaces'] = [];
+  const newRemovedElements: MigrationGallery['newRemovedElements'] = [];
+
+  for (const sd of surfaces) {
+    if (sd.classification === 'changed') {
+      changedStyles.push({ surface: sd.surface, findingCount: sd.findings.length });
+    } else if (sd.classification === 'genuinely-new') {
+      newSurfaces.push({ surface: sd.surface });
+    }
+  }
+
+  if (contentCtx) {
+    const contentSurfaces = reportContentSurfaces(contentCtx);
+    for (const { surface, changes } of contentSurfaces) {
+      const structureChanges = changes.filter((c) => c.kind === 'structure');
+      if (structureChanges.length === 0) continue;
+      const added = structureChanges.filter((c) => c.change === 'added').length;
+      const removed = structureChanges.filter((c) => c.change === 'removed').length;
+      const retagged = structureChanges.filter((c) => c.change === 'retagged').length;
+      newRemovedElements.push({ surface, added, removed, retagged });
+    }
+  }
+
+  return { changedStyles, newSurfaces, newRemovedElements };
+}
+
+/**
+ * Render the migration gallery section headers (#566).
+ * Uses Q9-locked labels: "Changed styles", "New surfaces", "New/removed elements".
+ * Structure is elevated (not soft-greened) — these are reviewable, not advisory.
+ */
+function renderMigrationGallerySections(gallery: MigrationGallery): string[] {
+  const md: string[] = [];
+
+  if (gallery.changedStyles.length > 0 || gallery.newSurfaces.length > 0 || gallery.newRemovedElements.length > 0) {
+    md.push('', '---', '', '## 🗺️ StyleProof Migration Report', '');
+    md.push(
+      '_Migration mode compares two heads where changes are expected. Review the sections below: ' +
+        'Changed styles, New surfaces, and New/removed elements._',
+    );
+  }
+
+  if (gallery.changedStyles.length > 0) {
+    md.push(
+      '',
+      `### 🎨 ${MIGRATION_GALLERY_LABELS.changedStyles}`,
+      '',
+      `_${gallery.changedStyles.length} surface(s) with computed-style differences._`,
+      '',
+    );
+    for (const { surface, findingCount } of gallery.changedStyles) {
+      md.push(`- \`${safeKey(surface)}\` · ${findingCount} finding(s)`);
+    }
+  }
+
+  if (gallery.newSurfaces.length > 0) {
+    md.push(
+      '',
+      `### 🆕 ${MIGRATION_GALLERY_LABELS.newSurfaces}`,
+      '',
+      `_${gallery.newSurfaces.length} surface(s) present only in head capture (genuinely new)._`,
+      '',
+    );
+    for (const { surface } of gallery.newSurfaces) {
+      md.push(`- \`${safeKey(surface)}\``);
+    }
+  }
+
+  if (gallery.newRemovedElements.length > 0) {
+    md.push(
+      '',
+      `### 🧱 ${MIGRATION_GALLERY_LABELS.newRemovedElements}`,
+      '',
+      '_Element-level structure changes within surfaces. Elevated from advisory — reviewable in migration mode._',
+      '',
+    );
+    for (const { surface, added, removed, retagged } of gallery.newRemovedElements) {
+      const parts: string[] = [];
+      if (added > 0) parts.push(`${added} added`);
+      if (removed > 0) parts.push(`${removed} removed`);
+      if (retagged > 0) parts.push(`${retagged} retagged`);
+      md.push(`- \`${safeKey(surface)}\` · ${parts.join(', ')}`);
+    }
+  }
+
+  return md;
 }
 
 // ── Certification renderers ──────────────────────────────────────────────────────
@@ -2941,6 +3073,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
 
   const includeNoise = opts.includeLayoutNoise === true;
   const includeContent = opts.includeContent === true;
+  const isMigrationMode = opts.migration === true;
   // Base first, head second: current capture metadata is authoritative when a
   // surface's product key changed between revisions.
   const surfaceKeyOf = mergeSurfaceKeyLookup(beforeDir, afterDir);
@@ -3098,7 +3231,27 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   });
   const greenfieldNewSurfaces = oneSided.greenfieldNewSurfaces;
   const totalFindings = changed.totalFindings;
-  if (contentSection.md.length > 0) {
+
+  // Migration gallery (#566): build the gallery data and render sections when migration mode is on.
+  // Structure changes are elevated from advisory to reviewable in migration mode.
+  // Removed surfaces (Q10) stay separate and are not folded into migration gallery buckets.
+  const contentCtx: ContentCtx | null =
+    isMigrationMode || includeContent
+      ? { beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight, zoomBelow, maxCrops }
+      : null;
+  const migrationGallery = isMigrationMode ? buildMigrationGallery(surfaces, contentCtx) : undefined;
+
+  if (isMigrationMode && migrationGallery) {
+    const gallerySections = renderMigrationGallerySections(migrationGallery);
+    if (gallerySections.length > 0) {
+      emitDetail(
+        gallerySections,
+        `- Migration gallery: ${migrationGallery.changedStyles.length} changed styles, ${migrationGallery.newSurfaces.length} new surfaces, ${migrationGallery.newRemovedElements.length} surfaces with element changes`,
+      );
+    }
+  }
+
+  if (contentSection.md.length > 0 && !isMigrationMode) {
     emitDetail(
       contentSection.md,
       `- ${contentSection.count} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
@@ -3132,6 +3285,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     confidence,
     reportMdPath,
     reportJsonPath,
+    ...(migrationGallery ? { migrationGallery } : {}),
   };
 }
 

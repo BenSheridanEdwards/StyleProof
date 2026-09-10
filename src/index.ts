@@ -178,8 +178,14 @@ export type {
   SurfaceComparability,
   ComparabilitySummary,
 } from './diff.js';
-export { generateStyleMapReport, summarizeProps, prettyLabel, assessComparisonTruth } from './report.js';
-export type { ReportOptions, ReportResult, ComparisonTruth } from './report.js';
+export {
+  generateStyleMapReport,
+  summarizeProps,
+  prettyLabel,
+  assessComparisonTruth,
+  MIGRATION_GALLERY_LABELS,
+} from './report.js';
+export type { ReportOptions, ReportResult, ComparisonTruth, MigrationGallery } from './report.js';
 export { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from './affected-surfaces.js';
 export type { ModuleEdge, AffectedSurfacesInput, AffectedSurfaces } from './affected-surfaces.js';
 
