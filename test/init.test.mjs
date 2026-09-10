@@ -244,6 +244,42 @@ for (const manager of [
   });
 }
 
+test('styleproof-init: gitignore includes all map artifact patterns to prevent accidental commits', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    const gitignore = readFile(root, '.gitignore');
+    // Primary pattern: current default output dir
+    assert.match(gitignore, /\.styleproof\//, 'must gitignore .styleproof/');
+    // Legacy patterns from earlier StyleProof versions — adopters may have old
+    // artifacts in these locations; gitignoring them prevents accidental commits.
+    assert.match(gitignore, /stylemaps\//, 'must gitignore legacy stylemaps/');
+    assert.match(gitignore, /__stylemaps__\//, 'must gitignore legacy __stylemaps__/');
+    // Standard Playwright artifacts
+    assert.match(gitignore, /test-results\//, 'must gitignore test-results/');
+    assert.match(gitignore, /playwright-report\//, 'must gitignore playwright-report/');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: output warns against committing maps to PR branches', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    // init must warn adopters that maps should never be committed to the PR branch
+    assert.match(
+      res.stdout,
+      /maps.*never.*committed.*PR branch|never.*commit.*maps|maps.*should not.*committed/i,
+      'init output must warn against committing maps to PR branches',
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-init: config-only first adoption sources the head harness', () => {
   const root = mkNonGitTmp();
   const git = (args) => {

@@ -1290,7 +1290,15 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
   );
 }
 
-const gitignore = ensureGitignoreLines(['.styleproof/', 'test-results/', 'playwright-report/']);
+// Map artifact patterns: current (.styleproof/) + legacy (stylemaps/, __stylemaps__/).
+// Legacy patterns prevent accidental commits from old StyleProof versions or renamed dirs.
+const gitignore = ensureGitignoreLines([
+  '.styleproof/',
+  'stylemaps/',
+  '__stylemaps__/',
+  'test-results/',
+  'playwright-report/',
+]);
 if (gitignore.unmanaged) {
   reportUnmanagedGeneratedPath('.gitignore');
 } else if (gitignore.added.length) {
@@ -1368,6 +1376,9 @@ console.log('  3. The trusted default-branch report workflow downloads that arti
 console.log('     comments, and sets status — without ever checking out PR-controlled code.');
 console.log('  4. The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
 console.log('     Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
+console.log('');
+console.log('  Maps should NEVER be committed to a PR branch. They travel via the styleproof-maps');
+console.log('  branch or CI artifacts — committed maps bloat the repo and force cross-PR rebases.');
 
 if (!wroteSomething) console.log('\nnothing to write — project already scaffolded.');
 process.exit(0);
