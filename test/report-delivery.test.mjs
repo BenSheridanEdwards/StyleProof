@@ -31,6 +31,7 @@ function actionCommentScript({ url = reportUrl, sha = publicationSha } = {}) {
     ['steps.publish.outputs.sha', sha],
     ['steps.diff.outputs.changed', 'true'],
     ['inputs.require-approval', 'true'],
+    ['inputs.mode', 'certify'],
     ['steps.gate.outputs.approved', 'false'],
     ['steps.gate.outputs.approver', ''],
     ['inputs.status-context', 'StyleProof'],

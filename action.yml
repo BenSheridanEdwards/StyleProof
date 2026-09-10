@@ -44,6 +44,14 @@ inputs:
   status-context:
     description: 'Name of the commit status set in review-gate mode (must match the approve workflow + branch protection).'
     default: 'StyleProof'
+  mode:
+    description: >-
+      Operation mode: 'certify' (default) fails on any style diff, 'review-gate'
+      sets a commit status instead of failing, 'migration' treats structure changes
+      (added/removed elements) as reviewable alongside style changes and uses
+      review-gate semantics. In migration mode the report gallery shows Changed
+      styles, New surfaces, and New/removed elements sections.
+    default: 'certify'
 
 outputs:
   changed:
@@ -158,12 +166,19 @@ runs:
         STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
         STYLEPROOF_EXPECTED_BASE_SHA: ${{ steps.context.outputs.base-sha }}
         STYLEPROOF_EXPECTED_HEAD_SHA: ${{ steps.context.outputs.head-sha }}
+        STYLEPROOF_MODE: ${{ inputs.mode }}
       run: |
         state_identity_arguments=()
         case "$STYLEPROOF_REQUIRE_STATE_IDENTITY" in
           true) state_identity_arguments+=(--require-state-identity) ;;
           false) ;;
           *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
+        esac
+        migration_arguments=()
+        case "$STYLEPROOF_MODE" in
+          certify|review-gate) ;;
+          migration) migration_arguments+=(--migration) ;;
+          *) echo "mode must be certify, review-gate, or migration" >&2; exit 2 ;;
         esac
         if [ -z "$STYLEPROOF_EXPECTED_BASE_SHA" ] || [ -z "$STYLEPROOF_EXPECTED_HEAD_SHA" ]; then
           echo "StyleProof: trusted base/head SHA context is required for certification" >&2
@@ -174,7 +189,7 @@ runs:
           --expected-after-sha "$STYLEPROOF_EXPECTED_HEAD_SHA"
         )
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} | tee styleproof-diff.txt
+        node "$GITHUB_ACTION_PATH/bin/styleproof-diff.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --max=200 --json styleproof-diff.json ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"} | tee styleproof-diff.txt
         code=${PIPESTATUS[0]}
         set -e
         if [ "$code" -eq 2 ]; then echo "styleproof-diff usage/capture error" >&2; exit 2; fi
@@ -200,12 +215,14 @@ runs:
         STYLEPROOF_REQUIRE_STATE_IDENTITY: ${{ inputs.require-state-identity }}
         STYLEPROOF_EXPECTED_BASE_SHA: ${{ steps.context.outputs.base-sha }}
         STYLEPROOF_EXPECTED_HEAD_SHA: ${{ steps.context.outputs.head-sha }}
+        STYLEPROOF_MODE: ${{ inputs.mode }}
       run: |
         set -euo pipefail
         rm -rf styleproof-report
         report_content_arguments=()
         state_identity_arguments=()
         trusted_sha_arguments=()
+        migration_arguments=()
         if [ -z "$STYLEPROOF_EXPECTED_BASE_SHA" ] || [ -z "$STYLEPROOF_EXPECTED_HEAD_SHA" ]; then
           echo "trusted base/head SHA context is required for report generation" >&2
           exit 2
@@ -222,8 +239,13 @@ runs:
           false) ;;
           *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
         esac
+        case "$STYLEPROOF_MODE" in
+          certify|review-gate) ;;
+          migration) migration_arguments+=(--migration) ;;
+          *) echo "mode must be certify, review-gate, or migration" >&2; exit 2 ;;
+        esac
         set +e
-        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"}
+        node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"}
         report_exit_code=$?
         set -e
         if [ "$report_exit_code" -ne 0 ] && [ "$report_exit_code" -ne 1 ]; then
@@ -453,8 +475,9 @@ runs:
     # Is THIS commit's diff already signed off? Read the existing review status so a
     # re-run after approval keeps the check green (and renders the box ticked) instead
     # of clobbering the approval the approve workflow set. Only meaningful when changed.
+    # Review-gate and migration modes use approval workflow, so check for prior approval.
     - id: gate
-      if: steps.context.outputs.pr-number != '' && inputs.require-approval == 'true'
+      if: steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration')
       uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token }}
@@ -571,6 +594,10 @@ runs:
           const summary = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
 
           const requireApproval = '${{ inputs.require-approval }}' === 'true';
+          const mode = '${{ inputs.mode }}';
+          const migrationMode = mode === 'migration';
+          // Review-gate and migration modes use approval box and commit status.
+          const useReviewGate = requireApproval || mode === 'review-gate' || migrationMode;
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const approver = '${{ steps.gate.outputs.approver }}';
           const statusContext = '${{ inputs.status-context }}';
@@ -583,7 +610,7 @@ runs:
           // pre-ticked and carries "approved by @x" (reconstructed from the commit
           // status), so the comment matches the green status without re-running approval.
           const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
-          const box = requireApproval && trustState === 'STYLE_REVIEW_REQUIRED'
+          const box = useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED'
             ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
             : [];
           const trustGuidance = {
@@ -595,22 +622,29 @@ runs:
           }[trustState];
           const contentEvaluated = '${{ inputs.include-content }}' === 'true';
           const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
-          const cleanGuidance = contentEvaluated
-            ? contentChanges > 0
-              ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
-              : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
-            : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
+          // Migration mode: structure changes are reviewable, not just advisory.
+          const migrationCleanGuidance = `_No reviewable style or structure changes detected — the **${statusContext}** check is green._`;
+          const cleanGuidance = migrationMode
+            ? migrationCleanGuidance
+            : contentEvaluated
+              ? contentChanges > 0
+                ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
+                : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
+              : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
           const advisoryGuidance = changed
             ? `_StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
             : cleanGuidance;
+          // Migration-specific guidance: structure changes are reviewable alongside styles.
+          const migrationPendingGuidance = `_Migration mode: tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. The report shows **Changed styles**, **New surfaces**, and **New/removed elements**. A new push that changes styles or structure re-opens it._`;
+          const migrationApprovedGuidance = `_Migration mode: signed off — the **${statusContext}** check is green. A new push that changes styles or structure re-opens it._`;
           const footer = [
             '---',
-            trustGuidance || (requireApproval
+            trustGuidance || (useReviewGate
               ? !changed
                 ? cleanGuidance
                 : approved
-                  ? `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
-                  : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. One tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
+                  ? migrationMode ? migrationApprovedGuidance : `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
+                  : migrationMode ? migrationPendingGuidance : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. One tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
               : advisoryGuidance),
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
             formatRunAttemptReceiptMarker({ runId, runAttempt }),
@@ -619,15 +653,16 @@ runs:
           const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');
           await upsert(body);
 
-    # Review-gate mode: drive a commit status the approve workflow can flip,
-    # instead of failing the job. Green when nothing changed; red ("needs
+    # Review-gate and migration modes: drive a commit status the approve workflow
+    # can flip, instead of failing the job. Green when nothing changed; red ("needs
     # sign-off") until a write-access reviewer ticks the box. PR events only.
     # Skipped when the comment step classified this delivery as a stale earlier
     # attempt, so a late attempt-1 retry cannot clobber attempt 2's status either.
     - name: Set review status
       id: status
       if: >-
-        steps.context.outputs.pr-number != '' && inputs.require-approval == 'true' &&
+        steps.context.outputs.pr-number != '' &&
+        (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration') &&
         steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       with:
@@ -686,11 +721,11 @@ runs:
     # UNAPPROVED changes/new surfaces, fail the job so the check is red even on a repo
     # without a branch-protection rule requiring the status. Async by design — sign off in
     # the comment, then re-run this job; the re-run sees the approval (via the gate step)
-    # and passes. Review-gate only.
+    # and passes. Review-gate and migration modes.
     - name: Block on unapproved changes
       if: >-
         steps.context.outputs.pr-number != '' &&
-        inputs.require-approval == 'true' &&
+        (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration') &&
         steps.config.outputs.blocking == 'true' &&
         steps.verdict.outputs.state == 'STYLE_REVIEW_REQUIRED' &&
         steps.gate.outputs.approved != 'true'
@@ -700,10 +735,10 @@ runs:
         exit 1
 
     # Certify mode: fail the job on any diff (default). Skipped
-    # in review-gate mode, where the status check is the gate instead. New surfaces
-    # set `changed`, so certification also fails when the capture set grows.
+    # in review-gate and migration modes, where the status check is the gate instead.
+    # New surfaces set `changed`, so certification also fails when the capture set grows.
     - name: Fail on diff
-      if: steps.diff.outputs.changed == 'true' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true'
+      if: steps.diff.outputs.changed == 'true' && inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' && inputs.mode == 'certify'
       shell: bash
       run: |
         echo 'Style changes detected — review the PR comment. To accept, rebuild the map with styleproof-map and rerun the report.' >&2
