@@ -1,20 +1,34 @@
 # Migration Showcase Fixtures
 
 TDD fixtures for two-head migration mode (#563). These fixtures demonstrate the
-classification categories that migration mode must showcase for reviewers:
+classification categories that migration mode must showcase for reviewers.
+
+## Mission 4 Lockdown Decisions
+
+**Q9 Gallery labels** (#566): The migration report gallery uses these sections:
+- **Changed styles** → `SurfaceClassification: 'changed'`
+- **New surfaces** → `SurfaceClassification: 'genuinely-new'`
+- **New/removed elements** → `ContentChange` with `kind: 'structure'`
+
+**Q10 Inventory/nav removals**: Removed surfaces (`SurfaceClassification: 'removed'`)
+stay SEPARATE from migration gallery — do not fold into migration buckets.
+
+**Q7 Merge-ready gate**: These fixtures gate merge-ready; Fleet dogfood is
+post-release verify only.
 
 ## Surface Categories (SurfaceClassification)
 
-| Fixture | Classification | Description |
-|---------|---------------|-------------|
-| `unchanged@1280` | `unchanged` | Surface present on both sides with no style differences |
-| `style-changed@1280` | `changed` | Surface present on both sides with computed-style differences |
-| `genuinely-new@1280` | `genuinely-new` | Head-only surface; first adoption, reviewable |
-| `removed@1280` | `removed` | Base-only surface; absent on head |
+| Fixture | Classification | Gallery Section |
+|---------|---------------|-----------------|
+| `unchanged@1280` | `unchanged` | (not shown — no changes) |
+| `style-changed@1280` | `changed` | **Changed styles** |
+| `genuinely-new@1280` | `genuinely-new` | **New surfaces** |
+| `removed@1280` | `removed` | (separate — Q10) |
 
 ## Element-level Categories (ContentChange with `kind: 'structure'`)
 
-Within a surface, migration mode must classify element-level structural changes:
+Within a surface, migration mode classifies element-level structural changes
+under the **New/removed elements** gallery section:
 
 | Fixture | Change Types | Description |
 |---------|-------------|-------------|
@@ -27,9 +41,10 @@ Within a surface, migration mode must classify element-level structural changes:
 These fixtures prove:
 
 1. **Migration diff correctly classifies** each surface and structural change category
-2. **Migration report gallery** shows distinct sections for each category
+2. **Migration report gallery** shows distinct sections matching Q9 labels
 3. **Exit codes and gate states** are correct for migration mode vs certify mode
 4. **Certify/style contracts remain fail-closed** — no soft-green for structure
+5. **Removed surfaces stay separate** (Q10) — not folded into migration buckets
 
 The tests start RED (migration mode not yet implemented) and turn GREEN once the
 feature lands (#564–#567).

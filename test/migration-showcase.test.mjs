@@ -8,6 +8,20 @@
  *
  * Tests start RED (migration mode not yet implemented) and turn GREEN once
  * the feature lands (#564–#567).
+ *
+ * ## Mission 4 Lockdown Decisions
+ *
+ * Q9 Gallery labels (#566):
+ *   - **Changed styles** → SurfaceClassification: 'changed'
+ *   - **New surfaces** → SurfaceClassification: 'genuinely-new'
+ *   - **New/removed elements** → ContentChange kind: 'structure'
+ *
+ * Q10 Inventory/nav removals:
+ *   - Removed surfaces (SurfaceClassification: 'removed') stay SEPARATE from
+ *     migration gallery — do not fold into migration buckets.
+ *
+ * Q7 Merge-ready gate:
+ *   - These fixtures gate merge-ready; Fleet dogfood is post-release only.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -343,6 +357,33 @@ describe('migration showcase: SurfaceClassification (#563)', () => {
     assert.ok(surface, 'removed surface should be in results');
     assert.equal(surface.classification, 'removed', 'should be classified as removed');
     assert.equal(surface.missing, 'after', 'should be missing from after');
+
+    rmTmp(root);
+  });
+
+  test('removed surfaces stay separate from migration gallery buckets (Q10 lockdown)', () => {
+    // Q10: inventory/nav removals stay SEPARATE from migration gallery —
+    // do not fold into migration buckets (Changed styles / New surfaces / New·removed elements).
+    // Removed surfaces are their own distinct category, not part of the "New/removed elements" label.
+    const root = mkTmp();
+    const beforeDir = path.join(root, 'before');
+    const afterDir = path.join(root, 'after');
+
+    writeCapture(beforeDir, 'existing@1280', unchangedSurface(), null);
+    writeCapture(beforeDir, 'nav-page@1280', removedSurface(), null);
+    writeCapture(afterDir, 'existing@1280', unchangedSurface(), null);
+    writeMinimalManifest(beforeDir);
+    writeMinimalManifest(afterDir);
+
+    const result = diffStyleMapDirs(beforeDir, afterDir);
+    const removed = result.surfaces.find((s) => s.surface === 'nav-page@1280');
+
+    // Removed surfaces are classified distinctly, not folded into element-level structure
+    assert.equal(removed.classification, 'removed', 'removed surface stays its own category');
+    assert.notEqual(removed.classification, 'changed', 'not folded into Changed styles');
+    assert.notEqual(removed.classification, 'genuinely-new', 'not folded into New surfaces');
+    // The "New/removed elements" gallery label is for ContentChange kind: 'structure',
+    // which tracks element-level changes WITHIN a surface — not surface-level removals.
 
     rmTmp(root);
   });
