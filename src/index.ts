@@ -79,6 +79,7 @@ export { loadSetupSteps } from './capture-url.js';
 export type {
   StyleMap,
   CaptureOptions,
+  ForcedStateLimits,
   CaptureMetadata,
   ProductStateIdentity,
   StateRecipeCaptureProvenance,

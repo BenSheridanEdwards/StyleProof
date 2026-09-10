@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   captureStyleMap,
+  resolveForcedStateLimits,
   saveStyleMap,
   captureSurfaceScreenshots,
   trackInflightRequests,
@@ -12,6 +13,7 @@ import {
   type LiveRegionCandidate,
   type ProductStateIdentity,
   type StyleMap,
+  type ForcedStateLimits,
 } from './capture.js';
 import type { DataResidueEntry } from './data-residue.js';
 import { diffStyleMaps, type Finding } from './diff.js';
@@ -55,7 +57,7 @@ import {
  * the interactions that reach the state, captured at one viewport width per
  * @media band of its stylesheets.
  */
-export type Surface = {
+export type Surface = ForcedStateLimits & {
   /** Capture file name prefix; must be unique. */
   key: string;
   /**
@@ -106,7 +108,7 @@ export type Surface = {
   popups?: boolean | PopupCaptureOptions;
 };
 
-export type SurfaceVariant = {
+export type SurfaceVariant = ForcedStateLimits & {
   /** Capture key suffix, joined as `<surface.key>-<variant.key>`. */
   key: string;
   /** Override the parent surface's semantic state identity for this variant. */
@@ -141,7 +143,7 @@ export type PopupCaptureOptions = {
   timeoutMs?: number;
 };
 
-export type DefineOptions = {
+export type DefineOptions = ForcedStateLimits & {
   surfaces: Surface[];
   /**
    * The full set of surface keys the app knows it has — its route/view/state
@@ -586,6 +588,10 @@ function expandOne(
     widths: variant.widths ?? surface.widths,
     height: variant.height ?? surface.height,
     popups: surface.popups,
+    maxForcedStateElements:
+      variant.maxForcedStateElements === undefined ? surface.maxForcedStateElements : variant.maxForcedStateElements,
+    maxForcedStateScanWork:
+      variant.maxForcedStateScanWork === undefined ? surface.maxForcedStateScanWork : variant.maxForcedStateScanWork,
     metadata: {
       surfaceKey: surface.key,
       variantKey: variant.key,
@@ -634,6 +640,8 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
     widths: surface.widths,
     height: surface.height,
     popups: surface.popups,
+    maxForcedStateElements: surface.maxForcedStateElements,
+    maxForcedStateScanWork: surface.maxForcedStateScanWork,
     ...(recipe.action !== 'route' && recipe.observeSelector
       ? { requiredVisibleState: { selector: recipe.observeSelector, stateKey } }
       : {}),
@@ -793,18 +801,28 @@ async function pinInputs(page: Page, harName: string, s: Settings): Promise<void
   if (s.freezeClock) await page.clock.setFixedTime(new Date(s.clockTime));
 }
 
+function surfaceForcedStateLimits(surface: Surface, settings: Settings): Required<ForcedStateLimits> {
+  return resolveForcedStateLimits({
+    maxForcedStateElements:
+      surface.maxForcedStateElements === undefined ? settings.maxForcedStateElements : surface.maxForcedStateElements,
+    maxForcedStateScanWork:
+      surface.maxForcedStateScanWork === undefined ? settings.maxForcedStateScanWork : surface.maxForcedStateScanWork,
+  });
+}
+
 /** Capture the surface again and throw if the computed styles drifted from `first`. */
 async function assertDeterministic(
   page: Page,
   surface: ExpandedSurface,
   first: Awaited<ReturnType<typeof captureStyleMap>>,
-  captureText: boolean,
+  settings: Settings,
   pending: () => number,
 ): Promise<void> {
   await surface.go(page);
   const again = await captureStyleMap(page, {
     ignore: surface.ignore ?? [],
-    captureText,
+    captureText: settings.captureText,
+    ...surfaceForcedStateLimits(surface, settings),
     pendingRequests: pending,
     requiredVisibleState: surface.requiredVisibleState,
   });
@@ -915,6 +933,7 @@ async function captureOpenedPopupMap(
   popupId: string,
 ): Promise<Awaited<ReturnType<typeof captureStyleMap>>> {
   return captureStyleMap(page, {
+    ...surfaceForcedStateLimits(surface, s),
     ignore: surface.ignore ?? [],
     captureText: s.captureText,
     captureComponent: s.captureComponent,
@@ -1105,6 +1124,7 @@ async function captureSurface(
       async (surfaceRun) => {
         await surface.go(page);
         const map = await captureStyleMap(page, {
+          ...surfaceForcedStateLimits(surface, s),
           ignore: surface.ignore ?? [],
           captureText: s.captureText,
           captureComponent: s.captureComponent,
@@ -1122,7 +1142,7 @@ async function captureSurface(
         if (s.selfCheck) {
           phase = 'self-check';
           const selfCheckStartedAtMs = realNow();
-          await assertDeterministic(page, surface, map, s.captureText, requests.pending);
+          await assertDeterministic(page, surface, map, s, requests.pending);
           selfCheckMs = realNow() - selfCheckStartedAtMs;
           phase = 'capture';
         }
@@ -1270,6 +1290,7 @@ function resolveSettings(c: CaptureConfig): Settings {
   const clockTime = c.clockTime ?? DEFAULT_CLOCK_TIME;
   reconcileSpecClock(freezeClock, clockTime);
   return {
+    ...resolveForcedStateLimits(c),
     dir: c.dir as string,
     baseDir: resolveBaseDir(c.baseDir),
     screenshots: resolveScreenshots(c.screenshots),
