@@ -13,7 +13,7 @@ classification categories that migration mode must showcase for reviewers.
 **Q10 Inventory/nav removals**: Removed surfaces (`SurfaceClassification: 'removed'`)
 stay SEPARATE from migration gallery — do not fold into migration buckets.
 
-**Q7 Merge-ready gate**: These fixtures gate merge-ready; Fleet dogfood is
+**Q7 Merge-ready gate**: These fixtures gate merge-ready; external dogfood is
 post-release verify only.
 
 ## Surface Categories (SurfaceClassification)

@@ -21,7 +21,7 @@
  *     migration gallery — do not fold into migration buckets.
  *
  * Q7 Merge-ready gate:
- *   - These fixtures gate merge-ready; Fleet dogfood is post-release only.
+ *   - These fixtures gate merge-ready; external dogfood is post-release only.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
