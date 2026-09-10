@@ -1542,35 +1542,6 @@ test('styleproof-init: an existing app Playwright config is left alone while Sty
   }
 });
 
-test('styleproof-init: scaffolds styleproof.config.ts with defineConfig()', () => {
-  const root = mkTmp();
-  try {
-    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
-    assert.equal(res.status, 0, res.stderr);
-    const configContent = readFile(root, 'styleproof.config.ts');
-    assert.match(configContent, /import \{ defineConfig \} from 'styleproof'/);
-    assert.match(configContent, /export default defineConfig\(\{/);
-    assert.match(configContent, /blocking: true/);
-    assert.match(configContent, /requireApproval: true/);
-    assert.match(res.stdout, /created styleproof\.config\.ts \(typed config with defineConfig\(\)\)/);
-  } finally {
-    rmTmp(root);
-  }
-});
-
-test('styleproof-init: does not overwrite existing styleproof.config.ts', () => {
-  const root = mkTmp();
-  try {
-    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), 'export default { blocking: false };\n');
-    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
-    assert.equal(res.status, 0, res.stderr);
-    assert.equal(readFile(root, 'styleproof.config.ts'), 'export default { blocking: false };\n');
-    assert.match(res.stdout, /styleproof\.config\.ts already exists — left untouched/);
-  } finally {
-    rmTmp(root);
-  }
-});
-
 test('styleproof-init: unknown apps fail before scaffolding when no production server can be inferred', () => {
   const root = mkTmp('styleproof-init-server-missing-');
   try {

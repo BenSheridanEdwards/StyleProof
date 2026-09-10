@@ -328,35 +328,6 @@ defineCrawlCapture({
 });
 `;
 
-// The styleproof.config.ts template — typed configuration with IDE autocomplete.
-// Only includes the minimal commonly-needed keys; adopters add more as needed.
-const STYLEPROOF_CONFIG_TEMPLATE = `import { defineConfig } from 'styleproof';
-
-/**
- * StyleProof configuration — typed, IDE-autocompleted.
- *
- * For all available options, see the StyleProof docs or hover over defineConfig().
- */
-export default defineConfig({
-  // Review-gate failures block the Action unless explicitly false
-  blocking: true,
-
-  // Require explicit reviewer approval for visual changes
-  requireApproval: true,
-
-  // Capture spec path (default e2e/styleproof.spec.ts)
-  // spec: 'e2e/styleproof.spec.ts',
-
-  // Subdirs with their own surfaces (multi-directory projects)
-  // roots: ['hud'],
-
-  // Tracked files/dirs whose changes never mark a capture dirty
-  // dirtyAllow: ['docs/**', '.github/**'],
-});
-`;
-
-const STYLEPROOF_CONFIG_PATH = 'styleproof.config.ts';
-
 const PACKAGE_MANAGERS = {
   npm: {
     label: 'npm',
@@ -1317,20 +1288,6 @@ if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js
   console.log(
     'app playwright.config exists — left untouched; styleproof-map uses playwright.styleproof.config.ts by default',
   );
-}
-
-// StyleProof config file — typed configuration with defineConfig()
-const styleproofConfig = writeFileSafe(STYLEPROOF_CONFIG_PATH, STYLEPROOF_CONFIG_TEMPLATE);
-if (styleproofConfig.wrote) {
-  touched.push(STYLEPROOF_CONFIG_PATH);
-  console.log(
-    `${styleproofConfig.exists ? 'overwrote' : 'created'} ${STYLEPROOF_CONFIG_PATH} (typed config with defineConfig())`,
-  );
-  wroteSomething = true;
-} else if (styleproofConfig.unmanaged) {
-  reportUnmanagedGeneratedPath(STYLEPROOF_CONFIG_PATH);
-} else {
-  console.log(`${STYLEPROOF_CONFIG_PATH} already exists — left untouched`);
 }
 
 // Map artifact patterns: current (.styleproof/) + legacy (stylemaps/, __stylemaps__/).
