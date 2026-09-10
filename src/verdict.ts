@@ -66,6 +66,8 @@ export type StyleProofVerdictOptions = {
   gateInventoryRemovals: boolean;
   baseCaptureFailed: boolean;
   changed: boolean;
+  /** Migration mode (#567): elevate structure changes to reviewable, gating exit. */
+  migration?: boolean;
 };
 
 export type StyleProofVerdict = {
