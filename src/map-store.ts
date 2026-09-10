@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { CiWorktreeSession, consumerRelativeFromRepoRoot, gitRepoRoot, worktreeRunCwd } from './ci-worktree.js';
+import { readEvidenceRef, writeEvidenceRef } from './evidence-store.js';
 import { inferBaseRef } from './gitref.js';
 import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
@@ -14,6 +15,8 @@ export const DEFAULT_MAP_DIR = '.styleproof/maps';
 export const DEFAULT_MAP_LABEL = 'current';
 export const DEFAULT_MAP_STORE_BRANCH = 'styleproof-maps';
 export const DEFAULT_REMOTE = 'origin';
+/** Local v2 evidence store root, alongside the maps directory. */
+export const DEFAULT_EVIDENCE_STORE_ROOT = '.styleproof/evidence';
 export const MAP_MANIFEST = 'styleproof-manifest.json';
 /** Per-surface capture failures recorded when baseline-only tolerate mode is on. */
 export const SURFACE_CAPTURE_FAILURES_DIR = 'styleproof-surface-capture-failures';
@@ -1529,13 +1532,13 @@ function publishMapStoreAttempt(options: {
   }
 }
 
-export function publishMapBundle(options: {
+export async function publishMapBundle(options: {
   dir: string;
   branch?: string;
   remote?: string;
   cwd?: string;
   includeHar?: boolean;
-}): { sha: string; compatibilityKey: string; branch: string } {
+}): Promise<{ sha: string; compatibilityKey: string; branch: string }> {
   const cwd = options.cwd ?? process.cwd();
   const branch = options.branch ?? DEFAULT_MAP_STORE_BRANCH;
   const remote = options.remote ?? DEFAULT_REMOTE;
@@ -1581,6 +1584,29 @@ export function publishMapBundle(options: {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 250);
   }
   if (!ok) throw new MapStoreError(lastError || `could not push ${branch}`);
+
+  // Dual-write to v2 evidence store (fail-soft: warning on failure, not an error).
+  // Dynamic import avoids circular dependency: map-store → evidence-import → confidence-ledger → map-store.
+  try {
+    const evidenceStoreRoot = path.join(cwd, DEFAULT_EVIDENCE_STORE_ROOT);
+    // fallow-ignore-next-line circular-dependency
+    const { importMapBundleToEvidenceStore } = await import('./evidence-import.js');
+    const imported = importMapBundleToEvidenceStore({
+      bundleDirectory: options.dir,
+      storeRoot: evidenceStoreRoot,
+      includeHar: options.includeHar,
+    });
+    const refKey = `commits/${sha}/${compatibilityKey}`;
+    const existingRef = readEvidenceRef(evidenceStoreRoot, refKey);
+    writeEvidenceRef(evidenceStoreRoot, refKey, imported.capture, existingRef);
+  } catch (error) {
+    console.warn(
+      `styleproof: v2 evidence dual-write failed (v1 Git-branch publication succeeded): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
   return { sha, compatibilityKey, branch };
 }
 

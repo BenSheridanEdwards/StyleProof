@@ -9,6 +9,7 @@ import {
   assertCompatibleMapDirs,
   captureEvidenceReceipt,
   BASELINE_PROVENANCE_FILE,
+  DEFAULT_EVIDENCE_STORE_ROOT,
   expectedCompatibilityKey,
   BROWSER_BUILD_SIDECAR,
   clearCaptureOutput,
@@ -34,6 +35,7 @@ import {
   writeMapManifest,
 } from '../dist/map-store.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
+import { readEvidenceRef, verifyEvidenceCapture } from '../dist/evidence-store.js';
 import { makeMap, mkNonGitTmp, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 test('clearCaptureOutput removes complete generated bundle state without following symlinks', () => {
@@ -438,7 +440,7 @@ test('workingTreeDirty: multiple allow paths cover files a dev tool rewrites, wi
   }
 });
 
-test('publishMapBundle ignores hook-exported Git repository variables and leaves the caller non-bare', () => {
+test('publishMapBundle ignores hook-exported Git repository variables and leaves the caller non-bare', async () => {
   const root = mkTmp('styleproof-hook-env-');
   const remote = path.join(root, 'remote.git');
   const repo = path.join(root, 'consumer');
@@ -473,7 +475,7 @@ test('publishMapBundle ignores hook-exported Git repository variables and leaves
     // temporary map-store checkout must not inherit them and mutate this repo.
     process.env.GIT_DIR = path.join(repo, '.git');
     process.env.GIT_WORK_TREE = repo;
-    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    await publishMapBundle({ dir: capture, cwd: repo });
     assert.equal(git(repo, 'config', '--bool', 'core.bare'), 'false');
     assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
   } finally {
@@ -485,7 +487,7 @@ test('publishMapBundle ignores hook-exported Git repository variables and leaves
   }
 });
 
-test('publishMapBundle survives an ENOTEMPTY while cleaning up its temp checkout, and still lands the map', () => {
+test('publishMapBundle survives an ENOTEMPTY while cleaning up its temp checkout, and still lands the map', async () => {
   // A fully successful capture + push must not go red because the throwaway temp checkout
   // would not unlink: Node's recursive rmSync spuriously raises ENOTEMPTY on macOS/Windows
   // under concurrent runs, and that removal happens in a `finally`, so a raw throw would
@@ -540,7 +542,7 @@ test('publishMapBundle survives an ENOTEMPTY while cleaning up its temp checkout
       return realRmSync(target, options);
     };
 
-    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    await publishMapBundle({ dir: capture, cwd: repo });
     assert.ok(cleanupThrows > 0, 'the temp-checkout cleanup actually hit the simulated ENOTEMPTY');
     // Restore before touching git so the assertion below removes real dirs normally.
     fs.rmSync = realRmSync;
@@ -567,7 +569,7 @@ test('workflow-token credential arguments let real Git obtain credentials withou
   assert.match(credential, new RegExp(`^password=${mapStoreToken}$`, 'm'));
 });
 
-test('publishMapBundle falls back through the authenticated consumer checkout when the isolated push is rejected', () => {
+test('publishMapBundle falls back through the authenticated consumer checkout when the isolated push is rejected', async () => {
   const root = mkTmp('styleproof-checkout-auth-');
   const remote = path.join(root, 'remote.git');
   const repo = path.join(root, 'consumer');
@@ -640,7 +642,7 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
     process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
     process.env.STYLEPROOF_TEST_CONSUMER_REPO = repo;
 
-    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    await publishMapBundle({ dir: capture, cwd: repo });
     const invocations = fs.readFileSync(invocationLog, 'utf8');
     assert.match(
       invocations,
@@ -707,7 +709,7 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
 
     process.env.STYLEPROOF_MAP_STORE_TOKEN = 'fake-workflow-token';
     fs.writeFileSync(invocationLog, '');
-    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    await publishMapBundle({ dir: capture, cwd: repo });
     const tokenInvocations = fs.readFileSync(invocationLog, 'utf8');
     const encodedWorkflowCredential = Buffer.from('x-access-token:fake-workflow-token').toString('base64');
     const workflowExtraHeaderKey = ['http.https:', '', 'github.com', '.extraheader'].join('/');
@@ -741,8 +743,8 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
 
     process.env.STYLEPROOF_TEST_REJECT_ALL_PUSHES = '1';
     process.env.STYLEPROOF_TEST_PUSH_REJECTED_MARKER = path.join(root, 'push-rejected');
-    assert.throws(
-      () => publishMapBundle({ dir: capture, cwd: repo }),
+    await assert.rejects(
+      publishMapBundle({ dir: capture, cwd: repo }),
       (error) => {
         assert.match(error.message, /isolated map-store push: deliberate push rejection/);
         assert.match(error.message, /workflow-token credential push: deliberate push rejection/);
@@ -771,7 +773,7 @@ test('publishMapBundle falls back through the authenticated consumer checkout wh
   }
 });
 
-test('publishMapBundle consumer fallback survives a partial isolated clone that cannot serve historic blobs', () => {
+test('publishMapBundle consumer fallback survives a partial isolated clone that cannot serve historic blobs', async () => {
   const root = mkTmp('styleproof-partial-fallback-');
   const remote = path.join(root, 'remote.git');
   const seed = path.join(root, 'seed');
@@ -836,7 +838,7 @@ test('publishMapBundle consumer fallback survives a partial isolated clone that 
     process.env.STYLEPROOF_TEST_GIT_LOG = invocationLog;
     delete process.env.STYLEPROOF_MAP_STORE_TOKEN;
 
-    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: consumer }));
+    await publishMapBundle({ dir: capture, cwd: consumer });
 
     const invocations = fs.readFileSync(invocationLog, 'utf8');
     assert.match(
@@ -879,7 +881,7 @@ test('publishMapBundle consumer fallback survives a partial isolated clone that 
   }
 });
 
-test('publishMapBundle bounds a wedged isolated push and falls back to the consumer checkout', () => {
+test('publishMapBundle bounds a wedged isolated push and falls back to the consumer checkout', async () => {
   const root = mkTmp('styleproof-push-timeout-');
   const remote = path.join(root, 'remote.git');
   const repo = path.join(root, 'consumer');
@@ -934,7 +936,7 @@ test('publishMapBundle bounds a wedged isolated push and falls back to the consu
     process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS = '2000';
 
     const startedAt = Date.now();
-    assert.doesNotThrow(() => publishMapBundle({ dir: capture, cwd: repo }));
+    await publishMapBundle({ dir: capture, cwd: repo });
     assert.ok(Date.now() - startedAt < 15_000, 'a wedged push should be terminated before falling back');
     assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
     const pushInvocations = fs
@@ -957,7 +959,7 @@ test('publishMapBundle bounds a wedged isolated push and falls back to the consu
   }
 });
 
-test('publishMapBundle preserves unseen bundles without downloading their blobs', () => {
+test('publishMapBundle preserves unseen bundles without downloading their blobs', async () => {
   const root = mkTmp('styleproof-sparse-publish-');
   const remote = path.join(root, 'remote.git');
   const seed = path.join(root, 'seed');
@@ -1030,7 +1032,7 @@ child.on('close', (code) => {
     process.env.GIT_SSH_COMMAND = sshShim;
     process.env.STYLEPROOF_TEST_TRANSFER_LOG = transferLog;
 
-    publishMapBundle({ dir: capture, cwd: consumer });
+    await publishMapBundle({ dir: capture, cwd: consumer });
 
     const uploadPackTransfer = fs
       .readFileSync(transferLog, 'utf8')
@@ -1662,5 +1664,171 @@ test('expectedCompatibilityKey is stable when a detached restore probe has no no
     assert.equal(manifest.playwrightVersion, '1.52.0', 'runtime evidence still records the installed version');
   } finally {
     rmTmp(consumer);
+  }
+});
+
+// ── #553: dual-write v1 publish → local v2 evidence store ──
+
+test('publishMapBundle dual-writes to v2 evidence store after v1 Git-branch publication (#553)', async () => {
+  const root = mkTmp('styleproof-dualwrite-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+  try {
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{"elements":{},"defaults":{},"states":{}}');
+    const manifest = writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: repo,
+    });
+
+    const result = await publishMapBundle({ dir: capture, cwd: repo });
+    assert.equal(result.sha, manifest.sha);
+    assert.equal(result.compatibilityKey, manifest.compatibilityKey);
+
+    // v1 publish succeeded
+    assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
+
+    // v2 evidence store is populated
+    const evidenceRoot = path.join(repo, DEFAULT_EVIDENCE_STORE_ROOT);
+    const refKey = `commits/${manifest.sha}/${manifest.compatibilityKey}`;
+    const captureRef = readEvidenceRef(evidenceRoot, refKey);
+    assert.ok(captureRef, 'v2 evidence ref should exist after dual-write');
+    assert.equal(captureRef.algorithm, 'sha256');
+    assert.match(captureRef.digest, /^[0-9a-f]{64}$/);
+
+    // Verify the captured evidence
+    const evidenceManifest = verifyEvidenceCapture(evidenceRoot, captureRef);
+    assert.equal(evidenceManifest.source.sha, manifest.sha);
+    assert.equal(evidenceManifest.source.compatibilityKey, manifest.compatibilityKey);
+    assert.ok(
+      evidenceManifest.files.some((f) => f.path === 'home@1280.json'),
+      'v2 evidence should contain the captured map',
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('publishMapBundle dual-write is idempotent: re-publish produces identical v2 evidence (#553)', async () => {
+  const root = mkTmp('styleproof-dualwrite-idempotent-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+  try {
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{"elements":{},"defaults":{},"states":{}}');
+    const manifest = writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: repo,
+    });
+
+    // First publish
+    await publishMapBundle({ dir: capture, cwd: repo });
+
+    const evidenceRoot = path.join(repo, DEFAULT_EVIDENCE_STORE_ROOT);
+    const refKey = `commits/${manifest.sha}/${manifest.compatibilityKey}`;
+    const firstRef = readEvidenceRef(evidenceRoot, refKey);
+    assert.ok(firstRef, 'first publish should create v2 ref');
+
+    // Second publish (re-publish same bundle)
+    await publishMapBundle({ dir: capture, cwd: repo });
+
+    const secondRef = readEvidenceRef(evidenceRoot, refKey);
+    assert.ok(secondRef, 'second publish should keep v2 ref');
+    assert.equal(secondRef.digest, firstRef.digest, 'idempotent: same bundle produces same v2 capture identity');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('publishMapBundle dual-write is fail-soft: v2 failure logs warning but does not fail v1 publish (#553)', async () => {
+  const root = mkTmp('styleproof-dualwrite-failsoft-');
+  const remote = path.join(root, 'remote.git');
+  const repo = path.join(root, 'consumer');
+  const capture = path.join(repo, '.styleproof/maps/current');
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
+  const originalConsoleWarn = console.warn;
+  const warnings = [];
+  try {
+    fs.mkdirSync(repo);
+    git(root, 'init', '--bare', '-q', remote);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'config', 'user.email', 'styleproof@example.test');
+    git(repo, 'config', 'user.name', 'StyleProof Test');
+    git(repo, 'remote', 'add', 'origin', remote);
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+    fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), 'export default {};\n');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'initial consumer');
+
+    fs.mkdirSync(capture, { recursive: true });
+    fs.writeFileSync(path.join(capture, 'home@1280.json'), '{"elements":{},"defaults":{},"states":{}}');
+    const manifest = writeMapManifest({
+      dir: capture,
+      spec: 'styleproof.spec.ts',
+      sha: git(repo, 'rev-parse', 'HEAD'),
+      screenshots: false,
+      dirty: false,
+      cwd: repo,
+    });
+
+    // Make the evidence store root unwritable to force a v2 failure
+    const evidenceRoot = path.join(repo, DEFAULT_EVIDENCE_STORE_ROOT);
+    fs.mkdirSync(evidenceRoot, { recursive: true });
+    fs.chmodSync(evidenceRoot, 0o000);
+
+    // Capture warnings
+    console.warn = (...args) => warnings.push(args.join(' '));
+
+    // Publish should succeed despite v2 failure
+    const result = await publishMapBundle({ dir: capture, cwd: repo });
+    assert.equal(result.sha, manifest.sha, 'v1 publish should succeed');
+    assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
+
+    // A warning should have been logged
+    assert.ok(warnings.length > 0, 'a warning should be logged when v2 write fails');
+    assert.ok(
+      warnings.some((w) => /v2.*evidence|dual.write/i.test(w)),
+      'warning should mention v2 evidence or dual-write',
+    );
+  } finally {
+    console.warn = originalConsoleWarn;
+    // Restore permissions for cleanup
+    const evidenceRoot = path.join(repo, DEFAULT_EVIDENCE_STORE_ROOT);
+    if (fs.existsSync(evidenceRoot)) fs.chmodSync(evidenceRoot, 0o755);
+    rmTmp(root);
   }
 });
