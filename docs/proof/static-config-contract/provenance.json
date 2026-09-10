@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "41ae5c19fbf05ceeecb7096ad484a43b7e46bc6b",
+  "beforeCommit": "b9bc0169dcd3082f7655477c52623e1b224737e6",
+  "regressionTest": "test/config-release-contract.test.mjs",
+  "regressionTestSha256": "7cb2e06630702d245bbe0139559d5ff7591f19f8fbdd6c97ef1ff9910479936f",
+  "before": {
+    "passed": 1,
+    "failed": 9
+  },
+  "after": {
+    "passed": 10,
+    "failed": 0
+  },
+  "fullUnit": {
+    "passed": 1407,
+    "failed": 0
+  },
+  "fullChromium": {
+    "passed": 253,
+    "failed": 0,
+    "skipped": 1,
+    "skipReason": "test/cross-element-state.e2e.spec.ts: non-Chromium capture persists unsupported forced-state evidence requires a non-Chromium Playwright project."
+  },
+  "packedCandidate": {
+    "version": "6.4.0",
+    "sha256": "04fc644e7399e18ef433ea5cf32824f63217e409ba216dde4217f230b5bf7bdc",
+    "integrity": "sha512-4SrjG/vmUZDtlR0HqeCUuwlndnQzCm3k1MUJyOEphdsKOU0Bvs0EhKrSPh5Rnr2C/ba2ManWKgzX4Cqm3C+9uQ==",
+    "fileCount": 156,
+    "allPackedFilesMatchSourceCheckout": true,
+    "installedWithoutRepositorySymlinks": true,
+    "published": false
+  },
+  "nodeVersions": [
+    "18.20.8",
+    "20.20.2",
+    "22.22.2"
+  ],
+  "artifacts": {
+    "after.log": "ad7ce7bad3ab6826f7be56613086c5ddd660a7e0deb8cecd32f96675ff554134",
+    "before.log": "56febd5a570df7e8c7bfa915142083c8c6a92bd7d7086f9defc596d15dc4397a",
+    "packed-node-smoke.log": "2fd867f09f3967b58340f56d89a95cc0a96a7652f0b31d94ecdbd7d8806091e8",
+    "transient-repeat.log": "d2c87326ae9138c38b56f7b4ad87da048871257dca5b4831d158ce8f4510bebf"
+  },
+  "packedSmokeScriptSha256": "87ebd5bdca18fa72a06d3b7d311bbf125d5154f6155281e841f6ef7be7fddd5a",
+  "testReliability": {
+    "commit": "dd4a58f2d94cec6c644ef41a35720a14d95a8bee",
+    "productionFilesChanged": false,
+    "beforeFailureRun": 34530151971,
+    "beforeFailureJob": 103048631057,
+    "repeatedPasses": 20,
+    "workers": 4,
+    "retries": 0,
+    "affectedChromiumShardPassed": 84,
+    "testFileSha256": "e0abd519c541aa196998363ce5631b35fedad003aae2bb5a38537b3d731a37b5"
+  }
+}

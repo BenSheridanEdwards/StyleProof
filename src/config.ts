@@ -206,6 +206,15 @@ function warnUnknownKeys(record: Record<string, unknown>, known: string[], prefi
  *  unreadable/malformed file or a wrongly-typed known key → {@link StyleProofConfigError};
  *  unknown keys → a loud stderr warning (never silently dropped). */
 export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
+  const unsupported = ['styleproof.config.ts', 'styleproof.config.mjs', 'styleproof.config.js'].filter((filename) =>
+    fs.existsSync(path.join(cwd, filename)),
+  );
+  if (unsupported.length > 0) {
+    throw new StyleProofConfigError(
+      `${unsupported.join(', ')}: module configuration is not supported by this release. ` +
+        'Move the configuration values into static styleproof.config.json and remove the unsupported module files.',
+    );
+  }
   const record = readConfigObject(cwd);
   if (!record) return {};
   warnUnknownKeys(record, KNOWN_KEYS, '');

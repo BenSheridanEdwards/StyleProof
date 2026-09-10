@@ -19,6 +19,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Reject unsupported `styleproof.config.ts`, `.mjs`, and `.js` files without
+  executing them or silently falling back to JSON/defaults. Static
+  `styleproof.config.json` remains supported on all supported Node versions,
+  and fresh initialization does not generate an unsupported module config.
 - A forced-state capture that uses its exact work allowance on the final state
   is complete. Further required reads still fail closed, and truncation warnings
   name both the document and aggregate limits.
