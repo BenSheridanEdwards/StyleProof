@@ -316,13 +316,26 @@ function shouldAutoUpload() {
   return uploadMode === 'auto' && !process.env.CI;
 }
 
+/**
+ * Resolve platform warning suppression. Precedence:
+ * 1. Explicit config key → use that
+ * 2. Env STYLEPROOF_SUPPRESS_PLATFORM_WARNING → '1' suppresses, '0' enables
+ * 3. Default → suppressed (true)
+ */
+function resolvePlatformWarningSuppressed() {
+  if (projectConfig.suppressPlatformWarning !== undefined) {
+    return projectConfig.suppressPlatformWarning;
+  }
+  const envVal = process.env.STYLEPROOF_SUPPRESS_PLATFORM_WARNING;
+  if (envVal === '1') return true;
+  if (envVal === '0') return false;
+  return true;
+}
+
 async function upload(dirPath) {
   if (uploadMode === 'off') return;
   if (!shouldAutoUpload() && uploadMode !== 'required') return;
-  const platformWarning = nonLinuxUploadWarning(
-    process.platform,
-    process.env.STYLEPROOF_SUPPRESS_PLATFORM_WARNING === '1',
-  );
+  const platformWarning = nonLinuxUploadWarning(process.platform, resolvePlatformWarningSuppressed());
   if (platformWarning) console.error(platformWarning);
   try {
     const res = await publishMapBundle({ dir: dirPath, branch: cacheBranch, remote });

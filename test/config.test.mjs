@@ -675,3 +675,92 @@ test('loadStyleProofConfig: rejects invalid blocking string values', () => {
     assert.throws(() => loadStyleProofConfig(dir), /"blocking" must be a boolean or 'advisory'/);
   });
 });
+
+// --- #600: suppressPlatformWarning config key ---
+
+test('loadStyleProofConfig: reads suppressPlatformWarning boolean (defaults undefined)', () => {
+  withConfig({ suppressPlatformWarning: true }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.suppressPlatformWarning, true);
+  });
+  withConfig({ suppressPlatformWarning: false }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.suppressPlatformWarning, false);
+  });
+  withConfig({}, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.suppressPlatformWarning, undefined);
+  });
+});
+
+test('loadStyleProofConfig: validates suppressPlatformWarning must be a boolean', () => {
+  withConfig({ suppressPlatformWarning: 'true' }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"suppressPlatformWarning" must be a boolean/);
+  });
+  withConfig({ suppressPlatformWarning: 1 }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"suppressPlatformWarning" must be a boolean/);
+  });
+});
+
+test('loadStyleProofConfig: known keys list includes suppressPlatformWarning', () => {
+  withConfig({ suppressPlatformWarning: true, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.doesNotMatch(map.stderr, /unknown key\(s\) ignored:.*suppressPlatformWarning/);
+  });
+});
+
+test('styleproof-map: platform warning is suppressed by default (#600)', () => {
+  withConfig({ spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    fs.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
+    const map = spawnSync(process.execPath, [MAP, '--upload'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_SUPPRESS_PLATFORM_WARNING: undefined },
+    });
+    assert.doesNotMatch(map.stderr, /capturing on darwin|capturing on win32/);
+  });
+});
+
+test('styleproof-map: suppressPlatformWarning: false enables the platform warning', () => {
+  withConfig({ suppressPlatformWarning: false, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    fs.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
+    const map = spawnSync(process.execPath, [MAP, '--upload'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_SUPPRESS_PLATFORM_WARNING: undefined },
+    });
+    if (process.platform !== 'linux') {
+      assert.match(map.stderr, /capturing on/);
+    }
+  });
+});
+
+test('styleproof-map: STYLEPROOF_SUPPRESS_PLATFORM_WARNING=0 enables warning even with default suppression', () => {
+  withConfig({ spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    fs.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
+    const map = spawnSync(process.execPath, [MAP, '--upload'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_SUPPRESS_PLATFORM_WARNING: '0' },
+    });
+    if (process.platform !== 'linux') {
+      assert.match(map.stderr, /capturing on/);
+    }
+  });
+});
+
+test('styleproof-map: explicit config key takes precedence over env var', () => {
+  withConfig({ suppressPlatformWarning: true, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    fs.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
+    const map = spawnSync(process.execPath, [MAP, '--upload'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_SUPPRESS_PLATFORM_WARNING: '0' },
+    });
+    assert.doesNotMatch(map.stderr, /capturing on darwin|capturing on win32/);
+  });
+});

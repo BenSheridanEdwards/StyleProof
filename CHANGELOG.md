@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`suppressPlatformWarning` config key**: suppress the platform mismatch warning
+  on non-Linux local runs by default. CI environments already set
+  `STYLEPROOF_SUPPRESS_PLATFORM_WARNING=1`; this productizes that as the new default.
+  Set `suppressPlatformWarning: false` in `styleproof.config.ts` to re-enable the
+  warning, or use `STYLEPROOF_SUPPRESS_PLATFORM_WARNING=0` for per-invocation control.
+  Explicit config takes precedence over the env var, and both take precedence over
+  the default. (#600)
+
 - Optional `maxForcedStateElements` and `maxForcedStateScanWork` capture limits.
   Direct capture and explicit/crawl runners can increase or decrease resource
   allowances without dropping interactive targets. Runner, surface, variant,

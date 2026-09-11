@@ -283,6 +283,8 @@ export type StyleProofConfig = {
   crawl?: CrawlConfig;
   /** Auth secret references (env/secret names only — never plaintext). */
   auth?: AuthConfig;
+  /** Suppress platform mismatch warning. Default true. */
+  suppressPlatformWarning?: boolean;
 };
 
 /**
@@ -492,6 +494,7 @@ const KNOWN_KEYS = [
   'affected',
   'crawl',
   'auth',
+  'suppressPlatformWarning',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
 const KNOWN_AUTH_KEYS = ['hudPassword', 'apiToken'];
@@ -539,6 +542,7 @@ function parseConfigRecord(record: Record<string, unknown>): StyleProofConfig {
     affected: parseAffected(record.affected),
     crawl: parseCrawl(record.crawl),
     auth: parseAuth(record.auth),
+    suppressPlatformWarning: optionalBoolean(record.suppressPlatformWarning, 'suppressPlatformWarning'),
   };
 }
 
