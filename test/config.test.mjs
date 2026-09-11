@@ -849,6 +849,14 @@ test('styleproof-prune-maps: --help shows config-aware retention default', () =>
   assert.match(help.stdout, /mapStore\.pruneRetentionDays/);
 });
 
+test('styleproof-prune-maps: --help shows config-aware budget default (1.5GB)', () => {
+  const help = spawnSync(process.execPath, [PRUNE_MAPS, '--help'], { encoding: 'utf8' });
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /--budget-bytes/);
+  assert.match(help.stdout, /mapStore\.pruneBudgetBytes/);
+  assert.match(help.stdout, /1\.5GB/);
+});
+
 test('styleproof-prune-reports: --help shows config-aware defaults', () => {
   const help = spawnSync(process.execPath, [PRUNE_REPORTS, '--help'], { encoding: 'utf8' });
   assert.equal(help.status, 0);
