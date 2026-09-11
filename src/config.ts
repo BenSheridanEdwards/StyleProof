@@ -61,10 +61,204 @@ export type CrawlConfig = {
   height?: number;
 };
 
+/**
+ * Marker type for explicit environment variable references created by `env()`.
+ * At runtime, these are resolved to actual values from process.env.
+ */
+export interface EnvRef {
+  readonly __envRef: true;
+  readonly name: string;
+}
+
+/** Regex for valid environment variable names: uppercase letters, digits, underscores. */
+const ENV_VAR_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+
+/**
+ * Create an explicit environment variable reference for use in config.
+ * The variable name is validated at creation time and resolved at runtime.
+ *
+ * @example
+ * ```ts
+ * import { env, resolveEnvReferences } from 'styleproof';
+ *
+ * const config = {
+ *   auth: {
+ *     hudPassword: env('STYLEPROOF_HUD_PASSWORD'),
+ *     apiToken: env('STYLEPROOF_API_TOKEN'),
+ *   },
+ * };
+ * const resolved = resolveEnvReferences(config);
+ * ```
+ */
+export function env(name: string): EnvRef {
+  if (!ENV_VAR_NAME_PATTERN.test(name)) {
+    throw new Error(
+      `Invalid env var name "${name}": must contain only uppercase letters, digits, and underscores, ` +
+        `and start with a letter or underscore.`,
+    );
+  }
+  return { __envRef: true, name };
+}
+
+/** Check if a value is an EnvRef marker object. */
+function isEnvRef(value: unknown): value is EnvRef {
+  return typeof value === 'object' && value !== null && (value as EnvRef).__envRef === true;
+}
+
+/** Extract env var name from ${VAR_NAME} syntax, or undefined if not a match. */
+function parseEnvRefSyntax(value: string): string | undefined {
+  const match = value.match(/^\$\{([^}]+)\}$/);
+  return match ? match[1] : undefined;
+}
+
+/** Extract auth cross-reference from ${auth.X} syntax, or undefined if not a match. */
+function parseAuthRefSyntax(value: string): string | undefined {
+  const match = value.match(/^\$\{auth\.([^}]+)\}$/);
+  return match ? match[1] : undefined;
+}
+
+/** Options for resolveEnvReferences. */
+export interface ResolveEnvOptions {
+  /** Collect resolved secret values into a Set for later redaction. */
+  collectSecrets?: boolean;
+}
+
+/** Result of resolveEnvReferences when collectSecrets is true. */
+export interface ResolveEnvResult<T> {
+  resolved: T;
+  secrets: Set<string>;
+}
+
+/**
+ * Resolve all environment variable references in a config object.
+ * Handles both ${VAR_NAME} string syntax and env() helper markers.
+ * Also resolves ${auth.X} cross-references to auth block values.
+ *
+ * @throws Error if an env var is not set or has an invalid name
+ */
+export function resolveEnvReferences<T extends object>(
+  config: T,
+  options?: ResolveEnvOptions & { collectSecrets: true },
+): ResolveEnvResult<T>;
+export function resolveEnvReferences<T extends object>(config: T, options?: ResolveEnvOptions): T;
+export function resolveEnvReferences<T extends object>(
+  config: T,
+  options?: ResolveEnvOptions,
+): T | ResolveEnvResult<T> {
+  const secrets = new Set<string>();
+  const authBlock = (config as Record<string, unknown>).auth as Record<string, unknown> | undefined;
+
+  // First pass: resolve auth block env vars
+  const resolvedAuth: Record<string, string> = {};
+  if (authBlock) {
+    for (const [key, value] of Object.entries(authBlock)) {
+      if (value === undefined) continue;
+      resolvedAuth[key] = resolveEnvValue(value, key, secrets);
+    }
+  }
+
+  // Second pass: resolve all values including ${auth.X} cross-references
+  const resolved = deepResolve(config, resolvedAuth, secrets);
+
+  if (options?.collectSecrets) {
+    return { resolved, secrets };
+  }
+  return resolved;
+}
+
+/** Resolve an EnvRef to its value from process.env. */
+function resolveEnvRefMarker(ref: EnvRef, secrets: Set<string>): string {
+  const envValue = process.env[ref.name];
+  if (envValue === undefined) {
+    throw new Error(`Environment variable ${ref.name} is not set. Set it in your shell or CI secrets.`);
+  }
+  secrets.add(envValue);
+  return envValue;
+}
+
+/** Resolve ${VAR_NAME} syntax to its value from process.env. */
+function resolveEnvSyntax(envName: string, secrets: Set<string>): string {
+  if (!ENV_VAR_NAME_PATTERN.test(envName)) {
+    throw new Error(
+      `Invalid env reference "\${${envName}}": env var name must contain only uppercase letters, ` +
+        `digits, and underscores, and start with a letter or underscore.`,
+    );
+  }
+  const envValue = process.env[envName];
+  if (envValue === undefined) {
+    throw new Error(`Environment variable ${envName} is not set. Set it in your shell or CI secrets.`);
+  }
+  secrets.add(envValue);
+  return envValue;
+}
+
+/** Resolve a single env value (string with ${VAR} syntax or EnvRef). */
+function resolveEnvValue(value: unknown, _key: string, secrets: Set<string>): string {
+  if (isEnvRef(value)) return resolveEnvRefMarker(value, secrets);
+  if (typeof value !== 'string') {
+    throw new Error(`Expected string or env reference, got ${typeof value}`);
+  }
+  const envName = parseEnvRefSyntax(value);
+  if (envName) return resolveEnvSyntax(envName, secrets);
+  return value;
+}
+
+/** Resolve a string that may be ${auth.X}, ${VAR}, or plain text. */
+function resolveStringValue(str: string, resolvedAuth: Record<string, string>, secrets: Set<string>): string {
+  const authKey = parseAuthRefSyntax(str);
+  if (authKey) {
+    if (!(authKey in resolvedAuth)) {
+      throw new Error(
+        `Config reference \${auth.${authKey}} does not exist in the auth block. ` +
+          `Available keys: ${Object.keys(resolvedAuth).join(', ') || '(none)'}`,
+      );
+    }
+    return resolvedAuth[authKey];
+  }
+  const envName = parseEnvRefSyntax(str);
+  if (envName) return resolveEnvSyntax(envName, secrets);
+  return str;
+}
+
+/** Recursively resolve all env references in an object. */
+function deepResolve<T>(obj: T, resolvedAuth: Record<string, string>, secrets: Set<string>): T {
+  if (obj === null || obj === undefined) return obj;
+  if (isEnvRef(obj)) return resolveEnvRefMarker(obj, secrets) as unknown as T;
+  if (typeof obj === 'string') return resolveStringValue(obj, resolvedAuth, secrets) as unknown as T;
+  if (Array.isArray(obj)) {
+    return obj.map((item) => deepResolve(item, resolvedAuth, secrets)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = deepResolve(value, resolvedAuth, secrets);
+    }
+    return result as T;
+  }
+  return obj;
+}
+
+/**
+ * Redact secret values from a string, replacing them with [REDACTED].
+ * Use this to sanitize log output and error messages.
+ */
+export function redactSecrets(input: string, secrets: Set<string>): string {
+  if (secrets.size === 0) return input;
+  let result = input;
+  for (const secret of secrets) {
+    if (secret) {
+      result = result.split(secret).join('[REDACTED]');
+    }
+  }
+  return result;
+}
+
 /** Auth secret references — env variable or secret NAMES only, never plaintext passwords. */
 export type AuthConfig = {
   /** HUD password env/secret name (e.g. '${STYLEPROOF_HUD_PASSWORD}'). Never plaintext. */
-  hudPassword?: string;
+  hudPassword?: string | EnvRef;
+  /** API token env/secret name. Never plaintext. */
+  apiToken?: string | EnvRef;
 };
 
 export type StyleProofConfig = {
@@ -250,15 +444,33 @@ function parseCrawl(value: unknown): CrawlConfig | undefined {
   };
 }
 
+function optionalEnvRef(value: unknown, key: string): string | EnvRef | undefined {
+  if (value === undefined) return undefined;
+  if (isEnvRef(value)) return value;
+  if (typeof value !== 'string' || !value) fail(`"${key}" must be a non-empty string or env() reference`);
+  return value;
+}
+
+function validateAuthValue(value: string | EnvRef | undefined, key: string): void {
+  if (value === undefined) return;
+  if (isEnvRef(value)) return;
+  if (!value.includes('${') && !value.startsWith('$')) {
+    fail(`"${key}" must reference an env/secret name (e.g. \${STYLEPROOF_HUD_PASSWORD}), never plaintext`);
+  }
+}
+
 function parseAuth(value: unknown): AuthConfig | undefined {
   if (value === undefined) return undefined;
   const a = plainObject(value, '"auth"');
   warnUnknownKeys(a, KNOWN_AUTH_KEYS, '"auth" ');
-  const hudPassword = optionalString(a.hudPassword, 'auth.hudPassword');
-  if (hudPassword !== undefined && !hudPassword.includes('${') && !hudPassword.startsWith('$')) {
-    fail('"auth.hudPassword" must reference an env/secret name (e.g. ${STYLEPROOF_HUD_PASSWORD}), never plaintext');
-  }
-  return { hudPassword };
+  const hudPassword = optionalEnvRef(a.hudPassword, 'auth.hudPassword');
+  const apiToken = optionalEnvRef(a.apiToken, 'auth.apiToken');
+  validateAuthValue(hudPassword, 'auth.hudPassword');
+  validateAuthValue(apiToken, 'auth.apiToken');
+  const result: AuthConfig = {};
+  if (hudPassword !== undefined) result.hudPassword = hudPassword;
+  if (apiToken !== undefined) result.apiToken = apiToken;
+  return result;
 }
 
 const KNOWN_KEYS = [
@@ -275,7 +487,7 @@ const KNOWN_KEYS = [
   'auth',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
-const KNOWN_AUTH_KEYS = ['hudPassword'];
+const KNOWN_AUTH_KEYS = ['hudPassword', 'apiToken'];
 const KNOWN_CRAWL_KEYS = [
   'baseUrl',
   'routes',
