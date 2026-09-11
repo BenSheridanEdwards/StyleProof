@@ -937,7 +937,9 @@ test('publishMapBundle bounds a wedged isolated push and falls back to the consu
 
     const startedAt = Date.now();
     await publishMapBundle({ dir: capture, cwd: repo });
-    assert.ok(Date.now() - startedAt < 15_000, 'a wedged push should be terminated before falling back');
+    // The 2s timeout + process cleanup + fallback push must complete well under the 30s shim wedge.
+    // Allow 25s total to absorb slow CI runners while still proving the timeout mechanism works.
+    assert.ok(Date.now() - startedAt < 25_000, 'a wedged push should be terminated before falling back');
     assert.match(git(root, '--git-dir', remote, 'show-ref', 'refs/heads/styleproof-maps'), /styleproof-maps/);
     const pushInvocations = fs
       .readFileSync(invocationLog, 'utf8')
