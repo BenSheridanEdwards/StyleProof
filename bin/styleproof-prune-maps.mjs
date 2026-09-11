@@ -12,12 +12,14 @@
 // Requires GH_TOKEN with contents:write. Honours GITHUB_API_URL. Exits 0 when
 // there is nothing to prune or the branch does not exist yet.
 import { compactMapStoreBranch } from '../dist/map-store-prune.js';
+import { loadStyleProofConfigAsync } from '../dist/config.js';
 
 const HELP = `usage: styleproof-prune-maps --repository <owner/repo> [options]
 
 Options:
   --branch <name>          map store branch (default: styleproof-maps)
-  --retention-days <days>  bundles newer than this survive (default: 14)
+  --retention-days <days>  bundles newer than this survive
+                           (default: mapStore.pruneRetentionDays or 14)
   --max-bundles <count>    at most this many bundles survive (default: 40)
   --history-limit <count>  skip the rewrite when nothing is prunable and the
                            branch holds no more than this many commits
@@ -50,6 +52,9 @@ if (!options.repository) {
   console.error('styleproof-prune-maps: missing --repository');
   process.exit(2);
 }
+
+const config = await loadStyleProofConfigAsync();
+
 const numericOption = (name, fallback) => {
   if (options[name] === undefined) return fallback;
   const parsed = Number(options[name]);
@@ -59,7 +64,7 @@ const numericOption = (name, fallback) => {
   }
   return parsed;
 };
-const retentionDays = numericOption('retention-days', 14);
+const retentionDays = numericOption('retention-days', config.mapStore?.pruneRetentionDays ?? 14);
 const maximumBundleCount = numericOption('max-bundles', 40);
 const historyCommitLimit = numericOption('history-limit', 30);
 

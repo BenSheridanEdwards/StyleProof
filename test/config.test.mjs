@@ -790,3 +790,68 @@ test('loadStyleProofConfig: ancestorBaseline block is optional', () => {
     assert.equal(config.ancestorBaseline, undefined);
   });
 });
+
+// --- Tests for #596: report store prune schedule defaults ---
+
+test('loadStyleProofConfig: reads reportStore block with prune retention and budget', () => {
+  withConfig({ reportStore: { pruneRetentionDays: 30, pruneBudgetBytes: 2_000_000_000 } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.deepEqual(config.reportStore, { pruneRetentionDays: 30, pruneBudgetBytes: 2_000_000_000 });
+  });
+});
+
+test('loadStyleProofConfig: reportStore.pruneRetentionDays must be a positive number', () => {
+  withConfig({ reportStore: { pruneRetentionDays: 0 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"reportStore\.pruneRetentionDays" must be a positive number/);
+  });
+  withConfig({ reportStore: { pruneRetentionDays: -7 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"reportStore\.pruneRetentionDays" must be a positive number/);
+  });
+  withConfig({ reportStore: { pruneRetentionDays: 'month' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"reportStore\.pruneRetentionDays" must be a positive number/);
+  });
+});
+
+test('loadStyleProofConfig: reportStore.pruneBudgetBytes must be a positive number', () => {
+  withConfig({ reportStore: { pruneBudgetBytes: 0 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"reportStore\.pruneBudgetBytes" must be a positive number/);
+  });
+  withConfig({ reportStore: { pruneBudgetBytes: -1 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"reportStore\.pruneBudgetBytes" must be a positive number/);
+  });
+});
+
+test('loadStyleProofConfig: reportStore block warns on unknown keys', () => {
+  withConfig(
+    { reportStore: { pruneRetentionDays: 30, pruneBugetBytes: 2_000_000_000 }, spec: 'e2e/styleproof.spec.ts' },
+    (dir) => {
+      const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+      assert.match(map.stderr, /unknown "reportStore" key\(s\) ignored: pruneBugetBytes/);
+    },
+  );
+});
+
+test('loadStyleProofConfig: reportStore block is optional', () => {
+  withConfig({ spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.reportStore, undefined);
+  });
+});
+
+// --- Tests for #596: prune CLI config defaults ---
+
+const PRUNE_MAPS = path.join(here, '..', 'bin', 'styleproof-prune-maps.mjs');
+const PRUNE_REPORTS = path.join(here, '..', 'bin', 'styleproof-prune-reports.mjs');
+
+test('styleproof-prune-maps: --help shows config-aware retention default', () => {
+  const help = spawnSync(process.execPath, [PRUNE_MAPS, '--help'], { encoding: 'utf8' });
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /mapStore\.pruneRetentionDays/);
+});
+
+test('styleproof-prune-reports: --help shows config-aware defaults', () => {
+  const help = spawnSync(process.execPath, [PRUNE_REPORTS, '--help'], { encoding: 'utf8' });
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /reportStore\.pruneRetentionDays/);
+  assert.match(help.stdout, /reportStore\.pruneBudgetBytes/);
+});

@@ -289,6 +289,18 @@ export type AncestorBaselineConfig = {
   roots?: string[];
 };
 
+/**
+ * Report store configuration for prune operations.
+ * Allows adopters to configure report-store prune behavior via styleproof.config.ts
+ * instead of CLI flags.
+ */
+export type ReportStoreConfig = {
+  /** Retention period in days for prune operations. Must be positive when set. */
+  pruneRetentionDays?: number;
+  /** Budget in bytes for prune operations. Must be positive when set. */
+  pruneBudgetBytes?: number;
+};
+
 export type StyleProofConfig = {
   /** Review-gate failures block the Action unless explicitly false or set to 'advisory'. */
   blocking?: boolean | 'advisory';
@@ -315,6 +327,8 @@ export type StyleProofConfig = {
   mapStore?: MapStoreConfig;
   /** Ancestor baseline reuse configuration (opt-out, default enabled). */
   ancestorBaseline?: AncestorBaselineConfig;
+  /** Report store configuration (prune retention and budget). */
+  reportStore?: ReportStoreConfig;
 };
 
 /**
@@ -540,6 +554,18 @@ function parseAncestorBaseline(value: unknown): AncestorBaselineConfig | undefin
   return result;
 }
 
+function parseReportStore(value: unknown): ReportStoreConfig | undefined {
+  if (value === undefined) return undefined;
+  const r = plainObject(value, '"reportStore"');
+  warnUnknownKeys(r, KNOWN_REPORT_STORE_KEYS, '"reportStore" ');
+  const pruneRetentionDays = optionalPositiveNumber(r.pruneRetentionDays, 'reportStore.pruneRetentionDays');
+  const pruneBudgetBytes = optionalPositiveNumber(r.pruneBudgetBytes, 'reportStore.pruneBudgetBytes');
+  const result: ReportStoreConfig = {};
+  if (pruneRetentionDays !== undefined) result.pruneRetentionDays = pruneRetentionDays;
+  if (pruneBudgetBytes !== undefined) result.pruneBudgetBytes = pruneBudgetBytes;
+  return result;
+}
+
 const KNOWN_KEYS = [
   'blocking',
   'requireApproval',
@@ -554,11 +580,13 @@ const KNOWN_KEYS = [
   'auth',
   'mapStore',
   'ancestorBaseline',
+  'reportStore',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
 const KNOWN_AUTH_KEYS = ['hudPassword', 'apiToken'];
 const KNOWN_MAP_STORE_KEYS = ['token', 'gitTimeoutMs', 'pruneRetentionDays', 'pruneBudgetBytes'];
 const KNOWN_ANCESTOR_BASELINE_KEYS = ['enabled', 'roots'];
+const KNOWN_REPORT_STORE_KEYS = ['pruneRetentionDays', 'pruneBudgetBytes'];
 const KNOWN_CRAWL_KEYS = [
   'baseUrl',
   'routes',
@@ -605,6 +633,7 @@ function parseConfigRecord(record: Record<string, unknown>): StyleProofConfig {
     auth: parseAuth(record.auth),
     mapStore: parseMapStore(record.mapStore),
     ancestorBaseline: parseAncestorBaseline(record.ancestorBaseline),
+    reportStore: parseReportStore(record.reportStore),
   };
 }
 

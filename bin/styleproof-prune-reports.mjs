@@ -8,7 +8,7 @@
 //   Scheduled sweep (retention window, then a hard size budget,
 //   oldest-closed first, open PRs never touched):
 //     styleproof-prune-reports.mjs --repository owner/repo \
-//       --retention-days 14 --budget-bytes 1500000000
+//       --retention-days 30 --budget-bytes 2000000000
 //
 // Requires GH_TOKEN. Honours GITHUB_API_URL. --branch defaults to
 // styleproof-reports. Exits 0 when there is nothing to prune.
@@ -17,14 +17,16 @@ import {
   readClosedPullRequestTimestamps,
   selectReportFoldersToPrune,
 } from '../dist/report-prune.js';
+import { loadStyleProofConfigAsync } from '../dist/config.js';
 
 const HELP = `usage: styleproof-prune-reports --repository <owner/repo> [options]
 
 Delete one closed pull request report:
   --pull-request <n>
 
-Sweep closed reports by retention and branch-size budget:
-  --retention-days <days> --budget-bytes <bytes>
+Sweep closed reports by retention and branch-size budget (default mode):
+  [--retention-days <days>] [--budget-bytes <bytes>]
+  Defaults: reportStore.pruneRetentionDays (30) and reportStore.pruneBudgetBytes (2GB)
 
 Options:
   --branch <name>       report branch (default: styleproof-reports)
@@ -56,15 +58,17 @@ if (!options.repository) {
   console.error('styleproof-prune-reports: missing --repository');
   process.exit(2);
 }
-const sweepMode = options['retention-days'] !== undefined || options['budget-bytes'] !== undefined;
-if (sweepMode === (options['pull-request'] !== undefined)) {
+
+const config = await loadStyleProofConfigAsync();
+const configRetentionDays = config.reportStore?.pruneRetentionDays ?? 30;
+const configBudgetBytes = config.reportStore?.pruneBudgetBytes ?? 2_000_000_000;
+
+const hasSweepFlags = options['retention-days'] !== undefined || options['budget-bytes'] !== undefined;
+const sweepMode = hasSweepFlags || options['pull-request'] === undefined;
+if (sweepMode && options['pull-request'] !== undefined) {
   console.error(
     'styleproof-prune-reports: pass either --pull-request <n>, or --retention-days <d> with --budget-bytes <b>',
   );
-  process.exit(2);
-}
-if (sweepMode && (options['retention-days'] === undefined || options['budget-bytes'] === undefined)) {
-  console.error('styleproof-prune-reports: sweep mode needs both --retention-days and --budget-bytes');
   process.exit(2);
 }
 const pullRequest = options['pull-request'] === undefined ? undefined : Number(options['pull-request']);
@@ -72,16 +76,18 @@ if (pullRequest !== undefined && (!Number.isInteger(pullRequest) || pullRequest 
   console.error('styleproof-prune-reports: --pull-request must be a positive integer');
   process.exit(2);
 }
-const retentionDays = options['retention-days'] === undefined ? undefined : Number(options['retention-days']);
-if (retentionDays !== undefined && (!Number.isFinite(retentionDays) || retentionDays < 0)) {
+const cliRetentionDays = options['retention-days'] === undefined ? undefined : Number(options['retention-days']);
+if (cliRetentionDays !== undefined && (!Number.isFinite(cliRetentionDays) || cliRetentionDays < 0)) {
   console.error('styleproof-prune-reports: --retention-days must be a finite non-negative number');
   process.exit(2);
 }
-const budgetBytes = options['budget-bytes'] === undefined ? undefined : Number(options['budget-bytes']);
-if (budgetBytes !== undefined && (!Number.isFinite(budgetBytes) || budgetBytes < 0)) {
+const cliBudgetBytes = options['budget-bytes'] === undefined ? undefined : Number(options['budget-bytes']);
+if (cliBudgetBytes !== undefined && (!Number.isFinite(cliBudgetBytes) || cliBudgetBytes < 0)) {
   console.error('styleproof-prune-reports: --budget-bytes must be a finite non-negative number');
   process.exit(2);
 }
+const retentionDays = cliRetentionDays ?? configRetentionDays;
+const budgetBytes = cliBudgetBytes ?? configBudgetBytes;
 const token = process.env.GH_TOKEN;
 if (!token) {
   console.error('styleproof-prune-reports: GH_TOKEN is required');
