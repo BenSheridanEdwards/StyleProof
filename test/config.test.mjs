@@ -863,3 +863,42 @@ test('styleproof-prune-reports: --help shows config-aware defaults', () => {
   assert.match(help.stdout, /reportStore\.pruneRetentionDays/);
   assert.match(help.stdout, /reportStore\.pruneBudgetBytes/);
 });
+
+// --- suppressPlatformWarning tests (#600) ---
+
+test('loadStyleProofConfig: parses suppressPlatformWarning true', () => {
+  withConfig({ suppressPlatformWarning: true }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.suppressPlatformWarning, true);
+  });
+});
+
+test('loadStyleProofConfig: parses suppressPlatformWarning false', () => {
+  withConfig({ suppressPlatformWarning: false }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.suppressPlatformWarning, false);
+  });
+});
+
+test('loadStyleProofConfig: suppressPlatformWarning undefined when missing', () => {
+  withConfig({ blocking: true }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.suppressPlatformWarning, undefined);
+  });
+});
+
+test('loadStyleProofConfig: rejects invalid suppressPlatformWarning types', () => {
+  withConfig({ suppressPlatformWarning: 'true' }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"suppressPlatformWarning" must be a boolean/);
+  });
+  withConfig({ suppressPlatformWarning: 1 }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"suppressPlatformWarning" must be a boolean/);
+  });
+});
+
+test('loadStyleProofConfig: suppressPlatformWarning is a known key (no unknown-key warning)', () => {
+  withConfig({ suppressPlatformWarning: true, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.doesNotMatch(map.stderr, /unknown key\(s\) ignored:.*suppressPlatformWarning/);
+  });
+});

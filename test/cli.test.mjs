@@ -245,12 +245,11 @@ test('styleproof-map clears stale surface maps from a reused capture directory',
   }
 });
 
-test('styleproof-map --upload warns on a non-Linux capture and honours suppression', () => {
-  // A map's compatibility key is platform-specific, so a bundle captured off Linux
-  // can't be restored by the ubuntu-latest CI. Warn (don't block) so the pre-push
-  // publish isn't a silent no-op — and let the user silence it.
+test('styleproof-map --upload: platform warning suppressed by default (#600)', () => {
+  // #600: The platform warning is now suppressed by default to reduce adopter noise.
+  // Adopters should not need STYLEPROOF_SUPPRESS_PLATFORM_WARNING=1.
   const root = mkTmp();
-  const binDir = mkTmp('styleproof-fakebin-'); // OUTSIDE the repo, so the tree stays clean
+  const binDir = mkTmp('styleproof-fakebin-');
   try {
     gitInit(root);
     spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
@@ -273,16 +272,110 @@ test('styleproof-map --upload warns on a non-Linux capture and honours suppressi
       env: withEnv(),
     });
     assert.equal(r.status, 0, r.stderr);
-    if (process.platform === 'linux') assert.doesNotMatch(r.stderr, /ubuntu-latest/);
-    else assert.match(r.stderr, /ubuntu-latest.*captures on linux/s);
+    assert.doesNotMatch(r.stderr, /ubuntu-latest/, 'warning suppressed by default');
+  } finally {
+    rmTmp(root);
+    rmTmp(binDir);
+  }
+});
 
-    const suppressed = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+test('styleproof-map --upload: suppressPlatformWarning: false enables warning', () => {
+  // #600: Setting suppressPlatformWarning: false in config re-enables the warning.
+  const root = mkTmp();
+  const binDir = mkTmp('styleproof-fakebin-');
+  try {
+    gitInit(root);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+    writeSpec(root);
+    fs.writeFileSync(path.join(root, 'styleproof.config.json'), JSON.stringify({ suppressPlatformWarning: false }));
+    addBareOrigin(root);
+    const headSha = commitAll(root, 'base');
+
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const withEnv = (extra = {}) => cliEnv({ PATH: `${binDir}${path.delimiter}${process.env.PATH}`, ...extra });
+
+    const r = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
       cwd: root,
       encoding: 'utf8',
-      env: withEnv({ STYLEPROOF_SUPPRESS_PLATFORM_WARNING: '1' }),
+      env: withEnv(),
     });
-    assert.equal(suppressed.status, 0, suppressed.stderr);
-    assert.doesNotMatch(suppressed.stderr, /ubuntu-latest/);
+    assert.equal(r.status, 0, r.stderr);
+    if (process.platform === 'linux') assert.doesNotMatch(r.stderr, /ubuntu-latest/);
+    else assert.match(r.stderr, /ubuntu-latest.*captures on linux/s, 'warning enabled via config');
+  } finally {
+    rmTmp(root);
+    rmTmp(binDir);
+  }
+});
+
+test('styleproof-map --upload: env STYLEPROOF_SUPPRESS_PLATFORM_WARNING=0 enables warning', () => {
+  // #600: Env '0' overrides the default suppression.
+  const root = mkTmp();
+  const binDir = mkTmp('styleproof-fakebin-');
+  try {
+    gitInit(root);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+    writeSpec(root);
+    addBareOrigin(root);
+    const headSha = commitAll(root, 'base');
+
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const withEnv = (extra = {}) => cliEnv({ PATH: `${binDir}${path.delimiter}${process.env.PATH}`, ...extra });
+
+    const r = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env: withEnv({ STYLEPROOF_SUPPRESS_PLATFORM_WARNING: '0' }),
+    });
+    assert.equal(r.status, 0, r.stderr);
+    if (process.platform === 'linux') assert.doesNotMatch(r.stderr, /ubuntu-latest/);
+    else assert.match(r.stderr, /ubuntu-latest.*captures on linux/s, 'env=0 enables warning');
+  } finally {
+    rmTmp(root);
+    rmTmp(binDir);
+  }
+});
+
+test('styleproof-map --upload: config suppressPlatformWarning takes precedence over env', () => {
+  // #600: Explicit config key takes precedence over env var.
+  const root = mkTmp();
+  const binDir = mkTmp('styleproof-fakebin-');
+  try {
+    gitInit(root);
+    spawnSync('git', ['checkout', '-qb', 'main'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '.styleproof/\n');
+    writeSpec(root);
+    fs.writeFileSync(path.join(root, 'styleproof.config.json'), JSON.stringify({ suppressPlatformWarning: true }));
+    addBareOrigin(root);
+    const headSha = commitAll(root, 'base');
+
+    const fakePlaywright = path.join(binDir, 'playwright');
+    fs.writeFileSync(
+      fakePlaywright,
+      '#!/bin/sh\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"; touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const withEnv = (extra = {}) => cliEnv({ PATH: `${binDir}${path.delimiter}${process.env.PATH}`, ...extra });
+
+    const r = spawnSync(process.execPath, [MAP, '--upload', '--sha', headSha], {
+      cwd: root,
+      encoding: 'utf8',
+      env: withEnv({ STYLEPROOF_SUPPRESS_PLATFORM_WARNING: '0' }),
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stderr, /ubuntu-latest/, 'config true overrides env=0');
   } finally {
     rmTmp(root);
     rmTmp(binDir);

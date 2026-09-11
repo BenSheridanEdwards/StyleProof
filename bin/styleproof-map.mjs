@@ -316,13 +316,24 @@ function shouldAutoUpload() {
   return uploadMode === 'auto' && !process.env.CI;
 }
 
+/**
+ * Resolve whether the platform mismatch warning is suppressed.
+ * Precedence: explicit config key > env var > default (suppressed).
+ */
+function resolveSuppressPlatformWarning() {
+  if (projectConfig.suppressPlatformWarning !== undefined) {
+    return projectConfig.suppressPlatformWarning;
+  }
+  const envVar = process.env.STYLEPROOF_SUPPRESS_PLATFORM_WARNING;
+  if (envVar === '1') return true;
+  if (envVar === '0') return false;
+  return true;
+}
+
 async function upload(dirPath) {
   if (uploadMode === 'off') return;
   if (!shouldAutoUpload() && uploadMode !== 'required') return;
-  const platformWarning = nonLinuxUploadWarning(
-    process.platform,
-    process.env.STYLEPROOF_SUPPRESS_PLATFORM_WARNING === '1',
-  );
+  const platformWarning = nonLinuxUploadWarning(process.platform, resolveSuppressPlatformWarning());
   if (platformWarning) console.error(platformWarning);
   try {
     const res = await publishMapBundle({ dir: dirPath, branch: cacheBranch, remote });
