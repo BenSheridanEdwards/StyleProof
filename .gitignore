@@ -17,3 +17,4 @@ graphify-out/
 
 # fallow local cache
 .fallow/*.bin
+styleproof-audit.json
