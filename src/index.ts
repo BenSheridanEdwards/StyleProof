@@ -252,5 +252,20 @@ export type {
   PixelSurfaceResult,
 } from './pixel-diff.js';
 
-export { defineConfig, loadStyleProofConfig, loadStyleProofConfigAsync } from './config.js';
-export type { StyleProofConfig, AffectedConfig, CrawlConfig, AuthConfig } from './config.js';
+export {
+  defineConfig,
+  loadStyleProofConfig,
+  loadStyleProofConfigAsync,
+  env,
+  resolveEnvReferences,
+  redactSecrets,
+} from './config.js';
+export type {
+  StyleProofConfig,
+  AffectedConfig,
+  CrawlConfig,
+  AuthConfig,
+  EnvRef,
+  ResolveEnvOptions,
+  ResolveEnvResult,
+} from './config.js';

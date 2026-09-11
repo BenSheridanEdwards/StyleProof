@@ -4,7 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadStyleProofConfig, loadStyleProofConfigAsync, defineConfig } from '../dist/config.js';
+import {
+  loadStyleProofConfig,
+  loadStyleProofConfigAsync,
+  defineConfig,
+  env,
+  resolveEnvReferences,
+  redactSecrets,
+} from '../dist/config.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 const STYLEPROOF_CONFIG_JSON = 'styleproof.config.json';
@@ -423,4 +430,216 @@ test('loadStyleProofConfigAsync: ESM config takes precedence over JSON', async (
   } finally {
     rmTmp(dir);
   }
+});
+
+// --- Tests for #582: env/secret reference for HUD login ---
+
+test('env(): returns an EnvRef marker object for explicit env references', () => {
+  const ref = env('MY_SECRET');
+  assert.equal(ref.__envRef, true);
+  assert.equal(ref.name, 'MY_SECRET');
+});
+
+test('env(): validates env var name is alphanumeric + underscore only', () => {
+  assert.throws(() => env('INVALID-NAME'), /must contain only uppercase letters, digits, and underscores/);
+  assert.throws(() => env('has spaces'), /must contain only uppercase letters, digits, and underscores/);
+  assert.throws(() => env('$VAR'), /must contain only uppercase letters, digits, and underscores/);
+  assert.throws(() => env(''), /must contain only uppercase letters, digits, and underscores/);
+  assert.doesNotThrow(() => env('VALID_NAME_123'));
+  assert.doesNotThrow(() => env('A'));
+  assert.doesNotThrow(() => env('_UNDERSCORE'));
+});
+
+test('resolveEnvReferences: resolves ${VAR_NAME} syntax from process.env', () => {
+  const original = process.env.TEST_SECRET_582;
+  try {
+    process.env.TEST_SECRET_582 = 'secret-value';
+    const config = { auth: { hudPassword: '${TEST_SECRET_582}' } };
+    const resolved = resolveEnvReferences(config);
+    assert.equal(resolved.auth.hudPassword, 'secret-value');
+  } finally {
+    if (original === undefined) delete process.env.TEST_SECRET_582;
+    else process.env.TEST_SECRET_582 = original;
+  }
+});
+
+test('resolveEnvReferences: resolves env() helper references from process.env', () => {
+  const original = process.env.TEST_API_TOKEN;
+  try {
+    process.env.TEST_API_TOKEN = 'token-value';
+    const ref = env('TEST_API_TOKEN');
+    const config = { auth: { apiToken: ref } };
+    const resolved = resolveEnvReferences(config);
+    assert.equal(resolved.auth.apiToken, 'token-value');
+  } finally {
+    if (original === undefined) delete process.env.TEST_API_TOKEN;
+    else process.env.TEST_API_TOKEN = original;
+  }
+});
+
+test('resolveEnvReferences: throws loud error when env var is missing', () => {
+  delete process.env.NONEXISTENT_VAR_582;
+  const config = { auth: { hudPassword: '${NONEXISTENT_VAR_582}' } };
+  assert.throws(() => resolveEnvReferences(config), /Environment variable NONEXISTENT_VAR_582 is not set/);
+});
+
+test('resolveEnvReferences: throws loud error for env() helper with missing var', () => {
+  delete process.env.NONEXISTENT_TOKEN_582;
+  const ref = env('NONEXISTENT_TOKEN_582');
+  const config = { auth: { apiToken: ref } };
+  assert.throws(() => resolveEnvReferences(config), /Environment variable NONEXISTENT_TOKEN_582 is not set/);
+});
+
+test('resolveEnvReferences: error message includes helpful guidance', () => {
+  delete process.env.MISSING_SECRET_582;
+  const config = { auth: { hudPassword: '${MISSING_SECRET_582}' } };
+  assert.throws(() => resolveEnvReferences(config), /Set it in your shell or CI secrets/);
+});
+
+test('resolveEnvReferences: validates ${VAR_NAME} syntax — alphanumeric + underscore only', () => {
+  const config = { auth: { hudPassword: '${INVALID-VAR}' } };
+  assert.throws(
+    () => resolveEnvReferences(config),
+    /Invalid env reference.*must contain only uppercase letters, digits, and underscores/,
+  );
+});
+
+test('resolveEnvReferences: resolves ${auth.X} cross-references to auth block values', () => {
+  const original = process.env.HUD_PASS_582;
+  try {
+    process.env.HUD_PASS_582 = 'hud-secret';
+    const config = {
+      auth: { hudPassword: '${HUD_PASS_582}' },
+      crawl: {
+        setup: 'setup.json',
+        setupSteps: [{ action: 'fill', selector: '#password', value: '${auth.hudPassword}' }],
+      },
+    };
+    const resolved = resolveEnvReferences(config);
+    assert.equal(resolved.crawl.setupSteps[0].value, 'hud-secret');
+  } finally {
+    if (original === undefined) delete process.env.HUD_PASS_582;
+    else process.env.HUD_PASS_582 = original;
+  }
+});
+
+test('resolveEnvReferences: ${auth.X} throws if referenced auth key does not exist', () => {
+  const original = process.env.SOME_PASS_582;
+  try {
+    process.env.SOME_PASS_582 = 'value';
+    const config = {
+      auth: { hudPassword: '${SOME_PASS_582}' },
+      crawl: {
+        setupSteps: [{ action: 'fill', value: '${auth.nonexistentKey}' }],
+      },
+    };
+    assert.throws(() => resolveEnvReferences(config), /auth\.nonexistentKey.*does not exist/);
+  } finally {
+    if (original === undefined) delete process.env.SOME_PASS_582;
+    else process.env.SOME_PASS_582 = original;
+  }
+});
+
+test('redactSecrets: replaces resolved secret values with [REDACTED] in strings', () => {
+  const secrets = new Set(['secret-password', 'api-token-123']);
+  const input = 'Login failed with password secret-password and token api-token-123';
+  const redacted = redactSecrets(input, secrets);
+  assert.equal(redacted, 'Login failed with password [REDACTED] and token [REDACTED]');
+  assert.doesNotMatch(redacted, /secret-password/);
+  assert.doesNotMatch(redacted, /api-token-123/);
+});
+
+test('redactSecrets: returns original string if no secrets present', () => {
+  const secrets = new Set(['secret-password']);
+  const input = 'No secrets here';
+  const redacted = redactSecrets(input, secrets);
+  assert.equal(redacted, 'No secrets here');
+});
+
+test('redactSecrets: handles empty secrets set', () => {
+  const secrets = new Set();
+  const input = 'Some text';
+  const redacted = redactSecrets(input, secrets);
+  assert.equal(redacted, 'Some text');
+});
+
+test('resolveEnvReferences: does not modify non-env strings', () => {
+  const original = process.env.REAL_VAR_582;
+  try {
+    process.env.REAL_VAR_582 = 'real-value';
+    const config = {
+      spec: 'e2e/styleproof.spec.ts',
+      blocking: true,
+      auth: { hudPassword: '${REAL_VAR_582}' },
+    };
+    const resolved = resolveEnvReferences(config);
+    assert.equal(resolved.spec, 'e2e/styleproof.spec.ts');
+    assert.equal(resolved.blocking, true);
+    assert.equal(resolved.auth.hudPassword, 'real-value');
+  } finally {
+    if (original === undefined) delete process.env.REAL_VAR_582;
+    else process.env.REAL_VAR_582 = original;
+  }
+});
+
+test('resolveEnvReferences: returns collected secrets set for redaction', () => {
+  const original1 = process.env.SECRET_A_582;
+  const original2 = process.env.SECRET_B_582;
+  try {
+    process.env.SECRET_A_582 = 'value-a';
+    process.env.SECRET_B_582 = 'value-b';
+    const config = {
+      auth: {
+        hudPassword: '${SECRET_A_582}',
+        apiToken: '${SECRET_B_582}',
+      },
+    };
+    const { resolved, secrets } = resolveEnvReferences(config, { collectSecrets: true });
+    assert.equal(resolved.auth.hudPassword, 'value-a');
+    assert.equal(resolved.auth.apiToken, 'value-b');
+    assert.ok(secrets instanceof Set);
+    assert.ok(secrets.has('value-a'));
+    assert.ok(secrets.has('value-b'));
+  } finally {
+    if (original1 === undefined) delete process.env.SECRET_A_582;
+    else process.env.SECRET_A_582 = original1;
+    if (original2 === undefined) delete process.env.SECRET_B_582;
+    else process.env.SECRET_B_582 = original2;
+  }
+});
+
+test('error messages never contain secret values, only placeholders', () => {
+  const original = process.env.ERR_TEST_582;
+  try {
+    process.env.ERR_TEST_582 = 'super-secret-value';
+    const config = {
+      auth: { hudPassword: '${ERR_TEST_582}' },
+      crawl: {
+        setupSteps: [{ action: 'fill', value: '${auth.missingKey}' }],
+      },
+    };
+    try {
+      resolveEnvReferences(config);
+      assert.fail('Expected error to be thrown');
+    } catch (e) {
+      assert.doesNotMatch(e.message, /super-secret-value/);
+      assert.match(e.message, /\$\{auth\.missingKey\}|auth\.missingKey/);
+    }
+  } finally {
+    if (original === undefined) delete process.env.ERR_TEST_582;
+    else process.env.ERR_TEST_582 = original;
+  }
+});
+
+test('loadStyleProofConfig: reads auth block with apiToken', () => {
+  withConfig({ auth: { hudPassword: '${HUD_PASS}', apiToken: '${API_TOKEN}' } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.deepEqual(config.auth, { hudPassword: '${HUD_PASS}', apiToken: '${API_TOKEN}' });
+  });
+});
+
+test('loadStyleProofConfig: auth.apiToken rejects plaintext (must be env/secret reference)', () => {
+  withConfig({ auth: { apiToken: 'my-api-token' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /must reference an env\/secret name/);
+  });
 });
