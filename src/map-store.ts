@@ -304,7 +304,8 @@ function removeTempWorkspace(dir: string | undefined): void {
   }
 }
 
-const DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS = 30_000;
+/** Default git operation timeout for map-store operations (120s). Exported for test assertions. */
+export const DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS = 120_000;
 
 function mapStoreGitTimeoutMilliseconds(): number {
   const configuredTimeout = Number(process.env.STYLEPROOF_MAP_STORE_GIT_TIMEOUT_MS);

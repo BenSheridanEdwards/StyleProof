@@ -261,6 +261,34 @@ export type AuthConfig = {
   apiToken?: string | EnvRef;
 };
 
+/**
+ * Map store configuration for git operations (token auth and timeouts).
+ * Allows adopters to configure map-store behavior via styleproof.config.ts
+ * instead of environment variables.
+ */
+export type MapStoreConfig = {
+  /** Auth token for git operations. 'inherit' (default) uses GITHUB_TOKEN. */
+  token?: 'inherit' | string;
+  /** Git operation timeout in ms. Default 120_000 (120s). */
+  gitTimeoutMs?: number;
+  /** Retention period in days for prune operations. Must be positive when set. */
+  pruneRetentionDays?: number;
+  /** Budget in bytes for prune operations. Must be positive when set. */
+  pruneBudgetBytes?: number;
+};
+
+/**
+ * Ancestor baseline reuse configuration (opt-out, default enabled).
+ * When enabled, StyleProof attempts to restore the nearest ancestor's bundle
+ * when the exact base commit is missing from the map store.
+ */
+export type AncestorBaselineConfig = {
+  /** Enable ancestor baseline reuse. Default true (opt-out to disable). */
+  enabled?: boolean;
+  /** Root directories to search for ancestor baselines. Default ['src']. */
+  roots?: string[];
+};
+
 export type StyleProofConfig = {
   /** Review-gate failures block the Action unless explicitly false or set to 'advisory'. */
   blocking?: boolean | 'advisory';
@@ -283,6 +311,10 @@ export type StyleProofConfig = {
   crawl?: CrawlConfig;
   /** Auth secret references (env/secret names only — never plaintext). */
   auth?: AuthConfig;
+  /** Map store configuration (token auth, git timeouts). */
+  mapStore?: MapStoreConfig;
+  /** Ancestor baseline reuse configuration (opt-out, default enabled). */
+  ancestorBaseline?: AncestorBaselineConfig;
 };
 
 /**
@@ -480,6 +512,34 @@ function parseAuth(value: unknown): AuthConfig | undefined {
   return result;
 }
 
+function parseMapStore(value: unknown): MapStoreConfig | undefined {
+  if (value === undefined) return undefined;
+  const m = plainObject(value, '"mapStore"');
+  warnUnknownKeys(m, KNOWN_MAP_STORE_KEYS, '"mapStore" ');
+  const token = optionalString(m.token, 'mapStore.token');
+  const gitTimeoutMs = optionalPositiveNumber(m.gitTimeoutMs, 'mapStore.gitTimeoutMs');
+  const pruneRetentionDays = optionalPositiveNumber(m.pruneRetentionDays, 'mapStore.pruneRetentionDays');
+  const pruneBudgetBytes = optionalPositiveNumber(m.pruneBudgetBytes, 'mapStore.pruneBudgetBytes');
+  const result: MapStoreConfig = {};
+  if (token !== undefined) result.token = token;
+  if (gitTimeoutMs !== undefined) result.gitTimeoutMs = gitTimeoutMs;
+  if (pruneRetentionDays !== undefined) result.pruneRetentionDays = pruneRetentionDays;
+  if (pruneBudgetBytes !== undefined) result.pruneBudgetBytes = pruneBudgetBytes;
+  return result;
+}
+
+function parseAncestorBaseline(value: unknown): AncestorBaselineConfig | undefined {
+  if (value === undefined) return undefined;
+  const a = plainObject(value, '"ancestorBaseline"');
+  warnUnknownKeys(a, KNOWN_ANCESTOR_BASELINE_KEYS, '"ancestorBaseline" ');
+  const enabled = optionalBoolean(a.enabled, 'ancestorBaseline.enabled');
+  const roots = optionalStringArray(a.roots, 'ancestorBaseline.roots');
+  const result: AncestorBaselineConfig = {};
+  if (enabled !== undefined) result.enabled = enabled;
+  if (roots !== undefined) result.roots = roots;
+  return result;
+}
+
 const KNOWN_KEYS = [
   'blocking',
   'requireApproval',
@@ -492,9 +552,13 @@ const KNOWN_KEYS = [
   'affected',
   'crawl',
   'auth',
+  'mapStore',
+  'ancestorBaseline',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
 const KNOWN_AUTH_KEYS = ['hudPassword', 'apiToken'];
+const KNOWN_MAP_STORE_KEYS = ['token', 'gitTimeoutMs', 'pruneRetentionDays', 'pruneBudgetBytes'];
+const KNOWN_ANCESTOR_BASELINE_KEYS = ['enabled', 'roots'];
 const KNOWN_CRAWL_KEYS = [
   'baseUrl',
   'routes',
@@ -539,6 +603,8 @@ function parseConfigRecord(record: Record<string, unknown>): StyleProofConfig {
     affected: parseAffected(record.affected),
     crawl: parseCrawl(record.crawl),
     auth: parseAuth(record.auth),
+    mapStore: parseMapStore(record.mapStore),
+    ancestorBaseline: parseAncestorBaseline(record.ancestorBaseline),
   };
 }
 

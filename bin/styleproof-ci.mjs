@@ -108,18 +108,16 @@ options:
 Writes base-hit / head-hit / capture-needed / base-capture-failed to
 $GITHUB_OUTPUT when set, so workflow steps can branch on steps.<id>.outputs.*.
 
-Opt-in nearest-ancestor baseline reuse (issue #367, conservative):
-  STYLEPROOF_ANCESTOR_BASELINE=1        on a base miss, look for the nearest
-                                        first-parent ancestor of --base with a
-                                        stored bundle; if NO path changed between
-                                        them is capture-relevant, restore that
-                                        bundle as the baseline instead of a full
-                                        cold recapture. Any doubt or error falls
-                                        back to the full capture path.
-  STYLEPROOF_ANCESTOR_BASELINE_ROOTS    comma-separated repo-relative app source
-                                        directories (e.g. "src,styles") whose
-                                        changes are capture-relevant. REQUIRED
-                                        for reuse to fire on a non-empty diff:
+Nearest-ancestor baseline reuse (issue #367 — enabled by default, opt-out):
+  ancestorBaseline.enabled              config key (default true). Set false
+                                        to disable ancestor baseline reuse.
+  ancestorBaseline.roots                config key (default ['src']). Repo-relative
+                                        app source directories whose changes are
+                                        capture-relevant.
+  STYLEPROOF_ANCESTOR_BASELINE=0        env override to disable reuse (legacy: =1
+                                        still enables, absent respects config).
+  STYLEPROOF_ANCESTOR_BASELINE_ROOTS    comma-separated env override for roots
+                                        (e.g. "src,styles").
                                         with no roots declared every changed path
                                         counts as relevant. The spec's directory,
                                         styleproof.config.json, and package
@@ -244,8 +242,10 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 // a head commit that moves the spec via styleproof.config.json must govern this
 // run — children (styleproof-map) re-read config per-cwd and would otherwise
 // disagree with this driver inside one run.
+let projectConfig;
 try {
-  if (!specProvided) spec = projectConfigOrExit('styleproof-ci').spec ?? decodeSpecPathEnv();
+  projectConfig = projectConfigOrExit('styleproof-ci');
+  if (!specProvided) spec = projectConfig.spec ?? decodeSpecPathEnv();
   spec ??= 'e2e/styleproof.spec.ts';
   spec = validateRepoRelativeSpecPath(spec);
 } catch (error) {
@@ -531,27 +531,39 @@ function writeOutputs(baseCaptureFailed = false) {
   log(outputs.join(' '));
 }
 
-// ── Nearest-ancestor baseline reuse (issue #367, conservative variant) ─────────
-// Opt-in via STYLEPROOF_ANCESTOR_BASELINE=1. On a base cache miss, restore the
-// nearest first-parent ancestor's stored bundle as the baseline — but ONLY when
-// no path changed between that ancestor and --base is capture-relevant. Every
-// error and every doubt falls back to the ordinary cold-capture path.
+// ── Nearest-ancestor baseline reuse (issue #367 — opt-out, enabled by default) ─
+// On a base cache miss, restore the nearest first-parent ancestor's stored bundle
+// as the baseline — but ONLY when no path changed between that ancestor and --base
+// is capture-relevant. Every error and every doubt falls back to the cold path.
+//
+// Precedence: env var STYLEPROOF_ANCESTOR_BASELINE > config ancestorBaseline.enabled
+// > built-in default true. STYLEPROOF_ANCESTOR_BASELINE=0 disables; =1 or absent
+// respects config/default.
 
 function ancestorBaselineEnabled() {
-  return process.env.STYLEPROOF_ANCESTOR_BASELINE === '1';
+  const envOverride = process.env.STYLEPROOF_ANCESTOR_BASELINE;
+  if (envOverride === '0') return false;
+  if (envOverride === '1') return true;
+  return projectConfig?.ancestorBaseline?.enabled ?? true;
 }
 
-/** Declared app source roots whose changes are capture-relevant (comma-separated). */
-function ancestorBaselineSourceRoots() {
-  return (process.env.STYLEPROOF_ANCESTOR_BASELINE_ROOTS ?? '')
-    .split(',')
-    .map((sourceRoot) => sourceRoot.trim())
-    .filter(Boolean);
+/** Declared app source roots whose changes are capture-relevant.
+ *  Precedence: env STYLEPROOF_ANCESTOR_BASELINE_ROOTS > config ancestorBaseline.roots > ['src']. */
+function ancestorBaselineSourceRoots(configAtBase) {
+  const envRoots = process.env.STYLEPROOF_ANCESTOR_BASELINE_ROOTS;
+  if (envRoots) {
+    return envRoots
+      .split(',')
+      .map((sourceRoot) => sourceRoot.trim())
+      .filter(Boolean);
+  }
+  return configAtBase?.ancestorBaseline?.roots ?? projectConfig?.ancestorBaseline?.roots ?? ['src'];
 }
 
 /** Record where the baseline came from, so reuse (or its absence) is auditable in
- *  the report and diff --json. Only written when the feature is opted in, keeping
- *  default runs byte-identical; a sidecar write failure must never fail the run. */
+ *  the report and diff --json. Written when ancestor baseline is enabled (the
+ *  default); skipped when disabled via config or env. A sidecar write failure
+ *  must never fail the run. */
 function recordBaselineProvenance(provenance) {
   if (!ancestorBaselineEnabled()) return;
   try {
@@ -574,7 +586,7 @@ function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
     const projectConfigAtBase = loadStyleProofConfig(baseProbeCwd);
     const cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfigAtBase.cacheBranch;
     const cacheRemote = process.env.STYLEPROOF_REMOTE ?? projectConfigAtBase.remote;
-    const sourceRoots = ancestorBaselineSourceRoots();
+    const sourceRoots = ancestorBaselineSourceRoots(projectConfigAtBase);
     const plan = planAncestorBaselineReuse({
       requestedSha: base,
       availableShas: listMapStoreBundleShas({ branch: cacheBranch, remote: cacheRemote, cwd: repoRoot }),
