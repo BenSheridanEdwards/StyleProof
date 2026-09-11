@@ -72,6 +72,8 @@ import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
 import { isMapFile } from '../dist/map-store.js';
+import { AUDIT_FILE_NAME, createAudit } from '../dist/audit.js';
+import { classifyStyleProofVerdict } from '../dist/verdict.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 
@@ -330,6 +332,10 @@ options:
                    become reviewable and affect the exit code. In default certify mode,
                    structure changes are advisory and do not block. In migration mode,
                    exit 1 when structure or style changes exist.
+  --audit-json <file>
+                   write a durable audit trail to <file> (default: alongside --json or
+                   ${AUDIT_FILE_NAME} in the current directory). The audit captures
+                   comparison metrics, trust checks, and the full decision provenance.
   -h, --help       show this help
 
 exit: 0 identical (certified), 1 differences found OR non-certifying evidence
@@ -343,6 +349,7 @@ const argv = process.argv.slice(2);
 const args = [];
 let MAX = 40;
 let jsonOut = null;
+let auditJsonOut = null;
 let allowUnasserted = false;
 let requireStateIdentity = false;
 let pixels = false;
@@ -371,6 +378,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i] === '--require-state-identity') requireStateIdentity = true;
   else if (argv[i] === '--pixels') pixels = true;
   else if (argv[i] === '--migration') migration = true;
+  else if (argv[i] === '--audit-json') auditJsonOut = argv[++i];
+  else if (argv[i].startsWith('--audit-json=')) auditJsonOut = argv[i].slice(13);
   else if (argv[i] === '--expected-before-sha') {
     expectedBeforeShaSet = true;
     expectedBeforeSha = argv[++i];
@@ -928,20 +937,156 @@ console.log(
 // (unasserted completeness, unknown/unproven determinism, incomplete registry,
 // inventory/residue failures, removed surfaces), 3 = ONLY new surfaces on a true
 // first-adoption bare base (or greenfield with proven ledgers). 2 = usage.
-process.exit(
+const exitCode =
   total > 0 ||
-    partialBaseline ||
-    comparison.blocksCertification ||
-    removedSurfaces > 0 ||
-    invRemovals > 0 ||
-    residueFails > 0 ||
-    confidenceBlocks ||
-    coverageBlocks ||
-    determinismBlocks ||
-    !certificationEvidence.interactionStatesComplete ||
-    pixelBlocks
+  partialBaseline ||
+  comparison.blocksCertification ||
+  removedSurfaces > 0 ||
+  invRemovals > 0 ||
+  residueFails > 0 ||
+  confidenceBlocks ||
+  coverageBlocks ||
+  determinismBlocks ||
+  !certificationEvidence.interactionStatesComplete ||
+  pixelBlocks
     ? 1
     : greenfieldNewSurfaces > 0
       ? 3
-      : 0,
-);
+      : 0;
+
+// Write the durable audit trail (#581) — machine-readable JSON capturing the full
+// decision provenance: what was compared, which checks passed/failed, and why.
+const auditPath = auditJsonOut ?? (jsonOut ? path.join(path.dirname(jsonOut), AUDIT_FILE_NAME) : AUDIT_FILE_NAME);
+try {
+  const gateMode = migration ? 'migration' : 'certify';
+  const changed = exitCode === 1 || exitCode === 3;
+  const verdict = classifyStyleProofVerdict(
+    {
+      sourceBinding,
+      coverage: coverageVerdict,
+      determinism: determinismVerdict,
+      confidence: confidenceSummary,
+      comparison,
+      reportConsistency: truth.rawOnlyNoReviewable
+        ? { ok: false, reason: 'raw_only_no_reviewable' }
+        : { ok: true, reason: 'aligned' },
+      statesUncertified,
+      partialBaseline,
+      explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
+      reviewableCounts: truth.reviewableCounts,
+      surfaces,
+      inventory: inventoryAudit && {
+        added: inventoryAudit.delta.added.map((i) => i.key),
+        removed: inventoryAudit.delta.removed.map((i) => i.key),
+        unacknowledged: inventoryAudit.unexplained.map((i) => i.key),
+        staleAcknowledgements: inventoryAudit.staleAllowances,
+      },
+      dataResidue: residueAudit && {
+        blocking: residueFails,
+        unacknowledged: residueAudit.unacknowledged.map((r) => r.key),
+      },
+    },
+    { gateInventoryRemovals: true, baseCaptureFailed: false, changed },
+  );
+
+  // Build trust check reasons from the certification evidence
+  const trustReasons = [];
+  trustReasons.push({
+    check: 'source-binding',
+    result: sourceBinding.status === 'bound' ? 'bound' : 'failed',
+    detail: sourceBinding.status === 'bound' ? 'both SHAs matched' : 'source SHAs not verified',
+  });
+  trustReasons.push({
+    check: 'coverage',
+    result:
+      coverageVerdict?.basis === 'complete'
+        ? 'complete'
+        : coverageVerdict?.basis === 'unasserted'
+          ? 'unknown'
+          : 'failed',
+    detail:
+      coverageVerdict?.basis === 'complete'
+        ? `${coverageVerdict.registrySize}/${coverageVerdict.registrySize} expected captured`
+        : coverageVerdict?.basis === 'unasserted'
+          ? 'completeness not asserted'
+          : `${coverageVerdict?.uncovered?.length ?? 0} uncaptured`,
+  });
+  trustReasons.push({
+    check: 'determinism',
+    result:
+      determinismVerdict?.status === 'proven'
+        ? 'proven'
+        : determinismVerdict?.status === 'unknown'
+          ? 'unknown'
+          : 'failed',
+    detail:
+      determinismVerdict?.status === 'proven'
+        ? 'self-check passed'
+        : determinismVerdict?.status === 'unknown'
+          ? 'determinism basis unknown'
+          : 'determinism unproven',
+  });
+  trustReasons.push({
+    check: 'data-residue',
+    result: residueFails === 0 ? 'clean' : 'failed',
+    detail: residueFails === 0 ? '0 unacknowledged' : `${residueFails} unacknowledged`,
+  });
+  trustReasons.push({
+    check: 'inventory',
+    result: invRemovals === 0 ? 'clean' : 'failed',
+    detail: invRemovals === 0 ? '0 removals' : `${invRemovals} unacknowledged removal(s)`,
+  });
+  if (total > 0 || greenfieldNewSurfaces > 0) {
+    trustReasons.push({
+      check: 'reviewable-changes',
+      result: 'found',
+      detail: `${total} style, ${greenfieldNewSurfaces} new surface(s)`,
+    });
+  }
+
+  // Determine baseline source from provenance
+  let baselineSource = 'none';
+  if (baselineProvenance) {
+    if (baselineProvenance.baseline === 'exact-restore') baselineSource = 'exact-restore';
+    else if (baselineProvenance.baseline === 'ancestor-reuse') baselineSource = 'ancestor-reuse';
+    else if (baselineProvenance.baseline === 'captured') baselineSource = 'captured';
+  } else if (baseMapCount > 0) {
+    baselineSource = 'captured';
+  }
+
+  const exitReasonMap = {
+    0: 'certified — no reviewable changes',
+    1: clean ? 'non-certifying evidence' : 'reviewable differences found',
+    3: 'new surfaces only — review before baselining',
+  };
+
+  const audit = createAudit({
+    runId: process.env.GITHUB_RUN_ID
+      ? `github-run-${process.env.GITHUB_RUN_ID}-attempt-${process.env.GITHUB_RUN_ATTEMPT || '1'}`
+      : `local-${Date.now()}`,
+    headSha: expectedAfterSha || sourceBinding.after?.observed || '',
+    baseSha: expectedBeforeSha || sourceBinding.before?.observed || null,
+    comparison: {
+      baselineSource,
+      baselineSha: baselineProvenance?.restoredSha || expectedBeforeSha || sourceBinding.before?.observed || null,
+      surfacesCompared: compared,
+      surfacesNew: greenfieldNewSurfaces,
+      surfacesRemoved: removedSurfaces,
+      changesFound: total,
+      contentChanges: 0,
+    },
+    trustDecision: {
+      finalState: verdict.state,
+      gateMode,
+      reasons: trustReasons,
+      exitCode,
+      exitReason: exitReasonMap[exitCode] || 'unknown',
+    },
+  });
+
+  fs.writeFileSync(auditPath, `${JSON.stringify(audit, null, 2)}\n`);
+} catch (e) {
+  console.error(`${COMMAND}: could not write audit trail to ${auditPath}: ${e.message}`);
+}
+
+process.exit(exitCode);

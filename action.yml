@@ -78,6 +78,9 @@ outputs:
   data-residue-keys:
     description: 'JSON array of unacknowledged <surface>·<endpoint> residue keys.'
     value: ${{ steps.verdict.outputs.data-residue-keys }}
+  audit-json:
+    description: 'Path to the durable audit trail JSON file (styleproof-audit.json).'
+    value: ${{ steps.report.outputs.audit-json }}
 
 runs:
   using: composite
@@ -446,6 +449,7 @@ runs:
         diff.confidence = generated.confidence;
         fs.writeFileSync('styleproof-diff.json', `${JSON.stringify(diff, null, 2)}\n`);
         fs.appendFileSync(process.env.GITHUB_OUTPUT, `content-changes=${generated.content.changes}\n`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `audit-json=${path.resolve('styleproof-audit.json')}\n`);
         NODE
 
     # One machine-readable verdict for every defined diff. Consumers should not
