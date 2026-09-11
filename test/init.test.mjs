@@ -1542,7 +1542,7 @@ test('styleproof-init: an existing app Playwright config is left alone while Sty
   }
 });
 
-test('styleproof-init: scaffolds styleproof.config.ts with defineConfig()', () => {
+test('styleproof-init: scaffolds styleproof.config.ts with blocking: advisory by default (#580)', () => {
   const root = mkTmp();
   try {
     const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
@@ -1550,7 +1550,7 @@ test('styleproof-init: scaffolds styleproof.config.ts with defineConfig()', () =
     const configContent = readFile(root, 'styleproof.config.ts');
     assert.match(configContent, /import \{ defineConfig \} from 'styleproof'/);
     assert.match(configContent, /export default defineConfig\(\{/);
-    assert.match(configContent, /blocking: true/);
+    assert.match(configContent, /blocking: 'advisory'/);
     assert.match(configContent, /requireApproval: true/);
     assert.match(res.stdout, /created styleproof\.config\.ts \(typed config with defineConfig\(\)\)/);
   } finally {

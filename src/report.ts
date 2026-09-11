@@ -168,6 +168,11 @@ export type ReportOptions = {
    * (Q10) stay separate and are not folded into migration gallery buckets.
    */
   migration?: boolean;
+  /**
+   * Gate mode (#580): the operational mode for the report. Recorded in report.json
+   * so consumers can verify the CI behavior. Defaults to 'certify'.
+   */
+  gateMode?: 'certify' | 'review-gate' | 'migration' | 'advisory';
 };
 
 export type ReportComparison = ComparisonTruth & ComparabilitySummary;
@@ -2866,6 +2871,7 @@ function writeReportArtifacts(
   baselineFailures: BaselineFailureReceipt[],
   baselineProvenance: BaselineProvenance | null = null,
   confidence: ConfidenceSummary | null = null,
+  gateMode: 'certify' | 'review-gate' | 'migration' | 'advisory' = 'certify',
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
@@ -2874,6 +2880,7 @@ function writeReportArtifacts(
     reportJsonPath,
     JSON.stringify(
       {
+        gateMode,
         counts: shown,
         rawCounts: comparison.rawCounts,
         reviewableCounts: comparison.reviewableCounts,
@@ -3069,6 +3076,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     foldDetailsAt = 0,
     maxReportBytes = 400_000,
     requireStateIdentity = false,
+    gateMode = 'certify',
   } = opts;
 
   const includeNoise = opts.includeLayoutNoise === true;
@@ -3270,6 +3278,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baselineFailures,
     baselineProvenance,
     confidence,
+    gateMode,
   );
   return {
     changedSurfaces: preparedCertified.length - missing.length,

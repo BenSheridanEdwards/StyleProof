@@ -262,8 +262,8 @@ export type AuthConfig = {
 };
 
 export type StyleProofConfig = {
-  /** Review-gate failures block the Action unless explicitly false. */
-  blocking?: boolean;
+  /** Review-gate failures block the Action unless explicitly false or set to 'advisory'. */
+  blocking?: boolean | 'advisory';
   /** Require explicit reviewer approval for visual changes (Action input). */
   requireApproval?: boolean;
   /** Unacknowledged inventory removals block unless explicitly false. */
@@ -331,6 +331,13 @@ function optionalBoolean(value: unknown, key: string): boolean | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== 'boolean') fail(`"${key}" must be a boolean`);
   return value;
+}
+
+function optionalBlockingValue(value: unknown, key: string): boolean | 'advisory' | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === 'boolean') return value;
+  if (value === 'advisory') return 'advisory';
+  fail(`"${key}" must be a boolean or 'advisory'`);
 }
 
 function plainObject(value: unknown, key: string): Record<string, unknown> {
@@ -521,7 +528,7 @@ function parseConfigRecord(record: Record<string, unknown>): StyleProofConfig {
     warnUnknownKeys(record.affected as Record<string, unknown>, KNOWN_AFFECTED_KEYS, '"affected" ');
   }
   return {
-    blocking: optionalBoolean(record.blocking, 'blocking'),
+    blocking: optionalBlockingValue(record.blocking, 'blocking'),
     requireApproval: optionalBoolean(record.requireApproval, 'requireApproval'),
     gateInventoryRemovals: optionalBoolean(record.gateInventoryRemovals, 'gateInventoryRemovals'),
     spec: optionalString(record.spec, 'spec'),

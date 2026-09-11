@@ -99,8 +99,8 @@ test('loadStyleProofConfig: written-but-broken config fails LOUDLY, never silent
   withConfig({ spec: 42 }, (dir) => {
     assert.throws(() => loadStyleProofConfig(dir), /"spec" must be a non-empty string/);
   });
-  withConfig({ blocking: 'false' }, (dir) => {
-    assert.throws(() => loadStyleProofConfig(dir), /"blocking" must be a boolean/);
+  withConfig({ blocking: 'invalid-string' }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"blocking" must be a boolean or 'advisory'/);
   });
   withConfig({ gateInventoryRemovals: 0 }, (dir) => {
     assert.throws(() => loadStyleProofConfig(dir), /"gateInventoryRemovals" must be a boolean/);
@@ -641,5 +641,37 @@ test('loadStyleProofConfig: reads auth block with apiToken', () => {
 test('loadStyleProofConfig: auth.apiToken rejects plaintext (must be env/secret reference)', () => {
   withConfig({ auth: { apiToken: 'my-api-token' } }, (dir) => {
     assert.throws(() => loadStyleProofConfig(dir), /must reference an env\/secret name/);
+  });
+});
+
+// --- Advisory mode tests (#580) ---
+
+test('loadStyleProofConfig: accepts blocking: "advisory" for advisory-only mode', () => {
+  withConfig({ blocking: 'advisory' }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.blocking, 'advisory');
+  });
+});
+
+test('loadStyleProofConfig: accepts blocking: true and blocking: false alongside advisory', () => {
+  withConfig({ blocking: true }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.blocking, true);
+  });
+  withConfig({ blocking: false }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.blocking, false);
+  });
+});
+
+test('loadStyleProofConfig: rejects invalid blocking string values', () => {
+  withConfig({ blocking: 'true' }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"blocking" must be a boolean or 'advisory'/);
+  });
+  withConfig({ blocking: 'false' }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"blocking" must be a boolean or 'advisory'/);
+  });
+  withConfig({ blocking: 'enabled' }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"blocking" must be a boolean or 'advisory'/);
   });
 });

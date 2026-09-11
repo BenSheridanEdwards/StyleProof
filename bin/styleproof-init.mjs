@@ -338,10 +338,12 @@ const STYLEPROOF_CONFIG_TEMPLATE = `import { defineConfig } from 'styleproof';
  * For all available options, see the StyleProof docs or hover over defineConfig().
  */
 export default defineConfig({
-  // Review-gate failures block the Action unless explicitly false
-  blocking: true,
+  // Advisory mode: posts comments and artifacts but NEVER blocks CI.
+  // Trust is earned, not assumed — observe the signal quality for a release cycle,
+  // then flip to blocking: true once confident in coverage.
+  blocking: 'advisory',
 
-  // Require explicit reviewer approval for visual changes
+  // Require explicit reviewer approval for visual changes (active when blocking: true)
   requireApproval: true,
 
   // Capture spec path (default e2e/styleproof.spec.ts)

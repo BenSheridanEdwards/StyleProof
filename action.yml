@@ -49,8 +49,10 @@ inputs:
       Operation mode: 'certify' (default) fails on any style diff, 'review-gate'
       sets a commit status instead of failing, 'migration' treats structure changes
       (added/removed elements) as reviewable alongside style changes and uses
-      review-gate semantics. In migration mode the report gallery shows Changed
-      styles, New surfaces, and New/removed elements sections.
+      review-gate semantics, 'advisory' posts comments and artifacts but NEVER
+      blocks CI (allows first-time adopters to evaluate signal quality). In
+      migration mode the report gallery shows Changed styles, New surfaces, and
+      New/removed elements sections.
     default: 'certify'
 
 outputs:
@@ -152,7 +154,7 @@ runs:
           const root = process.env.GITHUB_WORKSPACE || '.';
           const cfg = loadStyleProofConfig(root);
           core.info('StyleProof: loaded styleproof.config.json policy (or defaults when absent)');
-          core.setOutput('blocking', cfg.blocking === false ? 'false' : 'true');
+          core.setOutput('blocking', cfg.blocking === 'advisory' ? 'advisory' : cfg.blocking === false ? 'false' : 'true');
           // A removed navigable affordance (a route/tab/menu-item the UI stopped offering)
           // is a feature going unreachable — high-stakes, and NOT something the style
           // "approve all" box should wave through. It hard-fails unless the removal is
@@ -176,9 +178,9 @@ runs:
         esac
         migration_arguments=()
         case "$STYLEPROOF_MODE" in
-          certify|review-gate) ;;
+          certify|review-gate|advisory) ;;
           migration) migration_arguments+=(--migration) ;;
-          *) echo "mode must be certify, review-gate, or migration" >&2; exit 2 ;;
+          *) echo "mode must be certify, review-gate, migration, or advisory" >&2; exit 2 ;;
         esac
         if [ -z "$STYLEPROOF_EXPECTED_BASE_SHA" ] || [ -z "$STYLEPROOF_EXPECTED_HEAD_SHA" ]; then
           echo "StyleProof: trusted base/head SHA context is required for certification" >&2
@@ -240,9 +242,9 @@ runs:
           *) echo "require-state-identity must be true or false" >&2; exit 2 ;;
         esac
         case "$STYLEPROOF_MODE" in
-          certify|review-gate) ;;
+          certify|review-gate|advisory) ;;
           migration) migration_arguments+=(--migration) ;;
-          *) echo "mode must be certify, review-gate, or migration" >&2; exit 2 ;;
+          *) echo "mode must be certify, review-gate, migration, or advisory" >&2; exit 2 ;;
         esac
         set +e
         node "$GITHUB_ACTION_PATH/bin/styleproof-report.mjs" "${{ inputs.baseline-dir }}" "${{ inputs.fresh-dir }}" --out styleproof-report ${trusted_sha_arguments[@]+"${trusted_sha_arguments[@]}"} ${report_content_arguments[@]+"${report_content_arguments[@]}"} ${state_identity_arguments[@]+"${state_identity_arguments[@]}"} ${migration_arguments[@]+"${migration_arguments[@]}"}
@@ -595,9 +597,12 @@ runs:
 
           const requireApproval = '${{ inputs.require-approval }}' === 'true';
           const mode = '${{ inputs.mode }}';
+          const blocking = '${{ steps.config.outputs.blocking }}';
           const migrationMode = mode === 'migration';
+          const advisoryMode = mode === 'advisory' || blocking === 'advisory';
           // Review-gate and migration modes use approval box and commit status.
-          const useReviewGate = requireApproval || mode === 'review-gate' || migrationMode;
+          // Advisory mode sets status but never shows the approval box.
+          const useReviewGate = !advisoryMode && (requireApproval || mode === 'review-gate' || migrationMode);
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const approver = '${{ steps.gate.outputs.approver }}';
           const statusContext = '${{ inputs.status-context }}';
@@ -631,21 +636,24 @@ runs:
                 ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
                 : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
               : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
+          // Advisory mode guidance: always green, never blocks, check remains green.
           const advisoryGuidance = changed
-            ? `_StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
-            : cleanGuidance;
+            ? `_Advisory-only mode: StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
+            : `_Advisory-only mode: no reviewable changes detected — the **${statusContext}** check remains green._`;
           // Migration-specific guidance: structure changes are reviewable alongside styles.
           const migrationPendingGuidance = `_Migration mode: tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. The report shows **Changed styles**, **New surfaces**, and **New/removed elements**. A new push that changes styles or structure re-opens it._`;
           const migrationApprovedGuidance = `_Migration mode: signed off — the **${statusContext}** check is green. A new push that changes styles or structure re-opens it._`;
           const footer = [
             '---',
-            trustGuidance || (useReviewGate
-              ? !changed
-                ? cleanGuidance
-                : approved
-                  ? migrationMode ? migrationApprovedGuidance : `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
-                  : migrationMode ? migrationPendingGuidance : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. One tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
-              : advisoryGuidance),
+            trustGuidance || (advisoryMode
+              ? advisoryGuidance
+              : useReviewGate
+                ? !changed
+                  ? cleanGuidance
+                  : approved
+                    ? migrationMode ? migrationApprovedGuidance : `_Signed off — the **${statusContext}** check is green. A new push that changes styles or surfaces re-opens it._`
+                    : migrationMode ? migrationPendingGuidance : `_Tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. One tick signs off every changed or new surface. A new push that changes styles or surfaces re-opens it._`
+                : advisoryGuidance),
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
             formatRunAttemptReceiptMarker({ runId, runAttempt }),
           ];
@@ -662,7 +670,7 @@ runs:
       id: status
       if: >-
         steps.context.outputs.pr-number != '' &&
-        (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration') &&
+        (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory') &&
         steps.comment.outputs.stale-delivery != 'true'
       uses: actions/github-script@v9
       with:
@@ -674,9 +682,14 @@ runs:
           const trustState = '${{ steps.verdict.outputs.state }}';
           const sha = '${{ steps.context.outputs.head-sha }}';
           const url = '${{ steps.publish.outputs.url }}';
+          const mode = '${{ inputs.mode }}';
+          const blocking = '${{ steps.config.outputs.blocking }}';
+          const advisoryMode = mode === 'advisory' || blocking === 'advisory';
+          // Advisory mode: ALWAYS green — never block, let adopters evaluate signal quality.
           // Green when no review is needed OR a prior sign-off already approved this commit
           // (so re-running the report can't clobber an approval the approve workflow set).
           const green =
+            advisoryMode ||
             trustState === 'NO_REVIEWABLE_STYLE_CHANGES' ||
             (trustState === 'STYLE_REVIEW_REQUIRED' && approved);
           const descriptions = {
@@ -726,6 +739,8 @@ runs:
       if: >-
         steps.context.outputs.pr-number != '' &&
         (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration') &&
+        inputs.mode != 'advisory' &&
+        steps.config.outputs.blocking != 'advisory' &&
         steps.config.outputs.blocking == 'true' &&
         steps.verdict.outputs.state == 'STYLE_REVIEW_REQUIRED' &&
         steps.gate.outputs.approved != 'true'

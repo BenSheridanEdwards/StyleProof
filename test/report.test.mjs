@@ -3216,3 +3216,58 @@ test('end-to-end: Markdown surface labels match classification from report.json 
 
   rmTmp(root);
 });
+
+// --------------------------------------------------------- #580 gateMode in report.json
+
+test('report.json includes gateMode field defaulting to certify (#580)', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const minimalMap = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
+  writeCapture(beforeDir, 'home@1280', minimalMap, null);
+  writeCapture(afterDir, 'home@1280', minimalMap, null);
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+
+  assert.ok('gateMode' in json, 'report.json should include gateMode field');
+  assert.equal(json.gateMode, 'certify', 'gateMode should default to certify');
+  rmTmp(root);
+});
+
+test('report.json gateMode reflects advisory mode when specified (#580)', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const minimalMap = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
+  writeCapture(beforeDir, 'home@1280', minimalMap, null);
+  writeCapture(afterDir, 'home@1280', minimalMap, null);
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, gateMode: 'advisory' });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+
+  assert.equal(json.gateMode, 'advisory', 'gateMode should be advisory when specified');
+  rmTmp(root);
+});
+
+test('report.json gateMode reflects review-gate mode when specified (#580)', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const minimalMap = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
+  writeCapture(beforeDir, 'home@1280', minimalMap, null);
+  writeCapture(afterDir, 'home@1280', minimalMap, null);
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, gateMode: 'review-gate' });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+
+  assert.equal(json.gateMode, 'review-gate', 'gateMode should be review-gate when specified');
+  rmTmp(root);
+});
+
+test('report.json gateMode reflects migration mode when specified (#580)', () => {
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const minimalMap = makeMap({ elements: { body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} } } });
+  writeCapture(beforeDir, 'home@1280', minimalMap, null);
+  writeCapture(afterDir, 'home@1280', minimalMap, null);
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, gateMode: 'migration', migration: true });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+
+  assert.equal(json.gateMode, 'migration', 'gateMode should be migration when specified');
+  rmTmp(root);
+});
