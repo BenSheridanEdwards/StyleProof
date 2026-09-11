@@ -1669,3 +1669,46 @@ test('styleproof-init: start and preview scripts remain supported production ser
     }
   }
 });
+
+test('styleproof-init: scaffolds lint-artifacts workflow from example template', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+
+    const lintWorkflowPath = '.github/workflows/styleproof-lint-artifacts.yml';
+    assert.ok(fs.existsSync(path.join(root, lintWorkflowPath)), 'lint-artifacts workflow must be scaffolded');
+
+    const lintWorkflow = readFile(root, lintWorkflowPath);
+    assert.match(lintWorkflow, /name: Lint map artifacts/);
+    assert.match(lintWorkflow, /on:\s*\n\s*pull_request:/);
+    assert.match(lintWorkflow, /\.json\.gz/);
+    assert.match(lintWorkflow, /styleproof-manifest\.json/);
+    assert.match(lintWorkflow, /\.styleproof\//);
+    assert.match(lintWorkflow, /stylemaps\//);
+    assert.match(lintWorkflow, /__stylemaps__\//);
+    assert.match(lintWorkflow, /Fail if StyleProof map artifacts are committed/);
+    assert.match(res.stdout, /created \.github\/workflows\/styleproof-lint-artifacts\.yml/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: does not overwrite existing lint-artifacts workflow', () => {
+  const root = mkTmp();
+  try {
+    const lintWorkflowPath = path.join(root, '.github/workflows/styleproof-lint-artifacts.yml');
+    fs.mkdirSync(path.dirname(lintWorkflowPath), { recursive: true });
+    const existingContent = '# Custom lint workflow - do not overwrite\nname: Custom Lint\n';
+    fs.writeFileSync(lintWorkflowPath, existingContent);
+
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+
+    const lintWorkflow = readFile(root, '.github/workflows/styleproof-lint-artifacts.yml');
+    assert.equal(lintWorkflow, existingContent, 'existing lint-artifacts workflow must not be overwritten');
+    assert.match(res.stdout, /styleproof-lint-artifacts\.yml already exists/);
+  } finally {
+    rmTmp(root);
+  }
+});

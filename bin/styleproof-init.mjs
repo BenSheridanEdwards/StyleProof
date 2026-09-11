@@ -1142,6 +1142,20 @@ function readApproveTemplate() {
   }
 }
 
+const LINT_ARTIFACTS_PATH = '.github/workflows/styleproof-lint-artifacts.yml';
+// First line of example/lint-map-artifacts.yml — the packaged template carries it.
+const LINT_ARTIFACTS_OWNERSHIP_MARKER = '# StyleProof map artifact lint';
+function readLintArtifactsTemplate() {
+  const lintSource = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'example', 'lint-map-artifacts.yml');
+  try {
+    return fs.readFileSync(lintSource, 'utf8');
+  } catch {
+    // Packaged example missing (unexpected) — don't abort the rest of init.
+    console.warn(`could not read the lint-artifacts workflow template at ${lintSource} — skipped`);
+    return undefined;
+  }
+}
+
 // MACHINE-OWNED generated files: their content is fully derived from this release
 // plus init's inputs (spec path, package manager), so `--upgrade` may rewrite them
 // and `--check` can diff them against the current templates. The capture spec and
@@ -1150,6 +1164,7 @@ function readApproveTemplate() {
 // interpolate the matching path.)
 function machineOwnedFiles() {
   const approve = readApproveTemplate();
+  const lintArtifacts = readLintArtifactsTemplate();
   const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
   return [
     {
@@ -1163,6 +1178,9 @@ function machineOwnedFiles() {
     ...(approve === undefined
       ? []
       : [{ file: APPROVE_PATH, contents: approve, ownershipMarker: APPROVE_OWNERSHIP_MARKER }]),
+    ...(lintArtifacts === undefined
+      ? []
+      : [{ file: LINT_ARTIFACTS_PATH, contents: lintArtifacts, ownershipMarker: LINT_ARTIFACTS_OWNERSHIP_MARKER }]),
   ];
 }
 
@@ -1394,6 +1412,23 @@ if (approveWorkflow !== undefined) {
     reportUnmanagedGeneratedPath(APPROVE_PATH);
   } else {
     console.log(`${APPROVE_PATH} already exists — left untouched`);
+  }
+}
+
+// Lint-artifacts workflow — CI guard against accidentally committed map artifacts.
+// Maps should travel via the styleproof-maps branch or CI artifacts, never as files
+// committed to a PR branch (bloats the repo, forces cross-PR rebases on each merge).
+const lintArtifactsWorkflow = readLintArtifactsTemplate();
+if (lintArtifactsWorkflow !== undefined) {
+  const lintArtifacts = writeFileSafe(LINT_ARTIFACTS_PATH, lintArtifactsWorkflow);
+  if (lintArtifacts.wrote) {
+    touched.push(LINT_ARTIFACTS_PATH);
+    console.log(`created ${LINT_ARTIFACTS_PATH} (CI guard against committed map artifacts)`);
+    wroteSomething = true;
+  } else if (lintArtifacts.unmanaged) {
+    reportUnmanagedGeneratedPath(LINT_ARTIFACTS_PATH);
+  } else {
+    console.log(`${LINT_ARTIFACTS_PATH} already exists — left untouched`);
   }
 }
 

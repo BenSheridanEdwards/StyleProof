@@ -1367,6 +1367,50 @@ That last point is why this works where `pull_request_target` does not: StylePro
 
 Copy both `capture` and `report` files to `.github/workflows/` (the `report` one must be on your default branch, like `styleproof-approve.yml`), then require the `StyleProof` status in branch protection. A single combined `pull_request` job that captures base + head and diffs them is fine for repos that never see fork or bot PRs; this split is only needed for untrusted PRs.
 
+## Platform Integration
+
+### Vercel
+
+StyleProof uses two artifact branches — `styleproof-maps` (cached style-map bundles)
+and `styleproof-reports` (published HTML reports) — that contain only CI-generated
+data. Vercel's default branch-detection triggers preview deployments for every push,
+including pushes to these data-only branches. Those deployments always fail (no
+build script, no app code) and consume build minutes.
+
+**Recommended: disable deployments for artifact branches in `vercel.json`:**
+
+```json
+{
+  "git": {
+    "deploymentEnabled": {
+      "styleproof-maps": false,
+      "styleproof-reports": false
+    }
+  }
+}
+```
+
+This keeps Vercel from attempting builds on pushes to those branches while leaving
+all other branches — `main`, feature branches, PR previews — unchanged.
+
+**Alternative: `ignoreBuildStep` (requires a Pro plan):**
+
+If you already use `ignoreBuildStep` for selective builds, you can extend it to
+skip artifact branches:
+
+```json
+{
+  "git": {
+    "ignoreBuildStep": "bash -c '[[ \"$VERCEL_GIT_COMMIT_REF\" =~ ^(styleproof-maps|styleproof-reports)$ ]] && exit 0 || exit 1'"
+  }
+}
+```
+
+This script exits `0` (skip) for artifact branches and `1` (continue) otherwise.
+Note: `ignoreBuildStep` is only available on Vercel Pro plans; `deploymentEnabled`
+works on all plans and is the simpler choice when you only need to disable specific
+branches.
+
 ## Optional: pixel gate
 
 Computed styles are the cause; pixels are the effect. The computed-style gate
