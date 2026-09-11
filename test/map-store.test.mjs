@@ -27,6 +27,7 @@ import {
   readSurfaceCaptureFailures,
   recordSurfaceCaptureFailure,
   restoreMapBundle,
+  DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS,
   SURFACE_CAPTURE_FAILURES_DIR,
   workflowTokenCredentialArguments,
   workingTreeDirty,
@@ -2101,4 +2102,9 @@ test('restoreMapBundle output is byte-identical regardless of v2 or v1 source (#
   } finally {
     rmTmp(root);
   }
+});
+
+// ── #595: default git timeout increased to 120s ────────────────────────────────
+test('DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS is 120_000 (120s)', () => {
+  assert.equal(DEFAULT_MAP_STORE_GIT_TIMEOUT_MILLISECONDS, 120_000, 'default git timeout should be 120 seconds (#595)');
 });
