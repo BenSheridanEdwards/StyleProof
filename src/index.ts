@@ -269,3 +269,29 @@ export type {
   ResolveEnvOptions,
   ResolveEnvResult,
 } from './config.js';
+
+export {
+  AUDIT_SCHEMA_VERSION,
+  AUDIT_FILE_NAME,
+  createAudit,
+  createEmptyCaptureAudit,
+  createEmptyComparisonAudit,
+  validateAudit,
+  assertValidAudit,
+  renderAuditSummary,
+  formatAuditSummary,
+} from './audit.js';
+export type {
+  StyleProofAudit,
+  CaptureAudit,
+  ComparisonAudit,
+  TrustDecision,
+  TrustCheck,
+  TrustCheckResult,
+  BudgetAudit,
+  SkippedSurface,
+  SkippedSurfaceReason,
+  BaselineSource,
+  CreateAuditOptions,
+  AuditValidationError,
+} from './audit.js';
