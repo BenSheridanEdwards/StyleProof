@@ -1677,3 +1677,31 @@ test('styleproof-init: start and preview scripts remain supported production ser
     }
   }
 });
+
+test('styleproof-init: scaffolds the lint-artifacts workflow to block committed maps', () => {
+  // Vercel and other CI systems auto-deploy every branch push, including
+  // styleproof-maps and styleproof-reports. The lint-artifacts workflow fails
+  // the PR if map artifacts are accidentally committed to a PR branch — a
+  // belt-and-suspenders guard since .gitignore should already exclude them.
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+
+    const lintArtifacts = readFile(root, '.github/workflows/styleproof-lint-artifacts.yml');
+    const source = readFile(path.join(here, '..'), 'example/lint-map-artifacts.yml');
+    assert.equal(lintArtifacts, source); // verbatim copy, no drift
+    assert.match(lintArtifacts, /name: Lint map artifacts/);
+    assert.match(lintArtifacts, /Fail if StyleProof map artifacts are committed/);
+    assert.match(lintArtifacts, /\.json\.gz/);
+    assert.match(lintArtifacts, /styleproof-manifest\.json/);
+    assert.match(res.stdout, /styleproof-lint-artifacts\.yml/);
+
+    // Idempotent: a second run leaves an existing workflow untouched.
+    const rerun = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(rerun.status, 0, rerun.stderr);
+    assert.match(rerun.stdout, /styleproof-lint-artifacts\.yml already exists — left untouched/);
+  } finally {
+    rmTmp(root);
+  }
+});

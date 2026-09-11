@@ -33,6 +33,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 // Import from the leaf module, not the barrel: styleproof-init only scaffolds
 // files and never captures. Pulling `../dist/index.js` here dragged the whole
@@ -1149,6 +1150,20 @@ jobs:
       token: \${{ secrets.GITHUB_TOKEN }}
 `;
 
+const LINT_ARTIFACTS_PATH = '.github/workflows/styleproof-lint-artifacts.yml';
+// First line of example/lint-map-artifacts.yml — the packaged template carries it.
+const LINT_ARTIFACTS_OWNERSHIP_MARKER = '# StyleProof map artifact lint';
+function readLintArtifactsTemplate() {
+  const lintSource = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'example', 'lint-map-artifacts.yml');
+  try {
+    return fs.readFileSync(lintSource, 'utf8');
+  } catch {
+    // Packaged example missing (unexpected) — don't abort the rest of init.
+    console.warn(`could not read the lint-artifacts workflow template at ${lintSource} — skipped`);
+    return undefined;
+  }
+}
+
 // MACHINE-OWNED generated files: their content is fully derived from this release
 // plus init's inputs (spec path, package manager), so `--upgrade` may rewrite them
 // and `--check` can diff them against the current templates. The capture spec and
@@ -1156,6 +1171,7 @@ jobs:
 // (Custom spec path? Pass the same --dir you scaffolded with, so the templates
 // interpolate the matching path.)
 function machineOwnedFiles() {
+  const lintArtifacts = readLintArtifactsTemplate();
   const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
   return [
     {
@@ -1167,6 +1183,9 @@ function machineOwnedFiles() {
     { file: CI_PATH, contents: CI_WORKFLOW, ownershipMarker: CI_OWNERSHIP_MARKER },
     { file: REPORT_PATH, contents: REPORT_WORKFLOW, ownershipMarker: REPORT_OWNERSHIP_MARKER },
     { file: APPROVE_PATH, contents: APPROVE_WORKFLOW, ownershipMarker: APPROVE_OWNERSHIP_MARKER },
+    ...(lintArtifacts === undefined
+      ? []
+      : [{ file: LINT_ARTIFACTS_PATH, contents: lintArtifacts, ownershipMarker: LINT_ARTIFACTS_OWNERSHIP_MARKER }]),
   ];
 }
 
@@ -1394,6 +1413,24 @@ if (approve.wrote) {
   reportUnmanagedGeneratedPath(APPROVE_PATH);
 } else {
   console.log(`${APPROVE_PATH} already exists — left untouched`);
+}
+
+// Lint-artifacts guard — fails the PR if StyleProof map artifacts are accidentally
+// committed to a PR branch. A belt-and-suspenders guard since .gitignore already
+// excludes them, but a misconfigured .gitignore or force-add can still land them.
+// Prevents Vercel and other CI systems from auto-deploying artifact branches.
+const lintArtifactsWorkflow = readLintArtifactsTemplate();
+if (lintArtifactsWorkflow !== undefined) {
+  const lintArtifacts = writeFileSafe(LINT_ARTIFACTS_PATH, lintArtifactsWorkflow);
+  if (lintArtifacts.wrote) {
+    touched.push(LINT_ARTIFACTS_PATH);
+    console.log(`created ${LINT_ARTIFACTS_PATH} (artifact-branch guard — fails PR if maps are committed)`);
+    wroteSomething = true;
+  } else if (lintArtifacts.unmanaged) {
+    reportUnmanagedGeneratedPath(LINT_ARTIFACTS_PATH);
+  } else {
+    console.log(`${LINT_ARTIFACTS_PATH} already exists — left untouched`);
+  }
 }
 
 const hook = installPrePushHook();
