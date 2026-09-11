@@ -721,3 +721,72 @@ test('loadStyleProofConfig: mapStore block is optional', () => {
     assert.equal(config.mapStore, undefined);
   });
 });
+
+test('loadStyleProofConfig: mapStore.pruneRetentionDays and pruneBudgetBytes are accepted', () => {
+  withConfig({ mapStore: { pruneRetentionDays: 14, pruneBudgetBytes: 1_500_000_000 } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.mapStore.pruneRetentionDays, 14);
+    assert.equal(config.mapStore.pruneBudgetBytes, 1_500_000_000);
+  });
+});
+
+test('loadStyleProofConfig: mapStore.pruneRetentionDays must be a positive number', () => {
+  withConfig({ mapStore: { pruneRetentionDays: 0 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"mapStore\.pruneRetentionDays" must be a positive number/);
+  });
+  withConfig({ mapStore: { pruneRetentionDays: -7 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"mapStore\.pruneRetentionDays" must be a positive number/);
+  });
+});
+
+// --- Tests for #595: ancestor baseline config ---
+
+test('loadStyleProofConfig: reads ancestorBaseline block with enabled and roots', () => {
+  withConfig({ ancestorBaseline: { enabled: true, roots: ['src', 'styles'] } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.deepEqual(config.ancestorBaseline, { enabled: true, roots: ['src', 'styles'] });
+  });
+});
+
+test('loadStyleProofConfig: ancestorBaseline.enabled accepts boolean', () => {
+  withConfig({ ancestorBaseline: { enabled: false } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.ancestorBaseline.enabled, false);
+  });
+  withConfig({ ancestorBaseline: { enabled: true } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.ancestorBaseline.enabled, true);
+  });
+});
+
+test('loadStyleProofConfig: ancestorBaseline.enabled rejects non-boolean', () => {
+  withConfig({ ancestorBaseline: { enabled: 'true' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"ancestorBaseline\.enabled" must be a boolean/);
+  });
+  withConfig({ ancestorBaseline: { enabled: 1 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"ancestorBaseline\.enabled" must be a boolean/);
+  });
+});
+
+test('loadStyleProofConfig: ancestorBaseline.roots must be array of strings', () => {
+  withConfig({ ancestorBaseline: { roots: 'src' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"ancestorBaseline\.roots" must be an array/);
+  });
+  withConfig({ ancestorBaseline: { roots: [42] } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"ancestorBaseline\.roots" must be an array of non-empty strings/);
+  });
+});
+
+test('loadStyleProofConfig: ancestorBaseline block warns on unknown keys', () => {
+  withConfig({ ancestorBaseline: { enabled: true, roost: ['src'] }, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.match(map.stderr, /unknown "ancestorBaseline" key\(s\) ignored: roost/);
+  });
+});
+
+test('loadStyleProofConfig: ancestorBaseline block is optional', () => {
+  withConfig({ spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.ancestorBaseline, undefined);
+  });
+});

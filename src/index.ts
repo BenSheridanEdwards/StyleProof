@@ -266,6 +266,7 @@ export type {
   CrawlConfig,
   AuthConfig,
   MapStoreConfig,
+  AncestorBaselineConfig,
   EnvRef,
   ResolveEnvOptions,
   ResolveEnvResult,
