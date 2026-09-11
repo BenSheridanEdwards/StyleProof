@@ -265,6 +265,7 @@ export type {
   AffectedConfig,
   CrawlConfig,
   AuthConfig,
+  MapStoreConfig,
   EnvRef,
   ResolveEnvOptions,
   ResolveEnvResult,

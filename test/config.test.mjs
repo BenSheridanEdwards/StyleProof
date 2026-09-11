@@ -675,3 +675,49 @@ test('loadStyleProofConfig: rejects invalid blocking string values', () => {
     assert.throws(() => loadStyleProofConfig(dir), /"blocking" must be a boolean or 'advisory'/);
   });
 });
+
+// --- Tests for #595: map-store token and timeout defaults ---
+
+test('loadStyleProofConfig: reads mapStore block with token and gitTimeoutMs', () => {
+  withConfig({ mapStore: { token: 'inherit', gitTimeoutMs: 120000 } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.deepEqual(config.mapStore, { token: 'inherit', gitTimeoutMs: 120000 });
+  });
+});
+
+test('loadStyleProofConfig: mapStore.token accepts "inherit" or string env reference', () => {
+  withConfig({ mapStore: { token: 'inherit' } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.mapStore.token, 'inherit');
+  });
+  withConfig({ mapStore: { token: '${GITHUB_TOKEN}' } }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.mapStore.token, '${GITHUB_TOKEN}');
+  });
+});
+
+test('loadStyleProofConfig: mapStore.gitTimeoutMs must be a positive number', () => {
+  withConfig({ mapStore: { gitTimeoutMs: 0 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"mapStore\.gitTimeoutMs" must be a positive number/);
+  });
+  withConfig({ mapStore: { gitTimeoutMs: -1 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"mapStore\.gitTimeoutMs" must be a positive number/);
+  });
+  withConfig({ mapStore: { gitTimeoutMs: 'fast' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"mapStore\.gitTimeoutMs" must be a positive number/);
+  });
+});
+
+test('loadStyleProofConfig: mapStore block warns on unknown keys', () => {
+  withConfig({ mapStore: { token: 'inherit', gitTimeotMs: 120000 }, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.match(map.stderr, /unknown "mapStore" key\(s\) ignored: gitTimeotMs/);
+  });
+});
+
+test('loadStyleProofConfig: mapStore block is optional', () => {
+  withConfig({ spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.mapStore, undefined);
+  });
+});

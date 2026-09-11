@@ -261,6 +261,18 @@ export type AuthConfig = {
   apiToken?: string | EnvRef;
 };
 
+/**
+ * Map store configuration for git operations (token auth and timeouts).
+ * Allows adopters to configure map-store behavior via styleproof.config.ts
+ * instead of environment variables.
+ */
+export type MapStoreConfig = {
+  /** Auth token for git operations. 'inherit' (default) uses GITHUB_TOKEN. */
+  token?: 'inherit' | string;
+  /** Git operation timeout in ms. Default 120_000 (120s). */
+  gitTimeoutMs?: number;
+};
+
 export type StyleProofConfig = {
   /** Review-gate failures block the Action unless explicitly false or set to 'advisory'. */
   blocking?: boolean | 'advisory';
@@ -283,6 +295,8 @@ export type StyleProofConfig = {
   crawl?: CrawlConfig;
   /** Auth secret references (env/secret names only — never plaintext). */
   auth?: AuthConfig;
+  /** Map store configuration (token auth, git timeouts). */
+  mapStore?: MapStoreConfig;
 };
 
 /**
@@ -480,6 +494,18 @@ function parseAuth(value: unknown): AuthConfig | undefined {
   return result;
 }
 
+function parseMapStore(value: unknown): MapStoreConfig | undefined {
+  if (value === undefined) return undefined;
+  const m = plainObject(value, '"mapStore"');
+  warnUnknownKeys(m, KNOWN_MAP_STORE_KEYS, '"mapStore" ');
+  const token = optionalString(m.token, 'mapStore.token');
+  const gitTimeoutMs = optionalPositiveNumber(m.gitTimeoutMs, 'mapStore.gitTimeoutMs');
+  const result: MapStoreConfig = {};
+  if (token !== undefined) result.token = token;
+  if (gitTimeoutMs !== undefined) result.gitTimeoutMs = gitTimeoutMs;
+  return result;
+}
+
 const KNOWN_KEYS = [
   'blocking',
   'requireApproval',
@@ -492,9 +518,11 @@ const KNOWN_KEYS = [
   'affected',
   'crawl',
   'auth',
+  'mapStore',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
 const KNOWN_AUTH_KEYS = ['hudPassword', 'apiToken'];
+const KNOWN_MAP_STORE_KEYS = ['token', 'gitTimeoutMs'];
 const KNOWN_CRAWL_KEYS = [
   'baseUrl',
   'routes',
@@ -539,6 +567,7 @@ function parseConfigRecord(record: Record<string, unknown>): StyleProofConfig {
     affected: parseAffected(record.affected),
     crawl: parseCrawl(record.crawl),
     auth: parseAuth(record.auth),
+    mapStore: parseMapStore(record.mapStore),
   };
 }
 
