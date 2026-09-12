@@ -40,16 +40,6 @@ function touch(root: string, rel: string): void {
   fs.writeFileSync(f, '');
 }
 
-/**
- * Canonical template sources from the package — the ground truth that init must match.
- * These are the machine-owned files that --check validates and --upgrade refreshes.
- */
-const PACKAGE_ROOT = path.resolve(import.meta.dirname, '..');
-
-function readPackageTemplate(rel: string): string {
-  return fs.readFileSync(path.join(PACKAGE_ROOT, rel), 'utf8');
-}
-
 test.describe('styleproof-init scaffold drift E2E (#536)', () => {
   test.describe('--upgrade produces exact templates for each generator variant', () => {
     const packageManagers = [
@@ -103,7 +93,7 @@ test.describe('styleproof-init scaffold drift E2E (#536)', () => {
       });
     }
 
-    test('approval workflow matches the packaged example exactly', async () => {
+    test('approval workflow scaffolds a thin caller to the reusable workflow (#598)', async () => {
       const root = mkTmp();
       try {
         fs.writeFileSync(
@@ -115,8 +105,22 @@ test.describe('styleproof-init scaffold drift E2E (#536)', () => {
         expect(init.status).toBe(0);
 
         const generatedApprove = readFile(root, '.github/workflows/styleproof-approve.yml');
-        const sourceApprove = readPackageTemplate('example/styleproof-approve.yml');
-        expect(generatedApprove).toBe(sourceApprove);
+
+        // The generated workflow should be a thin caller to the reusable workflow
+        expect(generatedApprove).toMatch(/name: StyleProof approve/);
+        expect(generatedApprove).toMatch(/# StyleProof approval caller/);
+        expect(generatedApprove).toMatch(/issue_comment:/);
+        expect(generatedApprove).toMatch(/types: \[edited\]/);
+        expect(generatedApprove).toMatch(
+          /uses: BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@v7/,
+        );
+        expect(generatedApprove).toMatch(/status-context: StyleProof/);
+        expect(generatedApprove).toMatch(/allow-self-approval: false/);
+        expect(generatedApprove).toMatch(/token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+
+        // Should NOT contain the full approval logic — that's in the reusable workflow
+        expect(generatedApprove).not.toContain('actions/github-script');
+        expect(generatedApprove).not.toContain('createCommitStatus');
       } finally {
         rmTmp(root);
       }
