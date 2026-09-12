@@ -72,12 +72,12 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 0,
+      "unproven-determinism": 1,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 1
+      "captured": 0
     },
-    "completeness": "complete"
+    "completeness": "limited"
   },
   "sourceBinding": {
     "status": "bound",
@@ -97,18 +97,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "3a770f2cc4e19becf8063899febe8f77a307edd449085524ae6871b1904ee99e",
+      "digest": "ea50deb1e78a6a6a6a72f8a5ac03f1316e4be805a3c743d1d3631425acd62fbe",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1578
+      "byteCount": 1638
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "19e945c49adb76280e59b37e7c36bf911576ba5c0eb2f18f532db0ee9dd4cdf7",
+      "digest": "7e9dc2c885de0424fe1ba7450829d6ae913d04dfb735a54157d618b0c7bb643b",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1566
+      "byteCount": 1638
     }
   },
-  "actionTrustState": "INVENTORY_REMOVAL_UNACKNOWLEDGED"
+  "actionTrustState": "CERTIFICATION_FAILED"
 }
