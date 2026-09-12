@@ -301,6 +301,20 @@ export type ReportStoreConfig = {
   pruneBudgetBytes?: number;
 };
 
+/**
+ * Coverage configuration for declaring expected surface keys via external manifest.
+ * Allows adopters to generate manifest files from router config / sitemap and have
+ * StyleProof validate coverage against them.
+ */
+export type CoverageConfig = {
+  /** Path to JSON manifest of expected surface keys (repo-relative, resolved from cwd). */
+  manifest?: string;
+  /** Fail if any expected surface is uncaptured. Default false. */
+  strict?: boolean;
+  /** Surfaces to exclude from coverage (key → reason). Reasons must be non-empty. */
+  exclude?: Record<string, string>;
+};
+
 export type StyleProofConfig = {
   /** Review-gate failures block the Action unless explicitly false or set to 'advisory'. */
   blocking?: boolean | 'advisory';
@@ -331,6 +345,8 @@ export type StyleProofConfig = {
   reportStore?: ReportStoreConfig;
   /** Suppress platform mismatch warning. Default true. */
   suppressPlatformWarning?: boolean;
+  /** Coverage configuration for expected surface manifest. */
+  coverage?: CoverageConfig;
 };
 
 /**
@@ -568,6 +584,31 @@ function parseReportStore(value: unknown): ReportStoreConfig | undefined {
   return result;
 }
 
+function parseCoverageExclude(value: unknown): Record<string, string> | undefined {
+  if (value === undefined) return undefined;
+  const exclude = plainObject(value, '"coverage.exclude"');
+  for (const [key, reason] of Object.entries(exclude)) {
+    if (typeof reason !== 'string' || !reason) {
+      fail(`"coverage.exclude.${key}" must be a non-empty reason string`);
+    }
+  }
+  return exclude as Record<string, string>;
+}
+
+function parseCoverage(value: unknown): CoverageConfig | undefined {
+  if (value === undefined) return undefined;
+  const c = plainObject(value, '"coverage"');
+  warnUnknownKeys(c, KNOWN_COVERAGE_KEYS, '"coverage" ');
+  const manifest = optionalString(c.manifest, 'coverage.manifest');
+  const strict = optionalBoolean(c.strict, 'coverage.strict');
+  const exclude = parseCoverageExclude(c.exclude);
+  const result: CoverageConfig = {};
+  if (manifest !== undefined) result.manifest = manifest;
+  if (strict !== undefined) result.strict = strict;
+  if (exclude !== undefined) result.exclude = exclude;
+  return result;
+}
+
 const KNOWN_KEYS = [
   'blocking',
   'requireApproval',
@@ -584,6 +625,7 @@ const KNOWN_KEYS = [
   'ancestorBaseline',
   'reportStore',
   'suppressPlatformWarning',
+  'coverage',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
 const KNOWN_AUTH_KEYS = ['hudPassword', 'apiToken'];
@@ -602,6 +644,7 @@ const KNOWN_CRAWL_KEYS = [
   'width',
   'height',
 ];
+const KNOWN_COVERAGE_KEYS = ['manifest', 'strict', 'exclude'];
 
 /** Unknown keys are a LOUD stderr warning, not an error: a typo'd `dirtyallow`
  *  silently reverting to defaults is exactly the failure this file's contract
@@ -638,6 +681,7 @@ function parseConfigRecord(record: Record<string, unknown>): StyleProofConfig {
     ancestorBaseline: parseAncestorBaseline(record.ancestorBaseline),
     reportStore: parseReportStore(record.reportStore),
     suppressPlatformWarning: optionalBoolean(record.suppressPlatformWarning, 'suppressPlatformWarning'),
+    coverage: parseCoverage(record.coverage),
   };
 }
 

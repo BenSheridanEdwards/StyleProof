@@ -165,3 +165,152 @@ test('translateExpected / coverageKeys: stateRecipes expansions map back to base
     [],
   );
 });
+
+// --- Tests for #599: coverage manifest loading ---
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { loadCoverageManifest, mergeCoverageConfig } from '../dist/coverage.js';
+import { mkTmp, rmTmp } from './helpers.mjs';
+
+test('loadCoverageManifest: loads valid version 1 manifest', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'surfaces.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: 1, surfaces: ['home', 'dashboard', 'settings'] }));
+    const surfaces = loadCoverageManifest(manifestPath);
+    assert.deepEqual(surfaces, ['home', 'dashboard', 'settings']);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('loadCoverageManifest: fails LOUD on missing manifest file', () => {
+  assert.throws(() => loadCoverageManifest('/nonexistent/path/manifest.json'), /cannot read coverage manifest/i);
+});
+
+test('loadCoverageManifest: fails LOUD on invalid JSON', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'bad.json');
+    fs.writeFileSync(manifestPath, '{ not json');
+    assert.throws(() => loadCoverageManifest(manifestPath), /invalid JSON/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('loadCoverageManifest: fails LOUD on wrong version', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'v2.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: 2, surfaces: ['home'] }));
+    assert.throws(() => loadCoverageManifest(manifestPath), /unsupported manifest version/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('loadCoverageManifest: fails LOUD on missing version field', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'noversion.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ surfaces: ['home'] }));
+    assert.throws(() => loadCoverageManifest(manifestPath), /missing.*version/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('loadCoverageManifest: fails LOUD on non-array surfaces', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'badsurf.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: 1, surfaces: 'home' }));
+    assert.throws(() => loadCoverageManifest(manifestPath), /surfaces.*array/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('loadCoverageManifest: fails LOUD on non-string surface entries', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'badentry.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: 1, surfaces: ['home', 42] }));
+    assert.throws(() => loadCoverageManifest(manifestPath), /surface entries must be strings/i);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('mergeCoverageConfig: manifest-only config sets expected from manifest', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'surfaces.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: 1, surfaces: ['home', 'about'] }));
+    const result = mergeCoverageConfig({ manifest: manifestPath }, undefined, {}, dir);
+    assert.deepEqual(result.expected, ['home', 'about']);
+    assert.deepEqual(result.exclude, {});
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('mergeCoverageConfig: programmatic expected merges with manifest (union)', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'surfaces.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: 1, surfaces: ['home', 'about'] }));
+    const result = mergeCoverageConfig({ manifest: manifestPath }, ['home', 'dashboard'], {}, dir);
+    // Union: manifest + programmatic, deduped
+    assert.deepEqual(new Set(result.expected), new Set(['home', 'about', 'dashboard']));
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('mergeCoverageConfig: config exclude merges with programmatic exclude (config wins)', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'surfaces.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: 1, surfaces: ['home'] }));
+    const result = mergeCoverageConfig(
+      { manifest: manifestPath, exclude: { admin: 'config reason' } },
+      undefined,
+      { admin: 'programmatic reason', other: 'other reason' },
+      dir,
+    );
+    // Config exclude wins over programmatic for same key
+    assert.equal(result.exclude.admin, 'config reason');
+    assert.equal(result.exclude.other, 'other reason');
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('mergeCoverageConfig: strict mode passes through', () => {
+  const dir = mkTmp('styleproof-manifest-');
+  try {
+    const manifestPath = path.join(dir, 'surfaces.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ version: 1, surfaces: ['home'] }));
+    const result = mergeCoverageConfig({ manifest: manifestPath, strict: true }, undefined, {}, dir);
+    assert.equal(result.strict, true);
+  } finally {
+    rmTmp(dir);
+  }
+});
+
+test('mergeCoverageConfig: no config returns programmatic values unchanged', () => {
+  const result = mergeCoverageConfig(undefined, ['home', 'about'], { admin: 'reason' }, '/tmp');
+  assert.deepEqual(result.expected, ['home', 'about']);
+  assert.deepEqual(result.exclude, { admin: 'reason' });
+  assert.equal(result.strict, false);
+});
+
+test('auditCoverage: strict mode with uncovered surfaces is incomplete', () => {
+  const ledger = { version: 1, expected: ['home', 'about'], exclude: {} };
+  const verdict = auditCoverage(['home'], ledger);
+  assert.equal(verdict.basis, 'incomplete');
+  assert.deepEqual(verdict.uncovered, ['about']);
+});

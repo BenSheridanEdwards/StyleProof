@@ -21,10 +21,12 @@ import {
   coverageGaps,
   coverageKeys,
   translateExpected,
+  mergeCoverageConfig,
   COVERAGE_LEDGER,
   type CoverageLedger,
   type DeterminismBasis,
 } from './coverage.js';
+import { loadStyleProofConfig } from './config.js';
 import {
   markFatalCaptureFailure,
   writeBrowserBuildSidecar,
@@ -1422,9 +1424,21 @@ function writeBrowserBuildTest(settings: Settings, dir: string): void {
 export const CAPTURE_TEST_GREP = '/(?:^|\\s)styleproof capture(?:\\s|$)/';
 
 export function defineStyleMapCapture(options: DefineOptions): void {
-  const { surfaces, expected, exclude = {}, dir } = options;
+  const { surfaces, expected: programmaticExpected, exclude: programmaticExclude = {}, dir } = options;
   const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
   assertUniqueExpandedKeys(captureSurfaces);
+
+  // Merge config coverage with programmatic expected/exclude. Config `coverage.manifest`
+  // loads an external JSON file of expected surface keys; config `coverage.exclude` adds
+  // reviewed opt-outs. Union semantics: manifest + programmatic expected (neither can hide
+  // a hole); config exclude wins over programmatic exclude for the same key.
+  const config = loadStyleProofConfig();
+  const { expected, exclude, strict } = mergeCoverageConfig(
+    config.coverage,
+    programmaticExpected,
+    programmaticExclude,
+    process.cwd(),
+  );
 
   // Coverage guard. Runs in the NORMAL test suite (NOT gated on a capture dir), so
   // a route added without a surface fails the app's own tests — long before, and
@@ -1441,6 +1455,9 @@ export function defineStyleMapCapture(options: DefineOptions): void {
           expected,
           exclude,
         );
+        // In strict mode, uncovered surfaces fail the guard. Without strict mode,
+        // the guard still runs and reports gaps but doesn't gate certification
+        // (existing behaviour: unasserted coverage never fails, only informs).
         expect(
           uncovered,
           `StyleProof coverage gap: ${uncovered.length} expected surface(s) are neither captured ` +
@@ -1452,6 +1469,19 @@ export function defineStyleMapCapture(options: DefineOptions): void {
           `StyleProof: \`exclude\` lists surface(s) absent from \`expected\` ` +
             `(renamed or removed?): ${staleExclusions.join(', ')}`,
         ).toEqual([]);
+      });
+    });
+  }
+
+  // Strict mode also fails if there's no expected registry at all (diagnostic mode only).
+  // This catches a manifest that was expected but wasn't loaded due to a path issue.
+  if (strict && !expected) {
+    test.describe('styleproof coverage', () => {
+      test('strict coverage mode requires expected surfaces', () => {
+        throw new Error(
+          'StyleProof coverage.strict is true but no expected surfaces were declared ' +
+            '(set coverage.manifest or pass expected to defineStyleMapCapture)',
+        );
       });
     });
   }
@@ -1469,7 +1499,9 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     // `parallel: false` keeps file order for specs whose own sibling tests read
     // the captured maps.
     if (options.parallel !== false) test.describe.configure({ mode: 'parallel' });
-    writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, captureSurfaces);
+    // Use the merged expected/exclude for the ledger, so config-driven coverage
+    // travels with the bundle and the gate can audit against it.
+    writeCoverageLedgerTest(settings, dir, expected ?? null, exclude ?? {}, captureSurfaces);
     writeBrowserBuildTest(settings, dir);
     // Heartbeat ordinals are assigned at define time (stable across parallel
     // workers); Playwright test budgets derive from the per-surface ceiling so

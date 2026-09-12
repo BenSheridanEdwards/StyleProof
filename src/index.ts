@@ -98,8 +98,8 @@ export type {
   DefineOptions,
   CrawlOptions,
 } from './runner.js';
-export { coverageGaps } from './coverage.js';
-export type { CoverageGaps } from './coverage.js';
+export { coverageGaps, loadCoverageManifest, mergeCoverageConfig } from './coverage.js';
+export type { CoverageGaps, CoverageManifest, MergedCoverageConfig } from './coverage.js';
 export { detectViewportWidths, mediaTextWidthBoundaries, widthsFromBoundaries } from './breakpoints.js';
 export { discoverNextRoutes } from './routes.js';
 export type { DiscoveredRoute } from './routes.js';
@@ -267,6 +267,7 @@ export type {
   AuthConfig,
   MapStoreConfig,
   AncestorBaselineConfig,
+  CoverageConfig,
   EnvRef,
   ResolveEnvOptions,
   ResolveEnvResult,
