@@ -25,22 +25,33 @@
       box-sizing: border-box
 
     ELEMENT: .cta-button (button) [data-testid="cta"]
-      background-color: rgb(59, 130, 246)   [var(--primary-color)]
-      color: rgb(255, 255, 255)
-      padding-top: 12px
-      padding-right: 24px
-      padding-bottom: 12px
-      padding-left: 24px
-      font-size: 16px
-      border-top-width: 0px
-      border-right-width: 0px
-      border-bottom-width: 0px
-      border-left-width: 0px
-      border-top-style: none
-      border-right-style: none
-      border-bottom-style: none
-      border-left-style: none
-      cursor: pointer
+      RESTING:
+        background-color: rgb(59, 130, 246)   [var(--primary-color)]
+        color: rgb(255, 255, 255)
+        padding-top: 12px
+        padding-right: 24px
+        padding-bottom: 12px
+        padding-left: 24px
+        font-size: 16px
+        border-top-width: 0px
+        border-right-width: 0px
+        border-bottom-width: 0px
+        border-left-width: 0px
+        border-top-style: none
+        border-right-style: none
+        border-bottom-style: none
+        border-left-style: none
+        cursor: pointer
+      :hover
+        background-color: rgb(37, 99, 235)    [#2563EB blue-600]
+        color: rgb(255, 255, 255)
+      :focus
+        outline-style: solid
+        outline-color: rgb(59, 130, 246)
+        outline-width: 2px
+        outline-offset: 2px
+      :active
+        background-color: rgb(29, 78, 216)    [#1D4ED8 blue-700]
 
     ELEMENT: .label-span (span) [data-testid="label"]
       color: rgb(71, 85, 105)               [#475569 gray-600]
@@ -49,18 +60,27 @@
       box-sizing: border-box
 
     ELEMENT: .text-input (input type=text) [data-testid="email"]
-      border-top-style: solid
-      border-right-style: solid
-      border-bottom-style: solid
-      border-left-style: solid
-      border-top-color: rgb(203, 213, 225)  [#CBD5E1 gray-300]
-      border-right-color: rgb(203, 213, 225)
-      border-bottom-color: rgb(203, 213, 225)
-      border-left-color: rgb(203, 213, 225)
-      padding-top: 8px
-      padding-right: 12px
-      padding-bottom: 8px
-      padding-left: 12px
+      RESTING:
+        border-top-style: solid
+        border-right-style: solid
+        border-bottom-style: solid
+        border-left-style: solid
+        border-top-color: rgb(203, 213, 225)  [#CBD5E1 gray-300]
+        border-right-color: rgb(203, 213, 225)
+        border-bottom-color: rgb(203, 213, 225)
+        border-left-color: rgb(203, 213, 225)
+        padding-top: 8px
+        padding-right: 12px
+        padding-bottom: 8px
+        padding-left: 12px
+      :focus (delta from resting — only changed props captured)
+        border-top-color: rgb(59, 130, 246)
+        border-right-color: rgb(59, 130, 246)
+        border-bottom-color: rgb(59, 130, 246)
+        border-left-color: rgb(59, 130, 246)
+        outline-style: solid
+        outline-color: rgb(191, 219, 254)     [#BFDBFE blue-200]
+        (outline-width: 3px not captured — matches browser input default)
   -->
   <style>
     :root {
@@ -92,6 +112,20 @@
       cursor: pointer;
     }
 
+    .cta-button:hover {
+      background-color: rgb(37, 99, 235);
+      color: rgb(255, 255, 255);
+    }
+
+    .cta-button:focus {
+      outline: 2px solid rgb(59, 130, 246);
+      outline-offset: 2px;
+    }
+
+    .cta-button:active {
+      background-color: rgb(29, 78, 216);
+    }
+
     .label-span {
       color: rgb(71, 85, 105);
       font-size: 14px;
@@ -101,6 +135,11 @@
     .text-input {
       border: 2px solid rgb(203, 213, 225);
       padding: 8px 12px;
+    }
+
+    .text-input:focus {
+      border-color: rgb(59, 130, 246);
+      outline: 3px solid rgb(191, 219, 254);
     }
   </style>
 </head>
