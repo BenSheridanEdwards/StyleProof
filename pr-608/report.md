@@ -8,18 +8,25 @@
 
 **Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
-🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 320`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
+⚠️ **1 baseline capture failure(s)**: these captures failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely. Raw exception details stay private.
+⚠️ **1 head surface(s)** have no base map because baseline capture failed (not first adoption): `about @ 320`.
+
+
+### Baseline capture failure receipt
+
+- `about@auto` · `capture_failed`
+
 
 ## One-sided pages, states, or surfaces — review first
 
-### `pricing@320` · new surface <!-- styleproof-new -->
+### `about@320` · baseline repair needed ⚠️
 
-_pricing @ 320_
+_about @ 320_
 
-![new surface — after](crops/pricing-320-1-new.png)
+![baseline repair needed — after](crops/about-320-1-new.png)
 
-<sub>after · pricing @ 320</sub>
+<sub>after · about @ 320</sub>
 
-_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
+_The matching baseline capture failed. This is **baseline repair needed**, not first adoption; repair the base capture and rerun._
 
 <!-- styleproof-receipt head-sha:c562b1446e3ba9f5fe1501f7b15636fe2a3bf63f run-id:34696504995 run-attempt:1 -->
