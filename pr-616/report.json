@@ -37,11 +37,11 @@
     "unprovenSurfaces": 0,
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "comparable",
+    "status": "not-required",
     "requireStateIdentity": false,
     "blocksCertification": false,
     "counts": {
-      "comparable": 1,
+      "comparable": 0,
       "incomparable": 0,
       "unproven": 0,
       "notRequired": 1,
@@ -51,29 +51,18 @@
   },
   "comparability": [
     {
-      "surface": "about@320",
+      "surface": "home@320",
       "status": "not-required",
       "required": false,
       "reason": "missing-before"
-    },
-    {
-      "surface": "home@320",
-      "status": "comparable",
-      "required": true,
-      "reason": "explicit-state-match"
     }
   ],
   "reportConsistency": {
     "ok": true,
     "reason": "aligned"
   },
-  "baselineFailures": [
-    {
-      "key": "about@auto",
-      "reason": "capture_failed"
-    }
-  ],
-  "partialBaseline": true,
+  "baselineFailures": [],
+  "partialBaseline": false,
   "content": {
     "evaluated": false,
     "changes": 0,
@@ -81,13 +70,13 @@
   },
   "surfaces": [
     {
-      "surface": "about@320",
+      "surface": "home@320",
       "missing": "before",
-      "isNew": false,
+      "isNew": true,
       "isRemoved": false,
-      "baselineStatus": "capture-failed",
-      "classification": "baseline-repair-debt",
-      "image": "crops/about-320-1-new.png"
+      "baselineStatus": "new",
+      "classification": "genuinely-new",
+      "image": "crops/home-320-1-new.png"
     }
   ],
   "confidence": {
@@ -96,17 +85,17 @@
       "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 2
+      "captured": 1
     },
     "completeness": "complete"
   },
   "sourceBinding": {
     "status": "bound",
-    "compatibility": "matched",
+    "compatibility": "not-applicable",
     "before": {
       "expected": "6804a59b7d1e5a0351ae8d3af12f2a2cdbe41e35",
-      "observed": "6804a59b7d1e5a0351ae8d3af12f2a2cdbe41e35",
-      "result": "matched"
+      "observed": null,
+      "result": "no-capture"
     },
     "after": {
       "expected": "1c1179b8a139cb696db16930810b3edd120018c0",
@@ -118,18 +107,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "89c8895692917471e0e8bb51d6a8bf8e14fe38d57b49ad92d23ee29b45ecd5eb",
-      "fileCount": 5,
-      "mapCount": 1,
-      "byteCount": 1676
+      "digest": "f48e6aba19b611a71a2cd234bf3994d257291364f54080d3ad4f1b5be79902fd",
+      "fileCount": 0,
+      "mapCount": 0,
+      "byteCount": 0
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "f42f0008e2053c3c36dbc7d466d7b5057760a7bcbe142f937e8d4db3dbabcefa",
-      "fileCount": 7,
-      "mapCount": 2,
-      "byteCount": 2447
+      "digest": "4d721eb2389515bc76e079399c8c1d1bff82c5b0aee18110f5e43b624a3c6f37",
+      "fileCount": 5,
+      "mapCount": 1,
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "PARTIAL_BASELINE"
+  "actionTrustState": "DEGRADED_BASELINE"
 }
