@@ -33,36 +33,49 @@ export type MapBundlePruneSelection = {
   retainedDirectoryNames: string[];
   /** Bundle directory names to delete. */
   prunedDirectoryNames: string[];
+  /** Total size of retained bundles in bytes (when size data is available). */
+  retainedSizeBytes?: number;
 };
 
 /** Pure selection policy: drop bundles older than the retention cutoff, then
- *  cap what survives at `maximumBundleCount`, newest first. A bundle with no
- *  known date sorts oldest (epoch zero) — the only undated bundles are legacy
- *  ones from before the sidecar existed, since every publish since the map
- *  store shipped stamps a dated commit. */
+ *  cap what survives at `maximumBundleCount` and within `budgetBytes`, newest
+ *  first. A bundle with no known date sorts oldest (epoch zero) — the only
+ *  undated bundles are legacy ones from before the sidecar existed, since every
+ *  publish since the map store shipped stamps a dated commit. */
 export function selectMapBundlesToRetain(options: {
   bundleDirectoryNames: readonly string[];
   lastPublishedEpochSecondsByDirectoryName: ReadonlyMap<string, number>;
   retentionCutoffEpochSeconds: number;
   maximumBundleCount: number;
+  /** Budget in bytes; when provided with size data, prunes oldest bundles that exceed the budget. */
+  budgetBytes?: number;
+  /** Size in bytes per bundle directory; required when budgetBytes is set. */
+  sizeBytesByDirectoryName?: ReadonlyMap<string, number>;
 }): MapBundlePruneSelection {
   const publishedAt = (directoryName: string): number =>
     options.lastPublishedEpochSecondsByDirectoryName.get(directoryName) ?? 0;
+  const sizeOf = (directoryName: string): number => options.sizeBytesByDirectoryName?.get(directoryName) ?? 0;
   const newestFirst = [...options.bundleDirectoryNames].sort(
     (firstDirectory, secondDirectory) =>
       publishedAt(secondDirectory) - publishedAt(firstDirectory) || firstDirectory.localeCompare(secondDirectory),
   );
   const retainedDirectoryNames: string[] = [];
   const prunedDirectoryNames: string[] = [];
+  let retainedSizeBytes = 0;
+  const hasBudget = options.budgetBytes !== undefined && options.sizeBytesByDirectoryName !== undefined;
   for (const directoryName of newestFirst) {
     const insideRetentionWindow = publishedAt(directoryName) > options.retentionCutoffEpochSeconds;
-    if (insideRetentionWindow && retainedDirectoryNames.length < options.maximumBundleCount) {
+    const withinCountCap = retainedDirectoryNames.length < options.maximumBundleCount;
+    const bundleSize = sizeOf(directoryName);
+    const withinBudget = !hasBudget || retainedSizeBytes + bundleSize <= options.budgetBytes!;
+    if (insideRetentionWindow && withinCountCap && withinBudget) {
       retainedDirectoryNames.push(directoryName);
+      retainedSizeBytes += bundleSize;
     } else {
       prunedDirectoryNames.push(directoryName);
     }
   }
-  return { retainedDirectoryNames, prunedDirectoryNames };
+  return { retainedDirectoryNames, prunedDirectoryNames, retainedSizeBytes: hasBudget ? retainedSizeBytes : undefined };
 }
 
 type GitTreeEntry = { path: string; mode: string; type: string; sha?: string | null; size?: number };
@@ -76,6 +89,10 @@ export type MapStorePruneApiOptions = {
   retentionDays?: number;
   /** At most this many bundles survive, newest first (default 40). */
   maximumBundleCount?: number;
+  /** Budget in bytes; when set, prunes oldest bundles that exceed the budget
+   *  (default 1.5GB = 1_500_000_000). Requires a recursive tree listing; if the
+   *  listing truncates, budget enforcement is skipped with a warning. */
+  budgetBytes?: number;
   /** Skip the rewrite when nothing is prunable and the branch history holds no
    *  more than this many commits, so a scheduled run does not force-push a
    *  fresh orphan commit every day for nothing (default 30). */
@@ -231,6 +248,7 @@ async function readBundleDates(
 
 type BranchState = {
   tipCommitSha: string;
+  tipTreeSha: string;
   rootTreeEntries: GitTreeEntry[];
   bundleEntries: GitTreeEntry[];
   readmeBlobSha: string | undefined;
@@ -256,11 +274,13 @@ async function readBranchState(
     throw error;
   }
   const tipCommit = await api<{ tree: { sha: string } }>('GET', `/git/commits/${tipCommitSha}`);
-  const rootTree = await api<{ tree: GitTreeEntry[] }>('GET', `/git/trees/${tipCommit.tree.sha}`);
+  const tipTreeSha = tipCommit.tree.sha;
+  const rootTree = await api<{ tree: GitTreeEntry[] }>('GET', `/git/trees/${tipTreeSha}`);
   const blobShaAt = (path: string): string | undefined =>
     rootTree.tree.find((entry) => entry.type === 'blob' && entry.path === path)?.sha ?? undefined;
   return {
     tipCommitSha,
+    tipTreeSha,
     rootTreeEntries: rootTree.tree,
     bundleEntries: rootTree.tree.filter(isBundleDirectoryEntry),
     readmeBlobSha: blobShaAt('README.md'),
@@ -270,6 +290,32 @@ async function readBranchState(
 
 const MAP_STORE_README =
   '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n';
+
+/** Read bundle sizes via a recursive tree listing. Returns undefined if the
+ *  listing is truncated (too many entries) — budget enforcement is then skipped
+ *  rather than operating on partial data. */
+async function readBundleSizes(
+  api: ReturnType<typeof buildClient>['api'],
+  tipTreeSha: string,
+  bundleDirectoryNames: readonly string[],
+): Promise<Map<string, number> | undefined> {
+  const recursiveTree = await api<{ tree: GitTreeEntry[]; truncated: boolean }>(
+    'GET',
+    `/git/trees/${tipTreeSha}?recursive=1`,
+  );
+  if (recursiveTree.truncated) return undefined;
+
+  const sizeBytesByDirectoryName = new Map<string, number>();
+  const bundleSet = new Set(bundleDirectoryNames.map((name) => name.toLowerCase()));
+  for (const entry of recursiveTree.tree) {
+    if (entry.type !== 'blob' || entry.size === undefined) continue;
+    const topLevelFolder = entry.path.split('/')[0];
+    if (!bundleSet.has(topLevelFolder.toLowerCase())) continue;
+    const currentSize = sizeBytesByDirectoryName.get(topLevelFolder) ?? 0;
+    sizeBytesByDirectoryName.set(topLevelFolder, currentSize + entry.size);
+  }
+  return sizeBytesByDirectoryName;
+}
 
 async function createBlob(api: ReturnType<typeof buildClient>['api'], content: string): Promise<string> {
   const blob = await api<{ sha: string }>('POST', '/git/blobs', {
@@ -394,12 +440,23 @@ async function compactOnce(
     branchState.sidecarBlobSha,
   );
 
+  const budgetBytes = options.budgetBytes ?? 1_500_000_000;
+  let sizeBytesByDirectoryName: Map<string, number> | undefined;
+  if (budgetBytes !== undefined) {
+    sizeBytesByDirectoryName = await readBundleSizes(api, branchState.tipTreeSha, bundleDirectoryNames);
+    if (sizeBytesByDirectoryName === undefined) {
+      log('recursive tree listing truncated — budget enforcement skipped (count-only pruning)');
+    }
+  }
+
   const nowEpochSeconds = options.nowEpochSeconds ?? Math.floor(Date.now() / 1000);
   const selection = selectMapBundlesToRetain({
     bundleDirectoryNames,
     lastPublishedEpochSecondsByDirectoryName,
     retentionCutoffEpochSeconds: nowEpochSeconds - (options.retentionDays ?? 14) * 86400,
     maximumBundleCount: options.maximumBundleCount ?? 40,
+    budgetBytes: sizeBytesByDirectoryName !== undefined ? budgetBytes : undefined,
+    sizeBytesByDirectoryName,
   });
 
   const historyCommitLimit = options.historyCommitLimit ?? 30;

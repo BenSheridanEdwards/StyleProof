@@ -5,7 +5,7 @@ import { MAP_STORE_PRUNE_SIDECAR, compactMapStoreBranch, selectMapBundlesToRetai
 const DAY_IN_SECONDS = 86400;
 const NOW = 1_800_000_000;
 
-function selection({ bundles, publishedDaysAgo, retentionDays = 14, maximumBundleCount = 40 }) {
+function selection({ bundles, publishedDaysAgo, retentionDays = 14, maximumBundleCount = 40, budgetBytes, sizeBytes }) {
   return selectMapBundlesToRetain({
     bundleDirectoryNames: bundles,
     lastPublishedEpochSecondsByDirectoryName: new Map(
@@ -16,6 +16,8 @@ function selection({ bundles, publishedDaysAgo, retentionDays = 14, maximumBundl
     ),
     retentionCutoffEpochSeconds: NOW - retentionDays * DAY_IN_SECONDS,
     maximumBundleCount,
+    budgetBytes,
+    sizeBytesByDirectoryName: sizeBytes ? new Map(Object.entries(sizeBytes)) : undefined,
   });
 }
 
@@ -57,6 +59,53 @@ test('equal dates fall back to a deterministic name order', () => {
   });
   assert.deepEqual(result.retainedDirectoryNames, ['aaa']);
   assert.deepEqual(result.prunedDirectoryNames, ['bbb']);
+});
+
+test('budget constraint prunes oldest bundles that exceed the budget', () => {
+  const result = selection({
+    bundles: ['aaa', 'bbb', 'ccc', 'ddd'],
+    publishedDaysAgo: { aaa: 4, bbb: 3, ccc: 2, ddd: 1 },
+    budgetBytes: 500,
+    sizeBytes: { aaa: 200, bbb: 200, ccc: 200, ddd: 200 },
+  });
+  assert.deepEqual(result.retainedDirectoryNames, ['ddd', 'ccc']);
+  assert.deepEqual(result.prunedDirectoryNames, ['bbb', 'aaa']);
+  assert.equal(result.retainedSizeBytes, 400);
+});
+
+test('budget constraint works with retention window', () => {
+  const result = selection({
+    bundles: ['aaa', 'bbb', 'ccc'],
+    publishedDaysAgo: { aaa: 20, bbb: 5, ccc: 1 },
+    budgetBytes: 300,
+    sizeBytes: { aaa: 100, bbb: 200, ccc: 200 },
+  });
+  assert.deepEqual(result.retainedDirectoryNames, ['ccc']);
+  assert.deepEqual(result.prunedDirectoryNames, ['bbb', 'aaa']);
+  assert.equal(result.retainedSizeBytes, 200);
+});
+
+test('budget constraint respects count cap', () => {
+  const result = selection({
+    bundles: ['aaa', 'bbb', 'ccc', 'ddd'],
+    publishedDaysAgo: { aaa: 4, bbb: 3, ccc: 2, ddd: 1 },
+    maximumBundleCount: 2,
+    budgetBytes: 1000,
+    sizeBytes: { aaa: 100, bbb: 100, ccc: 100, ddd: 100 },
+  });
+  assert.deepEqual(result.retainedDirectoryNames, ['ddd', 'ccc']);
+  assert.deepEqual(result.prunedDirectoryNames, ['bbb', 'aaa']);
+});
+
+test('without size data, budget constraint is not applied', () => {
+  const result = selection({
+    bundles: ['aaa', 'bbb', 'ccc'],
+    publishedDaysAgo: { aaa: 3, bbb: 2, ccc: 1 },
+    budgetBytes: 100,
+  });
+  assert.deepEqual(result.retainedDirectoryNames, ['ccc', 'bbb', 'aaa']);
+  assert.deepEqual(result.prunedDirectoryNames, []);
+  assert.equal(result.retainedSizeBytes, undefined);
 });
 
 /** Git-data API double for the compaction path. */
