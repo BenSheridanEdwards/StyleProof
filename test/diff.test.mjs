@@ -1055,3 +1055,159 @@ test('diffStyleMapDirs returns isNew derived from classification for backward co
   assert.equal(pricingSurface.isNew, true, 'genuinely-new should be isNew');
   rmTmp(root);
 });
+
+// --------------------------------------------------------- #612 known-truth CSS mutation → exact diff findings
+// Regression guards for diffStyleMaps exactness. The MAIN proof is the live
+// capture→diff e2e test in css-diff-fidelity.e2e.spec.ts; these unit tests
+// verify the diff logic independently of browser capture.
+
+test('diffStyleMaps regression guard: exact before/after values reported (#612)', () => {
+  // Synthetic maps matching the documented CSS mutations from the fixture pair.
+  // The expected values must match exactly: rgb(20, 184, 166) → rgb(220, 38, 38).
+  const CTA_PATH = 'body > button:nth-child(1)';
+  const HERO_PATH = 'body > div:nth-child(2)';
+
+  const beforeMap = makeMap({
+    elements: {
+      [CTA_PATH]: {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(20, 184, 166)', color: 'rgb(255, 255, 255)' },
+      },
+      [HERO_PATH]: {
+        tag: 'div',
+        cls: 'hero-container',
+        style: { 'background-color': 'rgb(248, 250, 252)' },
+      },
+    },
+  });
+
+  const afterMap = makeMap({
+    elements: {
+      [CTA_PATH]: {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(220, 38, 38)', color: 'rgb(255, 255, 255)' },
+      },
+      [HERO_PATH]: {
+        tag: 'div',
+        cls: 'hero-container',
+        style: { 'background-color': 'rgb(248, 250, 252)' },
+      },
+    },
+  });
+
+  const findings = diffStyleMaps(beforeMap, afterMap);
+
+  // Exactly 1 finding: the CTA button background-color change.
+  assert.equal(findings.length, 1, 'expected exactly 1 finding');
+
+  const finding = findings[0];
+  assert.equal(finding.kind, 'style');
+  assert.equal(finding.path, CTA_PATH);
+  assert.equal(finding.cls, 'cta-button');
+  assert.equal(finding.pseudo, null);
+  assert.deepEqual(finding.props, [
+    { prop: 'background-color', before: 'rgb(20, 184, 166)', after: 'rgb(220, 38, 38)' },
+  ]);
+
+  // No finding on the hero-container (unchanged).
+  const heroFinding = findings.find((f) => f.path === HERO_PATH);
+  assert.equal(heroFinding, undefined, 'no finding expected on unchanged element');
+});
+
+test('diffStyleMaps regression guard: detects missing finding when CSS is identical (#612)', () => {
+  // Proves the test would FAIL if diffStyleMaps missed a mutation.
+  const CTA_PATH = 'body > button:nth-child(1)';
+
+  const beforeMap = makeMap({
+    elements: {
+      [CTA_PATH]: {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(20, 184, 166)' },
+      },
+    },
+  });
+  const afterMap = makeMap({
+    elements: {
+      [CTA_PATH]: {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(20, 184, 166)' }, // Same — no change
+      },
+    },
+  });
+
+  const findings = diffStyleMaps(beforeMap, afterMap);
+
+  // No findings when CSS is identical — the fail-closed contract catches this.
+  assert.equal(findings.length, 0, 'no findings when CSS is identical');
+});
+
+test('diffStyleMaps regression guard: detects wrong before/after value (#612)', () => {
+  // Proves the test would FAIL if diffStyleMaps reported wrong values.
+  const CTA_PATH = 'body > button:nth-child(1)';
+
+  // Maps with a WRONG before value (rgb(0, 0, 0) instead of rgb(20, 184, 166)).
+  const beforeMap = makeMap({
+    elements: {
+      [CTA_PATH]: {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(0, 0, 0)' }, // Wrong before value
+      },
+    },
+  });
+  const afterMap = makeMap({
+    elements: {
+      [CTA_PATH]: {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(220, 38, 38)' },
+      },
+    },
+  });
+
+  const findings = diffStyleMaps(beforeMap, afterMap);
+
+  // The diff reports a change, but with a different before value.
+  assert.equal(findings.length, 1);
+  const actual = findings[0];
+
+  // The before value does NOT match the expected — exact match would fail.
+  assert.notEqual(actual.props[0].before, 'rgb(20, 184, 166)', 'wrong before value is detectable');
+  assert.equal(actual.props[0].before, 'rgb(0, 0, 0)', 'diff reports the actual (wrong) before');
+});
+
+test('diffStyleMaps regression guard: detects false positive on unchanged element (#612)', () => {
+  // Proves the test would FAIL if diffStyleMaps reported a spurious change.
+  const HERO_PATH = 'body > div:nth-child(1)';
+
+  // Maps where the hero-container HAS a spurious diff.
+  const beforeMap = makeMap({
+    elements: {
+      [HERO_PATH]: {
+        tag: 'div',
+        cls: 'hero-container',
+        style: { 'background-color': 'rgb(248, 250, 252)' },
+      },
+    },
+  });
+  const afterMap = makeMap({
+    elements: {
+      [HERO_PATH]: {
+        tag: 'div',
+        cls: 'hero-container',
+        style: { 'background-color': 'rgb(255, 0, 0)' }, // Spurious change
+      },
+    },
+  });
+
+  const findings = diffStyleMaps(beforeMap, afterMap);
+
+  // A finding on an element that should be unchanged is a false positive.
+  assert.equal(findings.length, 1);
+  const falsePositive = findings.find((f) => f.path === HERO_PATH);
+  assert.ok(falsePositive, 'false positive on unchanged element is detectable');
+});

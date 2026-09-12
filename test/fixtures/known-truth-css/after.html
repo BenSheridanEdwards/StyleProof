@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Known-Truth CSS Diff Fixture — AFTER</title>
+  <!--
+    DIFF FIXTURE CONTRACT (documentation only — tests assert against expected-diff.json)
+    ====================================================================================
+    This is the AFTER state of a known-truth fixture pair for diffStyleMaps testing.
+    The paired before.html contains the baseline CSS. The expected-diff.json oracle
+    declares exact findings the diff MUST report.
+
+    DOCUMENTED CSS MUTATIONS (before → after):
+    ==========================================
+    ELEMENT: .cta-button (button) [data-testid="cta"]
+      background-color: rgb(20, 184, 166) → rgb(220, 38, 38)  [teal → red - CHANGED]
+      color: rgb(255, 255, 255) → rgb(255, 255, 255)          [white - UNCHANGED]
+
+    ELEMENTS WITH NO CHANGE EXPECTED:
+    =================================
+    ELEMENT: .hero-container (div) [data-testid="hero"]
+      background-color: rgb(248, 250, 252)  [gray-50 - unchanged]
+      padding: 32px                         [unchanged]
+
+    ELEMENT: .label-span (span) [data-testid="label"]
+      color: rgb(71, 85, 105)               [gray-600 - unchanged]
+      font-size: 14px                       [unchanged]
+
+    ELEMENT: .footer-text (p) [data-testid="footer"]
+      color: rgb(107, 114, 128)             [gray-500 - unchanged]
+      font-size: 12px                       [unchanged]
+  -->
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+    }
+
+    .hero-container {
+      background-color: rgb(248, 250, 252);
+      padding: 32px;
+    }
+
+    .cta-button {
+      /* CHANGED: background-color from rgb(20, 184, 166) to rgb(220, 38, 38) */
+      background-color: rgb(220, 38, 38);
+      color: rgb(255, 255, 255);
+      padding: 12px 24px;
+      font-size: 16px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .label-span {
+      color: rgb(71, 85, 105);
+      font-size: 14px;
+      margin-left: 8px;
+    }
+
+    .footer-text {
+      color: rgb(107, 114, 128);
+      font-size: 12px;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="hero-container" data-testid="hero">
+      <button class="cta-button" data-testid="cta">Get Started</button>
+      <span class="label-span" data-testid="label">Free trial</span>
+    </div>
+    <footer>
+      <p class="footer-text" data-testid="footer">Terms apply</p>
+    </footer>
+  </main>
+</body>
+</html>

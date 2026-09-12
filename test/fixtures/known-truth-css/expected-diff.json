@@ -1,0 +1,42 @@
+{
+  "description": "Oracle: exact diff findings StyleProof MUST report between before.html and after.html. This validates the live capture→diff pipeline reports EXACT before/after CSS mutations — not merely 'a change was found'. Uses testId for element identification; the test resolves testId to actual capture paths via sp-key hash.",
+  "documentedMutations": {
+    ".cta-button background-color": {
+      "before": "rgb(20, 184, 166)",
+      "after": "rgb(220, 38, 38)",
+      "comment": "teal-500 → red-600"
+    }
+  },
+  "expectedFindings": [
+    {
+      "kind": "style",
+      "testId": "cta",
+      "cls": "cta-button",
+      "pseudo": null,
+      "props": [
+        {
+          "prop": "background-color",
+          "before": "rgb(20, 184, 166)",
+          "after": "rgb(220, 38, 38)"
+        }
+      ]
+    }
+  ],
+  "noChangeExpected": [
+    {
+      "testId": "hero",
+      "cls": "hero-container",
+      "comment": "background-color and padding stay unchanged"
+    },
+    {
+      "testId": "label",
+      "cls": "label-span",
+      "comment": "color and font-size stay unchanged"
+    },
+    {
+      "testId": "footer",
+      "cls": "footer-text",
+      "comment": "color and font-size stay unchanged"
+    }
+  ]
+}
