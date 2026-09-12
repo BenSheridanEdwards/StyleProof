@@ -329,6 +329,8 @@ export type StyleProofConfig = {
   ancestorBaseline?: AncestorBaselineConfig;
   /** Report store configuration (prune retention and budget). */
   reportStore?: ReportStoreConfig;
+  /** Suppress platform mismatch warning. Default true. */
+  suppressPlatformWarning?: boolean;
 };
 
 /**
@@ -581,6 +583,7 @@ const KNOWN_KEYS = [
   'mapStore',
   'ancestorBaseline',
   'reportStore',
+  'suppressPlatformWarning',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
 const KNOWN_AUTH_KEYS = ['hudPassword', 'apiToken'];
@@ -634,6 +637,7 @@ function parseConfigRecord(record: Record<string, unknown>): StyleProofConfig {
     mapStore: parseMapStore(record.mapStore),
     ancestorBaseline: parseAncestorBaseline(record.ancestorBaseline),
     reportStore: parseReportStore(record.reportStore),
+    suppressPlatformWarning: optionalBoolean(record.suppressPlatformWarning, 'suppressPlatformWarning'),
   };
 }
 
