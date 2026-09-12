@@ -689,6 +689,40 @@ What's guarded depends on how `expected` is fed —
 - **Modals, dropdowns, toasts:** guarded only for the state keys you enumerate in
   `expected` (e.g. `dashboard-dialog-open`) — nothing discovers UI states for you.
 
+### Config-level coverage manifest
+
+When expected surfaces come from an external registry (a sitemap, router config,
+or build-time enumeration), declare them via a JSON manifest in
+`styleproof.config.ts` instead of passing `expected` programmatically:
+
+```ts
+// styleproof.config.ts
+export default {
+  coverage: {
+    manifest: './coverage-manifest.json',
+    strict: true,
+    exclude: { checkout: 'auth-gated — capture fixture pending' },
+  },
+};
+```
+
+The manifest format is version 1:
+
+```json
+{
+  "version": 1,
+  "surfaces": ["home", "dashboard", "settings", "settings-profile-open"]
+}
+```
+
+Manifest surfaces **union** with programmatic `expected` (neither can hide a
+hole). Config `exclude` wins over programmatic for the same key. `strict: true`
+fails the coverage guard if any expected surface is uncaptured.
+
+This separation keeps StyleProof owning the coverage engine and config contract,
+while adopters generate the manifest however they like — from Next.js routes, a
+sitemap, or a framework-specific router export.
+
 ### The un-exercised-state gap: an honest green gate can still miss a real restyle
 
 The sharpest form of the boundary, observed end-to-end on a real consumer: a PR

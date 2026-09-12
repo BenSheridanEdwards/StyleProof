@@ -902,3 +902,73 @@ test('loadStyleProofConfig: suppressPlatformWarning is a known key (no unknown-k
     assert.doesNotMatch(map.stderr, /unknown key\(s\) ignored:.*suppressPlatformWarning/);
   });
 });
+
+// --- Tests for #599: coverage config manifest path ---
+
+test('loadStyleProofConfig: reads coverage block with manifest, strict, and exclude', () => {
+  withConfig(
+    {
+      coverage: {
+        manifest: 'styleproof.surfaces.json',
+        strict: true,
+        exclude: { 'admin-settings': 'behind feature flag' },
+      },
+    },
+    (dir) => {
+      const config = loadStyleProofConfig(dir);
+      assert.deepEqual(config.coverage, {
+        manifest: 'styleproof.surfaces.json',
+        strict: true,
+        exclude: { 'admin-settings': 'behind feature flag' },
+      });
+    },
+  );
+});
+
+test('loadStyleProofConfig: coverage block is optional', () => {
+  withConfig({ spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const config = loadStyleProofConfig(dir);
+    assert.equal(config.coverage, undefined);
+  });
+});
+
+test('loadStyleProofConfig: coverage.manifest must be a non-empty string', () => {
+  withConfig({ coverage: { manifest: '' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"coverage\.manifest" must be a non-empty string/);
+  });
+  withConfig({ coverage: { manifest: 42 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"coverage\.manifest" must be a non-empty string/);
+  });
+});
+
+test('loadStyleProofConfig: coverage.strict must be a boolean', () => {
+  withConfig({ coverage: { strict: 'true' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"coverage\.strict" must be a boolean/);
+  });
+  withConfig({ coverage: { strict: 1 } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"coverage\.strict" must be a boolean/);
+  });
+});
+
+test('loadStyleProofConfig: coverage.exclude values must be non-empty reason strings', () => {
+  withConfig({ coverage: { exclude: { admin: '' } } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"coverage\.exclude\.admin" must be a non-empty reason string/);
+  });
+  withConfig({ coverage: { exclude: { admin: 42 } } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"coverage\.exclude\.admin" must be a non-empty reason string/);
+  });
+});
+
+test('loadStyleProofConfig: coverage block warns on unknown keys', () => {
+  withConfig({ coverage: { manifest: 'x.json', strickt: true }, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.match(map.stderr, /unknown "coverage" key\(s\) ignored: strickt/);
+  });
+});
+
+test('loadStyleProofConfig: coverage is a known key (no unknown-key warning)', () => {
+  withConfig({ coverage: { manifest: 'surfaces.json' }, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.doesNotMatch(map.stderr, /unknown key\(s\) ignored:.*coverage/);
+  });
+});
