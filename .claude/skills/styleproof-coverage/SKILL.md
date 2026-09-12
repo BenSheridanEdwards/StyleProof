@@ -46,6 +46,48 @@ Two independent guards; use both:
   component has no surface. The registry also travels with the map bundle as a
   ledger (`styleproof-coverage.json`), so the gate states a green's
   completeness basis — the `styleproof-diff` skill owns that verdict contract.
+- **Config coverage:** `coverage` in `styleproof.config.ts` loads expected
+  surfaces from an external manifest, useful when your router or sitemap already
+  enumerates routes. See the config-based coverage section below.
+
+## Config-based coverage manifest
+
+When your project already generates a route list (from a router config, sitemap,
+or CMS), you can point StyleProof at it instead of hand-maintaining `expected`
+in the spec:
+
+```ts
+// styleproof.config.ts
+import { defineConfig } from 'styleproof';
+
+export default defineConfig({
+  coverage: {
+    manifest: 'routes.json',           // JSON array of surface keys
+    strict: true,                      // fail if any expected surface uncaptured
+    exclude: {
+      'admin-panel': 'requires superuser login not in CI',
+      'checkout-success': 'post-payment state, covered by E2E',
+    },
+  },
+});
+```
+
+The manifest file is a JSON array of expected surface keys:
+
+```json
+["home", "about", "pricing", "docs", "blog"]
+```
+
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `manifest` | — | Path to JSON manifest of expected surface keys (repo-relative). |
+| `strict` | `false` | When `true`, fail if any expected surface has no capture. |
+| `exclude` | `{}` | Surfaces to exclude from coverage (`key → reason`). Reasons must be non-empty strings explaining why the surface is excluded. |
+
+This is the config-file counterpart to `expected`/`exclude` in the spec. Use it
+when the surface list is generated outside the spec (CI pipelines, build tools,
+CMS exports). The ledger still records coverage basis, and `styleproof-diff`
+still owns the verdict contract.
 
 ## 3. Reach gated states
 
