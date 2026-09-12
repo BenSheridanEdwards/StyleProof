@@ -1,5 +1,5 @@
 {
-  "description": "Oracle: exact computed-style values StyleProof MUST reproduce from index.html. Only properties that DIFFER from browser UA defaults are asserted (StyleProof prunes default-matching values).",
+  "description": "Oracle: exact computed-style values StyleProof MUST reproduce from index.html. Only properties that DIFFER from browser UA defaults are asserted (StyleProof prunes default-matching values). Forced pseudo-states (:hover/:focus/:active) are asserted in expectedStates.",
   "byTestId": {
     "hero": {
       "tag": "div",
@@ -33,6 +33,20 @@
         "border-bottom-style": "none",
         "border-left-style": "none",
         "cursor": "pointer"
+      },
+      "expectedStates": {
+        "hover": {
+          "background-color": "rgb(37, 99, 235)"
+        },
+        "focus": {
+          "outline-style": "solid",
+          "outline-color": "rgb(59, 130, 246)",
+          "outline-width": "2px",
+          "outline-offset": "2px"
+        },
+        "active": {
+          "background-color": "rgb(29, 78, 216)"
+        }
       }
     },
     "label": {
@@ -61,6 +75,16 @@
         "padding-right": "12px",
         "padding-bottom": "8px",
         "padding-left": "12px"
+      },
+      "expectedStates": {
+        "focus": {
+          "border-top-color": "rgb(59, 130, 246)",
+          "border-right-color": "rgb(59, 130, 246)",
+          "border-bottom-color": "rgb(59, 130, 246)",
+          "border-left-color": "rgb(59, 130, 246)",
+          "outline-style": "solid",
+          "outline-color": "rgb(191, 219, 254)"
+        }
       }
     }
   },

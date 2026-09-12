@@ -9,7 +9,11 @@
  *
  * Fail-closed: missing expected element = FAIL; wrong value = FAIL; extra elements = OK.
  *
+ * Extends to forced pseudo-states (:hover, :focus, :active) via captureStates: true.
+ * State fidelity proves the captured state values exactly match what the CSS declares.
+ *
  * @see https://github.com/BenSheridanEdwards/StyleProof/issues/611
+ * @see https://github.com/BenSheridanEdwards/StyleProof/issues/615
  */
 
 import { test, expect } from '@playwright/test';
@@ -33,6 +37,11 @@ type ExpectedOracle = {
       tag: string;
       cls: string;
       expectedStyles: Record<string, string>;
+      expectedStates?: {
+        hover?: Record<string, string>;
+        focus?: Record<string, string>;
+        active?: Record<string, string>;
+      };
     }
   >;
   customProperties: Record<string, string>;
@@ -155,5 +164,120 @@ test.describe('CSS Fidelity: known-truth-css fixture', () => {
       capturedPaths.length,
       'capture should contain more elements than just the oracle-specified ones',
     ).toBeGreaterThan(oracleTestIds.size);
+  });
+});
+
+/**
+ * Capture with forced pseudo-states enabled.
+ */
+async function captureFixtureWithStates(page: Page): Promise<StyleMap> {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('file://' + FIXTURE_HTML, { waitUntil: 'load' });
+  return await captureStyleMap(page, { stabilize: false, captureStates: true });
+}
+
+/**
+ * Forced-State CSS Fidelity — Trust Ladder Rung 1
+ *
+ * Extends resting-style fidelity to forced pseudo-states (:hover, :focus, :active).
+ * Proves the captured state values exactly match what the CSS declares.
+ *
+ * @see https://github.com/BenSheridanEdwards/StyleProof/issues/615
+ */
+test.describe('CSS Fidelity: forced-state exactness', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  test('oracle has expectedStates for at least one interactive element', () => {
+    const oracle = loadOracle();
+    const hasStates = Object.values(oracle.byTestId).some((spec) => spec.expectedStates);
+    expect(hasStates, 'oracle missing expectedStates section for forced-state tests').toBe(true);
+  });
+
+  test('forced-state capture completes without statesSkipped flag', async ({ page }) => {
+    const map = await captureFixtureWithStates(page);
+    expect(map.statesSkipped, 'forced-state capture was incomplete').toBeFalsy();
+  });
+
+  test('every expected :hover property matches exactly (fail-closed on wrong value)', async ({ page }) => {
+    const oracle = loadOracle();
+    const map = await captureFixtureWithStates(page);
+
+    for (const [testId, spec] of Object.entries(oracle.byTestId)) {
+      if (!spec.expectedStates?.hover) continue;
+
+      const found = findElementByTestId(map, testId);
+      expect(found, `FAIL-CLOSED: data-testid="${testId}" not found`).toBeDefined();
+
+      const hoverStates = map.states[found!.path]?.hover;
+      expect(hoverStates, `FAIL-CLOSED: data-testid="${testId}" has no :hover state captured`).toBeDefined();
+
+      const selfHover = hoverStates?.[found!.path];
+      expect(selfHover, `FAIL-CLOSED: data-testid="${testId}" :hover self-effect not captured`).toBeDefined();
+
+      for (const [prop, expectedValue] of Object.entries(spec.expectedStates.hover)) {
+        const actualValue = selfHover?.[prop];
+        expect(
+          actualValue,
+          `data-testid="${testId}" :hover "${prop}": expected "${expectedValue}" but was ${actualValue === undefined ? 'MISSING' : `"${actualValue}"`}`,
+        ).toBe(expectedValue);
+      }
+    }
+  });
+
+  test('every expected :focus property matches exactly (fail-closed on wrong value)', async ({ page }) => {
+    const oracle = loadOracle();
+    const map = await captureFixtureWithStates(page);
+
+    for (const [testId, spec] of Object.entries(oracle.byTestId)) {
+      if (!spec.expectedStates?.focus) continue;
+
+      const found = findElementByTestId(map, testId);
+      expect(found, `FAIL-CLOSED: data-testid="${testId}" not found`).toBeDefined();
+
+      const focusStates = map.states[found!.path]?.focus;
+      expect(focusStates, `FAIL-CLOSED: data-testid="${testId}" has no :focus state captured`).toBeDefined();
+
+      const selfFocus = focusStates?.[found!.path];
+      expect(selfFocus, `FAIL-CLOSED: data-testid="${testId}" :focus self-effect not captured`).toBeDefined();
+
+      for (const [prop, expectedValue] of Object.entries(spec.expectedStates.focus)) {
+        const actualValue = selfFocus?.[prop];
+        expect(
+          actualValue,
+          `data-testid="${testId}" :focus "${prop}": expected "${expectedValue}" but was ${actualValue === undefined ? 'MISSING' : `"${actualValue}"`}`,
+        ).toBe(expectedValue);
+      }
+    }
+  });
+
+  test('every expected :active property matches exactly (fail-closed on wrong value)', async ({ page }) => {
+    const oracle = loadOracle();
+    const map = await captureFixtureWithStates(page);
+
+    for (const [testId, spec] of Object.entries(oracle.byTestId)) {
+      if (!spec.expectedStates?.active) continue;
+
+      const found = findElementByTestId(map, testId);
+      expect(found, `FAIL-CLOSED: data-testid="${testId}" not found`).toBeDefined();
+
+      const activeStates = map.states[found!.path]?.active;
+      expect(activeStates, `FAIL-CLOSED: data-testid="${testId}" has no :active state captured`).toBeDefined();
+
+      const selfActive = activeStates?.[found!.path];
+      expect(selfActive, `FAIL-CLOSED: data-testid="${testId}" :active self-effect not captured`).toBeDefined();
+
+      for (const [prop, expectedValue] of Object.entries(spec.expectedStates.active)) {
+        const actualValue = selfActive?.[prop];
+        expect(
+          actualValue,
+          `data-testid="${testId}" :active "${prop}": expected "${expectedValue}" but was ${actualValue === undefined ? 'MISSING' : `"${actualValue}"`}`,
+        ).toBe(expectedValue);
+      }
+    }
+  });
+
+  test('extra captured state effects do not cause failure (fail-open on extras)', async ({ page }) => {
+    const map = await captureFixtureWithStates(page);
+    expect(Object.keys(map.states).length, 'forced-state layer should capture interactive elements').toBeGreaterThan(0);
   });
 });
