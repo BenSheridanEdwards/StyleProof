@@ -62,7 +62,7 @@ import { defineConfig } from 'styleproof';
 
 export default defineConfig({
   coverage: {
-    manifest: 'routes.json',           // JSON array of surface keys
+    manifest: 'routes.json',           // versioned { version, surfaces } object
     strict: true,                      // fail if any expected surface uncaptured
     exclude: {
       'admin-panel': 'requires superuser login not in CI',
@@ -72,10 +72,13 @@ export default defineConfig({
 });
 ```
 
-The manifest file is a JSON array of expected surface keys:
+The manifest file is a versioned object with a `surfaces` array:
 
 ```json
-["home", "about", "pricing", "docs", "blog"]
+{
+  "version": 1,
+  "surfaces": ["home", "about", "pricing", "docs", "blog"]
+}
 ```
 
 | Key | Default | Purpose |
