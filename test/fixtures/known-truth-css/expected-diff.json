@@ -1,5 +1,5 @@
 {
-  "description": "Oracle: exact diff findings StyleProof MUST report between before.html and after.html. This validates the diffStyleMaps pipeline reports EXACT before/after CSS mutations — not merely 'a change was found'.",
+  "description": "Oracle: exact diff findings StyleProof MUST report between before.html and after.html. This validates the live capture→diff pipeline reports EXACT before/after CSS mutations — not merely 'a change was found'. Uses testId for element identification; the test resolves testId to actual capture paths via sp-key hash.",
   "documentedMutations": {
     ".cta-button background-color": {
       "before": "rgb(20, 184, 166)",
@@ -10,7 +10,7 @@
   "expectedFindings": [
     {
       "kind": "style",
-      "path": "body > main:nth-child(1) > div:nth-child(1) > button:nth-child(1)",
+      "testId": "cta",
       "cls": "cta-button",
       "pseudo": null,
       "props": [
@@ -24,17 +24,17 @@
   ],
   "noChangeExpected": [
     {
-      "path": "body > main:nth-child(1) > div:nth-child(1)",
+      "testId": "hero",
       "cls": "hero-container",
       "comment": "background-color and padding stay unchanged"
     },
     {
-      "path": "body > main:nth-child(1) > div:nth-child(1) > span:nth-child(2)",
+      "testId": "label",
       "cls": "label-span",
       "comment": "color and font-size stay unchanged"
     },
     {
-      "path": "body > main:nth-child(1) > footer:nth-child(2) > p:nth-child(1)",
+      "testId": "footer",
       "cls": "footer-text",
       "comment": "color and font-size stay unchanged"
     }
