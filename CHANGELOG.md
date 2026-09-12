@@ -9,6 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Coverage config manifest** (`coverage.manifest`): declare expected surfaces via
+  an external JSON file instead of programmatic `expected`. The manifest format is
+  `{ "version": 1, "surfaces": ["home", "dashboard", ...] }`. Manifest surfaces
+  union with programmatic expected (neither can hide a hole); config exclude wins
+  over programmatic for the same key. Also adds `coverage.strict` and
+  `coverage.exclude` for config-level coverage settings. (#599)
+
 - Optional `maxForcedStateElements` and `maxForcedStateScanWork` capture limits.
   Direct capture and explicit/crawl runners can increase or decrease resource
   allowances without dropping interactive targets. Runner, surface, variant,
