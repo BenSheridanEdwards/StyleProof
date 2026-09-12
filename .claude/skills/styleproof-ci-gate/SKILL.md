@@ -47,11 +47,18 @@ inventory — the `styleproof-diff` skill owns the acknowledgement mechanics.
 The Action-level opt-out is `"gateInventoryRemovals": false` in
 `styleproof.config.json`.
 
-## The approve workflow
+## The approve workflow (reusable)
 
-Copy `example/styleproof-approve.yml` to `.github/workflows/` **on your default
-branch** — GitHub only runs `issue_comment` workflows from the default branch, so
-the checkbox is inert until it's merged there.
+`styleproof-init` scaffolds a **thin caller workflow** that invokes the upstream
+reusable workflow at `BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7`.
+This keeps the approval logic up-to-date with each StyleProof release instead of
+drifting in a copied file. The caller must live **on your default branch** —
+GitHub only runs `issue_comment` workflows from the default branch, so the
+checkbox is inert until it's merged there.
+
+The reusable workflow accepts `status-context`, `allow-self-approval`, and
+`token` inputs. Self-approval is refused by default; solo repos can opt in with
+`allow-self-approval: true`.
 
 ## Blocking without branch protection
 
@@ -76,6 +83,27 @@ sits `pending` forever. Split it:
 This is why `workflow_run` beats `pull_request_target`: the latter would hand a
 write token + secrets to untrusted code — the exact supply-chain risk StyleProof
 helps you catch.
+
+## Prune schedule defaults (config-driven)
+
+Map and report store prune operations read defaults from `styleproof.config.ts`:
+
+```ts
+export default defineConfig({
+  mapStore: {
+    pruneRetentionDays: 14,      // default 14
+    pruneBudgetBytes: 1_500_000_000,  // default 1.5GB
+  },
+  reportStore: {
+    pruneRetentionDays: 30,      // default 30
+    pruneBudgetBytes: 2_000_000_000,  // default 2GB
+  },
+});
+```
+
+CLI flags (`--retention-days`, `--budget-bytes`) override config values. The
+scaffolded workflow runs `styleproof-prune-maps` on map-store close and
+`styleproof-prune-reports` on PR close and a daily schedule sweep.
 
 ## Skip safely
 

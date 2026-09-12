@@ -46,6 +46,30 @@ exists before CI starts — then CI is report-only (no build, no browser).
   `STYLEPROOF_REPLAY_URL` if your API isn't under `/api`.
 - **Frozen clock, self-check, network-aware settle** — all on by default.
 
+## Ancestor baseline reuse (default-on)
+
+When the exact base commit has no map in the store, CI automatically falls back
+to the **nearest ancestor** whose bundle exists and was captured with the same
+compatibility key. This avoids a cold capture when only a few commits separate
+the base from a compatible ancestor. The reuse is **never silent**: the log
+names the ancestor SHA and the changed-path count, a
+`styleproof-baseline-provenance.json` sidecar records it, and the report/diff
+call out the relaxed binding.
+
+Configure via `styleproof.config.ts`:
+
+```ts
+export default defineConfig({
+  ancestorBaseline: {
+    enabled: true,  // default true — set false to disable
+    roots: ['src'], // directories whose changes count as capture-relevant
+  },
+});
+```
+
+Env overrides: `STYLEPROOF_ANCESTOR_BASELINE=0` disables;
+`STYLEPROOF_ANCESTOR_BASELINE_ROOTS=src,styles` overrides roots.
+
 ## Gotcha — same-environment rule
 
 Computed styles depend on the **browser build and installed fonts**, so maps are
