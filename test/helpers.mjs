@@ -26,7 +26,7 @@ export function mkNonGitTmp(prefix = 'styleproof-non-git-test-') {
 }
 
 export function rmTmp(dir) {
-  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 }
 
 /** Turn readable fixture labels into deterministic full commit SHAs for strict manifest tests. */
