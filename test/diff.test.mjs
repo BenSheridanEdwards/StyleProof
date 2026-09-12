@@ -1055,3 +1055,288 @@ test('diffStyleMapDirs returns isNew derived from classification for backward co
   assert.equal(pricingSurface.isNew, true, 'genuinely-new should be isNew');
   rmTmp(root);
 });
+
+// --------------------------------------------------------- #612 known-truth CSS mutation → exact diff findings
+// Prove the full capture→diff pipeline reports EXACT before/after CSS mutations
+// from a known-truth fixture pair — not merely "a change was found".
+
+test('known-truth CSS diff: reports exact before/after mutations, no false positives (#612)', async () => {
+  const oracle = JSON.parse(
+    fs.readFileSync(
+      path.join(path.dirname(import.meta.url.replace('file://', '')), 'fixtures/known-truth-css/expected-diff.json'),
+      'utf8',
+    ),
+  );
+
+  // Synthetic maps matching the documented CSS from before.html and after.html.
+  // The paths mirror what the capture produces from the fixture HTML structure.
+  const beforeMap = makeMap({
+    elements: {
+      // .hero-container: background-color rgb(248, 250, 252), padding 32px
+      'body > main:nth-child(1) > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'hero-container',
+        style: {
+          'background-color': 'rgb(248, 250, 252)',
+          'padding-top': '32px',
+          'padding-right': '32px',
+          'padding-bottom': '32px',
+          'padding-left': '32px',
+        },
+      },
+      // .cta-button: background-color rgb(20, 184, 166), color rgb(255, 255, 255)
+      'body > main:nth-child(1) > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'cta-button',
+        style: {
+          'background-color': 'rgb(20, 184, 166)',
+          color: 'rgb(255, 255, 255)',
+          'padding-top': '12px',
+          'padding-right': '24px',
+          'padding-bottom': '12px',
+          'padding-left': '24px',
+          'font-size': '16px',
+          cursor: 'pointer',
+        },
+      },
+      // .label-span: color rgb(71, 85, 105), font-size 14px
+      'body > main:nth-child(1) > div:nth-child(1) > span:nth-child(2)': {
+        tag: 'span',
+        cls: 'label-span',
+        style: {
+          color: 'rgb(71, 85, 105)',
+          'font-size': '14px',
+          'margin-left': '8px',
+        },
+      },
+      // .footer-text: color rgb(107, 114, 128), font-size 12px
+      'body > main:nth-child(1) > footer:nth-child(2) > p:nth-child(1)': {
+        tag: 'p',
+        cls: 'footer-text',
+        style: {
+          color: 'rgb(107, 114, 128)',
+          'font-size': '12px',
+          'margin-top': '16px',
+        },
+      },
+    },
+  });
+
+  const afterMap = makeMap({
+    elements: {
+      // .hero-container: UNCHANGED
+      'body > main:nth-child(1) > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'hero-container',
+        style: {
+          'background-color': 'rgb(248, 250, 252)',
+          'padding-top': '32px',
+          'padding-right': '32px',
+          'padding-bottom': '32px',
+          'padding-left': '32px',
+        },
+      },
+      // .cta-button: background-color CHANGED rgb(20, 184, 166) → rgb(220, 38, 38)
+      'body > main:nth-child(1) > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'cta-button',
+        style: {
+          'background-color': 'rgb(220, 38, 38)', // CHANGED from rgb(20, 184, 166)
+          color: 'rgb(255, 255, 255)', // UNCHANGED
+          'padding-top': '12px',
+          'padding-right': '24px',
+          'padding-bottom': '12px',
+          'padding-left': '24px',
+          'font-size': '16px',
+          cursor: 'pointer',
+        },
+      },
+      // .label-span: UNCHANGED
+      'body > main:nth-child(1) > div:nth-child(1) > span:nth-child(2)': {
+        tag: 'span',
+        cls: 'label-span',
+        style: {
+          color: 'rgb(71, 85, 105)',
+          'font-size': '14px',
+          'margin-left': '8px',
+        },
+      },
+      // .footer-text: UNCHANGED
+      'body > main:nth-child(1) > footer:nth-child(2) > p:nth-child(1)': {
+        tag: 'p',
+        cls: 'footer-text',
+        style: {
+          color: 'rgb(107, 114, 128)',
+          'font-size': '12px',
+          'margin-top': '16px',
+        },
+      },
+    },
+  });
+
+  const findings = diffStyleMaps(beforeMap, afterMap);
+
+  // Fail-closed contract: assert findings match oracle EXACTLY.
+
+  // 1. Verify all expected findings are present with exact before/after values.
+  assert.equal(
+    findings.length,
+    oracle.expectedFindings.length,
+    `expected ${oracle.expectedFindings.length} finding(s), got ${findings.length}`,
+  );
+
+  for (const expected of oracle.expectedFindings) {
+    const actual = findings.find((f) => f.path === expected.path && f.kind === expected.kind);
+    assert.ok(actual, `missing expected finding for path: ${expected.path}`);
+    assert.equal(actual.cls, expected.cls, `cls mismatch for ${expected.path}`);
+    assert.equal(actual.pseudo, expected.pseudo, `pseudo mismatch for ${expected.path}`);
+    assert.deepEqual(
+      actual.props,
+      expected.props,
+      `props mismatch for ${expected.path}: expected ${JSON.stringify(expected.props)}, got ${JSON.stringify(actual.props)}`,
+    );
+  }
+
+  // 2. Verify no unexpected findings (elements in noChangeExpected have zero findings).
+  for (const noChange of oracle.noChangeExpected) {
+    const unexpected = findings.find((f) => f.path === noChange.path);
+    assert.equal(
+      unexpected,
+      undefined,
+      `unexpected finding on noChangeExpected element ${noChange.path} (${noChange.cls}): ${JSON.stringify(unexpected)}`,
+    );
+  }
+
+  // 3. Verify no false positives: every finding is in expectedFindings.
+  for (const actual of findings) {
+    const expected = oracle.expectedFindings.find((e) => e.path === actual.path && e.kind === actual.kind);
+    assert.ok(expected, `unexpected finding (false positive): ${JSON.stringify(actual)}`);
+  }
+});
+
+test('known-truth CSS diff: detects missing expected finding (fail-closed regression guard) (#612)', () => {
+  // This test proves the known-truth test would FAIL if diffStyleMaps missed the
+  // documented mutation. We intentionally create maps where the expected change
+  // does NOT occur and verify the assertion fails.
+
+  const oracle = JSON.parse(
+    fs.readFileSync(
+      path.join(path.dirname(import.meta.url.replace('file://', '')), 'fixtures/known-truth-css/expected-diff.json'),
+      'utf8',
+    ),
+  );
+
+  // Maps where background-color does NOT change (both are the before value).
+  const beforeMap = makeMap({
+    elements: {
+      'body > main:nth-child(1) > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(20, 184, 166)' },
+      },
+    },
+  });
+  const afterMap = makeMap({
+    elements: {
+      'body > main:nth-child(1) > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(20, 184, 166)' }, // Same as before — no change
+      },
+    },
+  });
+
+  const findings = diffStyleMaps(beforeMap, afterMap);
+
+  // The oracle expects 1 finding; with no change, we get 0 — this must fail.
+  assert.equal(findings.length, 0, 'regression guard: no findings when CSS is identical');
+  assert.notEqual(
+    findings.length,
+    oracle.expectedFindings.length,
+    'regression guard: count mismatch catches missing finding',
+  );
+});
+
+test('known-truth CSS diff: detects wrong before/after value (fail-closed regression guard) (#612)', () => {
+  // This test proves the known-truth test would FAIL if diffStyleMaps reported
+  // wrong values. We create maps with a different before value.
+
+  const oracle = JSON.parse(
+    fs.readFileSync(
+      path.join(path.dirname(import.meta.url.replace('file://', '')), 'fixtures/known-truth-css/expected-diff.json'),
+      'utf8',
+    ),
+  );
+
+  // Maps with a WRONG before value (rgb(0, 0, 0) instead of rgb(20, 184, 166)).
+  const beforeMap = makeMap({
+    elements: {
+      'body > main:nth-child(1) > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(0, 0, 0)' }, // Wrong before value
+      },
+    },
+  });
+  const afterMap = makeMap({
+    elements: {
+      'body > main:nth-child(1) > div:nth-child(1) > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'cta-button',
+        style: { 'background-color': 'rgb(220, 38, 38)' },
+      },
+    },
+  });
+
+  const findings = diffStyleMaps(beforeMap, afterMap);
+
+  // The diff reports a change, but with the WRONG before value.
+  assert.equal(findings.length, 1);
+  const actual = findings[0];
+  const expectedProp = oracle.expectedFindings[0].props[0];
+
+  // The before value does NOT match the oracle — this would fail the exact match.
+  assert.notEqual(actual.props[0].before, expectedProp.before, 'regression guard: wrong before value is detectable');
+  assert.equal(actual.props[0].before, 'rgb(0, 0, 0)', 'regression guard: diff reports the actual (wrong) before');
+});
+
+test('known-truth CSS diff: detects false positive on noChangeExpected (fail-closed regression guard) (#612)', () => {
+  // This test proves the known-truth test would FAIL if diffStyleMaps reported
+  // a false positive on an element that should have no changes.
+
+  const oracle = JSON.parse(
+    fs.readFileSync(
+      path.join(path.dirname(import.meta.url.replace('file://', '')), 'fixtures/known-truth-css/expected-diff.json'),
+      'utf8',
+    ),
+  );
+
+  // Maps where a noChangeExpected element (.hero-container) HAS a spurious diff.
+  const heroPath = oracle.noChangeExpected.find((e) => e.cls === 'hero-container').path;
+
+  const beforeMap = makeMap({
+    elements: {
+      [heroPath]: {
+        tag: 'div',
+        cls: 'hero-container',
+        style: { 'background-color': 'rgb(248, 250, 252)' },
+      },
+    },
+  });
+  const afterMap = makeMap({
+    elements: {
+      [heroPath]: {
+        tag: 'div',
+        cls: 'hero-container',
+        style: { 'background-color': 'rgb(255, 0, 0)' }, // Spurious change
+      },
+    },
+  });
+
+  const findings = diffStyleMaps(beforeMap, afterMap);
+
+  // A finding on a noChangeExpected path is a false positive — the test must catch it.
+  assert.equal(findings.length, 1);
+  const falsePositive = findings.find((f) => f.path === heroPath);
+  assert.ok(falsePositive, 'regression guard: false positive on noChangeExpected is detectable');
+});
