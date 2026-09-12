@@ -22,6 +22,38 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   and live-state settings apply to primary captures, self-checks, and popups.
   Defaults remain 2,000 elements per read and 32,000 total element reads.
 
+- **Config-driven prune schedule defaults.** Map store prune now reads
+  `mapStore.pruneRetentionDays` (default 14) and `mapStore.pruneBudgetBytes`
+  (default 1.5GB) from `styleproof.config.ts`. Report store prune reads
+  `reportStore.pruneRetentionDays` (default 30) and `reportStore.pruneBudgetBytes`
+  (default 2GB). CLI flags still override config values. (#596)
+
+- **Approval reusable workflow.** `styleproof-init` now scaffolds a thin caller
+  workflow (`styleproof-approve.yml`) that invokes the upstream reusable workflow
+  at `BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7`.
+  Logic updates ship with releases instead of drifting in copied files. (#598)
+
+- **Lint-artifacts workflow.** `styleproof-init` scaffolds
+  `styleproof-lint-artifacts.yml`, a belt-and-suspenders guard that fails the PR
+  if map artifacts (`.json.gz`, `styleproof-manifest.json`) are accidentally
+  committed to a PR branch. Mirrors the `.gitignore` patterns. (#597)
+
+### Changed
+
+- **Ancestor baseline reuse is now default-on (opt-out).** When the exact base
+  commit has no map in the store, CI automatically falls back to the nearest
+  ancestor whose bundle exists and is compatible. Configure via
+  `ancestorBaseline.enabled: false` in `styleproof.config.ts` or
+  `STYLEPROOF_ANCESTOR_BASELINE=0` to disable. The `ancestorBaseline.roots`
+  config key (default `['src']`) controls which directories' changes count as
+  capture-relevant. (#595)
+
+- **Platform mismatch warning is suppressed by default.** The compatibility-key
+  mismatch warning that fires when local and CI browsers differ is now quiet
+  unless you explicitly set `suppressPlatformWarning: false` in config or
+  `STYLEPROOF_SUPPRESS_PLATFORM_WARNING=0`. The warning was noisy for adopters
+  who understood the tradeoff; the exit-code behavior is unchanged. (#600)
+
 ### Fixed
 
 - A forced-state capture that uses its exact work allowance on the final state
