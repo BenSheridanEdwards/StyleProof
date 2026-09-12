@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const approveYml = fs.readFileSync(path.join(root, 'example/styleproof-approve.yml'), 'utf8');
+const reusableApproveYml = fs.readFileSync(
+  path.join(root, '.github/workflows/styleproof-approve-reusable.yml'),
+  'utf8',
+);
 const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 const liveReportScript = fs.readFileSync(path.join(root, 'scripts/live-readme-report.mjs'), 'utf8');
@@ -292,4 +296,82 @@ test('every rendered approval caption names the author rule (#477)', () => {
   }
   assert.match(readme, /#### Who may tick the box/);
   assert.match(readme, /STYLEPROOF_ALLOW_SELF_APPROVAL/);
+});
+
+// Reusable workflow tests (#598)
+test('reusable approval workflow declares required inputs (#598)', () => {
+  assert.match(reusableApproveYml, /on:\s*\n\s+workflow_call:/, 'must be a workflow_call trigger');
+
+  assert.match(reusableApproveYml, /status-context:/, 'status-context input must exist');
+  assert.match(reusableApproveYml, /status-context:[\s\S]*?type: string/, 'status-context must be string type');
+  assert.match(
+    reusableApproveYml,
+    /status-context:[\s\S]*?default: 'StyleProof'/,
+    'status-context must default to StyleProof',
+  );
+
+  assert.match(reusableApproveYml, /allow-self-approval:/, 'allow-self-approval input must exist');
+  assert.match(
+    reusableApproveYml,
+    /allow-self-approval:[\s\S]*?type: boolean/,
+    'allow-self-approval must be boolean type',
+  );
+  assert.match(
+    reusableApproveYml,
+    /allow-self-approval:[\s\S]*?default: false/,
+    'allow-self-approval must default to false',
+  );
+
+  assert.match(reusableApproveYml, /secrets:\s*\n\s+token:/, 'token secret must be declared');
+  assert.match(reusableApproveYml, /token:[\s\S]*?required: true/, 'token secret must be required');
+});
+
+test('reusable approval workflow has the same job guard as the reference (#598)', () => {
+  // Extract the if condition (the multiline string after >-), stopping at the first non-indented line
+  // that isn't part of the condition (typically a comment or the next key like runs-on)
+  const extractIfCondition = (yml) => {
+    const ifMatch = yml.match(/jobs:\s*\n\s+approve:\s*\n[^]*?if:\s*>-\s*\n((?:\s{6}[^\n]+\n?)+)/);
+    if (!ifMatch) return null;
+    return ifMatch[1]
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'))
+      .join(' ')
+      .trim();
+  };
+  const refIf = extractIfCondition(approveYml);
+  const reusableIf = extractIfCondition(reusableApproveYml);
+  assert.ok(refIf, 'reference workflow must have job guard');
+  assert.ok(reusableIf, 'reusable workflow must have job guard');
+  assert.equal(refIf, reusableIf, 'the job guard must match the reference implementation');
+});
+
+test('reusable approval workflow uses the input status-context (#598)', () => {
+  assert.match(
+    reusableApproveYml,
+    /const STATUS = '\$\{\{ inputs\.status-context \}\}'/,
+    'must interpolate status-context input',
+  );
+});
+
+test('reusable approval workflow uses the input allow-self-approval (#598)', () => {
+  assert.match(
+    reusableApproveYml,
+    /const allowSelfApproval = \$\{\{ inputs\.allow-self-approval \}\}/,
+    'must interpolate allow-self-approval input as a boolean',
+  );
+});
+
+test('reusable approval workflow uses the token secret (#598)', () => {
+  assert.match(reusableApproveYml, /github-token: \$\{\{ secrets\.token \}\}/, 'must use the token secret');
+});
+
+test('example approval workflow is marked as deprecated (#598)', () => {
+  assert.match(approveYml, /DEPRECATED/, 'example file must be marked as deprecated');
+  assert.match(approveYml, /prefer the reusable workflow/i, 'example file should point to the reusable workflow');
+  assert.match(
+    approveYml,
+    /BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@v7/,
+    'example file should show the reusable workflow reference',
+  );
 });
