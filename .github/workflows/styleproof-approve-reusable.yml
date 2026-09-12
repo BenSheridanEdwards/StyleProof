@@ -1,50 +1,34 @@
-# StyleProof approval gate — DEPRECATED: prefer the reusable workflow.
+# StyleProof approval gate — reusable workflow.
 #
-# ┌──────────────────────────────────────────────────────────────────────────────┐
-# │ DEPRECATED: This file is kept as a REFERENCE IMPLEMENTATION for edge cases. │
-# │ For normal use, call the reusable workflow instead — it stays current with  │
-# │ StyleProof releases and simplifies your CI to a thin caller:                │
-# │                                                                              │
-# │   # .github/workflows/styleproof-approve.yml                                │
-# │   name: StyleProof approve                                                  │
-# │   on:                                                                       │
-# │     issue_comment:                                                          │
-# │       types: [edited]                                                       │
-# │   jobs:                                                                     │
-# │     approve:                                                                │
-# │       uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7  │
-# │       with:                                                                 │
-# │         status-context: StyleProof                                          │
-# │         allow-self-approval: false                                          │
-# │       secrets:                                                              │
-# │         token: ${{ secrets.GITHUB_TOKEN }}                                  │
-# │                                                                              │
-# │ The reusable workflow supports visual rerun (re-reads status from comment   │
-# │ markers without requiring a fresh capture) and handles security/race fixes. │
-# └──────────────────────────────────────────────────────────────────────────────┘
+# Consumers call this with `uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7`
+# and a thin caller workflow in their .github/workflows/styleproof-approve.yml.
 #
-# This reference implementation flips the `StyleProof` commit status when a
-# write-access reviewer who is NOT the pull request author ticks the single
-# "Approve all changes" box in the StyleProof report comment — one tick signs
-# off every changed or new surface. Pair it with the Action's `require-approval: true`
+# This workflow flips the `StyleProof` commit status when a write-access reviewer
+# who is NOT the pull request author ticks the single "Approve all changes" box
+# in the StyleProof report comment. Pair it with the Action's `require-approval: true`
 # input and either a branch-protection rule requiring the `StyleProof` status, or
 # `styleproof.config.json`'s `"blocking": true` to fail the job on unapproved
 # changes (the blocking option for repos without branch protection).
 #
-# issue_comment workflows only ever run from the default branch, so this must
-# live on main (not on the feature branch) to take effect.
-name: StyleProof approve
+# Visual rerun support: the workflow re-reads status from comment markers, does not
+# require a fresh capture artifact, and preserves existing approval if commit unchanged.
+name: StyleProof approve (reusable)
 
 on:
-  issue_comment:
-    types: [edited] # ticking a checkbox edits the comment
-
-# statuses:write to flip the gate; pull-requests:read to resolve the PR head SHA
-# and author; issues:write only for the refusal replies on a rejected tick.
-permissions:
-  statuses: write
-  pull-requests: read
-  issues: write
+  workflow_call:
+    inputs:
+      status-context:
+        description: 'Commit status name (must match the Action''s status-context input)'
+        type: string
+        default: 'StyleProof'
+      allow-self-approval:
+        description: 'Allow the pull request author to approve their own changes (solo repos)'
+        type: boolean
+        default: false
+    secrets:
+      token:
+        description: 'Token with statuses:write, pull-requests:read, issues:write'
+        required: true
 
 jobs:
   approve:
@@ -61,19 +45,13 @@ jobs:
     # PRIVATE repo without them, this job silently fails to start — point it at
     # the same self-hosted runner your CI uses, e.g. runs-on: [self-hosted, …].
     runs-on: ubuntu-latest
-    env:
-      # SOLO REPOSITORIES ONLY. Set to 'true' to let the pull request author tick
-      # their own "Approve all changes" box. The default refuses it, so the
-      # sign-off always comes from a second pair of eyes and the audit trail can
-      # never record a self-approval as a review. Anything other than the exact
-      # string 'true' refuses, so a typo here fails closed.
-      STYLEPROOF_ALLOW_SELF_APPROVAL: 'false'
     steps:
       - uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.token }}
           script: |
-            const STATUS = 'StyleProof'; // must match the Action's status-context input
-            const allowSelfApproval = process.env.STYLEPROOF_ALLOW_SELF_APPROVAL === 'true';
+            const STATUS = '${{ inputs.status-context }}';
+            const allowSelfApproval = ${{ inputs.allow-self-approval }};
 
             // Re-fetch the comment so concurrent ticks all compute from the LATEST
             // body and converge (the event payload is the body as of one edit). The
@@ -315,7 +293,7 @@ jobs:
               await renderBox(false, ` — _self-approval by @${actor} refused_`);
               await replyOnce(
                 'self-approval',
-                `@${actor} — you opened this pull request, so ticking your own **Approve all changes** box cannot sign off its visual changes. The check stays red until another reviewer with write access ticks it. On a solo repository, set \`STYLEPROOF_ALLOW_SELF_APPROVAL: 'true'\` in \`.github/workflows/styleproof-approve.yml\`.`,
+                `@${actor} — you opened this pull request, so ticking your own **Approve all changes** box cannot sign off its visual changes. The check stays red until another reviewer with write access ticks it. On a solo repository, set \`allow-self-approval: true\` in your caller workflow.`,
               );
               return;
             }

@@ -506,17 +506,25 @@ test('styleproof-init: untrusted PR capture never receives write credentials', (
 test('styleproof-init: installs the approval workflow so require-approval is not left inert', () => {
   // The report workflow runs with `require-approval: true`; without the approval
   // handler the "Approve all changes" checkbox can never flip the status green.
-  // init must scaffold it (copied verbatim from the packaged example), idempotently.
+  // init scaffolds a thin caller workflow that invokes the upstream reusable workflow,
+  // so logic improvements ship via StyleProof releases without adopter drift.
   const root = mkTmp();
   try {
     const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
 
     const approve = readFile(root, '.github/workflows/styleproof-approve.yml');
-    const source = readFile(path.join(here, '..'), 'example/styleproof-approve.yml');
-    assert.equal(approve, source); // verbatim copy, no drift
+    // Thin caller pattern: uses the upstream reusable workflow
     assert.match(approve, /name: StyleProof approve/);
-    assert.match(approve, /issue_comment/);
+    assert.match(approve, /issue_comment:/);
+    assert.match(approve, /types: \[edited\]/);
+    assert.match(
+      approve,
+      /uses: BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@v7/,
+    );
+    assert.match(approve, /status-context: StyleProof/);
+    assert.match(approve, /allow-self-approval: false/);
+    assert.match(approve, /token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
     assert.match(res.stdout, /styleproof-approve\.yml \(approval gate/);
 
     // Idempotent: a second run leaves an existing workflow untouched.
