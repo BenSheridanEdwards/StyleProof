@@ -3271,3 +3271,789 @@ test('report.json gateMode reflects migration mode when specified (#580)', () =>
   assert.equal(json.gateMode, 'migration', 'gateMode should be migration when specified');
   rmTmp(root);
 });
+
+// ------------------------------------------------------------
+// #613 — Findings exhaustiveness: no silent drops
+// ------------------------------------------------------------
+// Prove report completeness: given a known set of diff findings, the report
+// includes ALL of them without silent drops (accounting for documented
+// aggregations). Fail-closed: input finding not in output = FAIL, output finding
+// not in input (invented) = FAIL, wrong before/after in output = FAIL.
+//
+// Structure: The report has two layers:
+// 1. JSON raw findings (surfaces[].findings[].props) — preserves all input props
+//    for certification. rawCounts reflects these.
+// 2. JSON counts & Markdown display — applies summarizeProps aggregation rules.
+//    counts reflects the summarized view.
+//
+// Both layers must be exhaustive: no silent drops in raw findings, and the
+// summarized view must correctly aggregate without losing information.
+
+/**
+ * Compute the expected output of summarizeProps for a set of input PropChanges.
+ * This mirrors the documented aggregation rules in prop-summary.ts.
+ */
+function expectedSummarizedProps(inputProps) {
+  return summarizeProps(inputProps);
+}
+
+/**
+ * Extract all raw PropChange rows from a surface's findings in report.json.
+ * Returns a flat array of { prop, before, after } objects as stored in JSON.
+ */
+function extractRawProps(surface) {
+  const result = [];
+  for (const finding of surface.findings ?? []) {
+    if (finding.kind === 'style' || finding.kind === 'state') {
+      for (const p of finding.props ?? []) {
+        result.push({ prop: p.prop, before: p.before, after: p.after });
+      }
+    }
+  }
+  return result;
+}
+
+test('findings exhaustiveness: non-aggregated findings appear in raw JSON and Markdown (#613)', () => {
+  // Create a synthetic finding with properties that do NOT aggregate.
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'card',
+        rect: [100, 100, 200, 150],
+        style: {
+          'background-color': 'rgb(255, 255, 255)',
+          'font-size': '14px',
+          'line-height': '1.5',
+        },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'card',
+        rect: [100, 100, 200, 150],
+        style: {
+          'background-color': 'rgb(240, 240, 240)',
+          'font-size': '16px',
+          'line-height': '1.6',
+        },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Expected: 3 non-aggregated findings
+  const expectedInputProps = [
+    { prop: 'background-color', before: 'rgb(255, 255, 255)', after: 'rgb(240, 240, 240)' },
+    { prop: 'font-size', before: '14px', after: '16px' },
+    { prop: 'line-height', before: '1.5', after: '1.6' },
+  ];
+
+  assert.equal(json.surfaces.length, 1, 'should have exactly one surface');
+  const rawProps = extractRawProps(json.surfaces[0]);
+
+  // Fail-closed: every expected prop MUST appear in raw JSON findings
+  for (const expected of expectedInputProps) {
+    const found = rawProps.find(
+      (p) => p.prop === expected.prop && p.before === expected.before && p.after === expected.after,
+    );
+    assert.ok(found, `SILENT DROP (raw): '${expected.prop}' (${expected.before} → ${expected.after}) not in JSON`);
+  }
+
+  // Fail-closed: summarized counts should match
+  const expectedSummarized = expectedSummarizedProps(expectedInputProps);
+  assert.equal(json.counts.style, expectedSummarized.length, 'counts.style should reflect summarized count');
+
+  // Fail-closed: Markdown should contain all summarized props
+  for (const prop of expectedSummarized) {
+    assert.match(md, new RegExp(prop.prop), `SILENT DROP (markdown): '${prop.prop}' not in Markdown`);
+  }
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: 4-side padding aggregates in counts and Markdown, raw preserved (#613)', () => {
+  // All 4 padding sides change → aggregated to 1 in counts/Markdown, but 4 in raw
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'box',
+        rect: [100, 100, 200, 150],
+        style: {
+          'padding-top': '10px',
+          'padding-right': '10px',
+          'padding-bottom': '10px',
+          'padding-left': '10px',
+        },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'box',
+        rect: [100, 100, 200, 150],
+        style: {
+          'padding-top': '20px',
+          'padding-right': '20px',
+          'padding-bottom': '20px',
+          'padding-left': '20px',
+        },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Raw JSON should have all 4 longhands (for certification)
+  const rawProps = extractRawProps(json.surfaces[0]);
+  for (const side of ['padding-top', 'padding-right', 'padding-bottom', 'padding-left']) {
+    const found = rawProps.find((p) => p.prop === side);
+    assert.ok(found, `SILENT DROP (raw): '${side}' not preserved in JSON findings`);
+    assert.equal(found.before, '10px');
+    assert.equal(found.after, '20px');
+  }
+
+  // rawCounts should reflect 4 raw findings
+  assert.equal(json.rawCounts.style, 4, 'rawCounts.style should be 4 (all longhands)');
+
+  // counts (summarized) should be 1 (aggregated shorthand)
+  assert.equal(json.counts.style, 1, 'counts.style should be 1 (aggregated to padding shorthand)');
+
+  // Markdown should show the shorthand, not longhands
+  assert.match(md, /padding/, 'Markdown should contain padding shorthand');
+  assert.match(md, /`10px`.*`20px`|10px.*→.*20px/, 'Markdown should show padding values');
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: logical→physical dropped in display, raw preserved (#613)', () => {
+  // Logical twin matches physical → dropped in display, kept in raw
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'panel',
+        rect: [100, 100, 200, 150],
+        style: {
+          'border-bottom-color': 'red',
+          'border-block-end-color': 'red',
+          'margin-bottom': '10px',
+          'margin-block-end': '15px', // diverges from physical
+        },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'panel',
+        rect: [100, 100, 200, 150],
+        style: {
+          'border-bottom-color': 'blue',
+          'border-block-end-color': 'blue',
+          'margin-bottom': '20px',
+          'margin-block-end': '25px', // still diverges
+        },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Raw findings should have ALL props (for certification)
+  const rawProps = extractRawProps(json.surfaces[0]);
+  assert.ok(
+    rawProps.find((p) => p.prop === 'border-bottom-color'),
+    'raw should have border-bottom-color',
+  );
+  assert.ok(
+    rawProps.find((p) => p.prop === 'border-block-end-color'),
+    'raw should preserve border-block-end-color',
+  );
+  assert.ok(
+    rawProps.find((p) => p.prop === 'margin-bottom'),
+    'raw should have margin-bottom',
+  );
+  assert.ok(
+    rawProps.find((p) => p.prop === 'margin-block-end'),
+    'raw should have margin-block-end',
+  );
+
+  // rawCounts should reflect all 4 raw findings
+  assert.equal(json.rawCounts.style, 4, 'rawCounts.style should be 4');
+
+  // counts (summarized) should be 3: border-bottom-color, margin-bottom, margin-block-end
+  // (border-block-end-color dropped as identical to physical)
+  const expectedSummarized = expectedSummarizedProps([
+    { prop: 'border-bottom-color', before: 'red', after: 'blue' },
+    { prop: 'border-block-end-color', before: 'red', after: 'blue' },
+    { prop: 'margin-bottom', before: '10px', after: '20px' },
+    { prop: 'margin-block-end', before: '15px', after: '25px' },
+  ]);
+  assert.equal(json.counts.style, expectedSummarized.length, 'counts.style should match summarized');
+
+  // Markdown should show physical and divergent logical
+  assert.match(md, /border-bottom-color/, 'Markdown should have border-bottom-color');
+  assert.match(md, /margin-block-end/, 'Markdown should have divergent margin-block-end');
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: currentColor echo dropped in display, raw preserved (#613)', () => {
+  // caret-color echoing color change → dropped in display, kept in raw
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > input:nth-child(1)': {
+        tag: 'input',
+        cls: 'field',
+        rect: [100, 100, 200, 40],
+        style: {
+          color: 'rgb(0, 0, 0)',
+          'caret-color': 'rgb(0, 0, 0)', // echoes color
+          'text-decoration-color': 'rgb(100, 100, 100)', // diverges
+        },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > input:nth-child(1)': {
+        tag: 'input',
+        cls: 'field',
+        rect: [100, 100, 200, 40],
+        style: {
+          color: 'rgb(255, 0, 0)',
+          'caret-color': 'rgb(255, 0, 0)', // still echoes
+          'text-decoration-color': 'rgb(200, 200, 200)', // changed independently
+        },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Raw findings should have ALL props (for certification)
+  const rawProps = extractRawProps(json.surfaces[0]);
+  assert.ok(
+    rawProps.find((p) => p.prop === 'color'),
+    'raw should have color',
+  );
+  assert.ok(
+    rawProps.find((p) => p.prop === 'caret-color'),
+    'raw should preserve caret-color (even if echo)',
+  );
+  assert.ok(
+    rawProps.find((p) => p.prop === 'text-decoration-color'),
+    'raw should have text-decoration-color',
+  );
+
+  // rawCounts should reflect all 3 raw findings
+  assert.equal(json.rawCounts.style, 3, 'rawCounts.style should be 3');
+
+  // counts (summarized) should be 2: color + text-decoration-color (caret-color echo dropped)
+  const expectedSummarized = expectedSummarizedProps([
+    { prop: 'color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' },
+    { prop: 'caret-color', before: 'rgb(0, 0, 0)', after: 'rgb(255, 0, 0)' },
+    { prop: 'text-decoration-color', before: 'rgb(100, 100, 100)', after: 'rgb(200, 200, 200)' },
+  ]);
+  assert.equal(json.counts.style, expectedSummarized.length, 'counts.style should match summarized');
+
+  // Markdown should show color and divergent text-decoration-color
+  assert.match(md, /\bcolor\b/, 'Markdown should have color');
+  assert.match(md, /text-decoration-color/, 'Markdown should have divergent text-decoration-color');
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: multiple elements, all raw findings accounted for (#613)', () => {
+  // Multiple elements with different findings — verify exhaustive coverage.
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > nav:nth-child(1)': {
+        tag: 'nav',
+        cls: 'navbar',
+        rect: [0, 0, 1280, 60],
+        style: { 'background-color': 'rgb(255, 255, 255)' },
+      },
+      'body > main:nth-child(2)': {
+        tag: 'main',
+        cls: 'content',
+        rect: [0, 60, 1280, 740],
+        style: { 'font-size': '14px' },
+      },
+      'body > footer:nth-child(3)': {
+        tag: 'footer',
+        cls: 'footer',
+        rect: [0, 760, 1280, 40],
+        style: { color: 'rgb(100, 100, 100)' },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > nav:nth-child(1)': {
+        tag: 'nav',
+        cls: 'navbar',
+        rect: [0, 0, 1280, 60],
+        style: { 'background-color': 'rgb(240, 240, 240)' },
+      },
+      'body > main:nth-child(2)': {
+        tag: 'main',
+        cls: 'content',
+        rect: [0, 60, 1280, 740],
+        style: { 'font-size': '16px' },
+      },
+      'body > footer:nth-child(3)': {
+        tag: 'footer',
+        cls: 'footer',
+        rect: [0, 760, 1280, 40],
+        style: { color: 'rgb(80, 80, 80)' },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+
+  // Collect all raw props across all findings
+  const allRawProps = [];
+  for (const surface of json.surfaces) {
+    for (const finding of surface.findings ?? []) {
+      if (finding.kind === 'style' || finding.kind === 'state') {
+        for (const p of finding.props ?? []) {
+          allRawProps.push({ path: finding.path, prop: p.prop, before: p.before, after: p.after });
+        }
+      }
+    }
+  }
+
+  // Expected: 3 elements, 1 prop each = 3 total raw props
+  assert.equal(allRawProps.length, 3, `expected 3 raw findings, got ${allRawProps.length}`);
+
+  // Verify each element's finding is present
+  const navProp = allRawProps.find((p) => p.path.includes('nav') && p.prop === 'background-color');
+  assert.ok(navProp, 'SILENT DROP: navbar background-color not found');
+  assert.equal(navProp.before, 'rgb(255, 255, 255)');
+  assert.equal(navProp.after, 'rgb(240, 240, 240)');
+
+  const mainProp = allRawProps.find((p) => p.path.includes('main') && p.prop === 'font-size');
+  assert.ok(mainProp, 'SILENT DROP: main font-size not found');
+  assert.equal(mainProp.before, '14px');
+  assert.equal(mainProp.after, '16px');
+
+  const footerProp = allRawProps.find((p) => p.path.includes('footer') && p.prop === 'color');
+  assert.ok(footerProp, 'SILENT DROP: footer color not found');
+  assert.equal(footerProp.before, 'rgb(100, 100, 100)');
+  assert.equal(footerProp.after, 'rgb(80, 80, 80)');
+
+  // Counts should also be correct
+  assert.equal(json.rawCounts.style, 3);
+  assert.equal(json.counts.style, 3); // No aggregation for these props
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: wrong before/after value = FAIL (#613)', () => {
+  // Verifies the test catches wrong values, not just presence.
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'box',
+        rect: [100, 100, 200, 150],
+        style: { 'border-radius': '4px' },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'box',
+        rect: [100, 100, 200, 150],
+        style: { 'border-radius': '8px' },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+
+  const rawProps = extractRawProps(json.surfaces[0]);
+  const radiusProp = rawProps.find((p) => p.prop === 'border-radius');
+
+  assert.ok(radiusProp, 'border-radius finding should be present');
+  assert.equal(radiusProp.before, '4px', 'before value mismatch = FAIL');
+  assert.equal(radiusProp.after, '8px', 'after value mismatch = FAIL');
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: state-delta findings also exhaustive (#613)', () => {
+  // Interactive state findings (hover, focus, etc.) must also be exhaustive.
+  // Note: states structure is { [path]: { [state]: { [sub]: { [prop]: value } } } }
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+  const btnPath = 'body > button:nth-child(1)';
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      [btnPath]: {
+        tag: 'button',
+        cls: 'btn',
+        rect: [100, 100, 120, 40],
+        style: { 'background-color': 'rgb(0, 100, 200)' },
+      },
+    },
+    states: {
+      [btnPath]: {
+        hover: { [btnPath]: { 'background-color': 'rgb(0, 120, 220)' } },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      [btnPath]: {
+        tag: 'button',
+        cls: 'btn',
+        rect: [100, 100, 120, 40],
+        style: { 'background-color': 'rgb(0, 100, 200)' },
+      },
+    },
+    states: {
+      [btnPath]: {
+        hover: { [btnPath]: { 'background-color': 'rgb(0, 150, 255)' } },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Find state findings in raw JSON
+  let stateFindings = [];
+  for (const surface of json.surfaces) {
+    for (const finding of surface.findings ?? []) {
+      if (finding.kind === 'state') {
+        stateFindings.push(finding);
+      }
+    }
+  }
+
+  assert.ok(stateFindings.length > 0, 'should have state findings');
+
+  const hoverFinding = stateFindings.find((f) => f.state === 'hover');
+  assert.ok(hoverFinding, 'SILENT DROP: hover state finding not found');
+  assert.ok(hoverFinding.props.length > 0, 'hover finding should have props');
+
+  const bgProp = hoverFinding.props.find((p) => p.prop === 'background-color');
+  assert.ok(bgProp, 'SILENT DROP: hover background-color not in state finding');
+  assert.equal(bgProp.before, 'rgb(0, 120, 220)');
+  assert.equal(bgProp.after, 'rgb(0, 150, 255)');
+
+  // Counts should reflect state findings
+  assert.equal(json.rawCounts.state, 1, 'rawCounts.state should be 1');
+
+  // Markdown should mention hover state
+  assert.match(md, /hover/i, 'Markdown should mention hover state');
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: markdown report contains all summarized props (#613)', () => {
+  // Verify the Markdown output contains all summarized findings.
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'card',
+        rect: [100, 100, 200, 150],
+        style: {
+          'background-color': 'rgb(255, 255, 255)',
+          'box-shadow': 'none',
+        },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'card',
+        rect: [100, 100, 200, 150],
+        style: {
+          'background-color': 'rgb(245, 245, 245)',
+          'box-shadow': '0px 2px 4px rgba(0, 0, 0, 0.1)',
+        },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Both properties should appear in the markdown
+  assert.match(md, /background-color/, 'SILENT DROP: background-color not in markdown');
+  assert.match(md, /box-shadow/, 'SILENT DROP: box-shadow not in markdown');
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: gap shorthand aggregates in display, raw preserved (#613)', () => {
+  // row-gap + column-gap → gap shorthand in display, raw preserved
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'grid',
+        rect: [100, 100, 400, 300],
+        style: {
+          'row-gap': '10px',
+          'column-gap': '10px',
+        },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'grid',
+        rect: [100, 100, 400, 300],
+        style: {
+          'row-gap': '20px',
+          'column-gap': '20px',
+        },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Raw JSON should have both longhands (for certification)
+  const rawProps = extractRawProps(json.surfaces[0]);
+  assert.ok(
+    rawProps.find((p) => p.prop === 'row-gap'),
+    'raw should preserve row-gap',
+  );
+  assert.ok(
+    rawProps.find((p) => p.prop === 'column-gap'),
+    'raw should preserve column-gap',
+  );
+
+  // rawCounts should be 2
+  assert.equal(json.rawCounts.style, 2, 'rawCounts.style should be 2 (both longhands)');
+
+  // counts (summarized) should be 1 (aggregated to gap shorthand)
+  assert.equal(json.counts.style, 1, 'counts.style should be 1 (gap shorthand)');
+
+  // Markdown should show gap shorthand
+  assert.match(md, /gap/, 'Markdown should contain gap shorthand');
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: outline shorthand aggregates in display, raw preserved (#613)', () => {
+  // outline-width + outline-style + outline-color → outline shorthand in display
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'btn',
+        rect: [100, 100, 120, 40],
+        style: {
+          'outline-width': '2px',
+          'outline-style': 'solid',
+          'outline-color': 'rgb(0, 100, 200)',
+        },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > button:nth-child(1)': {
+        tag: 'button',
+        cls: 'btn',
+        rect: [100, 100, 120, 40],
+        style: {
+          'outline-width': '3px',
+          'outline-style': 'dashed',
+          'outline-color': 'rgb(0, 150, 255)',
+        },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const md = fs.readFileSync(res.reportMdPath, 'utf8');
+
+  // Raw JSON should have all 3 longhands (for certification)
+  const rawProps = extractRawProps(json.surfaces[0]);
+  assert.ok(
+    rawProps.find((p) => p.prop === 'outline-width'),
+    'raw should preserve outline-width',
+  );
+  assert.ok(
+    rawProps.find((p) => p.prop === 'outline-style'),
+    'raw should preserve outline-style',
+  );
+  assert.ok(
+    rawProps.find((p) => p.prop === 'outline-color'),
+    'raw should preserve outline-color',
+  );
+
+  // rawCounts should be 3
+  assert.equal(json.rawCounts.style, 3, 'rawCounts.style should be 3 (all longhands)');
+
+  // counts (summarized) should be 1 (aggregated to outline shorthand)
+  assert.equal(json.counts.style, 1, 'counts.style should be 1 (outline shorthand)');
+
+  // Markdown should show outline shorthand
+  assert.match(md, /outline/, 'Markdown should contain outline shorthand');
+
+  rmTmp(root);
+});
+
+test('findings exhaustiveness: invented finding in report = FAIL (#613)', () => {
+  // This test verifies the mechanism catches invented findings
+  const { beforeDir, afterDir, outDir, root } = tmpDirs();
+
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'box',
+        rect: [100, 100, 200, 150],
+        style: { 'background-color': 'rgb(255, 255, 255)' },
+      },
+    },
+  });
+
+  const after = makeMap({
+    elements: {
+      body: { tag: 'body', rect: [0, 0, 1280, 800], style: {} },
+      'body > div:nth-child(1)': {
+        tag: 'div',
+        cls: 'box',
+        rect: [100, 100, 200, 150],
+        style: { 'background-color': 'rgb(240, 240, 240)' },
+      },
+    },
+  });
+
+  writeCapture(beforeDir, 'page@1280', before, solidPng(1280, 800));
+  writeCapture(afterDir, 'page@1280', after, solidPng(1280, 800));
+
+  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+
+  const rawProps = extractRawProps(json.surfaces[0]);
+
+  // Verify NO invented findings (props we didn't put in)
+  const inventedProps = rawProps.filter((p) => p.prop !== 'background-color');
+  assert.equal(inventedProps.length, 0, `INVENTED FINDINGS: ${inventedProps.map((p) => p.prop).join(', ')}`);
+
+  // Verify the expected finding IS there
+  const bgProp = rawProps.find((p) => p.prop === 'background-color');
+  assert.ok(bgProp, 'expected background-color finding');
+
+  rmTmp(root);
+});
