@@ -229,6 +229,8 @@ it or acknowledge it in policy. The approval box cannot clear it.
 - [Any styling system, real breakpoints](#any-styling-system-real-breakpoints)
 - [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel)
 - [Forks and Dependabot](#forks-and-dependabot)
+- [Platform Integration](#platform-integration)
+  - [Vercel](#vercel)
 - [Optional: pixel gate](#optional-pixel-gate)
 - [Optional: content layer](#optional-content-layer-advisory)
 - [Optional: React component layer](#optional-react-component-layer-advisory)
@@ -1366,6 +1368,40 @@ That last point is why this works where `pull_request_target` does not: StylePro
 **Where the PR identity comes from.** The report stage comments on the PR and sets the `StyleProof` status against a specific PR number and head commit, so those values have to be trustworthy. It takes them from the trusted `workflow_run` event — `head_sha`, then the event's `pull_requests`, with a commit→PR lookup against that **same trusted head SHA** for fork PRs (whose association the event doesn't carry directly) — and **never** from the downloaded artifact. The artifact is produced by the untrusted capture job, so treating anything in it as identity would let a malicious PR point the privileged comment and status at a victim PR or an arbitrary commit (a confused-deputy attack). The artifact therefore carries only the style-map captures, consumed purely as diff input.
 
 Copy both `capture` and `report` files to `.github/workflows/` (the `report` one must be on your default branch, like `styleproof-approve.yml`), then require the `StyleProof` status in branch protection. A single combined `pull_request` job that captures base + head and diffs them is fine for repos that never see fork or bot PRs; this split is only needed for untrusted PRs.
+
+## Platform Integration
+
+### Vercel
+
+StyleProof publishes to `styleproof-maps` and `styleproof-reports` branches. These
+artifact branches contain JSON maps and Markdown reports, not deployable code.
+Vercel auto-deploys every branch push by default, including these artifact branches,
+which wastes build minutes and fails with confusing framework errors.
+
+Prevent Vercel from deploying artifact branches by adding to your repo root:
+
+**`vercel.json`:**
+
+```json
+{
+  "git": {
+    "deploymentEnabled": {
+      "styleproof-maps": false,
+      "styleproof-reports": false
+    }
+  }
+}
+```
+
+Alternatively, use `ignoreBuildStep` in your Vercel project settings to skip builds
+on these branches.
+
+**Artifact-branch CI guard.** `styleproof-init` now scaffolds
+`.github/workflows/styleproof-lint-artifacts.yml`, which fails the PR if StyleProof
+map artifacts are accidentally committed to a PR branch. This is a belt-and-suspenders
+guard: `.gitignore` already excludes these patterns, but a misconfigured ignore or
+`git add -f` can still land them. The guard is scaffolded automatically; no manual
+copy required.
 
 ## Optional: pixel gate
 
