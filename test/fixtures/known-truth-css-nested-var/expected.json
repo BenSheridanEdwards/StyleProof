@@ -1,0 +1,93 @@
+{
+  "description": "Oracle: exact computed-style values StyleProof MUST resolve through nested var() chains. Tests token→component→leaf resolution at 2+ nesting levels. Fail-closed if capture shows unresolved/wrong cascade.",
+  "byTestId": {
+    "level-0-token": {
+      "tag": "div",
+      "cls": "token-direct",
+      "nestingDepth": 0,
+      "doc": "Uses token var directly: var(--color-blue-500) → rgb(59, 130, 246)",
+      "expectedStyles": {
+        "background-color": "rgb(59, 130, 246)",
+        "color": "rgb(255, 255, 255)",
+        "padding-top": "16px",
+        "padding-right": "16px",
+        "padding-bottom": "16px",
+        "padding-left": "16px"
+      }
+    },
+    "level-1-component": {
+      "tag": "div",
+      "cls": "component-semantic",
+      "nestingDepth": 1,
+      "doc": "Uses component var referencing token: var(--card-bg) → var(--color-gray-100) → rgb(243, 244, 246)",
+      "expectedStyles": {
+        "background-color": "rgb(243, 244, 246)",
+        "border-top-color": "rgb(59, 130, 246)",
+        "border-right-color": "rgb(59, 130, 246)",
+        "border-bottom-color": "rgb(59, 130, 246)",
+        "border-left-color": "rgb(59, 130, 246)",
+        "border-top-width": "2px",
+        "border-right-width": "2px",
+        "border-bottom-width": "2px",
+        "border-left-width": "2px",
+        "border-top-style": "solid",
+        "border-right-style": "solid",
+        "border-bottom-style": "solid",
+        "border-left-style": "solid",
+        "padding-top": "16px",
+        "padding-right": "16px",
+        "padding-bottom": "16px",
+        "padding-left": "16px"
+      }
+    },
+    "level-2-nested": {
+      "tag": "div",
+      "cls": "nested-deep",
+      "nestingDepth": 2,
+      "doc": "Uses deeply nested var: var(--surface-elevated) → var(--card-bg) → var(--color-gray-100) → rgb(243, 244, 246)",
+      "expectedStyles": {
+        "background-color": "rgb(243, 244, 246)",
+        "color": "rgb(30, 64, 175)",
+        "padding-top": "24px",
+        "padding-right": "24px",
+        "padding-bottom": "24px",
+        "padding-left": "24px"
+      }
+    },
+    "level-2-text": {
+      "tag": "span",
+      "cls": "nested-text",
+      "nestingDepth": 2,
+      "doc": "Text color through nested chain: var(--text-accent) → var(--card-accent) → var(--color-blue-500) → rgb(59, 130, 246)",
+      "expectedStyles": {
+        "color": "rgb(59, 130, 246)",
+        "font-size": "14px",
+        "font-weight": "600"
+      }
+    },
+    "level-3-leaf": {
+      "tag": "button",
+      "cls": "leaf-button",
+      "nestingDepth": 3,
+      "doc": "Deepest nesting: var(--btn-primary-bg) → var(--interactive-primary) → var(--card-accent) → var(--color-blue-500) → rgb(59, 130, 246)",
+      "expectedStyles": {
+        "background-color": "rgb(59, 130, 246)",
+        "color": "rgb(255, 255, 255)",
+        "padding-top": "8px",
+        "padding-right": "16px",
+        "padding-bottom": "8px",
+        "padding-left": "16px",
+        "border-top-width": "0px",
+        "border-right-width": "0px",
+        "border-bottom-width": "0px",
+        "border-left-width": "0px",
+        "cursor": "pointer"
+      }
+    }
+  },
+  "customProperties": {
+    "--color-blue-500": "rgb(59, 130, 246)",
+    "--color-blue-800": "rgb(30, 64, 175)",
+    "--color-gray-100": "rgb(243, 244, 246)"
+  }
+}
