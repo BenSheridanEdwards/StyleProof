@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nested CSS var() Resolution Fixture</title>
+  <!--
+    FIXTURE CONTRACT (documentation only — tests assert against expected.json)
+    ===========================================================================
+    This fixture proves StyleProof correctly resolves nested CSS var() chains.
+    The expected.json oracle is the source of truth; these comments match the JSON.
+
+    NESTING LEVELS:
+    - Level 0: Direct token usage (var(--token) → value)
+    - Level 1: Component semantic (var(--component) → var(--token) → value)
+    - Level 2: Nested deep (var(--nested) → var(--component) → var(--token) → value)
+    - Level 3: Leaf (var(--leaf) → var(--nested) → var(--component) → var(--token) → value)
+
+    CUSTOM PROPERTIES (tokens on :root):
+      --color-blue-500: rgb(59, 130, 246)   [#3B82F6]
+      --color-blue-800: rgb(30, 64, 175)    [#1E40AF]
+      --color-gray-100: rgb(243, 244, 246)  [#F3F4F6]
+      --spacing-sm: 8px
+      --spacing-md: 16px
+      --spacing-lg: 24px
+
+    ELEMENT: .token-direct (div) [data-testid="level-0-token"]
+      Nesting depth: 0 — uses token var directly
+      background-color: var(--color-blue-500) → rgb(59, 130, 246)
+      color: rgb(255, 255, 255)
+      padding: var(--spacing-md) → 16px (all sides)
+
+    ELEMENT: .component-semantic (div) [data-testid="level-1-component"]
+      Nesting depth: 1 — component var referencing token
+      background-color: var(--card-bg) → var(--color-gray-100) → rgb(243, 244, 246)
+      border: 2px solid var(--card-accent) → var(--color-blue-500) → rgb(59, 130, 246)
+      padding: var(--card-padding) → var(--spacing-md) → 16px
+
+    ELEMENT: .nested-deep (div) [data-testid="level-2-nested"]
+      Nesting depth: 2 — deeply nested var chain
+      background-color: var(--surface-elevated) → var(--card-bg) → var(--color-gray-100) → rgb(243, 244, 246)
+      color: var(--text-muted) → var(--color-blue-800) → rgb(30, 64, 175)
+      padding: var(--spacing-lg) → 24px (all sides)
+
+    ELEMENT: .nested-text (span) [data-testid="level-2-text"]
+      Nesting depth: 2 — text color through nested chain
+      color: var(--text-accent) → var(--card-accent) → var(--color-blue-500) → rgb(59, 130, 246)
+      font-size: 14px
+      font-weight: 600
+
+    ELEMENT: .leaf-button (button) [data-testid="level-3-leaf"]
+      Nesting depth: 3 — deepest nesting level
+      background-color: var(--btn-primary-bg) → var(--interactive-primary) → var(--card-accent) → var(--color-blue-500) → rgb(59, 130, 246)
+      color: rgb(255, 255, 255)
+      padding: var(--spacing-sm) var(--spacing-md) → 8px 16px
+      border: none
+      cursor: pointer
+  -->
+  <style>
+    /* ========== LEVEL 0: Design Tokens (raw values) ========== */
+    :root {
+      /* Color tokens */
+      --color-blue-500: rgb(59, 130, 246);
+      --color-blue-800: rgb(30, 64, 175);
+      --color-gray-100: rgb(243, 244, 246);
+
+      /* Spacing tokens */
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+
+      /* ========== LEVEL 1: Component Semantics (reference tokens) ========== */
+      --card-bg: var(--color-gray-100);
+      --card-accent: var(--color-blue-500);
+      --card-padding: var(--spacing-md);
+
+      /* ========== LEVEL 2: Nested References (reference component vars) ========== */
+      --surface-elevated: var(--card-bg);
+      --text-accent: var(--card-accent);
+      --text-muted: var(--color-blue-800);
+      --interactive-primary: var(--card-accent);
+
+      /* ========== LEVEL 3: Leaf References (reference nested vars) ========== */
+      --btn-primary-bg: var(--interactive-primary);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+      padding: 20px;
+    }
+
+    /* Level 0: Direct token usage */
+    .token-direct {
+      background-color: var(--color-blue-500);
+      color: rgb(255, 255, 255);
+      padding: var(--spacing-md);
+      margin-bottom: 16px;
+    }
+
+    /* Level 1: Component semantic var (1 level of indirection) */
+    .component-semantic {
+      background-color: var(--card-bg);
+      border: 2px solid var(--card-accent);
+      padding: var(--card-padding);
+      margin-bottom: 16px;
+    }
+
+    /* Level 2: Deeply nested var (2 levels of indirection) */
+    .nested-deep {
+      background-color: var(--surface-elevated);
+      color: var(--text-muted);
+      padding: var(--spacing-lg);
+      margin-bottom: 16px;
+    }
+
+    /* Level 2: Text with nested color chain */
+    .nested-text {
+      color: var(--text-accent);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* Level 3: Leaf button (3 levels of indirection) */
+    .leaf-button {
+      background-color: var(--btn-primary-bg);
+      color: rgb(255, 255, 255);
+      padding: var(--spacing-sm) var(--spacing-md);
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Level 0: Direct token usage -->
+    <div class="token-direct" data-testid="level-0-token">
+      Direct token: var(--color-blue-500)
+    </div>
+
+    <!-- Level 1: Component semantic (1 level nesting) -->
+    <div class="component-semantic" data-testid="level-1-component">
+      Component: var(--card-bg) → var(--color-gray-100)
+    </div>
+
+    <!-- Level 2: Nested deep (2 levels nesting) -->
+    <div class="nested-deep" data-testid="level-2-nested">
+      Nested: var(--surface-elevated) → var(--card-bg) → var(--color-gray-100)
+      <br>
+      <span class="nested-text" data-testid="level-2-text">
+        Text accent through nested chain
+      </span>
+    </div>
+
+    <!-- Level 3: Leaf (3 levels nesting) -->
+    <div style="margin-top: 16px;">
+      <button class="leaf-button" data-testid="level-3-leaf">
+        Leaf: 3 levels deep
+      </button>
+    </div>
+  </main>
+</body>
+</html>
