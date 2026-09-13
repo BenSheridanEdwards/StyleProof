@@ -81,6 +81,41 @@
         outline-style: solid
         outline-color: rgb(191, 219, 254)     [#BFDBFE blue-200]
         (outline-width: 3px not captured — matches browser input default)
+
+    ELEMENT: .badge (span) [data-testid="badge"]
+      RESTING:
+        display: inline-block
+        position: relative
+        padding-left: 20px
+        color: rgb(34, 197, 94)              [#22C55E green-500]
+      ::before
+        content: "✓"
+        position: absolute
+        left: 0px
+        top: 0px
+        color: rgb(34, 197, 94)              [#22C55E green-500]
+
+    ELEMENT: .quote (blockquote) [data-testid="quote"]
+      RESTING:
+        position: relative
+        padding-left: 24px
+        padding-right: 24px
+        font-style: italic
+        color: rgb(100, 116, 139)            [#64748B slate-500]
+      ::before
+        content: "\201C" (left curly quote via CSS escape)
+        position: absolute
+        left: 0px
+        top: 0px
+        font-size: 32px
+        color: rgb(203, 213, 225)            [#CBD5E1 gray-300]
+      ::after
+        content: "\201D" (right curly quote via CSS escape)
+        position: absolute
+        right: 0px
+        bottom: 0px
+        font-size: 32px
+        color: rgb(203, 213, 225)            [#CBD5E1 gray-300]
   -->
   <style>
     :root {
@@ -141,6 +176,47 @@
       border-color: rgb(59, 130, 246);
       outline: 3px solid rgb(191, 219, 254);
     }
+
+    .badge {
+      display: inline-block;
+      position: relative;
+      padding-left: 20px;
+      color: rgb(34, 197, 94);
+    }
+
+    .badge::before {
+      content: "✓";
+      position: absolute;
+      left: 0px;
+      top: 0px;
+      color: rgb(34, 197, 94);
+    }
+
+    .quote {
+      position: relative;
+      padding-left: 24px;
+      padding-right: 24px;
+      font-style: italic;
+      color: rgb(100, 116, 139);
+    }
+
+    .quote::before {
+      content: "\201C";
+      position: absolute;
+      left: 0px;
+      top: 0px;
+      font-size: 32px;
+      color: rgb(203, 213, 225);
+    }
+
+    .quote::after {
+      content: "\201D";
+      position: absolute;
+      right: 0px;
+      bottom: 0px;
+      font-size: 32px;
+      color: rgb(203, 213, 225);
+    }
   </style>
 </head>
 <body>
@@ -152,6 +228,12 @@
     <div>
       <input type="text" class="text-input" data-testid="email" name="email" placeholder="Email">
     </div>
+    <div>
+      <span class="badge" data-testid="badge">Verified</span>
+    </div>
+    <blockquote class="quote" data-testid="quote">
+      Design is not just what it looks like, design is how it works.
+    </blockquote>
   </main>
 </body>
 </html>

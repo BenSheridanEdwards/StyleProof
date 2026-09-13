@@ -42,6 +42,10 @@ type ExpectedOracle = {
         focus?: Record<string, string>;
         active?: Record<string, string>;
       };
+      expectedPseudo?: {
+        '::before'?: Record<string, string>;
+        '::after'?: Record<string, string>;
+      };
     }
   >;
   customProperties: Record<string, string>;
@@ -279,5 +283,124 @@ test.describe('CSS Fidelity: forced-state exactness', () => {
   test('extra captured state effects do not cause failure (fail-open on extras)', async ({ page }) => {
     const map = await captureFixtureWithStates(page);
     expect(Object.keys(map.states).length, 'forced-state layer should capture interactive elements').toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Pseudo-Element CSS Fidelity — Trust Ladder Rung 1
+ *
+ * Extends resting-style fidelity to pseudo-elements (::before, ::after).
+ * Proves the captured pseudo-element values exactly match what the CSS declares.
+ * Fail-closed: missing expected pseudo-element = FAIL; wrong value = FAIL;
+ * silently dropped pseudo-element = FAIL.
+ *
+ * @see https://github.com/BenSheridanEdwards/StyleProof/issues/623
+ */
+test.describe('CSS Fidelity: pseudo-element exactness', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  test('oracle has expectedPseudo for at least one element with ::before', () => {
+    const oracle = loadOracle();
+    const hasBeforePseudo = Object.values(oracle.byTestId).some((spec) => spec.expectedPseudo?.['::before']);
+    expect(hasBeforePseudo, 'oracle missing expectedPseudo.::before for pseudo-element tests').toBe(true);
+  });
+
+  test('oracle has expectedPseudo for at least one element with ::after', () => {
+    const oracle = loadOracle();
+    const hasAfterPseudo = Object.values(oracle.byTestId).some((spec) => spec.expectedPseudo?.['::after']);
+    expect(hasAfterPseudo, 'oracle missing expectedPseudo.::after for pseudo-element tests').toBe(true);
+  });
+
+  test('capture includes pseudo field for elements with ::before/::after', async ({ page }) => {
+    const oracle = loadOracle();
+    const map = await captureFixture(page);
+
+    for (const [testId, spec] of Object.entries(oracle.byTestId)) {
+      if (!spec.expectedPseudo) continue;
+
+      const found = findElementByTestId(map, testId);
+      expect(found, `FAIL-CLOSED: data-testid="${testId}" not found`).toBeDefined();
+
+      for (const pseudoName of Object.keys(spec.expectedPseudo)) {
+        expect(
+          found!.entry.pseudo,
+          `FAIL-CLOSED: data-testid="${testId}" has no pseudo field (expected ${pseudoName})`,
+        ).toBeDefined();
+        expect(
+          found!.entry.pseudo?.[pseudoName],
+          `FAIL-CLOSED: data-testid="${testId}" missing ${pseudoName} pseudo-element (silently dropped)`,
+        ).toBeDefined();
+      }
+    }
+  });
+
+  test('every expected ::before property matches exactly (fail-closed on wrong value)', async ({ page }) => {
+    const oracle = loadOracle();
+    const map = await captureFixture(page);
+
+    for (const [testId, spec] of Object.entries(oracle.byTestId)) {
+      if (!spec.expectedPseudo?.['::before']) continue;
+
+      const found = findElementByTestId(map, testId);
+      expect(found, `FAIL-CLOSED: data-testid="${testId}" not found`).toBeDefined();
+
+      const beforeProps = found!.entry.pseudo?.['::before'];
+      expect(beforeProps, `FAIL-CLOSED: data-testid="${testId}" ::before pseudo-element not captured`).toBeDefined();
+
+      for (const [prop, expectedValue] of Object.entries(spec.expectedPseudo['::before'])) {
+        const actualValue = beforeProps?.[prop];
+        expect(
+          actualValue,
+          `data-testid="${testId}" ::before "${prop}": expected "${expectedValue}" but was ${actualValue === undefined ? 'MISSING' : `"${actualValue}"`}`,
+        ).toBe(expectedValue);
+      }
+    }
+  });
+
+  test('every expected ::after property matches exactly (fail-closed on wrong value)', async ({ page }) => {
+    const oracle = loadOracle();
+    const map = await captureFixture(page);
+
+    for (const [testId, spec] of Object.entries(oracle.byTestId)) {
+      if (!spec.expectedPseudo?.['::after']) continue;
+
+      const found = findElementByTestId(map, testId);
+      expect(found, `FAIL-CLOSED: data-testid="${testId}" not found`).toBeDefined();
+
+      const afterProps = found!.entry.pseudo?.['::after'];
+      expect(afterProps, `FAIL-CLOSED: data-testid="${testId}" ::after pseudo-element not captured`).toBeDefined();
+
+      for (const [prop, expectedValue] of Object.entries(spec.expectedPseudo['::after'])) {
+        const actualValue = afterProps?.[prop];
+        expect(
+          actualValue,
+          `data-testid="${testId}" ::after "${prop}": expected "${expectedValue}" but was ${actualValue === undefined ? 'MISSING' : `"${actualValue}"`}`,
+        ).toBe(expectedValue);
+      }
+    }
+  });
+
+  test('fail-closed when pseudo-element is omitted from capture (detection)', async ({ page }) => {
+    const oracle = loadOracle();
+    const map = await captureFixture(page);
+
+    // Verify at least one element with expectedPseudo exists and has its pseudo captured
+    const elementsWithPseudo = Object.entries(oracle.byTestId).filter(([, spec]) => spec.expectedPseudo);
+    expect(
+      elementsWithPseudo.length,
+      'test requires at least one element with expectedPseudo in oracle',
+    ).toBeGreaterThan(0);
+
+    for (const [testId] of elementsWithPseudo) {
+      const found = findElementByTestId(map, testId);
+      expect(found, `element data-testid="${testId}" should exist`).toBeDefined();
+
+      // This proves the capture DOES include pseudo - if it didn't, this would fail
+      expect(
+        found!.entry.pseudo,
+        `FAIL-CLOSED: capture must include pseudo field for data-testid="${testId}" — ` +
+          `pseudo-element styles would be silently dropped without it`,
+      ).toBeDefined();
+    }
   });
 });
