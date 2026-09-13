@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Known-Truth CSS Multi-Width Fixture</title>
+  <!--
+    FIXTURE CONTRACT (documentation only — tests assert against expected.json)
+    ===========================================================================
+    This fixture declares exact CSS values that DIFFER between viewport widths.
+    The expected.json oracle is the source of truth; these comments match the JSON.
+    Only properties that DIFFER from browser UA defaults are asserted.
+
+    WIDTHS TESTED: 1280 (desktop), 390 (mobile)
+
+    ELEMENT: .responsive-container (div) [data-testid="container"]
+      @1280 (min-width: 768px):
+        padding-top: 48px
+        padding-right: 48px
+        padding-bottom: 48px
+        padding-left: 48px
+        max-width: 1200px
+        box-sizing: border-box
+      @390 (max-width: 767px):
+        padding-top: 16px
+        padding-right: 16px
+        padding-bottom: 16px
+        padding-left: 16px
+        box-sizing: border-box
+        (max-width: none is UA default, pruned from capture)
+
+    ELEMENT: .responsive-button (button) [data-testid="button"]
+      @1280 (min-width: 768px):
+        font-size: 18px
+        padding-top: 16px
+        padding-right: 32px
+        padding-bottom: 16px
+        padding-left: 32px
+        background-color: rgb(59, 130, 246)
+        color: rgb(255, 255, 255)
+        cursor: pointer
+      @390 (max-width: 767px):
+        font-size: 14px
+        padding-top: 12px
+        padding-right: 16px
+        padding-bottom: 12px
+        padding-left: 16px
+        background-color: rgb(99, 102, 241)
+        color: rgb(255, 255, 255)
+        cursor: pointer
+
+    ELEMENT: .responsive-text (p) [data-testid="text"]
+      @1280 (min-width: 768px):
+        font-size: 20px
+        line-height: 32px
+        color: rgb(30, 41, 59)
+        letter-spacing: 0.5px
+        box-sizing: border-box
+      @390 (max-width: 767px):
+        font-size: 15px
+        line-height: 24px
+        color: rgb(51, 65, 85)
+        letter-spacing: 0.25px
+        box-sizing: border-box
+
+    ELEMENT: .responsive-grid (div) [data-testid="grid"]
+      @1280 (min-width: 768px):
+        display: grid
+        column-gap: 24px
+        row-gap: 24px
+        box-sizing: border-box
+        (grid-template-columns resolves to computed pixel values)
+      @390 (max-width: 767px):
+        display: flex
+        flex-direction: column
+        column-gap: 16px
+        row-gap: 16px
+        box-sizing: border-box
+  -->
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+    }
+
+    /* Desktop-first: base styles are for wide viewports */
+    .responsive-container {
+      padding: 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .responsive-button {
+      font-size: 18px;
+      padding: 16px 32px;
+      background-color: rgb(59, 130, 246);
+      color: rgb(255, 255, 255);
+      border: none;
+      cursor: pointer;
+    }
+
+    .responsive-text {
+      font-size: 20px;
+      line-height: 32px;
+      color: rgb(30, 41, 59);
+      letter-spacing: 0.5px;
+    }
+
+    .responsive-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0px, 1fr));
+      gap: 24px;
+    }
+
+    .grid-item {
+      background-color: rgb(241, 245, 249);
+      padding: 16px;
+    }
+
+    /* Mobile styles: override at narrow viewports */
+    @media (max-width: 767px) {
+      .responsive-container {
+        padding: 16px;
+        max-width: none;
+      }
+
+      .responsive-button {
+        font-size: 14px;
+        padding: 12px 16px;
+        background-color: rgb(99, 102, 241);
+      }
+
+      .responsive-text {
+        font-size: 15px;
+        line-height: 24px;
+        color: rgb(51, 65, 85);
+        letter-spacing: 0.25px;
+      }
+
+      .responsive-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="responsive-container" data-testid="container">
+      <p class="responsive-text" data-testid="text">Responsive typography and color</p>
+      <button class="responsive-button" data-testid="button">Action</button>
+      <div class="responsive-grid" data-testid="grid">
+        <div class="grid-item">Item 1</div>
+        <div class="grid-item">Item 2</div>
+        <div class="grid-item">Item 3</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

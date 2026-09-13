@@ -1,0 +1,108 @@
+{
+  "description": "Oracle: exact computed-style values StyleProof MUST reproduce from index.html at MULTIPLE viewport widths. The same testid can have DIFFERENT expected values at different widths — this is the core product value of breakpoint-aware certification. Tests assert against byWidth[width].byTestId, not HTML comments. Only properties that DIFFER from browser UA defaults are asserted.",
+  "widths": [1280, 390],
+  "byWidth": {
+    "1280": {
+      "byTestId": {
+        "container": {
+          "tag": "div",
+          "cls": "responsive-container",
+          "expectedStyles": {
+            "padding-top": "48px",
+            "padding-right": "48px",
+            "padding-bottom": "48px",
+            "padding-left": "48px",
+            "max-width": "1200px",
+            "box-sizing": "border-box"
+          }
+        },
+        "button": {
+          "tag": "button",
+          "cls": "responsive-button",
+          "expectedStyles": {
+            "font-size": "18px",
+            "padding-top": "16px",
+            "padding-right": "32px",
+            "padding-bottom": "16px",
+            "padding-left": "32px",
+            "background-color": "rgb(59, 130, 246)",
+            "color": "rgb(255, 255, 255)",
+            "cursor": "pointer"
+          }
+        },
+        "text": {
+          "tag": "p",
+          "cls": "responsive-text",
+          "expectedStyles": {
+            "font-size": "20px",
+            "line-height": "32px",
+            "color": "rgb(30, 41, 59)",
+            "letter-spacing": "0.5px",
+            "box-sizing": "border-box"
+          }
+        },
+        "grid": {
+          "tag": "div",
+          "cls": "responsive-grid",
+          "expectedStyles": {
+            "display": "grid",
+            "column-gap": "24px",
+            "row-gap": "24px",
+            "box-sizing": "border-box"
+          }
+        }
+      }
+    },
+    "390": {
+      "byTestId": {
+        "container": {
+          "tag": "div",
+          "cls": "responsive-container",
+          "expectedStyles": {
+            "padding-top": "16px",
+            "padding-right": "16px",
+            "padding-bottom": "16px",
+            "padding-left": "16px",
+            "box-sizing": "border-box"
+          }
+        },
+        "button": {
+          "tag": "button",
+          "cls": "responsive-button",
+          "expectedStyles": {
+            "font-size": "14px",
+            "padding-top": "12px",
+            "padding-right": "16px",
+            "padding-bottom": "12px",
+            "padding-left": "16px",
+            "background-color": "rgb(99, 102, 241)",
+            "color": "rgb(255, 255, 255)",
+            "cursor": "pointer"
+          }
+        },
+        "text": {
+          "tag": "p",
+          "cls": "responsive-text",
+          "expectedStyles": {
+            "font-size": "15px",
+            "line-height": "24px",
+            "color": "rgb(51, 65, 85)",
+            "letter-spacing": "0.25px",
+            "box-sizing": "border-box"
+          }
+        },
+        "grid": {
+          "tag": "div",
+          "cls": "responsive-grid",
+          "expectedStyles": {
+            "display": "flex",
+            "flex-direction": "column",
+            "column-gap": "16px",
+            "row-gap": "16px",
+            "box-sizing": "border-box"
+          }
+        }
+      }
+    }
+  }
+}
