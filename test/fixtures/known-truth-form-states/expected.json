@@ -1,0 +1,137 @@
+{
+  "description": "Oracle: exact computed-style values StyleProof MUST reproduce for :disabled and :checked form element states. Only properties that DIFFER from browser UA defaults are asserted. These are HTML attribute states (not CDP-forced pseudo-states) — the fixture contains actual disabled/checked elements whose resting styles are captured.",
+  "byTestId": {
+    "btn-enabled": {
+      "tag": "button",
+      "cls": "btn-enabled",
+      "expectedStyles": {
+        "background-color": "rgb(59, 130, 246)",
+        "color": "rgb(255, 255, 255)",
+        "cursor": "pointer",
+        "padding-top": "12px",
+        "padding-right": "24px",
+        "padding-bottom": "12px",
+        "padding-left": "24px",
+        "font-size": "16px",
+        "border-top-style": "none",
+        "border-right-style": "none",
+        "border-bottom-style": "none",
+        "border-left-style": "none"
+      }
+    },
+    "btn-disabled": {
+      "tag": "button",
+      "cls": "btn-disabled",
+      "expectedStyles": {
+        "background-color": "rgb(148, 163, 184)",
+        "color": "rgb(100, 116, 139)",
+        "cursor": "not-allowed",
+        "padding-top": "12px",
+        "padding-right": "24px",
+        "padding-bottom": "12px",
+        "padding-left": "24px",
+        "font-size": "16px",
+        "border-top-style": "none",
+        "border-right-style": "none",
+        "border-bottom-style": "none",
+        "border-left-style": "none"
+      }
+    },
+    "input-enabled": {
+      "tag": "input",
+      "cls": "input-enabled",
+      "expectedStyles": {
+        "color": "rgb(17, 24, 39)",
+        "border-top-style": "solid",
+        "border-right-style": "solid",
+        "border-bottom-style": "solid",
+        "border-left-style": "solid",
+        "border-top-color": "rgb(59, 130, 246)",
+        "border-right-color": "rgb(59, 130, 246)",
+        "border-bottom-color": "rgb(59, 130, 246)",
+        "border-left-color": "rgb(59, 130, 246)",
+        "padding-top": "8px",
+        "padding-right": "12px",
+        "padding-bottom": "8px",
+        "padding-left": "12px",
+        "font-size": "16px"
+      }
+    },
+    "input-disabled": {
+      "tag": "input",
+      "cls": "input-disabled",
+      "expectedStyles": {
+        "background-color": "rgb(241, 245, 249)",
+        "color": "rgb(148, 163, 184)",
+        "cursor": "default",
+        "border-top-style": "solid",
+        "border-right-style": "solid",
+        "border-bottom-style": "solid",
+        "border-left-style": "solid",
+        "border-top-color": "rgb(203, 213, 225)",
+        "border-right-color": "rgb(203, 213, 225)",
+        "border-bottom-color": "rgb(203, 213, 225)",
+        "border-left-color": "rgb(203, 213, 225)",
+        "padding-top": "8px",
+        "padding-right": "12px",
+        "padding-bottom": "8px",
+        "padding-left": "12px",
+        "font-size": "16px"
+      }
+    },
+    "checkbox-unchecked": {
+      "tag": "input",
+      "cls": "checkbox-unchecked",
+      "expectedStyles": {
+        "accent-color": "rgb(59, 130, 246)",
+        "width": "20px",
+        "height": "20px",
+        "cursor": "default"
+      }
+    },
+    "checkbox-checked": {
+      "tag": "input",
+      "cls": "checkbox-checked",
+      "expectedStyles": {
+        "accent-color": "rgb(34, 197, 94)",
+        "width": "20px",
+        "height": "20px",
+        "cursor": "default"
+      }
+    }
+  },
+  "stateDeltas": {
+    "disabled": {
+      "description": "Exact computed-style deltas between enabled and :disabled button states. The cursor changes from pointer to not-allowed, and colors are dimmed to indicate the disabled state.",
+      "baseline": "btn-enabled",
+      "variant": "btn-disabled",
+      "changedProperties": {
+        "background-color": { "from": "rgb(59, 130, 246)", "to": "rgb(148, 163, 184)" },
+        "color": { "from": "rgb(255, 255, 255)", "to": "rgb(100, 116, 139)" },
+        "cursor": { "from": "pointer", "to": "not-allowed" }
+      }
+    },
+    "disabledInput": {
+      "description": "Exact computed-style deltas between enabled and :disabled input states. The background, border, and text colors change to indicate the disabled state.",
+      "baseline": "input-enabled",
+      "variant": "input-disabled",
+      "changedProperties": {
+        "background-color": { "from": "(UA default)", "to": "rgb(241, 245, 249)" },
+        "color": { "from": "rgb(17, 24, 39)", "to": "rgb(148, 163, 184)" },
+        "border-top-color": { "from": "rgb(59, 130, 246)", "to": "rgb(203, 213, 225)" },
+        "border-right-color": { "from": "rgb(59, 130, 246)", "to": "rgb(203, 213, 225)" },
+        "border-bottom-color": { "from": "rgb(59, 130, 246)", "to": "rgb(203, 213, 225)" },
+        "border-left-color": { "from": "rgb(59, 130, 246)", "to": "rgb(203, 213, 225)" },
+        "cursor": { "from": "(UA default)", "to": "default" }
+      }
+    },
+    "checked": {
+      "description": "Exact computed-style deltas between unchecked and :checked checkbox states. The accent-color changes to indicate the checked state.",
+      "baseline": "checkbox-unchecked",
+      "variant": "checkbox-checked",
+      "changedProperties": {
+        "accent-color": { "from": "rgb(59, 130, 246)", "to": "rgb(34, 197, 94)" }
+      }
+    }
+  }
+}
