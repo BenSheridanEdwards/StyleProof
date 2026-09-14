@@ -39,7 +39,7 @@
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
     "status": "comparable",
-    "requireStateIdentity": false,
+    "requireStateIdentity": true,
     "blocksCertification": false,
     "counts": {
       "comparable": 1,
@@ -80,12 +80,6 @@
     },
     "completeness": "complete"
   },
-  "integrityFailures": [
-    {
-      "reason": "integrity-mismatch",
-      "surfaces": []
-    }
-  ],
   "sourceBinding": {
     "status": "bound",
     "compatibility": "matched",
@@ -111,11 +105,11 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "948558d3b1f410edb94c3eda10c583dd4eecbe5d6f14f6fcf7f454f09e377c2d",
-      "fileCount": 6,
+      "digest": "87545000c34a562f85e5e45fd7c3c70217fcdda0184c385f534e8565bb2ffc20",
+      "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1703
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "CERTIFICATION_FAILED"
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
 }
