@@ -1,5 +1,7 @@
 /** Shared certification and Action trust policy. Keep CLI and Action consumers on this one closed-set decision. */
 
+import { parseIntegrityFailures } from './integrity-repair.js';
+
 export type StyleProofTrustState =
   | 'NO_REVIEWABLE_STYLE_CHANGES'
   | 'STYLE_REVIEW_REQUIRED'
@@ -20,6 +22,8 @@ export type CertificationEvidenceReceipt = {
   partialBaseline?: unknown;
   explainedMissingBaselineSurfaces?: unknown;
   liveTextFreeze?: { violated?: unknown } | null;
+  /** Closed integrity reasons (`connector-partial` / `duplicate-id` / `integrity-mismatch`). */
+  integrityFailures?: unknown;
 };
 
 export type CertificationEvidenceDecision = {
@@ -48,7 +52,8 @@ export function assessCertificationEvidence(receipt: CertificationEvidenceReceip
     receipt.comparison?.blocksCertification !== true &&
     !rawOnlyNoReviewable &&
     receipt.liveTextFreeze?.violated !== true &&
-    interactionStatesComplete;
+    interactionStatesComplete &&
+    parseIntegrityFailures(receipt.integrityFailures).length === 0;
   return { certifies, interactionStatesComplete };
 }
 

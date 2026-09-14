@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Integrity repair paths</title>
+    <style>
+      body {
+        font-family: Inter, 'DejaVu Sans', sans-serif;
+        margin: 32px;
+        max-width: 880px;
+        color: #111;
+        background: #fff;
+        line-height: 1.45;
+        word-spacing: normal;
+        letter-spacing: normal;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 8px;
+      }
+      .sub {
+        color: #444;
+        margin: 0 0 20px;
+      }
+      .banner {
+        background: #fff5f5;
+        border: 1px solid #ff8182;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+      }
+      .card {
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 0 0 16px;
+      }
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+      code {
+        background: #f6f8fa;
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+      ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      li {
+        margin: 6px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>StyleProof integrity repair</h1>
+    <p class="sub">
+      <code>CERTIFICATION_FAILED</code> stays unapprovable. Each reason names what broke, what to
+      fix, and how to verify.
+    </p>
+    <div class="banner">
+      Reviewer approval cannot clear these states. Repair the evidence, then re-run.
+    </div>
+    <section class="card">
+      <h2><code>connector-partial</code> — Map connector returned a partial bundle</h2>
+      <ul>
+        <li>
+          <strong>What broke:</strong> The map-store or evidence connector restored only some of the
+          expected surfaces. Certification cannot compare a partial restore as if it were a complete
+          pair.
+        </li>
+        <li>
+          <strong>What to fix:</strong> Restore or recapture the missing surfaces and republish the
+          bundle. Do not tick visual approval.
+        </li>
+        <li>
+          <strong>How to verify:</strong> Re-run <code>styleproof-diff</code> or the Action. The
+          connector receipt must read <code>complete</code>.
+        </li>
+      </ul>
+    </section>
+    <section class="card">
+      <h2><code>duplicate-id</code> — Duplicate identity in a style map</h2>
+      <ul>
+        <li>
+          <strong>What broke:</strong> A style map contains a duplicate JSON key or a duplicate
+          inventory identity. JSON.parse would keep only the last value.
+        </li>
+        <li>
+          <strong>What to fix:</strong> Give each element or affordance a unique key, then recapture.
+        </li>
+        <li>
+          <strong>How to verify:</strong> Re-run <code>styleproof-diff</code> or the Action. The
+          report must no longer name <code>duplicate-id</code>.
+        </li>
+      </ul>
+    </section>
+    <section class="card">
+      <h2><code>integrity-mismatch</code> — Claimed evidence digest does not match the bytes</h2>
+      <ul>
+        <li>
+          <strong>What broke:</strong> A source SHA or content digest does not match the bytes on
+          disk.
+        </li>
+        <li>
+          <strong>What to fix:</strong> Restore or recapture from the exact claimed SHA. Do not reuse
+          a map that failed digest verification.
+        </li>
+        <li>
+          <strong>How to verify:</strong> Re-run <code>styleproof-diff</code> or the Action. Claimed
+          and actual digests must match.
+        </li>
+      </ul>
+    </section>
+  </body>
+</html>

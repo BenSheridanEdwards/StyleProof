@@ -145,16 +145,34 @@ _Tick **Approve all changes** to turn the **StyleProof** check green — write a
 A StyleProof pull-request comment is a trust state, not a score. Reviewer
 approval can clear only `STYLE_REVIEW_REQUIRED`. Each state appears once.
 
-| State                              | What the comment means                                                             | Approval box                           |
-| ---------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------- |
-| `NO_REVIEWABLE_STYLE_CHANGES`      | Captured computed styles match. Content/structure may still be advisory.           | Hidden. Check is green.                |
-| `STYLE_REVIEW_REQUIRED`            | Reviewable style or new-surface evidence exists.                                   | Shown. One tick signs off this commit. |
-| `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                   | Hidden. Approval cannot clear it.      |
-| `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified. | Hidden. Approval cannot clear it.      |
-| `CERTIFICATION_FAILED`             | Coverage, determinism, or report/diff consistency is incomplete.                   | Hidden. Approval cannot clear it.      |
-| `PARTIAL_BASELINE`                 | The base capture missed registered surfaces.                                       | Hidden. Repair the base branch.        |
-| `DEGRADED_BASELINE`                | The base capture failed. This is a head-only receipt.                              | Hidden. Not a comparison.              |
-| `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                               | Hidden. Delivery failed.               |
+| State                              | What the comment means                                                               | Approval box                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------- |
+| `NO_REVIEWABLE_STYLE_CHANGES`      | Captured computed styles match. Content/structure may still be advisory.             | Hidden. Check is green.                |
+| `STYLE_REVIEW_REQUIRED`            | Reviewable style or new-surface evidence exists.                                     | Shown. One tick signs off this commit. |
+| `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                     | Hidden. Approval cannot clear it.      |
+| `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified.   | Hidden. Approval cannot clear it.      |
+| `CERTIFICATION_FAILED`             | Coverage, determinism, report/diff consistency, or integrity evidence is incomplete. | Hidden. Approval cannot clear it.      |
+| `PARTIAL_BASELINE`                 | The base capture missed registered surfaces.                                         | Hidden. Repair the base branch.        |
+| `DEGRADED_BASELINE`                | The base capture failed. This is a head-only receipt.                                | Hidden. Not a comparison.              |
+| `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                                 | Hidden. Delivery failed.               |
+
+#### Integrity repair (`connector-partial` / `duplicate-id` / `integrity-mismatch`)
+
+These three reasons keep the run at `CERTIFICATION_FAILED`. They are not style
+deltas. Reviewer approval cannot clear them. The report, `styleproof-audit.json`,
+and the pull-request comment each name **what broke**, **what to fix**, and
+**how to verify**.
+
+| Reason               | What broke                                                                | What to fix                                                                                          | How to verify                                                                          |
+| -------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `connector-partial`  | The map-store or evidence connector restored only some expected surfaces. | Restore or recapture the missing surfaces and republish the bundle.                                  | Re-run `styleproof-diff` or the Action. The connector receipt must read `complete`.    |
+| `duplicate-id`       | A style map has a duplicate JSON key or a duplicate inventory identity.   | Give each element or affordance a unique key, then recapture.                                        | Re-run `styleproof-diff` or the Action. The report must no longer name `duplicate-id`. |
+| `integrity-mismatch` | A claimed source SHA or content digest does not match the bytes on disk.  | Restore or recapture from the exact claimed SHA. Do not reuse a map that failed digest verification. | Re-run `styleproof-diff` or the Action. Claimed and actual digests must match.         |
+
+Connectors can write `styleproof-connector.json` (`status: "partial"`) or
+`styleproof-integrity.json` (`claimedDigest` / `actualDigest`) next to the maps.
+StyleProof also flags duplicate JSON keys inside a style map and a sibling
+`.sha256` digest that does not match the file bytes.
 
 #### Who may tick the box
 

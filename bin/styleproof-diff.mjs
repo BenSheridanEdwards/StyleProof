@@ -75,6 +75,11 @@ import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-le
 import { isMapFile } from '../dist/map-store.js';
 import { AUDIT_FILE_NAME, createAudit } from '../dist/audit.js';
 import { classifyStyleProofVerdict } from '../dist/verdict.js';
+import {
+  formatIntegrityRepairMarkdown,
+  inspectIntegrityFailures,
+  integrityAuditChecks,
+} from '../dist/integrity-repair.js';
 
 const COMMAND = path.basename(process.argv[1] ?? 'styleproof-diff').replace(/\.mjs$/, '');
 
@@ -759,6 +764,8 @@ const firstAdoptionBareBase =
   residueFails === 0;
 const coverageBlocks = coverageFails && !(firstAdoptionBareBase && coverageVerdict?.basis === 'unasserted');
 const determinismBlocks = determinismFails && !(firstAdoptionBareBase && determinismVerdict?.status === 'unknown');
+const integrityFailures = inspectIntegrityFailures([dirA, dirB]);
+const integrityBlocks = integrityFailures.length > 0;
 const certificationEvidence = assessCertificationEvidence({
   sourceBinding,
   coverage: coverageVerdict,
@@ -772,6 +779,7 @@ const certificationEvidence = assessCertificationEvidence({
   partialBaseline,
   explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
   liveTextFreeze: { violated: liveTextFreezeViolated },
+  integrityFailures,
 });
 // True only when the run would exit 0 as a full certification (not diagnostic).
 const certifiesFully =
@@ -871,6 +879,7 @@ if (jsonOut) {
             staleAcknowledgements: residueAudit.staleAcknowledgements,
             blocking: residueFails,
           },
+          ...(integrityFailures.length > 0 ? { integrityFailures } : {}),
         },
         null,
         2,
@@ -926,7 +935,11 @@ const clean =
   !coverageBlocks &&
   !determinismBlocks &&
   certificationEvidence.interactionStatesComplete &&
-  !pixelBlocks;
+  !pixelBlocks &&
+  !integrityBlocks;
+if (integrityBlocks) {
+  console.log(`\n${formatIntegrityRepairMarkdown(integrityFailures).join('\n')}`);
+}
 if (truth.rawOnlyNoReviewable) {
   // Derived-only style findings now render (cleanFindingsForDisplay), so the one
   // shape left here is a delta with no displayable form at all — e.g. a forced-
@@ -972,7 +985,8 @@ const exitCode =
   determinismBlocks ||
   !certificationEvidence.interactionStatesComplete ||
   pixelBlocks ||
-  liveTextFreezeViolated
+  liveTextFreezeViolated ||
+  integrityBlocks
     ? 1
     : greenfieldNewSurfaces > 0
       ? 3
@@ -997,6 +1011,7 @@ try {
       statesUncertified,
       partialBaseline,
       explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
+      integrityFailures,
       reviewableCounts: truth.reviewableCounts,
       surfaces,
       inventory: inventoryAudit && {
@@ -1061,6 +1076,7 @@ try {
     result: invRemovals === 0 ? 'clean' : 'failed',
     detail: invRemovals === 0 ? '0 removals' : `${invRemovals} unacknowledged removal(s)`,
   });
+  trustReasons.push(...integrityAuditChecks(integrityFailures));
   if (total > 0 || greenfieldNewSurfaces > 0) {
     trustReasons.push({
       check: 'reviewable-changes',
