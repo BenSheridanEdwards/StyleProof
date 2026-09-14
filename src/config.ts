@@ -906,9 +906,45 @@ export function missingStyleProofSpecMessage(options: {
   return lines.join('\n');
 }
 
-/** Evaluate a discovered `.ts` config in a child Node with type-stripping. */
-function evaluateTypeScriptConfigSync(filePath: string): Record<string, unknown> {
+function importModuleDefaultSync(filePath: string, cwd: string): Record<string, unknown> {
   const result = spawnSync(
+    process.execPath,
+    [
+      '--no-warnings',
+      '--input-type=module',
+      '-e',
+      `import mod from ${JSON.stringify(pathToFileURL(filePath).href)};
+       const config = mod?.default ?? mod;
+       process.stdout.write(JSON.stringify(config));`,
+    ],
+    { encoding: 'utf8', cwd },
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      (result.stderr || result.stdout || 'sync loader cannot evaluate TypeScript').trim() ||
+        'sync loader cannot evaluate TypeScript; use loadStyleProofConfigAsync()',
+    );
+  }
+  return plainObject(JSON.parse(result.stdout), 'the default export');
+}
+
+/** JS-shaped `.ts` (no type syntax) — works on every supported Node, including 18/20. */
+function evaluateTypeScriptAsPlainModuleSync(filePath: string): Record<string, unknown> {
+  const dir = path.dirname(filePath);
+  const tmp = path.join(
+    dir,
+    `.styleproof-config-eval-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}.mjs`,
+  );
+  try {
+    fs.writeFileSync(tmp, fs.readFileSync(filePath, 'utf8'));
+    return importModuleDefaultSync(tmp, dir);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+function spawnTypeStrippingConfigEval(filePath: string) {
+  return spawnSync(
     process.execPath,
     [
       '--experimental-strip-types',
@@ -921,20 +957,33 @@ function evaluateTypeScriptConfigSync(filePath: string): Record<string, unknown>
     ],
     { encoding: 'utf8', cwd: path.dirname(filePath) },
   );
-  if (result.status !== 0) {
-    throw unloadableTypeScriptConfigError(
-      filePath,
-      new Error(
-        (result.stderr || result.stdout || 'sync loader cannot evaluate TypeScript').trim() ||
-          'sync loader cannot evaluate TypeScript; use loadStyleProofConfigAsync()',
-      ),
-    );
-  }
+}
+
+/** Evaluate a discovered `.ts` config. Never reads sibling JSON. */
+function evaluateTypeScriptConfigSync(filePath: string): Record<string, unknown> {
+  let plainError: unknown;
   try {
-    return plainObject(JSON.parse(result.stdout), 'the default export');
+    return evaluateTypeScriptAsPlainModuleSync(filePath);
   } catch (error) {
-    throw unloadableTypeScriptConfigError(filePath, error);
+    plainError = error;
   }
+
+  const stripped = spawnTypeStrippingConfigEval(filePath);
+  if (stripped.status === 0) {
+    try {
+      return plainObject(JSON.parse(stripped.stdout), 'the default export');
+    } catch (error) {
+      throw unloadableTypeScriptConfigError(filePath, error);
+    }
+  }
+  const stripText = `${stripped.stderr ?? ''}${stripped.stdout ?? ''}`;
+  if (/bad option|unknown option|is not allowed/i.test(stripText)) {
+    throw unloadableTypeScriptConfigError(filePath, plainError);
+  }
+  throw unloadableTypeScriptConfigError(
+    filePath,
+    new Error(stripText.trim() || 'sync loader cannot evaluate TypeScript'),
+  );
 }
 
 function parseLoadedConfigSync(dir: string): StyleProofConfig {

@@ -314,9 +314,12 @@ test('loadStyleProofConfig / resolveProjectSpec: discovered .ts + spec-less sibl
     fs.writeFileSync(path.join(nested, 'e2e', 'styleproof.spec.ts'), '// decoy default spec\n');
 
     const syncLoad = assertLoadedOrFailClosedOnDiscoveredTs(nested, NESTED_SPEC);
-    if (!syncLoad.threw) {
-      assert.equal(resolveStyleProofConfigPath(syncLoad.loaded.spec, root), specAbs);
-    }
+    assert.equal(
+      syncLoad.threw,
+      false,
+      'JS-shaped styleproof.config.ts must load on every supported Node; sibling JSON must not win',
+    );
+    assert.equal(resolveStyleProofConfigPath(syncLoad.loaded.spec, root), specAbs);
 
     try {
       const asyncLoaded = await loadStyleProofConfigAsync(nested);
@@ -398,10 +401,9 @@ test('loadStyleProofConfig: Action-shaped sync load of .ts + spec-less init JSON
     fs.writeFileSync(path.join(root, 'styleproof.config.ts'), LOADABLE_TS);
     writeJsonConfig(root, INIT_SPECLESS_JSON);
     const syncLoad = assertLoadedOrFailClosedOnDiscoveredTs(nested, NESTED_SPEC);
-    if (!syncLoad.threw) {
-      assert.equal(syncLoad.loaded.blocking, true);
-      assert.notEqual(syncLoad.loaded.requireApproval, true);
-    }
+    assert.equal(syncLoad.threw, false, 'Action-shaped sync load must read the .ts, not fail closed or prefer JSON');
+    assert.equal(syncLoad.loaded.blocking, true);
+    assert.notEqual(syncLoad.loaded.requireApproval, true);
   } finally {
     rmTmp(root);
   }

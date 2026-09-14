@@ -109,8 +109,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (`spec`, crawl setup/exclude/out, `coverage.manifest`, `affected.graph`)
   resolve from the config file's directory, not `process.cwd()`. A missing spec
   after that walk fails closed and names every config path searched — no silent
-  fallback to `e2e/styleproof.spec.ts` when a parent config exists. Node 22
-  type-stripping can evaluate the init `.ts` scaffold; if that file cannot be
+  fallback to `e2e/styleproof.spec.ts` when a parent config exists. A JS-shaped
+  `.ts` (no type syntax) is evaluated on every supported Node, including 18/20.
+  Node 22 type-stripping can evaluate typed files; if that file cannot be
   evaluated (unknown `.ts` extension, or `defineConfig` cannot resolve the
   `styleproof` package), the loader fails closed and names the path and reason.
   A sibling `styleproof.config.json` never overrides a discovered `.ts` for
