@@ -783,6 +783,13 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
     const certfail = JSON.parse(fs.readFileSync(path.join(root, 'certfail-head', 'styleproof-coverage.json'), 'utf8'));
     assert.deepEqual(certfail.expected, ['home']);
     assert.equal(certfail.determinism, 'unproven');
+    assert.ok(fs.existsSync(path.join(root, 'legacy-undeclared-head', 'home@320.json.gz')));
+    assert.ok(fs.existsSync(path.join(root, 'legacy-declared-head', 'home@320.json.gz')));
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'legacy-pairs-empty.json'), 'utf8')), {});
+    assert.equal(
+      JSON.parse(fs.readFileSync(path.join(root, 'legacy-pairs-declared.json'), 'utf8')).home,
+      'known dogfood shell pending identity stamp',
+    );
 
     const expectedStates = {
       clean: 'NO_REVIEWABLE_STYLE_CHANGES',
@@ -904,7 +911,7 @@ test('dogfood workflow runs the local composite action against every trust-state
     /node scripts\/action-dogfood-fixtures\.mjs action-dogfood '\$\{\{ github\.event\.pull_request\.base\.sha \}\}' '\$\{\{ github\.event\.pull_request\.head\.sha \}\}'/,
   );
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 12);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 15);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
@@ -940,6 +947,13 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /action-dogfood\/certfail-base/);
   assert.match(dogfoodYml, /steps\.certfail\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /steps\.certfail\.outcome }}' = 'failure'/);
+  assert.match(dogfoodYml, /require-state-identity: 'true'/);
+  assert.match(dogfoodYml, /action-dogfood\/legacy-declared-base/);
+  assert.match(dogfoodYml, /action-dogfood\/legacy-undeclared-base/);
+  assert.match(dogfoodYml, /STYLEPROOF_PRODUCT_STATE: action-dogfood\/legacy-pairs-declared.json/);
+  assert.match(dogfoodYml, /STYLEPROOF_PRODUCT_STATE: action-dogfood\/legacy-pairs-empty.json/);
+  assert.match(dogfoodYml, /steps\.legacy-undeclared\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
+  assert.match(dogfoodYml, /steps\.legacy-undeclared\.outcome }}' = 'failure'/);
 });
 
 test('composite action delegates closed-set certification policy to the shared typed verdict', () => {

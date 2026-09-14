@@ -338,6 +338,18 @@ export type CoverageConfig = {
   exclude?: Record<string, string>;
 };
 
+/**
+ * Product-state comparability knobs. Explicit `productState {id, revision}` on
+ * a surface remains the certifying declare path; this block arms the inventory
+ * twin for known-legacy pairs and the fail-closed identity requirement.
+ */
+export type ProductStateConfig = {
+  /** Same as `--require-state-identity`: every unproven pair is non-certifying. */
+  requireIdentity?: boolean;
+  /** Path to the legacy-pair declare file (`{"<surface>": "<why>"}`). */
+  legacyPairs?: string;
+};
+
 export type StyleProofConfig = {
   /** Review-gate failures block the Action unless explicitly false or set to 'advisory'. */
   blocking?: boolean | 'advisory';
@@ -370,6 +382,8 @@ export type StyleProofConfig = {
   suppressPlatformWarning?: boolean;
   /** Coverage configuration for expected surface manifest. */
   coverage?: CoverageConfig;
+  /** Product-state identity requirement and legacy-pair declare file. */
+  productState?: ProductStateConfig;
 };
 
 /**
@@ -684,6 +698,18 @@ function parseCoverage(value: unknown): CoverageConfig | undefined {
   return result;
 }
 
+function parseProductState(value: unknown): ProductStateConfig | undefined {
+  if (value === undefined) return undefined;
+  const p = plainObject(value, '"productState"');
+  warnUnknownKeys(p, KNOWN_PRODUCT_STATE_KEYS, '"productState" ');
+  const requireIdentity = optionalBoolean(p.requireIdentity, 'productState.requireIdentity');
+  const legacyPairs = optionalString(p.legacyPairs, 'productState.legacyPairs');
+  const result: ProductStateConfig = {};
+  if (requireIdentity !== undefined) result.requireIdentity = requireIdentity;
+  if (legacyPairs !== undefined) result.legacyPairs = legacyPairs;
+  return result;
+}
+
 const KNOWN_KEYS = [
   'blocking',
   'requireApproval',
@@ -701,6 +727,7 @@ const KNOWN_KEYS = [
   'reportStore',
   'suppressPlatformWarning',
   'coverage',
+  'productState',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
 const KNOWN_AUTH_KEYS = ['hudPassword', 'apiToken'];
@@ -720,6 +747,7 @@ const KNOWN_CRAWL_KEYS = [
   'height',
 ];
 const KNOWN_COVERAGE_KEYS = ['manifest', 'strict', 'exclude'];
+const KNOWN_PRODUCT_STATE_KEYS = ['requireIdentity', 'legacyPairs'];
 
 /** Unknown keys are a LOUD stderr warning, not an error: a typo'd `dirtyallow`
  *  silently reverting to defaults is exactly the failure this file's contract
@@ -757,6 +785,7 @@ function parseConfigRecord(record: Record<string, unknown>): StyleProofConfig {
     reportStore: parseReportStore(record.reportStore),
     suppressPlatformWarning: optionalBoolean(record.suppressPlatformWarning, 'suppressPlatformWarning'),
     coverage: parseCoverage(record.coverage),
+    productState: parseProductState(record.productState),
   };
 }
 

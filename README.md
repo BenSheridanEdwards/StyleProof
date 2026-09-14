@@ -640,6 +640,14 @@ report leads with their verdicts:
   endpoint blocks until declared in `styleproof.data-residue.json`, and a
   stale declaration also fails. Opt down with `dataResidue: 'warn'`. See
   [Failed data request](#failed-data-request-a-failed-api-call-is-named-not-swallowed).
+- **Product-state identity** — a pair with matching `productState {id, revision}`
+  is comparable and can certify. Undeclared legacy pairs stay on the visual-review
+  path until you arm the declare gate: add `styleproof.product-state.json`
+  (`{"<surface>": "<why>"}`), pass `--legacy-pairs`, or set
+  `productState.requireIdentity: true` / `--require-state-identity`. Armed and
+  **undeclared** → fail closed (`CERTIFICATION_FAILED`). Armed and **declared** →
+  explicit advisory, never a certified green. Details:
+  [docs/product-state-comparability.md](docs/product-state-comparability.md).
 
 Those verdicts roll up into one more line the report always states: the
 **confidence ledger** (`styleproof-confidence.json`, bundled next to the maps).

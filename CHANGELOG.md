@@ -25,6 +25,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Action `comment-marker` input.** Defaults to `<!-- styleproof-report -->`.
   Set a distinct marker when more than one StyleProof Action runs on the same
   pull request so the comments do not overwrite each other.
+- **Legacy product-state pair inventory.** Declare known-legacy pairs in
+  `styleproof.product-state.json` (`{"<surface>": "<why>"}`), via
+  `--legacy-pairs`, `$STYLEPROOF_PRODUCT_STATE`, or
+  `productState.legacyPairs` in `styleproof.config.ts`. When that ledger is
+  armed, undeclared unproven pairs fail closed and cannot certify; declared
+  pairs stay advisory (`certifiesFully: false`). Matching `productState
+{id, revision}` remains the only certifying declare path.
+  `productState.requireIdentity` pins `--require-state-identity` in config.
+  Action dogfood proves declare vs undeclared. (#649)
 
 - **Coverage config manifest** (`coverage.manifest`): declare expected surfaces via
   an external JSON file instead of programmatic `expected`. The manifest format is

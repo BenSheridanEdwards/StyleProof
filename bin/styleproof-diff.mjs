@@ -71,6 +71,13 @@ import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-c
 import { readInventories, readResidue, surfaceElementPaths, mergeSurfaceKeyLookup } from '../dist/capture.js';
 import { auditRunInventory, hasCapturedInventory, readAckFile } from '../dist/inventory.js';
 import { auditRunResidue, readResidueAckFile } from '../dist/data-residue.js';
+import {
+  applyLegacyPairReceipts,
+  auditLegacyPairs,
+  legacyPairsGateArmed,
+  readLegacyPairsAckFile,
+} from '../dist/legacy-pairs.js';
+import { loadStyleProofConfig } from '../dist/config.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
 import { isMapFile } from '../dist/map-store.js';
@@ -325,6 +332,11 @@ options:
                    require explicit matching productState {id, revision} on every
                    paired capture. Without this opt-in, undeclared legacy pairs
                    remain compatible but are reported as unproven, never comparable.
+  --legacy-pairs <file>
+                   declare known-legacy product-state pairs ({"<surface>":"<why>"}).
+                   Arms the inventory twin: undeclared unproven pairs fail closed;
+                   declared pairs stay advisory and never certify. Default file:
+                   styleproof.product-state.json (or $STYLEPROOF_PRODUCT_STATE).
   --expected-before-sha <sha>
                    require the before manifest to bind to this trusted full commit SHA
   --expected-after-sha <sha>
@@ -359,6 +371,7 @@ let jsonOut = null;
 let auditJsonOut = null;
 let allowUnasserted = false;
 let requireStateIdentity = false;
+let legacyPairsPath;
 let pixels = false;
 let migration = false;
 let expectedBeforeSha;
@@ -383,6 +396,13 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i].startsWith('--json=')) jsonOut = argv[i].slice(7);
   else if (argv[i] === '--allow-unasserted') allowUnasserted = true;
   else if (argv[i] === '--require-state-identity') requireStateIdentity = true;
+  else if (argv[i] === '--legacy-pairs') {
+    legacyPairsPath = argv[++i];
+    if (!legacyPairsPath || String(legacyPairsPath).startsWith('-')) {
+      console.error('--legacy-pairs requires a file path');
+      process.exit(2);
+    }
+  } else if (argv[i].startsWith('--legacy-pairs=')) legacyPairsPath = argv[i].slice(15);
   else if (argv[i] === '--pixels') pixels = true;
   else if (argv[i] === '--migration') migration = true;
   else if (argv[i] === '--audit-json') auditJsonOut = argv[++i];
@@ -403,6 +423,14 @@ for (let i = 0; i < argv.length; i++) {
     console.error(unknownFlagMessage(COMMAND, argv[i]));
     process.exit(2);
   } else args.push(argv[i]);
+}
+
+const projectConfig = loadStyleProofConfig();
+if (!requireStateIdentity && projectConfig.productState?.requireIdentity === true) {
+  requireStateIdentity = true;
+}
+if (legacyPairsPath === undefined && projectConfig.productState?.legacyPairs) {
+  legacyPairsPath = projectConfig.productState.legacyPairs;
 }
 
 const sourceShaError = expectedSourceShaFlagsError({
@@ -520,8 +548,27 @@ try {
 } finally {
   cleanupCachedCaptureDirs(cacheCapture);
 }
-const { surfaces, counts, comparability, compared, volatile, statesUncertified } = result;
+const { surfaces, counts, compared, volatile, statesUncertified } = result;
+let { comparability } = result;
 const pixelSurfaces = result.pixels ?? [];
+let legacyPairAudit = {
+  armed: false,
+  legacyPairs: [],
+  declared: [],
+  undeclared: [],
+  staleAcknowledgements: [],
+};
+try {
+  const declaredLegacyPairs = readLegacyPairsAckFile(legacyPairsPath);
+  legacyPairAudit = auditLegacyPairs(comparability, declaredLegacyPairs, legacyPairsGateArmed(legacyPairsPath));
+  comparability = applyLegacyPairReceipts(comparability, legacyPairAudit);
+} catch (e) {
+  console.error(e.message);
+  process.exit(2);
+}
+const legacyPairFails = legacyPairAudit.armed
+  ? legacyPairAudit.undeclared.length + legacyPairAudit.staleAcknowledgements.length
+  : 0;
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned)
 // findings the report/crops can show. Prevents STYLE_REVIEW_REQUIRED without
 // evidence when only derived/reflow longhands differ.
@@ -557,24 +604,48 @@ function printComparabilitySummary() {
     return;
   }
   if (!comparison.blocksCertification) {
+    if (legacyPairAudit.armed && legacyPairAudit.declared.length > 0) {
+      console.log(
+        `\n⚠ product-state identity unproven on ${legacyPairAudit.declared.length} declared legacy pair(s) — ` +
+          'on the record, advisory, not certified. Stamp productState {id, revision} to certify.',
+      );
+      return;
+    }
     console.log(
       `\n⚠ product-state identity unproven on ${c.unproven} legacy paired capture(s) — ` +
         'legacy compatibility mode keeps the existing verdict, but this is not proof of same product state. ' +
-        'Pass --require-state-identity to make it non-certifying.',
+        'Pass --require-state-identity to make it non-certifying, or declare known pairs in styleproof.product-state.json.',
     );
     return;
   }
   const mismatch = c.incomparable ? `${c.incomparable} explicit mismatch(es)` : '';
   const missing = c.requiredUnproven ? `${c.requiredUnproven} required-unproven pair(s)` : '';
   const global = c.globalRequiredUnproven ? `${c.globalRequiredUnproven} globally-required legacy pair(s)` : '';
+  const undeclared =
+    legacyPairAudit.armed && legacyPairAudit.undeclared.length
+      ? `${legacyPairAudit.undeclared.length} undeclared legacy pair(s)`
+      : '';
   console.log(
-    `\n✗ product-state identity ${comparison.status.toUpperCase()} — ${[mismatch, missing, global]
+    `\n✗ product-state identity ${comparison.status.toUpperCase()} — ${[mismatch, missing, global, undeclared]
       .filter(Boolean)
       .join(', ')}. Raw style deltas remain diagnostic only; they are not approval evidence.`,
   );
 }
 
+function printLegacyPairAudit() {
+  if (!legacyPairAudit.armed) return;
+  for (const key of legacyPairAudit.undeclared) {
+    console.log(
+      `  ✗ undeclared legacy pair: ${key} — stamp productState {id, revision}, or record it in styleproof.product-state.json {"<surface>":"<why>"}.`,
+    );
+  }
+  for (const key of legacyPairAudit.staleAcknowledgements) {
+    console.log(`  ✗ stale legacy-pair declaration: ${key} — prune it from styleproof.product-state.json`);
+  }
+}
+
 printComparabilitySummary();
+printLegacyPairAudit();
 
 // ── grouped human output ─────────────────────────────────────────────────────
 // Reuse the report's dedup so one real change doesn't print once per surface with
@@ -769,7 +840,8 @@ const firstAdoptionBareBase =
   removedSurfaces === 0 &&
   total === 0 &&
   invRemovals === 0 &&
-  residueFails === 0;
+  residueFails === 0 &&
+  legacyPairFails === 0;
 const coverageBlocks = coverageFails && !(firstAdoptionBareBase && coverageVerdict?.basis === 'unasserted');
 const determinismBlocks = determinismFails && !(firstAdoptionBareBase && determinismVerdict?.status === 'unknown');
 const integrityFailures = inspectIntegrityFailures([dirA, dirB]);
@@ -798,6 +870,8 @@ const certifiesFully =
   removedSurfaces === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
+  legacyPairFails === 0 &&
+  !(legacyPairAudit.armed && legacyPairAudit.declared.length > 0) &&
   !pixelBlocks &&
   greenfieldNewSurfaces === 0;
 
@@ -880,6 +954,14 @@ if (jsonOut) {
           // Additive data-residue field — the head bundle's failing data endpoints, parallel
           // to inventory. `null` when nothing failed and the gate wasn't armed. `armed` says
           // whether `unacknowledged` blocks; `blocking` is the CI-gating count.
+          legacyPairs: {
+            armed: legacyPairAudit.armed,
+            legacyPairs: legacyPairAudit.legacyPairs,
+            declared: legacyPairAudit.declared,
+            undeclared: legacyPairAudit.undeclared,
+            staleAcknowledgements: legacyPairAudit.staleAcknowledgements,
+            blocking: legacyPairFails,
+          },
           dataResidue: residueAudit && {
             armed: residueAudit.armed,
             failing: residueAudit.residue.map((r) => r.key),
@@ -916,6 +998,11 @@ const removedNote = removedSurfaces ? ` + ${removedSurfaces} REMOVED surface(s)`
 const invNote = invRemovals ? ` + ${invRemovals} inventory gate failure(s) (unacknowledged or stale)` : '';
 // residueFails counts unacknowledged failing endpoints AND stale acknowledgements (both gate).
 const resNote = residueFails ? ` + ${residueFails} data-residue gate failure(s) (unacknowledged or stale)` : '';
+const legacyNote = legacyPairFails
+  ? ` + ${legacyPairFails} undeclared or stale legacy product-state pair(s)`
+  : legacyPairAudit.armed && legacyPairAudit.declared.length > 0
+    ? ` + ${legacyPairAudit.declared.length} declared legacy pair(s) (advisory, not certified)`
+    : '';
 const confidenceNote = confidenceBlocks
   ? ` + ${confidenceSummary.counts.inaccessible} inaccessible incomplete-UI surface(s)`
   : '';
@@ -939,6 +1026,7 @@ const clean =
   removedSurfaces === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
+  legacyPairFails === 0 &&
   !confidenceBlocks &&
   !coverageBlocks &&
   !determinismBlocks &&
@@ -969,13 +1057,15 @@ console.log(
     ? sourceBinding.status !== 'bound'
       ? `\n⚠ UNVERIFIED DIAGNOSTIC: ${unverifiedDiagnosticSummary}; trusted source SHAs were not supplied, so this result is not certification`
       : newSurfaces === 0
-        ? `\n✓ 0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
+        ? legacyPairAudit.armed && legacyPairAudit.declared.length > 0
+          ? `\n⚠ declared legacy product-state pair(s) — ${unverifiedDiagnosticSummary}; advisory, not certified`
+          : `\n✓ 0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
         : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
           ? `\nℹ ${newSurfaces} surface(s) on head have no base map because a named baseline surface capture failed — not a base recapture failure (see callout above)`
           : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : comparison.blocksCertification
-      ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}${pixNote}`
-      : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}${pixNote}`,
+      ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${legacyNote}${confidenceNote}${covNote}${detNote}${pixNote}`
+      : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${legacyNote}${confidenceNote}${covNote}${detNote}${pixNote}`,
 );
 // 0 = identical certified, 1 = reviewable differences or non-certifying evidence
 // (unasserted completeness, unknown/unproven determinism, incomplete registry,
@@ -988,6 +1078,7 @@ const exitCode =
   removedSurfaces > 0 ||
   invRemovals > 0 ||
   residueFails > 0 ||
+  legacyPairFails > 0 ||
   confidenceBlocks ||
   coverageBlocks ||
   determinismBlocks ||
