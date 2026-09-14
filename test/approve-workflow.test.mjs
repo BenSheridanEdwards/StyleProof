@@ -396,9 +396,10 @@ test('dogfood approve stub is a thin caller of the reusable at main (#644)', () 
   assert.match(stub, /status-context: StyleProof/);
   assert.match(stub, /allow-self-approval: false/);
   assert.match(stub, /token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
-  assert.doesNotMatch(stub, /script:\s*\|/, 'must not copy the github-script program');
-  assert.doesNotMatch(stub, /require-approval/, 'must not enable require-approval; that is the Action input');
-  assert.doesNotMatch(stub, /fail-on-diff/, 'must not change certify or advisory evidence');
+  const executable = executableLines.join('\n');
+  assert.doesNotMatch(executable, /script:\s*\|/, 'must not copy the github-script program');
+  assert.doesNotMatch(executable, /require-approval/, 'must not enable require-approval; that is the Action input');
+  assert.doesNotMatch(executable, /fail-on-diff/, 'must not change certify or advisory evidence');
   assert.match(readme, /thin caller/);
   assert.match(readme, /styleproof-approve-reusable\.yml@v7/);
   assert.match(readme, /pinned to `@main`/);
