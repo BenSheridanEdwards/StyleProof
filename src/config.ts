@@ -511,7 +511,11 @@ async function loadEsmConfig(cwd: string): Promise<Record<string, unknown> | und
   } catch (e) {
     if (e instanceof StyleProofConfigError) throw e;
     if (isUnloadableTypeScriptConfig(found.filename, e)) {
-      throw unloadableTypeScriptConfigError(found.path, e);
+      try {
+        return evaluateTypeScriptConfigSync(found.path);
+      } catch {
+        throw unloadableTypeScriptConfigError(found.path, e);
+      }
     }
     fail(`could not load — ${e instanceof Error ? e.message : String(e)}`);
   }

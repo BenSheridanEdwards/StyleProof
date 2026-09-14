@@ -304,7 +304,7 @@ function assertLoadedOrFailClosedOnDiscoveredTs(startDir, expectedSpec) {
   return { threw: false, loaded };
 }
 
-test('loadStyleProofConfig / resolveProjectSpec: discovered .ts + spec-less sibling JSON must not soft-default to e2e/styleproof.spec.ts', () => {
+test('loadStyleProofConfig / resolveProjectSpec: discovered .ts + spec-less sibling JSON must not soft-default to e2e/styleproof.spec.ts', async () => {
   const { root, nested } = mkRepoTree();
   try {
     const specAbs = writeSpec(root);
@@ -316,6 +316,15 @@ test('loadStyleProofConfig / resolveProjectSpec: discovered .ts + spec-less sibl
     const syncLoad = assertLoadedOrFailClosedOnDiscoveredTs(nested, NESTED_SPEC);
     if (!syncLoad.threw) {
       assert.equal(resolveStyleProofConfigPath(syncLoad.loaded.spec, root), specAbs);
+    }
+
+    try {
+      const asyncLoaded = await loadStyleProofConfigAsync(nested);
+      assert.notDeepEqual(asyncLoaded, {});
+      assert.equal(asyncLoaded.spec, NESTED_SPEC);
+    } catch (error) {
+      assert.match(error.message, /styleproof\.config\.ts/);
+      assertNoSoftDefaultSpec(error);
     }
 
     let resolved;
@@ -353,13 +362,30 @@ test('styleproof-map: discovered .ts + spec-less sibling JSON must not soft-defa
       'must not invent the default spec while a parent .ts config exists',
     );
     assert.doesNotMatch(text, /declared as "e2e\/styleproof\.spec\.ts"/);
-    if (map.status !== 0) {
+    assert.doesNotMatch(
+      text,
+      /using sibling styleproof\.config\.json/,
+      'must not prefer spec-less sibling JSON over a discovered .ts config',
+    );
+    if (/could not be evaluated|could not load|Unknown file extension|Cannot find package|sync loader/i.test(text)) {
       assert.match(text, /styleproof\.config\.ts/);
-      assert.match(
-        text,
-        /could not be evaluated|could not load|Unknown file extension|Cannot find package|sync loader/i,
-      );
     }
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map --help: unloadable .ts plus spec-less sibling JSON still prints help', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+    writeJsonConfig(root, INIT_SPECLESS_JSON);
+    const map = spawnSync(process.execPath, [MAP, '--help'], { cwd: nested, encoding: 'utf8' });
+    const text = `${map.stderr}${map.stdout}`;
+    assert.equal(map.status, 0, text);
+    assert.match(map.stdout, /usage: styleproof-map/);
+    assert.doesNotMatch(text, /using sibling styleproof\.config\.json/);
+    assert.doesNotMatch(text, /could not be evaluated/);
   } finally {
     rmTmp(root);
   }

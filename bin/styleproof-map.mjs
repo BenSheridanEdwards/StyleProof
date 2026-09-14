@@ -139,6 +139,9 @@ Examples:
 `;
 
 const argv = process.argv.slice(2);
+const dashdash = argv.indexOf('--');
+const ownArgs = dashdash === -1 ? argv : argv.slice(0, dashdash);
+if (ownArgs.some(isHelpArg)) showHelpAndExit(HELP);
 let loadedConfig;
 try {
   loadedConfig = await loadStyleProofConfigWithLocationAsync();
