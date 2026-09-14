@@ -35,16 +35,16 @@
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
     "incomparableSurfaces": 0,
-    "unprovenSurfaces": 0,
+    "unprovenSurfaces": 1,
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "comparable",
-    "requireStateIdentity": true,
+    "status": "unproven",
+    "requireStateIdentity": false,
     "blocksCertification": false,
     "counts": {
-      "comparable": 1,
+      "comparable": 0,
       "incomparable": 0,
-      "unproven": 0,
+      "unproven": 1,
       "notRequired": 0,
       "requiredUnproven": 0,
       "globalRequiredUnproven": 0
@@ -53,9 +53,9 @@
   "comparability": [
     {
       "surface": "home@320",
-      "status": "comparable",
-      "required": true,
-      "reason": "explicit-state-match"
+      "status": "unproven",
+      "required": false,
+      "reason": "state-identity-missing"
     }
   ],
   "reportConsistency": {
@@ -80,6 +80,17 @@
     },
     "completeness": "complete"
   },
+  "legacyPairs": {
+    "armed": true,
+    "legacyPairs": [
+      "home@320"
+    ],
+    "declared": [
+      "home@320"
+    ],
+    "undeclared": [],
+    "staleAcknowledgements": []
+  },
   "sourceBinding": {
     "status": "bound",
     "compatibility": "matched",
@@ -98,17 +109,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "689395e13f1ed25b651c778ad97652d05516718be3ec04d13950fb3e21dcfb91",
+      "digest": "cb7473aa897fa1ccfd01e3b8b14b7b17440a03692ed671b96bbc42b0cd4544bb",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1482
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "87545000c34a562f85e5e45fd7c3c70217fcdda0184c385f534e8565bb2ffc20",
+      "digest": "0c3c67634b98e8e6d961c9d934121c3024fd3bca5430d6c9aa637a11d56d5617",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1482
     }
   },
   "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
