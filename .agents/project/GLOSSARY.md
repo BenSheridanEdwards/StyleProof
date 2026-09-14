@@ -12,6 +12,9 @@ Domain terms as StyleProof uses them. Definitions are drawn from the README and
   captured with its open state.
 - **Live state** — loading / loaded / empty / error states, declared in
   `liveStates`.
+- **Live / age / clock text** — relative ages and clocks in captured copy
+  (`open 102.1d`, `2m ago`). Declared with `liveText` so drift stays advisory
+  or fail-closes when a freeze was claimed. Not a stylesheet regression.
 - **Style map** — the recorded computed styles for every captured element on a
   surface at a given breakpoint width, stored as JSON.
 - **Computed styles** — the browser's resolved CSS (longhands, pseudo-elements,

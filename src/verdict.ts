@@ -19,6 +19,7 @@ export type CertificationEvidenceReceipt = {
   statesUncertified?: unknown;
   partialBaseline?: unknown;
   explainedMissingBaselineSurfaces?: unknown;
+  liveTextFreeze?: { violated?: unknown } | null;
 };
 
 export type CertificationEvidenceDecision = {
@@ -46,6 +47,7 @@ export function assessCertificationEvidence(receipt: CertificationEvidenceReceip
     finiteCount(receipt.confidence?.counts?.inaccessible) === 0 &&
     receipt.comparison?.blocksCertification !== true &&
     !rawOnlyNoReviewable &&
+    receipt.liveTextFreeze?.violated !== true &&
     interactionStatesComplete;
   return { certifies, interactionStatesComplete };
 }
@@ -60,6 +62,7 @@ export type StyleProofVerdictReceipt = CertificationEvidenceReceipt & {
     staleAcknowledgements?: unknown;
   } | null;
   dataResidue?: { blocking?: unknown; unacknowledged?: unknown } | null;
+  liveTextFreeze?: { violated?: unknown } | null;
 };
 
 export type StyleProofVerdictOptions = {

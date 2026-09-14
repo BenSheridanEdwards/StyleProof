@@ -29,6 +29,7 @@ import { fillRect, type RGB } from './png-util.js';
 import {
   diffStyleMapDirs,
   diffContentMaps,
+  auditLiveTextDirs,
   presentationDiffStyleMaps,
   summarizeComparability,
   type ComparabilitySummary,
@@ -39,6 +40,7 @@ import {
   type SurfaceComparability,
   type SurfaceDiff,
 } from './diff.js';
+import { isAgeOnlyDrift, isLiveTextChange, liveTextFreezeError, type LiveTextAudit } from './live-text.js';
 import { correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
 import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
 import {
@@ -83,6 +85,7 @@ import {
   assessComparisonTruth,
   type ComparisonTruth,
 } from './change-groups.js';
+import { dropDeclaredLiveTextGeometry } from './findings-clean.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
 // through the package's report module rather than a deep path.
 export { describeChange, colorName, tokenIndex, toHex } from './describe.js';
@@ -1138,6 +1141,7 @@ type ContentCtx = {
   maxHeight: number;
   zoomBelow: number;
   maxCrops: number;
+  liveText?: LiveTextAudit;
 };
 
 /** An element's padded box on one side, or null when it has no visible rect. */
@@ -1408,9 +1412,19 @@ function renderContentSurface(
   const pngB = readPng(path.join(ctx.afterDir, `${surface}.png`));
   const md: string[] = ['', `### \`${safeKey(surface)}\` · ${changes.length} content/structure change(s)`];
   for (const c of changes) {
+    const liveAge =
+      c.kind === 'text' &&
+      (isAgeOnlyDrift(c.before, c.after) ||
+        isLiveTextChange(c, { freeze: false, selectors: ctx.liveText?.selectors ?? [] }));
     const changeLines =
       c.kind === 'text'
-        ? [`- before: \`${clipText(c.before) || '(empty)'}\``, `- after: \`${clipText(c.after) || '(empty)'}\``]
+        ? [
+            ...(liveAge
+              ? ['- **live/age/clock text** (advisory — clock or relative-age data, not a stylesheet edit)']
+              : []),
+            `- before: \`${clipText(c.before) || '(empty)'}\``,
+            `- after: \`${clipText(c.after) || '(empty)'}\``,
+          ]
         : [`- ${c.change === 'retagged' ? `element retagged: \`${c.detail}\`` : `element ${c.change}`}`];
     const nextSeq = seq + 1;
     const mapA = c.kind === 'text' ? comparableMapA : rawMapA;
@@ -1441,7 +1455,8 @@ function renderContentSection(ctx: ContentCtx): { md: string[]; count: number } 
     '',
     `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
       `computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are ` +
-      `visible when content comparison is enabled._`,
+      `visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below ` +
+      `so it cannot be mistaken for a product style regression._`,
   ];
   let seq = 0;
   for (const { surface, changes } of surfaces) {
@@ -1643,6 +1658,25 @@ function describeFailedDataRequests(entries: { surface: string; endpoint: string
 }
 
 // A failed data request captured the fallback UI, so the real data state is unproven.
+function liveTextFreezeLines(audit: LiveTextAudit): string[] {
+  if (!audit.freeze || audit.violations.length === 0) return [];
+  const samples = audit.violations.slice(0, 5).map((item) => {
+    if (!item.before && !item.after) {
+      return `- \`${safeKey(item.surface)}\`: freeze declared but captured text was missing — cannot verify ages are pinned`;
+    }
+    return `- \`${safeKey(item.surface)}\`: \`${item.before}\` → \`${item.after}\``;
+  });
+  return [
+    '',
+    '⚠ **Live/age freeze violated** — fail closed (`CERTIFICATION_FAILED`). A freeze was declared but captured age/clock text still drifted. This is not a stylesheet regression and cannot be approved as one. Fixture timestamps so ages use the frozen clock, or declare `liveText` without `freeze` so age-only drift stays advisory.',
+    '',
+    ...samples,
+    '',
+    `_${liveTextFreezeError(audit)}_`,
+    '',
+  ];
+}
+
 function dataResidueLine(res: ReturnType<typeof auditRunResidue>): string {
   const { residue, unacknowledged, staleAcknowledgements, armed } = res;
   const meaning = 'this page called an API that failed, so the screenshot is the fallback UI, not the real data';
@@ -2051,6 +2085,7 @@ function noChangedSurfaceSummary(args: {
   baselineFailures: BaselineFailureReceipt[];
   confidenceBlocked: boolean;
   comparisonBlocked: boolean;
+  liveTextFreezeViolated?: boolean;
 }): string[] | undefined {
   if (args.changeGroups.length > 0 || args.missing.length > 0) return undefined;
   const failureSummary = reportConsistencyFailureSummaryLines(
@@ -2067,7 +2102,10 @@ function noChangedSurfaceSummary(args: {
         ? `✓ No reviewable computed-style changes among semantically matched elements. See ${args.contentCount} advisory content/structure change(s) below.`
         : '✓ No reviewable computed-style changes among semantically matched elements. No advisory content/structure changes detected.';
   }
-  if (args.confidenceBlocked || args.comparisonBlocked) {
+  if (args.liveTextFreezeViolated) {
+    scopedSummary =
+      '✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared. Fail closed (`CERTIFICATION_FAILED`); not a style review.';
+  } else if (args.confidenceBlocked || args.comparisonBlocked) {
     scopedSummary = scopedSummary.replace(/^✓ /, 'Computed-style scope only: ');
   }
   return [scopedSummary];
@@ -2087,6 +2125,7 @@ function summaryLines(args: {
   baselineFailures: BaselineFailureReceipt[];
   confidenceBlocked: boolean;
   comparisonBlocked: boolean;
+  liveTextFreezeViolated?: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -2122,6 +2161,7 @@ function summaryLines(args: {
     baselineFailures,
     confidenceBlocked,
     comparisonBlocked,
+    liveTextFreezeViolated: args.liveTextFreezeViolated,
   });
   if (unchanged) return unchanged;
   const md = [
@@ -2150,6 +2190,7 @@ function reportHeadline(args: {
   baselineFailures: BaselineFailureReceipt[];
   confidenceBlocked: boolean;
   comparisonBlocked: boolean;
+  liveTextFreezeViolated?: boolean;
 }): string[] {
   const {
     changeGroups,
@@ -2166,6 +2207,7 @@ function reportHeadline(args: {
     baselineFailures,
     confidenceBlocked,
     comparisonBlocked,
+    liveTextFreezeViolated,
   } = args;
   const md: string[] = summaryLines({
     changeGroups,
@@ -2180,6 +2222,7 @@ function reportHeadline(args: {
     baselineFailures,
     confidenceBlocked,
     comparisonBlocked,
+    liveTextFreezeViolated,
   });
   if (volatileCount > 0) {
     const candidates = liveCandidateLabels.length
@@ -2817,6 +2860,7 @@ function prepareReportSurfaces(
   includeStructure: boolean,
   beforeDir: string,
   afterDir: string,
+  liveText?: LiveTextAudit,
 ): PreparedSurface[] {
   const comparisonBySurface = new Map(comparability.map((entry) => [entry.surface, entry]));
   return surfaces
@@ -2832,9 +2876,10 @@ function prepareReportSurfaces(
       const beforeMap = loadStyleMap(findCapture(beforeDir, sd.surface));
       const afterMap = loadStyleMap(findCapture(afterDir, sd.surface));
       const corresponded = presentationDiffStyleMaps(beforeMap, afterMap, { includeStructure });
+      const focused = includeNoise ? corresponded : cleanFindingsForDisplay(corresponded);
       return {
         sd,
-        findings: includeNoise ? corresponded : cleanFindingsForDisplay(corresponded),
+        findings: dropDeclaredLiveTextGeometry(focused, liveText),
       };
     })
     .filter((p) => p.sd.missing || p.findings.length > 0);
@@ -2872,6 +2917,7 @@ function writeReportArtifacts(
   baselineProvenance: BaselineProvenance | null = null,
   confidence: ConfidenceSummary | null = null,
   gateMode: 'certify' | 'review-gate' | 'migration' | 'advisory' = 'certify',
+  liveTextFreeze: { violated: boolean; reason?: string } | null = null,
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
@@ -2897,6 +2943,7 @@ function writeReportArtifacts(
         // Additive (#367): where the baseline maps came from, when recorded —
         // exact-SHA restore, nearest-ancestor reuse (with proof), or fresh capture.
         ...(baselineProvenance ? { baselineProvenance } : {}),
+        ...(liveTextFreeze ? { liveTextFreeze } : {}),
       },
       null,
       2,
@@ -3094,7 +3141,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Canonical truth shared with styleproof-diff / action trust: when raw
   // certification deltas exist but cleanFindings leaves nothing reviewable,
   // never claim "identical" and never enable visual approval.
-  const rawComparison = assessComparisonTruth(surfaces, rawCounts, comparability, { requireStateIdentity });
+  const liveText = auditLiveTextDirs(beforeDir, afterDir);
+  const rawComparison = assessComparisonTruth(surfaces, rawCounts, comparability, { requireStateIdentity, liveText });
   const comparabilitySummary = summarizeComparability(comparability, requireStateIdentity);
   const liveCandidateLabels = volatileCount === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir);
   fs.mkdirSync(path.join(outDir, 'crops'), { recursive: true });
@@ -3111,6 +3159,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     includeStructure,
     beforeDir,
     afterDir,
+    liveText,
   );
 
   const missing = preparedCertified.filter((p) => p.sd.missing);
@@ -3169,6 +3218,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
         maxHeight,
         zoomBelow,
         maxCrops,
+        liveText,
       })
     : { md: [], count: 0 };
 
@@ -3180,6 +3230,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const confidenceLedger = resolveBundleConfidence(afterDir);
   const confidence = summarizeConfidence(confidenceLedger);
   md.push(...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }));
+  md.push(...liveTextFreezeLines(liveText));
   // Baseline provenance (#367): when the run recorded where the base maps came
   // from, say so up front — an ancestor reuse must be visible, never inferred.
   const baselineProvenance = readBaselineProvenance(beforeDir);
@@ -3201,6 +3252,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       baselineFailures,
       confidenceBlocked: confidence.counts.inaccessible > 0,
       comparisonBlocked: comparison.blocksCertification,
+      liveTextFreezeViolated: comparison.liveTextFreezeViolated,
     }),
   );
   md.push(...stateCoverageLines(afterDir));
@@ -3245,7 +3297,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Removed surfaces (Q10) stay separate and are not folded into migration gallery buckets.
   const contentCtx: ContentCtx | null =
     isMigrationMode || includeContent
-      ? { beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight, zoomBelow, maxCrops }
+      ? { beforeDir, afterDir, outDir, img, padBy, minWidth, minHeight, maxHeight, zoomBelow, maxCrops, liveText }
       : null;
   const migrationGallery = isMigrationMode ? buildMigrationGallery(surfaces, contentCtx) : undefined;
 
@@ -3279,6 +3331,11 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baselineProvenance,
     confidence,
     gateMode,
+    liveText.freeze && liveText.violations.length > 0
+      ? { violated: true, reason: liveTextFreezeError(liveText) }
+      : liveText.declared
+        ? { violated: false }
+        : null,
   );
   return {
     changedSurfaces: preparedCertified.length - missing.length,

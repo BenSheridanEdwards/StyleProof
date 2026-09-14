@@ -34,6 +34,7 @@ import {
   recordSurfaceCaptureFailure,
 } from './map-store.js';
 import { DEFAULT_CLOCK_TIME, frozenSpecClockInstant, realNow, restoreRealSpecClock } from './spec-clock.js';
+import { requireLiveTextCapture, validateLiveText, type LiveTextDeclaration, type LiveTextInput } from './live-text.js';
 import {
   captureTestBudgetMs,
   formatSurfaceHeartbeat,
@@ -290,17 +291,25 @@ export type DefineOptions = ForcedStateLimits & {
    * flagged (recording legitimately records live 2xx).
    */
   dataResidue?: 'warn' | 'gate';
+  /**
+   * Declare live/age/clock text so relative ages (`open 102.1d`) cannot masquerade
+   * as stylesheet regressions. `true` or `{ freeze: false }` keeps age-only drift
+   * advisory. `{ freeze: true }` requires captured ages to stay pinned — drift is
+   * a fail-closed integrity error, not a style review. Requires `captureText: true`.
+   */
+  liveText?: LiveTextInput;
 };
 
 /** Resolved per-capture settings, shared with the helpers below. */
 type Settings = Required<
-  Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude' | 'popups' | 'parallel'>
+  Omit<DefineOptions, 'surfaces' | 'replayFrom' | 'expected' | 'exclude' | 'popups' | 'parallel' | 'liveText'>
 > & {
   dir: string;
   replayFrom?: string;
   popups: ResolvedPopupCaptureOptions;
   /** Baseline-only: record per-surface failures instead of failing the whole run (self-check still fails). */
   tolerateSurfaceFailures: boolean;
+  liveText: LiveTextDeclaration | null;
 };
 
 /** Self-check / nondeterminism failures must never be tolerated (#276). */
@@ -1041,6 +1050,7 @@ async function capturePopupCandidate(
       }
     }
 
+    attachLiveText(map, s.liveText);
     const stem = captureArtifactStem(resolveOutputDir(s.baseDir, s.dir), `${surface.key}-${popupId}`, width);
     saveStyleMap(`${stem}.json.gz`, map);
     if (s.screenshots) await captureSurfaceScreenshots(page, stem, { ignore: surface.ignore ?? [] });
@@ -1151,6 +1161,7 @@ async function captureSurface(
         // Attach data-residue AFTER the self-check re-run so both runs' failures are folded
         // (deduped in the watcher). Warn always; the recorded residue is what the gate reads.
         attachDataResidue(map, residue.residue());
+        attachLiveText(map, s.liveText);
 
         // Timeout fence: abandoned work must not write maps/screenshots after rejection.
         if (!surfaceRun.isActive()) return;
@@ -1183,6 +1194,11 @@ async function captureSurface(
 /** Attach any observed data-residue to the map and NAME each failure on stderr — what
  *  failed, what it means (fallback branch captured), what to do. One warning per
  *  (surface, endpoint); the watcher already deduped across widths / the self-check. */
+function attachLiveText(map: StyleMap, liveText: LiveTextDeclaration | null): void {
+  if (!liveText) return;
+  map.metadata = { ...map.metadata, liveText };
+}
+
 function attachDataResidue(map: StyleMap, residue: DataResidueEntry[]): void {
   if (!residue.length) return;
   map.dataResidue = residue;
@@ -1291,6 +1307,8 @@ function resolveSettings(c: CaptureConfig): Settings {
   const freezeClock = c.freezeClock ?? true;
   const clockTime = c.clockTime ?? DEFAULT_CLOCK_TIME;
   reconcileSpecClock(freezeClock, clockTime);
+  const liveText = validateLiveText(c.liveText) ?? null;
+  requireLiveTextCapture(liveText ?? undefined, c.captureText ?? false);
   return {
     ...resolveForcedStateLimits(c),
     dir: c.dir as string,
@@ -1307,6 +1325,7 @@ function resolveSettings(c: CaptureConfig): Settings {
     captureComponent: c.captureComponent ?? false,
     popups: resolvePopupCaptureOptions(c.popups),
     inventory: c.inventory ?? false,
+    liveText,
     tolerateSurfaceFailures:
       process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
       process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true',
@@ -1424,6 +1443,7 @@ function writeBrowserBuildTest(settings: Settings, dir: string): void {
 export const CAPTURE_TEST_GREP = '/(?:^|\\s)styleproof capture(?:\\s|$)/';
 
 export function defineStyleMapCapture(options: DefineOptions): void {
+  requireLiveTextCapture(validateLiveText(options.liveText), options.captureText ?? false);
   const { surfaces, expected: programmaticExpected, exclude: programmaticExclude = {}, dir } = options;
   const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
   assertUniqueExpandedKeys(captureSurfaces);
