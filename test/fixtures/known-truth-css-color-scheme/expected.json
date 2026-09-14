@@ -1,0 +1,156 @@
+{
+  "description": "Oracle: exact computed-style values StyleProof MUST reproduce from index.html under prefers-color-scheme light and dark. The same testid has DIFFERENT expected values per scheme — that is the core product value of theme-aware certification. Tests assert against byScheme[scheme].byTestId, not HTML comments. Only properties that DIFFER from browser UA defaults are asserted.",
+  "schemes": ["light", "dark"],
+  "byScheme": {
+    "light": {
+      "byTestId": {
+        "surface": {
+          "tag": "main",
+          "cls": "scheme-surface",
+          "expectedStyles": {
+            "background-color": "rgb(248, 250, 252)",
+            "color": "rgb(15, 23, 42)",
+            "padding-top": "24px",
+            "padding-right": "24px",
+            "padding-bottom": "24px",
+            "padding-left": "24px",
+            "box-sizing": "border-box"
+          }
+        },
+        "card": {
+          "tag": "div",
+          "cls": "scheme-card",
+          "expectedStyles": {
+            "background-color": "rgb(255, 255, 255)",
+            "color": "rgb(51, 65, 85)",
+            "border-top-color": "rgb(226, 232, 240)",
+            "border-right-color": "rgb(226, 232, 240)",
+            "border-bottom-color": "rgb(226, 232, 240)",
+            "border-left-color": "rgb(226, 232, 240)",
+            "border-top-width": "2px",
+            "border-right-width": "2px",
+            "border-bottom-width": "2px",
+            "border-left-width": "2px",
+            "border-top-style": "solid",
+            "border-right-style": "solid",
+            "border-bottom-style": "solid",
+            "border-left-style": "solid",
+            "padding-top": "16px",
+            "padding-right": "16px",
+            "padding-bottom": "16px",
+            "padding-left": "16px"
+          }
+        },
+        "heading": {
+          "tag": "h1",
+          "cls": "scheme-heading",
+          "expectedStyles": {
+            "color": "rgb(15, 23, 42)",
+            "font-size": "24px",
+            "font-weight": "600",
+            "letter-spacing": "0.5px"
+          }
+        },
+        "action": {
+          "tag": "button",
+          "cls": "scheme-action",
+          "expectedStyles": {
+            "background-color": "rgb(37, 99, 235)",
+            "color": "rgb(255, 255, 255)",
+            "font-size": "16px",
+            "padding-top": "12px",
+            "padding-right": "20px",
+            "padding-bottom": "12px",
+            "padding-left": "20px",
+            "border-top-width": "0px",
+            "border-right-width": "0px",
+            "border-bottom-width": "0px",
+            "border-left-width": "0px",
+            "cursor": "pointer"
+          }
+        }
+      },
+      "customProperties": {
+        "--surface-bg": "rgb(248, 250, 252)",
+        "--surface-fg": "rgb(15, 23, 42)",
+        "--card-bg": "rgb(255, 255, 255)",
+        "--action-bg": "rgb(37, 99, 235)"
+      }
+    },
+    "dark": {
+      "byTestId": {
+        "surface": {
+          "tag": "main",
+          "cls": "scheme-surface",
+          "expectedStyles": {
+            "background-color": "rgb(15, 23, 42)",
+            "color": "rgb(248, 250, 252)",
+            "padding-top": "24px",
+            "padding-right": "24px",
+            "padding-bottom": "24px",
+            "padding-left": "24px",
+            "box-sizing": "border-box"
+          }
+        },
+        "card": {
+          "tag": "div",
+          "cls": "scheme-card",
+          "expectedStyles": {
+            "background-color": "rgb(30, 41, 59)",
+            "color": "rgb(226, 232, 240)",
+            "border-top-color": "rgb(51, 65, 85)",
+            "border-right-color": "rgb(51, 65, 85)",
+            "border-bottom-color": "rgb(51, 65, 85)",
+            "border-left-color": "rgb(51, 65, 85)",
+            "border-top-width": "2px",
+            "border-right-width": "2px",
+            "border-bottom-width": "2px",
+            "border-left-width": "2px",
+            "border-top-style": "solid",
+            "border-right-style": "solid",
+            "border-bottom-style": "solid",
+            "border-left-style": "solid",
+            "padding-top": "16px",
+            "padding-right": "16px",
+            "padding-bottom": "16px",
+            "padding-left": "16px"
+          }
+        },
+        "heading": {
+          "tag": "h1",
+          "cls": "scheme-heading",
+          "expectedStyles": {
+            "color": "rgb(248, 250, 252)",
+            "font-size": "24px",
+            "font-weight": "600",
+            "letter-spacing": "0.5px"
+          }
+        },
+        "action": {
+          "tag": "button",
+          "cls": "scheme-action",
+          "expectedStyles": {
+            "background-color": "rgb(96, 165, 250)",
+            "color": "rgb(15, 23, 42)",
+            "font-size": "16px",
+            "padding-top": "12px",
+            "padding-right": "20px",
+            "padding-bottom": "12px",
+            "padding-left": "20px",
+            "border-top-width": "0px",
+            "border-right-width": "0px",
+            "border-bottom-width": "0px",
+            "border-left-width": "0px",
+            "cursor": "pointer"
+          }
+        }
+      },
+      "customProperties": {
+        "--surface-bg": "rgb(15, 23, 42)",
+        "--surface-fg": "rgb(248, 250, 252)",
+        "--card-bg": "rgb(30, 41, 59)",
+        "--action-bg": "rgb(96, 165, 250)"
+      }
+    }
+  }
+}

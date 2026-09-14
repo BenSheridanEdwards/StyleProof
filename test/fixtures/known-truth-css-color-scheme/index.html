@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Known-Truth CSS Color-Scheme Fixture</title>
+  <!--
+    FIXTURE CONTRACT (documentation only — tests assert against expected.json)
+    ===========================================================================
+    This fixture declares exact CSS values that DIFFER between
+    prefers-color-scheme: light and prefers-color-scheme: dark.
+    The expected.json oracle is the source of truth; these comments match the JSON.
+    Only properties that DIFFER from browser UA defaults are asserted.
+
+    SCHEMES TESTED: light, dark
+    Color-scheme is forced via Playwright page.emulateMedia({ colorScheme }).
+
+    CUSTOM PROPERTIES (tokens on :root, color-valued):
+      light:
+        --surface-bg: rgb(248, 250, 252)
+        --surface-fg: rgb(15, 23, 42)
+        --card-bg: rgb(255, 255, 255)
+        --card-fg: rgb(51, 65, 85)
+        --card-border: rgb(226, 232, 240)
+        --action-bg: rgb(37, 99, 235)
+        --action-fg: rgb(255, 255, 255)
+      dark:
+        --surface-bg: rgb(15, 23, 42)
+        --surface-fg: rgb(248, 250, 252)
+        --card-bg: rgb(30, 41, 59)
+        --card-fg: rgb(226, 232, 240)
+        --card-border: rgb(51, 65, 85)
+        --action-bg: rgb(96, 165, 250)
+        --action-fg: rgb(15, 23, 42)
+
+    ELEMENT: .scheme-surface (main) [data-testid="surface"]
+      light:
+        background-color: rgb(248, 250, 252)
+        color: rgb(15, 23, 42)
+        padding: 24px (all sides)
+        box-sizing: border-box
+      dark:
+        background-color: rgb(15, 23, 42)
+        color: rgb(248, 250, 252)
+        padding: 24px (all sides)
+        box-sizing: border-box
+
+    ELEMENT: .scheme-card (div) [data-testid="card"]
+      light:
+        background-color: rgb(255, 255, 255)
+        color: rgb(51, 65, 85)
+        border: 2px solid rgb(226, 232, 240)
+        padding: 16px (all sides)
+      dark:
+        background-color: rgb(30, 41, 59)
+        color: rgb(226, 232, 240)
+        border: 2px solid rgb(51, 65, 85)
+        padding: 16px (all sides)
+
+    ELEMENT: .scheme-heading (h1) [data-testid="heading"]
+      light:
+        color: rgb(15, 23, 42)
+        font-size: 24px
+        font-weight: 600
+        letter-spacing: 0.5px
+      dark:
+        color: rgb(248, 250, 252)
+        font-size: 24px
+        font-weight: 600
+        letter-spacing: 0.5px
+
+    ELEMENT: .scheme-action (button) [data-testid="action"]
+      light:
+        background-color: rgb(37, 99, 235)
+        color: rgb(255, 255, 255)
+        font-size: 16px
+        padding: 12px 20px
+        border: none
+        cursor: pointer
+      dark:
+        background-color: rgb(96, 165, 250)
+        color: rgb(15, 23, 42)
+        font-size: 16px
+        padding: 12px 20px
+        border: none
+        cursor: pointer
+  -->
+  <style>
+    :root {
+      --surface-bg: rgb(248, 250, 252);
+      --surface-fg: rgb(15, 23, 42);
+      --card-bg: rgb(255, 255, 255);
+      --card-fg: rgb(51, 65, 85);
+      --card-border: rgb(226, 232, 240);
+      --action-bg: rgb(37, 99, 235);
+      --action-fg: rgb(255, 255, 255);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --surface-bg: rgb(248, 250, 252);
+        --surface-fg: rgb(15, 23, 42);
+        --card-bg: rgb(255, 255, 255);
+        --card-fg: rgb(51, 65, 85);
+        --card-border: rgb(226, 232, 240);
+        --action-bg: rgb(37, 99, 235);
+        --action-fg: rgb(255, 255, 255);
+      }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --surface-bg: rgb(15, 23, 42);
+        --surface-fg: rgb(248, 250, 252);
+        --card-bg: rgb(30, 41, 59);
+        --card-fg: rgb(226, 232, 240);
+        --card-border: rgb(51, 65, 85);
+        --action-bg: rgb(96, 165, 250);
+        --action-fg: rgb(15, 23, 42);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+    }
+
+    .scheme-surface {
+      background-color: var(--surface-bg);
+      color: var(--surface-fg);
+      padding: 24px;
+    }
+
+    .scheme-card {
+      background-color: var(--card-bg);
+      color: var(--card-fg);
+      border: 2px solid var(--card-border);
+      padding: 16px;
+    }
+
+    .scheme-heading {
+      color: var(--surface-fg);
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .scheme-action {
+      background-color: var(--action-bg);
+      color: var(--action-fg);
+      font-size: 16px;
+      padding: 12px 20px;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <main class="scheme-surface" data-testid="surface">
+    <div class="scheme-card" data-testid="card">
+      <h1 class="scheme-heading" data-testid="heading">Scheme heading</h1>
+      <button class="scheme-action" data-testid="action">Action</button>
+    </div>
+  </main>
+</body>
+</html>
