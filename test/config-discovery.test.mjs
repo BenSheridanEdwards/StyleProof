@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import {
   loadStyleProofConfig,
@@ -17,8 +17,41 @@ import { mkTmp, rmTmp } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
+const CONFIG_DIST = path.join(here, '..', 'dist', 'config.js');
 
 const NESTED_SPEC = 'hud/tests/e2e/styleproof.spec.ts';
+
+/** styleproof-init typed scaffold: imports `defineConfig` from the package. */
+const INIT_TS_SCAFFOLD = `import { defineConfig } from 'styleproof';
+
+export default defineConfig({
+  blocking: 'advisory',
+  requireApproval: true,
+});
+`;
+
+/**
+ * Load config in a child Node that type-strips `.ts` (Node 22.6+ flag;
+ * Node 22.18+ default). Mirrors CI worktrees that have the init scaffold
+ * but no resolvable `styleproof` package.
+ */
+function loadConfigAsyncWithTypeStripping(dir) {
+  return spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '--input-type=module',
+      '-e',
+      `
+        import { loadStyleProofConfigAsync } from ${JSON.stringify(pathToFileURL(CONFIG_DIST).href)};
+        const config = await loadStyleProofConfigAsync(${JSON.stringify(dir)});
+        process.stdout.write(JSON.stringify(config));
+      `,
+    ],
+    { encoding: 'utf8', cwd: dir },
+  );
+}
 
 /** Isolated git repo so upward walk stops at this root, not the StyleProof checkout. */
 function mkRepoTree() {
@@ -229,6 +262,59 @@ test('resolveProjectSpec: does not soft-fallback to e2e/styleproof.spec.ts when 
     const decoy = resolveProjectSpec({ startDir: nested, requireSpec: false });
     assert.equal(decoy.specDeclared, NESTED_SPEC);
     assert.notEqual(decoy.spec, path.join(nested, 'e2e', 'styleproof.spec.ts'));
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfigAsync: init .ts scaffold without installed styleproof does not crash under type stripping', () => {
+  const { root } = mkRepoTree();
+  try {
+    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+    const loaded = loadConfigAsyncWithTypeStripping(root);
+    assert.equal(
+      loaded.status,
+      0,
+      `typed scaffold must not fail closed when 'styleproof' is unresolved:\n${loaded.stderr}${loaded.stdout}`,
+    );
+    assert.doesNotMatch(loaded.stderr, /could not load/);
+    assert.deepEqual(JSON.parse(loaded.stdout), {});
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfigAsync: unloadable init .ts still uses sibling JSON (no soft-empty when JSON exists)', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    writeSpec(root);
+    writeJsonConfig(root, { spec: NESTED_SPEC, blocking: true });
+    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+    const loaded = loadConfigAsyncWithTypeStripping(nested);
+    assert.equal(loaded.status, 0, loaded.stderr + loaded.stdout);
+    const config = JSON.parse(loaded.stdout);
+    assert.equal(config.spec, NESTED_SPEC);
+    assert.equal(config.blocking, true);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfigAsync: a .mjs that cannot resolve styleproof still fails closed', async () => {
+  const { root } = mkRepoTree();
+  try {
+    fs.writeFileSync(
+      path.join(root, 'styleproof.config.mjs'),
+      `import { defineConfig } from 'styleproof';\nexport default defineConfig({ spec: '${NESTED_SPEC}' });\n`,
+    );
+    await assert.rejects(
+      () => loadStyleProofConfigAsync(root),
+      (error) => {
+        assert.match(error.message, /could not load/);
+        assert.match(error.message, /styleproof/);
+        return true;
+      },
+    );
   } finally {
     rmTmp(root);
   }

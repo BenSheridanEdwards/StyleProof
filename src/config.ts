@@ -447,6 +447,15 @@ function readJsonConfigObject(cwd: string): Record<string, unknown> | undefined 
   }
 }
 
+function isMissingStyleProofPackage(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : '';
+  return (
+    (code === 'ERR_MODULE_NOT_FOUND' || message.includes('ERR_MODULE_NOT_FOUND')) &&
+    (message.includes("Cannot find package 'styleproof'") || message.includes('Cannot find package "styleproof"'))
+  );
+}
+
 function isUnloadableTypeScriptConfig(filename: string, error: unknown): boolean {
   if (!filename.endsWith('.ts')) return false;
   const message = error instanceof Error ? error.message : String(error);
@@ -454,7 +463,13 @@ function isUnloadableTypeScriptConfig(filename: string, error: unknown): boolean
   return (
     code === 'ERR_UNKNOWN_FILE_EXTENSION' ||
     message.includes('Unknown file extension') ||
-    message.includes('ERR_UNKNOWN_FILE_EXTENSION')
+    message.includes('ERR_UNKNOWN_FILE_EXTENSION') ||
+    // Node 22.18+ type-strips `.ts` by default (22.6+ with --experimental-strip-types).
+    // styleproof-init's typed scaffold then `import { defineConfig } from 'styleproof'`.
+    // A CI probe worktree / first-adoption checkout often has the file but no
+    // resolvable package — same historical empty-config fallback as an unknown
+    // `.ts` extension. `.mjs` / `.js` that cannot resolve the package still fail loud.
+    isMissingStyleProofPackage(error)
   );
 }
 
@@ -476,7 +491,8 @@ async function loadEsmConfig(cwd: string): Promise<Record<string, unknown> | und
       // fallback so styleproof-init's typed scaffold does not crash CI; JSON in
       // the same directory still wins as the runtime source.
       process.stderr.write(
-        `styleproof: ${found.filename} found but this Node runtime cannot evaluate TypeScript config. ` +
+        `styleproof: ${found.filename} found but this Node runtime cannot evaluate TypeScript config ` +
+          `(unknown .ts extension, or the typed scaffold cannot resolve the 'styleproof' package). ` +
           `Using ${STYLEPROOF_CONFIG_JSON} if present; otherwise continuing without that file.\n`,
       );
       return undefined;
