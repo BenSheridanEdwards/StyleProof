@@ -80,6 +80,14 @@
     },
     "completeness": "complete"
   },
+  "integrityFailures": [
+    {
+      "reason": "connector-partial",
+      "surfaces": [
+        "home"
+      ]
+    }
+  ],
   "sourceBinding": {
     "status": "bound",
     "compatibility": "matched",
@@ -98,18 +106,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "8448965650cc01d3f2d0a7333f147713e9eaecf204da4c4448a297cbf88711cb",
+      "digest": "689395e13f1ed25b651c778ad97652d05516718be3ec04d13950fb3e21dcfb91",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1578
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "e1bf59c45f7ebf3c13afa1893ca44a0bb1894fa9748dfdfe7ae892d2bfa900fc",
-      "fileCount": 5,
+      "digest": "7c9e5151c5ae8b55f37e6b8fda36b2c0a56c0755640afd2e4f72086a62f27644",
+      "fileCount": 6,
       "mapCount": 1,
-      "byteCount": 1566
+      "byteCount": 1576
     }
   },
-  "actionTrustState": "INVENTORY_REMOVAL_UNACKNOWLEDGED"
+  "actionTrustState": "CERTIFICATION_FAILED"
 }
