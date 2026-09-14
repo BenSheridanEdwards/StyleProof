@@ -111,8 +111,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "d48bb2e6f4e9272c2ac1dd52000ee9d4b112f7e4",
-      "observed": "d48bb2e6f4e9272c2ac1dd52000ee9d4b112f7e4",
+      "expected": "59dbad2f5fdc184463c56d4857f017300c392d08",
+      "observed": "59dbad2f5fdc184463c56d4857f017300c392d08",
       "result": "matched"
     }
   },
@@ -120,14 +120,14 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "4591ecb9f486f13bd76f3d5d06336e4e5c45b38f0c1a78f631d38ed3527e365f",
+      "digest": "c4dcaad8610a08d6be83b7838bedd152c40b2416d48179ecafc0c947ef95bf3d",
       "fileCount": 18,
       "mapCount": 3,
-      "byteCount": 295522
+      "byteCount": 295525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "201648714faa30ba97a10637c87080aba92ba205eb43055bebbd3875df02143e",
+      "digest": "26821b8f7e21386250573533d795f4fd4bc678ed40006720c8dc3425bb6df074",
       "fileCount": 18,
       "mapCount": 3,
       "byteCount": 295524
