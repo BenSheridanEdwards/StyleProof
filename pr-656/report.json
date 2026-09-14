@@ -85,9 +85,7 @@
     "legacyPairs": [],
     "declared": [],
     "undeclared": [],
-    "staleAcknowledgements": [
-      "home"
-    ]
+    "staleAcknowledgements": []
   },
   "sourceBinding": {
     "status": "bound",
@@ -98,8 +96,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "94f59142aee55ce484a16f36c4d9ca55f960854b",
-      "observed": "94f59142aee55ce484a16f36c4d9ca55f960854b",
+      "expected": "3d7fdefd437a8a1b0fd611ce5c17d80601e53ca1",
+      "observed": "3d7fdefd437a8a1b0fd611ce5c17d80601e53ca1",
       "result": "matched"
     }
   },
@@ -114,11 +112,11 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "d6e89ce8b75149af8bbc4ca88be8104c4567b39dcefbdb4fc1efe9ff90b8517d",
+      "digest": "df92ac68a68cf636ad5dd27b27fc89c9c96c0097ab0c4bb1e4cb314a499aef66",
       "fileCount": 5,
       "mapCount": 1,
       "byteCount": 1525
     }
   },
-  "actionTrustState": "CERTIFICATION_FAILED"
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
 }
