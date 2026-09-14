@@ -30,6 +30,9 @@ export default defineConfig({
 });
 `;
 
+/** Fleet-shaped root config: relative spec into a nested package, no package import. */
+const LOADABLE_TS = `export default { spec: '${NESTED_SPEC}', blocking: true };\n`;
+
 /**
  * Load config in a child Node that type-strips `.ts` (Node 22.6+ flag;
  * Node 22.18+ default). Mirrors CI worktrees that have the init scaffold
@@ -278,32 +281,76 @@ test('resolveProjectSpec: does not soft-fallback to e2e/styleproof.spec.ts when 
   }
 });
 
-test('loadStyleProofConfigAsync: init .ts scaffold without installed styleproof does not crash', async () => {
-  const { root } = mkRepoTree();
+test('loadStyleProofConfig: sync loader does not soft-empty a found .ts', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), LOADABLE_TS);
+    assert.throws(
+      () => loadStyleProofConfig(nested),
+      (error) => {
+        assert.match(error.message, /styleproof\.config\.ts/);
+        assert.match(error.message, /could not be evaluated|cannot evaluate|sync loader/i);
+        return true;
+      },
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfigAsync: unloadable .ts without sibling JSON fails closed', async () => {
+  const { root, nested } = mkRepoTree();
   try {
     fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
-    const config = await loadStyleProofConfigAsync(root);
-    assert.deepEqual(config, {});
+    await assert.rejects(
+      () => loadStyleProofConfigAsync(nested),
+      (error) => {
+        assert.match(error.message, /styleproof\.config\.ts/);
+        assert.match(error.message, /could not be evaluated|could not load|Unknown file extension|Cannot find package/);
+        return true;
+      },
+    );
   } finally {
     rmTmp(root);
   }
 });
 
 test(
-  'loadStyleProofConfigAsync: init .ts scaffold without installed styleproof does not crash under type stripping',
+  'loadStyleProofConfigAsync: type-stripping an unresolved styleproof import fails closed, not empty config',
   { skip: TYPE_STRIPPING_UNAVAILABLE },
   () => {
-    const { root } = mkRepoTree();
+    const { root, nested } = mkRepoTree();
     try {
       fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
-      const loaded = loadConfigAsyncWithTypeStripping(root);
-      assert.equal(
-        loaded.status,
-        0,
-        `typed scaffold must not fail closed when 'styleproof' is unresolved:\n${loaded.stderr}${loaded.stdout}`,
+      const loaded = loadConfigAsyncWithTypeStripping(nested);
+      assert.notEqual(loaded.status, 0, loaded.stderr + loaded.stdout);
+      assert.match(`${loaded.stderr}${loaded.stdout}`, /styleproof\.config\.ts/);
+      assert.match(
+        `${loaded.stderr}${loaded.stdout}`,
+        /could not be evaluated|could not load|Cannot find package 'styleproof'/,
       );
-      assert.doesNotMatch(loaded.stderr, /could not load/);
-      assert.deepEqual(JSON.parse(loaded.stdout), {});
+      assert.doesNotMatch(`${loaded.stdout}`, /"spec"\s*:\s*"e2e\/styleproof\.spec\.ts"/);
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
+
+test(
+  'loadStyleProofConfigAsync: nested cwd loads a root .ts and resolves spec from the config dir',
+  { skip: TYPE_STRIPPING_UNAVAILABLE },
+  () => {
+    const { root, nested } = mkRepoTree();
+    try {
+      const specAbs = writeSpec(root);
+      fs.writeFileSync(path.join(root, 'styleproof.config.ts'), LOADABLE_TS);
+      const loaded = loadConfigAsyncWithTypeStripping(nested);
+      assert.equal(loaded.status, 0, loaded.stderr + loaded.stdout);
+      const config = JSON.parse(loaded.stdout);
+      assert.equal(config.spec, NESTED_SPEC);
+      assert.equal(config.blocking, true);
+      assert.equal(resolveStyleProofConfigPath(config.spec, root), specAbs);
+      assert.notEqual(resolveStyleProofConfigPath(config.spec, root), path.resolve(nested, NESTED_SPEC));
     } finally {
       rmTmp(root);
     }
@@ -338,6 +385,85 @@ test(
       const config = JSON.parse(loaded.stdout);
       assert.equal(config.spec, NESTED_SPEC);
       assert.equal(config.blocking, true);
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
+
+test('resolveProjectSpec: unloadable .ts fails closed and does not default to e2e/styleproof.spec.ts', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+    fs.mkdirSync(path.join(nested, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'e2e', 'styleproof.spec.ts'), '// decoy default spec\n');
+    assert.throws(
+      () => resolveProjectSpec({ startDir: nested }),
+      (error) => {
+        assert.match(error.message, /styleproof\.config\.ts/);
+        assert.match(error.message, /could not be evaluated|cannot evaluate|sync loader/i);
+        assert.doesNotMatch(error.message, /no StyleProof spec at .*e2e\/styleproof\.spec\.ts/);
+        return true;
+      },
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: missing config from a nested cwd fails closed and lists searched locations', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    const map = spawnSync(process.execPath, [MAP], { cwd: nested, encoding: 'utf8' });
+    assert.equal(map.status, 2, map.stderr + map.stdout);
+    assert.match(map.stderr, /searched/i);
+    assert.match(map.stderr, /styleproof\.config\.ts/);
+    assert.match(map.stderr, /styleproof\.config\.json/);
+    assert.ok(map.stderr.includes(path.join(nested, 'styleproof.config.ts')));
+    assert.ok(map.stderr.includes(path.join(root, 'styleproof.config.json')));
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: unloadable root .ts from a nested cwd fails closed, not the default spec', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+    fs.mkdirSync(path.join(nested, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'e2e', 'styleproof.spec.ts'), '// decoy default spec\n');
+    const map = spawnSync(process.execPath, [MAP], { cwd: nested, encoding: 'utf8' });
+    assert.equal(map.status, 2, map.stderr + map.stdout);
+    assert.match(map.stderr, /styleproof\.config\.ts/);
+    assert.match(map.stderr, /could not be evaluated|could not load|Unknown file extension|Cannot find package/);
+    assert.doesNotMatch(map.stderr, /no StyleProof spec at e2e\/styleproof\.spec\.ts/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test(
+  'styleproof-map: nested cwd uses a loadable root .ts spec, not the default e2e path',
+  { skip: TYPE_STRIPPING_UNAVAILABLE },
+  () => {
+    const { root, nested } = mkRepoTree();
+    try {
+      writeSpec(root);
+      fs.writeFileSync(path.join(root, 'styleproof.config.ts'), LOADABLE_TS);
+      const map = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', MAP], {
+        cwd: nested,
+        encoding: 'utf8',
+      });
+      assert.doesNotMatch(
+        map.stderr,
+        /no StyleProof spec at e2e\/styleproof\.spec\.ts/,
+        'must not soft-fallback to the default spec when a parent .ts config exists',
+      );
+      assert.doesNotMatch(
+        map.stderr,
+        /no StyleProof spec at hud\/tests\/e2e\/styleproof\.spec\.ts/,
+        'must resolve the .ts spec from the config dir, not join it onto the package cwd',
+      );
     } finally {
       rmTmp(root);
     }
