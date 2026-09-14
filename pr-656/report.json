@@ -35,27 +35,27 @@
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
     "incomparableSurfaces": 0,
-    "unprovenSurfaces": 1,
-    "requiredUnprovenSurfaces": 1,
+    "unprovenSurfaces": 0,
+    "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "unproven",
+    "status": "comparable",
     "requireStateIdentity": false,
-    "blocksCertification": true,
+    "blocksCertification": false,
     "counts": {
-      "comparable": 0,
+      "comparable": 1,
       "incomparable": 0,
-      "unproven": 1,
+      "unproven": 0,
       "notRequired": 0,
-      "requiredUnproven": 1,
+      "requiredUnproven": 0,
       "globalRequiredUnproven": 0
     }
   },
   "comparability": [
     {
       "surface": "home@320",
-      "status": "unproven",
+      "status": "comparable",
       "required": true,
-      "reason": "state-identity-missing"
+      "reason": "explicit-state-match"
     }
   ],
   "reportConsistency": {
@@ -82,10 +82,8 @@
   },
   "integrityFailures": [
     {
-      "reason": "duplicate-id",
-      "surfaces": [
-        "home@320"
-      ]
+      "reason": "integrity-mismatch",
+      "surfaces": []
     }
   ],
   "sourceBinding": {
@@ -113,10 +111,10 @@
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "2129c076aa937e22a15386d9c56b274262416ede417109a10d19b80df586d833",
-      "fileCount": 5,
+      "digest": "948558d3b1f410edb94c3eda10c583dd4eecbe5d6f14f6fcf7f454f09e377c2d",
+      "fileCount": 6,
       "mapCount": 1,
-      "byteCount": 1410
+      "byteCount": 1703
     }
   },
   "actionTrustState": "CERTIFICATION_FAILED"
