@@ -112,8 +112,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "1c8b5e788e10a8aa471aae0813c97681ce3c0db5",
-      "observed": "1c8b5e788e10a8aa471aae0813c97681ce3c0db5",
+      "expected": "bb08de43a854d72d6635f597df73c602814707e2",
+      "observed": "bb08de43a854d72d6635f597df73c602814707e2",
       "result": "matched"
     }
   },
@@ -121,14 +121,14 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "ca7304614a3816e67e50d45f7a19e57ae674defa7948654b1c8521ae8f29911a",
+      "digest": "98fe5d3ff700a9e7568ca7c98514e322681da90fdd0ae19eb21f5b63f3b98b24",
       "fileCount": 18,
       "mapCount": 3,
-      "byteCount": 295650
+      "byteCount": 295653
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "a25a572255afd51cecf980df746ae077aa7c2c81c76c728d4c9daaf0f9207171",
+      "digest": "0d08b9cef344a9ba25ca63dbc8b6c8db0b1ec648ed0b277c6eb74b9ff74e7d61",
       "fileCount": 18,
       "mapCount": 3,
       "byteCount": 295650
