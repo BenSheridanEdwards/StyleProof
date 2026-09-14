@@ -325,8 +325,9 @@ function comparabilityTruth(
   };
 }
 
-function dropDeclaredLiveTextGeometry(findings: Finding[], liveText: LiveTextAudit): Finding[] {
-  if (!liveText.declared || liveText.livePaths.length === 0) return findings;
+/** Drop age-driven geometry so declared live/age text is not a style finding. */
+export function dropDeclaredLiveTextGeometry(findings: Finding[], liveText: LiveTextAudit | undefined): Finding[] {
+  if (!liveText?.declared || liveText.livePaths.length === 0) return findings;
   return findings.filter((finding) => {
     if (finding.kind !== 'style') return true;
     if (!isLiveTextGeometryPath(finding.path, liveText.livePaths)) return true;

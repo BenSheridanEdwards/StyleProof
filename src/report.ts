@@ -40,13 +40,7 @@ import {
   type SurfaceComparability,
   type SurfaceDiff,
 } from './diff.js';
-import {
-  isAgeOnlyDrift,
-  isLiveTextChange,
-  isLiveTextGeometryPath,
-  liveTextFreezeError,
-  type LiveTextAudit,
-} from './live-text.js';
+import { isAgeOnlyDrift, isLiveTextChange, liveTextFreezeError, type LiveTextAudit } from './live-text.js';
 import { correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
 import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
 import {
@@ -89,9 +83,9 @@ import {
   countCapturedSurfaceBases,
   classifyChrome,
   assessComparisonTruth,
-  isGeometryOnlyGroup,
   type ComparisonTruth,
 } from './change-groups.js';
+import { dropDeclaredLiveTextGeometry } from './findings-clean.js';
 // Re-export the plain-English summariser so consumers (and tests) reach it
 // through the package's report module rather than a deep path.
 export { describeChange, colorName, tokenIndex, toHex } from './describe.js';
@@ -2858,15 +2852,6 @@ function comparisonForReport(
  * renders nothing for a gating change asks a reviewer to approve evidence
  * that doesn't exist.
  */
-function dropDeclaredLiveTextGeometry(findings: Finding[], liveText: LiveTextAudit | undefined): Finding[] {
-  if (!liveText?.declared || liveText.livePaths.length === 0) return findings;
-  return findings.filter((finding) => {
-    if (finding.kind !== 'style') return true;
-    if (!isLiveTextGeometryPath(finding.path, liveText.livePaths)) return true;
-    return !isGeometryOnlyGroup([finding]);
-  });
-}
-
 function prepareReportSurfaces(
   surfaces: ReturnType<typeof diffStyleMapDirs>['surfaces'],
   comparability: SurfaceComparability[],

@@ -34,6 +34,50 @@ export type LiveTextInput = boolean | { freeze?: boolean; selectors?: string[] }
 const SELECTOR = /^[A-Za-z0-9_.:#[\]="'*\s>+~-]{1,256}$/;
 const MAX_SELECTORS = 32;
 
+function liveTextDescriptors(value: object): PropertyDescriptorMap {
+  try {
+    return Object.getOwnPropertyDescriptors(value);
+  } catch {
+    throw new LiveTextError('declaration could not be read safely');
+  }
+}
+
+function assertLiveTextFields(fields: Array<string | symbol>): void {
+  for (const field of fields) {
+    if (field !== 'freeze' && field !== 'selectors') {
+      throw new LiveTextError('only freeze and selectors are allowed');
+    }
+  }
+}
+
+function readBooleanDataField(descriptors: PropertyDescriptorMap, key: string, message: string): boolean | undefined {
+  if (!Reflect.ownKeys(descriptors).includes(key)) return undefined;
+  const descriptor = descriptors[key];
+  if (!descriptor || !('value' in descriptor) || typeof descriptor.value !== 'boolean') {
+    throw new LiveTextError(message);
+  }
+  return descriptor.value;
+}
+
+function readLiveTextSelectors(descriptors: PropertyDescriptorMap): string[] {
+  if (!Reflect.ownKeys(descriptors).includes('selectors')) return [];
+  const descriptor = descriptors.selectors;
+  if (!descriptor || !('value' in descriptor) || !Array.isArray(descriptor.value)) {
+    throw new LiveTextError('selectors must be an array of CSS selectors');
+  }
+  if (descriptor.value.length > MAX_SELECTORS) {
+    throw new LiveTextError('selectors must be an array of at most 32 CSS selectors');
+  }
+  const selectors: string[] = [];
+  for (const item of descriptor.value) {
+    if (typeof item !== 'string' || !SELECTOR.test(item.trim())) {
+      throw new LiveTextError('each selector must be a 1–256 character CSS selector');
+    }
+    selectors.push(item.trim());
+  }
+  return selectors;
+}
+
 /** Validate and copy a consumer liveText declaration without echoing hostile values. */
 export function validateLiveText(value: unknown): LiveTextDeclaration | undefined {
   if (value === undefined || value === false) return undefined;
@@ -41,48 +85,12 @@ export function validateLiveText(value: unknown): LiveTextDeclaration | undefine
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new LiveTextError('expected true or an object with optional freeze and selectors');
   }
-
-  let descriptors: PropertyDescriptorMap;
-  try {
-    descriptors = Object.getOwnPropertyDescriptors(value);
-  } catch {
-    throw new LiveTextError('declaration could not be read safely');
-  }
-
-  const fields = Reflect.ownKeys(descriptors);
-  for (const field of fields) {
-    if (field !== 'freeze' && field !== 'selectors') {
-      throw new LiveTextError('only freeze and selectors are allowed');
-    }
-  }
-
-  let freeze = false;
-  if (fields.includes('freeze')) {
-    const descriptor = descriptors.freeze;
-    if (!descriptor || !('value' in descriptor) || typeof descriptor.value !== 'boolean') {
-      throw new LiveTextError('freeze must be a boolean');
-    }
-    freeze = descriptor.value;
-  }
-
-  const selectors: string[] = [];
-  if (fields.includes('selectors')) {
-    const descriptor = descriptors.selectors;
-    if (!descriptor || !('value' in descriptor) || !Array.isArray(descriptor.value)) {
-      throw new LiveTextError('selectors must be an array of CSS selectors');
-    }
-    if (descriptor.value.length > MAX_SELECTORS) {
-      throw new LiveTextError('selectors must be an array of at most 32 CSS selectors');
-    }
-    for (const item of descriptor.value) {
-      if (typeof item !== 'string' || !SELECTOR.test(item.trim())) {
-        throw new LiveTextError('each selector must be a 1–256 character CSS selector');
-      }
-      selectors.push(item.trim());
-    }
-  }
-
-  return { freeze, selectors };
+  const descriptors = liveTextDescriptors(value);
+  assertLiveTextFields(Reflect.ownKeys(descriptors));
+  return {
+    freeze: readBooleanDataField(descriptors, 'freeze', 'freeze must be a boolean') ?? false,
+    selectors: readLiveTextSelectors(descriptors),
+  };
 }
 
 export function requireLiveTextCapture(declaration: LiveTextDeclaration | undefined, captureText: boolean): void {
