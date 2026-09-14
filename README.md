@@ -644,8 +644,10 @@ report leads with their verdicts:
   is comparable and can certify. Undeclared legacy pairs stay on the visual-review
   path until you arm the declare gate: add `styleproof.product-state.json`
   (`{"<surface>": "<why>"}`), pass `--legacy-pairs`, or set
-  `productState.requireIdentity: true` / `--require-state-identity`. Armed and
-  **undeclared** → fail closed (`CERTIFICATION_FAILED`). Armed and **declared** →
+  `productState.requireIdentity: true` / `--require-state-identity`. StyleProof's
+  own live dogfood arms this ledger so undeclared `home@*` pairs cannot stay
+  green. Armed and **undeclared** → fail closed (`CERTIFICATION_FAILED`) in the
+  CLI, Action verdict, and PR comment. Armed and **declared** →
   explicit advisory, never a certified green. Details:
   [docs/product-state-comparability.md](docs/product-state-comparability.md).
 

@@ -90,6 +90,12 @@ test('undeclared legacy pairs fail closed when the declare file is armed', () =>
   assert.equal(result.json.certifiesFully, false);
   assert.deepEqual(result.json.legacyPairs.undeclared, ['home@1280']);
   assert.match(result.stdout, /undeclared legacy pair: home@1280/);
+  const audit = JSON.parse(fs.readFileSync(path.join(capture.root, 'styleproof-audit.json'), 'utf8'));
+  assert.equal(
+    audit.trustDecision.finalState,
+    'CERTIFICATION_FAILED',
+    'CLI audit trust state must share the Action verdict for undeclared pairs',
+  );
   rmTmp(capture.root);
 });
 
@@ -181,6 +187,40 @@ test('report CLI fails closed on undeclared pairs and stays advisory when declar
     rmTmp(undeclared.root);
     rmTmp(declared.root);
   }
+});
+
+test('live StyleProof-on-StyleProof declare file covers home@* and fails closed when emptied', () => {
+  const liveFile = path.join(ROOT, 'example/styleproof.product-state.json');
+  assert.ok(fs.existsSync(liveFile), 'example/styleproof.product-state.json is the live dogfood ledger');
+  const capture = fixture();
+  try {
+    const declared = runDiff(capture, [], { STYLEPROOF_PRODUCT_STATE: liveFile });
+    assert.equal(declared.status, 0, declared.stderr || declared.stdout);
+    assert.equal(declared.json.certifiesFully, false);
+    assert.deepEqual(declared.json.legacyPairs.declared, ['home@1280']);
+    assert.deepEqual(declared.json.legacyPairs.undeclared, []);
+
+    const empty = path.join(capture.root, 'legacy-pairs-empty.json');
+    fs.writeFileSync(empty, '{}\n');
+    const blocked = runDiff(capture, [], { STYLEPROOF_PRODUCT_STATE: empty });
+    assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
+    assert.equal(blocked.json.certifiesFully, false);
+    assert.deepEqual(blocked.json.legacyPairs.undeclared, ['home@1280']);
+    const audit = JSON.parse(fs.readFileSync(path.join(capture.root, 'styleproof-audit.json'), 'utf8'));
+    assert.equal(audit.trustDecision.finalState, 'CERTIFICATION_FAILED');
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
+test('styleproof-diff passes legacyPairs into classifyStyleProofVerdict so Action and CLI share one truth', () => {
+  const source = fs.readFileSync(DIFF, 'utf8');
+  assert.match(source, /classifyStyleProofVerdict\(/);
+  assert.match(
+    source,
+    /classifyStyleProofVerdict\(\s*\{[\s\S]*?legacyPairs:\s*legacyPairAudit/,
+    'the CLI verdict receipt must include the legacy-pair audit, not only comparison.blocksCertification',
+  );
 });
 
 test('config productState.requireIdentity arms the same fail-closed path as the flag', () => {

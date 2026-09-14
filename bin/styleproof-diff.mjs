@@ -1111,6 +1111,7 @@ try {
       partialBaseline,
       explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
       integrityFailures,
+      legacyPairs: legacyPairAudit,
       reviewableCounts: truth.reviewableCounts,
       surfaces,
       inventory: inventoryAudit && {

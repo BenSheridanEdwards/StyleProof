@@ -12,6 +12,9 @@ const workflow = fs.readFileSync(workflowPath, 'utf8');
 const actionDogfood = fs.readFileSync(actionDogfoodPath, 'utf8');
 const ci = fs.readFileSync(ciPath, 'utf8');
 
+const configTs = fs.readFileSync(path.join(here, '..', 'styleproof.config.ts'), 'utf8');
+const productStateFile = path.join(here, '..', 'example/styleproof.product-state.json');
+
 test('live dogfood captures declared config.ts surfaces and runs the Action advisory', () => {
   assert.match(workflow, /name: StyleProof dogfood/);
   assert.match(workflow, /styleproof\.config\.ts/);
@@ -58,6 +61,23 @@ test('live dogfood does not replace the synthetic action-dogfood contract suite'
   assert.match(actionDogfood, /Synthetic action dogfood receipt/);
   assert.doesNotMatch(workflow, /action-dogfood-fixtures\.mjs/);
   assert.doesNotMatch(workflow, /report-branch: styleproof-action-dogfood/);
+});
+
+test('live StyleProof-on-StyleProof arms declare-or-fail-closed for home@* pairs', () => {
+  assert.match(configTs, /productState:\s*\{/);
+  assert.match(configTs, /legacyPairs:\s*'example\/styleproof\.product-state\.json'/);
+  assert.ok(fs.existsSync(productStateFile), 'example/styleproof.product-state.json must arm the live ledger');
+  const declared = JSON.parse(fs.readFileSync(productStateFile, 'utf8'));
+  assert.equal(typeof declared.home, 'string');
+  assert.ok(declared.home.trim().length > 0, 'home must be declared with a non-empty reason');
+  assert.match(workflow, /STYLEPROOF_PRODUCT_STATE:\s*example\/styleproof\.product-state\.json/);
+  assert.match(workflow, /declared legacy pair/);
+  assert.match(workflow, /advisory, not certification/);
+  assert.doesNotMatch(
+    workflow,
+    /ledger stays unarmed|does not set `productState\.legacyPairs`/,
+    'live dogfood must not document an unarmed ledger',
+  );
 });
 
 test('hosted required CI does not gate the advisory dogfood path', () => {

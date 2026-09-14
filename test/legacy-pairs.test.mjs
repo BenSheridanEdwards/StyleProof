@@ -10,6 +10,7 @@ import {
   legacyPairsGateArmed,
   readLegacyPairsAckFile,
 } from '../dist/legacy-pairs.js';
+import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
 const legacy = (surface) => ({ surface, status: 'unproven', required: false });
@@ -81,6 +82,86 @@ test('readLegacyPairsAckFile: missing explicit file fails closed; present file d
   } finally {
     rmTmp(dir);
   }
+});
+
+function cleanReceipt(overrides = {}) {
+  return {
+    sourceBinding: { status: 'bound' },
+    coverage: { basis: 'complete' },
+    determinism: { status: 'proven' },
+    confidence: { counts: { inaccessible: 0 } },
+    comparison: { blocksCertification: false },
+    reportConsistency: { ok: true, reason: 'aligned' },
+    statesUncertified: 0,
+    reviewableCounts: { dom: 0, style: 0, state: 0 },
+    surfaces: [],
+    inventory: { added: [], removed: [], unacknowledged: [], staleAcknowledgements: [] },
+    dataResidue: { blocking: 0, unacknowledged: [] },
+    ...overrides,
+  };
+}
+
+const verdictOptions = { gateInventoryRemovals: true, baseCaptureFailed: false, changed: false };
+
+test('classifyStyleProofVerdict: armed undeclared pairs fail closed even if comparison looks clean', () => {
+  const receipt = cleanReceipt({
+    legacyPairs: {
+      armed: true,
+      undeclared: ['home@1280'],
+      declared: [],
+      staleAcknowledgements: [],
+    },
+  });
+  assert.equal(assessCertificationEvidence(receipt).certifies, false);
+  assert.equal(classifyStyleProofVerdict(receipt, verdictOptions).state, 'CERTIFICATION_FAILED');
+  assert.notEqual(
+    classifyStyleProofVerdict(receipt, verdictOptions).state,
+    'NO_REVIEWABLE_STYLE_CHANGES',
+    'undeclared + armed must not soft-green as a clean certify',
+  );
+});
+
+test('classifyStyleProofVerdict: armed stale declarations fail closed', () => {
+  const receipt = cleanReceipt({
+    legacyPairs: {
+      armed: true,
+      undeclared: [],
+      declared: [],
+      staleAcknowledgements: ['pricing'],
+    },
+  });
+  assert.equal(classifyStyleProofVerdict(receipt, verdictOptions).state, 'CERTIFICATION_FAILED');
+});
+
+test('classifyStyleProofVerdict: declared-only and unarmed leftover pairs do not change trust state', () => {
+  assert.equal(
+    classifyStyleProofVerdict(
+      cleanReceipt({
+        legacyPairs: {
+          armed: true,
+          undeclared: [],
+          declared: ['home@1280'],
+          staleAcknowledgements: [],
+        },
+      }),
+      verdictOptions,
+    ).state,
+    'NO_REVIEWABLE_STYLE_CHANGES',
+  );
+  assert.equal(
+    classifyStyleProofVerdict(
+      cleanReceipt({
+        legacyPairs: {
+          armed: false,
+          undeclared: ['home@1280'],
+          declared: [],
+          staleAcknowledgements: [],
+        },
+      }),
+      verdictOptions,
+    ).state,
+    'NO_REVIEWABLE_STYLE_CHANGES',
+  );
 });
 
 test('readLegacyPairsAckFile: rejects an empty reason or unsafe key', () => {

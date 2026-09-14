@@ -97,6 +97,8 @@ jobs:
 
       - id: dogfood
         uses: ./
+        env:
+          STYLEPROOF_PRODUCT_STATE: example/styleproof.product-state.json
         with:
           baseline-dir: ${{ runner.temp }}/styleproof-dogfood/base
           fresh-dir: ${{ runner.temp }}/styleproof-dogfood/head
@@ -105,6 +107,16 @@ jobs:
           report-branch: styleproof-reports
           status-context: 'StyleProof dogfood'
           comment-marker: '<!-- styleproof-dogfood-report -->'
+
+      - name: Assert live declare-or-fail-closed ledger is armed
+        run: |
+          set -euo pipefail
+          test -f example/styleproof.product-state.json
+          grep -F '"home"' example/styleproof.product-state.json
+          grep -E 'declared legacy pair' styleproof-report/report.md
+          grep -F 'advisory, not certification' styleproof-report/report.md
+          grep -F '"armed": true' styleproof-report/report.json
+          grep -E 'home@' styleproof-report/report.json
 
       - name: Assert PR report was published
         env:
@@ -161,7 +173,7 @@ jobs:
 
             const notice = [
               '> [!NOTE]',
-              '> **Live StyleProof-on-StyleProof (advisory).** This report is captured from the surfaces declared in `styleproof.config.ts` (`example/demo`). `fail-on-diff` is false; the check is not part of hosted required CI. The synthetic Action contract suite remains `action-dogfood.yml`.',
+              '> **Live StyleProof-on-StyleProof (advisory).** This report is captured from the surfaces declared in `styleproof.config.ts` (`example/demo`). The product-state ledger (`styleproof.product-state.json` / `productState.legacyPairs`) is armed: declared `home@*` pairs stay advisory; undeclared pairs fail closed. `fail-on-diff` is false; the check is not part of hosted required CI. The synthetic Action contract suite remains `action-dogfood.yml`.',
             ].join('\n');
             const body = comment.body ?? '';
             await github.rest.issues.updateComment({

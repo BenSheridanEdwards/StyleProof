@@ -1394,6 +1394,46 @@ test('composite action binds diff and report receipts to trusted GitHub base and
   assert.match(reportStep[0], /isDeepStrictEqual\(generated\.sourceBinding, diff\.sourceBinding\)/);
 });
 
+test('composite action verdict fails closed on armed undeclared legacy pairs', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-legacy-pairs-'));
+  try {
+    const receipt = certifyingVerdictReceipt({
+      comparison: { blocksCertification: false },
+      legacyPairs: {
+        armed: true,
+        undeclared: ['home@1280'],
+        declared: [],
+        staleAcknowledgements: [],
+      },
+    });
+    assert.equal(
+      classifyStyleProofVerdict(receipt, {
+        gateInventoryRemovals: true,
+        baseCaptureFailed: false,
+        changed: false,
+      }).state,
+      'CERTIFICATION_FAILED',
+    );
+    fs.writeFileSync(path.join(root, 'styleproof-diff.json'), JSON.stringify(receipt));
+    fs.mkdirSync(path.join(root, 'styleproof-report'));
+    fs.writeFileSync(path.join(root, 'styleproof-report', 'report.json'), JSON.stringify(receipt));
+    const script = path.join(root, 'verdict.cjs');
+    const output = path.join(root, 'verdict.json');
+    fs.writeFileSync(script, actionVerdictScript({ baseCaptureFailed: false, changed: false }));
+    const verdict = spawnSync(process.execPath, [script], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_VERDICT_OUTPUT: output },
+    });
+    assert.equal(verdict.status, 0, verdict.stderr || verdict.stdout);
+    const written = JSON.parse(fs.readFileSync(output, 'utf8'));
+    assert.equal(written.state, 'CERTIFICATION_FAILED');
+    assert.notEqual(written.state, 'NO_REVIEWABLE_STYLE_CHANGES');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('composite action makes required product-state identity a closed-set certification gate', () => {
   const diffStep = actionYml.match(/- id: diff[\s\S]*?(?=\n\s{4}#|\n\s{4}- id:)/);
   const reportStep = actionYml.match(/- id: report[\s\S]*?(?=\n\s{4}- id: verdict)/);

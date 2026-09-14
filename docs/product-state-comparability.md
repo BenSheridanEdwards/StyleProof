@@ -48,6 +48,15 @@ StyleProof 6.2 remains the stable migration line. The 6.x-compatible path is opt
 3. Run diff/report with `--require-state-identity`, or set `productState.requireIdentity: true` in `styleproof.config.ts`, or set composite Action input `require-state-identity: true`.
 4. Repair every `unproven` or `incomparable` receipt before treating the run as certifying.
 
+StyleProof-on-StyleProof (this repository) arms that ledger: root
+`styleproof.config.ts` sets `productState.legacyPairs` to
+`example/styleproof.product-state.json` (declares `home`), and
+`.github/workflows/styleproof-dogfood.yml` sets `$STYLEPROOF_PRODUCT_STATE`
+so the live advisory Action cannot stay green over undeclared `home@*` pairs.
+The path is beside the example spec so the synthetic `action-dogfood.yml`
+suite is not auto-armed from the default cwd filename. That suite still
+proves undeclared → `CERTIFICATION_FAILED` and declared → advisory.
+
 To inventory known-legacy pairs **without** claiming identity yet (the large-undeclared-pair case):
 
 1. Add `styleproof.product-state.json` at the repo root:

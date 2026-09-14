@@ -24,6 +24,12 @@ export type CertificationEvidenceReceipt = {
   liveTextFreeze?: { violated?: unknown } | null;
   /** Closed integrity reasons (`connector-partial` / `duplicate-id` / `integrity-mismatch`). */
   integrityFailures?: unknown;
+  /** Legacy product-state pair ledger. Armed + undeclared/stale fails closed. */
+  legacyPairs?: {
+    armed?: unknown;
+    undeclared?: unknown;
+    staleAcknowledgements?: unknown;
+  } | null;
 };
 
 export type CertificationEvidenceDecision = {
@@ -37,6 +43,13 @@ function finiteCount(value: unknown): number {
 
 function entryCount(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
+}
+
+/** Armed undeclared or stale legacy pairs cannot certify, even if comparison looks clean. */
+function legacyPairsBlockCertification(receipt: CertificationEvidenceReceipt): boolean {
+  const pairs = receipt.legacyPairs;
+  if (!pairs || typeof pairs !== 'object' || pairs.armed !== true) return false;
+  return entryCount(pairs.undeclared) > 0 || entryCount(pairs.staleAcknowledgements) > 0;
 }
 
 /** Assess the closed set of evidence that cannot be cleared by visual approval. */
@@ -53,7 +66,8 @@ export function assessCertificationEvidence(receipt: CertificationEvidenceReceip
     !rawOnlyNoReviewable &&
     receipt.liveTextFreeze?.violated !== true &&
     interactionStatesComplete &&
-    parseIntegrityFailures(receipt.integrityFailures).length === 0;
+    parseIntegrityFailures(receipt.integrityFailures).length === 0 &&
+    !legacyPairsBlockCertification(receipt);
   return { certifies, interactionStatesComplete };
 }
 

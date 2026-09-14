@@ -20,7 +20,12 @@ test('root styleproof.config.ts exists, uses defineConfig, and is advisory', () 
   assert.match(source, /blocking:\s*'advisory'/);
   assert.match(source, /requireApproval:\s*false/);
   assert.match(source, /spec:\s*'example\/styleproof\.spec\.ts'/);
+  assert.match(source, /productState:\s*\{/);
+  assert.match(source, /legacyPairs:\s*'example\/styleproof\.product-state\.json'/);
   assert.doesNotMatch(source, /hudPassword|apiToken|password\s*:/);
+  const declared = JSON.parse(fs.readFileSync(path.join(repoRoot, 'example/styleproof.product-state.json'), 'utf8'));
+  assert.equal(typeof declared.home, 'string');
+  assert.ok(declared.home.trim().length > 0);
   const spec = fs.readFileSync(path.join(repoRoot, 'example/styleproof.spec.ts'), 'utf8');
   assert.match(
     spec,
@@ -47,6 +52,7 @@ test('root styleproof.config.ts parses through defineConfig on every supported N
     assert.equal(config.blocking, 'advisory');
     assert.equal(config.requireApproval, false);
     assert.equal(config.spec, 'example/styleproof.spec.ts');
+    assert.equal(config.productState?.legacyPairs, 'example/styleproof.product-state.json');
     assert.equal(config.auth, undefined);
     assert.ok(fs.existsSync(path.join(repoRoot, config.spec)));
   } finally {

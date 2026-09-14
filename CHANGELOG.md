@@ -33,7 +33,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   pairs stay advisory (`certifiesFully: false`). Matching `productState
 {id, revision}` remains the only certifying declare path.
   `productState.requireIdentity` pins `--require-state-identity` in config.
-  Action dogfood proves declare vs undeclared. (#649)
+  Live StyleProof-on-StyleProof arms the ledger (`styleproof.config.ts` +
+  `example/styleproof.product-state.json` + `$STYLEPROOF_PRODUCT_STATE` on
+  `styleproof-dogfood.yml`). `classifyStyleProofVerdict` reads `legacyPairs`
+  so undeclared pairs are `CERTIFICATION_FAILED` for CLI, Action, and
+  comment — not a soft-green `NO_REVIEWABLE_STYLE_CHANGES`. (#649)
 
 - **Coverage config manifest** (`coverage.manifest`): declare expected surfaces via
   an external JSON file instead of programmatic `expected`. The manifest format is
