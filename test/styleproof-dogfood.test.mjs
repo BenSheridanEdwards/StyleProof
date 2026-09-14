@@ -19,6 +19,8 @@ test('live dogfood captures declared config.ts surfaces and runs the Action advi
   assert.match(workflow, /example\/store-dogfood\.playwright\.config\.ts/);
   assert.match(workflow, /--sha "\$HEAD_SHA" --upload/);
   assert.match(workflow, /--sha "\$BASE_SHA" --upload/);
+  assert.match(workflow, /--config "\$BASE_WT\/example\/store-dogfood\.playwright\.config\.ts"/);
+  assert.doesNotMatch(workflow, /ln -sfn/, 'worktree must stay clean so --upload is not refused');
   assert.match(workflow, /uses: \.\//);
   assert.match(workflow, /fail-on-diff:\s*'false'/);
   assert.match(workflow, /mode:\s*'advisory'/);

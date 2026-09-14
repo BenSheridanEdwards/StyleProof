@@ -77,20 +77,18 @@ jobs:
       - name: Capture declared surfaces at the PR base
         run: |
           set -euo pipefail
+          # Capture from the clean head checkout. Do not symlink node_modules/dist
+          # into the worktree: .gitignore is `dist/` / `node_modules/` (directories
+          # only), so those symlinks read as untracked dirt and --upload exits 2.
+          # The worktree Playwright config serves the base commit's example/demo.
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           BASE_WT="$RUNNER_TEMP/styleproof-dogfood-base"
           git worktree add --detach "$BASE_WT" "$BASE_SHA"
-          ln -sfn "$GITHUB_WORKSPACE/node_modules" "$BASE_WT/node_modules"
-          ln -sfn "$GITHUB_WORKSPACE/dist" "$BASE_WT/dist"
-          (
-            cd "$BASE_WT"
-            PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH" \
-              node "$GITHUB_WORKSPACE/bin/styleproof-map.mjs" \
-              --spec example/styleproof.spec.ts \
-              --dir base --base-dir "$MAP_ROOT" \
-              --sha "$BASE_SHA" --upload \
-              -- --config example/store-dogfood.playwright.config.ts
-          )
+          PATH="$PWD/node_modules/.bin:$PATH" node bin/styleproof-map.mjs \
+            --spec example/styleproof.spec.ts \
+            --dir base --base-dir "$MAP_ROOT" \
+            --sha "$BASE_SHA" --upload \
+            -- --config "$BASE_WT/example/store-dogfood.playwright.config.ts"
           git worktree remove --force "$BASE_WT"
 
       - id: dogfood
