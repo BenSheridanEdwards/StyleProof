@@ -794,6 +794,9 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
       residue: 'DATA_RESIDUE_UNACKNOWLEDGED',
       removed: 'INVENTORY_REMOVAL_UNACKNOWLEDGED',
       certfail: 'CERTIFICATION_FAILED',
+      'integrity-repair-connector': 'CERTIFICATION_FAILED',
+      'integrity-repair-duplicate': 'CERTIFICATION_FAILED',
+      'integrity-repair-mismatch': 'CERTIFICATION_FAILED',
     };
     for (const [fixture, expectedState] of Object.entries(expectedStates)) {
       const caseRoot = path.join(root, `${fixture}-case`);
@@ -1128,7 +1131,7 @@ test('composite action maps raw-only report inconsistency to CERTIFICATION_FAILE
   const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
   assert.ok(commentStep, 'PR comment step present');
   assert.match(commentStep[0], /trustState === 'STYLE_REVIEW_REQUIRED'/);
-  assert.match(commentStep[0], /report\/diff consistency|reflow source/i);
+  assert.match(commentStep[0], /formatIntegrityRepairComment|report\/diff consistency|reflow source/i);
 });
 
 test('migration mode: structure-only changes yield STYLE_REVIEW_REQUIRED when changed=true (#567)', () => {

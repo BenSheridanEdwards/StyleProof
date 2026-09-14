@@ -72,6 +72,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `CERTIFICATION_FAILED` error when a freeze was declared but captured ages still
   drift — never a soft-green, never a style approval. Undeclared age-driven geometry
   still reviews as before; real stylesheet changes next to an age still gate.
+- **`CERTIFICATION_FAILED` integrity reasons now ship an adopter-legible repair
+  path.** `connector-partial`, `duplicate-id`, and `integrity-mismatch` stay
+  unapprovable as style. The report, audit trail, and Action comment name what
+  broke, what to fix, and how to verify. Dogfood fixtures reproduce each state.
+  (#650)
 
 - A forced-state capture that uses its exact work allowance on the final state
   is complete. Further required reads still fail closed, and truncation warnings

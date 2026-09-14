@@ -185,6 +185,32 @@ armResidueGate(path.join(root, 'residue-head'));
 writeCapture(path.join(root, 'removed-base'), 'home@320', mapNav(['/a', '/b']), png([240, 240, 240]));
 writeCapture(path.join(root, 'removed-head'), 'home@320', mapNav(['/a']), png([240, 240, 240]));
 
+// Integrity repair dogfood (#650): each pair is otherwise certifying, then one
+// closed integrity reason is planted so the Action must stay CERTIFICATION_FAILED
+// and the report must name what broke / what to fix / how to verify.
+writeCapture(path.join(root, 'integrity-repair-connector-base'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'integrity-repair-connector-head'), 'home@320', map(), png([240, 240, 240]));
+fs.writeFileSync(
+  path.join(root, 'integrity-repair-connector-head', 'styleproof-connector.json'),
+  JSON.stringify({ version: 1, status: 'partial', missing: ['home'] }),
+);
+
+writeCapture(path.join(root, 'integrity-repair-duplicate-base'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'integrity-repair-duplicate-head'), 'home@320', map(), png([240, 240, 240]));
+fs.writeFileSync(
+  path.join(root, 'integrity-repair-duplicate-head', 'home@320.json.gz'),
+  gzipSync(
+    '{"defaults":{},"elements":{"body":{"tag":"body","cls":"","style":{}}},"elements":{"main":{"tag":"main","cls":"","style":{}}},"states":{}}',
+  ),
+);
+
+writeCapture(path.join(root, 'integrity-repair-mismatch-base'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'integrity-repair-mismatch-head'), 'home@320', map(), png([240, 240, 240]));
+fs.writeFileSync(
+  path.join(root, 'integrity-repair-mismatch-head', 'styleproof-integrity.json'),
+  JSON.stringify({ version: 1, claimedDigest: '0'.repeat(64), actualDigest: 'f'.repeat(64) }),
+);
+
 // Certification failure: identical maps, but a side's determinism is unproven —
 // the Action must NOT report NO_REVIEWABLE_STYLE_CHANGES; it certifies nothing and the
 // approval box cannot clear it. Maps match so the ONLY thing under test is that

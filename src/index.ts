@@ -287,6 +287,23 @@ export type {
 } from './config.js';
 
 export {
+  INTEGRITY_FAILURE_REASONS,
+  INTEGRITY_REPAIR_PATHS,
+  CONNECTOR_RECEIPT,
+  INTEGRITY_RECEIPT,
+  SOURCE_BINDING_RECEIPT,
+  isIntegrityFailureReason,
+  integrityRepairPath,
+  integrityReasonsOf,
+  parseIntegrityFailures,
+  formatIntegrityRepairMarkdown,
+  formatIntegrityRepairComment,
+  formatIntegrityStatusDescription,
+  integrityAuditChecks,
+  inspectIntegrityFailures,
+} from './integrity-repair.js';
+export type { IntegrityFailureReason, IntegrityRepairPath, IntegrityFinding } from './integrity-repair.js';
+export {
   AUDIT_SCHEMA_VERSION,
   AUDIT_FILE_NAME,
   createAudit,

@@ -26,6 +26,7 @@ import {
   type SurfaceCaptureFailure,
 } from './map-store.js';
 import { fillRect, type RGB } from './png-util.js';
+import { formatIntegrityRepairMarkdown, inspectIntegrityFailures, type IntegrityFinding } from './integrity-repair.js';
 import {
   diffStyleMapDirs,
   diffContentMaps,
@@ -234,6 +235,8 @@ export type ReportResult = {
    * before the ledger existed — advisory, never a retroactive block.
    */
   confidence: ConfidenceSummary;
+  /** Closed integrity reasons that keep the run CERTIFICATION_FAILED. Empty when none. */
+  integrityFailures: IntegrityFinding[];
   reportMdPath: string;
   reportJsonPath: string;
   /**
@@ -2918,6 +2921,7 @@ function writeReportArtifacts(
   confidence: ConfidenceSummary | null = null,
   gateMode: 'certify' | 'review-gate' | 'migration' | 'advisory' = 'certify',
   liveTextFreeze: { violated: boolean; reason?: string } | null = null,
+  integrityFailures: IntegrityFinding[] = [],
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
@@ -2944,6 +2948,7 @@ function writeReportArtifacts(
         // exact-SHA restore, nearest-ancestor reuse (with proof), or fresh capture.
         ...(baselineProvenance ? { baselineProvenance } : {}),
         ...(liveTextFreeze ? { liveTextFreeze } : {}),
+        ...(integrityFailures.length > 0 ? { integrityFailures } : {}),
       },
       null,
       2,
@@ -3229,8 +3234,10 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // the badge and the machine-readable summary can never disagree.
   const confidenceLedger = resolveBundleConfidence(afterDir);
   const confidence = summarizeConfidence(confidenceLedger);
+  const integrityFailures = inspectIntegrityFailures([beforeDir, afterDir]);
   md.push(...certificationLines(beforeDir, afterDir, { ledger: confidenceLedger, summary: confidence }));
   md.push(...liveTextFreezeLines(liveText));
+  md.push(...formatIntegrityRepairMarkdown(integrityFailures));
   // Baseline provenance (#367): when the run recorded where the base maps came
   // from, say so up front — an ancestor reuse must be visible, never inferred.
   const baselineProvenance = readBaselineProvenance(beforeDir);
@@ -3336,6 +3343,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       : liveText.declared
         ? { violated: false }
         : null,
+    integrityFailures,
   );
   return {
     changedSurfaces: preparedCertified.length - missing.length,
@@ -3349,6 +3357,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baselineFailures,
     partialBaseline: baselineFailures.length > 0,
     confidence,
+    integrityFailures,
     reportMdPath,
     reportJsonPath,
     ...(migrationGallery ? { migrationGallery } : {}),

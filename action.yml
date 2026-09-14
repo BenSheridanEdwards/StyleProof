@@ -549,6 +549,8 @@ runs:
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const { buildReportDelivery } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
+          const { formatIntegrityRepairComment, parseIntegrityFailures } =
+            await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
           const marker = '<!-- styleproof-report -->';
           // `changed` = review required: before/after differences OR new surfaces
@@ -622,10 +624,14 @@ runs:
           const box = useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED'
             ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
             : [];
+          const reportJson = fs.existsSync('styleproof-report/report.json')
+            ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
+            : {};
+          const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
           const trustGuidance = {
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — repair the capture or reflow source; reviewer approval cannot clear this failure._',
+            CERTIFICATION_FAILED: formatIntegrityRepairComment(integrityFailures),
             PARTIAL_BASELINE: '_Base capture is incomplete — repair baseline capture on the base branch; reviewer approval cannot clear missing baseline surfaces._',
             DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; reviewer approval cannot clear this failure._',
           }[trustState];
@@ -681,6 +687,7 @@ runs:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
+          const fs = require('fs');
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const trustState = '${{ steps.verdict.outputs.state }}';
@@ -696,6 +703,12 @@ runs:
             advisoryMode ||
             trustState === 'NO_REVIEWABLE_STYLE_CHANGES' ||
             (trustState === 'STYLE_REVIEW_REQUIRED' && approved);
+          const { formatIntegrityStatusDescription, parseIntegrityFailures } =
+            await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
+          const reportJson = fs.existsSync('styleproof-report/report.json')
+            ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
+            : {};
+          const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
           const descriptions = {
             NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
             STYLE_REVIEW_REQUIRED: approved
@@ -703,7 +716,7 @@ runs:
               : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
-            CERTIFICATION_FAILED: 'Coverage, determinism, or report/diff consistency evidence is incomplete',
+            CERTIFICATION_FAILED: formatIntegrityStatusDescription(integrityFailures),
             PARTIAL_BASELINE: 'Base capture incomplete — repair baseline on the base branch',
             DEGRADED_BASELINE: 'Base capture failed — head-only evidence cannot certify this change',
           };
