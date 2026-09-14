@@ -77,7 +77,7 @@ import {
   legacyPairsGateArmed,
   readLegacyPairsAckFile,
 } from '../dist/legacy-pairs.js';
-import { loadStyleProofConfig } from '../dist/config.js';
+import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
 import { isMapFile } from '../dist/map-store.js';
@@ -425,12 +425,13 @@ for (let i = 0; i < argv.length; i++) {
   } else args.push(argv[i]);
 }
 
-const projectConfig = loadStyleProofConfig();
+const loadedConfig = loadStyleProofConfigWithLocation();
+const projectConfig = loadedConfig.config;
 if (!requireStateIdentity && projectConfig.productState?.requireIdentity === true) {
   requireStateIdentity = true;
 }
 if (legacyPairsPath === undefined && projectConfig.productState?.legacyPairs) {
-  legacyPairsPath = projectConfig.productState.legacyPairs;
+  legacyPairsPath = resolveStyleProofConfigPath(projectConfig.productState.legacyPairs, loadedConfig.configDir);
 }
 
 const sourceShaError = expectedSourceShaFlagsError({

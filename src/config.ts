@@ -901,12 +901,16 @@ export function resolveStyleProofConfigFilePaths(config: StyleProofConfig, confi
   const affected = config.affected
     ? { ...config.affected, graph: resolveOptionalConfigPath(config.affected.graph, configDir) }
     : undefined;
+  const productState = config.productState
+    ? { ...config.productState, legacyPairs: resolveOptionalConfigPath(config.productState.legacyPairs, configDir) }
+    : undefined;
   return {
     ...config,
     spec: resolveOptionalConfigPath(config.spec, configDir),
     ...(crawl ? { crawl } : {}),
     ...(coverage ? { coverage } : {}),
     ...(affected ? { affected } : {}),
+    ...(productState ? { productState } : {}),
   };
 }
 

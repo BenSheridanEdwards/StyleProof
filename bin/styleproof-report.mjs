@@ -27,7 +27,7 @@ import {
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
 import { legacyPairsGateArmed, readLegacyPairsAckFile } from '../dist/legacy-pairs.js';
-import { loadStyleProofConfig } from '../dist/config.js';
+import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
 
 const COMMAND = 'styleproof-report';
 
@@ -145,12 +145,13 @@ for (let i = 0; i < argv.length; i++) {
     process.exit(2);
   } else args.push(a);
 }
-const projectConfig = loadStyleProofConfig();
+const loadedConfig = loadStyleProofConfigWithLocation();
+const projectConfig = loadedConfig.config;
 if (!requireStateIdentity && projectConfig.productState?.requireIdentity === true) {
   requireStateIdentity = true;
 }
 if (legacyPairsPath === undefined && projectConfig.productState?.legacyPairs) {
-  legacyPairsPath = projectConfig.productState.legacyPairs;
+  legacyPairsPath = resolveStyleProofConfigPath(projectConfig.productState.legacyPairs, loadedConfig.configDir);
 }
 let legacyPairDeclarations = {};
 let legacyPairsArmed = false;

@@ -49,8 +49,9 @@ StyleProof 6.2 remains the stable migration line. The 6.x-compatible path is opt
 4. Repair every `unproven` or `incomparable` receipt before treating the run as certifying.
 
 StyleProof-on-StyleProof (this repository) arms that ledger: root
-`styleproof.config.ts` sets `productState.legacyPairs` to
-`example/styleproof.product-state.json` (declares `home`), and
+`styleproof.config.ts` and `styleproof.config.json` set `productState.legacyPairs` to
+`example/styleproof.product-state.json` (declares `home`; resolved from the
+discovered config directory), and
 `.github/workflows/styleproof-dogfood.yml` sets `$STYLEPROOF_PRODUCT_STATE`
 so the live advisory Action cannot stay green over undeclared `home@*` pairs.
 The path is beside the example spec so the synthetic `action-dogfood.yml`

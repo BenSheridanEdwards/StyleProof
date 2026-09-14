@@ -198,6 +198,7 @@ test('resolveStyleProofConfigFilePaths: resolves spec and similar file fields fr
         },
         coverage: { manifest: 'styleproof.surfaces.json' },
         affected: { graph: 'dc.json' },
+        productState: { legacyPairs: 'example/styleproof.product-state.json' },
       },
       root,
     );
@@ -208,6 +209,7 @@ test('resolveStyleProofConfigFilePaths: resolves spec and similar file fields fr
     assert.equal(resolved.crawl.out, path.join(root, 'styleproof.variants.generated.json'));
     assert.equal(resolved.coverage.manifest, path.join(root, 'styleproof.surfaces.json'));
     assert.equal(resolved.affected.graph, path.join(root, 'dc.json'));
+    assert.equal(resolved.productState.legacyPairs, path.join(root, 'example/styleproof.product-state.json'));
   } finally {
     rmTmp(root);
   }

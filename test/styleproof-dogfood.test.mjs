@@ -66,6 +66,8 @@ test('live dogfood does not replace the synthetic action-dogfood contract suite'
 test('live StyleProof-on-StyleProof arms declare-or-fail-closed for home@* pairs', () => {
   assert.match(configTs, /productState:\s*\{/);
   assert.match(configTs, /legacyPairs:\s*'example\/styleproof\.product-state\.json'/);
+  const jsonConfig = JSON.parse(fs.readFileSync(path.join(here, '..', 'styleproof.config.json'), 'utf8'));
+  assert.equal(jsonConfig.productState?.legacyPairs, 'example/styleproof.product-state.json');
   assert.ok(fs.existsSync(productStateFile), 'example/styleproof.product-state.json must arm the live ledger');
   const declared = JSON.parse(fs.readFileSync(productStateFile, 'utf8'));
   assert.equal(typeof declared.home, 'string');

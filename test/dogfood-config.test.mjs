@@ -26,6 +26,8 @@ test('root styleproof.config.ts exists, uses defineConfig, and is advisory', () 
   const declared = JSON.parse(fs.readFileSync(path.join(repoRoot, 'example/styleproof.product-state.json'), 'utf8'));
   assert.equal(typeof declared.home, 'string');
   assert.ok(declared.home.trim().length > 0);
+  const jsonConfig = JSON.parse(fs.readFileSync(path.join(repoRoot, 'styleproof.config.json'), 'utf8'));
+  assert.equal(jsonConfig.productState?.legacyPairs, 'example/styleproof.product-state.json');
   const spec = fs.readFileSync(path.join(repoRoot, 'example/styleproof.spec.ts'), 'utf8');
   assert.match(
     spec,
