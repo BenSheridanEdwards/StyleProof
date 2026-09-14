@@ -87,8 +87,7 @@ try {
       ? specPathForCwd(resolved.spec, process.cwd())
       : (decodeSpecPathEnv() ?? resolved.specDeclared);
   }
-  spec ??= 'e2e/styleproof.spec.ts';
-  if (!path.isAbsolute(spec)) spec = validateRepoRelativeSpecPath(spec);
+  spec = validateRepoRelativeSpecPath(spec ?? 'e2e/styleproof.spec.ts');
 } catch (error) {
   console.error(`styleproof-prepush: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(2);

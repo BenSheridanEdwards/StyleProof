@@ -447,6 +447,17 @@ function readJsonConfigObject(cwd: string): Record<string, unknown> | undefined 
   }
 }
 
+function isUnloadableTypeScriptConfig(filename: string, error: unknown): boolean {
+  if (!filename.endsWith('.ts')) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : '';
+  return (
+    code === 'ERR_UNKNOWN_FILE_EXTENSION' ||
+    message.includes('Unknown file extension') ||
+    message.includes('ERR_UNKNOWN_FILE_EXTENSION')
+  );
+}
+
 /** Load ESM config (.ts, .mjs, or .js) via dynamic import; undefined when it does not exist. */
 async function loadEsmConfig(cwd: string): Promise<Record<string, unknown> | undefined> {
   const found = findEsmConfig(cwd);
@@ -460,6 +471,16 @@ async function loadEsmConfig(cwd: string): Promise<Record<string, unknown> | und
     return plainObject(config, 'the default export');
   } catch (e) {
     if (e instanceof StyleProofConfigError) throw e;
+    if (isUnloadableTypeScriptConfig(found.filename, e)) {
+      // Plain Node cannot `import()` a .ts file. Keep the historical empty-config
+      // fallback so styleproof-init's typed scaffold does not crash CI; JSON in
+      // the same directory still wins as the runtime source.
+      process.stderr.write(
+        `styleproof: ${found.filename} found but this Node runtime cannot evaluate TypeScript config. ` +
+          `Using ${STYLEPROOF_CONFIG_JSON} if present; otherwise continuing without that file.\n`,
+      );
+      return undefined;
+    }
     fail(`could not load — ${e instanceof Error ? e.message : String(e)}`);
   }
 }
@@ -880,8 +901,8 @@ async function parseLoadedConfigAsync(dir: string): Promise<StyleProofConfig> {
 
   if (esmConfig) {
     const record = await loadEsmConfig(dir);
-    if (!record) return {};
-    return parseConfigRecord(record);
+    if (record) return parseConfigRecord(record);
+    if (!hasJson) return {};
   }
 
   if (!hasJson) return {};
