@@ -7,8 +7,8 @@
 - **Failed data request**: ✓ no API failed during capture
 - **Confidence** — ✓ complete (1 captured)
 
-⚠️ **Product-state comparison** — unproven on 3 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.
+⚠️ **Product-state comparison** — 3 declared legacy pair(s) on the record. This is advisory, not certification that both captures reached the same product state.
 
 ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
-<!-- styleproof-receipt head-sha:0dd29a7a48f3f58118f63e98be523604b8b4676f run-id:34884182680 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:6f7cf2785dc1abc0dbc15e90b80997f962b26696 run-id:34886131858 run-attempt:1 -->
