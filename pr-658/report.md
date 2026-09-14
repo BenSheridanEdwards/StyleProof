@@ -1,34 +1,25 @@
 ## 🗺️ StyleProof report
 
 **Certification**
-- **Coverage** — ✓ complete (all 2 registered surface(s) captured)
-- **Determinism** — ✓ proven (base self-checked, head self-checked)
+- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
+- **Determinism** — ⚠ unknown (a capture predates the determinism ledger)
 - **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
-- **Confidence** — ✓ complete (2 captured)
+- **Confidence** — ✓ complete (1 captured)
 
-**Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
+**Product-state comparison** — not required; there are no paired capture obligations.
 
-⚠️ **1 baseline capture failure(s)**: these named surface(s) failed on the base SHA and were omitted from the baseline bundle: `about@auto` at `7ef32718122143b81c1fa1bc1edf296feb40fb99`. The base bundle was produced (`base-capture-failed=false`); this is not a base recapture failure. Repair the named surface(s) on that SHA; do not approve indefinitely. Raw exception details stay private.
-⚠️ **1 head surface(s)** have no base map because a named baseline surface capture failed (not first adoption, not a base recapture failure): `about @ 320`.
-
-
-### Baseline capture failure receipt
-
-- `about@auto` · `capture_failed` · `7ef32718122143b81c1fa1bc1edf296feb40fb99`
-
-_Named surface+SHA above. This is not a base recapture failure (`base-capture-failed=false`)._
-
+🆕 **1 new surface(s)** captured with no baseline to compare: `home @ 320`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
 
 ## One-sided pages, states, or surfaces — review first
 
-### `about@320` · baseline repair needed ⚠️
+### `home@320` · new surface <!-- styleproof-new -->
 
-_about @ 320_
+_home @ 320_
 
-![baseline repair needed — after](crops/about-320-1-new.png)
+![new surface — after](crops/home-320-1-new.png)
 
-<sub>after · about @ 320</sub>
+<sub>after · home @ 320</sub>
 
-_The matching baseline surface capture failed. This is **baseline repair needed**, not first adoption and not a base recapture failure; repair `about@320` on the named SHA in the receipt above._
+_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
 
 <!-- styleproof-receipt head-sha:70d483bc1d5867c8d3308c5fd23e00a1f7c96396 run-id:34887409880 run-attempt:1 -->
