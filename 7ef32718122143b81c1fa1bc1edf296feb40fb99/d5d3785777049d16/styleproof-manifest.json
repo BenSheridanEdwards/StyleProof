@@ -3,14 +3,6 @@
   "packageVersion": "6.4.0",
   "sha": "7ef32718122143b81c1fa1bc1edf296feb40fb99",
   "dirty": false,
-  "dirtyAllow": [
-    "docs/**",
-    ".github/**",
-    ".agents/**",
-    ".claude/**",
-    "CHANGELOG.md",
-    "README.md"
-  ],
   "spec": "example/styleproof.spec.ts",
   "specHash": "55cac9f5a28abd15ff30fc162182eee35db26d01b4bc6a18b666c3d843b7654b",
   "lockfile": "package-lock.json",
@@ -23,5 +15,5 @@
   "screenshots": true,
   "har": false,
   "compatibilityKey": "d5d3785777049d16",
-  "createdAt": "2026-09-14T19:21:24.775Z"
+  "createdAt": "2026-09-14T19:29:05.531Z"
 }
