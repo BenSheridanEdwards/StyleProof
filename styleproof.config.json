@@ -1,0 +1,6 @@
+{
+  "blocking": "advisory",
+  "requireApproval": false,
+  "spec": "example/styleproof.spec.ts",
+  "dirtyAllow": ["docs/**", ".github/**", ".agents/**", ".claude/**", "CHANGELOG.md", "README.md"]
+}

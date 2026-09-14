@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { projectConfigOrExit } from './cli-errors.js';
+import { resolveProjectSpec, specPathForCwd } from './config.js';
 import { DEFAULT_MAP_STORE_BRANCH, DEFAULT_REMOTE } from './map-store.js';
 
 export type CaptureSourceOptions = {
@@ -9,8 +11,10 @@ export type CaptureSourceOptions = {
 
 export function captureSourceDefaults(command: string): CaptureSourceOptions {
   const config = projectConfigOrExit(command);
+  const resolved = resolveProjectSpec({ startDir: process.cwd(), requireSpec: false });
+  const specForCwd = specPathForCwd(resolved.spec, process.cwd());
   return {
-    spec: config.spec ?? 'e2e/styleproof.spec.ts',
+    spec: path.isAbsolute(specForCwd) ? resolved.specDeclared : specForCwd,
     cacheBranch: process.env.STYLEPROOF_CACHE_BRANCH ?? config.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH,
     remote: process.env.STYLEPROOF_REMOTE ?? config.remote ?? DEFAULT_REMOTE,
   };

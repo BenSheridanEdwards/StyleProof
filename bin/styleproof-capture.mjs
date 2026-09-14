@@ -29,7 +29,7 @@ import {
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { selectCrawlLinks, dedupIdentity } from '../dist/crawl.js';
 import { clearCaptureOutput, writeCaptureManifest } from '../dist/map-store.js';
-import { loadStyleProofConfig } from '../dist/config.js';
+import { loadStyleProofConfigWithLocation } from '../dist/config.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { cliSafeLine, crawlCaptureExitCode } from '../dist/crawl-confidence.js';
@@ -125,9 +125,14 @@ try {
   opts = parseCaptureUrlArgs(argv);
   // Config projection: flag > env > styleproof.config.json crawl block.
   // Paths resolve from the repo/config root so head and detached base worktrees agree.
-  const projectConfig = loadStyleProofConfig(process.cwd());
-  const resolveCfg = (filePath) =>
-    !filePath ? '' : path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+  const loadedConfig = loadStyleProofConfigWithLocation(process.cwd());
+  const projectConfig = loadedConfig.config;
+  const resolveCfg = (filePath, configValue) =>
+    !filePath
+      ? ''
+      : path.isAbsolute(filePath)
+        ? filePath
+        : path.resolve(configValue && filePath === configValue ? loadedConfig.configDir : process.cwd(), filePath);
   if (!opts.setupFile) {
     opts.setupFile =
       process.env.STYLEPROOF_SETUP || process.env.STYLEPROOF_CRAWL_SETUP || projectConfig.crawl?.setup || undefined;
@@ -146,9 +151,11 @@ try {
       projectConfig.crawl?.incompleteUiExclude ||
       undefined;
   }
-  if (opts.setupFile) opts.setupFile = resolveCfg(opts.setupFile);
-  if (opts.authBoundaryExcludeFile) opts.authBoundaryExcludeFile = resolveCfg(opts.authBoundaryExcludeFile);
-  if (opts.incompleteUiExcludeFile) opts.incompleteUiExcludeFile = resolveCfg(opts.incompleteUiExcludeFile);
+  if (opts.setupFile) opts.setupFile = resolveCfg(opts.setupFile, projectConfig.crawl?.setup);
+  if (opts.authBoundaryExcludeFile)
+    opts.authBoundaryExcludeFile = resolveCfg(opts.authBoundaryExcludeFile, projectConfig.crawl?.authBoundaryExclude);
+  if (opts.incompleteUiExcludeFile)
+    opts.incompleteUiExcludeFile = resolveCfg(opts.incompleteUiExcludeFile, projectConfig.crawl?.incompleteUiExclude);
   if (opts.setupFile && !fs.existsSync(opts.setupFile)) {
     throw new UsageError(`--setup: cannot read ${opts.setupFile}`);
   }

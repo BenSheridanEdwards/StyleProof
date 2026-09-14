@@ -1,4 +1,4 @@
-import { type StyleProofConfig, loadStyleProofConfig } from './config.js';
+import { type StyleProofConfig, loadStyleProofConfig, missingStyleProofSpecMessage } from './config.js';
 
 export function isHelpArg(arg: string | undefined): boolean {
   return arg === '-h' || arg === '--help';
@@ -48,9 +48,14 @@ export function unknownFlagMessage(command: string, flag: string): string {
   return `${command}: unknown flag: ${flag}\nNext: run ${command} --help to see supported options.`;
 }
 
-export function missingSpecMessage(spec: string): string {
+export function missingSpecMessage(
+  spec: string,
+  searched?: readonly string[],
+  configFile?: string,
+  specDeclared?: string,
+): string {
   return [
-    `styleproof-map: no StyleProof spec at ${spec}`,
+    `styleproof-map: ${missingStyleProofSpecMessage({ spec, specDeclared, configFile, searched })}`,
     'Next: run styleproof-init to scaffold the spec, or pass --spec <path> if your capture spec lives elsewhere.',
   ].join('\n');
 }
