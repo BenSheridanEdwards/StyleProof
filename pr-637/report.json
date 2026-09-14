@@ -51,24 +51,29 @@
   },
   "comparability": [
     {
+      "surface": "about@320",
+      "status": "not-required",
+      "required": false,
+      "reason": "missing-before"
+    },
+    {
       "surface": "home@320",
       "status": "comparable",
       "required": true,
       "reason": "explicit-state-match"
-    },
-    {
-      "surface": "pricing@320",
-      "status": "not-required",
-      "required": false,
-      "reason": "missing-before"
     }
   ],
   "reportConsistency": {
     "ok": true,
     "reason": "aligned"
   },
-  "baselineFailures": [],
-  "partialBaseline": false,
+  "baselineFailures": [
+    {
+      "key": "about@auto",
+      "reason": "capture_failed"
+    }
+  ],
+  "partialBaseline": true,
   "content": {
     "evaluated": false,
     "changes": 0,
@@ -76,13 +81,13 @@
   },
   "surfaces": [
     {
-      "surface": "pricing@320",
+      "surface": "about@320",
       "missing": "before",
-      "isNew": true,
+      "isNew": false,
       "isRemoved": false,
-      "baselineStatus": "new",
-      "classification": "genuinely-new",
-      "image": "crops/pricing-320-1-new.png"
+      "baselineStatus": "capture-failed",
+      "classification": "baseline-repair-debt",
+      "image": "crops/about-320-1-new.png"
     }
   ],
   "confidence": {
@@ -113,18 +118,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "08bd2288301bb823a8a2e6946c7b29e2de1288b53cae8c23ad74898c90eda4f9",
+      "digest": "f6132dcf175faf7b796deab3226d5220aca25f42fb4ff93bcf621ef09abc78f0",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1676
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "46492d0f7d5e41ffb42ca8aeebd59e8cd44185c998f3d666dd14dea64bcb4f10",
+      "digest": "fe2660456d739f3f4951d3a50e401a80cc2fa89a7fe401d822e053ef33c62e67",
       "fileCount": 7,
       "mapCount": 2,
-      "byteCount": 2451
+      "byteCount": 2447
     }
   },
-  "actionTrustState": "STYLE_REVIEW_REQUIRED"
+  "actionTrustState": "PARTIAL_BASELINE"
 }
