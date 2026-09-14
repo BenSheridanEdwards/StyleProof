@@ -33,6 +33,7 @@
     "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
+    "liveTextFreezeViolated": false,
     "incomparableSurfaces": 0,
     "unprovenSurfaces": 0,
     "requiredUnprovenSurfaces": 0,
@@ -72,24 +73,24 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 1,
+      "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 0
+      "captured": 1
     },
-    "completeness": "limited"
+    "completeness": "complete"
   },
   "sourceBinding": {
     "status": "bound",
     "compatibility": "matched",
     "before": {
-      "expected": "0bb3d0d4da78b2b3de90cd95f6aac10ca6735a1e",
-      "observed": "0bb3d0d4da78b2b3de90cd95f6aac10ca6735a1e",
+      "expected": "5974c5b5c1ab118c5316e6cb747edf77363da242",
+      "observed": "5974c5b5c1ab118c5316e6cb747edf77363da242",
       "result": "matched"
     },
     "after": {
-      "expected": "816b078997f719b55b206647a3c0e3089d7f0ace",
-      "observed": "816b078997f719b55b206647a3c0e3089d7f0ace",
+      "expected": "2ad96d9340e8ca4ef66b04c1721550cd90c82ca3",
+      "observed": "2ad96d9340e8ca4ef66b04c1721550cd90c82ca3",
       "result": "matched"
     }
   },
@@ -97,18 +98,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "fb7380c3de666ce711543e7d720f775fabd557c5e0001fba839c14bf78d19942",
+      "digest": "5d466975f041bfb4c34f5daaf0089d77e7e4b4b9b7bfe09e498a4fd68d1c48dc",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "1a7a531dcd5253ee5f07cd957dddd2922510771afc0b49450fb4733e5fabd646",
+      "digest": "96aa6993110c72469ad9620a140263a88bb8aae1d0fa9b3a53c4c26ce65ba2e4",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "CERTIFICATION_FAILED"
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
 }
