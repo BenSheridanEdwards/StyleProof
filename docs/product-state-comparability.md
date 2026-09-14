@@ -55,8 +55,11 @@ discovered config directory), and
 `.github/workflows/styleproof-dogfood.yml` sets `$STYLEPROOF_PRODUCT_STATE`
 so the live advisory Action cannot stay green over undeclared `home@*` pairs.
 The path is beside the example spec so the synthetic `action-dogfood.yml`
-suite is not auto-armed from the default cwd filename. That suite still
-proves undeclared → `CERTIFICATION_FAILED` and declared → advisory.
+suite is not auto-armed from the default cwd filename. That suite sets
+`$STYLEPROOF_PRODUCT_STATE` to `action-dogfood/legacy-pairs-empty.json` so
+upward config discovery cannot inherit the live `home` ledger and
+stale-fail identity-stamped contract maps. It still proves undeclared →
+`CERTIFICATION_FAILED` and declared → advisory.
 
 To inventory known-legacy pairs **without** claiming identity yet (the large-undeclared-pair case):
 

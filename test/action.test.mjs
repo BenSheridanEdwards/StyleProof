@@ -952,6 +952,16 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /action-dogfood\/legacy-undeclared-base/);
   assert.match(dogfoodYml, /STYLEPROOF_PRODUCT_STATE: action-dogfood\/legacy-pairs-declared.json/);
   assert.match(dogfoodYml, /STYLEPROOF_PRODUCT_STATE: action-dogfood\/legacy-pairs-empty.json/);
+  assert.match(
+    dogfoodYml,
+    /action-dogfood:\n(?: {4}.+\n)* {4}env:\n(?: {6}.+\n)* {6}STYLEPROOF_PRODUCT_STATE: action-dogfood\/legacy-pairs-empty\.json\n(?: {6}.+\n)* {4}steps:/,
+    'job-level env must isolate every synthetic Action invocation from the live ledger',
+  );
+  assert.doesNotMatch(
+    dogfoodYml,
+    /STYLEPROOF_PRODUCT_STATE:\s*example\/styleproof\.product-state\.json/,
+    'synthetic action-dogfood must not inherit the live StyleProof-on-StyleProof ledger',
+  );
   assert.match(dogfoodYml, /steps\.legacy-undeclared\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /steps\.legacy-undeclared\.outcome }}' = 'failure'/);
 });

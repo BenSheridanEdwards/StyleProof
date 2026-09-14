@@ -16,6 +16,11 @@ jobs:
   action-dogfood:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    env:
+      # Isolate synthetic fixtures from this repo's live ledger. After upward
+      # config discovery, root productState.legacyPairs would stale-fail
+      # identity-stamped home@* contract maps against example/styleproof.product-state.json.
+      STYLEPROOF_PRODUCT_STATE: action-dogfood/legacy-pairs-empty.json
     steps:
       - uses: actions/checkout@v7
 

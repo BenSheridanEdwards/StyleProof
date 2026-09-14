@@ -9,6 +9,7 @@ import {
   declarationMatches,
   legacyPairsGateArmed,
   readLegacyPairsAckFile,
+  resolveConfiguredLegacyPairsPath,
 } from '../dist/legacy-pairs.js';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
@@ -16,6 +17,18 @@ import { mkTmp, rmTmp } from './helpers.mjs';
 const legacy = (surface) => ({ surface, status: 'unproven', required: false });
 const required = (surface) => ({ surface, status: 'unproven', required: true });
 const comparable = (surface) => ({ surface, status: 'comparable', required: true });
+
+test('resolveConfiguredLegacyPairsPath: flag > env > config; empty env unarms config', () => {
+  const configPath = 'example/styleproof.product-state.json';
+  assert.equal(resolveConfiguredLegacyPairsPath('flag.json', configPath, {}), 'flag.json');
+  assert.equal(
+    resolveConfiguredLegacyPairsPath(undefined, configPath, { STYLEPROOF_PRODUCT_STATE: 'env.json' }),
+    'env.json',
+  );
+  assert.equal(resolveConfiguredLegacyPairsPath(undefined, configPath, { STYLEPROOF_PRODUCT_STATE: '' }), undefined);
+  assert.equal(resolveConfiguredLegacyPairsPath(undefined, configPath, {}), configPath);
+  assert.equal(resolveConfiguredLegacyPairsPath(undefined, undefined, {}), undefined);
+});
 
 test('declarationMatches: surface base covers every width; exact key stays exact', () => {
   assert.equal(declarationMatches('home', 'home@1280'), true);

@@ -61,6 +61,12 @@ test('live dogfood does not replace the synthetic action-dogfood contract suite'
   assert.match(actionDogfood, /Synthetic action dogfood receipt/);
   assert.doesNotMatch(workflow, /action-dogfood-fixtures\.mjs/);
   assert.doesNotMatch(workflow, /report-branch: styleproof-action-dogfood/);
+  assert.match(
+    actionDogfood,
+    /action-dogfood:\n(?: {4}.+\n)* {4}env:\n(?: {6}.+\n)* {6}STYLEPROOF_PRODUCT_STATE: action-dogfood\/legacy-pairs-empty\.json\n(?: {6}.+\n)* {4}steps:/,
+    'synthetic suite must isolate upward-discovered live productState.legacyPairs',
+  );
+  assert.doesNotMatch(actionDogfood, /STYLEPROOF_PRODUCT_STATE:\s*example\/styleproof\.product-state\.json/);
 });
 
 test('live StyleProof-on-StyleProof arms declare-or-fail-closed for home@* pairs', () => {

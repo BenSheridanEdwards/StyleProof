@@ -68,9 +68,31 @@ function parseDeclaredLegacyPairs(raw: unknown, source: string): DeclaredLegacyP
   return declared;
 }
 
+function envLegacyPairsPath(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (!Object.hasOwn(env, 'STYLEPROOF_PRODUCT_STATE')) return undefined;
+  const fromEnv = env.STYLEPROOF_PRODUCT_STATE ?? '';
+  return fromEnv === '' ? undefined : fromEnv;
+}
+
 /** Resolve the declare-file path (flag/env/default). */
 export function resolveLegacyPairsAckPath(explicitPath?: string): string {
-  return path.resolve(explicitPath ?? process.env.STYLEPROOF_PRODUCT_STATE ?? LEGACY_PAIRS_ACK_FILE);
+  return path.resolve(explicitPath || envLegacyPairsPath() || LEGACY_PAIRS_ACK_FILE);
+}
+
+/**
+ * Flag > `$STYLEPROOF_PRODUCT_STATE` > config `productState.legacyPairs`.
+ * An empty env value is an explicit unarm so a discovered config ledger is
+ * not inherited (synthetic contract fixtures must not stale-fail against a
+ * live `home` declaration).
+ */
+export function resolveConfiguredLegacyPairsPath(
+  flagPath: string | undefined,
+  configPath: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (flagPath !== undefined) return flagPath;
+  if (Object.hasOwn(env, 'STYLEPROOF_PRODUCT_STATE')) return envLegacyPairsPath(env);
+  return configPath;
 }
 
 /**
@@ -78,7 +100,7 @@ export function resolveLegacyPairsAckPath(explicitPath?: string): string {
  * the default `styleproof.product-state.json` exists in cwd.
  */
 export function legacyPairsGateArmed(explicitPath?: string): boolean {
-  if (explicitPath || process.env.STYLEPROOF_PRODUCT_STATE) return true;
+  if (explicitPath || envLegacyPairsPath()) return true;
   return fs.existsSync(path.resolve(LEGACY_PAIRS_ACK_FILE));
 }
 
@@ -88,7 +110,7 @@ export function legacyPairsGateArmed(explicitPath?: string): boolean {
  * ledger cannot silently un-declare unknown pairs.
  */
 export function readLegacyPairsAckFile(explicitPath?: string): DeclaredLegacyPairs {
-  const requested = explicitPath ?? process.env.STYLEPROOF_PRODUCT_STATE;
+  const requested = explicitPath || envLegacyPairsPath();
   const filePath = path.resolve(requested ?? LEGACY_PAIRS_ACK_FILE);
   if (!fs.existsSync(filePath)) {
     if (requested) {

@@ -37,7 +37,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof.config.json` `productState.legacyPairs` +
   `example/styleproof.product-state.json` + `$STYLEPROOF_PRODUCT_STATE` on
   `styleproof-dogfood.yml`). The declare-file path resolves from the
-  discovered config directory. `classifyStyleProofVerdict` reads `legacyPairs`
+  discovered config directory. Flag and `$STYLEPROOF_PRODUCT_STATE` override
+  that config path (empty env unarms it) so the synthetic `action-dogfood`
+  suite does not inherit the live `home` ledger and stale-fail
+  identity-stamped fixtures. `classifyStyleProofVerdict` reads `legacyPairs`
   so undeclared pairs are `CERTIFICATION_FAILED` for CLI, Action, and
   comment — not a soft-green `NO_REVIEWABLE_STYLE_CHANGES`. (#649)
 

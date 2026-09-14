@@ -127,6 +127,119 @@ test('explicit productState identity still certifies when the declare gate is ar
   rmTmp(capture.root);
 });
 
+test('$STYLEPROOF_PRODUCT_STATE overrides discovered config productState.legacyPairs', () => {
+  const capture = fixture({ productState: { id: 'home-ready', revision: 'fixture-v1' } });
+  try {
+    fs.writeFileSync(
+      path.join(capture.root, 'live-ledger.json'),
+      `${JSON.stringify({ home: 'live ledger pending identity stamp' }, null, 2)}\n`,
+    );
+    fs.writeFileSync(
+      path.join(capture.root, 'styleproof.config.json'),
+      `${JSON.stringify({ productState: { legacyPairs: 'live-ledger.json' } }, null, 2)}\n`,
+    );
+    fs.writeFileSync(path.join(capture.root, 'empty.json'), '{}\n');
+
+    const inherited = runDiff(capture);
+    assert.equal(inherited.status, 1, inherited.stderr || inherited.stdout);
+    assert.deepEqual(inherited.json.legacyPairs.staleAcknowledgements, ['home']);
+    assert.equal(inherited.json.certifiesFully, false);
+
+    const isolated = runDiff(capture, [], { STYLEPROOF_PRODUCT_STATE: path.join(capture.root, 'empty.json') });
+    assert.equal(isolated.status, 0, isolated.stderr || isolated.stdout);
+    assert.equal(isolated.json.legacyPairs.armed, true);
+    assert.deepEqual(isolated.json.legacyPairs.staleAcknowledgements, []);
+    assert.equal(isolated.json.certifiesFully, true);
+
+    const unarmed = runDiff(capture, [], { STYLEPROOF_PRODUCT_STATE: '' });
+    assert.equal(unarmed.status, 0, unarmed.stderr || unarmed.stdout);
+    assert.equal(unarmed.json.legacyPairs.armed, false);
+    assert.equal(unarmed.json.certifiesFully, true);
+  } finally {
+    rmTmp(capture.root);
+  }
+});
+
+test('synthetic action-dogfood clean fixtures stale-fail when the repo-root live ledger is inherited', () => {
+  const root = mkTmp('styleproof-action-dogfood-live-ledger-');
+  const baseSha = 'a'.repeat(40);
+  const headSha = 'b'.repeat(40);
+  try {
+    const generated = spawnSync(
+      process.execPath,
+      [path.join(ROOT, 'scripts/action-dogfood-fixtures.mjs'), root, baseSha, headSha],
+      { encoding: 'utf8' },
+    );
+    assert.equal(generated.status, 0, generated.stderr);
+    const json = path.join(root, 'inherited-clean.json');
+    const inherited = spawnSync(
+      process.execPath,
+      [
+        DIFF,
+        path.join(root, 'clean-base'),
+        path.join(root, 'clean-head'),
+        '--json',
+        json,
+        '--expected-before-sha',
+        baseSha,
+        '--expected-after-sha',
+        headSha,
+      ],
+      { cwd: ROOT, encoding: 'utf8' },
+    );
+    assert.equal(inherited.status, 1, inherited.stderr || inherited.stdout);
+    assert.match(inherited.stdout, /undeclared or stale legacy product-state pair/);
+    const receipt = JSON.parse(fs.readFileSync(json, 'utf8'));
+    assert.equal(receipt.legacyPairs.armed, true);
+    assert.deepEqual(receipt.legacyPairs.staleAcknowledgements, ['home']);
+    assert.equal(receipt.certifiesFully, false);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('synthetic action-dogfood clean fixtures certify when $STYLEPROOF_PRODUCT_STATE isolates the live ledger', () => {
+  const root = mkTmp('styleproof-action-dogfood-isolated-');
+  const baseSha = 'a'.repeat(40);
+  const headSha = 'b'.repeat(40);
+  try {
+    const generated = spawnSync(
+      process.execPath,
+      [path.join(ROOT, 'scripts/action-dogfood-fixtures.mjs'), root, baseSha, headSha],
+      { encoding: 'utf8' },
+    );
+    assert.equal(generated.status, 0, generated.stderr);
+    const json = path.join(root, 'isolated-clean.json');
+    const isolated = spawnSync(
+      process.execPath,
+      [
+        DIFF,
+        path.join(root, 'clean-base'),
+        path.join(root, 'clean-head'),
+        '--json',
+        json,
+        '--expected-before-sha',
+        baseSha,
+        '--expected-after-sha',
+        headSha,
+      ],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, STYLEPROOF_PRODUCT_STATE: path.join(root, 'legacy-pairs-empty.json') },
+      },
+    );
+    assert.equal(isolated.status, 0, isolated.stderr || isolated.stdout);
+    const receipt = JSON.parse(fs.readFileSync(json, 'utf8'));
+    assert.equal(receipt.legacyPairs.armed, true);
+    assert.deepEqual(receipt.legacyPairs.staleAcknowledgements, []);
+    assert.equal(receipt.certifiesFully, true);
+    assert.doesNotMatch(isolated.stdout, /undeclared or stale legacy product-state pair/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('report CLI fails closed on undeclared pairs and stays advisory when declared', () => {
   const undeclared = fixture();
   const declared = fixture();

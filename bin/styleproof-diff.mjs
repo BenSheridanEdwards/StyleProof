@@ -75,6 +75,7 @@ import {
   applyLegacyPairReceipts,
   auditLegacyPairs,
   legacyPairsGateArmed,
+  resolveConfiguredLegacyPairsPath,
   readLegacyPairsAckFile,
 } from '../dist/legacy-pairs.js';
 import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
@@ -336,7 +337,8 @@ options:
                    declare known-legacy product-state pairs ({"<surface>":"<why>"}).
                    Arms the inventory twin: undeclared unproven pairs fail closed;
                    declared pairs stay advisory and never certify. Default file:
-                   styleproof.product-state.json (or $STYLEPROOF_PRODUCT_STATE).
+                   styleproof.product-state.json. Flag and $STYLEPROOF_PRODUCT_STATE
+                   override config productState.legacyPairs; an empty env unarms it.
   --expected-before-sha <sha>
                    require the before manifest to bind to this trusted full commit SHA
   --expected-after-sha <sha>
@@ -430,9 +432,12 @@ const projectConfig = loadedConfig.config;
 if (!requireStateIdentity && projectConfig.productState?.requireIdentity === true) {
   requireStateIdentity = true;
 }
-if (legacyPairsPath === undefined && projectConfig.productState?.legacyPairs) {
-  legacyPairsPath = resolveStyleProofConfigPath(projectConfig.productState.legacyPairs, loadedConfig.configDir);
-}
+legacyPairsPath = resolveConfiguredLegacyPairsPath(
+  legacyPairsPath,
+  projectConfig.productState?.legacyPairs
+    ? resolveStyleProofConfigPath(projectConfig.productState.legacyPairs, loadedConfig.configDir)
+    : undefined,
+);
 
 const sourceShaError = expectedSourceShaFlagsError({
   beforeProvided: expectedBeforeShaSet,

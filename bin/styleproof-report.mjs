@@ -26,7 +26,11 @@ import {
   manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
-import { legacyPairsGateArmed, readLegacyPairsAckFile } from '../dist/legacy-pairs.js';
+import {
+  legacyPairsGateArmed,
+  readLegacyPairsAckFile,
+  resolveConfiguredLegacyPairsPath,
+} from '../dist/legacy-pairs.js';
 import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
 
 const COMMAND = 'styleproof-report';
@@ -60,6 +64,7 @@ options:
   --require-state-identity require explicit matching product-state identity for every paired surface
   --legacy-pairs <file>    declare known-legacy product-state pairs ({"<surface>":"<why>"}).
                             Undeclared unproven pairs fail closed; declared pairs stay advisory.
+                            Flag and $STYLEPROOF_PRODUCT_STATE override config; empty env unarms it.
   --expected-before-sha <sha> trusted full base commit SHA; must be paired with --expected-after-sha
   --expected-after-sha <sha>  trusted full head commit SHA; must be paired with --expected-before-sha
   --migration              migration showcase mode: structure changes (added/removed elements)
@@ -150,9 +155,12 @@ const projectConfig = loadedConfig.config;
 if (!requireStateIdentity && projectConfig.productState?.requireIdentity === true) {
   requireStateIdentity = true;
 }
-if (legacyPairsPath === undefined && projectConfig.productState?.legacyPairs) {
-  legacyPairsPath = resolveStyleProofConfigPath(projectConfig.productState.legacyPairs, loadedConfig.configDir);
-}
+legacyPairsPath = resolveConfiguredLegacyPairsPath(
+  legacyPairsPath,
+  projectConfig.productState?.legacyPairs
+    ? resolveStyleProofConfigPath(projectConfig.productState.legacyPairs, loadedConfig.configDir)
+    : undefined,
+);
 let legacyPairDeclarations = {};
 let legacyPairsArmed = false;
 try {
