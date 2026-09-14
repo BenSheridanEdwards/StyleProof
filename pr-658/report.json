@@ -73,19 +73,13 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 0,
+      "unproven-determinism": 1,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 1
+      "captured": 0
     },
-    "completeness": "complete"
+    "completeness": "limited"
   },
-  "integrityFailures": [
-    {
-      "reason": "integrity-mismatch",
-      "surfaces": []
-    }
-  ],
   "sourceBinding": {
     "status": "bound",
     "compatibility": "matched",
@@ -104,17 +98,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "eae7ed04dc2b73d8ba18729f747209df8898a66bad778eb3f1cb68efea35c5e1",
+      "digest": "aa7bd1443b62765f9bc12a4099ec82e6bc0f60085769f9e03a4ec60a7150dc48",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1638
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "bab11010a337b20ae8acfd11774f4ec5b897aeae98acc9606dc541a88b7d4a0b",
-      "fileCount": 6,
+      "digest": "1665fd76298e4b584dc91a47cf77ecdeb62e1e4d81225560c9e8b48c3ad408f7",
+      "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1703
+      "byteCount": 1638
     }
   },
   "actionTrustState": "CERTIFICATION_FAILED"
