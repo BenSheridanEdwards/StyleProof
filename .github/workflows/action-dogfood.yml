@@ -106,8 +106,8 @@ jobs:
 
       - name: Assert a ledger-explained missing baseline is PARTIAL_BASELINE
         run: |
-          # #475: its own state, which reviewer approval still cannot clear —
-          # repair the base capture. It is no longer swept into CERTIFICATION_FAILED.
+          # #475 / #651: its own state, which reviewer approval still cannot clear —
+          # named surface+SHA repair on the base bundle, not a recapture failure.
           test '${{ steps.partial-baseline.outcome }}' = 'failure'
           test '${{ steps.partial-baseline.outputs.changed }}' = 'false'
           test '${{ steps.partial-baseline.outputs.trust-state }}' = 'PARTIAL_BASELINE'

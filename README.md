@@ -145,23 +145,23 @@ _Tick **Approve all changes** to turn the **StyleProof** check green — write a
 A StyleProof pull-request comment is a trust state, not a score. Reviewer
 approval can clear only `STYLE_REVIEW_REQUIRED`. Each state appears once.
 
-| State                              | What the comment means                                                               | Approval box                           |
-| ---------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------- |
-| `NO_REVIEWABLE_STYLE_CHANGES`      | Captured computed styles match. Content/structure may still be advisory.             | Hidden. Check is green.                |
-| `STYLE_REVIEW_REQUIRED`            | Reviewable style or new-surface evidence exists.                                     | Shown. One tick signs off this commit. |
-| `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                     | Hidden. Approval cannot clear it.      |
-| `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified.   | Hidden. Approval cannot clear it.      |
-| `CERTIFICATION_FAILED`             | Coverage, determinism, report/diff consistency, or integrity evidence is incomplete. | Hidden. Approval cannot clear it.      |
-| `PARTIAL_BASELINE`                 | The base capture missed registered surfaces.                                         | Hidden. Repair the base branch.        |
-| `DEGRADED_BASELINE`                | The base capture failed. This is a head-only receipt.                                | Hidden. Not a comparison.              |
-| `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                                 | Hidden. Delivery failed.               |
+| State                              | What the comment means                                                                                         | Approval box                               |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `NO_REVIEWABLE_STYLE_CHANGES`      | Captured computed styles match. Content/structure may still be advisory.                                       | Hidden. Check is green.                    |
+| `STYLE_REVIEW_REQUIRED`            | Reviewable style or new-surface evidence exists.                                                               | Shown. One tick signs off this commit.     |
+| `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                                               | Hidden. Approval cannot clear it.          |
+| `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified.                             | Hidden. Approval cannot clear it.          |
+| `CERTIFICATION_FAILED`             | Coverage, determinism, report/diff consistency, or integrity evidence is incomplete (not a recapture failure). | Hidden. Approval cannot clear it.          |
+| `PARTIAL_BASELINE`                 | Named surfaces failed on the listed base SHA (not a recapture failure).                                        | Hidden. Repair those surfaces on that SHA. |
+| `DEGRADED_BASELINE`                | The base capture failed. This is a head-only receipt.                                                          | Hidden. Not a comparison.                  |
+| `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                                                           | Hidden. Delivery failed.                   |
 
 #### Integrity repair (`connector-partial` / `duplicate-id` / `integrity-mismatch`)
 
 These three reasons keep the run at `CERTIFICATION_FAILED`. They are not style
-deltas. Reviewer approval cannot clear them. The report, `styleproof-audit.json`,
-and the pull-request comment each name **what broke**, **what to fix**, and
-**how to verify**.
+deltas and not a base recapture failure. Reviewer approval cannot clear them.
+The report, `styleproof-audit.json`, and the pull-request comment each name
+**what broke**, **what to fix**, and **how to verify**.
 
 | Reason               | What broke                                                                | What to fix                                                                                          | How to verify                                                                          |
 | -------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -1738,7 +1738,7 @@ CLI URL/crawl commands do not expose these options.
 | `status-context`      | `StyleProof`                 | Commit-status name. Must match the approve workflow and branch protection.                                     |
 | `comment-marker`      | `<!-- styleproof-report -->` | HTML comment used to upsert the PR report. Set a distinct value when more than one Action runs on the same PR. |
 
-Outputs include `changed`, `content-changes`, `report-url`, `trust-state`, and `data-residue-keys`. `trust-state` distinguishes a clean style comparison (`NO_REVIEWABLE_STYLE_CHANGES`), style review (`STYLE_REVIEW_REQUIRED`), unapprovable evidence failures, `PARTIAL_BASELINE` (ledger-explained missing baseline surfaces — repair base capture; approval cannot clear), `DEGRADED_BASELINE` (the base capture failed with zero maps, so the receipt is head-only evidence rather than a comparison), and publication failure. `content-changes` is the advisory count rendered when `include-content` is enabled; it never changes `changed` or the gate status. `styleproof-diff --json` carries `explainedMissingBaselineSurfaces` and `partialBaseline` so consumers need not reimplement `@auto` width matching. The action **self-verifies** the publish before exposing `report-url`: it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
+Outputs include `changed`, `content-changes`, `report-url`, `trust-state`, and `data-residue-keys`. `trust-state` distinguishes a clean style comparison (`NO_REVIEWABLE_STYLE_CHANGES`), style review (`STYLE_REVIEW_REQUIRED`), unapprovable evidence failures, `PARTIAL_BASELINE` (named surface+SHA failed on the base bundle — not a recapture failure; approval cannot clear), `DEGRADED_BASELINE` (the base capture failed with zero maps, so the receipt is head-only evidence rather than a comparison), and publication failure. `content-changes` is the advisory count rendered when `include-content` is enabled; it never changes `changed` or the gate status. `styleproof-diff --json` carries `explainedMissingBaselineSurfaces` and `partialBaseline` so consumers need not reimplement `@auto` width matching. The action **self-verifies** the publish before exposing `report-url`: it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
 **Config file `styleproof.config.ts`** (optional, at the repo root) — the one place a project declares its facts. The Action reads the gate-policy keys; every CLI reads the project-default keys as its lowest-precedence layer (explicit flag > environment variable > this file > built-in default). A malformed file or wrongly-typed key fails loudly — config you wrote is never silently dropped:
 

@@ -53,6 +53,7 @@ import {
   manifestlessError,
   manifestlessSide,
   baselineFailureReceipts,
+  honestBaselineCompareAttribution,
   readBaselineProvenance,
   readMapManifest,
   resolveCachedCaptureDirs,
@@ -464,6 +465,7 @@ let residueAudit = null;
 let surfacePaths = new Map();
 let surfaceKeyOf = () => undefined;
 let baselineSurfaceFailures = [];
+let baselineManifestSha;
 let baselineProvenance = null;
 let baseMapCount = 0;
 let liveTextAudit = null;
@@ -499,7 +501,9 @@ try {
   // rule: reading it after the finally deleted a cached/restored dirA always
   // yielded [], so a PARTIAL_BASELINE run silently degraded into approvable
   // greenfield "new surfaces" (exit 3) in cached-map mode.
-  baselineSurfaceFailures = readMapManifest(dirA)?.surfaceCaptureFailures ?? [];
+  const baselineManifest = readMapManifest(dirA);
+  baselineSurfaceFailures = baselineManifest?.surfaceCaptureFailures ?? [];
+  baselineManifestSha = baselineManifest?.sha;
   // Baseline provenance (#367) — same "read while the dirs exist" rule. `null`
   // when the run recorded none (every run before the opt-in ancestor reuse).
   baselineProvenance = readBaselineProvenance(dirA);
@@ -527,16 +531,17 @@ const truth = assessComparisonTruth(surfaces, counts, comparability, {
 });
 const comparison = summarizeComparability(comparability, requireStateIdentity);
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
-const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures);
+const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures, baselineManifestSha);
 const partialBaseline = baselineFailures.length > 0;
+const baselineAttribution = honestBaselineCompareAttribution({
+  baseCaptureFailed: false,
+  receipts: baselineFailures,
+});
 
 function printBaselineSurfaceFailureCallout() {
-  if (!baselineSurfaceFailures.length) return;
-  console.log(
-    `\n⚠ ${baselineSurfaceFailures.length} surface(s) failed during the BASELINE capture and were omitted from the base bundle. ` +
-      'Failure details remain in the local capture manifest and are not echoed from untrusted artifacts.',
-  );
-  console.log('  → Re-run styleproof-map on the base commit (or merge a fix) before approving indefinitely.');
+  if (!baselineFailures.length) return;
+  console.log(`\n⚠ ${baselineFailures.length} baseline capture failure(s): ${baselineAttribution.summary}`);
+  console.log('  Failure details remain in the local capture manifest and are not echoed from untrusted artifacts.');
 }
 
 printBaselineSurfaceFailureCallout();
@@ -621,8 +626,11 @@ function elementLines(findings) {
 function oneSidedSurfaceLine(sd) {
   if (sd.missing === 'after')
     return `\n${sd.surface}: ✗ REMOVED surface — captured only in the before set; the head no longer renders it`;
-  if (surfaceMissingMatchesBaselineFailure(sd.surface, baselineSurfaceFailures))
-    return `\n${sd.surface}: ✗ baseline repair debt — captured only in the after set because baseline capture failed; repair the base branch`;
+  if (surfaceMissingMatchesBaselineFailure(sd.surface, baselineSurfaceFailures)) {
+    const sha = baselineFailures.find((receipt) => receipt.key === sd.surface)?.sha ?? baselineFailures[0]?.sha;
+    const shaLabel = sha ? ` at ${sha}` : '';
+    return `\n${sd.surface}: ✗ baseline repair debt — captured only in the after set because ${sd.surface} failed${shaLabel}; not a base recapture failure — repair that surface on the named SHA`;
+  }
   return `\n${sd.surface}: new surface — captured only in the after set, no baseline to compare; review before baselining`;
 }
 for (const sd of surfaces) {
@@ -947,14 +955,14 @@ if (truth.rawOnlyNoReviewable) {
   console.log(
     '\n⚠ report consistency: raw certification delta(s) have no reviewable rendering — the visual ' +
       'report would show nothing for a gating change. Failing closed as a certification inconsistency ' +
-      '(not STYLE_REVIEW_REQUIRED). Re-run with styleproof-report --include-layout-noise to inspect.',
+      '(not STYLE_REVIEW_REQUIRED, not a base recapture failure). Re-run with styleproof-report --include-layout-noise to inspect.',
   );
 }
 const unverifiedDiagnosticSummary =
   newSurfaces === 0
     ? `0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
     : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
-      ? `${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch`
+      ? `${newSurfaces} surface(s) on head have no base map because a named baseline surface capture failed — not a base recapture failure`
       : `${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`;
 console.log(
   clean
@@ -963,7 +971,7 @@ console.log(
       : newSurfaces === 0
         ? `\n✓ 0 reviewable computed-style changes across ${compared} paired capture(s); content/structure not evaluated`
         : baselineSurfaceFailures.length && greenfieldNewSurfaces === 0
-          ? `\nℹ ${newSurfaces} surface(s) on head have no base map because baseline capture failed — repair the base branch (see callout above)`
+          ? `\nℹ ${newSurfaces} surface(s) on head have no base map because a named baseline surface capture failed — not a base recapture failure (see callout above)`
           : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : comparison.blocksCertification
       ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${confidenceNote}${covNote}${detNote}${pixNote}`
@@ -1082,6 +1090,13 @@ try {
       check: 'reviewable-changes',
       result: 'found',
       detail: `${total} style, ${greenfieldNewSurfaces} new surface(s)`,
+    });
+  }
+  if (baselineFailures.length > 0) {
+    trustReasons.push({
+      check: 'baseline-surface-capture',
+      result: 'failed',
+      detail: baselineAttribution.summary,
     });
   }
 
