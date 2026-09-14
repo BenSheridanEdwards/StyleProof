@@ -53,6 +53,17 @@ function loadConfigAsyncWithTypeStripping(dir) {
   );
 }
 
+/** Node 18/20 reject `--experimental-strip-types`; skip those spawn cases. */
+const TYPE_STRIPPING_UNAVAILABLE = (() => {
+  const probe = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', '-e', '0'], {
+    encoding: 'utf8',
+  });
+  const text = `${probe.stderr ?? ''}${probe.stdout ?? ''}`;
+  return probe.status !== 0 || /bad option|unknown option|is not allowed/i.test(text)
+    ? 'Node does not support --experimental-strip-types'
+    : false;
+})();
+
 /** Isolated git repo so upward walk stops at this root, not the StyleProof checkout. */
 function mkRepoTree() {
   const root = mkTmp('styleproof-config-discover-');
@@ -267,38 +278,71 @@ test('resolveProjectSpec: does not soft-fallback to e2e/styleproof.spec.ts when 
   }
 });
 
-test('loadStyleProofConfigAsync: init .ts scaffold without installed styleproof does not crash under type stripping', () => {
+test('loadStyleProofConfigAsync: init .ts scaffold without installed styleproof does not crash', async () => {
   const { root } = mkRepoTree();
   try {
     fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
-    const loaded = loadConfigAsyncWithTypeStripping(root);
-    assert.equal(
-      loaded.status,
-      0,
-      `typed scaffold must not fail closed when 'styleproof' is unresolved:\n${loaded.stderr}${loaded.stdout}`,
-    );
-    assert.doesNotMatch(loaded.stderr, /could not load/);
-    assert.deepEqual(JSON.parse(loaded.stdout), {});
+    const config = await loadStyleProofConfigAsync(root);
+    assert.deepEqual(config, {});
   } finally {
     rmTmp(root);
   }
 });
 
-test('loadStyleProofConfigAsync: unloadable init .ts still uses sibling JSON (no soft-empty when JSON exists)', () => {
+test(
+  'loadStyleProofConfigAsync: init .ts scaffold without installed styleproof does not crash under type stripping',
+  { skip: TYPE_STRIPPING_UNAVAILABLE },
+  () => {
+    const { root } = mkRepoTree();
+    try {
+      fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+      const loaded = loadConfigAsyncWithTypeStripping(root);
+      assert.equal(
+        loaded.status,
+        0,
+        `typed scaffold must not fail closed when 'styleproof' is unresolved:\n${loaded.stderr}${loaded.stdout}`,
+      );
+      assert.doesNotMatch(loaded.stderr, /could not load/);
+      assert.deepEqual(JSON.parse(loaded.stdout), {});
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
+
+test('loadStyleProofConfigAsync: unloadable init .ts still uses sibling JSON (no soft-empty when JSON exists)', async () => {
   const { root, nested } = mkRepoTree();
   try {
     writeSpec(root);
     writeJsonConfig(root, { spec: NESTED_SPEC, blocking: true });
     fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
-    const loaded = loadConfigAsyncWithTypeStripping(nested);
-    assert.equal(loaded.status, 0, loaded.stderr + loaded.stdout);
-    const config = JSON.parse(loaded.stdout);
+    const config = await loadStyleProofConfigAsync(nested);
     assert.equal(config.spec, NESTED_SPEC);
     assert.equal(config.blocking, true);
   } finally {
     rmTmp(root);
   }
 });
+
+test(
+  'loadStyleProofConfigAsync: unloadable init .ts still uses sibling JSON under type stripping',
+  { skip: TYPE_STRIPPING_UNAVAILABLE },
+  () => {
+    const { root, nested } = mkRepoTree();
+    try {
+      writeSpec(root);
+      writeJsonConfig(root, { spec: NESTED_SPEC, blocking: true });
+      fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+      const loaded = loadConfigAsyncWithTypeStripping(nested);
+      assert.equal(loaded.status, 0, loaded.stderr + loaded.stdout);
+      const config = JSON.parse(loaded.stdout);
+      assert.equal(config.spec, NESTED_SPEC);
+      assert.equal(config.blocking, true);
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
 
 test('loadStyleProofConfigAsync: a .mjs that cannot resolve styleproof still fails closed', async () => {
   const { root } = mkRepoTree();
