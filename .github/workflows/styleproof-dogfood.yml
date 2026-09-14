@@ -129,12 +129,19 @@ jobs:
             sleep $((i * 2))
           done
 
-          map_path="${HEAD_SHA}/styleproof-manifest.json"
+          # Store layout is <sha>/<compatibilityKey>/styleproof-manifest.json
+          # (uploadMapsToStore). The SHA root is a directory listing, not the manifest.
           for i in 1 2 3 4 5; do
-            gh api "repos/${GITHUB_REPOSITORY}/contents/${map_path}?ref=${MAP_BRANCH}" --jq .path | grep -Fx "$map_path" && exit 0
+            compat="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${HEAD_SHA}?ref=${MAP_BRANCH}" --jq 'map(select(.type=="dir"))[0].name // empty' || true)"
+            if [ -n "$compat" ]; then
+              map_path="${HEAD_SHA}/${compat}/styleproof-manifest.json"
+              if gh api "repos/${GITHUB_REPOSITORY}/contents/${map_path}?ref=${MAP_BRANCH}" --jq .path | grep -Fx "$map_path"; then
+                exit 0
+              fi
+            fi
             sleep $((i * 2))
           done
-          echo "StyleProof map bundle missing at ${MAP_BRANCH}/${map_path}" >&2
+          echo "StyleProof map bundle missing at ${MAP_BRANCH}/${HEAD_SHA}/<compatibilityKey>/styleproof-manifest.json" >&2
           exit 1
 
       - name: Label published report as live advisory dogfood

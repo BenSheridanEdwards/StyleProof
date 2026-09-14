@@ -42,6 +42,13 @@ test('live dogfood stays same-repo, writes maps/reports, and publishes a distinc
   assert.match(workflow, /styleproof-reports/);
   assert.match(workflow, /STYLEPROOF_CACHE_BRANCH|styleproof-maps|--upload/);
   assert.match(workflow, /Assert PR report was published/);
+  assert.match(workflow, /compatibilityKey/);
+  assert.match(workflow, /\$\{HEAD_SHA\}\/\$\{compat\}\/styleproof-manifest\.json/);
+  assert.doesNotMatch(
+    workflow,
+    /map_path="\$\{HEAD_SHA\}\/styleproof-manifest\.json"/,
+    'maps live under sha/compatibilityKey, not the SHA root',
+  );
   assert.doesNotMatch(workflow, /<!-- styleproof-report -->/);
 });
 
