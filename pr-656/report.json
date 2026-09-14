@@ -122,13 +122,13 @@
       }
     },
     "before": {
-      "expected": "5116c7f121bb1d669866cfc2c0869b37373443f5",
-      "observed": "5116c7f121bb1d669866cfc2c0869b37373443f5",
+      "expected": "7ef32718122143b81c1fa1bc1edf296feb40fb99",
+      "observed": "7ef32718122143b81c1fa1bc1edf296feb40fb99",
       "result": "matched"
     },
     "after": {
-      "expected": "6f7cf2785dc1abc0dbc15e90b80997f962b26696",
-      "observed": "6f7cf2785dc1abc0dbc15e90b80997f962b26696",
+      "expected": "64d1d80be5436e79cfe56bd21d5f8b9ce800e725",
+      "observed": "64d1d80be5436e79cfe56bd21d5f8b9ce800e725",
       "result": "matched"
     }
   },
@@ -136,17 +136,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "5d03bb549a4fcbd8dd08f027135ab9073aeb59033ae36cf050484319106949d1",
+      "digest": "706f915b0a9271627da61c1d47cbafc3d3252051a6db7ffe17370c9287921ad8",
       "fileCount": 18,
       "mapCount": 3,
-      "byteCount": 295522
+      "byteCount": 295521
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "e56593fefa89a15cee30f52b0c9bb5320702e76275f312d513c3f35859118fb1",
+      "digest": "11e2e5a23225d5238d78da51b4c64f3aa5d2e8f5f4d2d980248ac9f97d292ba6",
       "fileCount": 18,
       "mapCount": 3,
-      "byteCount": 295522
+      "byteCount": 295520
     }
   },
   "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
