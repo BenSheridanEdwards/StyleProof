@@ -1081,7 +1081,7 @@ test('composite action hard-gates partial baseline repair debt', () => {
   const gate = actionYml.match(/- name: Block on partial baseline[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/);
   assert.ok(gate, 'action.yml should fail rather than certify ledger-explained baseline gaps');
   assert.match(gate[0], /verdict\.outputs\.state == 'PARTIAL_BASELINE'/);
-  assert.match(gate[0], /exit 1/);
+  assert.match(gate[0], /process\.exit\(1\)/);
   assert.doesNotMatch(gate[0], /require-approval/, 'visual approval cannot clear partial baseline');
 });
 
@@ -1091,7 +1091,7 @@ test('composite action exposes and hard-gates degraded head-only evidence', () =
   const gate = actionYml.match(/- name: Block on degraded baseline[\s\S]*?(?=\n\s{4}- name:|\n\s{4}- id:|$)/);
   assert.ok(gate, 'action.yml should fail rather than certify a head-only report');
   assert.match(gate[0], /inputs\.base-capture-failed == 'true'/);
-  assert.match(gate[0], /exit 1/);
+  assert.match(gate[0], /process\.exit\(1\)/);
   assert.doesNotMatch(gate[0], /require-approval/, 'visual approval cannot turn degraded evidence into a comparison');
 });
 

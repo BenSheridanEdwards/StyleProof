@@ -77,6 +77,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Action PARTIAL/DEGRADED_BASELINE copy names the real failure.**
+  `PARTIAL_BASELINE` PR-comment, commit-status, and fail-echo strings now
+  interpolate the receipt surface key and SHA instead of pointing at the report
+  only. `DEGRADED_BASELINE` copy claims a base capture/recapture failure only
+  when `base-capture-failed=true`; the head-only path with the flag false does
+  not say the base capture failed. Fail-closed gates are unchanged. (#657)
+
 - **Honest baseline-failure attribution.** When `base-capture-failed=false` and a
   baseline or compare fault occurs, report/audit/Action text names the failing
   **surface and SHA** and no longer implies that a base recapture failed. Public

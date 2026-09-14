@@ -563,6 +563,11 @@ runs:
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
           const { formatIntegrityRepairComment, parseIntegrityFailures } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
+          const {
+            formatPartialBaselineComment,
+            formatDegradedBaselineComment,
+            parseBaselineFailureReceipts,
+          } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`);
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
           const marker = ${{ toJSON(inputs.comment-marker) }};
           if (typeof marker !== 'string' || !/^<!-- [A-Za-z0-9 _.:-]{1,80} -->$/.test(marker)) {
@@ -643,12 +648,14 @@ runs:
             ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
             : {};
           const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
+          const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
+          const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
           const trustGuidance = {
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
             CERTIFICATION_FAILED: formatIntegrityRepairComment(integrityFailures),
-            PARTIAL_BASELINE: '_Named surface(s) failed on the base SHA listed in the report — this is not a base recapture failure. Repair those surfaces on that SHA; reviewer approval cannot clear missing baseline surfaces._',
-            DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; reviewer approval cannot clear this failure._',
+            PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
+            DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
           }[trustState];
           const contentEvaluated = '${{ inputs.include-content }}' === 'true';
           const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
@@ -720,10 +727,17 @@ runs:
             (trustState === 'STYLE_REVIEW_REQUIRED' && approved);
           const { formatIntegrityStatusDescription, parseIntegrityFailures } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
+          const {
+            formatPartialBaselineStatusDescription,
+            formatDegradedBaselineStatusDescription,
+            parseBaselineFailureReceipts,
+          } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`);
           const reportJson = fs.existsSync('styleproof-report/report.json')
             ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
             : {};
           const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
+          const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
+          const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
           const descriptions = {
             NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
             STYLE_REVIEW_REQUIRED: approved
@@ -732,8 +746,8 @@ runs:
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
             CERTIFICATION_FAILED: formatIntegrityStatusDescription(integrityFailures),
-            PARTIAL_BASELINE: 'Named surface failed on listed base SHA — not a base recapture failure',
-            DEGRADED_BASELINE: 'Base capture failed — head-only evidence cannot certify this change',
+            PARTIAL_BASELINE: formatPartialBaselineStatusDescription(baselineFailures),
+            DEGRADED_BASELINE: formatDegradedBaselineStatusDescription(baseCaptureFailed),
           };
           await github.rest.repos.createCommitStatus({
             ...context.repo,
@@ -750,8 +764,13 @@ runs:
       if: inputs.base-capture-failed == 'true'
       shell: bash
       run: |
-        echo 'StyleProof: base capture failed — the published report is head-only degraded evidence, not a base-vs-head certification. Repair the base capture and rerun.' >&2
-        exit 1
+        node --input-type=module <<'NODE'
+        const { formatDegradedBaselineFailEcho } = await import(
+          `${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`
+        );
+        console.error(formatDegradedBaselineFailEcho(true));
+        process.exit(1);
+        NODE
 
     # Partial baseline bundles compare what they can, but ledger-explained missing
     # base surfaces are repair debt — not NO_REVIEWABLE_STYLE_CHANGES and not approvable.
@@ -759,8 +778,17 @@ runs:
       if: steps.verdict.outputs.state == 'PARTIAL_BASELINE'
       shell: bash
       run: |
-        echo 'StyleProof: named surface(s) failed on the base SHA listed in the report — this is not a base recapture failure. Repair those surfaces on that SHA (approval cannot clear this).' >&2
-        exit 1
+        node --input-type=module <<'NODE'
+        import fs from 'node:fs';
+        const { formatPartialBaselineFailEcho, parseBaselineFailureReceipts } = await import(
+          `${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`
+        );
+        const report = fs.existsSync('styleproof-report/report.json')
+          ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
+          : {};
+        console.error(formatPartialBaselineFailEcho(parseBaselineFailureReceipts(report.baselineFailures)));
+        process.exit(1);
+        NODE
 
     # blocking (on by default; opt out with styleproof.config.json "blocking": false): on
     # UNAPPROVED changes/new surfaces, fail the job so the check is red even on a repo
