@@ -53,6 +53,46 @@
       :active
         background-color: rgb(29, 78, 216)    [#1D4ED8 blue-700]
 
+    PRODUCT SEAM (:focus vs :focus-visible)
+      Capture forces :focus and :focus-visible together and stores the delta
+      under the single "focus" layer. The oracle still declares distinct
+      contracts. Unique property values make a wrong-state force fail-closed.
+
+    ELEMENT: .pointer-ring (button) [data-testid="pointer-ring"]
+      RESTING:
+        background-color: rgb(255, 255, 255)
+        color: rgb(15, 23, 42)
+        cursor: pointer
+      :focus (pointer-focus only — no :focus-visible rule)
+        background-color: rgb(219, 234, 254)
+        outline-style: solid
+        outline-color: rgb(37, 99, 235)
+        outline-width: 4px
+        outline-offset: 2px
+
+    ELEMENT: .keyboard-ring (button) [data-testid="keyboard-ring"]
+      RESTING:
+        background-color: rgb(255, 255, 255)
+        color: rgb(15, 23, 42)
+        cursor: pointer
+      :focus-visible (keyboard-focus only — no :focus rule)
+        box-shadow: rgb(234, 179, 8) 0px 0px 0px 4px
+        outline-style: dashed
+        outline-color: rgb(202, 138, 4)
+        outline-width: 5px
+        outline-offset: 6px
+
+    ELEMENT: .dual-ring (button) [data-testid="dual-ring"]
+      RESTING:
+        background-color: rgb(255, 255, 255)
+        color: rgb(15, 23, 42)
+        cursor: pointer
+      :focus (unique signature — must appear when :focus is forced)
+        background-color: rgb(224, 231, 255)
+      :focus-visible (unique signature — must appear when :focus-visible is forced)
+        box-shadow: rgb(251, 191, 36) 0px 0px 0px 4px
+        outline-offset: 8px
+
     ELEMENT: .label-span (span) [data-testid="label"]
       color: rgb(71, 85, 105)               [#475569 gray-600]
       font-size: 14px
@@ -161,6 +201,42 @@
       background-color: rgb(29, 78, 216);
     }
 
+    .pointer-ring,
+    .keyboard-ring,
+    .dual-ring {
+      background-color: rgb(255, 255, 255);
+      color: rgb(15, 23, 42);
+      padding: 8px 16px;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .pointer-ring:focus {
+      background-color: rgb(219, 234, 254);
+      outline-style: solid;
+      outline-color: rgb(37, 99, 235);
+      outline-width: 4px;
+      outline-offset: 2px;
+    }
+
+    .keyboard-ring:focus-visible {
+      box-shadow: 0 0 0 4px rgb(234, 179, 8);
+      outline-style: dashed;
+      outline-color: rgb(202, 138, 4);
+      outline-width: 5px;
+      outline-offset: 6px;
+    }
+
+    .dual-ring:focus {
+      background-color: rgb(224, 231, 255);
+    }
+
+    .dual-ring:focus-visible {
+      box-shadow: 0 0 0 4px rgb(251, 191, 36);
+      outline-offset: 8px;
+    }
+
     .label-span {
       color: rgb(71, 85, 105);
       font-size: 14px;
@@ -224,6 +300,9 @@
     <div class="hero-container" data-testid="hero">
       <button class="cta-button" data-testid="cta">Get Started</button>
       <span class="label-span" data-testid="label">Free trial</span>
+      <button class="pointer-ring" data-testid="pointer-ring" type="button">Pointer focus</button>
+      <button class="keyboard-ring" data-testid="keyboard-ring" type="button">Keyboard focus</button>
+      <button class="dual-ring" data-testid="dual-ring" type="button">Dual focus</button>
     </div>
     <div>
       <input type="text" class="text-input" data-testid="email" name="email" placeholder="Email">

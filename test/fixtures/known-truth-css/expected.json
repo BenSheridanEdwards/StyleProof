@@ -1,5 +1,5 @@
 {
-  "description": "Oracle: exact computed-style values StyleProof MUST reproduce from index.html. Only properties that DIFFER from browser UA defaults are asserted (StyleProof prunes default-matching values). Forced pseudo-states (:hover/:focus/:active) are asserted in expectedStates. Pseudo-elements (::before/::after) are asserted in expectedPseudo.",
+  "description": "Oracle: exact computed-style values StyleProof MUST reproduce from index.html. Only properties that DIFFER from browser UA defaults are asserted (StyleProof prunes default-matching values). Forced pseudo-states (:hover/:focus/:focus-visible/:active) are asserted in expectedStates. :focus-visible contracts are distinct from :focus; capture stores both under the product focus layer. Pseudo-elements (::before/::after) are asserted in expectedPseudo.",
   "byTestId": {
     "hero": {
       "tag": "div",
@@ -46,6 +46,60 @@
         },
         "active": {
           "background-color": "rgb(29, 78, 216)"
+        }
+      }
+    },
+    "pointer-ring": {
+      "tag": "button",
+      "cls": "pointer-ring",
+      "expectedStyles": {
+        "background-color": "rgb(255, 255, 255)",
+        "color": "rgb(15, 23, 42)",
+        "cursor": "pointer"
+      },
+      "expectedStates": {
+        "focus": {
+          "background-color": "rgb(219, 234, 254)",
+          "outline-style": "solid",
+          "outline-color": "rgb(37, 99, 235)",
+          "outline-width": "4px",
+          "outline-offset": "2px"
+        }
+      }
+    },
+    "keyboard-ring": {
+      "tag": "button",
+      "cls": "keyboard-ring",
+      "expectedStyles": {
+        "background-color": "rgb(255, 255, 255)",
+        "color": "rgb(15, 23, 42)",
+        "cursor": "pointer"
+      },
+      "expectedStates": {
+        "focus-visible": {
+          "box-shadow": "rgb(234, 179, 8) 0px 0px 0px 4px",
+          "outline-style": "dashed",
+          "outline-color": "rgb(202, 138, 4)",
+          "outline-width": "5px",
+          "outline-offset": "6px"
+        }
+      }
+    },
+    "dual-ring": {
+      "tag": "button",
+      "cls": "dual-ring",
+      "expectedStyles": {
+        "background-color": "rgb(255, 255, 255)",
+        "color": "rgb(15, 23, 42)",
+        "cursor": "pointer"
+      },
+      "expectedStates": {
+        "focus": {
+          "background-color": "rgb(224, 231, 255)"
+        },
+        "focus-visible": {
+          "box-shadow": "rgb(251, 191, 36) 0px 0px 0px 4px",
+          "outline-offset": "8px"
         }
       }
     },

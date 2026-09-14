@@ -883,6 +883,10 @@ function clearStateBaseline(baselineKey: string): void {
 
 const STATE_SETS: Record<string, string[]> = {
   hover: ['hover'],
+  // Product seam: Chromium CDP can force :focus and :focus-visible independently,
+  // but capture stores one "focus" layer (both pseudos applied together). Known-truth
+  // oracles distinguish the two contracts via unique properties on StyleProof-owned
+  // fixtures (test/fixtures/known-truth-css) rather than a separate map key.
   focus: ['focus', 'focus-visible'],
   active: ['active'],
 };
