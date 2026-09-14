@@ -45,4 +45,10 @@ const SURFACES: Surface[] = [
   // tabs, form errors — anything whose styling you want certified.
 ];
 
-defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
+defineStyleMapCapture({
+  surfaces: SURFACES,
+  // Completeness must be asserted or the Action maps the compare to
+  // CERTIFICATION_FAILED and fails the job even in advisory mode.
+  expected: SURFACES.map((surface) => surface.key),
+  dir: process.env.STYLEMAP_DIR,
+});

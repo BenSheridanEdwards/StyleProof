@@ -21,7 +21,12 @@ test('root styleproof.config.ts exists, uses defineConfig, and is advisory', () 
   assert.match(source, /requireApproval:\s*false/);
   assert.match(source, /spec:\s*'example\/styleproof\.spec\.ts'/);
   assert.doesNotMatch(source, /hudPassword|apiToken|password\s*:/);
-  assert.ok(fs.existsSync(path.join(repoRoot, 'example/styleproof.spec.ts')));
+  const spec = fs.readFileSync(path.join(repoRoot, 'example/styleproof.spec.ts'), 'utf8');
+  assert.match(
+    spec,
+    /expected:\s*SURFACES\.map\(\(surface\) => surface\.key\)/,
+    'example spec must declare expected or advisory dogfood fails as CERTIFICATION_FAILED',
+  );
   assert.ok(fs.existsSync(path.join(repoRoot, 'example/demo/index.html')));
 });
 
