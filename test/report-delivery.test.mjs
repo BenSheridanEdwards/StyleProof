@@ -41,6 +41,7 @@ function actionCommentScript({ url = reportUrl, sha = publicationSha } = {}) {
     ['steps.context.outputs.head-sha', 'c'.repeat(40)],
     ['inputs.include-content', 'false'],
     ['steps.report.outputs.content-changes', '0'],
+    ['inputs.base-capture-failed', 'false'],
   ]);
   let script = match[1]
     .split('\n')
