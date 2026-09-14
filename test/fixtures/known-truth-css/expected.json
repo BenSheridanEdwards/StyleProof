@@ -1,5 +1,5 @@
 {
-  "description": "Oracle: exact computed-style values StyleProof MUST reproduce from index.html. Only properties that DIFFER from browser UA defaults are asserted (StyleProof prunes default-matching values). Forced pseudo-states (:hover/:focus/:active) are asserted in expectedStates.",
+  "description": "Oracle: exact computed-style values StyleProof MUST reproduce from index.html. Only properties that DIFFER from browser UA defaults are asserted (StyleProof prunes default-matching values). Forced pseudo-states (:hover/:focus/:active) are asserted in expectedStates. Pseudo-elements (::before/::after) are asserted in expectedPseudo.",
   "byTestId": {
     "hero": {
       "tag": "div",
@@ -84,6 +84,54 @@
           "border-left-color": "rgb(59, 130, 246)",
           "outline-style": "solid",
           "outline-color": "rgb(191, 219, 254)"
+        }
+      }
+    },
+    "badge": {
+      "tag": "span",
+      "cls": "badge",
+      "expectedStyles": {
+        "display": "inline-block",
+        "position": "relative",
+        "padding-left": "20px",
+        "color": "rgb(34, 197, 94)"
+      },
+      "expectedPseudo": {
+        "::before": {
+          "content": "\"✓\"",
+          "position": "absolute",
+          "left": "0px",
+          "top": "0px",
+          "color": "rgb(34, 197, 94)"
+        }
+      }
+    },
+    "quote": {
+      "tag": "blockquote",
+      "cls": "quote",
+      "expectedStyles": {
+        "position": "relative",
+        "padding-left": "24px",
+        "padding-right": "24px",
+        "font-style": "italic",
+        "color": "rgb(100, 116, 139)"
+      },
+      "expectedPseudo": {
+        "::before": {
+          "content": "\"\u201c\"",
+          "position": "absolute",
+          "left": "0px",
+          "top": "0px",
+          "font-size": "32px",
+          "color": "rgb(203, 213, 225)"
+        },
+        "::after": {
+          "content": "\"\u201d\"",
+          "position": "absolute",
+          "right": "0px",
+          "bottom": "0px",
+          "font-size": "32px",
+          "color": "rgb(203, 213, 225)"
         }
       }
     }
