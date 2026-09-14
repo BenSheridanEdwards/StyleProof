@@ -625,8 +625,9 @@ test(
       const base = git(repo, ['rev-parse', 'HEAD']);
       const initialized = spawnSync(process.execPath, [INIT], { cwd: repo, encoding: 'utf8' });
       assert.equal(initialized.status, 0, initialized.stderr);
-      // Runtime sibling so Node 18/20 (and worktrees that cannot resolve `styleproof`)
-      // load the init keys instead of failing closed on the typed scaffold.
+      // JSON-only config: a discovered .ts must not be shadowed by sibling JSON.
+      // Nodes that cannot evaluate TypeScript keep a JSON file and no .ts.
+      fs.unlinkSync(path.join(repo, 'styleproof.config.ts'));
       fs.writeFileSync(
         path.join(repo, 'styleproof.config.json'),
         JSON.stringify({ blocking: 'advisory', requireApproval: true }, null, 2),

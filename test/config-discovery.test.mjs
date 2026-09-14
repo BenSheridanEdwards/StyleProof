@@ -385,14 +385,7 @@ test('loadStyleProofConfig: sync loader does not soft-empty a found .ts', () => 
   const { root, nested } = mkRepoTree();
   try {
     fs.writeFileSync(path.join(root, 'styleproof.config.ts'), LOADABLE_TS);
-    assert.throws(
-      () => loadStyleProofConfig(nested),
-      (error) => {
-        assert.match(error.message, /styleproof\.config\.ts/);
-        assert.match(error.message, /could not be evaluated|cannot evaluate|sync loader/i);
-        return true;
-      },
-    );
+    assertLoadedOrFailClosedOnDiscoveredTs(nested, NESTED_SPEC);
   } finally {
     rmTmp(root);
   }
@@ -457,22 +450,28 @@ test(
   },
 );
 
-test('loadStyleProofConfigAsync: unloadable init .ts still uses sibling JSON (no soft-empty when JSON exists)', async () => {
+test('loadStyleProofConfigAsync: unloadable init .ts fails closed even when sibling JSON exists', async () => {
   const { root, nested } = mkRepoTree();
   try {
     writeSpec(root);
     writeJsonConfig(root, { spec: NESTED_SPEC, blocking: true });
     fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
-    const config = await loadStyleProofConfigAsync(nested);
-    assert.equal(config.spec, NESTED_SPEC);
-    assert.equal(config.blocking, true);
+    await assert.rejects(
+      () => loadStyleProofConfigAsync(nested),
+      (error) => {
+        assert.match(error.message, /styleproof\.config\.ts/);
+        assert.match(error.message, /could not be evaluated|could not load|Unknown file extension|Cannot find package/);
+        assert.doesNotMatch(error.message, /e2e\/styleproof\.spec\.ts/);
+        return true;
+      },
+    );
   } finally {
     rmTmp(root);
   }
 });
 
 test(
-  'loadStyleProofConfigAsync: unloadable init .ts still uses sibling JSON under type stripping',
+  'loadStyleProofConfigAsync: unloadable init .ts fails closed under type stripping even with sibling JSON',
   { skip: TYPE_STRIPPING_UNAVAILABLE },
   () => {
     const { root, nested } = mkRepoTree();
@@ -481,10 +480,13 @@ test(
       writeJsonConfig(root, { spec: NESTED_SPEC, blocking: true });
       fs.writeFileSync(path.join(root, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
       const loaded = loadConfigAsyncWithTypeStripping(nested);
-      assert.equal(loaded.status, 0, loaded.stderr + loaded.stdout);
-      const config = JSON.parse(loaded.stdout);
-      assert.equal(config.spec, NESTED_SPEC);
-      assert.equal(config.blocking, true);
+      assert.notEqual(loaded.status, 0, loaded.stderr + loaded.stdout);
+      assert.match(`${loaded.stderr}${loaded.stdout}`, /styleproof\.config\.ts/);
+      assert.match(
+        `${loaded.stderr}${loaded.stdout}`,
+        /could not be evaluated|could not load|Cannot find package 'styleproof'/,
+      );
+      assert.doesNotMatch(`${loaded.stdout}`, /"spec"\s*:\s*"e2e\/styleproof\.spec\.ts"/);
     } finally {
       rmTmp(root);
     }

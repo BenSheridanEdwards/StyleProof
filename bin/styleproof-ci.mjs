@@ -30,7 +30,7 @@ import {
   resolveBrowserExecutablePath,
 } from '../dist/browser-preflight.js';
 import {
-  loadStyleProofConfig,
+  loadStyleProofConfigAsync,
   loadStyleProofConfigWithLocationAsync,
   resolveStyleProofConfigPath,
   specPathForCwd,
@@ -597,7 +597,7 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
   }
   try {
     const probeSpec = await specFor(baseProbeCwd);
-    const projectConfigAtBase = loadStyleProofConfig(baseProbeCwd);
+    const projectConfigAtBase = await loadStyleProofConfigAsync(baseProbeCwd);
     const cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfigAtBase.cacheBranch;
     const cacheRemote = process.env.STYLEPROOF_REMOTE ?? projectConfigAtBase.remote;
     const sourceRoots = ancestorBaselineSourceRoots(projectConfigAtBase);

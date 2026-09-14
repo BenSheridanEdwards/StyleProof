@@ -43,7 +43,8 @@ import { spawnSync } from 'node:child_process';
 import { discoverNextRoutes } from '../dist/routes.js';
 import { discoverComponentFiles } from '../dist/components.js';
 import { validateComponentManifest } from '../dist/component-manifest.js';
-import { isHelpArg, projectConfigOrExit, showHelpAndExit } from '../dist/cli-errors.js';
+import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
+import { loadStyleProofConfig } from '../dist/config.js';
 import { decodeSpecPathEnv, encodeSpecPath, SPEC_PATH_ENV, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
 import { detectPackageManager } from './package-manager.mjs';
 
@@ -186,7 +187,17 @@ if (manifestPath) {
   }
 }
 if (!specPathProvided) {
-  const configuredSpec = projectConfigOrExit('styleproof-init').spec;
+  let configuredSpec;
+  try {
+    configuredSpec = loadStyleProofConfig().spec;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+    if (code !== 'STYLEPROOF_UNLOADABLE_TS' && !/could not be evaluated|cannot evaluate/i.test(message)) {
+      console.error(`styleproof-init: ${message}`);
+      process.exit(2);
+    }
+  }
   try {
     specPath = configuredSpec ?? decodeSpecPathEnv() ?? DEFAULT_SPEC_PATH;
   } catch (error) {
@@ -358,18 +369,6 @@ export default defineConfig({
 `;
 
 const STYLEPROOF_CONFIG_PATH = 'styleproof.config.ts';
-const STYLEPROOF_CONFIG_JSON_PATH = 'styleproof.config.json';
-// Sync CLIs (init --check/--upgrade, styleproof-capture, styleproof-affected)
-// cannot evaluate TypeScript. The sibling JSON carries the same runtime keys as
-// the typed scaffold so a found .ts never soft-defaults while remaining unloadable.
-const STYLEPROOF_CONFIG_JSON_TEMPLATE = `${JSON.stringify(
-  {
-    blocking: 'advisory',
-    requireApproval: true,
-  },
-  null,
-  2,
-)}\n`;
 
 const PACKAGE_MANAGERS = {
   npm: {
@@ -1368,21 +1367,6 @@ if (styleproofConfig.wrote) {
   reportUnmanagedGeneratedPath(STYLEPROOF_CONFIG_PATH);
 } else {
   console.log(`${STYLEPROOF_CONFIG_PATH} already exists — left untouched`);
-}
-
-// Sibling JSON: the fail-closed fallback when the typed file cannot be evaluated
-// (sync loader, or Node without type-stripping / a resolvable `styleproof` package).
-const styleproofConfigJson = writeFileSafe(STYLEPROOF_CONFIG_JSON_PATH, STYLEPROOF_CONFIG_JSON_TEMPLATE);
-if (styleproofConfigJson.wrote) {
-  touched.push(STYLEPROOF_CONFIG_JSON_PATH);
-  console.log(
-    `${styleproofConfigJson.exists ? 'overwrote' : 'created'} ${STYLEPROOF_CONFIG_JSON_PATH} (sync-readable sibling of the typed config)`,
-  );
-  wroteSomething = true;
-} else if (styleproofConfigJson.unmanaged) {
-  reportUnmanagedGeneratedPath(STYLEPROOF_CONFIG_JSON_PATH);
-} else {
-  console.log(`${STYLEPROOF_CONFIG_JSON_PATH} already exists — left untouched`);
 }
 
 // Map artifact patterns: current (.styleproof/) + legacy (stylemaps/, __stylemaps__/).
