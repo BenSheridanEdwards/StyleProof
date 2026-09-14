@@ -17,7 +17,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { classifyRestoreExit } from '../dist/ci.js';
-import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { resolveProjectSpec, specPathForCwd } from '../dist/config.js';
 import { DEFAULT_MAP_DIR, DEFAULT_MAP_LABEL } from '../dist/map-store.js';
 import { choosePrePushCaptureSha, parsePrePushRefs } from '../dist/prepush.js';
 import { decodeSpecPathEnv, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
@@ -80,8 +81,14 @@ for (let i = 0; i < argv.length; i++) {
 }
 
 try {
-  if (!specProvided) spec = projectConfigOrExit('styleproof-prepush').spec ?? decodeSpecPathEnv();
-  spec = validateRepoRelativeSpecPath(spec ?? 'e2e/styleproof.spec.ts');
+  if (!specProvided) {
+    const resolved = resolveProjectSpec({ startDir: process.cwd(), requireSpec: false });
+    spec = resolved.configFile
+      ? specPathForCwd(resolved.spec, process.cwd())
+      : (decodeSpecPathEnv() ?? resolved.specDeclared);
+  }
+  spec ??= 'e2e/styleproof.spec.ts';
+  if (!path.isAbsolute(spec)) spec = validateRepoRelativeSpecPath(spec);
 } catch (error) {
   console.error(`styleproof-prepush: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(2);

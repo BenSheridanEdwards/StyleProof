@@ -26,7 +26,7 @@ import {
   type CoverageLedger,
   type DeterminismBasis,
 } from './coverage.js';
-import { loadStyleProofConfig } from './config.js';
+import { loadStyleProofConfigWithLocation } from './config.js';
 import {
   markFatalCaptureFailure,
   writeBrowserBuildSidecar,
@@ -1452,12 +1452,12 @@ export function defineStyleMapCapture(options: DefineOptions): void {
   // loads an external JSON file of expected surface keys; config `coverage.exclude` adds
   // reviewed opt-outs. Union semantics: manifest + programmatic expected (neither can hide
   // a hole); config exclude wins over programmatic exclude for the same key.
-  const config = loadStyleProofConfig();
+  const loaded = loadStyleProofConfigWithLocation();
   const { expected, exclude, strict } = mergeCoverageConfig(
-    config.coverage,
+    loaded.config.coverage,
     programmaticExpected,
     programmaticExclude,
-    process.cwd(),
+    loaded.configDir,
   );
 
   // Coverage guard. Runs in the NORMAL test suite (NOT gated on a capture dir), so

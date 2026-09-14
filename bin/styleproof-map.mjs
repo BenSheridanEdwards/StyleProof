@@ -15,14 +15,19 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  cliErrorMessage,
   isHelpArg,
   missingSpecMessage,
   nonLinuxUploadWarning,
   playwrightMissingMessage,
-  projectConfigOrExit,
   showHelpAndExit,
   unknownFlagMessage,
 } from '../dist/cli-errors.js';
+import {
+  DEFAULT_STYLEPROOF_SPEC,
+  loadStyleProofConfigWithLocationAsync,
+  resolveStyleProofConfigPath,
+} from '../dist/config.js';
 import {
   DEFAULT_MAP_DIR,
   DEFAULT_MAP_LABEL,
@@ -134,8 +139,16 @@ Examples:
 `;
 
 const argv = process.argv.slice(2);
-const projectConfig = projectConfigOrExit('styleproof-map');
-let spec = projectConfig.spec ?? 'e2e/styleproof.spec.ts';
+let loadedConfig;
+try {
+  loadedConfig = await loadStyleProofConfigWithLocationAsync();
+} catch (error) {
+  console.error(`styleproof-map: ${cliErrorMessage(error)}`);
+  process.exit(2);
+}
+const projectConfig = loadedConfig.config;
+let spec = projectConfig.spec ?? DEFAULT_STYLEPROOF_SPEC;
+let specFromFlag = false;
 let dir = process.env.STYLEMAP_DIR ?? DEFAULT_MAP_LABEL;
 let baseDir = process.env.STYLEPROOF_BASEDIR ?? DEFAULT_MAP_DIR;
 let screenshots = process.env.STYLEPROOF_SCREENSHOTS ?? '1';
@@ -154,7 +167,11 @@ const crawlRoutes = [
     .map((route) => route.trim())
     .filter(Boolean),
 ];
-let crawlOut = process.env.STYLEPROOF_CRAWL_OUT ?? projectConfig.crawl?.out ?? 'styleproof.variants.generated.json';
+let crawlOut =
+  process.env.STYLEPROOF_CRAWL_OUT ??
+  (projectConfig.crawl?.out
+    ? resolveStyleProofConfigPath(projectConfig.crawl.out, loadedConfig.configDir)
+    : 'styleproof.variants.generated.json');
 let crawlMaxActions =
   process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ??
   (projectConfig.crawl?.maxActions != null ? String(projectConfig.crawl.maxActions) : '');
@@ -195,9 +212,13 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--') {
     playwrightArgs.push(...argv.slice(i + 1));
     break;
-  } else if (a === '--spec') spec = argv[++i];
-  else if (a.startsWith('--spec=')) spec = a.slice(7);
-  else if (a === '--dir') dir = argv[++i];
+  } else if (a === '--spec') {
+    specFromFlag = true;
+    spec = argv[++i];
+  } else if (a.startsWith('--spec=')) {
+    specFromFlag = true;
+    spec = a.slice(7);
+  } else if (a === '--dir') dir = argv[++i];
   else if (a.startsWith('--dir=')) dir = a.slice(6);
   else if (a === '--base-dir') baseDir = argv[++i];
   else if (a.startsWith('--base-dir=')) baseDir = a.slice(11);
@@ -252,6 +273,7 @@ for (let i = 0; i < argv.length; i++) {
     console.error(unknownFlagMessage('styleproof-map', a));
     process.exit(2);
   } else {
+    specFromFlag = true;
     spec = a;
   }
 }
@@ -272,8 +294,20 @@ if (sha && !/^(?:[0-9a-f]{40}|uncommitted)$/.test(sha)) {
   console.error('styleproof-map: --sha must be a full lowercase 40-hex commit SHA or uncommitted');
   process.exit(2);
 }
+if (specFromFlag) {
+  spec = path.isAbsolute(spec) ? spec : path.resolve(process.cwd(), spec);
+} else {
+  spec = resolveStyleProofConfigPath(spec, loadedConfig.configDir);
+}
 if (!fs.existsSync(spec)) {
-  console.error(missingSpecMessage(spec));
+  console.error(
+    missingSpecMessage(
+      spec,
+      loadedConfig.searched,
+      loadedConfig.configFile ? path.join(loadedConfig.configDir, loadedConfig.configFile) : undefined,
+      specFromFlag ? undefined : (projectConfig.spec ?? DEFAULT_STYLEPROOF_SPEC),
+    ),
+  );
   process.exit(2);
 }
 const crawlEnabled = Boolean(crawlBaseUrl || crawlRoutes.length);

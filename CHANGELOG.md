@@ -103,6 +103,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   unapprovable as style. The report, audit trail, and Action comment name what
   broke, what to fix, and how to verify. Dogfood fixtures reproduce each state.
   (#650)
+- **Config discovery from a package subdirectory.** `styleproof-map`, `styleproof-ci`,
+  and the shared config loader walk upward from cwd to the git root for
+  `styleproof.config.ts` / `.mjs` / `.js` / `.json`. Relative file-path fields
+  (`spec`, crawl setup/exclude/out, `coverage.manifest`, `affected.graph`)
+  resolve from the config file's directory, not `process.cwd()`. A missing spec
+  after that walk fails closed and names every config path searched — no silent
+  fallback to `e2e/styleproof.spec.ts` when a parent config exists. (#645)
 
 - A forced-state capture that uses its exact work allowance on the final state
   is complete. Further required reads still fail closed, and truncation warnings

@@ -272,7 +272,7 @@ export type MergedCoverageConfig = {
   strict: boolean;
 };
 
-/** Load manifest surfaces if path is specified, resolving relative paths from cwd. */
+/** Load manifest surfaces if path is specified, resolving relative paths from `cwd` (the config directory). */
 function loadManifestSurfaces(manifestPath: string | undefined, cwd: string): string[] | undefined {
   if (!manifestPath) return undefined;
   const resolved = path.isAbsolute(manifestPath) ? manifestPath : path.join(cwd, manifestPath);
