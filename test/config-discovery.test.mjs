@@ -281,6 +281,106 @@ test('resolveProjectSpec: does not soft-fallback to e2e/styleproof.spec.ts when 
   }
 });
 
+const INIT_SPECLESS_JSON = { blocking: 'advisory', requireApproval: true };
+
+function assertNoSoftDefaultSpec(errorOrMessage) {
+  const message = errorOrMessage instanceof Error ? errorOrMessage.message : String(errorOrMessage);
+  assert.doesNotMatch(message, /no StyleProof spec at .*e2e\/styleproof\.spec\.ts/);
+  assert.doesNotMatch(message, /declared as "e2e\/styleproof\.spec\.ts"/);
+}
+
+function assertLoadedOrFailClosedOnDiscoveredTs(startDir, expectedSpec) {
+  let loaded;
+  try {
+    loaded = loadStyleProofConfig(startDir);
+  } catch (error) {
+    assert.match(error.message, /styleproof\.config\.ts/);
+    assert.match(error.message, /could not be evaluated|cannot evaluate|sync loader/i);
+    assertNoSoftDefaultSpec(error);
+    return { threw: true };
+  }
+  assert.notDeepEqual(loaded, {});
+  assert.equal(loaded.spec, expectedSpec);
+  return { threw: false, loaded };
+}
+
+test('loadStyleProofConfig / resolveProjectSpec: discovered .ts + spec-less sibling JSON must not soft-default to e2e/styleproof.spec.ts', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    const specAbs = writeSpec(root);
+    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), LOADABLE_TS);
+    writeJsonConfig(root, INIT_SPECLESS_JSON);
+    fs.mkdirSync(path.join(nested, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'e2e', 'styleproof.spec.ts'), '// decoy default spec\n');
+
+    const syncLoad = assertLoadedOrFailClosedOnDiscoveredTs(nested, NESTED_SPEC);
+    if (!syncLoad.threw) {
+      assert.equal(resolveStyleProofConfigPath(syncLoad.loaded.spec, root), specAbs);
+    }
+
+    let resolved;
+    try {
+      resolved = resolveProjectSpec({ startDir: nested, requireSpec: false });
+    } catch (error) {
+      assert.match(error.message, /styleproof\.config\.ts/);
+      assertNoSoftDefaultSpec(error);
+      return;
+    }
+    assert.equal(resolved.configFile, 'styleproof.config.ts');
+    assert.equal(resolved.specDeclared, NESTED_SPEC);
+    assert.equal(resolved.spec, specAbs);
+    assert.notEqual(resolved.spec, path.join(nested, 'e2e', 'styleproof.spec.ts'));
+    assert.notEqual(resolved.specDeclared, 'e2e/styleproof.spec.ts');
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: discovered .ts + spec-less sibling JSON must not soft-default to e2e/styleproof.spec.ts', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    writeSpec(root);
+    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), LOADABLE_TS);
+    writeJsonConfig(root, INIT_SPECLESS_JSON);
+    fs.mkdirSync(path.join(nested, 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'e2e', 'styleproof.spec.ts'), '// decoy default spec\n');
+
+    const map = spawnSync(process.execPath, [MAP], { cwd: nested, encoding: 'utf8' });
+    const text = `${map.stderr}${map.stdout}`;
+    assert.doesNotMatch(
+      text,
+      /no StyleProof spec at e2e\/styleproof\.spec\.ts/,
+      'must not invent the default spec while a parent .ts config exists',
+    );
+    assert.doesNotMatch(text, /declared as "e2e\/styleproof\.spec\.ts"/);
+    if (map.status !== 0) {
+      assert.match(text, /styleproof\.config\.ts/);
+      assert.match(
+        text,
+        /could not be evaluated|could not load|Unknown file extension|Cannot find package|sync loader/i,
+      );
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfig: Action-shaped sync load of .ts + spec-less init JSON must not return empty policy', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    writeSpec(root);
+    fs.writeFileSync(path.join(root, 'styleproof.config.ts'), LOADABLE_TS);
+    writeJsonConfig(root, INIT_SPECLESS_JSON);
+    const syncLoad = assertLoadedOrFailClosedOnDiscoveredTs(nested, NESTED_SPEC);
+    if (!syncLoad.threw) {
+      assert.equal(syncLoad.loaded.blocking, true);
+      assert.notEqual(syncLoad.loaded.requireApproval, true);
+    }
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('loadStyleProofConfig: sync loader does not soft-empty a found .ts', () => {
   const { root, nested } = mkRepoTree();
   try {
