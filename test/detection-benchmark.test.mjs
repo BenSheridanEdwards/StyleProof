@@ -293,7 +293,7 @@ test('rejects unsafe output paths and any pre-existing output directory', () => 
     assert.throws(() => resolveNewBenchmarkOutput(root, 'docs/proof/issue-447/link/run'), /symbolic link/);
     assert.equal(
       resolveNewBenchmarkOutput(root, 'docs/proof/issue-447/new-run'),
-      path.join(root, 'docs/proof/issue-447/new-run'),
+      path.join(fs.realpathSync(root), 'docs/proof/issue-447/new-run'),
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
