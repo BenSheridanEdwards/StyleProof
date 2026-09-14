@@ -8,14 +8,6 @@ const unsupportedStateTest = {
   title: 'non-Chromium capture persists unsupported forced-state evidence',
 };
 
-// Quarantined test (#593): docs-only detection flaky on CI shard 1/3
-const quarantinedTests = [
-  {
-    file: 'test/cli-flow.e2e.spec.ts',
-    title: 'pre-push hook dogfood: capture→publish→docs-skip→fresh-clone restore by SHA',
-  },
-];
-
 function reportTests(report) {
   assert.deepEqual(report.errors, [], 'browser report contains errors');
   const tests = [];
@@ -67,9 +59,8 @@ export function verifyE2eShards(expectedReport, shardReports, receipts, shardCou
         test.file === unsupportedStateTest.file &&
         test.title === unsupportedStateTest.title &&
         test.projectName === 'chromium';
-      const isQuarantined = quarantinedTests.some((q) => test.file === q.file && test.title === q.title);
       assert.equal(test.results.length, 1, `missing or retried result: ${test.id}`);
-      if (isAllowedChromiumExclusion || isQuarantined) {
+      if (isAllowedChromiumExclusion) {
         assert.equal(test.expectedStatus, 'skipped', `invalid declared exclusion: ${test.id}`);
         assert.equal(test.status, 'skipped', `invalid declared exclusion outcome: ${test.id}`);
         assert.equal(test.results[0].status, 'skipped', `invalid declared exclusion result: ${test.id}`);
@@ -102,8 +93,7 @@ export function verifyE2eShards(expectedReport, shardReports, receipts, shardCou
   for (const [stateKey, hash] of Object.entries(mapHashes)) {
     assert.match(hash, /^[a-f0-9]{64}$/, `invalid oracle map hash for ${stateKey}`);
   }
-  const expectedSkipped = 1 + quarantinedTests.length; // Chromium exclusion + quarantined tests
-  assert.equal(skipped, expectedSkipped, `expected ${expectedSkipped} skipped tests (exclusions + quarantine)`);
+  assert.equal(skipped, 1, 'expected only the Chromium unsupported-state exclusion to be skipped');
   return {
     shards: shardCount,
     collected: expected.length,

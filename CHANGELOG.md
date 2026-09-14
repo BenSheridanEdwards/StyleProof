@@ -60,6 +60,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   is complete. Further required reads still fail closed, and truncation warnings
   name both the document and aggregate limits.
 
+- `styleproof-init` now adds `styleproof-audit.json` to the consumer `.gitignore`,
+  so machine audit output written by the pre-push hook can no longer turn a
+  docs-only commit into a render-affecting capture; the quarantined pre-push
+  dogfood E2E is restored. (#593)
+
 ## [6.4.0] - 2026-09-10
 
 > **StyleProof 6.4.0: Migration Mode**
