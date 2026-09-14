@@ -115,7 +115,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `styleproof` package), the loader fails closed and names the path and reason
   unless a sibling JSON exists and loads as the real config. It never returns
   `{}` or the default `e2e/styleproof.spec.ts` while that file was found. A
-  `.mjs` / `.js` that cannot resolve the package still fails closed. (#645)
+  `.mjs` / `.js` that cannot resolve the package still fails closed.
+  `styleproof-init` writes that sibling `styleproof.config.json` with the same
+  runtime keys as the typed scaffold so `--check` / `--upgrade` and other sync
+  CLIs can load the found config. (#645)
 
 - A forced-state capture that uses its exact work allowance on the final state
   is complete. Further required reads still fail closed, and truncation warnings

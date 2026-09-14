@@ -1525,7 +1525,7 @@ test('styleproof-init: summary names exactly the files it wrote and leaves packa
     // The summary enumerates only the files init actually wrote…
     assert.match(
       res.stdout,
-      /styleproof-init wrote only: e2e\/styleproof\.spec\.ts, playwright\.styleproof\.config\.ts/,
+      /styleproof-init wrote only: e2e\/styleproof\.spec\.ts, playwright\.styleproof\.config\.ts, styleproof\.config\.ts, styleproof\.config\.json/,
     );
     assert.match(res.stdout, /\.github\/workflows\/styleproof\.yml/);
     // …and states plainly that it did NOT touch package.json / the lockfile.
@@ -1562,6 +1562,22 @@ test('styleproof-init: scaffolds styleproof.config.ts with blocking: advisory by
     assert.match(configContent, /blocking: 'advisory'/);
     assert.match(configContent, /requireApproval: true/);
     assert.match(res.stdout, /created styleproof\.config\.ts \(typed config with defineConfig\(\)\)/);
+    const json = JSON.parse(readFile(root, 'styleproof.config.json'));
+    assert.deepEqual(json, { blocking: 'advisory', requireApproval: true });
+    assert.match(res.stdout, /created styleproof\.config\.json \(sync-readable sibling of the typed config\)/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: --check without --dir uses the sibling JSON after a typed scaffold', () => {
+  const root = mkTmp();
+  try {
+    assert.equal(runInit(root, ['--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    const checked = runInit(root, ['--check']);
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.match(checked.stdout, /all machine-owned files match/);
+    assert.doesNotMatch(checked.stderr, /could not be evaluated/);
   } finally {
     rmTmp(root);
   }

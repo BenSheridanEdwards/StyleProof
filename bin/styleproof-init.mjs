@@ -358,6 +358,18 @@ export default defineConfig({
 `;
 
 const STYLEPROOF_CONFIG_PATH = 'styleproof.config.ts';
+const STYLEPROOF_CONFIG_JSON_PATH = 'styleproof.config.json';
+// Sync CLIs (init --check/--upgrade, styleproof-capture, styleproof-affected)
+// cannot evaluate TypeScript. The sibling JSON carries the same runtime keys as
+// the typed scaffold so a found .ts never soft-defaults while remaining unloadable.
+const STYLEPROOF_CONFIG_JSON_TEMPLATE = `${JSON.stringify(
+  {
+    blocking: 'advisory',
+    requireApproval: true,
+  },
+  null,
+  2,
+)}\n`;
 
 const PACKAGE_MANAGERS = {
   npm: {
@@ -1356,6 +1368,21 @@ if (styleproofConfig.wrote) {
   reportUnmanagedGeneratedPath(STYLEPROOF_CONFIG_PATH);
 } else {
   console.log(`${STYLEPROOF_CONFIG_PATH} already exists — left untouched`);
+}
+
+// Sibling JSON: the fail-closed fallback when the typed file cannot be evaluated
+// (sync loader, or Node without type-stripping / a resolvable `styleproof` package).
+const styleproofConfigJson = writeFileSafe(STYLEPROOF_CONFIG_JSON_PATH, STYLEPROOF_CONFIG_JSON_TEMPLATE);
+if (styleproofConfigJson.wrote) {
+  touched.push(STYLEPROOF_CONFIG_JSON_PATH);
+  console.log(
+    `${styleproofConfigJson.exists ? 'overwrote' : 'created'} ${STYLEPROOF_CONFIG_JSON_PATH} (sync-readable sibling of the typed config)`,
+  );
+  wroteSomething = true;
+} else if (styleproofConfigJson.unmanaged) {
+  reportUnmanagedGeneratedPath(STYLEPROOF_CONFIG_JSON_PATH);
+} else {
+  console.log(`${STYLEPROOF_CONFIG_JSON_PATH} already exists — left untouched`);
 }
 
 // Map artifact patterns: current (.styleproof/) + legacy (stylemaps/, __stylemaps__/).
