@@ -152,8 +152,8 @@ approval can clear only `STYLE_REVIEW_REQUIRED`. Each state appears once.
 | `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                                               | Hidden. Approval cannot clear it.          |
 | `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified.                             | Hidden. Approval cannot clear it.          |
 | `CERTIFICATION_FAILED`             | Coverage, determinism, report/diff consistency, or integrity evidence is incomplete (not a recapture failure). | Hidden. Approval cannot clear it.          |
-| `PARTIAL_BASELINE`                 | Named surfaces failed on the listed base SHA (not a recapture failure).                                        | Hidden. Repair those surfaces on that SHA. |
-| `DEGRADED_BASELINE`                | The base capture failed. This is a head-only receipt.                                                          | Hidden. Not a comparison.                  |
+| `PARTIAL_BASELINE`                 | Named surface+SHA failed on the base bundle (Action copy interpolates the receipt). Not a recapture failure.   | Hidden. Repair those surfaces on that SHA. |
+| `DEGRADED_BASELINE`                | `base-capture-failed=true`: the base capture failed. This is a head-only receipt.                              | Hidden. Not a comparison.                  |
 | `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                                                           | Hidden. Delivery failed.                   |
 
 #### Integrity repair (`connector-partial` / `duplicate-id` / `integrity-mismatch`)

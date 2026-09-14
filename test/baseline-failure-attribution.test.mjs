@@ -12,7 +12,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
-import { baselineFailureReceipts, honestBaselineCompareAttribution, MAP_MANIFEST } from '../dist/map-store.js';
+import {
+  baselineFailureReceipts,
+  formatDegradedBaselineComment,
+  formatDegradedBaselineFailEcho,
+  formatDegradedBaselineStatusDescription,
+  formatPartialBaselineComment,
+  formatPartialBaselineFailEcho,
+  formatPartialBaselineStatusDescription,
+  honestBaselineCompareAttribution,
+  MAP_MANIFEST,
+  parseBaselineFailureReceipts,
+} from '../dist/map-store.js';
 import { classifyStyleProofVerdict } from '../dist/verdict.js';
 import { formatIntegrityRepairComment, formatIntegrityStatusDescription } from '../dist/integrity-repair.js';
 import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
@@ -209,16 +220,97 @@ test('audit trail names the baseline surface+SHA and does not claim recapture', 
   assert.doesNotMatch(rendered, /base recapture failed/i);
 });
 
+test('published Action-copy proof stays in lockstep with the formatters', () => {
+  const fixture = JSON.parse(
+    fs.readFileSync(path.join(here, '../docs/proof/honest-baseline-attribution/baseline-failures.json'), 'utf8'),
+  );
+  const proof = fs.readFileSync(path.join(here, '../docs/proof/action-baseline-copy/action-copy.md'), 'utf8');
+  const comment = formatPartialBaselineComment(fixture.baselineFailures);
+  const status = formatPartialBaselineStatusDescription(fixture.baselineFailures);
+  const failEcho = formatPartialBaselineFailEcho(fixture.baselineFailures);
+  assert.match(proof, new RegExp(escapeRegExp(comment)));
+  assert.match(proof, new RegExp(escapeRegExp(status)));
+  assert.match(proof, new RegExp(escapeRegExp(failEcho)));
+  assert.match(proof, new RegExp(escapeRegExp(formatDegradedBaselineComment(false))));
+  assert.match(proof, new RegExp(escapeRegExp(formatDegradedBaselineComment(true))));
+  assert.doesNotMatch(formatDegradedBaselineComment(false), FALSE_RECAPTURE_CLAIM);
+});
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+test('Action PARTIAL_BASELINE copy interpolates the receipt key and SHA', () => {
+  const receipts = baselineFailureReceipts([{ key: FAILED_SURFACE, reason: 'timeout' }], BASE_SHA);
+  const comment = formatPartialBaselineComment(receipts);
+  const status = formatPartialBaselineStatusDescription(receipts);
+  const failEcho = formatPartialBaselineFailEcho(receipts);
+
+  for (const text of [comment, status, failEcho]) {
+    assert.match(text, new RegExp(FAILED_SURFACE));
+    assert.match(text, new RegExp(BASE_SHA));
+    assert.match(text, /not a base recapture failure/i);
+    assert.doesNotMatch(text, FALSE_RECAPTURE_CLAIM);
+  }
+  assert.ok(status.length <= 140, `commit-status description must fit GitHub's 140-char limit: ${status}`);
+
+  const actionYml = fs.readFileSync(ACTION_YML, 'utf8');
+  assert.match(actionYml, /formatPartialBaselineComment/);
+  assert.match(actionYml, /formatPartialBaselineStatusDescription/);
+  assert.match(actionYml, /formatPartialBaselineFailEcho/);
+  assert.match(actionYml, /parseBaselineFailureReceipts/);
+  const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}# Review-gate)/);
+  const statusStep = actionYml.match(/- name: Set review status[\s\S]*?(?=\n\s{4}# A failed base capture)/);
+  const partialGate = actionYml.match(/- name: Block on partial baseline[\s\S]*?(?=\n\s{4}# blocking)/);
+  assert.ok(commentStep, 'PR comment step present');
+  assert.ok(statusStep, 'commit-status step present');
+  assert.ok(partialGate, 'partial-baseline fail step present');
+  assert.match(commentStep[0], /formatPartialBaselineComment\(baselineFailures\)/);
+  assert.match(statusStep[0], /formatPartialBaselineStatusDescription\(baselineFailures\)/);
+  assert.match(partialGate[0], /formatPartialBaselineFailEcho/);
+  assert.match(partialGate[0], /report\.baselineFailures/);
+  assert.match(partialGate[0], /process\.exit\(1\)/);
+  assert.doesNotMatch(partialGate[0], /require-approval/);
+});
+
+test('Action DEGRADED_BASELINE / head-only copy claims recapture only when the flag is true', () => {
+  const headOnlyComment = formatDegradedBaselineComment(false);
+  const headOnlyStatus = formatDegradedBaselineStatusDescription(false);
+  const headOnlyFail = formatDegradedBaselineFailEcho(false);
+  for (const text of [headOnlyComment, headOnlyStatus, headOnlyFail]) {
+    assert.match(text, /head-only/i);
+    assert.doesNotMatch(text, FALSE_RECAPTURE_CLAIM);
+    assert.doesNotMatch(text, /base capture failed/i);
+  }
+
+  const recaptureComment = formatDegradedBaselineComment(true);
+  const recaptureStatus = formatDegradedBaselineStatusDescription(true);
+  const recaptureFail = formatDegradedBaselineFailEcho(true);
+  for (const text of [recaptureComment, recaptureStatus, recaptureFail]) {
+    assert.match(text, /base capture failed/i);
+    assert.match(text, /head-only/i);
+  }
+
+  const actionYml = fs.readFileSync(ACTION_YML, 'utf8');
+  assert.match(actionYml, /formatDegradedBaselineComment\(baseCaptureFailed\)/);
+  assert.match(actionYml, /formatDegradedBaselineStatusDescription\(baseCaptureFailed\)/);
+  const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}# Review-gate)/);
+  const statusStep = actionYml.match(/- name: Set review status[\s\S]*?(?=\n\s{4}# A failed base capture)/);
+  const degradedGate = actionYml.match(/- name: Block on degraded baseline[\s\S]*?(?=\n\s{4}# Partial baseline)/);
+  assert.ok(commentStep && statusStep && degradedGate);
+  assert.match(commentStep[0], /baseCaptureFailed = .*inputs\.base-capture-failed/);
+  assert.match(statusStep[0], /baseCaptureFailed = .*inputs\.base-capture-failed/);
+  assert.match(degradedGate[0], /inputs\.base-capture-failed == 'true'/);
+  assert.match(degradedGate[0], /formatDegradedBaselineFailEcho\(true\)/);
+  assert.match(degradedGate[0], /process\.exit\(1\)/);
+  assert.doesNotMatch(degradedGate[0], /require-approval/);
+});
+
 test('Action PARTIAL_BASELINE and CERTIFICATION_FAILED copy do not claim recapture', () => {
   const actionYml = fs.readFileSync(ACTION_YML, 'utf8');
-  const partial = actionYml.match(/PARTIAL_BASELINE:\s*'([^']+)'/);
-  const degraded = actionYml.match(/DEGRADED_BASELINE:\s*'([^']+)'/);
-  assert.ok(partial, 'PARTIAL_BASELINE guidance present');
-  assert.ok(degraded, 'DEGRADED_BASELINE guidance present');
   assert.match(actionYml, /formatIntegrityRepairComment/);
-  assert.match(partial[1], /not a base recapture failure/i);
-  assert.doesNotMatch(partial[1], /the base capture failed/i);
-  assert.match(degraded[1], /base capture failed/i);
+  assert.match(actionYml, /formatPartialBaselineComment/);
+  assert.match(actionYml, /formatDegradedBaselineComment/);
 
   const genericCert = formatIntegrityRepairComment([]);
   const genericStatus = formatIntegrityStatusDescription([]);
@@ -227,9 +319,94 @@ test('Action PARTIAL_BASELINE and CERTIFICATION_FAILED copy do not claim recaptu
   assert.doesNotMatch(genericCert, FALSE_RECAPTURE_CLAIM);
   assert.doesNotMatch(genericStatus, FALSE_RECAPTURE_CLAIM);
 
-  const statusPartial = actionYml.match(/PARTIAL_BASELINE:\s*'Named surface[^']+'/);
-  assert.ok(statusPartial, 'PARTIAL_BASELINE status description present');
-  assert.match(statusPartial[0], /not a base recapture failure/i);
+  const receipts = parseBaselineFailureReceipts(
+    baselineFailureReceipts([{ key: FAILED_SURFACE, reason: 'timeout' }], BASE_SHA),
+  );
+  assert.equal(receipts[0]?.key, FAILED_SURFACE);
+  assert.equal(receipts[0]?.sha, BASE_SHA);
+  assert.doesNotMatch(formatPartialBaselineComment(receipts), FALSE_RECAPTURE_CLAIM);
+  assert.doesNotMatch(formatDegradedBaselineComment(false), FALSE_RECAPTURE_CLAIM);
+});
+
+test('Action fail-echo snippets interpolate receipts and stay fail-closed', () => {
+  const tmp = mkTmp();
+  try {
+    const receipts = baselineFailureReceipts([{ key: FAILED_SURFACE, reason: 'timeout' }], BASE_SHA);
+    const reportDir = path.join(tmp, 'styleproof-report');
+    fs.mkdirSync(reportDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(reportDir, 'report.json'),
+      JSON.stringify({ baselineFailures: receipts, partialBaseline: true }),
+    );
+    const actionRoot = path.join(here, '..');
+    const partial = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `import fs from 'node:fs';
+         const { formatPartialBaselineFailEcho, parseBaselineFailureReceipts } = await import(
+           process.env.GITHUB_ACTION_PATH + '/dist/map-store.js'
+         );
+         const report = JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'));
+         console.error(formatPartialBaselineFailEcho(parseBaselineFailureReceipts(report.baselineFailures)));
+         process.exit(1);`,
+      ],
+      { cwd: tmp, encoding: 'utf8', env: { ...process.env, GITHUB_ACTION_PATH: actionRoot } },
+    );
+    assert.equal(partial.status, 1, partial.stderr + partial.stdout);
+    assert.match(partial.stderr, new RegExp(FAILED_SURFACE));
+    assert.match(partial.stderr, new RegExp(BASE_SHA));
+    assert.doesNotMatch(partial.stderr, FALSE_RECAPTURE_CLAIM);
+
+    const headOnly = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `const { formatDegradedBaselineFailEcho } = await import(
+           process.env.GITHUB_ACTION_PATH + '/dist/map-store.js'
+         );
+         console.error(formatDegradedBaselineFailEcho(false));
+         process.exit(1);`,
+      ],
+      { cwd: tmp, encoding: 'utf8', env: { ...process.env, GITHUB_ACTION_PATH: actionRoot } },
+    );
+    assert.equal(headOnly.status, 1, headOnly.stderr + headOnly.stdout);
+    assert.doesNotMatch(headOnly.stderr, FALSE_RECAPTURE_CLAIM);
+    assert.doesNotMatch(headOnly.stderr, /base capture failed/i);
+
+    const recapture = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `const { formatDegradedBaselineFailEcho } = await import(
+           process.env.GITHUB_ACTION_PATH + '/dist/map-store.js'
+         );
+         console.error(formatDegradedBaselineFailEcho(true));
+         process.exit(1);`,
+      ],
+      { cwd: tmp, encoding: 'utf8', env: { ...process.env, GITHUB_ACTION_PATH: actionRoot } },
+    );
+    assert.equal(recapture.status, 1, recapture.stderr + recapture.stdout);
+    assert.match(recapture.stderr, /base capture failed/i);
+  } finally {
+    rmTmp(tmp);
+  }
+});
+
+test('Action PARTIAL_BASELINE status stays within GitHub 140-char limit for many receipts', () => {
+  const receipts = Array.from({ length: 8 }, (_, index) => ({
+    key: `surface-${index}@1280`,
+    reason: 'capture_failed',
+    sha: BASE_SHA,
+  }));
+  const status = formatPartialBaselineStatusDescription(receipts);
+  assert.match(status, /surface-0@1280/);
+  assert.match(status, new RegExp(BASE_SHA));
+  assert.match(status, /\(\+7\)/);
+  assert.ok(status.length <= 140, status);
 });
 
 test('verdict: base-capture-failed=false + incomplete evidence is CERTIFICATION_FAILED, not degraded recapture', () => {

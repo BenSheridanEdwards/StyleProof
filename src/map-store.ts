@@ -132,6 +132,101 @@ export function honestBaselineCompareAttribution(options: {
       : 'compare/certification evidence is incomplete. This is not a base recapture failure (`base-capture-failed=false`).',
   };
 }
+
+/** GitHub commit-status `description` hard limit. */
+const GITHUB_STATUS_DESCRIPTION_MAX = 140;
+
+function sanitizeBaselineFailureReceipts(value: unknown): BaselineFailureReceipt[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+    const key = (entry as { key?: unknown }).key;
+    const sha = (entry as { sha?: unknown }).sha;
+    const reason = (entry as { reason?: unknown }).reason;
+    if (typeof key !== 'string' || typeof sha !== 'string' || reason !== 'capture_failed') return [];
+    return [{ key: publicCaptureFailureKey(key), reason: 'capture_failed' as const, sha: publicBaselineSha(sha) }];
+  });
+}
+
+function compactReceiptLabel(receipts: readonly BaselineFailureReceipt[]): string {
+  if (receipts.length === 0) return 'named surface on listed base SHA';
+  const first = `${receipts[0].key} at ${receipts[0].sha}`;
+  return receipts.length === 1 ? first : `${first} (+${receipts.length - 1})`;
+}
+
+function clipStatusDescription(text: string): string {
+  return text.length <= GITHUB_STATUS_DESCRIPTION_MAX ? text : `${text.slice(0, GITHUB_STATUS_DESCRIPTION_MAX - 3)}...`;
+}
+
+function wrapActionComment(body: string): string {
+  return `_${body}_`;
+}
+
+/** Parse public baseline-failure receipts from report/diff JSON. */
+export function parseBaselineFailureReceipts(value: unknown): BaselineFailureReceipt[] {
+  return sanitizeBaselineFailureReceipts(value);
+}
+
+/** PR-comment footer for PARTIAL_BASELINE — interpolates the receipt key+SHA. */
+export function formatPartialBaselineComment(receipts: unknown): string {
+  const parsed = sanitizeBaselineFailureReceipts(receipts);
+  const attribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: parsed });
+  const named = attribution.named || 'named surface(s) listed in the report';
+  return wrapActionComment(
+    `${named} failed on the listed base SHA — this is not a base recapture failure. ` +
+      `Repair those surfaces on that SHA; reviewer approval cannot clear missing baseline surfaces.`,
+  );
+}
+
+/** Commit-status description for PARTIAL_BASELINE (≤140 chars, includes key+SHA). */
+export function formatPartialBaselineStatusDescription(receipts: unknown): string {
+  const parsed = sanitizeBaselineFailureReceipts(receipts);
+  return clipStatusDescription(`${compactReceiptLabel(parsed)} — not a base recapture failure`);
+}
+
+/** Job-fail stderr for PARTIAL_BASELINE — interpolates the receipt key+SHA. */
+export function formatPartialBaselineFailEcho(receipts: unknown): string {
+  const parsed = sanitizeBaselineFailureReceipts(receipts);
+  const attribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: parsed });
+  const named = attribution.named || 'named surface(s) listed in the report';
+  return (
+    `StyleProof: ${named} failed on the listed base SHA — this is not a base recapture failure. ` +
+    `Repair those surfaces on that SHA (approval cannot clear this).`
+  );
+}
+
+/**
+ * PR-comment footer for DEGRADED_BASELINE / head-only evidence.
+ * Recapture language is used only when `baseCaptureFailed` is actually true.
+ */
+export function formatDegradedBaselineComment(baseCaptureFailed: boolean): string {
+  if (baseCaptureFailed) {
+    return wrapActionComment(
+      `${honestBaselineCompareAttribution({ baseCaptureFailed: true }).summary} ` +
+        `Reviewer approval cannot clear this failure.`,
+    );
+  }
+  return wrapActionComment(
+    'This is a head-only receipt rather than a comparison — not a base recapture failure ' +
+      '(`base-capture-failed=false`). Repair the missing baseline evidence and rerun; ' +
+      'reviewer approval cannot clear this failure.',
+  );
+}
+
+/** Commit-status description for DEGRADED_BASELINE / head-only evidence. */
+export function formatDegradedBaselineStatusDescription(baseCaptureFailed: boolean): string {
+  return baseCaptureFailed
+    ? 'Base capture failed — head-only evidence cannot certify this change'
+    : 'Head-only evidence cannot certify this change — not a base recapture failure';
+}
+
+/** Job-fail stderr for DEGRADED_BASELINE / head-only evidence. */
+export function formatDegradedBaselineFailEcho(baseCaptureFailed: boolean): string {
+  return baseCaptureFailed
+    ? 'StyleProof: base capture failed — the published report is head-only degraded evidence, not a base-vs-head certification. Repair the base capture and rerun.'
+    : 'StyleProof: head-only evidence is not a base-vs-head certification — this is not a base recapture failure. Repair the missing baseline evidence and rerun.';
+}
+
 /** Sidecar written during a capture run (where a browser handle is in scope) recording
  *  the real browser build (`browser().version()`). `writeMapManifest` runs after Playwright
  *  has exited — no browser — so it reads the build back from here. Not a surface map. */
