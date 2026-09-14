@@ -278,6 +278,7 @@ export {
   specPathForCwd,
   missingStyleProofConfigMessage,
   missingStyleProofSpecMessage,
+  unloadableStyleProofConfigMessage,
   env,
   resolveEnvReferences,
   redactSecrets,

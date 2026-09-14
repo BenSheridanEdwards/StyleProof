@@ -625,6 +625,12 @@ test(
       const base = git(repo, ['rev-parse', 'HEAD']);
       const initialized = spawnSync(process.execPath, [INIT], { cwd: repo, encoding: 'utf8' });
       assert.equal(initialized.status, 0, initialized.stderr);
+      // Runtime sibling so Node 18/20 (and worktrees that cannot resolve `styleproof`)
+      // load the init keys instead of failing closed on the typed scaffold.
+      fs.writeFileSync(
+        path.join(repo, 'styleproof.config.json'),
+        JSON.stringify({ blocking: 'advisory', requireApproval: true }, null, 2),
+      );
       const generatedSpec = path.join(repo, 'e2e', 'styleproof.spec.ts');
       fs.writeFileSync(generatedSpec, `import './head-only-fixture';\n${fs.readFileSync(generatedSpec, 'utf8')}`);
       fs.writeFileSync(path.join(repo, 'e2e', 'head-only-fixture.ts'), 'HEAD_ONLY_FIXTURE=true\n');

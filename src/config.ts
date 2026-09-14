@@ -16,11 +16,16 @@
  * `affected.graph`) resolve from that config file's directory — never from
  * `process.cwd()` — so `spec: 'hud/tests/e2e/styleproof.spec.ts'` stays valid
  * when the CLI is invoked with `cwd=hud`. A missing file is an empty config. A
- * file that exists but cannot be parsed or carries a wrongly-typed known key is
- * a LOUD error: config the user wrote must never be silently dropped (a typo'd
- * `dirtyAllow` that quietly stops applying would resurrect exactly the
- * dirty-capture problem it exists to solve). A missing spec after that walk
- * fails closed and names every config path that was searched.
+ * file that exists but cannot be parsed, evaluated, or carries a wrongly-typed
+ * known key is a LOUD error: config the user wrote must never be silently
+ * dropped (a typo'd `dirtyAllow` that quietly stops applying would resurrect
+ * exactly the dirty-capture problem it exists to solve). An unloadable
+ * `styleproof.config.ts` (unknown `.ts` extension, or `import { defineConfig }
+ * from 'styleproof'` cannot resolve) fails closed unless a sibling
+ * `styleproof.config.json` exists and loads as the real config — never `{}`
+ * and never the default `e2e/styleproof.spec.ts` while that file is found. A
+ * missing spec after that walk fails closed and names every config path that
+ * was searched.
  *
  * Migration: TS config takes precedence. When only JSON exists, a deprecation
  * warning is emitted. Both formats work during transition.
@@ -458,6 +463,9 @@ function isMissingStyleProofPackage(error: unknown): boolean {
 
 function isUnloadableTypeScriptConfig(filename: string, error: unknown): boolean {
   if (!filename.endsWith('.ts')) return false;
+  if (error instanceof StyleProofConfigError && (error as { code?: string }).code === 'STYLEPROOF_UNLOADABLE_TS') {
+    return true;
+  }
   const message = error instanceof Error ? error.message : String(error);
   const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : '';
   return (
@@ -466,11 +474,27 @@ function isUnloadableTypeScriptConfig(filename: string, error: unknown): boolean
     message.includes('ERR_UNKNOWN_FILE_EXTENSION') ||
     // Node 22.18+ type-strips `.ts` by default (22.6+ with --experimental-strip-types).
     // styleproof-init's typed scaffold then `import { defineConfig } from 'styleproof'`.
-    // A CI probe worktree / first-adoption checkout often has the file but no
-    // resolvable package — same historical empty-config fallback as an unknown
-    // `.ts` extension. `.mjs` / `.js` that cannot resolve the package still fail loud.
+    // Without a resolvable package (or without type stripping) that file cannot
+    // be evaluated — fail closed unless sibling JSON loads as the real config.
     isMissingStyleProofPackage(error)
   );
+}
+
+export function unloadableStyleProofConfigMessage(filePath: string, error: unknown): string {
+  const reason = error instanceof Error ? error.message : String(error);
+  return [
+    `${filePath} could not be evaluated`,
+    `  ${reason}`,
+    `  Next: add a sibling ${STYLEPROOF_CONFIG_JSON} or ${STYLEPROOF_CONFIG_MJS} with the same keys, ` +
+      `or run on a Node that can evaluate TypeScript with the styleproof package resolvable.`,
+  ].join('\n');
+}
+
+function unloadableTypeScriptConfigError(filePath: string, error: unknown): StyleProofConfigError {
+  const wrapped = new StyleProofConfigError(unloadableStyleProofConfigMessage(filePath, error));
+  (wrapped as { code?: string }).code = 'STYLEPROOF_UNLOADABLE_TS';
+  wrapped.cause = error instanceof Error ? error : undefined;
+  return wrapped;
 }
 
 /** Load ESM config (.ts, .mjs, or .js) via dynamic import; undefined when it does not exist. */
@@ -487,15 +511,7 @@ async function loadEsmConfig(cwd: string): Promise<Record<string, unknown> | und
   } catch (e) {
     if (e instanceof StyleProofConfigError) throw e;
     if (isUnloadableTypeScriptConfig(found.filename, e)) {
-      // Plain Node cannot `import()` a .ts file. Keep the historical empty-config
-      // fallback so styleproof-init's typed scaffold does not crash CI; JSON in
-      // the same directory still wins as the runtime source.
-      process.stderr.write(
-        `styleproof: ${found.filename} found but this Node runtime cannot evaluate TypeScript config ` +
-          `(unknown .ts extension, or the typed scaffold cannot resolve the 'styleproof' package). ` +
-          `Using ${STYLEPROOF_CONFIG_JSON} if present; otherwise continuing without that file.\n`,
-      );
-      return undefined;
+      throw unloadableTypeScriptConfigError(found.path, e);
     }
     fail(`could not load — ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -900,6 +916,12 @@ function parseLoadedConfigSync(dir: string): StyleProofConfig {
       if (!record) return {};
       return parseConfigRecord(record);
     }
+    if (esmConfig.filename.endsWith('.ts')) {
+      throw unloadableTypeScriptConfigError(
+        esmConfig.path,
+        new Error('sync loader cannot evaluate TypeScript; use loadStyleProofConfigAsync() or a sibling JSON / .mjs'),
+      );
+    }
     return {};
   }
 
@@ -916,9 +938,21 @@ async function parseLoadedConfigAsync(dir: string): Promise<StyleProofConfig> {
   const hasJson = jsonConfigExists(dir);
 
   if (esmConfig) {
-    const record = await loadEsmConfig(dir);
-    if (record) return parseConfigRecord(record);
-    if (!hasJson) return {};
+    try {
+      const record = await loadEsmConfig(dir);
+      if (record) return parseConfigRecord(record);
+    } catch (error) {
+      if (!(hasJson && isUnloadableTypeScriptConfig(esmConfig.filename, error))) throw error;
+      process.stderr.write(
+        `styleproof: ${esmConfig.filename} could not be evaluated; using sibling ${STYLEPROOF_CONFIG_JSON}.\n`,
+      );
+    }
+    if (!hasJson) {
+      throw unloadableTypeScriptConfigError(
+        esmConfig.path,
+        new Error('TypeScript config could not be evaluated and no sibling JSON was found'),
+      );
+    }
   }
 
   if (!hasJson) return {};
@@ -961,9 +995,11 @@ export async function loadStyleProofConfigWithLocationAsync(cwd = process.cwd())
  *  unreadable/malformed file or a wrongly-typed known key → {@link StyleProofConfigError};
  *  unknown keys → a loud stderr warning (never silently dropped).
  *
- *  Walks upward from `cwd` to the git root. When styleproof.config.ts/mjs/js exists,
- *  this returns an empty config and emits a warning directing users to use
- *  loadStyleProofConfigAsync(). When only JSON exists, a deprecation warning is emitted. */
+ *  Walks upward from `cwd` to the git root. When styleproof.config.ts exists
+ *  without a sibling JSON, this fails closed (sync cannot evaluate TypeScript).
+ *  When styleproof.config.mjs/js exists, this emits a warning directing users
+ *  to use loadStyleProofConfigAsync() and uses JSON if present. When only JSON
+ *  exists, a deprecation warning is emitted. */
 export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
   return loadStyleProofConfigWithLocation(cwd).config;
 }

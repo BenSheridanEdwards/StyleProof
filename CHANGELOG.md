@@ -110,11 +110,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   resolve from the config file's directory, not `process.cwd()`. A missing spec
   after that walk fails closed and names every config path searched — no silent
   fallback to `e2e/styleproof.spec.ts` when a parent config exists. Node 22
-  type-stripping can evaluate the init `.ts` scaffold; if that file's
-  `defineConfig` import cannot resolve the `styleproof` package (typical of a
-  probe worktree), the loader warns and uses sibling JSON or an empty config
-  instead of crashing. A `.mjs` / `.js` that cannot resolve the package still
-  fails closed. (#645)
+  type-stripping can evaluate the init `.ts` scaffold; if that file cannot be
+  evaluated (unknown `.ts` extension, or `defineConfig` cannot resolve the
+  `styleproof` package), the loader fails closed and names the path and reason
+  unless a sibling JSON exists and loads as the real config. It never returns
+  `{}` or the default `e2e/styleproof.spec.ts` while that file was found. A
+  `.mjs` / `.js` that cannot resolve the package still fails closed. (#645)
 
 - A forced-state capture that uses its exact work allowance on the final state
   is complete. Further required reads still fail closed, and truncation warnings
