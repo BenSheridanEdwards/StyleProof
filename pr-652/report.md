@@ -11,4 +11,4 @@
 
 ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
-<!-- styleproof-receipt head-sha:bb08de43a854d72d6635f597df73c602814707e2 run-id:34898639868 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:c7c018f8ac2c8aaa4e2494d871d1e84569028be9 run-id:34900130718 run-attempt:1 -->
