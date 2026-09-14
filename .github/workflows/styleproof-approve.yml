@@ -1,0 +1,19 @@
+# Thin adopter-shaped caller. Invokes the reusable approval workflow at this
+# repository's current main. issue_comment workflows only run from the default
+# branch, so this is inert until merged. Reviewer ticks stay inert until
+# advisory dogfood enables require-approval; this file does not change Action
+# evidence or certify mode.
+name: StyleProof approve
+
+on:
+  issue_comment:
+    types: [edited]
+
+jobs:
+  approve:
+    uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@main
+    with:
+      status-context: StyleProof
+      allow-self-approval: false
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}

@@ -483,6 +483,8 @@ A note on the base commit, because it surprises people: `github.event.pull_reque
 
 Only for this hand-wired path: copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged). `styleproof-init` writes this file for you, so you can skip this step if you used it.
 
+The supported adopter contract is that **thin caller**: `styleproof-init` writes `.github/workflows/styleproof-approve.yml` calling `BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7`. StyleProof dogfoods the same shape in [`.github/workflows/styleproof-approve.yml`](.github/workflows/styleproof-approve.yml), pinned to `@main` so self-hosting tracks the default-branch reusable. The dogfood stub does not set `require-approval` and does not change certify or advisory evidence. Reviewer ticks on StyleProof PRs stay inert until a live advisory workflow enables `require-approval`. How to approve those findings, when they exist, is in [CONTRIBUTING.md](CONTRIBUTING.md#approving-styleproof-dogfood-findings).
+
 **Prefer to always capture in CI?** For a repo with many outside contributors on different machines, StyleProof can capture **both** base and head in CI and diff them there. See **[Forks and Dependabot](#forks-and-dependabot)** for that flow (it's also the fork-safe split). The default cache-first flow is faster for same-repo teams because the pre-push hook builds the head map before CI starts.
 
 **Want to skip work safely?** Skip the **whole** StyleProof workflow only for

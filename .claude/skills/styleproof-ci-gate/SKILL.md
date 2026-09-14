@@ -54,7 +54,10 @@ reusable workflow at `BenSheridanEdwards/StyleProof/.github/workflows/styleproof
 This keeps the approval logic up-to-date with each StyleProof release instead of
 drifting in a copied file. The caller must live **on your default branch** —
 GitHub only runs `issue_comment` workflows from the default branch, so the
-checkbox is inert until it's merged there.
+checkbox is inert until it's merged there. StyleProof dogfoods that same thin
+caller in `.github/workflows/styleproof-approve.yml` (pinned to `@main`); adopters
+keep the `@v7` pin from init. The dogfood stub does not set `require-approval`
+and does not change evidence confidence.
 
 The reusable workflow accepts `status-context`, `allow-self-approval`, and
 `token` inputs. Self-approval is refused by default; solo repos can opt in with

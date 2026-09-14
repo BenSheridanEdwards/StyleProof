@@ -41,6 +41,9 @@ is listed here only if it exists and runs on a clean checkout.
   one stable `required` check that fails unless all three lanes succeed.
 - **CI (dedicated workflows)** — `secret-scan.yml`, `codeql.yml`, `pr-body.yml`,
   `fallow.yml`, `action-dogfood.yml`, `store-dogfood.yml`.
+  `.github/workflows/styleproof-approve.yml` is the thin adopter-shaped approve
+  caller (`styleproof-approve-reusable.yml@main`). It is not a required check;
+  reviewer ticks stay inert until advisory dogfood enables `require-approval`.
 
 ## Bypass policy
 

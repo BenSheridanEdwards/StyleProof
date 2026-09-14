@@ -375,3 +375,33 @@ test('example approval workflow is marked as deprecated (#598)', () => {
     'example file should show the reusable workflow reference',
   );
 });
+
+test('dogfood approve stub is a thin caller of the reusable at main (#644)', () => {
+  const stub = fs.readFileSync(path.join(root, '.github/workflows/styleproof-approve.yml'), 'utf8');
+  const executableLines = stub.split('\n').filter((line) => {
+    const trimmed = line.trim();
+    return trimmed && !trimmed.startsWith('#');
+  });
+  assert.ok(
+    executableLines.length >= 5 && executableLines.length <= 15,
+    `expected 5–15 non-comment lines, got ${executableLines.length}`,
+  );
+  assert.match(stub, /^name: StyleProof approve$/m);
+  assert.match(stub, /issue_comment:/);
+  assert.match(stub, /types: \[edited\]/);
+  assert.match(
+    stub,
+    /uses: BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@main/,
+  );
+  assert.match(stub, /status-context: StyleProof/);
+  assert.match(stub, /allow-self-approval: false/);
+  assert.match(stub, /token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+  const executable = executableLines.join('\n');
+  assert.doesNotMatch(executable, /script:\s*\|/, 'must not copy the github-script program');
+  assert.doesNotMatch(executable, /require-approval/, 'must not enable require-approval; that is the Action input');
+  assert.doesNotMatch(executable, /fail-on-diff/, 'must not change certify or advisory evidence');
+  assert.match(readme, /thin caller/);
+  assert.match(readme, /styleproof-approve-reusable\.yml@v7/);
+  assert.match(readme, /pinned to `@main`/);
+  assert.match(readme, /does not set `require-approval`/);
+});
