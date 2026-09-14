@@ -30,7 +30,7 @@ export default defineConfig({
 });
 `;
 
-/** Fleet-shaped root config: relative spec into a nested package, no package import. */
+/** Nested-package root config: relative spec into a package subdirectory, no package import. */
 const LOADABLE_TS = `export default { spec: '${NESTED_SPEC}', blocking: true };\n`;
 
 /**
