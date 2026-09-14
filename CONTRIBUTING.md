@@ -79,6 +79,34 @@ Playwright's transpiler then treats the linked ESM `dist/` as project code —
 `styleproof-map` dies with a misleading `Cannot use 'import.meta' outside a module`
 / "No tests found". Registry and tarball installs are unaffected.
 
+## Approving StyleProof dogfood findings
+
+StyleProof ships the same thin approve caller adopters get from `styleproof-init`:
+[`.github/workflows/styleproof-approve.yml`](.github/workflows/styleproof-approve.yml)
+calls [`styleproof-approve-reusable.yml`](.github/workflows/styleproof-approve-reusable.yml)
+at `main`. GitHub only runs `issue_comment` workflows from the default branch, so
+the handler is inert until that file is on `main`.
+
+Until a live advisory PR workflow posts a review-gate report with
+`require-approval: true`, ticking **Approve all changes** does nothing useful.
+Synthetic action-dogfood comments stay labelled as contract receipts; they do
+not certify the pull request. This stub does not set `require-approval`, does
+not change certify or advisory mode, and cannot turn incomplete evidence green.
+
+When review-gate dogfood is live:
+
+1. Open the StyleProof report comment on the pull request.
+2. Read the committed report the comment links to. The comment is a summary.
+3. A reviewer with write access who is **not** the pull request author ticks
+   **Approve all changes**.
+4. Approval can clear only `STYLE_REVIEW_REQUIRED`. Coverage failures, partial
+   or degraded baselines, inventory removals, data residue, and publication
+   failures stay red.
+
+Self-approval is refused (`allow-self-approval: false`). The author may always
+untick. See the README [Who may tick the box](README.md#who-may-tick-the-box)
+section and [approval binding](docs/report-delivery-contract.md#approval-binding).
+
 ## Pull request norms
 
 - **One concern per PR.** Keep diffs small and reviewable.

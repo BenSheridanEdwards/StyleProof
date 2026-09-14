@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Dogfood approve stub.** StyleProof now ships `.github/workflows/styleproof-approve.yml`,
+  the same thin caller adopters get from `styleproof-init`, pointing at
+  `styleproof-approve-reusable.yml@main`. Reviewer ticks stay inert until advisory
+  dogfood enables `require-approval`. Does not change evidence confidence. (#644)
+
 - **Coverage config manifest** (`coverage.manifest`): declare expected surfaces via
   an external JSON file instead of programmatic `expected`. The manifest format is
   `{ "version": 1, "surfaces": ["home", "dashboard", ...] }`. Manifest surfaces
