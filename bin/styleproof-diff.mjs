@@ -25,7 +25,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { diffStyleMapDirs, findingLabel, summarizeComparability } from '../dist/diff.js';
+import { auditLiveTextDirs, diffStyleMapDirs, findingLabel, summarizeComparability } from '../dist/diff.js';
+import { liveTextFreezeError } from '../dist/live-text.js';
 import { assessCertificationEvidence } from '../dist/verdict.js';
 // The shared grouping brain (leaf — no Playwright-adjacent imports) that already
 // dedupes the report: group identical change-sets across surfaces and fold derived
@@ -460,6 +461,7 @@ let surfaceKeyOf = () => undefined;
 let baselineSurfaceFailures = [];
 let baselineProvenance = null;
 let baseMapCount = 0;
+let liveTextAudit = null;
 try {
   // v4: a side without a manifest is unsupported — the same-environment guard can't be
   // enforced, so refuse (exit 2 via the catch below) rather than compare on false footing.
@@ -482,6 +484,7 @@ try {
   // Data-residue: the head bundle's failing data endpoints, gated only if its ledger
   // armed `dataResidue: 'gate'`. Same "read while the dirs exist" rule as the ledgers.
   residueAudit = readResidueAudit(dirB, headLedger?.dataResidue === 'gate', headLedger != null);
+  liveTextAudit = auditLiveTextDirs(dirA, dirB);
   // Element-path sets per surface, for the shared-chrome tier — same "read while
   // the dirs exist" rule as the ledgers above.
   surfacePaths = surfaceElementPaths(dirA, dirB);
@@ -513,7 +516,10 @@ const pixelSurfaces = result.pixels ?? [];
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned)
 // findings the report/crops can show. Prevents STYLE_REVIEW_REQUIRED without
 // evidence when only derived/reflow longhands differ.
-const truth = assessComparisonTruth(surfaces, counts, comparability, { requireStateIdentity });
+const truth = assessComparisonTruth(surfaces, counts, comparability, {
+  requireStateIdentity,
+  ...(liveTextAudit ? { liveText: liveTextAudit } : {}),
+});
 const comparison = summarizeComparability(comparability, requireStateIdentity);
 const explainedMissingBaselineSurfaceKeys = explainedMissingBaselineSurfaces(surfaces, baselineSurfaceFailures);
 const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures);
@@ -719,7 +725,22 @@ function printPixelGate() {
 }
 printPixelGate();
 const pixelBlocks = pixelRegions > 0 || pixelUncompared > 0;
-const total = counts.dom + counts.style + counts.state;
+const liveTextFreezeViolated = Boolean(liveTextAudit?.freeze && liveTextAudit.violations.length);
+if (liveTextFreezeViolated) {
+  console.error(liveTextFreezeError(liveTextAudit));
+} else if (liveTextAudit?.declared && liveTextAudit.livePaths.length) {
+  console.log(
+    `\n⏱ live/age/clock text: ${liveTextAudit.livePaths.length} declared live-text change(s) kept advisory — not a stylesheet regression`,
+  );
+}
+const reviewableTotal = truth.reviewableCounts.dom + truth.reviewableCounts.style + truth.reviewableCounts.state;
+const declaredAgeOnly =
+  Boolean(liveTextAudit?.declared) &&
+  liveTextAudit.livePaths.length > 0 &&
+  !liveTextFreezeViolated &&
+  reviewableTotal === 0 &&
+  !truth.hasReviewableEvidence;
+const total = declaredAgeOnly ? 0 : counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
 const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;
 const greenfieldNewSurfaces = surfaces.filter(
@@ -750,6 +771,7 @@ const certificationEvidence = assessCertificationEvidence({
   statesUncertified,
   partialBaseline,
   explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
+  liveTextFreeze: { violated: liveTextFreezeViolated },
 });
 // True only when the run would exit 0 as a full certification (not diagnostic).
 const certifiesFully =
@@ -820,6 +842,7 @@ if (jsonOut) {
             : null,
           certifiesFully,
           diagnostic: allowUnasserted,
+          liveTextFreeze: { violated: liveTextFreezeViolated },
           // The inventory verdict, machine-readable — parallel to coverage/determinism and
           // to the report's certification block. `null` when no capture carried inventory.
           // `unacknowledged` is the gating set: a CI can hard-fail on `unacknowledged.length`.
@@ -948,7 +971,8 @@ const exitCode =
   coverageBlocks ||
   determinismBlocks ||
   !certificationEvidence.interactionStatesComplete ||
-  pixelBlocks
+  pixelBlocks ||
+  liveTextFreezeViolated
     ? 1
     : greenfieldNewSurfaces > 0
       ? 3
@@ -985,6 +1009,7 @@ try {
         blocking: residueFails,
         unacknowledged: residueAudit.unacknowledged.map((r) => r.key),
       },
+      liveTextFreeze: { violated: liveTextFreezeViolated },
     },
     { gateInventoryRemovals: true, baseCaptureFailed: false, changed },
   );

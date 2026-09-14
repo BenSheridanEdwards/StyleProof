@@ -38,6 +38,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   if map artifacts (`.json.gz`, `styleproof-manifest.json`) are accidentally
   committed to a PR branch. Mirrors the `.gitignore` patterns. (#597)
 
+- **`liveText` declaration** on `defineStyleMapCapture` / `defineCrawlCapture`.
+  Opt-in (`true` or `{ freeze?, selectors? }`) so live/age/clock copy is classified
+  and, when `freeze: true`, fail-closed if it still drifts. Requires `captureText: true`.
+
 ### Changed
 
 - **Ancestor baseline reuse is now default-on (opt-out).** When the exact base
@@ -55,6 +59,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   who understood the tradeoff; the exit-code behavior is unchanged. (#600)
 
 ### Fixed
+
+- **Live/age/clock text no longer masquerades as a stylesheet regression.** Server-rendered
+  ages (`open 102.1d` → `open 103.1d`) are clock/live data, not a product CSS change.
+  Declare `liveText` (requires `captureText: true`) so age-only drift stays advisory and
+  is not `STYLE_REVIEW_REQUIRED`. `{ freeze: true }` fail-closes with a visible
+  `CERTIFICATION_FAILED` error when a freeze was declared but captured ages still
+  drift — never a soft-green, never a style approval. Undeclared age-driven geometry
+  still reviews as before; real stylesheet changes next to an age still gate.
 
 - A forced-state capture that uses its exact work allowance on the final state
   is complete. Further required reads still fail closed, and truncation warnings

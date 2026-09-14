@@ -16,6 +16,12 @@ export type { BaselineFailureReceipt } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
 import { correspondBeforeMap, correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
 import { pixelDiffSurface, type PixelOptions, type PixelSurfaceResult } from './pixel-diff.js';
+import {
+  auditLiveTextChanges,
+  mergeLiveTextAudits,
+  resolveLiveTextDeclaration,
+  type LiveTextAudit,
+} from './live-text.js';
 
 /**
  * Structured diff between two style maps. Custom properties (--*) are
@@ -740,6 +746,35 @@ export function diffContentDirs(
     }
   }
   return { surfaces, count };
+}
+
+function mapHasCapturedText(map: StyleMap): boolean {
+  return Object.values(map.elements).some((entry) => entry.text !== undefined);
+}
+
+/** Audit declared live/age/clock text across a before/after pair of capture dirs. */
+export function auditLiveTextDirs(dirA: string, dirB: string): LiveTextAudit {
+  const indexA = indexDir(dirA);
+  const indexB = indexDir(dirB);
+  const both = Object.keys(indexA)
+    .filter((surface) => surface in indexB)
+    .sort();
+  const audits: LiveTextAudit[] = [];
+  for (const surface of both) {
+    const before = loadStyleMap(indexA[surface]);
+    const after = loadStyleMap(indexB[surface]);
+    const declaration = resolveLiveTextDeclaration(after, before);
+    const tags: Record<string, string> = {};
+    for (const path of new Set([...Object.keys(before.elements), ...Object.keys(after.elements)])) {
+      tags[path] = (after.elements[path] ?? before.elements[path])?.tag ?? '';
+    }
+    const audit = auditLiveTextChanges(surface, diffContentMaps(before, after), declaration, tags);
+    if (declaration?.freeze && !mapHasCapturedText(before) && !mapHasCapturedText(after)) {
+      audit.violations.push({ surface, path: '(capture)', before: '', after: '' });
+    }
+    audits.push(audit);
+  }
+  return mergeLiveTextAudits(audits);
 }
 
 /** Human label: structural path plus a truncated class hint. */

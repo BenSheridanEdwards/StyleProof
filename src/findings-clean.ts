@@ -2,6 +2,7 @@ import { isProductStateComparabilityStatus } from './comparability-status.js';
 import { type DiffCounts, type Finding, type PropChange } from './diff.js';
 import { trackCount } from './describe.js';
 import { isNonValue, summarizeProps } from './prop-summary.js';
+import { emptyLiveTextAudit, isLiveTextGeometryPath, type LiveTextAudit } from './live-text.js';
 
 /**
  * Path grouping, change signatures, titles, reflow-noise cleaning, and the
@@ -277,6 +278,11 @@ export type ComparisonTruth = {
   unprovenSurfaces: number;
   requiredUnprovenSurfaces: number;
   globalRequiredUnprovenSurfaces: number;
+  /**
+   * A consumer declared liveText.freeze and captured age/clock text still drifted.
+   * Fail closed as CERTIFICATION_FAILED — never STYLE_REVIEW_REQUIRED, never green.
+   */
+  liveTextFreezeViolated: boolean;
 };
 
 /** Surface shape both the differ and the report already produce. */
@@ -295,6 +301,8 @@ export type ComparisonComparability = {
 export type ComparisonTruthOptions = {
   /** Require explicit identity even when both captures are legacy and undeclared. */
   requireStateIdentity?: boolean;
+  /** Declared live/age/clock text audit. Absent = current undeclared behaviour. */
+  liveText?: LiveTextAudit;
 };
 
 function comparabilityTruth(
@@ -317,17 +325,28 @@ function comparabilityTruth(
   };
 }
 
+function dropDeclaredLiveTextGeometry(findings: Finding[], liveText: LiveTextAudit): Finding[] {
+  if (!liveText.declared || liveText.livePaths.length === 0) return findings;
+  return findings.filter((finding) => {
+    if (finding.kind !== 'style') return true;
+    if (!isLiveTextGeometryPath(finding.path, liveText.livePaths)) return true;
+    return !isGeometryOnlyGroup([finding]);
+  });
+}
+
 function reviewableFindings(
   surface: ComparisonSurface,
   comparisonBySurface: Map<string, ComparisonComparability>,
   requireStateIdentity: boolean,
+  liveText: LiveTextAudit,
 ): Finding[] {
   const comparison = comparisonBySurface.get(surface.surface);
   const blocksReview =
     (comparison !== undefined && !isProductStateComparabilityStatus(comparison.status)) ||
     comparison?.status === 'incomparable' ||
     (comparison?.status === 'unproven' && (comparison.required || requireStateIdentity));
-  return blocksReview ? [] : cleanFindingsForDisplay(surface.findings);
+  if (blocksReview) return [];
+  return dropDeclaredLiveTextGeometry(cleanFindingsForDisplay(surface.findings), liveText);
 }
 
 function sumSurfaceCounts(surfaces: ComparisonSurface[]): DiffCounts {
@@ -341,6 +360,7 @@ function surfaceTruth(
   rawCounts: DiffCounts | undefined,
   comparisonBySurface: Map<string, ComparisonComparability>,
   requireStateIdentity: boolean,
+  liveText: LiveTextAudit,
 ): Pick<
   ComparisonTruth,
   | 'rawCounts'
@@ -353,7 +373,7 @@ function surfaceTruth(
   const paired = surfaces.filter((surface) => surface.missing === undefined);
   const reviewableSurfaces = paired.map((surface) => ({
     ...surface,
-    findings: reviewableFindings(surface, comparisonBySurface, requireStateIdentity),
+    findings: reviewableFindings(surface, comparisonBySurface, requireStateIdentity, liveText),
   }));
   return {
     rawCounts: rawCounts ? { ...rawCounts } : sumSurfaceCounts(paired),
@@ -379,20 +399,24 @@ export function assessComparisonTruth(
   options: ComparisonTruthOptions = {},
 ): ComparisonTruth {
   const requireStateIdentity = options.requireStateIdentity === true;
+  const liveText = options.liveText ?? emptyLiveTextAudit();
   const surface = surfaceTruth(
     surfaces,
     rawCounts,
     new Map(comparability.map((entry) => [entry.surface, entry])),
     requireStateIdentity,
+    liveText,
   );
   const comparison = comparabilityTruth(comparability, requireStateIdentity);
   const rawTotal = surface.rawCounts.dom + surface.rawCounts.style + surface.rawCounts.state;
   const reviewableTotal =
     surface.reviewableCounts.dom + surface.reviewableCounts.style + surface.reviewableCounts.state;
   const hasReviewableEvidence = reviewableTotal > 0 || surface.newSurfaces > 0 || surface.removedSurfaces > 0;
+  const declaredLiveTextResidue = liveText.declared && liveText.livePaths.length > 0 && !hasReviewableEvidence;
   const rawOnlyNoReviewable =
     rawTotal > 0 &&
     !hasReviewableEvidence &&
+    !declaredLiveTextResidue &&
     comparison.incomparableSurfaces === 0 &&
     comparison.requiredUnprovenSurfaces === 0 &&
     comparison.globalRequiredUnprovenSurfaces === 0;
@@ -402,6 +426,7 @@ export function assessComparisonTruth(
     hasReviewableEvidence,
     rawOnlyNoReviewable,
     contentGeometryUncertain: surfaces.some((item) => contentDrivenGeometry(item.findings).length > 0),
+    liveTextFreezeViolated: liveText.freeze && liveText.violations.length > 0,
     ...comparison,
   };
 }

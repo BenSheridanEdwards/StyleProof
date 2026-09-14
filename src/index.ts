@@ -161,10 +161,23 @@ export type {
   VariantHarvestOptions,
 } from './variant-crawler.js';
 export {
+  validateLiveText,
+  requireLiveTextCapture,
+  containsAgeClockText,
+  isAgeOnlyDrift,
+  isLiveTextChange,
+  auditLiveTextChanges,
+  resolveLiveTextDeclaration,
+  liveTextFreezeError,
+  LiveTextError,
+} from './live-text.js';
+export type { LiveTextDeclaration, LiveTextAudit, LiveTextFreezeViolation, LiveTextInput } from './live-text.js';
+export {
   diffStyleMaps,
   diffStyleMapDirs,
   diffContentMaps,
   diffContentDirs,
+  auditLiveTextDirs,
   findingLabel,
   summarizeComparability,
 } from './diff.js';
