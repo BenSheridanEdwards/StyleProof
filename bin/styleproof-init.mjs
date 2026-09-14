@@ -1362,6 +1362,7 @@ if (styleproofConfig.wrote) {
 // Legacy patterns prevent accidental commits from old StyleProof versions or renamed dirs.
 const gitignore = ensureGitignoreLines([
   '.styleproof/',
+  'styleproof-audit.json',
   'stylemaps/',
   '__stylemaps__/',
   'test-results/',

@@ -8,12 +8,6 @@ function fixture() {
     file: 'test/cross-element-state.e2e.spec.ts',
     title: 'non-Chromium capture persists unsupported forced-state evidence',
   };
-  // Quarantined test must match the entry in scripts/verify-e2e-shards.mjs
-  const quarantinedTest = {
-    id: 'quarantined-prepush',
-    file: 'test/cli-flow.e2e.spec.ts',
-    title: 'pre-push hook dogfood: capture→publish→docs-skip→fresh-clone restore by SHA',
-  };
   const report = (specs, current) => ({
     errors: [],
     config: { shard: { current, total: 2 } },
@@ -50,12 +44,6 @@ function fixture() {
           status: 'skipped',
           resultStatus: 'skipped',
         },
-        {
-          ...quarantinedTest,
-          expectedStatus: 'skipped',
-          status: 'skipped',
-          resultStatus: 'skipped',
-        },
       ],
       1,
     ),
@@ -84,9 +72,9 @@ test('two successful shards cover the complete inventory and preserve the oracle
   const { expected, shards, receipts } = fixture();
   assert.deepEqual(verifyE2eShards(expected, shards, receipts, 2), {
     shards: 2,
-    collected: 5, // first, second, unsupported-state (chromium+firefox), quarantined
+    collected: 4, // first, second, unsupported-state (chromium+firefox)
     passed: 3, // first, second, unsupported-state-firefox
-    skipped: 2, // unsupported-state-chromium, quarantined-prepush
+    skipped: 1, // unsupported-state-chromium
     oracle: 'deterministic',
   });
 });

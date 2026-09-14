@@ -252,6 +252,7 @@ test('styleproof-init: gitignore includes all map artifact patterns to prevent a
     const gitignore = readFile(root, '.gitignore');
     // Primary pattern: current default output dir
     assert.match(gitignore, /\.styleproof\//, 'must gitignore .styleproof/');
+    assert.match(gitignore, /^styleproof-audit\.json$/m, 'must gitignore generated audit trail');
     // Legacy patterns from earlier StyleProof versions — adopters may have old
     // artifacts in these locations; gitignoring them prevents accidental commits.
     assert.match(gitignore, /stylemaps\//, 'must gitignore legacy stylemaps/');
