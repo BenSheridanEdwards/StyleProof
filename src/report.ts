@@ -18,6 +18,7 @@ import {
 import {
   isMapFile,
   baselineFailureReceipts,
+  honestBaselineCompareAttribution,
   readBaselineProvenance,
   readMapManifest,
   surfaceMissingMatchesBaselineFailure,
@@ -1962,9 +1963,11 @@ const SURFACE_SCOPE_GLOSSARY =
 
 function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]): string[] {
   if (failures.length === 0) return [];
-  return [
-    `⚠️ **${failures.length} baseline capture failure(s)**: these captures failed on the **base branch** and were omitted from the baseline bundle. **Repair base capture** on the base branch; do not approve indefinitely. Raw exception details stay private.`,
-  ];
+  const attribution = honestBaselineCompareAttribution({
+    baseCaptureFailed: false,
+    receipts: failures,
+  });
+  return [`⚠️ **${failures.length} baseline capture failure(s)**: ${attribution.summary}`];
 }
 
 function baselineFailureDetailLines(failures: BaselineFailureReceipt[]): string[] {
@@ -1973,7 +1976,9 @@ function baselineFailureDetailLines(failures: BaselineFailureReceipt[]): string[
     '',
     '### Baseline capture failure receipt',
     '',
-    ...failures.map((failure) => `- \`${failure.key}\` · \`${failure.reason}\``),
+    ...failures.map((failure) => `- \`${failure.key}\` · \`${failure.reason}\` · \`${failure.sha}\``),
+    '',
+    '_Named surface+SHA above. This is not a base recapture failure (`base-capture-failed=false`)._',
     '',
   ];
 }
@@ -1996,7 +2001,7 @@ function missingSurfaceSummaryLines(
   }
   if (brokenBaseMissing.length > 0) {
     md.push(
-      `⚠️ **${brokenBaseMissing.length} head surface(s)** have no base map because baseline capture failed (not first adoption): ${newSurfaceSummary(brokenBaseMissing)}.`,
+      `⚠️ **${brokenBaseMissing.length} head surface(s)** have no base map because a named baseline surface capture failed (not first adoption, not a base recapture failure): ${newSurfaceSummary(brokenBaseMissing)}.`,
       '',
     );
   }
@@ -2064,8 +2069,8 @@ function reportConsistencyFailureSummaryLines(
       : 'report-only path correspondence collapsed every presentation finding — **no reviewable crops or change sections remain**.';
   const remediation =
     reportConsistency.reason === 'raw_only_no_reviewable'
-      ? '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._'
-      : '_This is **not** a clean no-change and cannot be approved visually. Fail closed (`CERTIFICATION_FAILED`): inspect the raw path churn or tighten the correspondence signal before trusting this comparison._';
+      ? '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands. This is **not** a base recapture failure (`base-capture-failed=false`)._'
+      : '_This is **not** a clean no-change and cannot be approved visually. Fail closed (`CERTIFICATION_FAILED`): inspect the raw path churn or tighten the correspondence signal before trusting this comparison. This is **not** a base recapture failure (`base-capture-failed=false`)._';
   const md = [
     `⚠ **Report consistency failure:** the certification differ found **${rawCounts.dom} DOM**, **${rawCounts.style} computed-style**, and **${rawCounts.state} state** difference(s), but ${explanation}`,
     '',
@@ -2722,7 +2727,7 @@ function oneSidedPresentation(
   return {
     heading: `### \`${key}\` · baseline repair needed ⚠️`,
     alt: 'baseline repair needed',
-    note: `_The matching baseline capture failed. This is **baseline repair needed**, not first adoption; repair the base capture and rerun._`,
+    note: `_The matching baseline surface capture failed. This is **baseline repair needed**, not first adoption and not a base recapture failure; repair \`${key}\` on the named SHA in the receipt above._`,
   };
 }
 
@@ -3185,8 +3190,9 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Surface bases (and variant keys when widths/states differ) carrying a reviewable
   // change — NOT the new (one-sided) ones, which have no baseline and get their own line.
   const changedScope = countChangedSurfaceScope(changeGroups, surfaceKeyOf);
-  const baselineSurfaceFailures = readMapManifest(beforeDir)?.surfaceCaptureFailures ?? [];
-  const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures);
+  const baselineManifest = readMapManifest(beforeDir);
+  const baselineSurfaceFailures = baselineManifest?.surfaceCaptureFailures ?? [];
+  const baselineFailures = baselineFailureReceipts(baselineSurfaceFailures, baselineManifest?.sha);
   const comparison: ReportComparison = {
     ...comparisonForReport(rawComparison, includeNoise, preparedCertified.length - missing.length),
     ...comparabilitySummary,

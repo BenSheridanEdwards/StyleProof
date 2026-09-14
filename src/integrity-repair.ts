@@ -163,7 +163,7 @@ export function formatIntegrityRepairMarkdown(findings: readonly IntegrityFindin
 export function formatIntegrityRepairComment(findings: readonly IntegrityFinding[]): string {
   const reasons = integrityReasonsOf(findings);
   if (reasons.length === 0) {
-    return '_Coverage, determinism, or report/diff consistency evidence is incomplete — repair the capture or reflow source; reviewer approval cannot clear this failure._';
+    return '_Coverage, determinism, or report/diff consistency evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report; reviewer approval cannot clear this failure._';
   }
   const named = reasons.map((reason) => `\`${reason}\``).join(', ');
   return `_Integrity failure (${named}) — see the integrity repair path in the report (what broke, what to fix, how to verify). Reviewer approval cannot clear this. Repair the evidence and re-run._`;
@@ -172,7 +172,7 @@ export function formatIntegrityRepairComment(findings: readonly IntegrityFinding
 export function formatIntegrityStatusDescription(findings: readonly IntegrityFinding[]): string {
   const reasons = integrityReasonsOf(findings);
   if (reasons.length === 0) {
-    return 'Coverage, determinism, or report/diff consistency evidence is incomplete';
+    return 'Evidence incomplete on named surface+SHA — not a base recapture failure';
   }
   return `Integrity failure (${reasons.join(', ')}) — repair evidence; approval cannot clear`;
 }

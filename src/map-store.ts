@@ -36,18 +36,101 @@ export type SurfaceCaptureFailure = {
 export type BaselineFailureReceipt = {
   key: string;
   reason: 'capture_failed';
+  /** Durable commit identity of the side that failed (40-hex, `uncommitted`, or hashed). */
+  sha: string;
+};
+
+/** Closed set of adopter-facing baseline/compare failure classes (#651). */
+export type BaselineCompareFailureClass = 'baseline_surface_capture' | 'base_recapture' | 'compare';
+
+export type BaselineCompareAttribution = {
+  failureClass: BaselineCompareFailureClass;
+  recaptureFailed: boolean;
+  named: string;
+  summary: string;
 };
 
 const PUBLIC_CAPTURE_FAILURE_KEY = /^[a-z0-9][a-z0-9._-]{0,199}@(auto|[1-9]\d{1,4})$/;
+const PUBLIC_BASELINE_SHA = /^(?:[0-9a-f]{40}|uncommitted)$/;
 
-/** Convert private capture diagnostics into stable public receipts without exception text. */
-export function baselineFailureReceipts(failures: readonly SurfaceCaptureFailure[]): BaselineFailureReceipt[] {
+/** Public SHA identity: 40-hex / `uncommitted`, or a privacy-safe hashed placeholder. */
+export function publicBaselineSha(sha: string | undefined): string {
+  if (sha && PUBLIC_BASELINE_SHA.test(sha)) return sha;
+  if (!sha) return 'unknown';
+  return `sha-${createHash('sha256').update(sha).digest('hex').slice(0, 12)}`;
+}
+
+function publicCaptureFailureKey(key: string): string {
+  return PUBLIC_CAPTURE_FAILURE_KEY.test(key)
+    ? key
+    : `capture-${createHash('sha256').update(key).digest('hex').slice(0, 12)}`;
+}
+
+function namedSurfaceShaList(items: readonly { key: string; sha: string }[]): string {
+  return items.map((item) => `\`${item.key}\` at \`${item.sha}\``).join(', ');
+}
+
+/**
+ * Convert private capture diagnostics into stable public receipts without exception text.
+ * `sha` is the baseline commit the failed surface was captured against.
+ */
+export function baselineFailureReceipts(
+  failures: readonly SurfaceCaptureFailure[],
+  sha?: string,
+): BaselineFailureReceipt[] {
+  const publicSha = publicBaselineSha(sha);
   return failures.map((failure) => ({
-    key: PUBLIC_CAPTURE_FAILURE_KEY.test(failure.key)
-      ? failure.key
-      : `capture-${createHash('sha256').update(failure.key).digest('hex').slice(0, 12)}`,
+    key: publicCaptureFailureKey(failure.key),
     reason: 'capture_failed',
+    sha: publicSha,
   }));
+}
+
+/**
+ * Adopter-legible attribution for a baseline or compare fault.
+ * When `base-capture-failed=false`, never claims a base recapture failed.
+ */
+export function honestBaselineCompareAttribution(options: {
+  baseCaptureFailed: boolean;
+  receipts?: readonly BaselineFailureReceipt[];
+  compareSurfaces?: readonly { key: string; sha: string }[];
+}): BaselineCompareAttribution {
+  if (options.baseCaptureFailed) {
+    return {
+      failureClass: 'base_recapture',
+      recaptureFailed: true,
+      named: '',
+      summary:
+        'The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun.',
+    };
+  }
+  const receipts = options.receipts ?? [];
+  if (receipts.length > 0) {
+    const named = namedSurfaceShaList(receipts);
+    return {
+      failureClass: 'baseline_surface_capture',
+      recaptureFailed: false,
+      named,
+      summary:
+        `these named surface(s) failed on the base SHA and were omitted from the baseline bundle: ${named}. ` +
+        `The base bundle was produced (\`base-capture-failed=false\`); this is not a base recapture failure. ` +
+        `Repair the named surface(s) on that SHA; do not approve indefinitely. Raw exception details stay private.`,
+    };
+  }
+  const compareSurfaces = (options.compareSurfaces ?? []).map((item) => ({
+    key: publicCaptureFailureKey(item.key),
+    sha: publicBaselineSha(item.sha),
+  }));
+  const named = namedSurfaceShaList(compareSurfaces);
+  return {
+    failureClass: 'compare',
+    recaptureFailed: false,
+    named,
+    summary: named
+      ? `compare/certification evidence is incomplete on ${named}. ` +
+        `This is not a base recapture failure (\`base-capture-failed=false\`). Repair the named evidence; reviewer approval cannot clear it.`
+      : 'compare/certification evidence is incomplete. This is not a base recapture failure (`base-capture-failed=false`).',
+  };
 }
 /** Sidecar written during a capture run (where a browser handle is in scope) recording
  *  the real browser build (`browser().version()`). `writeMapManifest` runs after Playwright

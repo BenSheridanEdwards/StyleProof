@@ -77,6 +77,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Honest baseline-failure attribution.** When `base-capture-failed=false` and a
+  baseline or compare fault occurs, report/audit/Action text names the failing
+  **surface and SHA** and no longer implies that a base recapture failed. Public
+  `baselineFailures` receipts now include the bounded baseline `sha`.
+  `DEGRADED_BASELINE` (`base-capture-failed=true`) remains the head-only recapture
+  failure. (#651)
+
 - **Live/age/clock text no longer masquerades as a stylesheet regression.** Server-rendered
   ages (`open 102.1d` → `open 103.1d`) are clock/live data, not a product CSS change.
   Declare `liveText` (requires `captureText: true`) so age-only drift stays advisory and

@@ -1,0 +1,11 @@
+{
+  "baseCaptureFailed": false,
+  "partialBaseline": true,
+  "baselineFailures": [
+    {
+      "key": "pricing@1280",
+      "reason": "capture_failed",
+      "sha": "1e0a210cd0d46de0ff9378e818d6f793fadc921c"
+    }
+  ]
+}

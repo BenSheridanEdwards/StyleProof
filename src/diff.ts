@@ -537,7 +537,10 @@ export function diffStyleMapDirs(
   const indexA = indexDir(dirA);
   const indexB = indexDir(dirB);
   const baselineManifest = readMapManifest(dirA);
-  const baselineFailures = baselineFailureReceipts(baselineManifest?.surfaceCaptureFailures ?? []);
+  const baselineFailures = baselineFailureReceipts(
+    baselineManifest?.surfaceCaptureFailures ?? [],
+    baselineManifest?.sha,
+  );
   const names = [...new Set([...Object.keys(indexA), ...Object.keys(indexB)])].sort();
   if (names.length === 0) throw new Error(`no .json(.gz) captures found in ${dirA} or ${dirB}`);
   // A whole side with zero captures is a missing MAP, not a set of genuinely

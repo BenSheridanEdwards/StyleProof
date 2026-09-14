@@ -264,7 +264,11 @@ test('production diff and report receipts pass through the exact Action merge pr
     partialSurface.isNew = false;
     partialSurface.baselineStatus = 'capture-failed';
     partialReport.baselineFailures = [
-      { key: partialSurface.surface.replace(/@[^@]+$/, '@auto'), reason: 'capture_failed' },
+      {
+        key: partialSurface.surface.replace(/@[^@]+$/, '@auto'),
+        reason: 'capture_failed',
+        sha: 'a'.repeat(40),
+      },
     ];
     partialReport.partialBaseline = true;
     partialDiff.baselineFailures = structuredClone(partialReport.baselineFailures);
@@ -535,7 +539,9 @@ test('production diff and report receipts pass through the exact Action merge pr
     fs.writeFileSync(reportJsonPath, JSON.stringify(honestReport));
     fs.writeFileSync(diffJsonPath, JSON.stringify(honestDiff));
     const contradictoryBaselineReceipt = structuredClone(honestReport);
-    contradictoryBaselineReceipt.baselineFailures = [{ key: 'home@1280', reason: 'capture_failed' }];
+    contradictoryBaselineReceipt.baselineFailures = [
+      { key: 'home@1280', reason: 'capture_failed', sha: 'a'.repeat(40) },
+    ];
     contradictoryBaselineReceipt.partialBaseline = true;
     fs.writeFileSync(reportJsonPath, JSON.stringify(contradictoryBaselineReceipt));
     const contradictoryBaseline = spawnSync(process.execPath, [mergeScript], {
