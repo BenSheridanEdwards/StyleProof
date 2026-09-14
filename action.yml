@@ -44,6 +44,12 @@ inputs:
   status-context:
     description: 'Name of the commit status set in review-gate mode (must match the approve workflow + branch protection).'
     default: 'StyleProof'
+  comment-marker:
+    description: >-
+      HTML comment marker used to find and upsert the PR report comment.
+      Change this when more than one StyleProof Action runs on the same pull request
+      so the comments do not overwrite each other.
+    default: '<!-- styleproof-report -->'
   mode:
     description: >-
       Operation mode: 'certify' (default) fails on any style diff, 'review-gate'
@@ -552,7 +558,10 @@ runs:
           const { formatIntegrityRepairComment, parseIntegrityFailures } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
-          const marker = '<!-- styleproof-report -->';
+          const marker = ${{ toJSON(inputs.comment-marker) }};
+          if (typeof marker !== 'string' || !/^<!-- [A-Za-z0-9 _.:-]{1,80} -->$/.test(marker)) {
+            throw new Error('comment-marker must be an HTML comment like <!-- styleproof-report -->');
+          }
           // `changed` = review required: before/after differences OR new surfaces
           // with no baseline. Publication always supplies the durable receipt.
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';

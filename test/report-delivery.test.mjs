@@ -36,6 +36,7 @@ function actionCommentScript({ url = reportUrl, sha = publicationSha } = {}) {
     ['steps.gate.outputs.approved', 'false'],
     ['steps.gate.outputs.approver', ''],
     ['inputs.status-context', 'StyleProof'],
+    ['toJSON(inputs.comment-marker)', JSON.stringify('<!-- styleproof-report -->')],
     ['steps.verdict.outputs.state', 'STYLE_REVIEW_REQUIRED'],
     ['steps.context.outputs.head-sha', 'c'.repeat(40)],
     ['inputs.include-content', 'false'],
