@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "packageVersion": "6.4.0",
+  "sha": "66f485841f27fa12bd8c0f41ec738edcc6bce114",
+  "dirty": false,
+  "spec": "example/styleproof.spec.ts",
+  "specHash": "bc848f9e41ed971a392320be9cb35ab637939729c8c7318480b5f0743de9541e",
+  "lockfile": "package-lock.json",
+  "lockfileHash": "3d1b8441af988a8c08a965260f5634fe67696342497b411e99fbab2ad9457ddc",
+  "playwrightVersion": "1.61.1",
+  "browserVersion": "149.0.7827.55",
+  "platform": "linux",
+  "arch": "x64",
+  "nodeMajor": "22",
+  "screenshots": true,
+  "har": false,
+  "compatibilityKey": "2bb172dc4311f95f",
+  "createdAt": "2026-09-14T17:51:00.644Z"
+}
