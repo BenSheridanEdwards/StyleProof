@@ -13,6 +13,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the same thin caller adopters get from `styleproof-init`, pointing at
   `styleproof-approve-reusable.yml@main`. Reviewer ticks stay inert until advisory
   dogfood enables `require-approval`. Does not change evidence confidence. (#644)
+- **StyleProof-on-StyleProof dogfood.** Root `styleproof.config.ts` declares the
+  real `example/demo` surfaces in advisory mode (`blocking: 'advisory'`,
+  `requireApproval: false`). Same-repo PRs run `.github/workflows/styleproof-dogfood.yml`:
+  capture those surfaces, publish maps to `styleproof-maps`, and run the Action
+  with `fail-on-diff: false` / `mode: advisory` so a report comment lands on
+  `styleproof-reports`. This check is advisory and is not part of hosted
+  required CI. The synthetic `action-dogfood.yml` contract suite is unchanged.
+  (#642, #643)
+
+- **Action `comment-marker` input.** Defaults to `<!-- styleproof-report -->`.
+  Set a distinct marker when more than one StyleProof Action runs on the same
+  pull request so the comments do not overwrite each other.
 
 - **Coverage config manifest** (`coverage.manifest`): declare expected surfaces via
   an external JSON file instead of programmatic `expected`. The manifest format is

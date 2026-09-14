@@ -1,0 +1,162 @@
+name: StyleProof dogfood
+
+# Live StyleProof-on-StyleProof. Captures the surfaces declared in
+# styleproof.config.ts (example/styleproof.spec.ts → example/demo) and runs
+# the Action in advisory mode — the adopter path.
+#
+# action-dogfood.yml remains the synthetic Action contract suite. This
+# workflow is advisory and is NOT part of the hosted `required` check.
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: styleproof-dogfood-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  styleproof-dogfood:
+    name: StyleProof dogfood (advisory)
+    # Forks lack write permission for map/report branches.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Pin the checkout to the PR head commit
+        run: git checkout --force '${{ github.event.pull_request.head.sha }}'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(npm ls @playwright/test --json | jq -r '.dependencies["@playwright/test"].version')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install browsers (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install browsers (cache hit, no OS deps)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+
+      - name: Define runner-local map path
+        run: echo "MAP_ROOT=$RUNNER_TEMP/styleproof-dogfood" >> "$GITHUB_ENV"
+
+      - name: Capture declared surfaces at the PR head
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          PATH="$PWD/node_modules/.bin:$PATH" node bin/styleproof-map.mjs \
+            --spec example/styleproof.spec.ts \
+            --dir head --base-dir "$MAP_ROOT" \
+            --sha "$HEAD_SHA" --upload \
+            -- --config example/store-dogfood.playwright.config.ts
+
+      - name: Capture declared surfaces at the PR base
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          BASE_WT="$RUNNER_TEMP/styleproof-dogfood-base"
+          git worktree add --detach "$BASE_WT" "$BASE_SHA"
+          ln -sfn "$GITHUB_WORKSPACE/node_modules" "$BASE_WT/node_modules"
+          ln -sfn "$GITHUB_WORKSPACE/dist" "$BASE_WT/dist"
+          (
+            cd "$BASE_WT"
+            PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH" \
+              node "$GITHUB_WORKSPACE/bin/styleproof-map.mjs" \
+              --spec example/styleproof.spec.ts \
+              --dir base --base-dir "$MAP_ROOT" \
+              --sha "$BASE_SHA" --upload \
+              -- --config example/store-dogfood.playwright.config.ts
+          )
+          git worktree remove --force "$BASE_WT"
+
+      - id: dogfood
+        uses: ./
+        with:
+          baseline-dir: ${{ runner.temp }}/styleproof-dogfood/base
+          fresh-dir: ${{ runner.temp }}/styleproof-dogfood/head
+          fail-on-diff: 'false'
+          mode: 'advisory'
+          report-branch: styleproof-reports
+          status-context: 'StyleProof dogfood'
+          comment-marker: '<!-- styleproof-dogfood-report -->'
+
+      - name: Assert PR report was published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPORT_BRANCH: styleproof-reports
+          MAP_BRANCH: styleproof-maps
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          report_path="pr-${PR_NUMBER}/report.md"
+          body="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq 'map(select(.body | contains("<!-- styleproof-dogfood-report -->"))) | last | .body // ""')"
+          printf '%s\n' "$body" | grep -F '<!-- styleproof-dogfood-report -->'
+          printf '%s\n' "$body" | grep -Eq "https://github.com/${GITHUB_REPOSITORY}/blob/[0-9a-f]{40}/${report_path}"
+
+          for i in 1 2 3 4 5; do
+            gh api "repos/${GITHUB_REPOSITORY}/contents/${report_path}?ref=${REPORT_BRANCH}" --jq .path | grep -Fx "$report_path" && break
+            if [ "$i" -eq 5 ]; then
+              echo "StyleProof report file missing at ${REPORT_BRANCH}/${report_path}" >&2
+              exit 1
+            fi
+            sleep $((i * 2))
+          done
+
+          map_path="${HEAD_SHA}/styleproof-manifest.json"
+          for i in 1 2 3 4 5; do
+            gh api "repos/${GITHUB_REPOSITORY}/contents/${map_path}?ref=${MAP_BRANCH}" --jq .path | grep -Fx "$map_path" && exit 0
+            sleep $((i * 2))
+          done
+          echo "StyleProof map bundle missing at ${MAP_BRANCH}/${map_path}" >&2
+          exit 1
+
+      - name: Label published report as live advisory dogfood
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ github.token }}
+          retries: 3
+          script: |
+            const marker = '<!-- styleproof-dogfood-report -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const comment = [...comments].reverse().find(({ body }) => body?.includes(marker));
+            if (!comment) throw new Error('Live StyleProof dogfood report comment was not found');
+
+            const notice = [
+              '> [!NOTE]',
+              '> **Live StyleProof-on-StyleProof (advisory).** This report is captured from the surfaces declared in `styleproof.config.ts` (`example/demo`). `fail-on-diff` is false; the check is not part of hosted required CI. The synthetic Action contract suite remains `action-dogfood.yml`.',
+            ].join('\n');
+            const body = comment.body ?? '';
+            await github.rest.issues.updateComment({
+              ...context.repo,
+              comment_id: comment.id,
+              body: body.startsWith(notice) ? body : `${notice}\n\n${body}`,
+            });

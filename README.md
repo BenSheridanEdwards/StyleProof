@@ -1727,15 +1727,16 @@ CLI URL/crawl commands do not expose these options.
 
 **Action `BenSheridanEdwards/StyleProof@v6`** — key inputs:
 
-| Input                 | Default      | Purpose                                                                                                    |
-| --------------------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
-| `fresh-dir`           | _required_   | PR-head captures restored from `styleproof-maps` or freshly captured in CI.                                |
-| `baseline-dir`        | _required_   | Base-branch captures dir restored from `styleproof-maps` or freshly captured in CI.                        |
-| `base-capture-failed` | `false`      | Mark a bare baseline caused by a capture failure; publishes head-only evidence but hard-fails as degraded. |
-| `include-content`     | `false`      | Render advisory content and DOM-structure evidence in the durable report; never changes the style verdict. |
-| `require-approval`    | `false`      | Review-gate mode: set the `StyleProof` status instead of failing.                                          |
-| `fail-on-diff`        | `true`       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                                   |
-| `status-context`      | `StyleProof` | Commit-status name. Must match the approve workflow and branch protection.                                 |
+| Input                 | Default                      | Purpose                                                                                                        |
+| --------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `fresh-dir`           | _required_                   | PR-head captures restored from `styleproof-maps` or freshly captured in CI.                                    |
+| `baseline-dir`        | _required_                   | Base-branch captures dir restored from `styleproof-maps` or freshly captured in CI.                            |
+| `base-capture-failed` | `false`                      | Mark a bare baseline caused by a capture failure; publishes head-only evidence but hard-fails as degraded.     |
+| `include-content`     | `false`                      | Render advisory content and DOM-structure evidence in the durable report; never changes the style verdict.     |
+| `require-approval`    | `false`                      | Review-gate mode: set the `StyleProof` status instead of failing.                                              |
+| `fail-on-diff`        | `true`                       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                                       |
+| `status-context`      | `StyleProof`                 | Commit-status name. Must match the approve workflow and branch protection.                                     |
+| `comment-marker`      | `<!-- styleproof-report -->` | HTML comment used to upsert the PR report. Set a distinct value when more than one Action runs on the same PR. |
 
 Outputs include `changed`, `content-changes`, `report-url`, `trust-state`, and `data-residue-keys`. `trust-state` distinguishes a clean style comparison (`NO_REVIEWABLE_STYLE_CHANGES`), style review (`STYLE_REVIEW_REQUIRED`), unapprovable evidence failures, `PARTIAL_BASELINE` (ledger-explained missing baseline surfaces — repair base capture; approval cannot clear), `DEGRADED_BASELINE` (the base capture failed with zero maps, so the receipt is head-only evidence rather than a comparison), and publication failure. `content-changes` is the advisory count rendered when `include-content` is enabled; it never changes `changed` or the gate status. `styleproof-diff --json` carries `explainedMissingBaselineSurfaces` and `partialBaseline` so consumers need not reimplement `@auto` width matching. The action **self-verifies** the publish before exposing `report-url`: it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 

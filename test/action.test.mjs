@@ -1287,6 +1287,16 @@ test('dogfood workflow runs on every same-repo PR', () => {
   assert.doesNotMatch(dogfoodYml, /\n\s+paths:/);
 });
 
+test('composite action comment-marker defaults to the product marker and accepts a distinct dogfood marker', () => {
+  assert.match(
+    actionYml,
+    /comment-marker:\n {4}description: >-\n {6}HTML comment marker used to find and upsert the PR report comment\./,
+  );
+  assert.match(actionYml, /default: '<!-- styleproof-report -->'/);
+  assert.match(actionYml, /const marker = \$\{\{ toJSON\(inputs\.comment-marker\) \}\};/);
+  assert.match(actionYml, /comment-marker must be an HTML comment like <!-- styleproof-report -->/);
+});
+
 test('dogfood workflow asserts the PR report comment and branch artifact', () => {
   assert.ok(dogfoodYml.includes('Assert PR report was published'));
   assert.ok(dogfoodYml.includes('<!-- styleproof-report -->'));

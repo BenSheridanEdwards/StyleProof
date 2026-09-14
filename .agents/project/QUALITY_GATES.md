@@ -26,6 +26,7 @@ is listed here only if it exists and runs on a clean checkout.
 | Demo report freshness  | `scripts/demo-report.mjs --check`    | CI (Node 22)                  | `npm run demo:check`                                                                                          |
 | Action dogfood         | the Action itself, on fixtures       | CI (`pull_request`)           | `.github/workflows/action-dogfood.yml`                                                                        |
 | Map-store dogfood      | real capture + map store + diff      | CI (`pull_request`)           | `.github/workflows/store-dogfood.yml`                                                                         |
+| Live StyleProof dogfood | Action on `styleproof.config.ts` surfaces (`example/demo`) | CI (`pull_request`, same-repo) | `.github/workflows/styleproof-dogfood.yml` — advisory (`fail-on-diff: false`); **not** part of the hosted `required` check |
 | Gate-bypass block      | `.claude/hooks/block-gate-bypass.sh` | PreToolUse (Claude Code)      | Exits non-zero on `git commit`/`push` with `--no-verify`/`-n`                                                 |
 
 ## Where each gate fires
@@ -40,7 +41,8 @@ is listed here only if it exists and runs on a clean checkout.
   determinism receipt in a parallel Node 22 job; CLI smoke on macOS + Windows;
   one stable `required` check that fails unless all three lanes succeed.
 - **CI (dedicated workflows)** — `secret-scan.yml`, `codeql.yml`, `pr-body.yml`,
-  `fallow.yml`, `action-dogfood.yml`, `store-dogfood.yml`.
+  `fallow.yml`, `action-dogfood.yml`, `store-dogfood.yml`,
+  `styleproof-dogfood.yml` (advisory, not required).
   `.github/workflows/styleproof-approve.yml` is the thin adopter-shaped approve
   caller (`styleproof-approve-reusable.yml@main`). It is not a required check;
   reviewer ticks stay inert until advisory dogfood enables `require-approval`.
