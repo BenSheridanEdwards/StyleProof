@@ -12,4 +12,4 @@
 _Named surface+SHA above. This is not a base recapture failure (`base-capture-failed=false`)._
 ```
 
-The machine receipt is `baseline-failures.json`. Verdict stays fail-closed (`PARTIAL_BASELINE`); approval cannot clear it.
+The machine receipt is `baseline-failures.json`. Verdict stays fail-closed (`PARTIAL_BASELINE`); approval cannot clear it. Per-surface notes point at the named SHA in that receipt.
