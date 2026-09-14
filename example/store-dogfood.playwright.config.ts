@@ -7,6 +7,10 @@ import { defineConfig, devices } from '@playwright/test';
 // styleproof-map so the REAL capture→publish→restore chain can be certified in
 // CI. Absolute paths keep it independent of the invoking cwd.
 const here = path.dirname(fileURLToPath(import.meta.url));
+// STYLEPROOF_DEMO_ROOT lets a caller serve another checkout's example/demo
+// (the PR-base worktree) while this file still resolves @playwright/test
+// from the clean head install. Unset → committed demo next to this config.
+const demoRoot = process.env.STYLEPROOF_DEMO_ROOT ?? path.join(here, 'demo');
 
 export default defineConfig({
   testDir: here,
@@ -17,7 +21,7 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:4173',
   },
   webServer: {
-    command: `node ${JSON.stringify(path.join(here, '..', 'scripts', 'serve-static.mjs'))} ${JSON.stringify(path.join(here, 'demo'))} 4173`,
+    command: `node ${JSON.stringify(path.join(here, '..', 'scripts', 'serve-static.mjs'))} ${JSON.stringify(demoRoot)} 4173`,
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

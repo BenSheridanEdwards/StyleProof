@@ -80,15 +80,19 @@ jobs:
           # Capture from the clean head checkout. Do not symlink node_modules/dist
           # into the worktree: .gitignore is `dist/` / `node_modules/` (directories
           # only), so those symlinks read as untracked dirt and --upload exits 2.
-          # The worktree Playwright config serves the base commit's example/demo.
+          # Do not load the worktree Playwright config either: Node resolves
+          # @playwright/test from the config file's directory, and the worktree
+          # has no node_modules. HEAD's config + STYLEPROOF_DEMO_ROOT serves
+          # the base commit's example/demo instead.
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           BASE_WT="$RUNNER_TEMP/styleproof-dogfood-base"
           git worktree add --detach "$BASE_WT" "$BASE_SHA"
+          STYLEPROOF_DEMO_ROOT="$BASE_WT/example/demo" \
           PATH="$PWD/node_modules/.bin:$PATH" node bin/styleproof-map.mjs \
             --spec example/styleproof.spec.ts \
             --dir base --base-dir "$MAP_ROOT" \
             --sha "$BASE_SHA" --upload \
-            -- --config "$BASE_WT/example/store-dogfood.playwright.config.ts"
+            -- --config example/store-dogfood.playwright.config.ts
           git worktree remove --force "$BASE_WT"
 
       - id: dogfood

@@ -19,8 +19,12 @@ test('live dogfood captures declared config.ts surfaces and runs the Action advi
   assert.match(workflow, /example\/store-dogfood\.playwright\.config\.ts/);
   assert.match(workflow, /--sha "\$HEAD_SHA" --upload/);
   assert.match(workflow, /--sha "\$BASE_SHA" --upload/);
-  assert.match(workflow, /--config "\$BASE_WT\/example\/store-dogfood\.playwright\.config\.ts"/);
+  assert.match(workflow, /STYLEPROOF_DEMO_ROOT="\$BASE_WT\/example\/demo"/);
+  assert.match(workflow, /--config example\/store-dogfood\.playwright\.config\.ts/);
+  assert.doesNotMatch(workflow, /--config "\$BASE_WT\//, 'worktree Playwright config cannot resolve @playwright/test');
   assert.doesNotMatch(workflow, /ln -sfn/, 'worktree must stay clean so --upload is not refused');
+  const pwConfig = fs.readFileSync(path.join(here, '..', 'example/store-dogfood.playwright.config.ts'), 'utf8');
+  assert.match(pwConfig, /STYLEPROOF_DEMO_ROOT/);
   assert.match(workflow, /uses: \.\//);
   assert.match(workflow, /fail-on-diff:\s*'false'/);
   assert.match(workflow, /mode:\s*'advisory'/);
