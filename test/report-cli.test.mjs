@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +11,8 @@ const prune = path.join(root, 'bin/styleproof-prune-reports.mjs');
 
 function run(script, args) {
   return spawnSync(process.execPath, [script, ...args], {
-    cwd: root,
+    // Isolated cwd so this repo's root styleproof.config.ts is not loaded.
+    cwd: os.tmpdir(),
     encoding: 'utf8',
     env: { ...process.env, GH_TOKEN: '' },
   });
