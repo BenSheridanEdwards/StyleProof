@@ -25,6 +25,7 @@ export {
 export * from './inventory.js';
 export * from './data-residue.js';
 export * from './legacy-pairs.js';
+export * from './critical-obligations.js';
 export {
   captureUrlToDir,
   runCaptureUrl,

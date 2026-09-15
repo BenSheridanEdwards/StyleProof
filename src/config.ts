@@ -356,6 +356,8 @@ export type ProductStateConfig = {
   requireIdentity?: boolean;
   /** Path to the legacy-pair declare file (`{"<surface>": "<why>"}`). */
   legacyPairs?: string;
+  /** Path to the critical-states obligation file (`{"<surface>": {"owner": "...", "reason": "..."}}`). */
+  critical?: string;
 };
 
 export type StyleProofConfig = {
@@ -720,9 +722,11 @@ function parseProductState(value: unknown): ProductStateConfig | undefined {
   warnUnknownKeys(p, KNOWN_PRODUCT_STATE_KEYS, '"productState" ');
   const requireIdentity = optionalBoolean(p.requireIdentity, 'productState.requireIdentity');
   const legacyPairs = optionalString(p.legacyPairs, 'productState.legacyPairs');
+  const critical = optionalString(p.critical, 'productState.critical');
   const result: ProductStateConfig = {};
   if (requireIdentity !== undefined) result.requireIdentity = requireIdentity;
   if (legacyPairs !== undefined) result.legacyPairs = legacyPairs;
+  if (critical !== undefined) result.critical = critical;
   return result;
 }
 
@@ -763,7 +767,7 @@ const KNOWN_CRAWL_KEYS = [
   'height',
 ];
 const KNOWN_COVERAGE_KEYS = ['manifest', 'strict', 'exclude'];
-const KNOWN_PRODUCT_STATE_KEYS = ['requireIdentity', 'legacyPairs'];
+const KNOWN_PRODUCT_STATE_KEYS = ['requireIdentity', 'legacyPairs', 'critical'];
 
 /** Unknown keys are a LOUD stderr warning, not an error: a typo'd `dirtyallow`
  *  silently reverting to defaults is exactly the failure this file's contract
@@ -918,7 +922,11 @@ export function resolveStyleProofConfigFilePaths(config: StyleProofConfig, confi
     ? { ...config.affected, graph: resolveOptionalConfigPath(config.affected.graph, configDir) }
     : undefined;
   const productState = config.productState
-    ? { ...config.productState, legacyPairs: resolveOptionalConfigPath(config.productState.legacyPairs, configDir) }
+    ? {
+        ...config.productState,
+        legacyPairs: resolveOptionalConfigPath(config.productState.legacyPairs, configDir),
+        critical: resolveOptionalConfigPath(config.productState.critical, configDir),
+      }
     : undefined;
   return {
     ...config,

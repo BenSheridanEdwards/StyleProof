@@ -30,6 +30,13 @@ export type CertificationEvidenceReceipt = {
     undeclared?: unknown;
     staleAcknowledgements?: unknown;
   } | null;
+  /** Critical state obligations. Armed + failing/unresolved/contradictory fails closed. */
+  criticalStates?: {
+    armed?: unknown;
+    failing?: unknown;
+    unresolved?: unknown;
+    contradictory?: unknown;
+  } | null;
 };
 
 export type CertificationEvidenceDecision = {
@@ -52,6 +59,17 @@ function legacyPairsBlockCertification(receipt: CertificationEvidenceReceipt): b
   return entryCount(pairs.undeclared) > 0 || entryCount(pairs.staleAcknowledgements) > 0;
 }
 
+/** Armed failing, unresolved, or contradictory critical obligations cannot certify. */
+function criticalStatesBlockCertification(receipt: CertificationEvidenceReceipt): boolean {
+  const obligations = receipt.criticalStates;
+  if (!obligations || typeof obligations !== 'object' || obligations.armed !== true) return false;
+  return (
+    entryCount(obligations.failing) > 0 ||
+    entryCount(obligations.unresolved) > 0 ||
+    entryCount(obligations.contradictory) > 0
+  );
+}
+
 /** Assess the closed set of evidence that cannot be cleared by visual approval. */
 export function assessCertificationEvidence(receipt: CertificationEvidenceReceipt): CertificationEvidenceDecision {
   const interactionStatesComplete = receipt.statesUncertified === 0;
@@ -67,7 +85,8 @@ export function assessCertificationEvidence(receipt: CertificationEvidenceReceip
     receipt.liveTextFreeze?.violated !== true &&
     interactionStatesComplete &&
     parseIntegrityFailures(receipt.integrityFailures).length === 0 &&
-    !legacyPairsBlockCertification(receipt);
+    !legacyPairsBlockCertification(receipt) &&
+    !criticalStatesBlockCertification(receipt);
   return { certifies, interactionStatesComplete };
 }
 

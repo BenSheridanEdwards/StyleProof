@@ -49,6 +49,12 @@ import {
   type DeclaredLegacyPairs,
   type LegacyPairAudit,
 } from './legacy-pairs.js';
+import {
+  applyCriticalObligationReceipts,
+  auditCriticalObligations,
+  type CriticalObligationAudit,
+  type DeclaredCriticalObligations,
+} from './critical-obligations.js';
 import { correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
 import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
 import {
@@ -173,6 +179,19 @@ export type ReportOptions = {
   /** True when the declare gate is armed. */
   legacyPairsArmed?: boolean;
   /**
+   * Critical state obligations (#442) — declared IDs that must produce
+   * certifying evidence. Failing/unresolved/contradictory obligations fail
+   * closed; obligations only tighten, never downgrade.
+   */
+  criticalStates?: CriticalObligationAudit;
+  /** Obligation-file contents; used when `criticalStates` is not precomputed. */
+  criticalObligations?: DeclaredCriticalObligations;
+  /** True when the obligation gate is armed. */
+  criticalStatesArmed?: boolean;
+  /** Coverage-ledger exclusion keys — a declared obligation that is also
+   *  excluded is contradictory policy and fails closed. */
+  coverageExclusions?: Iterable<string>;
+  /**
    * Byte ceiling for report.md so GitHub can always render it (its markdown viewer
    * refuses to render files past ~512 KB). Once the accumulated report would exceed
    * this, the remaining changed surfaces are listed as one-liners (name · change
@@ -242,6 +261,8 @@ export type ReportResult = {
   comparability: SurfaceComparability[];
   /** Inventory/residue twin audit when the declare gate was evaluated. */
   legacyPairs?: LegacyPairAudit;
+  /** Critical state obligation audit when the obligation gate was evaluated. */
+  criticalStates?: CriticalObligationAudit;
   /** Presentation-vs-certification coherence. Any false value must fail closed. */
   reportConsistency: ReportConsistency;
   /** Public baseline capture failures. Raw exception details are deliberately excluded. */
@@ -2032,6 +2053,41 @@ function missingSurfaceSummaryLines(
   return md;
 }
 
+function criticalObligationLines(
+  audit: CriticalObligationAudit | undefined,
+  declared: DeclaredCriticalObligations | undefined,
+): string[] {
+  if (!audit?.armed) return [];
+  const blockers = [...audit.failing, ...audit.unresolved, ...audit.contradictory];
+  if (blockers.length === 0) {
+    return [
+      `**Critical state obligations** — ✓ ${audit.certified.length} declared obligation(s) certifying on comparable paired evidence.`,
+      '',
+    ];
+  }
+  const describe = (key: string): string => {
+    const meta = declared?.[key];
+    return meta ? `${key} (${meta.owner}: ${meta.reason})` : key;
+  };
+  const lines = [
+    `⛔ **Critical state obligations** — declared obligations must certify and cannot silently expire.`,
+    '',
+  ];
+  for (const key of audit.failing) {
+    lines.push(`- ${describe(key)} — non-certifying pair (unproven or incomparable).`);
+  }
+  for (const key of audit.unresolved) {
+    lines.push(
+      `- ${describe(key)} — unresolved: no paired surface evidence (lost capture, removed surface, or unknown ID).`,
+    );
+  }
+  for (const key of audit.contradictory) {
+    lines.push(`- ${describe(key)} — contradictory: declared critical and coverage-excluded.`);
+  }
+  lines.push('');
+  return lines;
+}
+
 function comparabilityLines(comparison: ComparabilitySummary, legacyPairs?: LegacyPairAudit): string[] {
   const counts = comparison.counts;
   if (comparison.status === 'comparable') {
@@ -2958,6 +3014,7 @@ function writeReportArtifacts(
   liveTextFreeze: { violated: boolean; reason?: string } | null = null,
   integrityFailures: IntegrityFinding[] = [],
   legacyPairs?: LegacyPairAudit,
+  criticalStates?: CriticalObligationAudit,
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
@@ -2986,6 +3043,7 @@ function writeReportArtifacts(
         ...(liveTextFreeze ? { liveTextFreeze } : {}),
         ...(integrityFailures.length > 0 ? { integrityFailures } : {}),
         ...(legacyPairs ? { legacyPairs } : {}),
+        ...(criticalStates ? { criticalStates } : {}),
       },
       null,
       2,
@@ -3169,6 +3227,10 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     legacyPairs: legacyPairsOption,
     legacyPairDeclarations,
     legacyPairsArmed = false,
+    criticalStates: criticalStatesOption,
+    criticalObligations,
+    criticalStatesArmed = false,
+    coverageExclusions = [],
   } = opts;
 
   const includeNoise = opts.includeLayoutNoise === true;
@@ -3186,7 +3248,15 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const legacyPairs =
     legacyPairsOption ??
     (legacyPairsArmed ? auditLegacyPairs(rawComparability, legacyPairDeclarations ?? {}, true) : undefined);
-  const comparability = applyLegacyPairReceipts(rawComparability, legacyPairs);
+  const criticalStates =
+    criticalStatesOption ??
+    (criticalStatesArmed
+      ? auditCriticalObligations(rawComparability, criticalObligations ?? {}, coverageExclusions, true)
+      : undefined);
+  const comparability = applyCriticalObligationReceipts(
+    applyLegacyPairReceipts(rawComparability, legacyPairs),
+    criticalStates,
+  );
   // Canonical truth shared with styleproof-diff / action trust: when raw
   // certification deltas exist but cleanFindings leaves nothing reviewable,
   // never claim "identical" and never enable visual approval.
@@ -3288,6 +3358,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const baselineProvenance = readBaselineProvenance(beforeDir);
   md.push(...baselineProvenanceLines(baselineProvenance));
   md.push(...comparabilityLines(comparison, legacyPairs));
+  md.push(...criticalObligationLines(criticalStates, criticalObligations));
   md.push(
     ...reportHeadline({
       changeGroups,
@@ -3390,6 +3461,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
         : null,
     integrityFailures,
     legacyPairs,
+    criticalStates,
   );
   return {
     changedSurfaces: preparedCertified.length - missing.length,
@@ -3400,6 +3472,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     comparison,
     comparability,
     ...(legacyPairs ? { legacyPairs } : {}),
+    ...(criticalStates ? { criticalStates } : {}),
     reportConsistency,
     baselineFailures,
     partialBaseline: baselineFailures.length > 0,
