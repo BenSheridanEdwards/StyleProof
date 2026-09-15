@@ -52,24 +52,30 @@
   },
   "comparability": [
     {
+      "surface": "about@320",
+      "status": "not-required",
+      "required": false,
+      "reason": "missing-before"
+    },
+    {
       "surface": "home@320",
       "status": "comparable",
       "required": true,
       "reason": "explicit-state-match"
-    },
-    {
-      "surface": "pricing@320",
-      "status": "not-required",
-      "required": false,
-      "reason": "missing-before"
     }
   ],
   "reportConsistency": {
     "ok": true,
     "reason": "aligned"
   },
-  "baselineFailures": [],
-  "partialBaseline": false,
+  "baselineFailures": [
+    {
+      "key": "about@auto",
+      "reason": "capture_failed",
+      "sha": "e6dd4c71b7ad77102f92c59db5eb8f9218395c8c"
+    }
+  ],
+  "partialBaseline": true,
   "content": {
     "evaluated": false,
     "changes": 0,
@@ -77,13 +83,13 @@
   },
   "surfaces": [
     {
-      "surface": "pricing@320",
+      "surface": "about@320",
       "missing": "before",
-      "isNew": true,
+      "isNew": false,
       "isRemoved": false,
-      "baselineStatus": "new",
-      "classification": "genuinely-new",
-      "image": "crops/pricing-320-1-new.png"
+      "baselineStatus": "capture-failed",
+      "classification": "baseline-repair-debt",
+      "image": "crops/about-320-1-new.png"
     }
   ],
   "confidence": {
@@ -121,18 +127,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "bb279125f75a9d16088c1e008477e58a54ea8cd51a6e6392b8e8746d2af7a476",
+      "digest": "64d5f4d527ace677decd7de71e0d19167bb6e8971977ea324d01ee749eacf4a2",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1676
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "331af34a3b5c714ebfd0435191b3d8beff5ca9d562327a83a3efe270ee88fcdf",
+      "digest": "9fe477ec76494c71b752f91cb8055b90819ce734085ac75a620183f63c5972cc",
       "fileCount": 7,
       "mapCount": 2,
-      "byteCount": 2451
+      "byteCount": 2447
     }
   },
-  "actionTrustState": "STYLE_REVIEW_REQUIRED"
+  "actionTrustState": "PARTIAL_BASELINE"
 }
