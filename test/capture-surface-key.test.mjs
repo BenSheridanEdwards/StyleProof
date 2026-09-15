@@ -180,6 +180,7 @@ test('report and diff CLI agree on captured surface base count when metadata.sur
 
     const diffRun = spawnSync(process.execPath, [DIFF, beforeDir, afterDir, '--max', '50'], {
       encoding: 'utf8',
+      cwd: root,
     });
     assert.equal(diffRun.status, 1, diffRun.stderr);
     assert.match(

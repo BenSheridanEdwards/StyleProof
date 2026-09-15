@@ -783,6 +783,13 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
     const certfail = JSON.parse(fs.readFileSync(path.join(root, 'certfail-head', 'styleproof-coverage.json'), 'utf8'));
     assert.deepEqual(certfail.expected, ['home']);
     assert.equal(certfail.determinism, 'unproven');
+    assert.ok(fs.existsSync(path.join(root, 'legacy-undeclared-head', 'home@320.json.gz')));
+    assert.ok(fs.existsSync(path.join(root, 'legacy-declared-head', 'home@320.json.gz')));
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'legacy-pairs-empty.json'), 'utf8')), {});
+    assert.equal(
+      JSON.parse(fs.readFileSync(path.join(root, 'legacy-pairs-declared.json'), 'utf8')).home,
+      'known dogfood shell pending identity stamp',
+    );
 
     const expectedStates = {
       clean: 'NO_REVIEWABLE_STYLE_CHANGES',
@@ -904,7 +911,7 @@ test('dogfood workflow runs the local composite action against every trust-state
     /node scripts\/action-dogfood-fixtures\.mjs action-dogfood '\$\{\{ github\.event\.pull_request\.base\.sha \}\}' '\$\{\{ github\.event\.pull_request\.head\.sha \}\}'/,
   );
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 12);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 15);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
@@ -940,6 +947,23 @@ test('dogfood workflow runs the local composite action against every trust-state
   assert.match(dogfoodYml, /action-dogfood\/certfail-base/);
   assert.match(dogfoodYml, /steps\.certfail\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /steps\.certfail\.outcome }}' = 'failure'/);
+  assert.match(dogfoodYml, /require-state-identity: 'true'/);
+  assert.match(dogfoodYml, /action-dogfood\/legacy-declared-base/);
+  assert.match(dogfoodYml, /action-dogfood\/legacy-undeclared-base/);
+  assert.match(dogfoodYml, /STYLEPROOF_PRODUCT_STATE: action-dogfood\/legacy-pairs-declared.json/);
+  assert.match(dogfoodYml, /STYLEPROOF_PRODUCT_STATE: action-dogfood\/legacy-pairs-empty.json/);
+  assert.match(
+    dogfoodYml,
+    /action-dogfood:\n(?: {4}.+\n)* {4}env:\n(?: {6}.+\n)* {6}STYLEPROOF_PRODUCT_STATE: action-dogfood\/legacy-pairs-empty\.json\n(?: {6}.+\n)* {4}steps:/,
+    'job-level env must isolate every synthetic Action invocation from the live ledger',
+  );
+  assert.doesNotMatch(
+    dogfoodYml,
+    /STYLEPROOF_PRODUCT_STATE:\s*example\/styleproof\.product-state\.json/,
+    'synthetic action-dogfood must not inherit the live StyleProof-on-StyleProof ledger',
+  );
+  assert.match(dogfoodYml, /steps\.legacy-undeclared\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
+  assert.match(dogfoodYml, /steps\.legacy-undeclared\.outcome }}' = 'failure'/);
 });
 
 test('composite action delegates closed-set certification policy to the shared typed verdict', () => {
@@ -1378,6 +1402,46 @@ test('composite action binds diff and report receipts to trusted GitHub base and
   }
   assert.match(diffStep[0], /trusted base\/head SHA context is required/i);
   assert.match(reportStep[0], /isDeepStrictEqual\(generated\.sourceBinding, diff\.sourceBinding\)/);
+});
+
+test('composite action verdict fails closed on armed undeclared legacy pairs', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-legacy-pairs-'));
+  try {
+    const receipt = certifyingVerdictReceipt({
+      comparison: { blocksCertification: false },
+      legacyPairs: {
+        armed: true,
+        undeclared: ['home@1280'],
+        declared: [],
+        staleAcknowledgements: [],
+      },
+    });
+    assert.equal(
+      classifyStyleProofVerdict(receipt, {
+        gateInventoryRemovals: true,
+        baseCaptureFailed: false,
+        changed: false,
+      }).state,
+      'CERTIFICATION_FAILED',
+    );
+    fs.writeFileSync(path.join(root, 'styleproof-diff.json'), JSON.stringify(receipt));
+    fs.mkdirSync(path.join(root, 'styleproof-report'));
+    fs.writeFileSync(path.join(root, 'styleproof-report', 'report.json'), JSON.stringify(receipt));
+    const script = path.join(root, 'verdict.cjs');
+    const output = path.join(root, 'verdict.json');
+    fs.writeFileSync(script, actionVerdictScript({ baseCaptureFailed: false, changed: false }));
+    const verdict = spawnSync(process.execPath, [script], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, STYLEPROOF_VERDICT_OUTPUT: output },
+    });
+    assert.equal(verdict.status, 0, verdict.stderr || verdict.stdout);
+    const written = JSON.parse(fs.readFileSync(output, 'utf8'));
+    assert.equal(written.state, 'CERTIFICATION_FAILED');
+    assert.notEqual(written.state, 'NO_REVIEWABLE_STYLE_CHANGES');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('composite action makes required product-state identity a closed-set certification gate', () => {

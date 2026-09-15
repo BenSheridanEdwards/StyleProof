@@ -2,5 +2,8 @@
   "blocking": "advisory",
   "requireApproval": false,
   "spec": "example/styleproof.spec.ts",
-  "dirtyAllow": ["docs/**", ".github/**", ".agents/**", ".claude/**", "CHANGELOG.md", "README.md"]
+  "dirtyAllow": ["docs/**", ".github/**", ".agents/**", ".claude/**", "CHANGELOG.md", "README.md"],
+  "productState": {
+    "legacyPairs": "example/styleproof.product-state.json"
+  }
 }

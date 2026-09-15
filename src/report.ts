@@ -43,6 +43,12 @@ import {
   type SurfaceDiff,
 } from './diff.js';
 import { isAgeOnlyDrift, isLiveTextChange, liveTextFreezeError, type LiveTextAudit } from './live-text.js';
+import {
+  applyLegacyPairReceipts,
+  auditLegacyPairs,
+  type DeclaredLegacyPairs,
+  type LegacyPairAudit,
+} from './legacy-pairs.js';
 import { correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
 import { describeChange, tokenIndex, toHex, type ElementChange, type DescribeCtx } from './describe.js';
 import {
@@ -157,6 +163,16 @@ export type ReportOptions = {
   /** Require explicit matching productState identity on every paired capture. */
   requireStateIdentity?: boolean;
   /**
+   * Inventory/residue twin for known-legacy product-state pairs. When armed,
+   * undeclared unproven pairs fail closed; declared pairs stay advisory and
+   * never certify.
+   */
+  legacyPairs?: LegacyPairAudit;
+  /** Declare-file contents; used when `legacyPairs` is not precomputed. */
+  legacyPairDeclarations?: DeclaredLegacyPairs;
+  /** True when the declare gate is armed. */
+  legacyPairsArmed?: boolean;
+  /**
    * Byte ceiling for report.md so GitHub can always render it (its markdown viewer
    * refuses to render files past ~512 KB). Once the accumulated report would exceed
    * this, the remaining changed surfaces are listed as one-liners (name · change
@@ -224,6 +240,8 @@ export type ReportResult = {
   comparison: ReportComparison;
   /** Bounded per-capture receipts; identity values and page observations are never included. */
   comparability: SurfaceComparability[];
+  /** Inventory/residue twin audit when the declare gate was evaluated. */
+  legacyPairs?: LegacyPairAudit;
   /** Presentation-vs-certification coherence. Any false value must fail closed. */
   reportConsistency: ReportConsistency;
   /** Public baseline capture failures. Raw exception details are deliberately excluded. */
@@ -2014,7 +2032,7 @@ function missingSurfaceSummaryLines(
   return md;
 }
 
-function comparabilityLines(comparison: ComparabilitySummary): string[] {
+function comparabilityLines(comparison: ComparabilitySummary, legacyPairs?: LegacyPairAudit): string[] {
   const counts = comparison.counts;
   if (comparison.status === 'comparable') {
     return [
@@ -2024,6 +2042,18 @@ function comparabilityLines(comparison: ComparabilitySummary): string[] {
   }
   if (comparison.status === 'not-required') {
     return ['**Product-state comparison** — not required; there are no paired capture obligations.', ''];
+  }
+  if (legacyPairs?.armed && legacyPairs.undeclared.length > 0) {
+    return [
+      `⛔ **Product-state comparison** — ${legacyPairs.undeclared.length} undeclared legacy pair(s). Declare each as productState {id, revision} or record it in styleproof.product-state.json; unknown pairs cannot certify.`,
+      '',
+    ];
+  }
+  if (legacyPairs?.armed && legacyPairs.declared.length > 0 && !comparison.blocksCertification) {
+    return [
+      `⚠️ **Product-state comparison** — ${legacyPairs.declared.length} declared legacy pair(s) on the record. This is advisory, not certification that both captures reached the same product state.`,
+      '',
+    ];
   }
   if (!comparison.blocksCertification) {
     return [
@@ -2927,6 +2957,7 @@ function writeReportArtifacts(
   gateMode: 'certify' | 'review-gate' | 'migration' | 'advisory' = 'certify',
   liveTextFreeze: { violated: boolean; reason?: string } | null = null,
   integrityFailures: IntegrityFinding[] = [],
+  legacyPairs?: LegacyPairAudit,
 ): { reportMdPath: string; reportJsonPath: string } {
   const reportMdPath = path.join(outDir, 'report.md');
   const reportJsonPath = path.join(outDir, 'report.json');
@@ -2954,6 +2985,7 @@ function writeReportArtifacts(
         ...(baselineProvenance ? { baselineProvenance } : {}),
         ...(liveTextFreeze ? { liveTextFreeze } : {}),
         ...(integrityFailures.length > 0 ? { integrityFailures } : {}),
+        ...(legacyPairs ? { legacyPairs } : {}),
       },
       null,
       2,
@@ -3134,6 +3166,9 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     maxReportBytes = 400_000,
     requireStateIdentity = false,
     gateMode = 'certify',
+    legacyPairs: legacyPairsOption,
+    legacyPairDeclarations,
+    legacyPairsArmed = false,
   } = opts;
 
   const includeNoise = opts.includeLayoutNoise === true;
@@ -3146,8 +3181,12 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     surfaces,
     volatile: volatileCount,
     counts: rawCounts,
-    comparability,
+    comparability: rawComparability,
   } = diffStyleMapDirs(beforeDir, afterDir, { includeStructure });
+  const legacyPairs =
+    legacyPairsOption ??
+    (legacyPairsArmed ? auditLegacyPairs(rawComparability, legacyPairDeclarations ?? {}, true) : undefined);
+  const comparability = applyLegacyPairReceipts(rawComparability, legacyPairs);
   // Canonical truth shared with styleproof-diff / action trust: when raw
   // certification deltas exist but cleanFindings leaves nothing reviewable,
   // never claim "identical" and never enable visual approval.
@@ -3248,7 +3287,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // from, say so up front — an ancestor reuse must be visible, never inferred.
   const baselineProvenance = readBaselineProvenance(beforeDir);
   md.push(...baselineProvenanceLines(baselineProvenance));
-  md.push(...comparabilityLines(comparison));
+  md.push(...comparabilityLines(comparison, legacyPairs));
   md.push(
     ...reportHeadline({
       changeGroups,
@@ -3350,6 +3389,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
         ? { violated: false }
         : null,
     integrityFailures,
+    legacyPairs,
   );
   return {
     changedSurfaces: preparedCertified.length - missing.length,
@@ -3359,6 +3399,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     contentChanges: contentSection.count,
     comparison,
     comparability,
+    ...(legacyPairs ? { legacyPairs } : {}),
     reportConsistency,
     baselineFailures,
     partialBaseline: baselineFailures.length > 0,

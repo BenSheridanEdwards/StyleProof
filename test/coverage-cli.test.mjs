@@ -62,7 +62,7 @@ function fixture(captured, expected, exclude = {}) {
 }
 function run(base, head) {
   try {
-    return { code: 0, out: execFileSync('node', [BIN, base, head], { encoding: 'utf8' }) };
+    return { code: 0, out: execFileSync('node', [BIN, base, head], { encoding: 'utf8', cwd: path.dirname(base) }) };
   } catch (e) {
     return { code: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
   }

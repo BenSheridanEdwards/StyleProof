@@ -63,7 +63,10 @@ const writeLedger = (dir, ledger) => {
 
 function runDiff(base, head) {
   try {
-    return { code: 0, out: execFileSync('node', [BIN_DIFF, base, head], { encoding: 'utf8' }) };
+    return {
+      code: 0,
+      out: execFileSync('node', [BIN_DIFF, base, head], { encoding: 'utf8', cwd: path.dirname(base) }),
+    };
   } catch (e) {
     return { code: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
   }
@@ -502,7 +505,7 @@ test('fail-closed: advisory-only mode still reports uncaptured states visibly', 
     // Run diff - we care about output visibility, not exit code here
     let out;
     try {
-      out = execFileSync('node', [BIN_DIFF, base, head], { encoding: 'utf8' });
+      out = execFileSync('node', [BIN_DIFF, base, head], { encoding: 'utf8', cwd: path.dirname(base) });
     } catch (e) {
       out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
     }
@@ -534,7 +537,7 @@ test('fail-closed: report.json certifiesFully is false when coverage incomplete'
     stampManifest(head, 'head-sha');
 
     try {
-      execFileSync('node', [BIN_DIFF, base, head, '--json', jsonPath], { encoding: 'utf8' });
+      execFileSync('node', [BIN_DIFF, base, head, '--json', jsonPath], { encoding: 'utf8', cwd: path.dirname(base) });
     } catch {
       // Expected to fail (exit 1)
     }

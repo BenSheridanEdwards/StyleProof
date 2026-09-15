@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { saveStyleMap } from '../dist/capture.js';
@@ -27,7 +28,8 @@ function makeInitProject() {
 }
 
 function run(script, args) {
-  return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
+  // Isolate from this repo's discovered styleproof.config.ts (live ledger armed).
+  return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', cwd: os.tmpdir() });
 }
 
 // Two surfaces that differ in one longhand, and an identical pair.

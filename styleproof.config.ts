@@ -14,4 +14,9 @@ export default defineConfig({
   requireApproval: false,
   spec: 'example/styleproof.spec.ts',
   dirtyAllow: ['docs/**', '.github/**', '.agents/**', '.claude/**', 'CHANGELOG.md', 'README.md'],
+  // Arm declare-or-fail-closed on this repo. home@* is on the record as known-legacy;
+  // any new unproven pair without a declaration or productState stamp fails closed.
+  productState: {
+    legacyPairs: 'example/styleproof.product-state.json',
+  },
 });

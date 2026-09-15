@@ -24,6 +24,7 @@ export {
 } from './capture.js';
 export * from './inventory.js';
 export * from './data-residue.js';
+export * from './legacy-pairs.js';
 export {
   captureUrlToDir,
   runCaptureUrl,
@@ -298,6 +299,7 @@ export type {
   MapStoreConfig,
   AncestorBaselineConfig,
   CoverageConfig,
+  ProductStateConfig,
   EnvRef,
   ResolveEnvOptions,
   ResolveEnvResult,
