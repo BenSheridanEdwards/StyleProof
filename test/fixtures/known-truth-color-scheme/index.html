@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Known-Truth Color Scheme Fixture</title>
+  <!--
+    FIXTURE CONTRACT (documentation only — tests assert against expected.json)
+    Light: background-color rgb(241, 245, 249); color rgb(15, 23, 42).
+    Dark: background-color rgb(15, 23, 42); color rgb(241, 245, 249).
+  -->
+  <style>
+    .scheme-card {
+      background-color: rgb(241, 245, 249);
+      color: rgb(15, 23, 42);
+    }
+    @media (prefers-color-scheme: dark) {
+      .scheme-card {
+        background-color: rgb(15, 23, 42);
+        color: rgb(241, 245, 249);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main><section class="scheme-card">Scheme contract</section></main>
+</body>
+</html>

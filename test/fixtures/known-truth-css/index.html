@@ -116,6 +116,44 @@
         bottom: 0px
         font-size: 32px
         color: rgb(203, 213, 225)            [#CBD5E1 gray-300]
+
+    ELEMENT: .flex-layout (div) [data-testid="flex-layout"]
+      display: flex
+      flex-direction: row-reverse          [non-default: row is the UA default and is pruned]
+      justify-content: space-between
+      align-items: center
+      column-gap: 12px
+      row-gap: 12px
+
+    ELEMENT: .grid-layout (div) [data-testid="grid-layout"]
+      display: grid
+      grid-template-columns: 120px 240px
+      column-gap: 16px
+      row-gap: 8px
+
+    ELEMENT: .visual-box (div) [data-testid="visual-box"]
+      border-top-left-radius: 14px
+      border-top-right-radius: 6px
+      border-bottom-right-radius: 10px
+      border-bottom-left-radius: 4px
+      box-shadow: rgb(15, 23, 42) 0px 4px 12px 0px
+
+    ELEMENT: .transform-box (div) [data-testid="transform-box"]
+      transform: matrix(1, 0, 0, 1, 12, 8)
+      opacity: 0.65
+
+    ELEMENT: .focus-visible-control (button) [data-testid="focus-visible-control"]
+      RESTING:
+        background-color: rgb(248, 250, 252)
+      :focus
+        outline-style: solid
+        outline-color: rgb(37, 99, 235)
+        outline-width: 4px                [non-default: medium=3px equals the rest baseline]
+        outline-offset: 2px
+      :focus-visible
+        box-shadow: rgb(22, 163, 74) 0px 0px 0px 4px
+      StyleProof's focus layer forces both :focus and :focus-visible. The focus
+      oracle therefore contains the blue outline and green box shadow together.
   -->
   <style>
     :root {
@@ -217,6 +255,49 @@
       font-size: 32px;
       color: rgb(203, 213, 225);
     }
+
+    .flex-layout {
+      display: flex;
+      flex-direction: row-reverse;
+      justify-content: space-between;
+      align-items: center;
+      column-gap: 12px;
+      row-gap: 12px;
+      width: 360px;
+    }
+
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 120px 240px;
+      column-gap: 16px;
+      row-gap: 8px;
+    }
+
+    .visual-box {
+      border-top-left-radius: 14px;
+      border-top-right-radius: 6px;
+      border-bottom-right-radius: 10px;
+      border-bottom-left-radius: 4px;
+      box-shadow: rgb(15, 23, 42) 0px 4px 12px 0px;
+    }
+
+    .transform-box {
+      transform: translate(12px, 8px);
+      opacity: 0.65;
+    }
+
+    .focus-visible-control {
+      background-color: rgb(248, 250, 252);
+    }
+
+    .focus-visible-control:focus {
+      outline: 4px solid rgb(37, 99, 235);
+      outline-offset: 2px;
+    }
+
+    .focus-visible-control:focus-visible {
+      box-shadow: rgb(22, 163, 74) 0px 0px 0px 4px;
+    }
   </style>
 </head>
 <body>
@@ -234,6 +315,11 @@
     <blockquote class="quote" data-testid="quote">
       Design is not just what it looks like, design is how it works.
     </blockquote>
+    <div class="flex-layout" data-testid="flex-layout"><span>Alpha</span><span>Beta</span></div>
+    <div class="grid-layout" data-testid="grid-layout"><span>One</span><span>Two</span></div>
+    <div class="visual-box" data-testid="visual-box">Visual box</div>
+    <div class="transform-box" data-testid="transform-box">Transform box</div>
+    <button class="focus-visible-control" data-testid="focus-visible-control">Focus contract</button>
   </main>
 </body>
 </html>
