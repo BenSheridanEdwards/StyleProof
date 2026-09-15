@@ -30,8 +30,8 @@ function renderProof(changed) {
     changedPixels: changed ? 12 : 0,
     propertyMatches: true,
     proofMatches: true,
-    before: 'before',
-    after: 'after',
+    before: changed ? 'before' : 'same',
+    after: changed ? 'after' : 'same',
   };
 }
 
@@ -519,4 +519,166 @@ test('timed-out partial and detached late writes cannot reach published output',
     discardBenchmark(publication);
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('a full corpus receipt must claim the complete frozen set', () => {
+  const receipt = validReceipt();
+  receipt.scope = { kind: 'full', issue: 447, full447: true };
+  receipt.full447 = { status: 'complete', claimed: true };
+  const fullExpected = { ...expected, scopeKind: 'full' };
+  assert.deepEqual(validateDetectionBenchmarkReceipt(receipt, fullExpected), {
+    ok: true,
+    reasons: [],
+  });
+});
+
+test('a full receipt that omits a case or downgrades its claim is rejected', () => {
+  const fullExpected = { ...expected, scopeKind: 'full' };
+
+  const missing = validReceipt();
+  missing.scope = { kind: 'full', issue: 447, full447: true };
+  missing.full447 = { status: 'complete', claimed: true };
+  const dropped = missing.cases.pop();
+  missing.counts.requested -= 1;
+  missing.counts.executed -= 1;
+  missing.counts.valid -= 1;
+  missing.counts.noOpTrueNegatives -= 1;
+  const result = validateDetectionBenchmarkReceipt(missing, fullExpected);
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.some((reason) => reason.includes(dropped.id)));
+
+  const unclaimed = validReceipt();
+  unclaimed.scope = { kind: 'full', issue: 447, full447: true };
+  unclaimed.full447 = { status: 'not-run', claimed: false };
+  const unclaimedResult = validateDetectionBenchmarkReceipt(unclaimed, fullExpected);
+  assert.equal(unclaimedResult.ok, false);
+  assert.ok(unclaimedResult.reasons.some((reason) => reason.includes('full447')));
+});
+
+test('a non-full receipt may not claim the full run', () => {
+  for (const kind of ['smoke', 'pilot', 'diagnostic', 'sharded']) {
+    const receipt = validReceipt();
+    receipt.scope.kind = kind;
+    receipt.full447 = { status: 'complete', claimed: true };
+    const scopedExpected = { ...expected, scopeKind: kind };
+    const result = validateDetectionBenchmarkReceipt(receipt, scopedExpected);
+    assert.equal(result.ok, false, kind);
+    assert.ok(
+      result.reasons.some((reason) => reason.includes('full447')),
+      kind,
+    );
+  }
+});
+
+test('a diagnostic receipt runs an explicit subset without claiming completeness', () => {
+  const receipt = validReceipt();
+  receipt.scope.kind = 'diagnostic';
+  receipt.cases = [receipt.cases[0]];
+  Object.assign(receipt.counts, {
+    requested: 1,
+    executed: 1,
+    valid: 1,
+    detected: 1,
+    missed: 0,
+    unsupported: 0,
+    skipped: 0,
+    timeout: 0,
+    invalid: 0,
+    duplicate: 0,
+    noOpFalsePositives: 0,
+    noOpTrueNegatives: 0,
+  });
+  const diagnostic = {
+    ...expected,
+    scopeKind: 'diagnostic',
+    requestedCardinality: 1,
+    cases: [expected.cases[0]],
+  };
+  assert.deepEqual(validateDetectionBenchmarkReceipt(receipt, diagnostic), {
+    ok: true,
+    reasons: [],
+  });
+});
+
+test('a sharded receipt must bind its shard coordinates', () => {
+  const receipt = validReceipt();
+  receipt.scope = { kind: 'sharded', issue: 447, full447: false, shard: { index: 1, of: 2 } };
+  receipt.cases = [receipt.cases[0], receipt.cases[2]];
+  Object.assign(receipt.counts, {
+    requested: 2,
+    executed: 2,
+    valid: 2,
+    detected: 2,
+    missed: 0,
+    unsupported: 0,
+    skipped: 0,
+    timeout: 0,
+    invalid: 0,
+    duplicate: 0,
+    noOpFalsePositives: 0,
+    noOpTrueNegatives: 0,
+  });
+  const shardedExpected = {
+    ...expected,
+    scopeKind: 'sharded',
+    shard: { index: 1, of: 2 },
+    requestedCardinality: 2,
+    cases: [expected.cases[0], expected.cases[2]],
+  };
+  assert.deepEqual(validateDetectionBenchmarkReceipt(receipt, shardedExpected), {
+    ok: true,
+    reasons: [],
+  });
+
+  const wrongShard = validReceipt();
+  wrongShard.scope = { kind: 'sharded', issue: 447, full447: false, shard: { index: 2, of: 2 } };
+  wrongShard.cases = [wrongShard.cases[0], wrongShard.cases[2]];
+  Object.assign(wrongShard.counts, {
+    requested: 2,
+    executed: 2,
+    valid: 2,
+    detected: 2,
+    missed: 0,
+    unsupported: 0,
+    skipped: 0,
+    timeout: 0,
+    invalid: 0,
+    duplicate: 0,
+    noOpFalsePositives: 0,
+    noOpTrueNegatives: 0,
+  });
+  const wrongResult = validateDetectionBenchmarkReceipt(wrongShard, shardedExpected);
+  assert.equal(wrongResult.ok, false);
+  assert.ok(wrongResult.reasons.some((reason) => reason.includes('scope.shard')));
+});
+
+test('render proof permits a computed property change that does not render', () => {
+  const receipt = validReceipt();
+  receipt.cases[3].renderProof = {
+    expectedChange: false,
+    observedPropertyChange: true,
+    observedPixelChange: false,
+    changedPixels: 0,
+    propertyMatches: true,
+    proofMatches: true,
+    before: 'rgb(255, 0, 0)',
+    after: 'rgb(0, 0, 255)',
+  };
+  receipt.cases[3].outcome = 'no-op-false-positive';
+  receipt.cases[3].findings = [{ kind: 'style', props: [{ prop: 'border-top-color' }] }];
+  receipt.cases[3].findingCount = 1;
+  receipt.counts.noOpTrueNegatives = 0;
+  receipt.counts.noOpFalsePositives = 1;
+  assert.deepEqual(validateDetectionBenchmarkReceipt(receipt, expected), {
+    ok: true,
+    reasons: [],
+  });
+});
+
+test('render proof rejects an observedPropertyChange inconsistent with before/after', () => {
+  const receipt = validReceipt();
+  receipt.cases[0].renderProof.observedPropertyChange = false;
+  const result = validateDetectionBenchmarkReceipt(receipt, expected);
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.some((reason) => reason.includes('observedPropertyChange')));
 });
