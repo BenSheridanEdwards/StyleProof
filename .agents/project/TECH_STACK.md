@@ -39,6 +39,7 @@
 - `pr-body.yml` — machine PR-body validation.
 - `fallow.yml` — complexity/dead-code gate.
 - `action-dogfood.yml` — runs the Action against generated fixtures.
+- `styleproof-dogfood.yml` — advisory Action on `styleproof.config.ts` / `example/demo` surfaces.
 - `release.yml`, `github-packages.yml` — publishing.
 
 ## Distribution

@@ -10,15 +10,35 @@
  * built-in default. The Action and CLIs share this validator, so a malformed
  * gate-policy key cannot silently fall back to a weaker default.
  *
- * A missing file is an empty config. A file that exists but cannot be parsed or
- * carries a wrongly-typed known key is a LOUD error: config the user wrote must
- * never be silently dropped (a typo'd `dirtyAllow` that quietly stops applying
- * would resurrect exactly the dirty-capture problem it exists to solve).
+ * Discovery walks upward from the start directory to the git root (or filesystem
+ * root) so a package-subdirectory cwd still finds the repo-root config. Relative
+ * file-path fields (`spec`, crawl setup/exclude/out, `coverage.manifest`,
+ * `affected.graph`) resolve from that config file's directory — never from
+ * `process.cwd()` — so `spec: 'hud/tests/e2e/styleproof.spec.ts'` stays valid
+ * when the CLI is invoked with `cwd=hud`. A missing file is an empty config. A
+ * file that exists but cannot be parsed, evaluated, or carries a wrongly-typed
+ * known key is a LOUD error: config the user wrote must never be silently
+ * dropped (a typo'd `dirtyAllow` that quietly stops applying would resurrect
+ * exactly the dirty-capture problem it exists to solve). An unloadable
+ * `styleproof.config.ts` (unknown `.ts` extension, or `import { defineConfig }
+ * from 'styleproof'` cannot resolve) fails closed — never `{}`, never a
+ * sibling JSON policy, and never the default `e2e/styleproof.spec.ts` while
+ * that file is the discovered config. When that file is evaluated, `styleproof`
+ * and other bare specifiers resolve from the config file's directory and the
+ * nearest package root walking up from that file — not only `process.cwd()`.
+ * When that file lives in a linked git worktree (a `styleproof-ci` probe
+ * without `node_modules`), resolution also searches the main working tree's
+ * matching package roots so a host install remains visible. If the package
+ * still cannot be resolved, the error names those searched package roots.
+ * A missing spec after that walk fails closed and names every
+ * config path that was searched.
  *
  * Migration: TS config takes precedence. When only JSON exists, a deprecation
  * warning is emitted. Both formats work during transition.
  */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -26,6 +46,17 @@ const STYLEPROOF_CONFIG_TS = 'styleproof.config.ts';
 const STYLEPROOF_CONFIG_MJS = 'styleproof.config.mjs';
 const STYLEPROOF_CONFIG_JS = 'styleproof.config.js';
 const STYLEPROOF_CONFIG_JSON = 'styleproof.config.json';
+
+/** Filenames probed at each directory while walking toward the repo root. */
+export const STYLEPROOF_CONFIG_FILENAMES = [
+  STYLEPROOF_CONFIG_TS,
+  STYLEPROOF_CONFIG_MJS,
+  STYLEPROOF_CONFIG_JS,
+  STYLEPROOF_CONFIG_JSON,
+] as const;
+
+/** Built-in spec path when no config (and no `--spec`) declares one. */
+export const DEFAULT_STYLEPROOF_SPEC = 'e2e/styleproof.spec.ts';
 
 /** `styleproof-affected` inputs a consumer can pin once instead of per-invocation. */
 export type AffectedConfig = {
@@ -307,12 +338,24 @@ export type ReportStoreConfig = {
  * StyleProof validate coverage against them.
  */
 export type CoverageConfig = {
-  /** Path to JSON manifest of expected surface keys (repo-relative, resolved from cwd). */
+  /** Path to JSON manifest of expected surface keys (resolved from the config directory). */
   manifest?: string;
   /** Fail if any expected surface is uncaptured. Default false. */
   strict?: boolean;
   /** Surfaces to exclude from coverage (key → reason). Reasons must be non-empty. */
   exclude?: Record<string, string>;
+};
+
+/**
+ * Product-state comparability knobs. Explicit `productState {id, revision}` on
+ * a surface remains the certifying declare path; this block arms the inventory
+ * twin for known-legacy pairs and the fail-closed identity requirement.
+ */
+export type ProductStateConfig = {
+  /** Same as `--require-state-identity`: every unproven pair is non-certifying. */
+  requireIdentity?: boolean;
+  /** Path to the legacy-pair declare file (`{"<surface>": "<why>"}`). */
+  legacyPairs?: string;
 };
 
 export type StyleProofConfig = {
@@ -322,7 +365,7 @@ export type StyleProofConfig = {
   requireApproval?: boolean;
   /** Unacknowledged inventory removals block unless explicitly false. */
   gateInventoryRemovals?: boolean;
-  /** Capture spec path (default e2e/styleproof.spec.ts). */
+  /** Capture spec path (default e2e/styleproof.spec.ts). Resolved from the config directory. */
   spec?: string;
   /** Tracked files/dirs whose changes never mark a capture dirty. */
   dirtyAllow?: string[];
@@ -347,6 +390,8 @@ export type StyleProofConfig = {
   suppressPlatformWarning?: boolean;
   /** Coverage configuration for expected surface manifest. */
   coverage?: CoverageConfig;
+  /** Product-state identity requirement and legacy-pair declare file. */
+  productState?: ProductStateConfig;
 };
 
 /**
@@ -429,6 +474,65 @@ function readJsonConfigObject(cwd: string): Record<string, unknown> | undefined 
   }
 }
 
+function isMissingStyleProofPackage(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : '';
+  const moduleNotFound =
+    code === 'ERR_MODULE_NOT_FOUND' || message.includes('ERR_MODULE_NOT_FOUND') || /cannot find package/i.test(message);
+  return moduleNotFound && /styleproof/i.test(message);
+}
+
+function isUnloadableTypeScriptConfig(filename: string, error: unknown): boolean {
+  if (!filename.endsWith('.ts')) return false;
+  if (error instanceof StyleProofConfigError && (error as { code?: string }).code === 'STYLEPROOF_UNLOADABLE_TS') {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : '';
+  return (
+    code === 'ERR_UNKNOWN_FILE_EXTENSION' ||
+    message.includes('Unknown file extension') ||
+    message.includes('ERR_UNKNOWN_FILE_EXTENSION') ||
+    // Node 22.18+ type-strips `.ts` by default (22.6+ with --experimental-strip-types).
+    // styleproof-init's typed scaffold then `import { defineConfig } from 'styleproof'`.
+    // Without a resolvable package (or without type stripping) that file cannot
+    // be evaluated — fail closed; sibling JSON must not shadow a discovered `.ts`.
+    isMissingStyleProofPackage(error)
+  );
+}
+
+export function unloadableStyleProofConfigMessage(filePath: string, error: unknown): string {
+  const reason = error instanceof Error ? error.message : String(error);
+  const lines = [`${filePath} could not be evaluated`, `  ${reason}`];
+  if (isMissingStyleProofPackage(error) || /cannot find package/i.test(reason)) {
+    lines.push('  searched package roots:');
+    for (const root of findStyleProofConfigPackageRoots(filePath)) {
+      lines.push(`    ${root}`);
+    }
+  }
+  lines.push(
+    `  Next: run on a Node that can evaluate TypeScript with the styleproof package resolvable, ` +
+      `or replace ${STYLEPROOF_CONFIG_TS} with ${STYLEPROOF_CONFIG_MJS} / ${STYLEPROOF_CONFIG_JS}.`,
+  );
+  return lines.join('\n');
+}
+
+function unloadableTypeScriptConfigError(filePath: string, error: unknown): StyleProofConfigError {
+  const wrapped = new StyleProofConfigError(unloadableStyleProofConfigMessage(filePath, error));
+  (wrapped as { code?: string }).code = 'STYLEPROOF_UNLOADABLE_TS';
+  wrapped.cause = error instanceof Error ? error : undefined;
+  return wrapped;
+}
+
+function evaluateUnloadableTypeScriptOrThrow(filePath: string): Record<string, unknown> {
+  try {
+    return evaluateTypeScriptConfigSync(filePath);
+  } catch (syncError) {
+    if (syncError instanceof StyleProofConfigError) throw syncError;
+    throw unloadableTypeScriptConfigError(filePath, syncError);
+  }
+}
+
 /** Load ESM config (.ts, .mjs, or .js) via dynamic import; undefined when it does not exist. */
 async function loadEsmConfig(cwd: string): Promise<Record<string, unknown> | undefined> {
   const found = findEsmConfig(cwd);
@@ -442,6 +546,7 @@ async function loadEsmConfig(cwd: string): Promise<Record<string, unknown> | und
     return plainObject(config, 'the default export');
   } catch (e) {
     if (e instanceof StyleProofConfigError) throw e;
+    if (isUnloadableTypeScriptConfig(found.filename, e)) return evaluateUnloadableTypeScriptOrThrow(found.path);
     fail(`could not load — ${e instanceof Error ? e.message : String(e)}`);
   }
 }
@@ -609,6 +714,18 @@ function parseCoverage(value: unknown): CoverageConfig | undefined {
   return result;
 }
 
+function parseProductState(value: unknown): ProductStateConfig | undefined {
+  if (value === undefined) return undefined;
+  const p = plainObject(value, '"productState"');
+  warnUnknownKeys(p, KNOWN_PRODUCT_STATE_KEYS, '"productState" ');
+  const requireIdentity = optionalBoolean(p.requireIdentity, 'productState.requireIdentity');
+  const legacyPairs = optionalString(p.legacyPairs, 'productState.legacyPairs');
+  const result: ProductStateConfig = {};
+  if (requireIdentity !== undefined) result.requireIdentity = requireIdentity;
+  if (legacyPairs !== undefined) result.legacyPairs = legacyPairs;
+  return result;
+}
+
 const KNOWN_KEYS = [
   'blocking',
   'requireApproval',
@@ -626,6 +743,7 @@ const KNOWN_KEYS = [
   'reportStore',
   'suppressPlatformWarning',
   'coverage',
+  'productState',
 ];
 const KNOWN_AFFECTED_KEYS = ['surfaces', 'graph', 'base'];
 const KNOWN_AUTH_KEYS = ['hudPassword', 'apiToken'];
@@ -645,6 +763,7 @@ const KNOWN_CRAWL_KEYS = [
   'height',
 ];
 const KNOWN_COVERAGE_KEYS = ['manifest', 'strict', 'exclude'];
+const KNOWN_PRODUCT_STATE_KEYS = ['requireIdentity', 'legacyPairs'];
 
 /** Unknown keys are a LOUD stderr warning, not an error: a typo'd `dirtyallow`
  *  silently reverting to defaults is exactly the failure this file's contract
@@ -682,27 +801,381 @@ function parseConfigRecord(record: Record<string, unknown>): StyleProofConfig {
     reportStore: parseReportStore(record.reportStore),
     suppressPlatformWarning: optionalBoolean(record.suppressPlatformWarning, 'suppressPlatformWarning'),
     coverage: parseCoverage(record.coverage),
+    productState: parseProductState(record.productState),
   };
 }
 
-/** Load and validate the repo's styleproof.config.json (sync). Missing file → `{}`;
- *  unreadable/malformed file or a wrongly-typed known key → {@link StyleProofConfigError};
- *  unknown keys → a loud stderr warning (never silently dropped).
- *
- *  When styleproof.config.ts/mjs/js exists, this returns an empty config and emits a warning
- *  directing users to use loadStyleProofConfigAsync(). When only JSON exists, a
- *  deprecation warning is emitted. */
-export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
-  const esmConfig = findEsmConfig(cwd);
-  const hasJson = jsonConfigExists(cwd);
+export type StyleProofConfigLocation = {
+  path: string;
+  dir: string;
+  filename: string;
+};
+
+export type StyleProofConfigDiscovery = {
+  location?: StyleProofConfigLocation;
+  /** Every `styleproof.config.*` candidate probed, nearest first. */
+  searched: string[];
+};
+
+export type StyleProofConfigLoad = {
+  config: StyleProofConfig;
+  /** Directory path fields resolve from: the config file's dir, or `startDir` if none. */
+  configDir: string;
+  configFile?: string;
+  searched: string[];
+};
+
+export type ResolvedProjectSpec = {
+  /** Absolute filesystem path of the spec. */
+  spec: string;
+  /** Spec path as declared in config / `--spec` / the built-in default. */
+  specDeclared: string;
+  configDir: string;
+  configFile?: string;
+  searched: string[];
+};
+
+export type ResolveProjectSpecOptions = {
+  startDir?: string;
+  /** Explicit `--spec`; resolved from `startDir`, not the config directory. */
+  spec?: string;
+  /** When true, a missing config file is an error that lists every path searched. */
+  requireConfig?: boolean;
+  /** When false, a missing spec file is still returned. Default true. */
+  requireSpec?: boolean;
+};
+
+function isGitRoot(dir: string): boolean {
+  try {
+    return fs.existsSync(path.join(dir, '.git'));
+  } catch {
+    return false;
+  }
+}
+
+function candidatePathsAt(dir: string): string[] {
+  return STYLEPROOF_CONFIG_FILENAMES.map((filename) => path.join(dir, filename));
+}
+
+function locationAt(dir: string): StyleProofConfigLocation | undefined {
+  const esm = findEsmConfig(dir);
+  if (esm) return { path: esm.path, dir, filename: esm.filename };
+  if (jsonConfigExists(dir)) {
+    return { path: path.join(dir, STYLEPROOF_CONFIG_JSON), dir, filename: STYLEPROOF_CONFIG_JSON };
+  }
+  return undefined;
+}
+
+/**
+ * Walk from `startDir` toward the git root (or filesystem root) looking for
+ * `styleproof.config.ts` / `.mjs` / `.js` / `.json`. The nearest directory that
+ * has any of those files wins (ESM over JSON in that directory). Does not walk
+ * past a `.git` boundary, so a parent checkout's config cannot leak in.
+ */
+export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofConfigDiscovery {
+  const searched: string[] = [];
+  let dir = path.resolve(startDir);
+  for (;;) {
+    searched.push(...candidatePathsAt(dir));
+    const location = locationAt(dir);
+    if (location) return { location, searched };
+    if (isGitRoot(dir)) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return { searched };
+}
+
+/** Resolve a config-declared file path from the config file's directory. */
+export function resolveStyleProofConfigPath(filePath: string, configDir: string): string {
+  if (path.isAbsolute(filePath)) return filePath;
+  return path.resolve(configDir, filePath);
+}
+
+function resolveOptionalConfigPath(filePath: string | undefined, configDir: string): string | undefined {
+  return filePath === undefined ? undefined : resolveStyleProofConfigPath(filePath, configDir);
+}
+
+/**
+ * Resolve filesystem path fields in a loaded config from `configDir`.
+ * Leaves non-file fields (`dirtyAllow`, `roots`, surface module ids) unchanged.
+ */
+export function resolveStyleProofConfigFilePaths(config: StyleProofConfig, configDir: string): StyleProofConfig {
+  const crawl = config.crawl
+    ? {
+        ...config.crawl,
+        setup: resolveOptionalConfigPath(config.crawl.setup, configDir),
+        authBoundaryExclude: resolveOptionalConfigPath(config.crawl.authBoundaryExclude, configDir),
+        incompleteUiExclude: resolveOptionalConfigPath(config.crawl.incompleteUiExclude, configDir),
+        out: resolveOptionalConfigPath(config.crawl.out, configDir),
+      }
+    : undefined;
+  const coverage = config.coverage
+    ? { ...config.coverage, manifest: resolveOptionalConfigPath(config.coverage.manifest, configDir) }
+    : undefined;
+  const affected = config.affected
+    ? { ...config.affected, graph: resolveOptionalConfigPath(config.affected.graph, configDir) }
+    : undefined;
+  const productState = config.productState
+    ? { ...config.productState, legacyPairs: resolveOptionalConfigPath(config.productState.legacyPairs, configDir) }
+    : undefined;
+  return {
+    ...config,
+    spec: resolveOptionalConfigPath(config.spec, configDir),
+    ...(crawl ? { crawl } : {}),
+    ...(coverage ? { coverage } : {}),
+    ...(affected ? { affected } : {}),
+    ...(productState ? { productState } : {}),
+  };
+}
+
+export function missingStyleProofConfigMessage(searched: readonly string[]): string {
+  return [
+    'no styleproof.config.ts / .mjs / .js / .json found; searched:',
+    ...searched.map((candidate) => `  ${candidate}`),
+  ].join('\n');
+}
+
+export function missingStyleProofSpecMessage(options: {
+  spec: string;
+  specDeclared?: string;
+  configFile?: string;
+  searched?: readonly string[];
+}): string {
+  const lines = [`no StyleProof spec at ${options.spec}`];
+  if (options.configFile && options.specDeclared) {
+    lines.push(`  declared as "${options.specDeclared}" in ${options.configFile}`);
+  } else if (options.configFile) {
+    lines.push(`  declared in ${options.configFile}`);
+  } else if (options.searched?.length) {
+    lines.push('  no styleproof.config.ts / .mjs / .js / .json found; searched:');
+    for (const candidate of options.searched) lines.push(`    ${candidate}`);
+  }
+  return lines.join('\n');
+}
+
+function gitRevParse(cwd: string, flag: string): string | undefined {
+  const result = spawnSync('git', ['rev-parse', flag], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const raw = result.status === 0 ? result.stdout.trim() : '';
+  if (!raw) return undefined;
+  return path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(cwd, raw);
+}
+
+/**
+ * Main working-tree root when `cwd` is a linked git worktree. Undefined in a
+ * normal checkout so isolated fixtures do not pick up an unrelated install.
+ */
+function linkedHostWorkingTree(cwd: string): { hostRoot: string; toplevel: string } | undefined {
+  const toplevel = gitRevParse(cwd, '--show-toplevel');
+  const commonDir = gitRevParse(cwd, '--git-common-dir');
+  if (!toplevel || !commonDir || path.basename(commonDir) !== '.git') return undefined;
+  const hostRoot = path.dirname(commonDir);
+  if (path.resolve(hostRoot) === path.resolve(toplevel)) return undefined;
+  return { hostRoot, toplevel };
+}
+
+function pushUnique(list: string[], value: string): void {
+  if (!list.includes(value)) list.push(value);
+}
+
+function collectPackageJsonDirs(startDir: string, stopAt?: string): string[] {
+  const packageRoots: string[] = [];
+  let dir = path.resolve(startDir);
+  const stop = stopAt === undefined ? undefined : path.resolve(stopAt);
+  for (;;) {
+    try {
+      if (fs.existsSync(path.join(dir, 'package.json'))) packageRoots.push(dir);
+    } catch {
+      // unreadable directory — keep walking
+    }
+    if (stop !== undefined ? dir === stop : isGitRoot(dir)) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return packageRoots;
+}
+
+function findHostWorktreePackageRoots(configDir: string): string[] {
+  const linked = linkedHostWorkingTree(configDir);
+  if (!linked) return [];
+  const rel = path.relative(linked.toplevel, configDir);
+  const hostStart =
+    rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? path.join(linked.hostRoot, rel) : linked.hostRoot;
+  const roots = collectPackageJsonDirs(hostStart, linked.hostRoot);
+  pushUnique(roots, linked.hostRoot);
+  return roots;
+}
+
+/**
+ * Directories to search for `styleproof` (and peers) when evaluating a `.ts`
+ * config: each package.json walking up from the config file, then the config
+ * file's directory if it is not already a package root, then the same walk on
+ * the main working tree when the file lives in a linked git worktree. Never
+ * `process.cwd()` or this package's own install unless those are one of those
+ * directories.
+ */
+function findStyleProofConfigPackageRoots(filePath: string): string[] {
+  const configDir = path.dirname(path.resolve(filePath));
+  const packageRoots = collectPackageJsonDirs(configDir);
+  for (const hostRoot of findHostWorktreePackageRoots(configDir)) {
+    pushUnique(packageRoots, hostRoot);
+  }
+  pushUnique(packageRoots, configDir);
+  return packageRoots;
+}
+
+function resolveFromPackageRoots(specifier: string, roots: readonly string[]): string | undefined {
+  for (const root of roots) {
+    try {
+      return createRequire(path.join(root, 'package.json')).resolve(specifier);
+    } catch {
+      // try the next root
+    }
+  }
+  return undefined;
+}
+
+const BARE_SPECIFIER_IN_IMPORT = /(?<=(?:^|[\s(;{])(?:import|export)(?:\s+type)?\b[^'"\n]*?)(['"])([^'"]+)\1/gm;
+
+function rewriteBareSpecifiersToResolvedUrls(source: string, roots: readonly string[]): string {
+  return source.replace(BARE_SPECIFIER_IN_IMPORT, (full, quote: string, spec: string) => {
+    if (
+      spec.startsWith('.') ||
+      spec.startsWith('/') ||
+      spec.startsWith('file:') ||
+      spec.startsWith('node:') ||
+      spec.startsWith('#')
+    ) {
+      return full;
+    }
+    const resolved = resolveFromPackageRoots(spec, roots);
+    return resolved ? `${quote}${pathToFileURL(resolved).href}${quote}` : full;
+  });
+}
+
+function nodePathForRoots(roots: readonly string[]): string {
+  const dirs = [];
+  for (const root of roots) {
+    const nodeModules = path.join(root, 'node_modules');
+    try {
+      if (fs.statSync(nodeModules).isDirectory()) dirs.push(nodeModules);
+    } catch {
+      // missing node_modules
+    }
+  }
+  const existing = process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [];
+  return [...dirs, ...existing].join(path.delimiter);
+}
+
+function spawnConfigModuleEval(filePath: string, cwd: string, roots: readonly string[], extraNodeArgs: string[] = []) {
+  return spawnSync(
+    process.execPath,
+    [
+      ...extraNodeArgs,
+      '--no-warnings',
+      '--input-type=module',
+      '-e',
+      `import mod from ${JSON.stringify(pathToFileURL(filePath).href)};
+       const config = mod?.default ?? mod;
+       process.stdout.write(JSON.stringify(config));`,
+    ],
+    { encoding: 'utf8', cwd, env: { ...process.env, NODE_PATH: nodePathForRoots(roots) } },
+  );
+}
+
+function withRewrittenConfigCopy<T>(
+  filePath: string,
+  ext: '.mjs' | '.ts',
+  run: (tmp: string, roots: string[], cwd: string) => T,
+): T {
+  const dir = path.dirname(filePath);
+  const roots = findStyleProofConfigPackageRoots(filePath);
+  const tmp = path.join(
+    dir,
+    `.styleproof-config-eval-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}${ext}`,
+  );
+  try {
+    fs.writeFileSync(tmp, rewriteBareSpecifiersToResolvedUrls(fs.readFileSync(filePath, 'utf8'), roots));
+    return run(tmp, roots, roots[0] ?? dir);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+function importModuleDefaultSync(
+  filePath: string,
+  cwd: string,
+  roots: readonly string[] = [cwd],
+): Record<string, unknown> {
+  const result = spawnConfigModuleEval(filePath, cwd, roots);
+  if (result.status !== 0) {
+    throw new Error(
+      (result.stderr || result.stdout || 'sync loader cannot evaluate TypeScript').trim() ||
+        'sync loader cannot evaluate TypeScript; use loadStyleProofConfigAsync()',
+    );
+  }
+  return plainObject(JSON.parse(result.stdout), 'the default export');
+}
+
+/** JS-shaped `.ts` (no type syntax) — works on every supported Node, including 18/20. */
+function evaluateTypeScriptAsPlainModuleSync(filePath: string): Record<string, unknown> {
+  return withRewrittenConfigCopy(filePath, '.mjs', (tmp, roots, cwd) => importModuleDefaultSync(tmp, cwd, roots));
+}
+
+function spawnTypeStrippingConfigEval(filePath: string) {
+  return withRewrittenConfigCopy(filePath, '.ts', (tmp, roots, cwd) =>
+    spawnConfigModuleEval(tmp, cwd, roots, ['--experimental-strip-types']),
+  );
+}
+
+/** Evaluate a discovered `.ts` config. Never reads sibling JSON. */
+function evaluateTypeScriptConfigSync(filePath: string): Record<string, unknown> {
+  let plainError: unknown;
+  try {
+    return evaluateTypeScriptAsPlainModuleSync(filePath);
+  } catch (error) {
+    plainError = error;
+  }
+
+  const stripped = spawnTypeStrippingConfigEval(filePath);
+  if (stripped.status === 0) {
+    try {
+      return plainObject(JSON.parse(stripped.stdout), 'the default export');
+    } catch (error) {
+      throw unloadableTypeScriptConfigError(filePath, error);
+    }
+  }
+  const stripText = `${stripped.stderr ?? ''}${stripped.stdout ?? ''}`;
+  if (/bad option|unknown option|is not allowed/i.test(stripText)) {
+    throw unloadableTypeScriptConfigError(filePath, plainError);
+  }
+  throw unloadableTypeScriptConfigError(
+    filePath,
+    new Error(stripText.trim() || 'sync loader cannot evaluate TypeScript'),
+  );
+}
+
+function parseLoadedConfigSync(dir: string): StyleProofConfig {
+  const esmConfig = findEsmConfig(dir);
+  const hasJson = jsonConfigExists(dir);
+
+  if (esmConfig?.filename.endsWith('.ts')) {
+    return parseConfigRecord(evaluateTypeScriptConfigSync(esmConfig.path));
+  }
 
   if (esmConfig) {
     process.stderr.write(
       `styleproof: ${esmConfig.filename} detected but sync loader called. ` +
-        `Config will be loaded asynchronously by CLIs. JSON fallback used if present.\n`,
+        `Use loadStyleProofConfigAsync() to evaluate ${esmConfig.filename}.\n`,
     );
     if (hasJson) {
-      const record = readJsonConfigObject(cwd);
+      const record = readJsonConfigObject(dir);
       if (!record) return {};
       return parseConfigRecord(record);
     }
@@ -712,30 +1185,128 @@ export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
   if (!hasJson) return {};
 
   warnJsonDeprecation();
-  const record = readJsonConfigObject(cwd);
+  const record = readJsonConfigObject(dir);
   if (!record) return {};
   return parseConfigRecord(record);
+}
+
+async function parseLoadedConfigAsync(dir: string): Promise<StyleProofConfig> {
+  const esmConfig = findEsmConfig(dir);
+  const hasJson = jsonConfigExists(dir);
+
+  if (esmConfig?.filename.endsWith('.ts')) {
+    const record = await loadEsmConfig(dir);
+    if (!record) {
+      throw unloadableTypeScriptConfigError(esmConfig.path, new Error('TypeScript config could not be evaluated'));
+    }
+    return parseConfigRecord(record);
+  }
+
+  if (esmConfig) {
+    const record = await loadEsmConfig(dir);
+    if (record) return parseConfigRecord(record);
+    throw unloadableTypeScriptConfigError(esmConfig.path, new Error('ESM config could not be evaluated'));
+  }
+
+  if (!hasJson) return {};
+
+  warnJsonDeprecation();
+  const record = readJsonConfigObject(dir);
+  if (!record) return {};
+  return parseConfigRecord(record);
+}
+
+/** Sync load plus the directory the file was found in (or `cwd` when none exists). */
+export function loadStyleProofConfigWithLocation(cwd = process.cwd()): StyleProofConfigLoad {
+  const startDir = path.resolve(cwd);
+  const discovery = discoverStyleProofConfig(startDir);
+  const configDir = discovery.location?.dir ?? startDir;
+  const config = discovery.location ? parseLoadedConfigSync(configDir) : {};
+  return {
+    config,
+    configDir,
+    configFile: discovery.location?.filename,
+    searched: discovery.searched,
+  };
+}
+
+/** Async load plus the directory the file was found in (or `cwd` when none exists). */
+export async function loadStyleProofConfigWithLocationAsync(cwd = process.cwd()): Promise<StyleProofConfigLoad> {
+  const startDir = path.resolve(cwd);
+  const discovery = discoverStyleProofConfig(startDir);
+  const configDir = discovery.location?.dir ?? startDir;
+  const config = discovery.location ? await parseLoadedConfigAsync(configDir) : {};
+  return {
+    config,
+    configDir,
+    configFile: discovery.location?.filename,
+    searched: discovery.searched,
+  };
+}
+
+/** Load and validate the repo's styleproof.config.json (sync). Missing file → `{}`;
+ *  unreadable/malformed file or a wrongly-typed known key → {@link StyleProofConfigError};
+ *  unknown keys → a loud stderr warning (never silently dropped).
+ *
+ *  Walks upward from `cwd` to the git root. When the discovered file is
+ *  styleproof.config.ts, this evaluates it or fails closed — sibling JSON is
+ *  never preferred for policy or spec. When styleproof.config.mjs/js exists,
+ *  this emits a warning directing users to use loadStyleProofConfigAsync().
+ *  When only JSON exists, a deprecation warning is emitted. */
+export function loadStyleProofConfig(cwd = process.cwd()): StyleProofConfig {
+  return loadStyleProofConfigWithLocation(cwd).config;
 }
 
 /** Async load and validate the repo's styleproof.config.ts/mjs/js (or legacy .json). Missing file → `{}`;
  *  unreadable/malformed file or a wrongly-typed known key → {@link StyleProofConfigError};
  *  unknown keys → a loud stderr warning (never silently dropped).
  *
- *  Precedence: ESM config (.ts/.mjs/.js) > JSON config. When only JSON exists, a deprecation warning is emitted. */
+ *  Walks upward from `cwd` to the git root. Precedence: ESM config (.ts/.mjs/.js) >
+ *  JSON config. When only JSON exists, a deprecation warning is emitted. */
 export async function loadStyleProofConfigAsync(cwd = process.cwd()): Promise<StyleProofConfig> {
-  const esmConfig = findEsmConfig(cwd);
-  const hasJson = jsonConfigExists(cwd);
+  return (await loadStyleProofConfigWithLocationAsync(cwd)).config;
+}
 
-  if (esmConfig) {
-    const record = await loadEsmConfig(cwd);
-    if (!record) return {};
-    return parseConfigRecord(record);
+/**
+ * Discover the governing config and resolve the capture spec to an absolute path
+ * from the config directory (or from `startDir` when `--spec` is explicit).
+ * Missing config (when required) or missing spec fails closed and lists the
+ * paths that were searched.
+ */
+/** Prefer a cwd-relative spec when the resolved file sits under `cwd`; otherwise the absolute path. */
+export function specPathForCwd(absoluteSpec: string, cwd: string): string {
+  const rel = path.relative(path.resolve(cwd), path.resolve(absoluteSpec)).replaceAll('\\', '/');
+  if (!rel || rel === '..' || rel.startsWith('../') || path.isAbsolute(rel)) return path.resolve(absoluteSpec);
+  return rel;
+}
+
+export function resolveProjectSpec(options: ResolveProjectSpecOptions = {}): ResolvedProjectSpec {
+  const startDir = path.resolve(options.startDir ?? process.cwd());
+  const loaded = loadStyleProofConfigWithLocation(startDir);
+  if (options.requireConfig && !loaded.configFile) {
+    throw new StyleProofConfigError(missingStyleProofConfigMessage(loaded.searched));
   }
-
-  if (!hasJson) return {};
-
-  warnJsonDeprecation();
-  const record = readJsonConfigObject(cwd);
-  if (!record) return {};
-  return parseConfigRecord(record);
+  // DEFAULT applies only after a successful load. A discovered `.ts` that cannot
+  // be evaluated throws above — it never reaches this fallback via `{}` or sibling JSON.
+  const specDeclared = options.spec ?? loaded.config.spec ?? DEFAULT_STYLEPROOF_SPEC;
+  const resolveFrom = options.spec !== undefined ? startDir : loaded.configDir;
+  const spec = resolveStyleProofConfigPath(specDeclared, resolveFrom);
+  const requireSpec = options.requireSpec !== false;
+  if (requireSpec && !fs.existsSync(spec)) {
+    throw new StyleProofConfigError(
+      missingStyleProofSpecMessage({
+        spec,
+        specDeclared,
+        configFile: loaded.configFile ? path.join(loaded.configDir, loaded.configFile) : undefined,
+        searched: loaded.searched,
+      }),
+    );
+  }
+  return {
+    spec,
+    specDeclared,
+    configDir: loaded.configDir,
+    configFile: loaded.configFile,
+    searched: loaded.searched,
+  };
 }

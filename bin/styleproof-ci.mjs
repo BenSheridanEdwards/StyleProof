@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import {
   browsersRequiredByCaptureConfig,
   evaluateBrowserPreflight,
@@ -29,7 +29,12 @@ import {
   readCapturePlaywrightConfigText,
   resolveBrowserExecutablePath,
 } from '../dist/browser-preflight.js';
-import { loadStyleProofConfig } from '../dist/config.js';
+import {
+  loadStyleProofConfigAsync,
+  loadStyleProofConfigWithLocationAsync,
+  resolveStyleProofConfigPath,
+  specPathForCwd,
+} from '../dist/config.js';
 import { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from '../dist/ci.js';
 import {
   applySpecRefOverlay,
@@ -244,10 +249,15 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 // disagree with this driver inside one run.
 let projectConfig;
 try {
-  projectConfig = projectConfigOrExit('styleproof-ci');
-  if (!specProvided) spec = projectConfig.spec ?? decodeSpecPathEnv();
+  const loadedHead = await loadStyleProofConfigWithLocationAsync(consumerCwd);
+  projectConfig = loadedHead.config;
+  if (!specProvided) {
+    const specDeclared = loadedHead.config.spec ?? decodeSpecPathEnv() ?? 'e2e/styleproof.spec.ts';
+    const absolute = resolveStyleProofConfigPath(specDeclared, loadedHead.configDir);
+    spec = loadedHead.configFile ? specPathForCwd(absolute, consumerCwd) : specDeclared;
+  }
   spec ??= 'e2e/styleproof.spec.ts';
-  spec = validateRepoRelativeSpecPath(spec);
+  if (!path.isAbsolute(spec)) spec = validateRepoRelativeSpecPath(spec);
 } catch (error) {
   console.error(`styleproof-ci: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(2);
@@ -257,10 +267,14 @@ try {
  *  otherwise that checkout's OWN styleproof.config.json — after a config-only
  *  spec move, base-side probes and captures must use the base's path and
  *  head-side ones the head's, or the moved side fails "no StyleProof spec". */
-function specFor(cwd) {
+async function specFor(cwd) {
   if (specProvided) return spec;
   try {
-    return validateRepoRelativeSpecPath(loadStyleProofConfig(cwd).spec ?? spec);
+    const loaded = await loadStyleProofConfigWithLocationAsync(cwd);
+    const specDeclared = loaded.config.spec ?? spec;
+    const absolute = resolveStyleProofConfigPath(specDeclared, loaded.configDir);
+    const chosen = loaded.configFile ? specPathForCwd(absolute, cwd) : specDeclared;
+    return path.isAbsolute(chosen) ? chosen : validateRepoRelativeSpecPath(chosen);
   } catch (error) {
     console.error(`styleproof-ci: ${error instanceof Error ? error.message : String(error)}`);
     bail(2);
@@ -345,10 +359,10 @@ function runOrDie(command, what, options = {}) {
   }
 }
 
-function restore(sha, dir, cwd) {
+async function restore(sha, dir, cwd) {
   const r = spawnSync(
     process.execPath,
-    [MAP, '--restore', '--sha', sha, '--dir', dir, '--base-dir', root, '--spec', specFor(cwd)],
+    [MAP, '--restore', '--sha', sha, '--dir', dir, '--base-dir', root, '--spec', await specFor(cwd)],
     { stdio: 'inherit', cwd, env },
   );
   if (r.error) {
@@ -575,15 +589,15 @@ function recordBaselineProvenance(provenance) {
 
 /** Attempt the ancestor reuse; returns the restored ancestor SHA, or '' to take
  *  the ordinary cold path. FAIL-SAFE: any thrown error only logs and returns ''. */
-function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
+async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
   if (!ancestorBaselineEnabled()) return '';
   if (specRefProvided) {
     log('ancestor baseline reuse: skipped — --spec-ref overlays the base spec, which reuse cannot prove against');
     return '';
   }
   try {
-    const probeSpec = specFor(baseProbeCwd);
-    const projectConfigAtBase = loadStyleProofConfig(baseProbeCwd);
+    const probeSpec = await specFor(baseProbeCwd);
+    const projectConfigAtBase = await loadStyleProofConfigAsync(baseProbeCwd);
     const cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfigAtBase.cacheBranch;
     const cacheRemote = process.env.STYLEPROOF_REMOTE ?? projectConfigAtBase.remote;
     const sourceRoots = ancestorBaselineSourceRoots(projectConfigAtBase);
@@ -650,9 +664,9 @@ function overlayApplies(cwd, cwdSpec) {
  *  full cold rebuild, silently), while a hit on a non-overlay bundle would skip
  *  the overlay entirely and compare base-spec renders against head-spec renders
  *  — the exact phantom-diff class --spec-ref exists to eliminate. */
-function restoreBase(cwd) {
-  const probeSpec = specFor(cwd);
-  if (!overlayApplies(cwd, probeSpec)) return restore(base, 'base', cwd);
+async function restoreBase(cwd) {
+  const probeSpec = await specFor(cwd);
+  if (!overlayApplies(cwd, probeSpec)) return await restore(base, 'base', cwd);
   let overlay;
   try {
     overlay = applySpecRefOverlay({ spec: probeSpec, specRef, cwd });
@@ -660,7 +674,7 @@ function restoreBase(cwd) {
     exitSpecRefError(error);
   }
   try {
-    return restore(base, 'base', cwd);
+    return await restore(base, 'base', cwd);
   } finally {
     try {
       overlay.restore();
@@ -670,9 +684,9 @@ function restoreBase(cwd) {
   }
 }
 
-function restoreHead(cwd) {
-  const probeSpec = specFor(cwd);
-  if (!overlayApplies(cwd, probeSpec)) return restore(head, 'head', cwd);
+async function restoreHead(cwd) {
+  const probeSpec = await specFor(cwd);
+  if (!overlayApplies(cwd, probeSpec)) return await restore(head, 'head', cwd);
   let overlay;
   try {
     overlay = applySpecRefOverlay({ spec: probeSpec, specRef, cwd });
@@ -680,7 +694,7 @@ function restoreHead(cwd) {
     exitSpecRefError(error);
   }
   try {
-    return restore(head, 'head', cwd);
+    return await restore(head, 'head', cwd);
   } finally {
     try {
       overlay.restore();
@@ -700,17 +714,17 @@ try {
   fs.rmSync(root, { recursive: true, force: true });
   const baseWorktree = worktrees.addDetached(base, 'probe-base');
   const baseRunCwd = worktreeRunCwd(baseWorktree, consumerRel);
-  baseHit = restoreBase(baseRunCwd);
+  baseHit = await restoreBase(baseRunCwd);
   if (baseHit) {
     recordBaselineProvenance({ baseline: 'exact-restore', restoredSha: base });
   } else {
-    baseRestoredFromAncestorSha = tryRestoreNearestAncestorBaseline(baseRunCwd);
+    baseRestoredFromAncestorSha = await tryRestoreNearestAncestorBaseline(baseRunCwd);
     if (baseRestoredFromAncestorSha) baseHit = true;
   }
 
   const headWorktree = worktrees.addDetached(head, 'probe-head');
   const headRunCwd = worktreeRunCwd(headWorktree, consumerRel);
-  headHit = restoreHead(headRunCwd);
+  headHit = await restoreHead(headRunCwd);
 
   if (baseHit && headHit) {
     writeOutputs();
@@ -786,8 +800,8 @@ try {
           runOrDie(['git', 'checkout', '--', file], `restore ${file}`, { cwd: coldBaseCwd });
       }
       ensurePlaywrightBrowsersOrDie(coldBaseCwd);
-      const baseSpec = specFor(coldBaseCwd);
-      const specPath = path.join(coldBaseCwd, baseSpec);
+      const baseSpec = await specFor(coldBaseCwd);
+      const specPath = path.isAbsolute(baseSpec) ? baseSpec : path.join(coldBaseCwd, baseSpec);
       if (fs.existsSync(specPath) || overlayApplies(coldBaseCwd, baseSpec)) {
         let overlay;
         if (overlayApplies(coldBaseCwd, baseSpec)) {

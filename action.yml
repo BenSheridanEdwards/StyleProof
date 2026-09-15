@@ -44,6 +44,12 @@ inputs:
   status-context:
     description: 'Name of the commit status set in review-gate mode (must match the approve workflow + branch protection).'
     default: 'StyleProof'
+  comment-marker:
+    description: >-
+      HTML comment marker used to find and upsert the PR report comment.
+      Change this when more than one StyleProof Action runs on the same pull request
+      so the comments do not overwrite each other.
+    default: '<!-- styleproof-report -->'
   mode:
     description: >-
       Operation mode: 'certify' (default) fails on any style diff, 'review-gate'
@@ -364,11 +370,17 @@ runs:
         if (!validNoCaptureTopology(diff) || !validNoCaptureTopology(generated)) {
           throw new Error('StyleProof comparison topology disagrees with source and evidence receipts');
         }
+        const validBaselineSha = (value) =>
+          typeof value === 'string' && value.length > 0 && value.length <= 64 &&
+          !/[\u0000-\u001f\u007f]/.test(value) &&
+          (/^[0-9a-f]{40}$/.test(value) || value === 'uncommitted' || value === 'unknown' ||
+            /^sha-[a-f0-9]{12}$/.test(value));
         const validBaselineFailures = (value) =>
           Array.isArray(value) && value.length <= 10_000 && value.every((entry) =>
-            exactKeys(entry, ['key', 'reason']) &&
+            exactKeys(entry, ['key', 'reason', 'sha']) &&
             typeof entry.key === 'string' && entry.key.length > 0 && entry.key.length <= 256 &&
-            !/[\u0000-\u001f\u007f]/.test(entry.key) && entry.reason === 'capture_failed');
+            !/[\u0000-\u001f\u007f]/.test(entry.key) && entry.reason === 'capture_failed' &&
+            validBaselineSha(entry.sha));
         if (!validBaselineFailures(diff.baselineFailures) || !validBaselineFailures(generated.baselineFailures)) {
           throw new Error('StyleProof baseline-failure receipts are missing or malformed');
         }
@@ -549,8 +561,18 @@ runs:
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const { buildReportDelivery } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
+          const { formatIntegrityRepairComment, parseIntegrityFailures } =
+            await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
+          const {
+            formatPartialBaselineComment,
+            formatDegradedBaselineComment,
+            parseBaselineFailureReceipts,
+          } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`);
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
-          const marker = '<!-- styleproof-report -->';
+          const marker = ${{ toJSON(inputs.comment-marker) }};
+          if (typeof marker !== 'string' || !/^<!-- [A-Za-z0-9 _.:-]{1,80} -->$/.test(marker)) {
+            throw new Error('comment-marker must be an HTML comment like <!-- styleproof-report -->');
+          }
           // `changed` = review required: before/after differences OR new surfaces
           // with no baseline. Publication always supplies the durable receipt.
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
@@ -622,12 +644,18 @@ runs:
           const box = useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED'
             ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
             : [];
+          const reportJson = fs.existsSync('styleproof-report/report.json')
+            ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
+            : {};
+          const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
+          const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
+          const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
           const trustGuidance = {
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — repair the capture or reflow source; reviewer approval cannot clear this failure._',
-            PARTIAL_BASELINE: '_Base capture is incomplete — repair baseline capture on the base branch; reviewer approval cannot clear missing baseline surfaces._',
-            DEGRADED_BASELINE: '_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun; reviewer approval cannot clear this failure._',
+            CERTIFICATION_FAILED: formatIntegrityRepairComment(integrityFailures),
+            PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
+            DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
           }[trustState];
           const contentEvaluated = '${{ inputs.include-content }}' === 'true';
           const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
@@ -681,6 +709,7 @@ runs:
         github-token: ${{ inputs.github-token }}
         retries: 3
         script: |
+          const fs = require('fs');
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const trustState = '${{ steps.verdict.outputs.state }}';
@@ -696,6 +725,19 @@ runs:
             advisoryMode ||
             trustState === 'NO_REVIEWABLE_STYLE_CHANGES' ||
             (trustState === 'STYLE_REVIEW_REQUIRED' && approved);
+          const { formatIntegrityStatusDescription, parseIntegrityFailures } =
+            await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
+          const {
+            formatPartialBaselineStatusDescription,
+            formatDegradedBaselineStatusDescription,
+            parseBaselineFailureReceipts,
+          } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`);
+          const reportJson = fs.existsSync('styleproof-report/report.json')
+            ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
+            : {};
+          const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
+          const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
+          const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
           const descriptions = {
             NO_REVIEWABLE_STYLE_CHANGES: 'No reviewable computed-style changes',
             STYLE_REVIEW_REQUIRED: approved
@@ -703,9 +745,9 @@ runs:
               : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
-            CERTIFICATION_FAILED: 'Coverage, determinism, or report/diff consistency evidence is incomplete',
-            PARTIAL_BASELINE: 'Base capture incomplete — repair baseline on the base branch',
-            DEGRADED_BASELINE: 'Base capture failed — head-only evidence cannot certify this change',
+            CERTIFICATION_FAILED: formatIntegrityStatusDescription(integrityFailures),
+            PARTIAL_BASELINE: formatPartialBaselineStatusDescription(baselineFailures),
+            DEGRADED_BASELINE: formatDegradedBaselineStatusDescription(baseCaptureFailed),
           };
           await github.rest.repos.createCommitStatus({
             ...context.repo,
@@ -722,8 +764,13 @@ runs:
       if: inputs.base-capture-failed == 'true'
       shell: bash
       run: |
-        echo 'StyleProof: base capture failed — the published report is head-only degraded evidence, not a base-vs-head certification. Repair the base capture and rerun.' >&2
-        exit 1
+        node --input-type=module <<'NODE'
+        const { formatDegradedBaselineFailEcho } = await import(
+          `${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`
+        );
+        console.error(formatDegradedBaselineFailEcho(true));
+        process.exit(1);
+        NODE
 
     # Partial baseline bundles compare what they can, but ledger-explained missing
     # base surfaces are repair debt — not NO_REVIEWABLE_STYLE_CHANGES and not approvable.
@@ -731,8 +778,17 @@ runs:
       if: steps.verdict.outputs.state == 'PARTIAL_BASELINE'
       shell: bash
       run: |
-        echo 'StyleProof: base capture is incomplete — repair baseline capture on the base branch for the missing surfaces listed in the report (approval cannot clear this).' >&2
-        exit 1
+        node --input-type=module <<'NODE'
+        import fs from 'node:fs';
+        const { formatPartialBaselineFailEcho, parseBaselineFailureReceipts } = await import(
+          `${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`
+        );
+        const report = fs.existsSync('styleproof-report/report.json')
+          ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
+          : {};
+        console.error(formatPartialBaselineFailEcho(parseBaselineFailureReceipts(report.baselineFailures)));
+        process.exit(1);
+        NODE
 
     # blocking (on by default; opt out with styleproof.config.json "blocking": false): on
     # UNAPPROVED changes/new surfaces, fail the job so the check is red even on a repo

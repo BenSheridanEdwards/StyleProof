@@ -5,6 +5,7 @@
  * @see https://github.com/BenSheridanEdwards/StyleProof/issues/581
  */
 
+import { formatIntegrityRepairMarkdown, isIntegrityFailureReason } from './integrity-repair.js';
 import type { StyleProofTrustState } from './verdict.js';
 
 /** Current schema version. Bump on breaking changes. */
@@ -531,6 +532,12 @@ function renderTrustChecksSection(audit: StyleProofAudit): string[] {
     lines.push('**Why advisory:** Changes are informational only and do not block CI.');
   } else if (audit.trustDecision.finalState !== 'NO_REVIEWABLE_STYLE_CHANGES') {
     lines.push(`**Exit reason:** ${audit.trustDecision.exitReason}`);
+  }
+  const integrityReasons = audit.trustDecision.reasons
+    .map((check) => (check.check.startsWith('integrity:') ? check.check.slice('integrity:'.length) : ''))
+    .filter(isIntegrityFailureReason);
+  if (integrityReasons.length > 0) {
+    lines.push('', ...formatIntegrityRepairMarkdown(integrityReasons.map((reason) => ({ reason, surfaces: [] }))));
   }
   return lines;
 }

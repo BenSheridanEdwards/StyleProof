@@ -1,5 +1,7 @@
 /** Shared certification and Action trust policy. Keep CLI and Action consumers on this one closed-set decision. */
 
+import { parseIntegrityFailures } from './integrity-repair.js';
+
 export type StyleProofTrustState =
   | 'NO_REVIEWABLE_STYLE_CHANGES'
   | 'STYLE_REVIEW_REQUIRED'
@@ -19,6 +21,15 @@ export type CertificationEvidenceReceipt = {
   statesUncertified?: unknown;
   partialBaseline?: unknown;
   explainedMissingBaselineSurfaces?: unknown;
+  liveTextFreeze?: { violated?: unknown } | null;
+  /** Closed integrity reasons (`connector-partial` / `duplicate-id` / `integrity-mismatch`). */
+  integrityFailures?: unknown;
+  /** Legacy product-state pair ledger. Armed + undeclared/stale fails closed. */
+  legacyPairs?: {
+    armed?: unknown;
+    undeclared?: unknown;
+    staleAcknowledgements?: unknown;
+  } | null;
 };
 
 export type CertificationEvidenceDecision = {
@@ -34,6 +45,13 @@ function entryCount(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
 }
 
+/** Armed undeclared or stale legacy pairs cannot certify, even if comparison looks clean. */
+function legacyPairsBlockCertification(receipt: CertificationEvidenceReceipt): boolean {
+  const pairs = receipt.legacyPairs;
+  if (!pairs || typeof pairs !== 'object' || pairs.armed !== true) return false;
+  return entryCount(pairs.undeclared) > 0 || entryCount(pairs.staleAcknowledgements) > 0;
+}
+
 /** Assess the closed set of evidence that cannot be cleared by visual approval. */
 export function assessCertificationEvidence(receipt: CertificationEvidenceReceipt): CertificationEvidenceDecision {
   const interactionStatesComplete = receipt.statesUncertified === 0;
@@ -46,7 +64,10 @@ export function assessCertificationEvidence(receipt: CertificationEvidenceReceip
     finiteCount(receipt.confidence?.counts?.inaccessible) === 0 &&
     receipt.comparison?.blocksCertification !== true &&
     !rawOnlyNoReviewable &&
-    interactionStatesComplete;
+    receipt.liveTextFreeze?.violated !== true &&
+    interactionStatesComplete &&
+    parseIntegrityFailures(receipt.integrityFailures).length === 0 &&
+    !legacyPairsBlockCertification(receipt);
   return { certifies, interactionStatesComplete };
 }
 
@@ -60,6 +81,7 @@ export type StyleProofVerdictReceipt = CertificationEvidenceReceipt & {
     staleAcknowledgements?: unknown;
   } | null;
   dataResidue?: { blocking?: unknown; unacknowledged?: unknown } | null;
+  liveTextFreeze?: { violated?: unknown } | null;
 };
 
 export type StyleProofVerdictOptions = {

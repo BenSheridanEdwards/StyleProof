@@ -15,6 +15,23 @@ if (!TRUSTED_SHA.test(baseSha ?? '') || !TRUSTED_SHA.test(headSha ?? '')) {
   throw new Error('action dogfood fixtures require trusted base and head SHAs');
 }
 
+function mapWithoutProductState(color = 'rgb(0, 0, 0)') {
+  return {
+    defaults: {},
+    elements: {
+      body: { tag: 'body', cls: '', rect: [0, 0, 320, 180], style: {} },
+      'body > main:nth-child(1)': {
+        tag: 'main',
+        cls: 'panel',
+        rect: [24, 24, 180, 80],
+        style: { color },
+      },
+    },
+    states: {},
+    metadata: {},
+  };
+}
+
 function map(color = 'rgb(0, 0, 0)') {
   return {
     defaults: {},
@@ -185,6 +202,32 @@ armResidueGate(path.join(root, 'residue-head'));
 writeCapture(path.join(root, 'removed-base'), 'home@320', mapNav(['/a', '/b']), png([240, 240, 240]));
 writeCapture(path.join(root, 'removed-head'), 'home@320', mapNav(['/a']), png([240, 240, 240]));
 
+// Integrity repair dogfood (#650): each pair is otherwise certifying, then one
+// closed integrity reason is planted so the Action must stay CERTIFICATION_FAILED
+// and the report must name what broke / what to fix / how to verify.
+writeCapture(path.join(root, 'integrity-repair-connector-base'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'integrity-repair-connector-head'), 'home@320', map(), png([240, 240, 240]));
+fs.writeFileSync(
+  path.join(root, 'integrity-repair-connector-head', 'styleproof-connector.json'),
+  JSON.stringify({ version: 1, status: 'partial', missing: ['home'] }),
+);
+
+writeCapture(path.join(root, 'integrity-repair-duplicate-base'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'integrity-repair-duplicate-head'), 'home@320', map(), png([240, 240, 240]));
+fs.writeFileSync(
+  path.join(root, 'integrity-repair-duplicate-head', 'home@320.json.gz'),
+  gzipSync(
+    '{"defaults":{},"elements":{"body":{"tag":"body","cls":"","style":{}}},"elements":{"main":{"tag":"main","cls":"","style":{}}},"states":{}}',
+  ),
+);
+
+writeCapture(path.join(root, 'integrity-repair-mismatch-base'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'integrity-repair-mismatch-head'), 'home@320', map(), png([240, 240, 240]));
+fs.writeFileSync(
+  path.join(root, 'integrity-repair-mismatch-head', 'styleproof-integrity.json'),
+  JSON.stringify({ version: 1, claimedDigest: '0'.repeat(64), actualDigest: 'f'.repeat(64) }),
+);
+
 // Certification failure: identical maps, but a side's determinism is unproven —
 // the Action must NOT report NO_REVIEWABLE_STYLE_CHANGES; it certifies nothing and the
 // approval box cannot clear it. Maps match so the ONLY thing under test is that
@@ -193,6 +236,18 @@ writeCapture(path.join(root, 'certfail-base'), 'home@320', map(), png([240, 240,
 writeCapture(path.join(root, 'certfail-head'), 'home@320', map(), png([240, 240, 240]));
 armUnprovenDeterminism(path.join(root, 'certfail-base'));
 armUnprovenDeterminism(path.join(root, 'certfail-head'));
+
+// Legacy product-state pairs: maps omit identity so the declare gate can prove
+// declare-vs-undeclared. Empty ledger → fail closed. Declared `home` → advisory.
+writeCapture(path.join(root, 'legacy-undeclared-base'), 'home@320', mapWithoutProductState(), png([240, 240, 240]));
+writeCapture(path.join(root, 'legacy-undeclared-head'), 'home@320', mapWithoutProductState(), png([240, 240, 240]));
+writeCapture(path.join(root, 'legacy-declared-base'), 'home@320', mapWithoutProductState(), png([240, 240, 240]));
+writeCapture(path.join(root, 'legacy-declared-head'), 'home@320', mapWithoutProductState(), png([240, 240, 240]));
+fs.writeFileSync(path.join(root, 'legacy-pairs-empty.json'), '{}\n');
+fs.writeFileSync(
+  path.join(root, 'legacy-pairs-declared.json'),
+  `${JSON.stringify({ home: 'known dogfood shell pending identity stamp' }, null, 2)}\n`,
+);
 
 // The hosted Action consumes the same confidence artifacts as a real capture.
 // Generate them last so scenario-specific coverage mutations are reflected in

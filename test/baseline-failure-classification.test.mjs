@@ -65,6 +65,7 @@ test('baselineFailureReceipts converts private diagnostics to bounded public rec
   receipts.forEach((receipt) => {
     assert.equal(receipt.reason, 'capture_failed');
     assert.ok(receipt.key.length > 0, 'key should not be empty');
+    assert.equal(receipt.sha, 'unknown');
   });
   assert.equal(receipts[0].key, 'dashboard@1280');
   assert.equal(receipts[1].key, 'settings@768');
@@ -191,9 +192,14 @@ test('mixed baseline failure scenario: failures, new surfaces, and changes class
 
     assert.equal(reportJson.baselineFailures.length, 2, 'should have 2 baseline failures');
     assert.ok(reportJson.partialBaseline, 'partialBaseline should be true');
+    assert.ok(
+      reportJson.baselineFailures.every((f) => f.sha === 'a'.repeat(40)),
+      'receipts should carry the baseline SHA',
+    );
 
     const md = fs.readFileSync(result.reportMdPath, 'utf8');
     assert.match(md, /baseline capture failure/, 'Markdown should mention baseline failures');
+    assert.match(md, /not a base recapture failure/i);
   } finally {
     rmTmp(tmp);
   }

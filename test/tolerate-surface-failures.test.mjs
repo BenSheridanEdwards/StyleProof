@@ -378,11 +378,12 @@ test('diff CLI: partial base manifest with failures vs full head fails closed as
   const jsonPath = path.join(root, 'out.json');
   const r = run(DIFF, [A, B, '--json', jsonPath, '--expected-before-sha', baseSha, '--expected-after-sha', headSha]);
   assert.equal(r.status, 1, r.stderr + r.stdout);
-  assert.match(r.stdout, /BASELINE capture/);
-  assert.match(r.stdout, /repair the base branch/);
+  assert.match(r.stdout, /baseline capture failure/);
+  assert.match(r.stdout, /not a base recapture failure/);
+  assert.match(r.stdout, new RegExp(baseSha));
   assert.doesNotMatch(r.stdout, /about@1280: new surface/);
   const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-  assert.deepEqual(parsed.baselineFailures, [{ key: 'about@1280', reason: 'capture_failed' }]);
+  assert.deepEqual(parsed.baselineFailures, [{ key: 'about@1280', reason: 'capture_failed', sha: baseSha }]);
   assert.equal(parsed.surfaces.find((s) => s.surface === 'about@1280')?.missing, 'before');
   assert.equal(parsed.certifiesFully, false);
   rmTmp(root);
@@ -426,11 +427,14 @@ test('diff CLI: about@auto baseline failure vs about@1280 head is repair-base no
   const jsonPath = path.join(root, 'out.json');
   const r = run(DIFF, [A, B, '--json', jsonPath]);
   assert.equal(r.status, 1, r.stderr + r.stdout);
-  assert.match(r.stdout, /repair the base branch/);
+  assert.match(r.stdout, /not a base recapture failure/);
+  assert.match(r.stdout, new RegExp(fixtureCommitSha('base-sha')));
   assert.doesNotMatch(r.stdout, /review before baselining/);
   assert.doesNotMatch(r.stdout, /about@1280: new surface/);
   const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-  assert.deepEqual(parsed.baselineFailures, [{ key: 'about@auto', reason: 'capture_failed' }]);
+  assert.deepEqual(parsed.baselineFailures, [
+    { key: 'about@auto', reason: 'capture_failed', sha: fixtureCommitSha('base-sha') },
+  ]);
   assert.deepEqual(parsed.explainedMissingBaselineSurfaces, ['about@1280']);
   assert.equal(parsed.partialBaseline, true);
   rmTmp(root);
@@ -452,7 +456,7 @@ test('diff CLI: greenfield sibling still exits 1 when another surface has @auto 
   const r = run(DIFF, [A, B]);
   assert.equal(r.status, 1, r.stderr + r.stdout);
   assert.match(r.stdout, /review before baselining/);
-  assert.match(r.stdout, /repair the base branch/);
+  assert.match(r.stdout, /not a base recapture failure/);
   const jsonPath = path.join(root, 'mixed.json');
   run(DIFF, [A, B, '--json', jsonPath]);
   const mixed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
@@ -494,7 +498,9 @@ test('styleproof-report surfaces baseline capture failure callout', () => {
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   assert.match(md, /baseline capture failure/i);
   assert.match(md, /do not approve indefinitely/i);
-  assert.match(md, /baseline capture failed \(not first adoption\)/i);
+  assert.match(md, /not a base recapture failure/i);
+  assert.match(md, /not first adoption/);
+  assert.match(md, new RegExp(fixtureCommitSha('base-sha')));
   rmTmp(root);
 });
 
@@ -522,7 +528,7 @@ test('styleproof-report persists the complete bounded baseline-failure receipt w
 
   assert.deepEqual(
     json.baselineFailures,
-    failures.map(({ key }) => ({ key, reason: 'capture_failed' })),
+    failures.map(({ key }) => ({ key, reason: 'capture_failed', sha: fixtureCommitSha('base-sha') })),
   );
   assert.equal(json.partialBaseline, true);
   const diffPath = path.join(root, 'diff.json');
@@ -627,8 +633,16 @@ test('styleproof-report keeps large baseline-failure receipts inside the markdow
   assert.match(md, /display budget/);
   assert.match(md, /full bounded identities are in report\.json/);
   assert.equal(json.baselineFailures.length, failures.length);
-  assert.deepEqual(json.baselineFailures[0], { key: 'failed-00000@1280', reason: 'capture_failed' });
-  assert.deepEqual(json.baselineFailures.at(-1), { key: 'failed-09999@1280', reason: 'capture_failed' });
+  assert.deepEqual(json.baselineFailures[0], {
+    key: 'failed-00000@1280',
+    reason: 'capture_failed',
+    sha: fixtureCommitSha('base-sha'),
+  });
+  assert.deepEqual(json.baselineFailures.at(-1), {
+    key: 'failed-09999@1280',
+    reason: 'capture_failed',
+    sha: fixtureCommitSha('base-sha'),
+  });
   rmTmp(root);
 });
 

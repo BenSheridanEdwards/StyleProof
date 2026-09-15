@@ -26,6 +26,12 @@ import {
   manifestlessSide,
   resolveCachedCaptureDirs,
 } from '../dist/map-store.js';
+import {
+  legacyPairsGateArmed,
+  readLegacyPairsAckFile,
+  resolveConfiguredLegacyPairsPath,
+} from '../dist/legacy-pairs.js';
+import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
 
 const COMMAND = 'styleproof-report';
 
@@ -56,6 +62,9 @@ options:
                             before/after crop. Needs captures taken with
                             captureText:true; never affects the check (off by default)
   --require-state-identity require explicit matching product-state identity for every paired surface
+  --legacy-pairs <file>    declare known-legacy product-state pairs ({"<surface>":"<why>"}).
+                            Undeclared unproven pairs fail closed; declared pairs stay advisory.
+                            Flag and $STYLEPROOF_PRODUCT_STATE override config; empty env unarms it.
   --expected-before-sha <sha> trusted full base commit SHA; must be paired with --expected-after-sha
   --expected-after-sha <sha>  trusted full head commit SHA; must be paired with --expected-before-sha
   --migration              migration showcase mode: structure changes (added/removed elements)
@@ -78,6 +87,7 @@ let minHeight;
 let includeLayoutNoise = false;
 let includeContent = false;
 let requireStateIdentity = false;
+let legacyPairsPath;
 let migration = false;
 let expectedBeforeSha;
 let expectedAfterSha;
@@ -114,6 +124,13 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith('--include-content=')) includeContent = a.slice(18) !== 'false';
   else if (a === '--require-state-identity') requireStateIdentity = true;
   else if (a.startsWith('--require-state-identity=')) requireStateIdentity = a.slice(25) !== 'false';
+  else if (a === '--legacy-pairs') {
+    legacyPairsPath = argv[++i];
+    if (!legacyPairsPath || String(legacyPairsPath).startsWith('-')) {
+      console.error('--legacy-pairs requires a file path');
+      process.exit(2);
+    }
+  } else if (a.startsWith('--legacy-pairs=')) legacyPairsPath = a.slice(15);
   else if (a === '--migration') migration = true;
   else if (a.startsWith('--migration=')) migration = a.slice(12) !== 'false';
   else if (a === '--expected-before-sha') {
@@ -132,6 +149,26 @@ for (let i = 0; i < argv.length; i++) {
     console.error(unknownFlagMessage(COMMAND, a));
     process.exit(2);
   } else args.push(a);
+}
+const loadedConfig = loadStyleProofConfigWithLocation();
+const projectConfig = loadedConfig.config;
+if (!requireStateIdentity && projectConfig.productState?.requireIdentity === true) {
+  requireStateIdentity = true;
+}
+legacyPairsPath = resolveConfiguredLegacyPairsPath(
+  legacyPairsPath,
+  projectConfig.productState?.legacyPairs
+    ? resolveStyleProofConfigPath(projectConfig.productState.legacyPairs, loadedConfig.configDir)
+    : undefined,
+);
+let legacyPairDeclarations = {};
+let legacyPairsArmed = false;
+try {
+  legacyPairDeclarations = readLegacyPairsAckFile(legacyPairsPath);
+  legacyPairsArmed = legacyPairsGateArmed(legacyPairsPath);
+} catch (e) {
+  console.error(e.message);
+  process.exit(2);
 }
 const sourceShaError = expectedSourceShaFlagsError({
   beforeProvided: expectedBeforeShaSet,
@@ -214,6 +251,8 @@ try {
     includeContent,
     requireStateIdentity,
     migration,
+    legacyPairDeclarations,
+    legacyPairsArmed,
   });
   const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
   if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
@@ -275,11 +314,15 @@ if (includeContent && result.contentChanges > 0) {
 }
 // Exit 1 when there is anything to review OR any report-consistency failure (never
 // exit 0 for "identical" when certification evidence was hidden by presentation).
+const legacyPairFailed =
+  Boolean(result.legacyPairs?.armed) &&
+  ((result.legacyPairs.undeclared?.length ?? 0) > 0 || (result.legacyPairs.staleAcknowledgements?.length ?? 0) > 0);
 process.exit(
   result.changedSurfaces === 0 &&
     result.oneSidedSurfaces === 0 &&
     !consistencyFailed &&
     !comparisonFailed &&
+    !legacyPairFailed &&
     !sourceBindingFailed
     ? 0
     : 1,

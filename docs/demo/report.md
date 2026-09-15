@@ -112,7 +112,7 @@ Style:
 
 ## 📝 Content and structure changes (advisory)
 
-_3 content/structure change(s). **Advisory only** — content and DOM structure are not part of the computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are visible when content comparison is enabled._
+_3 content/structure change(s). **Advisory only** — content and DOM structure are not part of the computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below so it cannot be mistaken for a product style regression._
 
 ### `duplicate-insertion@900` · 1 content/structure change(s)
 

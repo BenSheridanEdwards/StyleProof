@@ -972,3 +972,34 @@ test('loadStyleProofConfig: coverage is a known key (no unknown-key warning)', (
     assert.doesNotMatch(map.stderr, /unknown key\(s\) ignored:.*coverage/);
   });
 });
+
+test('loadStyleProofConfig: reads productState requireIdentity and legacyPairs path', () => {
+  withConfig(
+    {
+      productState: {
+        requireIdentity: true,
+        legacyPairs: 'styleproof.product-state.json',
+      },
+    },
+    (dir) => {
+      const config = loadStyleProofConfig(dir);
+      assert.deepEqual(config.productState, {
+        requireIdentity: true,
+        legacyPairs: 'styleproof.product-state.json',
+      });
+    },
+  );
+});
+
+test('loadStyleProofConfig: productState.requireIdentity must be a boolean', () => {
+  withConfig({ productState: { requireIdentity: 'true' } }, (dir) => {
+    assert.throws(() => loadStyleProofConfig(dir), /"productState\.requireIdentity" must be a boolean/);
+  });
+});
+
+test('loadStyleProofConfig: productState is a known key (no unknown-key warning)', () => {
+  withConfig({ productState: { requireIdentity: false }, spec: 'e2e/styleproof.spec.ts' }, (dir) => {
+    const map = spawnSync(process.execPath, [MAP], { cwd: dir, encoding: 'utf8' });
+    assert.doesNotMatch(map.stderr, /unknown key\(s\) ignored:.*productState/);
+  });
+});

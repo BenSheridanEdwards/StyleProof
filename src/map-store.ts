@@ -36,19 +36,197 @@ export type SurfaceCaptureFailure = {
 export type BaselineFailureReceipt = {
   key: string;
   reason: 'capture_failed';
+  /** Durable commit identity of the side that failed (40-hex, `uncommitted`, or hashed). */
+  sha: string;
+};
+
+/** Closed set of adopter-facing baseline/compare failure classes (#651). */
+export type BaselineCompareFailureClass = 'baseline_surface_capture' | 'base_recapture' | 'compare';
+
+export type BaselineCompareAttribution = {
+  failureClass: BaselineCompareFailureClass;
+  recaptureFailed: boolean;
+  named: string;
+  summary: string;
 };
 
 const PUBLIC_CAPTURE_FAILURE_KEY = /^[a-z0-9][a-z0-9._-]{0,199}@(auto|[1-9]\d{1,4})$/;
+const PUBLIC_BASELINE_SHA = /^(?:[0-9a-f]{40}|uncommitted)$/;
 
-/** Convert private capture diagnostics into stable public receipts without exception text. */
-export function baselineFailureReceipts(failures: readonly SurfaceCaptureFailure[]): BaselineFailureReceipt[] {
+/** Public SHA identity: 40-hex / `uncommitted`, or a privacy-safe hashed placeholder. */
+export function publicBaselineSha(sha: string | undefined): string {
+  if (sha && PUBLIC_BASELINE_SHA.test(sha)) return sha;
+  if (!sha) return 'unknown';
+  return `sha-${createHash('sha256').update(sha).digest('hex').slice(0, 12)}`;
+}
+
+function publicCaptureFailureKey(key: string): string {
+  return PUBLIC_CAPTURE_FAILURE_KEY.test(key)
+    ? key
+    : `capture-${createHash('sha256').update(key).digest('hex').slice(0, 12)}`;
+}
+
+function namedSurfaceShaList(items: readonly { key: string; sha: string }[]): string {
+  return items.map((item) => `\`${item.key}\` at \`${item.sha}\``).join(', ');
+}
+
+/**
+ * Convert private capture diagnostics into stable public receipts without exception text.
+ * `sha` is the baseline commit the failed surface was captured against.
+ */
+export function baselineFailureReceipts(
+  failures: readonly SurfaceCaptureFailure[],
+  sha?: string,
+): BaselineFailureReceipt[] {
+  const publicSha = publicBaselineSha(sha);
   return failures.map((failure) => ({
-    key: PUBLIC_CAPTURE_FAILURE_KEY.test(failure.key)
-      ? failure.key
-      : `capture-${createHash('sha256').update(failure.key).digest('hex').slice(0, 12)}`,
+    key: publicCaptureFailureKey(failure.key),
     reason: 'capture_failed',
+    sha: publicSha,
   }));
 }
+
+/**
+ * Adopter-legible attribution for a baseline or compare fault.
+ * When `base-capture-failed=false`, never claims a base recapture failed.
+ */
+export function honestBaselineCompareAttribution(options: {
+  baseCaptureFailed: boolean;
+  receipts?: readonly BaselineFailureReceipt[];
+  compareSurfaces?: readonly { key: string; sha: string }[];
+}): BaselineCompareAttribution {
+  if (options.baseCaptureFailed) {
+    return {
+      failureClass: 'base_recapture',
+      recaptureFailed: true,
+      named: '',
+      summary:
+        'The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun.',
+    };
+  }
+  const receipts = options.receipts ?? [];
+  if (receipts.length > 0) {
+    const named = namedSurfaceShaList(receipts);
+    return {
+      failureClass: 'baseline_surface_capture',
+      recaptureFailed: false,
+      named,
+      summary:
+        `these named surface(s) failed on the base SHA and were omitted from the baseline bundle: ${named}. ` +
+        `The base bundle was produced (\`base-capture-failed=false\`); this is not a base recapture failure. ` +
+        `Repair the named surface(s) on that SHA; do not approve indefinitely. Raw exception details stay private.`,
+    };
+  }
+  const compareSurfaces = (options.compareSurfaces ?? []).map((item) => ({
+    key: publicCaptureFailureKey(item.key),
+    sha: publicBaselineSha(item.sha),
+  }));
+  const named = namedSurfaceShaList(compareSurfaces);
+  return {
+    failureClass: 'compare',
+    recaptureFailed: false,
+    named,
+    summary: named
+      ? `compare/certification evidence is incomplete on ${named}. ` +
+        `This is not a base recapture failure (\`base-capture-failed=false\`). Repair the named evidence; reviewer approval cannot clear it.`
+      : 'compare/certification evidence is incomplete. This is not a base recapture failure (`base-capture-failed=false`).',
+  };
+}
+
+/** GitHub commit-status `description` hard limit. */
+const GITHUB_STATUS_DESCRIPTION_MAX = 140;
+
+function sanitizeBaselineFailureReceipts(value: unknown): BaselineFailureReceipt[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+    const key = (entry as { key?: unknown }).key;
+    const sha = (entry as { sha?: unknown }).sha;
+    const reason = (entry as { reason?: unknown }).reason;
+    if (typeof key !== 'string' || typeof sha !== 'string' || reason !== 'capture_failed') return [];
+    return [{ key: publicCaptureFailureKey(key), reason: 'capture_failed' as const, sha: publicBaselineSha(sha) }];
+  });
+}
+
+function compactReceiptLabel(receipts: readonly BaselineFailureReceipt[]): string {
+  if (receipts.length === 0) return 'named surface on listed base SHA';
+  const first = `${receipts[0].key} at ${receipts[0].sha}`;
+  return receipts.length === 1 ? first : `${first} (+${receipts.length - 1})`;
+}
+
+function clipStatusDescription(text: string): string {
+  return text.length <= GITHUB_STATUS_DESCRIPTION_MAX ? text : `${text.slice(0, GITHUB_STATUS_DESCRIPTION_MAX - 3)}...`;
+}
+
+function wrapActionComment(body: string): string {
+  return `_${body}_`;
+}
+
+/** Parse public baseline-failure receipts from report/diff JSON. */
+export function parseBaselineFailureReceipts(value: unknown): BaselineFailureReceipt[] {
+  return sanitizeBaselineFailureReceipts(value);
+}
+
+/** PR-comment footer for PARTIAL_BASELINE — interpolates the receipt key+SHA. */
+export function formatPartialBaselineComment(receipts: unknown): string {
+  const parsed = sanitizeBaselineFailureReceipts(receipts);
+  const attribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: parsed });
+  const named = attribution.named || 'named surface(s) listed in the report';
+  return wrapActionComment(
+    `${named} failed on the listed base SHA — this is not a base recapture failure. ` +
+      `Repair those surfaces on that SHA; reviewer approval cannot clear missing baseline surfaces.`,
+  );
+}
+
+/** Commit-status description for PARTIAL_BASELINE (≤140 chars, includes key+SHA). */
+export function formatPartialBaselineStatusDescription(receipts: unknown): string {
+  const parsed = sanitizeBaselineFailureReceipts(receipts);
+  return clipStatusDescription(`${compactReceiptLabel(parsed)} — not a base recapture failure`);
+}
+
+/** Job-fail stderr for PARTIAL_BASELINE — interpolates the receipt key+SHA. */
+export function formatPartialBaselineFailEcho(receipts: unknown): string {
+  const parsed = sanitizeBaselineFailureReceipts(receipts);
+  const attribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: parsed });
+  const named = attribution.named || 'named surface(s) listed in the report';
+  return (
+    `StyleProof: ${named} failed on the listed base SHA — this is not a base recapture failure. ` +
+    `Repair those surfaces on that SHA (approval cannot clear this).`
+  );
+}
+
+/**
+ * PR-comment footer for DEGRADED_BASELINE / head-only evidence.
+ * Recapture language is used only when `baseCaptureFailed` is actually true.
+ */
+export function formatDegradedBaselineComment(baseCaptureFailed: boolean): string {
+  if (baseCaptureFailed) {
+    return wrapActionComment(
+      `${honestBaselineCompareAttribution({ baseCaptureFailed: true }).summary} ` +
+        `Reviewer approval cannot clear this failure.`,
+    );
+  }
+  return wrapActionComment(
+    'This is a head-only receipt rather than a comparison — not a base recapture failure ' +
+      '(`base-capture-failed=false`). Repair the missing baseline evidence and rerun; ' +
+      'reviewer approval cannot clear this failure.',
+  );
+}
+
+/** Commit-status description for DEGRADED_BASELINE / head-only evidence. */
+export function formatDegradedBaselineStatusDescription(baseCaptureFailed: boolean): string {
+  return baseCaptureFailed
+    ? 'Base capture failed — head-only evidence cannot certify this change'
+    : 'Head-only evidence cannot certify this change — not a base recapture failure';
+}
+
+/** Job-fail stderr for DEGRADED_BASELINE / head-only evidence. */
+export function formatDegradedBaselineFailEcho(baseCaptureFailed: boolean): string {
+  return baseCaptureFailed
+    ? 'StyleProof: base capture failed — the published report is head-only degraded evidence, not a base-vs-head certification. Repair the base capture and rerun.'
+    : 'StyleProof: head-only evidence is not a base-vs-head certification — this is not a base recapture failure. Repair the missing baseline evidence and rerun.';
+}
+
 /** Sidecar written during a capture run (where a browser handle is in scope) recording
  *  the real browser build (`browser().version()`). `writeMapManifest` runs after Playwright
  *  has exited — no browser — so it reads the build back from here. Not a surface map. */
@@ -85,6 +263,12 @@ export const CONFIDENCE_LEDGER = 'styleproof-confidence.json';
  *  import cycle. Must be preserved during v2 import as owned metadata. */
 export const DETERMINISM_RECEIPT = 'styleproof-determinism.json';
 
+/** Integrity connector / digest receipts (#650). Defined here so
+ *  {@link RESERVED_BUNDLE_FILES} needs no import cycle with integrity-repair. */
+export const CONNECTOR_RECEIPT = 'styleproof-connector.json';
+export const INTEGRITY_RECEIPT = 'styleproof-integrity.json';
+export const SOURCE_BINDING_RECEIPT = 'styleproof-source-binding.json';
+
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
  *  these, or a sidecar reads as a phantom "new surface". */
@@ -95,6 +279,9 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
   BASELINE_PROVENANCE_FILE,
   CONFIDENCE_LEDGER,
   DETERMINISM_RECEIPT,
+  CONNECTOR_RECEIPT,
+  INTEGRITY_RECEIPT,
+  SOURCE_BINDING_RECEIPT,
 ]);
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */

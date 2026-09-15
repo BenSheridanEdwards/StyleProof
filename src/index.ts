@@ -24,6 +24,7 @@ export {
 } from './capture.js';
 export * from './inventory.js';
 export * from './data-residue.js';
+export * from './legacy-pairs.js';
 export {
   captureUrlToDir,
   runCaptureUrl,
@@ -161,10 +162,23 @@ export type {
   VariantHarvestOptions,
 } from './variant-crawler.js';
 export {
+  validateLiveText,
+  requireLiveTextCapture,
+  containsAgeClockText,
+  isAgeOnlyDrift,
+  isLiveTextChange,
+  auditLiveTextChanges,
+  resolveLiveTextDeclaration,
+  liveTextFreezeError,
+  LiveTextError,
+} from './live-text.js';
+export type { LiveTextDeclaration, LiveTextAudit, LiveTextFreezeViolation, LiveTextInput } from './live-text.js';
+export {
   diffStyleMaps,
   diffStyleMapDirs,
   diffContentMaps,
   diffContentDirs,
+  auditLiveTextDirs,
   findingLabel,
   summarizeComparability,
 } from './diff.js';
@@ -256,23 +270,58 @@ export {
   defineConfig,
   loadStyleProofConfig,
   loadStyleProofConfigAsync,
+  loadStyleProofConfigWithLocation,
+  loadStyleProofConfigWithLocationAsync,
+  discoverStyleProofConfig,
+  resolveStyleProofConfigPath,
+  resolveStyleProofConfigFilePaths,
+  resolveProjectSpec,
+  specPathForCwd,
+  missingStyleProofConfigMessage,
+  missingStyleProofSpecMessage,
+  unloadableStyleProofConfigMessage,
   env,
   resolveEnvReferences,
   redactSecrets,
+  STYLEPROOF_CONFIG_FILENAMES,
+  DEFAULT_STYLEPROOF_SPEC,
 } from './config.js';
 export type {
   StyleProofConfig,
+  StyleProofConfigLocation,
+  StyleProofConfigDiscovery,
+  StyleProofConfigLoad,
+  ResolvedProjectSpec,
+  ResolveProjectSpecOptions,
   AffectedConfig,
   CrawlConfig,
   AuthConfig,
   MapStoreConfig,
   AncestorBaselineConfig,
   CoverageConfig,
+  ProductStateConfig,
   EnvRef,
   ResolveEnvOptions,
   ResolveEnvResult,
 } from './config.js';
 
+export {
+  INTEGRITY_FAILURE_REASONS,
+  INTEGRITY_REPAIR_PATHS,
+  CONNECTOR_RECEIPT,
+  INTEGRITY_RECEIPT,
+  SOURCE_BINDING_RECEIPT,
+  isIntegrityFailureReason,
+  integrityRepairPath,
+  integrityReasonsOf,
+  parseIntegrityFailures,
+  formatIntegrityRepairMarkdown,
+  formatIntegrityRepairComment,
+  formatIntegrityStatusDescription,
+  integrityAuditChecks,
+  inspectIntegrityFailures,
+} from './integrity-repair.js';
+export type { IntegrityFailureReason, IntegrityRepairPath, IntegrityFinding } from './integrity-repair.js';
 export {
   AUDIT_SCHEMA_VERSION,
   AUDIT_FILE_NAME,

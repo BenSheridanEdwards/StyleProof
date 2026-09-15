@@ -43,7 +43,8 @@ import { spawnSync } from 'node:child_process';
 import { discoverNextRoutes } from '../dist/routes.js';
 import { discoverComponentFiles } from '../dist/components.js';
 import { validateComponentManifest } from '../dist/component-manifest.js';
-import { isHelpArg, projectConfigOrExit, showHelpAndExit } from '../dist/cli-errors.js';
+import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
+import { loadStyleProofConfig } from '../dist/config.js';
 import { decodeSpecPathEnv, encodeSpecPath, SPEC_PATH_ENV, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
 import { detectPackageManager } from './package-manager.mjs';
 
@@ -186,7 +187,17 @@ if (manifestPath) {
   }
 }
 if (!specPathProvided) {
-  const configuredSpec = projectConfigOrExit('styleproof-init').spec;
+  let configuredSpec;
+  try {
+    configuredSpec = loadStyleProofConfig().spec;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+    if (code !== 'STYLEPROOF_UNLOADABLE_TS' && !/could not be evaluated|cannot evaluate/i.test(message)) {
+      console.error(`styleproof-init: ${message}`);
+      process.exit(2);
+    }
+  }
   try {
     specPath = configuredSpec ?? decodeSpecPathEnv() ?? DEFAULT_SPEC_PATH;
   } catch (error) {

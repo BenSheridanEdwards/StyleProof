@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
 import { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from '../dist/affected-surfaces.js';
 
 const HELP = `styleproof-affected — which declared surfaces could this change have restyled?
@@ -107,7 +108,10 @@ function readJson(file, what) {
 // Loaded from --root: in a monorepo the SUBPACKAGE's config governs its own
 // graph/surfaces, not whatever happens to sit at the invoking cwd.
 const affectedConfig = projectConfigOrExit('styleproof-affected', root).affected ?? {};
-if (!graphPath && affectedConfig.graph) graphPath = affectedConfig.graph;
+const loadedConfig = loadStyleProofConfigWithLocation(root);
+if (!graphPath && affectedConfig.graph) {
+  graphPath = resolveStyleProofConfigPath(affectedConfig.graph, loadedConfig.configDir);
+}
 if (!baseRef && changedArgs.length === 0 && affectedConfig.base) baseRef = affectedConfig.base;
 
 if (!graphPath) usageError('--graph <depcruise.json> is required (or set affected.graph in styleproof.config.json)');

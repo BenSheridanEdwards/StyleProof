@@ -16,6 +16,11 @@ jobs:
   action-dogfood:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    env:
+      # Isolate synthetic fixtures from this repo's live ledger. After upward
+      # config discovery, root productState.legacyPairs would stale-fail
+      # identity-stamped home@* contract maps against example/styleproof.product-state.json.
+      STYLEPROOF_PRODUCT_STATE: action-dogfood/legacy-pairs-empty.json
     steps:
       - uses: actions/checkout@v7
 
@@ -106,8 +111,8 @@ jobs:
 
       - name: Assert a ledger-explained missing baseline is PARTIAL_BASELINE
         run: |
-          # #475: its own state, which reviewer approval still cannot clear —
-          # repair the base capture. It is no longer swept into CERTIFICATION_FAILED.
+          # #475 / #651: its own state, which reviewer approval still cannot clear —
+          # named surface+SHA repair on the base bundle, not a recapture failure.
           test '${{ steps.partial-baseline.outcome }}' = 'failure'
           test '${{ steps.partial-baseline.outputs.changed }}' = 'false'
           test '${{ steps.partial-baseline.outputs.trust-state }}' = 'PARTIAL_BASELINE'
@@ -163,6 +168,111 @@ jobs:
           test '${{ steps.removed.outcome }}' = 'failure'
           test '${{ steps.removed.outputs.changed }}' = 'true'
           test '${{ steps.removed.outputs.trust-state }}' = 'INVENTORY_REMOVAL_UNACKNOWLEDGED'
+
+      - id: integrity-repair-connector
+        continue-on-error: true
+        uses: ./
+        with:
+          baseline-dir: action-dogfood/integrity-repair-connector-base
+          fresh-dir: action-dogfood/integrity-repair-connector-head
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert connector-partial stays unapprovable and names the repair path
+        run: |
+          test '${{ steps.integrity-repair-connector.outcome }}' = 'failure'
+          test '${{ steps.integrity-repair-connector.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
+          grep -F 'connector-partial' styleproof-report/report.md
+          grep -F 'What broke' styleproof-report/report.md
+          grep -F 'What to fix' styleproof-report/report.md
+          grep -F 'How to verify' styleproof-report/report.md
+          grep -F 'connector-partial' styleproof-audit.json
+
+      - id: integrity-repair-duplicate
+        continue-on-error: true
+        uses: ./
+        with:
+          baseline-dir: action-dogfood/integrity-repair-duplicate-base
+          fresh-dir: action-dogfood/integrity-repair-duplicate-head
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert duplicate-id stays unapprovable and names the repair path
+        run: |
+          test '${{ steps.integrity-repair-duplicate.outcome }}' = 'failure'
+          test '${{ steps.integrity-repair-duplicate.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
+          grep -F 'duplicate-id' styleproof-report/report.md
+          grep -F 'What broke' styleproof-report/report.md
+          grep -F 'duplicate-id' styleproof-audit.json
+
+      - id: integrity-repair-mismatch
+        continue-on-error: true
+        uses: ./
+        with:
+          baseline-dir: action-dogfood/integrity-repair-mismatch-base
+          fresh-dir: action-dogfood/integrity-repair-mismatch-head
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert integrity-mismatch stays unapprovable and names the repair path
+        run: |
+          test '${{ steps.integrity-repair-mismatch.outcome }}' = 'failure'
+          test '${{ steps.integrity-repair-mismatch.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
+          grep -F 'integrity-mismatch' styleproof-report/report.md
+          grep -F 'What broke' styleproof-report/report.md
+          grep -F 'integrity-mismatch' styleproof-audit.json
+
+      - id: legacy-identity
+        uses: ./
+        with:
+          baseline-dir: action-dogfood/clean-base
+          fresh-dir: action-dogfood/clean-head
+          require-state-identity: 'true'
+          report-branch: styleproof-action-dogfood
+
+      - name: Assert declared productState identity certifies under require-state-identity
+        run: |
+          test '${{ steps.legacy-identity.outputs.changed }}' = 'false'
+          test '${{ steps.legacy-identity.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
+          grep -F 'comparable on' styleproof-report/report.md
+
+      - id: legacy-declared
+        uses: ./
+        env:
+          STYLEPROOF_PRODUCT_STATE: action-dogfood/legacy-pairs-declared.json
+        with:
+          baseline-dir: action-dogfood/legacy-declared-base
+          fresh-dir: action-dogfood/legacy-declared-head
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert declared legacy pairs stay advisory and do not certify
+        run: |
+          test '${{ steps.legacy-declared.outputs.changed }}' = 'false'
+          test '${{ steps.legacy-declared.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
+          grep -E 'declared legacy pair' styleproof-report/report.md
+          grep -F 'advisory, not certification' styleproof-report/report.md
+          grep -F '"declared": [' styleproof-report/report.json
+          grep -F 'home@320' styleproof-report/report.json
+
+      - id: legacy-undeclared
+        continue-on-error: true
+        uses: ./
+        env:
+          STYLEPROOF_PRODUCT_STATE: action-dogfood/legacy-pairs-empty.json
+        with:
+          baseline-dir: action-dogfood/legacy-undeclared-base
+          fresh-dir: action-dogfood/legacy-undeclared-head
+          report-branch: styleproof-action-dogfood
+          fail-on-diff: 'false'
+
+      - name: Assert undeclared legacy pairs fail closed and cannot certify
+        run: |
+          test '${{ steps.legacy-undeclared.outcome }}' = 'failure'
+          test '${{ steps.legacy-undeclared.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
+          grep -E 'undeclared legacy pair' styleproof-report/report.md
+          grep -F 'cannot certify' styleproof-report/report.md
+
 
       - id: certfail
         continue-on-error: true

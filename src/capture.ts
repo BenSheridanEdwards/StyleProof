@@ -158,6 +158,11 @@ export type CaptureMetadata = {
   stateRecipe?: StateRecipeCaptureProvenance;
   /** Explicit same-product-state evidence used by the certification comparison. */
   productState?: ProductStateIdentity;
+  /**
+   * Consumer-declared live/age/clock text. Advisory when `freeze` is false;
+   * fail-closed when `freeze` is true and captured ages still drift.
+   */
+  liveText?: { freeze: boolean; selectors: string[] };
 };
 export type LiveRegionCandidate = {
   path: string;

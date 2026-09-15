@@ -20,6 +20,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Dogfood approve stub.** StyleProof now ships `.github/workflows/styleproof-approve.yml`,
+  the same thin caller adopters get from `styleproof-init`, pointing at
+  `styleproof-approve-reusable.yml@main`. Reviewer ticks stay inert until advisory
+  dogfood enables `require-approval`. Does not change evidence confidence. (#644)
+- **StyleProof-on-StyleProof dogfood.** Root `styleproof.config.ts` declares the
+  real `example/demo` surfaces in advisory mode (`blocking: 'advisory'`,
+  `requireApproval: false`). Same-repo PRs run `.github/workflows/styleproof-dogfood.yml`:
+  capture those surfaces, publish maps to `styleproof-maps`, and run the Action
+  with `fail-on-diff: false` / `mode: advisory` so a report comment lands on
+  `styleproof-reports`. This check is advisory and is not part of hosted
+  required CI. The synthetic `action-dogfood.yml` contract suite is unchanged.
+  (#642, #643)
+
+- **Action `comment-marker` input.** Defaults to `<!-- styleproof-report -->`.
+  Set a distinct marker when more than one StyleProof Action runs on the same
+  pull request so the comments do not overwrite each other.
+- **Legacy product-state pair inventory.** Declare known-legacy pairs in
+  `styleproof.product-state.json` (`{"<surface>": "<why>"}`), via
+  `--legacy-pairs`, `$STYLEPROOF_PRODUCT_STATE`, or
+  `productState.legacyPairs` in `styleproof.config.ts`. When that ledger is
+  armed, undeclared unproven pairs fail closed and cannot certify; declared
+  pairs stay advisory (`certifiesFully: false`). Matching `productState
+{id, revision}` remains the only certifying declare path.
+  `productState.requireIdentity` pins `--require-state-identity` in config.
+  Live StyleProof-on-StyleProof arms the ledger (`styleproof.config.ts` /
+  `styleproof.config.json` `productState.legacyPairs` +
+  `example/styleproof.product-state.json` + `$STYLEPROOF_PRODUCT_STATE` on
+  `styleproof-dogfood.yml`). The declare-file path resolves from the
+  discovered config directory. Flag and `$STYLEPROOF_PRODUCT_STATE` override
+  that config path (empty env unarms it) so the synthetic `action-dogfood`
+  suite does not inherit the live `home` ledger and stale-fail
+  identity-stamped fixtures. `classifyStyleProofVerdict` reads `legacyPairs`
+  so undeclared pairs are `CERTIFICATION_FAILED` for CLI, Action, and
+  comment — not a soft-green `NO_REVIEWABLE_STYLE_CHANGES`. (#649)
+
 - **Coverage config manifest** (`coverage.manifest`): declare expected surfaces via
   an external JSON file instead of programmatic `expected`. The manifest format is
   `{ "version": 1, "surfaces": ["home", "dashboard", ...] }`. Manifest surfaces
@@ -49,6 +84,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   if map artifacts (`.json.gz`, `styleproof-manifest.json`) are accidentally
   committed to a PR branch. Mirrors the `.gitignore` patterns. (#597)
 
+- **`liveText` declaration** on `defineStyleMapCapture` / `defineCrawlCapture`.
+  Opt-in (`true` or `{ freeze?, selectors? }`) so live/age/clock copy is classified
+  and, when `freeze: true`, fail-closed if it still drifts. Requires `captureText: true`.
+
 ### Changed
 
 - **Ancestor baseline reuse is now default-on (opt-out).** When the exact base
@@ -65,14 +104,65 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `STYLEPROOF_SUPPRESS_PLATFORM_WARNING=0`. The warning was noisy for adopters
   who understood the tradeoff; the exit-code behavior is unchanged. (#600)
 
-### Changed
-
 - Generated report workflows, supported examples, the README, and repository skills
   now use the `v7` Action and reusable-workflow aliases.
 - Package and lockfile metadata now identify version 7.0.0. Dependency resolution is
   unchanged.
 
 ### Fixed
+
+- **`.ts` config package resolution uses the config file's package root.**
+  Evaluating `styleproof.config.ts` resolves `styleproof` and peer packages from
+  the config file's directory and the nearest `package.json` walking up from
+  that file — not only `process.cwd()`. Linked `styleproof-ci` probe worktrees
+  (no `node_modules` of their own) also search the main working tree's matching
+  package roots so a host install stays visible. A subdirectory config with the
+  package installed at the package root — or only on the host checkout — now
+  loads. If the package still cannot be resolved, the fail-closed error lists
+  the searched package roots. Unloadable `.ts` still does not fall back to
+  `e2e/styleproof.spec.ts` or sibling JSON. (#659)
+
+- **Action PARTIAL/DEGRADED_BASELINE copy names the real failure.**
+  `PARTIAL_BASELINE` PR-comment, commit-status, and fail-echo strings now
+  interpolate the receipt surface key and SHA instead of pointing at the report
+  only. `DEGRADED_BASELINE` copy claims a base capture/recapture failure only
+  when `base-capture-failed=true`; the head-only path with the flag false does
+  not say the base capture failed. Fail-closed gates are unchanged. (#657)
+
+- **Honest baseline-failure attribution.** When `base-capture-failed=false` and a
+  baseline or compare fault occurs, report/audit/Action text names the failing
+  **surface and SHA** and no longer implies that a base recapture failed. Public
+  `baselineFailures` receipts now include the bounded baseline `sha`.
+  `DEGRADED_BASELINE` (`base-capture-failed=true`) remains the head-only recapture
+  failure. (#651)
+
+- **Live/age/clock text no longer masquerades as a stylesheet regression.** Server-rendered
+  ages (`open 102.1d` → `open 103.1d`) are clock/live data, not a product CSS change.
+  Declare `liveText` (requires `captureText: true`) so age-only drift stays advisory and
+  is not `STYLE_REVIEW_REQUIRED`. `{ freeze: true }` fail-closes with a visible
+  `CERTIFICATION_FAILED` error when a freeze was declared but captured ages still
+  drift — never a soft-green, never a style approval. Undeclared age-driven geometry
+  still reviews as before; real stylesheet changes next to an age still gate.
+- **`CERTIFICATION_FAILED` integrity reasons now ship an adopter-legible repair
+  path.** `connector-partial`, `duplicate-id`, and `integrity-mismatch` stay
+  unapprovable as style. The report, audit trail, and Action comment name what
+  broke, what to fix, and how to verify. Dogfood fixtures reproduce each state.
+  (#650)
+- **Config discovery from a package subdirectory.** `styleproof-map`, `styleproof-ci`,
+  and the shared config loader walk upward from cwd to the git root for
+  `styleproof.config.ts` / `.mjs` / `.js` / `.json`. Relative file-path fields
+  (`spec`, crawl setup/exclude/out, `coverage.manifest`, `affected.graph`)
+  resolve from the config file's directory, not `process.cwd()`. A missing spec
+  after that walk fails closed and names every config path searched — no silent
+  fallback to `e2e/styleproof.spec.ts` when a parent config exists. A JS-shaped
+  `.ts` (no type syntax) is evaluated on every supported Node, including 18/20.
+  Node 22 type-stripping can evaluate typed files; if that file cannot be
+  evaluated (unknown `.ts` extension, or `defineConfig` cannot resolve the
+  `styleproof` package), the loader fails closed and names the path and reason.
+  A sibling `styleproof.config.json` never overrides a discovered `.ts` for
+  policy or spec. It never returns `{}` or the default `e2e/styleproof.spec.ts`
+  while that file was found. A `.mjs` / `.js` that cannot resolve the package
+  still fails closed. (#645)
 
 - A forced-state capture that uses its exact work allowance on the final state
   is complete. Further required reads still fail closed, and truncation warnings
