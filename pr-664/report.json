@@ -1,0 +1,153 @@
+{
+  "gateMode": "certify",
+  "counts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "rawCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "reviewableCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "comparison": {
+    "rawCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "reviewableCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "newSurfaces": 0,
+    "removedSurfaces": 0,
+    "rawChangedSurfaces": 0,
+    "reviewableChangedSurfaces": 0,
+    "hasReviewableEvidence": false,
+    "rawOnlyNoReviewable": false,
+    "contentGeometryUncertain": false,
+    "liveTextFreezeViolated": false,
+    "incomparableSurfaces": 0,
+    "unprovenSurfaces": 3,
+    "requiredUnprovenSurfaces": 0,
+    "globalRequiredUnprovenSurfaces": 0,
+    "status": "unproven",
+    "requireStateIdentity": false,
+    "blocksCertification": false,
+    "counts": {
+      "comparable": 0,
+      "incomparable": 0,
+      "unproven": 3,
+      "notRequired": 0,
+      "requiredUnproven": 0,
+      "globalRequiredUnproven": 0
+    }
+  },
+  "comparability": [
+    {
+      "surface": "home@1280",
+      "status": "unproven",
+      "required": false,
+      "reason": "state-identity-missing"
+    },
+    {
+      "surface": "home@390",
+      "status": "unproven",
+      "required": false,
+      "reason": "state-identity-missing"
+    },
+    {
+      "surface": "home@768",
+      "status": "unproven",
+      "required": false,
+      "reason": "state-identity-missing"
+    }
+  ],
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "baselineFailures": [],
+  "partialBaseline": false,
+  "content": {
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
+  },
+  "surfaces": [],
+  "confidence": {
+    "counts": {
+      "inaccessible": 0,
+      "unproven-determinism": 0,
+      "excluded-with-reason": 0,
+      "unknown": 0,
+      "captured": 1
+    },
+    "completeness": "complete"
+  },
+  "legacyPairs": {
+    "armed": true,
+    "legacyPairs": [
+      "home@1280",
+      "home@390",
+      "home@768"
+    ],
+    "declared": [
+      "home@1280",
+      "home@390",
+      "home@768"
+    ],
+    "undeclared": [],
+    "staleAcknowledgements": []
+  },
+  "sourceBinding": {
+    "status": "bound",
+    "compatibility": "matched",
+    "applicationDependencyProvenance": {
+      "status": "matched",
+      "before": {
+        "lockfile": "package-lock.json",
+        "lockfileHash": "3d1b8441af988a8c08a965260f5634fe67696342497b411e99fbab2ad9457ddc"
+      },
+      "after": {
+        "lockfile": "package-lock.json",
+        "lockfileHash": "3d1b8441af988a8c08a965260f5634fe67696342497b411e99fbab2ad9457ddc"
+      }
+    },
+    "before": {
+      "expected": "c29ba90cf16670e49c116112ec6e4ac3d2df4e01",
+      "observed": "c29ba90cf16670e49c116112ec6e4ac3d2df4e01",
+      "result": "matched"
+    },
+    "after": {
+      "expected": "87dba82d629d480033a2a2ed38c9d4587ec9ac1e",
+      "observed": "87dba82d629d480033a2a2ed38c9d4587ec9ac1e",
+      "result": "matched"
+    }
+  },
+  "evidenceBinding": {
+    "version": 1,
+    "before": {
+      "algorithm": "sha256",
+      "digest": "044e6f491eb6f09adba055e2def7fbb0d9a3e41a4e93f4b42b58c693eb491f03",
+      "fileCount": 18,
+      "mapCount": 3,
+      "byteCount": 295652
+    },
+    "after": {
+      "algorithm": "sha256",
+      "digest": "41935593b0fc3dec4819f7f624b395473bd67abbcb521f729e904a041d800cbc",
+      "fileCount": 18,
+      "mapCount": 3,
+      "byteCount": 295650
+    }
+  },
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
+}
