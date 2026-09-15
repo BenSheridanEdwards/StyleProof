@@ -80,6 +80,14 @@
     },
     "completeness": "complete"
   },
+  "integrityFailures": [
+    {
+      "reason": "connector-partial",
+      "surfaces": [
+        "home"
+      ]
+    }
+  ],
   "legacyPairs": {
     "armed": true,
     "legacyPairs": [],
@@ -105,18 +113,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "633fb02d693771ab7a5a0608108fb39773adb999270762cd517c4cb5c24a54cb",
+      "digest": "a151c87d08dab7f09b74269e0471effa375764e0112c21c565f48b7807b0bf7a",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1578
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "0817e6bf8bb871ac8351dbc87bdc96f2c5934425ff9647cda96839c69097b246",
-      "fileCount": 5,
+      "digest": "4e268bf63772bbdf95f2a3219db1ed01fcdaec47758a5e432915e316312c9f67",
+      "fileCount": 6,
       "mapCount": 1,
-      "byteCount": 1566
+      "byteCount": 1576
     }
   },
-  "actionTrustState": "INVENTORY_REMOVAL_UNACKNOWLEDGED"
+  "actionTrustState": "CERTIFICATION_FAILED"
 }
