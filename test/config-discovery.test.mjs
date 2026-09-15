@@ -12,6 +12,7 @@ import {
   resolveStyleProofConfigPath,
   resolveStyleProofConfigFilePaths,
   resolveProjectSpec,
+  unloadableStyleProofConfigMessage,
 } from '../dist/config.js';
 import { mkTmp, rmTmp } from './helpers.mjs';
 
@@ -617,6 +618,161 @@ test('loadStyleProofConfigAsync: a .mjs that cannot resolve styleproof still fai
         return true;
       },
     );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+function writeInstalledPackage(packageRoot, name, source) {
+  const dir = path.join(packageRoot, 'node_modules', name);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({ name, type: 'module', exports: { '.': './index.js' } }),
+  );
+  fs.writeFileSync(path.join(dir, 'index.js'), source);
+}
+
+function writeDefineConfigPackage(packageRoot) {
+  writeInstalledPackage(packageRoot, 'styleproof', 'export function defineConfig(config) { return config; }\n');
+}
+
+function writePackageRootApp(root) {
+  fs.writeFileSync(
+    path.join(root, 'package.json'),
+    JSON.stringify({ name: 'app', type: 'module', private: true }, null, 2),
+  );
+}
+
+const PACKAGE_ROOT_TS = `import { defineConfig } from 'styleproof';
+import { marker } from 'styleproof-peer-fixture';
+
+export default defineConfig({
+  blocking: true,
+  spec: 'tests/e2e/styleproof.spec.ts',
+  dirtyAllow: [marker],
+});
+`;
+
+// --- #659: resolve styleproof from the config file's package root ---
+
+test('loadStyleProofConfig: .ts under a package subdir resolves styleproof from that package, not process.cwd()', () => {
+  const { root, nested } = mkRepoTree();
+  const previous = process.cwd();
+  const decoy = mkTmp('styleproof-config-cwd-decoy-');
+  try {
+    writePackageRootApp(root);
+    writeDefineConfigPackage(root);
+    writeInstalledPackage(root, 'styleproof-peer-fixture', "export const marker = 'from-package-root';\n");
+    writeDefineConfigPackage(decoy);
+    writeInstalledPackage(decoy, 'styleproof-peer-fixture', "export const marker = 'from-process-cwd';\n");
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), PACKAGE_ROOT_TS);
+    fs.mkdirSync(path.join(nested, 'tests', 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'tests', 'e2e', 'styleproof.spec.ts'), '// spec\n');
+    process.chdir(decoy);
+
+    const loaded = loadStyleProofConfig(nested);
+    assert.equal(loaded.blocking, true);
+    assert.equal(loaded.spec, 'tests/e2e/styleproof.spec.ts');
+    assert.deepEqual(loaded.dirtyAllow, ['from-package-root']);
+    assert.notDeepEqual(loaded.dirtyAllow, ['from-process-cwd']);
+  } finally {
+    process.chdir(previous);
+    rmTmp(decoy);
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfig: package-root styleproof wins over a broken config-dir node_modules shadow', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    writePackageRootApp(root);
+    writeDefineConfigPackage(root);
+    writeInstalledPackage(root, 'styleproof-peer-fixture', "export const marker = 'from-package-root';\n");
+    fs.mkdirSync(path.join(nested, 'node_modules', 'styleproof'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), PACKAGE_ROOT_TS);
+    fs.mkdirSync(path.join(nested, 'tests', 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'tests', 'e2e', 'styleproof.spec.ts'), '// spec\n');
+
+    const loaded = loadStyleProofConfig(nested);
+    assert.equal(loaded.blocking, true);
+    assert.equal(loaded.spec, 'tests/e2e/styleproof.spec.ts');
+    assert.deepEqual(loaded.dirtyAllow, ['from-package-root']);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfigAsync: package-root styleproof evaluates .ts from a nested cwd', async () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    writePackageRootApp(root);
+    writeDefineConfigPackage(root);
+    writeInstalledPackage(root, 'styleproof-peer-fixture', "export const marker = 'from-package-root';\n");
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), PACKAGE_ROOT_TS);
+    fs.mkdirSync(path.join(nested, 'tests', 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'tests', 'e2e', 'styleproof.spec.ts'), '// spec\n');
+
+    const loaded = await loadStyleProofConfigAsync(nested);
+    assert.equal(loaded.blocking, true);
+    assert.deepEqual(loaded.dirtyAllow, ['from-package-root']);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: unresolved styleproof from a nested cwd lists searched package roots', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    writePackageRootApp(root);
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+    const map = spawnSync(process.execPath, [MAP], { cwd: nested, encoding: 'utf8' });
+    assert.equal(map.status, 2, map.stderr + map.stdout);
+    assert.match(map.stderr, /styleproof\.config\.ts/);
+    assert.match(map.stderr, /searched package roots/i);
+    assert.ok(map.stderr.includes(nested), map.stderr);
+    assert.ok(map.stderr.includes(root), map.stderr);
+    assert.doesNotMatch(map.stderr, /no StyleProof spec at e2e\/styleproof\.spec\.ts/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfig: unresolved styleproof fails closed and lists searched package roots', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    writePackageRootApp(root);
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+    assert.throws(
+      () => loadStyleProofConfig(nested),
+      (error) => {
+        assert.match(error.message, /styleproof\.config\.ts/);
+        assert.match(error.message, /could not be evaluated|Cannot find package/);
+        assert.match(error.message, /searched package roots/i);
+        assert.ok(error.message.includes(nested), error.message);
+        assert.ok(error.message.includes(root), error.message);
+        assertNoSoftDefaultSpec(error);
+        return true;
+      },
+    );
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('unloadableStyleProofConfigMessage: names searched package roots for an unresolved styleproof import', () => {
+  const { root, nested } = mkRepoTree();
+  try {
+    writePackageRootApp(root);
+    const filePath = path.join(nested, 'styleproof.config.ts');
+    const error = new Error("Cannot find package 'styleproof' imported from styleproof.config.ts");
+    error.code = 'ERR_MODULE_NOT_FOUND';
+    const message = unloadableStyleProofConfigMessage(filePath, error);
+    assert.match(message, /could not be evaluated/);
+    assert.match(message, /searched package roots/i);
+    assert.ok(message.includes(nested), message);
+    assert.ok(message.includes(root), message);
+    assertNoSoftDefaultSpec(message);
   } finally {
     rmTmp(root);
   }

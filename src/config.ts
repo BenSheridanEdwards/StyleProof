@@ -23,14 +23,19 @@
  * `styleproof.config.ts` (unknown `.ts` extension, or `import { defineConfig }
  * from 'styleproof'` cannot resolve) fails closed — never `{}`, never a
  * sibling JSON policy, and never the default `e2e/styleproof.spec.ts` while
- * that file is the discovered config. A missing spec after that walk fails
- * closed and names every config path that was searched.
+ * that file is the discovered config. When that file is evaluated, `styleproof`
+ * and other bare specifiers resolve from the config file's directory and the
+ * nearest package root walking up from that file — not only `process.cwd()`.
+ * If the package still cannot be resolved, the error names those searched
+ * package roots. A missing spec after that walk fails closed and names every
+ * config path that was searched.
  *
  * Migration: TS config takes precedence. When only JSON exists, a deprecation
  * warning is emitted. Both formats work during transition.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -469,10 +474,9 @@ function readJsonConfigObject(cwd: string): Record<string, unknown> | undefined 
 function isMissingStyleProofPackage(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : '';
-  return (
-    (code === 'ERR_MODULE_NOT_FOUND' || message.includes('ERR_MODULE_NOT_FOUND')) &&
-    (message.includes("Cannot find package 'styleproof'") || message.includes('Cannot find package "styleproof"'))
-  );
+  const moduleNotFound =
+    code === 'ERR_MODULE_NOT_FOUND' || message.includes('ERR_MODULE_NOT_FOUND') || /cannot find package/i.test(message);
+  return moduleNotFound && /styleproof/i.test(message);
 }
 
 function isUnloadableTypeScriptConfig(filename: string, error: unknown): boolean {
@@ -496,12 +500,18 @@ function isUnloadableTypeScriptConfig(filename: string, error: unknown): boolean
 
 export function unloadableStyleProofConfigMessage(filePath: string, error: unknown): string {
   const reason = error instanceof Error ? error.message : String(error);
-  return [
-    `${filePath} could not be evaluated`,
-    `  ${reason}`,
+  const lines = [`${filePath} could not be evaluated`, `  ${reason}`];
+  if (isMissingStyleProofPackage(error) || /cannot find package/i.test(reason)) {
+    lines.push('  searched package roots:');
+    for (const root of findStyleProofConfigPackageRoots(filePath)) {
+      lines.push(`    ${root}`);
+    }
+  }
+  lines.push(
     `  Next: run on a Node that can evaluate TypeScript with the styleproof package resolvable, ` +
       `or replace ${STYLEPROOF_CONFIG_TS} with ${STYLEPROOF_CONFIG_MJS} / ${STYLEPROOF_CONFIG_JS}.`,
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 function unloadableTypeScriptConfigError(filePath: string, error: unknown): StyleProofConfigError {
@@ -509,6 +519,15 @@ function unloadableTypeScriptConfigError(filePath: string, error: unknown): Styl
   (wrapped as { code?: string }).code = 'STYLEPROOF_UNLOADABLE_TS';
   wrapped.cause = error instanceof Error ? error : undefined;
   return wrapped;
+}
+
+function evaluateUnloadableTypeScriptOrThrow(filePath: string): Record<string, unknown> {
+  try {
+    return evaluateTypeScriptConfigSync(filePath);
+  } catch (syncError) {
+    if (syncError instanceof StyleProofConfigError) throw syncError;
+    throw unloadableTypeScriptConfigError(filePath, syncError);
+  }
 }
 
 /** Load ESM config (.ts, .mjs, or .js) via dynamic import; undefined when it does not exist. */
@@ -524,13 +543,7 @@ async function loadEsmConfig(cwd: string): Promise<Record<string, unknown> | und
     return plainObject(config, 'the default export');
   } catch (e) {
     if (e instanceof StyleProofConfigError) throw e;
-    if (isUnloadableTypeScriptConfig(found.filename, e)) {
-      try {
-        return evaluateTypeScriptConfigSync(found.path);
-      } catch {
-        throw unloadableTypeScriptConfigError(found.path, e);
-      }
-    }
+    if (isUnloadableTypeScriptConfig(found.filename, e)) return evaluateUnloadableTypeScriptOrThrow(found.path);
     fail(`could not load — ${e instanceof Error ? e.message : String(e)}`);
   }
 }
@@ -939,10 +952,79 @@ export function missingStyleProofSpecMessage(options: {
   return lines.join('\n');
 }
 
-function importModuleDefaultSync(filePath: string, cwd: string): Record<string, unknown> {
-  const result = spawnSync(
+/**
+ * Directories to search for `styleproof` (and peers) when evaluating a `.ts`
+ * config: each package.json walking up from the config file, then the config
+ * file's directory if it is not already a package root. Never `process.cwd()`
+ * unless that happens to be one of those directories.
+ */
+function findStyleProofConfigPackageRoots(filePath: string): string[] {
+  const configDir = path.dirname(path.resolve(filePath));
+  const packageRoots: string[] = [];
+  let dir = configDir;
+  for (;;) {
+    try {
+      if (fs.existsSync(path.join(dir, 'package.json'))) packageRoots.push(dir);
+    } catch {
+      // unreadable directory — keep walking
+    }
+    if (isGitRoot(dir)) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  if (!packageRoots.includes(configDir)) packageRoots.push(configDir);
+  return packageRoots;
+}
+
+function resolveFromPackageRoots(specifier: string, roots: readonly string[]): string | undefined {
+  for (const root of roots) {
+    try {
+      return createRequire(path.join(root, 'package.json')).resolve(specifier);
+    } catch {
+      // try the next root
+    }
+  }
+  return undefined;
+}
+
+const BARE_SPECIFIER_IN_IMPORT = /(?<=(?:^|[\s(;{])(?:import|export)(?:\s+type)?\b[^'"\n]*?)(['"])([^'"]+)\1/gm;
+
+function rewriteBareSpecifiersToResolvedUrls(source: string, roots: readonly string[]): string {
+  return source.replace(BARE_SPECIFIER_IN_IMPORT, (full, quote: string, spec: string) => {
+    if (
+      spec.startsWith('.') ||
+      spec.startsWith('/') ||
+      spec.startsWith('file:') ||
+      spec.startsWith('node:') ||
+      spec.startsWith('#')
+    ) {
+      return full;
+    }
+    const resolved = resolveFromPackageRoots(spec, roots);
+    return resolved ? `${quote}${pathToFileURL(resolved).href}${quote}` : full;
+  });
+}
+
+function nodePathForRoots(roots: readonly string[]): string {
+  const dirs = [];
+  for (const root of roots) {
+    const nodeModules = path.join(root, 'node_modules');
+    try {
+      if (fs.statSync(nodeModules).isDirectory()) dirs.push(nodeModules);
+    } catch {
+      // missing node_modules
+    }
+  }
+  const existing = process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [];
+  return [...dirs, ...existing].join(path.delimiter);
+}
+
+function spawnConfigModuleEval(filePath: string, cwd: string, roots: readonly string[], extraNodeArgs: string[] = []) {
+  return spawnSync(
     process.execPath,
     [
+      ...extraNodeArgs,
       '--no-warnings',
       '--input-type=module',
       '-e',
@@ -950,8 +1032,35 @@ function importModuleDefaultSync(filePath: string, cwd: string): Record<string, 
        const config = mod?.default ?? mod;
        process.stdout.write(JSON.stringify(config));`,
     ],
-    { encoding: 'utf8', cwd },
+    { encoding: 'utf8', cwd, env: { ...process.env, NODE_PATH: nodePathForRoots(roots) } },
   );
+}
+
+function withRewrittenConfigCopy<T>(
+  filePath: string,
+  ext: '.mjs' | '.ts',
+  run: (tmp: string, roots: string[], cwd: string) => T,
+): T {
+  const dir = path.dirname(filePath);
+  const roots = findStyleProofConfigPackageRoots(filePath);
+  const tmp = path.join(
+    dir,
+    `.styleproof-config-eval-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}${ext}`,
+  );
+  try {
+    fs.writeFileSync(tmp, rewriteBareSpecifiersToResolvedUrls(fs.readFileSync(filePath, 'utf8'), roots));
+    return run(tmp, roots, roots[0] ?? dir);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+function importModuleDefaultSync(
+  filePath: string,
+  cwd: string,
+  roots: readonly string[] = [cwd],
+): Record<string, unknown> {
+  const result = spawnConfigModuleEval(filePath, cwd, roots);
   if (result.status !== 0) {
     throw new Error(
       (result.stderr || result.stdout || 'sync loader cannot evaluate TypeScript').trim() ||
@@ -963,32 +1072,12 @@ function importModuleDefaultSync(filePath: string, cwd: string): Record<string, 
 
 /** JS-shaped `.ts` (no type syntax) — works on every supported Node, including 18/20. */
 function evaluateTypeScriptAsPlainModuleSync(filePath: string): Record<string, unknown> {
-  const dir = path.dirname(filePath);
-  const tmp = path.join(
-    dir,
-    `.styleproof-config-eval-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}.mjs`,
-  );
-  try {
-    fs.writeFileSync(tmp, fs.readFileSync(filePath, 'utf8'));
-    return importModuleDefaultSync(tmp, dir);
-  } finally {
-    fs.rmSync(tmp, { force: true });
-  }
+  return withRewrittenConfigCopy(filePath, '.mjs', (tmp, roots, cwd) => importModuleDefaultSync(tmp, cwd, roots));
 }
 
 function spawnTypeStrippingConfigEval(filePath: string) {
-  return spawnSync(
-    process.execPath,
-    [
-      '--experimental-strip-types',
-      '--no-warnings',
-      '--input-type=module',
-      '-e',
-      `import mod from ${JSON.stringify(pathToFileURL(filePath).href)};
-       const config = mod?.default ?? mod;
-       process.stdout.write(JSON.stringify(config));`,
-    ],
-    { encoding: 'utf8', cwd: path.dirname(filePath) },
+  return withRewrittenConfigCopy(filePath, '.ts', (tmp, roots, cwd) =>
+    spawnConfigModuleEval(tmp, cwd, roots, ['--experimental-strip-types']),
   );
 }
 

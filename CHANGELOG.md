@@ -95,6 +95,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`.ts` config package resolution uses the config file's package root.**
+  Evaluating `styleproof.config.ts` resolves `styleproof` and peer packages from
+  the config file's directory and the nearest `package.json` walking up from
+  that file — not only `process.cwd()`. A subdirectory config with the package
+  installed at the package root now loads. If the package still cannot be
+  resolved, the fail-closed error lists the searched package roots. Unloadable
+  `.ts` still does not fall back to `e2e/styleproof.spec.ts` or sibling JSON.
+  (#659)
+
 - **Action PARTIAL/DEGRADED_BASELINE copy names the real failure.**
   `PARTIAL_BASELINE` PR-comment, commit-status, and fail-echo strings now
   interpolate the receipt surface key and SHA instead of pointing at the report
