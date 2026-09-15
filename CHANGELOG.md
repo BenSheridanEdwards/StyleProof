@@ -29,6 +29,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Action `comment-marker` input.** Defaults to `<!-- styleproof-report -->`.
   Set a distinct marker when more than one StyleProof Action runs on the same
   pull request so the comments do not overwrite each other.
+- **Critical state obligations.** Declare the state/surface IDs that must
+  produce certifying evidence in `styleproof.critical-states.json`
+  (`{"<surface>": {"owner": "...", "reason": "..."}}`), via
+  `--critical-states`, `$STYLEPROOF_CRITICAL_STATES`, or
+  `productState.critical` in `styleproof.config.ts`. When the obligation file
+  is armed, a declared ID with unproven or incomparable paired evidence fails
+  closed, a declared ID with no paired evidence (lost capture, removed
+  surface, or unknown ID) fails closed, and a declared ID that is also
+  coverage-excluded is contradictory policy and fails closed. Obligations
+  only tighten certification; comparable pairs still certify and unasserted
+  scopes stay unasserted — no score, tier, or denominator is manufactured.
+  Missing explicit files, malformed entries, and unbounded owner/reason
+  metadata exit 2. (#442)
 - **Legacy product-state pair inventory.** Declare known-legacy pairs in
   `styleproof.product-state.json` (`{"<surface>": "<why>"}`), via
   `--legacy-pairs`, `$STYLEPROOF_PRODUCT_STATE`, or

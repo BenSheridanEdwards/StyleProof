@@ -78,6 +78,13 @@ import {
   resolveConfiguredLegacyPairsPath,
   readLegacyPairsAckFile,
 } from '../dist/legacy-pairs.js';
+import {
+  applyCriticalObligationReceipts,
+  auditCriticalObligations,
+  criticalStatesGateArmed,
+  resolveConfiguredCriticalStatesPath,
+  readCriticalStatesFile,
+} from '../dist/critical-obligations.js';
 import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
 import { auditCoverage, auditDeterminism, COVERAGE_LEDGER } from '../dist/coverage.js';
 import { readConfidenceLedger, summarizeConfidence } from '../dist/confidence-ledger.js';
@@ -339,6 +346,13 @@ options:
                    declared pairs stay advisory and never certify. Default file:
                    styleproof.product-state.json. Flag and $STYLEPROOF_PRODUCT_STATE
                    override config productState.legacyPairs; an empty env unarms it.
+  --critical-states <file>
+                   declare obligations that must produce certifying evidence
+                   ({"<surface>":{"owner":"...","reason":"..."}}). Critical IDs with
+                   unproven/incomparable pairs, no paired evidence, or a conflicting
+                   coverage exclusion fail closed. Default file:
+                   styleproof.critical-states.json. Flag and $STYLEPROOF_CRITICAL_STATES
+                   override config productState.critical; an empty env unarms it.
   --expected-before-sha <sha>
                    require the before manifest to bind to this trusted full commit SHA
   --expected-after-sha <sha>
@@ -374,6 +388,7 @@ let auditJsonOut = null;
 let allowUnasserted = false;
 let requireStateIdentity = false;
 let legacyPairsPath;
+let criticalStatesPath;
 let pixels = false;
 let migration = false;
 let expectedBeforeSha;
@@ -405,6 +420,13 @@ for (let i = 0; i < argv.length; i++) {
       process.exit(2);
     }
   } else if (argv[i].startsWith('--legacy-pairs=')) legacyPairsPath = argv[i].slice(15);
+  else if (argv[i] === '--critical-states') {
+    criticalStatesPath = argv[++i];
+    if (!criticalStatesPath || String(criticalStatesPath).startsWith('-')) {
+      console.error('--critical-states requires a file path');
+      process.exit(2);
+    }
+  } else if (argv[i].startsWith('--critical-states=')) criticalStatesPath = argv[i].slice(18);
   else if (argv[i] === '--pixels') pixels = true;
   else if (argv[i] === '--migration') migration = true;
   else if (argv[i] === '--audit-json') auditJsonOut = argv[++i];
@@ -436,6 +458,12 @@ legacyPairsPath = resolveConfiguredLegacyPairsPath(
   legacyPairsPath,
   projectConfig.productState?.legacyPairs
     ? resolveStyleProofConfigPath(projectConfig.productState.legacyPairs, loadedConfig.configDir)
+    : undefined,
+);
+criticalStatesPath = resolveConfiguredCriticalStatesPath(
+  criticalStatesPath,
+  projectConfig.productState?.critical
+    ? resolveStyleProofConfigPath(projectConfig.productState.critical, loadedConfig.configDir)
     : undefined,
 );
 
@@ -495,6 +523,9 @@ let inventoryAudit = null;
 let coverageVerdict = null;
 let determinismVerdict = null;
 let confidenceSummary = null;
+// Exclusions from the head coverage ledger — a declared critical obligation that
+// is also opted out here is contradictory policy and must fail closed.
+let coverageExclusions = {};
 let residueAudit = null;
 let surfacePaths = new Map();
 let surfaceKeyOf = () => undefined;
@@ -519,6 +550,7 @@ try {
   // HEAD bundle's completeness basis; determinism needs both sides.
   inventoryAudit = readInventoryAudit(dirA, dirB);
   const headLedger = readLedger(dirB);
+  coverageExclusions = headLedger?.exclude ?? {};
   coverageVerdict = auditCoverage(capturedSurfaceKeys(dirB), headLedger);
   determinismVerdict = auditDeterminism(readLedger(dirA), headLedger);
   confidenceSummary = summarizeConfidence(readConfidenceLedger(dirB));
@@ -575,6 +607,34 @@ try {
 const legacyPairFails = legacyPairAudit.armed
   ? legacyPairAudit.undeclared.length + legacyPairAudit.staleAcknowledgements.length
   : 0;
+
+// Critical state obligations — the inverse declare file (#442). A declared ID
+// must produce certifying evidence: unproven/incomparable pairs are marked
+// required (fail closed via comparability), and IDs with no paired evidence or
+// a conflicting coverage exclusion cannot silently expire or opt out.
+let criticalAudit = {
+  armed: false,
+  obligations: [],
+  certified: [],
+  failing: [],
+  unresolved: [],
+  contradictory: [],
+};
+let declaredCriticalObligations = {};
+try {
+  declaredCriticalObligations = readCriticalStatesFile(criticalStatesPath);
+  criticalAudit = auditCriticalObligations(
+    comparability,
+    declaredCriticalObligations,
+    Object.keys(coverageExclusions),
+    criticalStatesGateArmed(criticalStatesPath),
+  );
+  comparability = applyCriticalObligationReceipts(comparability, criticalAudit);
+} catch (e) {
+  console.error(e.message);
+  process.exit(2);
+}
+const criticalFails = criticalAudit.armed ? criticalAudit.unresolved.length + criticalAudit.contradictory.length : 0;
 // Canonical comparison truth: raw certification counts vs reviewable (cleaned)
 // findings the report/crops can show. Prevents STYLE_REVIEW_REQUIRED without
 // evidence when only derived/reflow longhands differ.
@@ -652,6 +712,27 @@ function printLegacyPairAudit() {
 
 printComparabilitySummary();
 printLegacyPairAudit();
+function printCriticalAudit() {
+  if (!criticalAudit.armed) return;
+  for (const key of criticalAudit.failing) {
+    const meta = declaredCriticalObligations[key];
+    console.log(
+      `  ✗ critical obligation ${key} is not certifying — owner ${meta?.owner ?? 'unknown'}: ${meta?.reason ?? 'no reason recorded'}. Stamp matching productState {id, revision} to certify.`,
+    );
+  }
+  for (const key of criticalAudit.unresolved) {
+    const meta = declaredCriticalObligations[key];
+    console.log(
+      `  ✗ unresolved critical obligation ${key} — no paired surface evidence (lost capture, removed surface, or unknown ID). owner ${meta?.owner ?? 'unknown'}: ${meta?.reason ?? 'no reason recorded'}.`,
+    );
+  }
+  for (const key of criticalAudit.contradictory) {
+    console.log(
+      `  ✗ contradictory critical obligation ${key} — declared critical and coverage-excluded. A state cannot both certify and opt out.`,
+    );
+  }
+}
+printCriticalAudit();
 
 // ── grouped human output ─────────────────────────────────────────────────────
 // Reuse the report's dedup so one real change doesn't print once per surface with
@@ -847,7 +928,8 @@ const firstAdoptionBareBase =
   total === 0 &&
   invRemovals === 0 &&
   residueFails === 0 &&
-  legacyPairFails === 0;
+  legacyPairFails === 0 &&
+  criticalFails === 0;
 const coverageBlocks = coverageFails && !(firstAdoptionBareBase && coverageVerdict?.basis === 'unasserted');
 const determinismBlocks = determinismFails && !(firstAdoptionBareBase && determinismVerdict?.status === 'unknown');
 const integrityFailures = inspectIntegrityFailures([dirA, dirB]);
@@ -866,6 +948,7 @@ const certificationEvidence = assessCertificationEvidence({
   explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
   liveTextFreeze: { violated: liveTextFreezeViolated },
   integrityFailures,
+  criticalStates: criticalAudit,
 });
 // True only when the run would exit 0 as a full certification (not diagnostic).
 const certifiesFully =
@@ -878,6 +961,7 @@ const certifiesFully =
   residueFails === 0 &&
   legacyPairFails === 0 &&
   !(legacyPairAudit.armed && legacyPairAudit.declared.length > 0) &&
+  criticalFails === 0 &&
   !pixelBlocks &&
   greenfieldNewSurfaces === 0;
 
@@ -968,6 +1052,18 @@ if (jsonOut) {
             staleAcknowledgements: legacyPairAudit.staleAcknowledgements,
             blocking: legacyPairFails,
           },
+          // Additive critical-obligation field — declared IDs that must certify.
+          // `unresolved` (no paired evidence) and `contradictory` (also coverage-
+          // excluded) feed `blocking`; `failing` blocks through comparability.
+          criticalStates: {
+            armed: criticalAudit.armed,
+            obligations: criticalAudit.obligations,
+            certified: criticalAudit.certified,
+            failing: criticalAudit.failing,
+            unresolved: criticalAudit.unresolved,
+            contradictory: criticalAudit.contradictory,
+            blocking: criticalFails,
+          },
           dataResidue: residueAudit && {
             armed: residueAudit.armed,
             failing: residueAudit.residue.map((r) => r.key),
@@ -1009,6 +1105,11 @@ const legacyNote = legacyPairFails
   : legacyPairAudit.armed && legacyPairAudit.declared.length > 0
     ? ` + ${legacyPairAudit.declared.length} declared legacy pair(s) (advisory, not certified)`
     : '';
+const criticalNote = criticalFails
+  ? ` + ${criticalFails} unresolved or contradictory critical obligation(s)`
+  : criticalAudit.armed && criticalAudit.failing.length > 0
+    ? ` + ${criticalAudit.failing.length} non-certifying critical obligation(s)`
+    : '';
 const confidenceNote = confidenceBlocks
   ? ` + ${confidenceSummary.counts.inaccessible} inaccessible incomplete-UI surface(s)`
   : '';
@@ -1033,6 +1134,7 @@ const clean =
   invRemovals === 0 &&
   residueFails === 0 &&
   legacyPairFails === 0 &&
+  criticalFails === 0 &&
   !confidenceBlocks &&
   !coverageBlocks &&
   !determinismBlocks &&
@@ -1070,8 +1172,8 @@ console.log(
           ? `\nℹ ${newSurfaces} surface(s) on head have no base map because a named baseline surface capture failed — not a base recapture failure (see callout above)`
           : `\nℹ ${greenfieldNewSurfaces} new surface(s) captured with no baseline to compare — review before baselining`
     : comparison.blocksCertification
-      ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${legacyNote}${confidenceNote}${covNote}${detNote}${pixNote}`
-      : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${legacyNote}${confidenceNote}${covNote}${detNote}${pixNote}`,
+      ? `\n✗ non-certifying product-state comparison; raw diagnostic detector totals: ${counts.dom} DOM, ${counts.style} computed-style, ${counts.state} state-delta difference(s)${newNote}${removedNote}${invNote}${resNote}${legacyNote}${criticalNote}${confidenceNote}${covNote}${detNote}${pixNote}`
+      : `\n✗ ${counts.dom} DOM change(s), ${counts.style} computed-style difference(s), ${counts.state} state-delta difference(s) across ${surfaceCount} surfaces${newNote}${removedNote}${invNote}${resNote}${legacyNote}${criticalNote}${confidenceNote}${covNote}${detNote}${pixNote}`,
 );
 // 0 = identical certified, 1 = reviewable differences or non-certifying evidence
 // (unasserted completeness, unknown/unproven determinism, incomplete registry,
@@ -1085,6 +1187,7 @@ const exitCode =
   invRemovals > 0 ||
   residueFails > 0 ||
   legacyPairFails > 0 ||
+  criticalFails > 0 ||
   confidenceBlocks ||
   coverageBlocks ||
   determinismBlocks ||
@@ -1118,6 +1221,7 @@ try {
       explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
       integrityFailures,
       legacyPairs: legacyPairAudit,
+      criticalStates: criticalAudit,
       reviewableCounts: truth.reviewableCounts,
       surfaces,
       inventory: inventoryAudit && {

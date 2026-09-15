@@ -12,6 +12,7 @@
  * Exit code 0 = no changes, 1 = report generated, 2 = usage error.
  */
 import fs from 'node:fs';
+import path from 'node:path';
 import { generateStyleMapReport } from '../dist/report.js';
 import { cachedMapsUnavailableMessage, isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
 import { captureSourceDefaults, consumeCaptureSourceOption } from '../dist/cli-capture-source.js';
@@ -31,6 +32,12 @@ import {
   readLegacyPairsAckFile,
   resolveConfiguredLegacyPairsPath,
 } from '../dist/legacy-pairs.js';
+import {
+  criticalStatesGateArmed,
+  readCriticalStatesFile,
+  resolveConfiguredCriticalStatesPath,
+} from '../dist/critical-obligations.js';
+import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
 
 const COMMAND = 'styleproof-report';
@@ -65,6 +72,11 @@ options:
   --legacy-pairs <file>    declare known-legacy product-state pairs ({"<surface>":"<why>"}).
                             Undeclared unproven pairs fail closed; declared pairs stay advisory.
                             Flag and $STYLEPROOF_PRODUCT_STATE override config; empty env unarms it.
+  --critical-states <file> declare obligations that must produce certifying evidence
+                            ({"<surface>":{"owner":"...","reason":"..."}}). Unproven,
+                            unresolved, or coverage-excluded obligations fail closed.
+                            Flag and $STYLEPROOF_CRITICAL_STATES override config
+                            productState.critical; empty env unarms it.
   --expected-before-sha <sha> trusted full base commit SHA; must be paired with --expected-after-sha
   --expected-after-sha <sha>  trusted full head commit SHA; must be paired with --expected-before-sha
   --migration              migration showcase mode: structure changes (added/removed elements)
@@ -88,6 +100,7 @@ let includeLayoutNoise = false;
 let includeContent = false;
 let requireStateIdentity = false;
 let legacyPairsPath;
+let criticalStatesPath;
 let migration = false;
 let expectedBeforeSha;
 let expectedAfterSha;
@@ -131,6 +144,13 @@ for (let i = 0; i < argv.length; i++) {
       process.exit(2);
     }
   } else if (a.startsWith('--legacy-pairs=')) legacyPairsPath = a.slice(15);
+  else if (a === '--critical-states') {
+    criticalStatesPath = argv[++i];
+    if (!criticalStatesPath || String(criticalStatesPath).startsWith('-')) {
+      console.error('--critical-states requires a file path');
+      process.exit(2);
+    }
+  } else if (a.startsWith('--critical-states=')) criticalStatesPath = a.slice(18);
   else if (a === '--migration') migration = true;
   else if (a.startsWith('--migration=')) migration = a.slice(12) !== 'false';
   else if (a === '--expected-before-sha') {
@@ -163,9 +183,19 @@ legacyPairsPath = resolveConfiguredLegacyPairsPath(
 );
 let legacyPairDeclarations = {};
 let legacyPairsArmed = false;
+let criticalObligations = {};
+let criticalStatesArmed = false;
 try {
   legacyPairDeclarations = readLegacyPairsAckFile(legacyPairsPath);
   legacyPairsArmed = legacyPairsGateArmed(legacyPairsPath);
+  criticalStatesPath = resolveConfiguredCriticalStatesPath(
+    criticalStatesPath,
+    projectConfig.productState?.critical
+      ? resolveStyleProofConfigPath(projectConfig.productState.critical, loadedConfig.configDir)
+      : undefined,
+  );
+  criticalObligations = readCriticalStatesFile(criticalStatesPath);
+  criticalStatesArmed = criticalStatesGateArmed(criticalStatesPath);
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -237,6 +267,16 @@ try {
     beforeSha: expectedBeforeSha,
     afterSha: expectedAfterSha,
   });
+  // The contradictory-policy check needs the head ledger's exclusions — read it
+  // only when the obligation gate is armed, and fail closed if it cannot parse.
+  let coverageExclusions = [];
+  if (criticalStatesArmed) {
+    const ledgerPath = path.join(afterDir, COVERAGE_LEDGER);
+    if (fs.existsSync(ledgerPath)) {
+      const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+      coverageExclusions = ledger?.exclude ? Object.keys(ledger.exclude) : [];
+    }
+  }
   result = generateStyleMapReport({
     beforeDir,
     afterDir,
@@ -253,6 +293,9 @@ try {
     migration,
     legacyPairDeclarations,
     legacyPairsArmed,
+    criticalObligations,
+    criticalStatesArmed,
+    coverageExclusions,
   });
   const evidenceBinding = captureEvidenceBindingReceipt(beforeDir, afterDir);
   if (JSON.stringify(evidenceBinding) !== JSON.stringify(initialEvidenceBinding)) {
@@ -317,12 +360,18 @@ if (includeContent && result.contentChanges > 0) {
 const legacyPairFailed =
   Boolean(result.legacyPairs?.armed) &&
   ((result.legacyPairs.undeclared?.length ?? 0) > 0 || (result.legacyPairs.staleAcknowledgements?.length ?? 0) > 0);
+const criticalFailed =
+  Boolean(result.criticalStates?.armed) &&
+  ((result.criticalStates.failing?.length ?? 0) > 0 ||
+    (result.criticalStates.unresolved?.length ?? 0) > 0 ||
+    (result.criticalStates.contradictory?.length ?? 0) > 0);
 process.exit(
   result.changedSurfaces === 0 &&
     result.oneSidedSurfaces === 0 &&
     !consistencyFailed &&
     !comparisonFailed &&
     !legacyPairFailed &&
+    !criticalFailed &&
     !sourceBindingFailed
     ? 0
     : 1,
