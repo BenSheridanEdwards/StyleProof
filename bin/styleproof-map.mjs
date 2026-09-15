@@ -136,6 +136,7 @@ Examples:
   styleproof-map --restore --sha 0123abcd0123abcd0123abcd0123abcd0123abcd --dir head --base-dir __stylemaps__
   styleproof-map --spec e2e/styleproof.spec.ts
   styleproof-map --dir review --base-dir __stylemaps__ --keep-har --no-upload
+styleproof-map is a compatibility alias for the unified CLI: styleproof capture
 `;
 
 const argv = process.argv.slice(2);

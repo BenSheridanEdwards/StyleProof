@@ -24,6 +24,7 @@ options:
   --height <px>          viewport height (default: 800)
   --strict               exit 1 if live-state fixtures or skipped candidates remain
   -h, --help             show this help
+styleproof-variants is a compatibility alias for the unified CLI: styleproof variants
 `;
 
 const argv = process.argv.slice(2);

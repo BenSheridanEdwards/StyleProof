@@ -11,7 +11,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { chromium } from 'playwright';
-import { captureStyleMap, captureStateLayerScreenshots, generateStyleMapReport } from '../dist/index.js';
+import { captureStyleMap, generateStyleMapReport } from '../dist/index.js';
+import { captureStateLayerScreenshots } from '../dist/capture.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');

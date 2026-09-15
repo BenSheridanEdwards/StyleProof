@@ -14,7 +14,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { generateStyleMapReport, MIGRATION_GALLERY_LABELS } from '../dist/index.js';
+import { generateStyleMapReport } from '../dist/index.js';
+import { MIGRATION_GALLERY_LABELS } from '../dist/report.js';
 import { makeMap, mkTmp, rmTmp, writeCapture, fixtureCompatibilityKey } from './helpers.mjs';
 
 // ============================================================================

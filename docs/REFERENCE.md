@@ -1,0 +1,1468 @@
+# StyleProof reference
+
+The long-form contract behind the README: gate states, coverage ownership, surface declaration, determinism, crawl reach, optional layers, and the full CLI/config/Action tables. Start with the [README](../README.md); come here when you need the exact rule.
+
+## See the gate work
+
+### Comment states
+
+A StyleProof pull-request comment is a trust state, not a score. Reviewer
+approval can clear only `STYLE_REVIEW_REQUIRED`. Each state appears once.
+
+| State                              | What the comment means                                                                                         | Approval box                               |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `NO_REVIEWABLE_STYLE_CHANGES`      | Captured computed styles match. Content/structure may still be advisory.                                       | Hidden. Check is green.                    |
+| `STYLE_REVIEW_REQUIRED`            | Reviewable style or new-surface evidence exists.                                                               | Shown. One tick signs off this commit.     |
+| `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                                               | Hidden. Approval cannot clear it.          |
+| `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified.                             | Hidden. Approval cannot clear it.          |
+| `CERTIFICATION_FAILED`             | Coverage, determinism, report/diff consistency, or integrity evidence is incomplete (not a recapture failure). | Hidden. Approval cannot clear it.          |
+| `PARTIAL_BASELINE`                 | Named surface+SHA failed on the base bundle (Action copy interpolates the receipt). Not a recapture failure.   | Hidden. Repair those surfaces on that SHA. |
+| `DEGRADED_BASELINE`                | `base-capture-failed=true`: the base capture failed. This is a head-only receipt.                              | Hidden. Not a comparison.                  |
+| `REPORT_PUBLICATION_FAILED`        | The comment or report branch could not be published.                                                           | Hidden. Delivery failed.                   |
+
+#### Integrity repair (`connector-partial` / `duplicate-id` / `integrity-mismatch`)
+
+These three reasons keep the run at `CERTIFICATION_FAILED`. They are not style
+deltas and not a base recapture failure. Reviewer approval cannot clear them.
+The report, `styleproof-audit.json`, and the pull-request comment each name
+**what broke**, **what to fix**, and **how to verify**.
+
+| Reason               | What broke                                                                | What to fix                                                                                          | How to verify                                                                          |
+| -------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `connector-partial`  | The map-store or evidence connector restored only some expected surfaces. | Restore or recapture the missing surfaces and republish the bundle.                                  | Re-run `styleproof-diff` or the Action. The connector receipt must read `complete`.    |
+| `duplicate-id`       | A style map has a duplicate JSON key or a duplicate inventory identity.   | Give each element or affordance a unique key, then recapture.                                        | Re-run `styleproof-diff` or the Action. The report must no longer name `duplicate-id`. |
+| `integrity-mismatch` | A claimed source SHA or content digest does not match the bytes on disk.  | Restore or recapture from the exact claimed SHA. Do not reuse a map that failed digest verification. | Re-run `styleproof-diff` or the Action. Claimed and actual digests must match.         |
+
+Connectors can write `styleproof-connector.json` (`status: "partial"`) or
+`styleproof-integrity.json` (`claimedDigest` / `actualDigest`) next to the maps.
+StyleProof also flags duplicate JSON keys inside a style map and a sibling
+`.sha256` digest that does not match the file bytes.
+
+#### Who may tick the box
+
+A sign-off needs write access **and** a login other than the pull request
+author's. `styleproof-approve.yml` refuses a self-approval: it unticks the box,
+leaves the `StyleProof` status red with `Needs a reviewer other than @author`,
+and replies once on the pull request. The rule holds however the author reaches
+a ticked box — including editing a comment a reviewer already ticked, which
+would otherwise transfer the sign-off to the editor.
+
+Two things stay allowed. The author may always **untick**, because withdrawing a
+sign-off only moves the gate red. And a solo repository may opt in by setting
+`STYLEPROOF_ALLOW_SELF_APPROVAL: 'true'` in
+[`example/styleproof-approve.yml`](../example/styleproof-approve.yml). It is
+`'false'` by default, and any other value refuses, so a typo fails closed.
+
+Approval is bound to the canonical bot publication and its immutable `STYLE_REVIEW_REQUIRED` machine verdict, not comment markers alone. **Private-repository rollout is blocked until `contents: read` is explicitly approved for the separate approval workflow.** This patch leaves permissions unchanged. See [approval binding](report-delivery-contract.md#approval-binding).
+
+### Certified clean
+
+[![A GitHub-rendered StyleProof report with complete coverage, proven determinism, unchanged inventory, no data residue, and no reviewable computed-style changes](readme/check-clean.png)](readme/certified-clean-report.md)
+
+This report earns every green claim: the registered surface was captured, both
+base and head passed the self-check, the navigable set stayed intact, no failing
+data boundary was captured, and no reviewable computed-style or forced-state
+change was detected among semantically matched elements.
+
+### Review required: approve the visual changes
+
+![An actual StyleProof GitHub PR comment showing detected computed-style and state changes with the unchecked Approve all changes control](readme/check-review-required.png)
+
+This is the normal feature-work state, captured from an actual production pull
+request with repository details cropped out. StyleProof has found reviewable
+visual changes and kept the check red. A reviewer ticks **Approve all changes**
+to sign off that commit. Any later push that changes the evidence reopens the
+gate.
+
+### A safety policy blocks
+
+[![A real StyleProof GitHub comment blocking an unacknowledged navigation removal](readme/check-blocked.png)](https://github.com/BenSheridanEdwards/StyleProof/pull/284#issuecomment-4984031529)
+
+An unacknowledged navigation removal cannot be waived as a visual change. Repair
+it or acknowledge it in policy. The approval box cannot clear it.
+
+## Enterprise fit
+
+- **Auditable decisions.** Every approval is tied to a commit and a report with
+  the rendered evidence behind the decision.
+- **Fail-closed safety rails.** Coverage gaps, unproved determinism, removed
+  navigation, failed data boundaries, and incompatible captures stay explicit.
+- **No StyleProof-hosted service.** The CLI, Action, maps, reports, and approval
+  workflow run in your repository and GitHub environment.
+- **Framework and styling agnostic.** Tailwind, CSS Modules, Sass,
+  styled-components, design systems, and inline styles resolve to the same
+  browser-computed contract.
+- **Adopt without a rewrite.** Start with discovered routes or rendered links,
+  then add high-value states such as open dialogs, tabs, loading views, and
+  responsive breakpoints.
+
+
+## Map transport and the never-commit guards
+
+Maps travel as **workflow artifacts** (the default scaffold) or via the SHA-keyed
+`styleproof-maps` branch (opt in with `--storage branch`) — **never as files
+committed to the PR branch**. Committed maps show up as changed files in every
+review, and because every PR writes the same paths, each merge forces every other
+open PR to rebase. `.styleproof/`, `stylemaps/`, and `__stylemaps__/` are
+gitignored to keep that door shut.
+
+**Never-commit guards.** `styleproof-init` writes gitignore entries for all map
+artifact patterns (current and legacy) and scaffolds
+`.github/workflows/styleproof-lint-artifacts.yml`, which fails the PR if map
+artifacts slip through a misconfigured `.gitignore` or `git add -f`. For a local
+pre-commit hook, add this to your `.pre-commit-config.yaml`:
+
+```yaml
+- repo: local
+  hooks:
+    - id: no-styleproof-maps
+      name: Block committed StyleProof maps
+      entry: bash -c 'git diff --cached --name-only | grep -qE "\.json\.gz$|styleproof-manifest\.json$|^\.styleproof/|^stylemaps/|^__stylemaps__/" && echo "Error: StyleProof maps must not be committed" && exit 1 || exit 0'
+      language: system
+      pass_filenames: false
+```
+
+## Wire it by hand instead (optional)
+
+`styleproof-init` scaffolds the workflow set for the scaffold mode you pick —
+one `pull_request` job by default; a read-only capture job plus a trusted
+`workflow_run` report job under `--workflow split`; and the
+`styleproof-approve.yml` handler under `--mode review-gate`. GitHub only runs
+`issue_comment` workflows from the default branch, so the checkbox goes live the
+moment you merge the init PR — no manual copy. If you wire it by hand instead,
+capture both sides in one job (`--no-store`) or restore or capture two dirs
+against the map-store branch, then use the Action on those dirs:
+
+```yaml
+# .github/workflows/styleproof.yml — default single-job shape
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+# One command: capture base and head in this job — no store, no upload.
+- id: maps
+  run: npx styleproof-ci --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --base-dir __stylemaps__ --no-store
+- uses: BenSheridanEdwards/StyleProof@v6
+  with:
+    baseline-dir: __stylemaps__/base
+    fresh-dir: __stylemaps__/head
+    base-capture-failed: ${{ steps.maps.outputs.base-capture-failed }}
+    mode: advisory # advisory | certify | review-gate
+```
+
+With `--storage branch` instead, drop `--no-store`: `styleproof-ci` restores
+both exact-SHA maps from `styleproof-maps`, or captures-and-publishes on a miss
+(cold base rebuild under the head's exact release, HAR replay for the head).
+
+A note on the base commit, because it surprises people: `github.event.pull_request.base.sha` is the base branch tip **as of the PR's last sync** (open/synchronize), not the base branch's current tip or the merge target. That is by design and it is the commit you want: it names the base your branch actually diverged from, so the restored base map matches the code your change is diffed against. A stale-but-consistent base beats a moving one — comparing against a base tip your branch has never seen would attribute other people's merged changes to your PR. Updating the branch (merge or rebase, which fires `synchronize`) refreshes it.
+
+Only for this hand-wired path: copy [`example/styleproof-approve.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/example/styleproof-approve.yml) to `.github/workflows/` **on your default branch** (GitHub only runs `issue_comment` workflows from there, so the approval checkbox is inert until it's merged). `styleproof-init` writes this file for you, so you can skip this step if you used it.
+
+The supported adopter contract is that **thin caller**: `styleproof-init` writes `.github/workflows/styleproof-approve.yml` calling `BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7`. StyleProof dogfoods the same shape in [`.github/workflows/styleproof-approve.yml`](../.github/workflows/styleproof-approve.yml), pinned to `@main` so self-hosting tracks the default-branch reusable. The dogfood stub does not set `require-approval` and does not change certify or advisory evidence. Reviewer ticks on StyleProof PRs stay inert until a live advisory workflow enables `require-approval`. How to approve those findings, when they exist, is in [CONTRIBUTING.md](../CONTRIBUTING.md#approving-styleproof-dogfood-findings).
+
+**Fork and Dependabot PRs?** Their `GITHUB_TOKEN` is read-only, so a single
+`pull_request` job cannot publish the comment or status. The `--workflow split`
+scaffold separates untrusted capture from the trusted report job — see
+**[Forks and Dependabot](#forks-and-dependabot)**. The opt-in `--storage branch`
+cache-first flow is faster for same-repo teams because the pre-push hook builds
+the head map before CI starts.
+
+**Want to skip work safely?** Skip the **whole** StyleProof workflow only for
+changes that cannot affect rendered output, such as docs-only edits, using your
+CI provider's native path filters. Do not skip individual surfaces from a
+StyleProof run based on a changed-file guess: shared CSS, tokens, resets,
+themes, layout primitives, and runtime styling can repaint any surface, and a
+missed surface would certify green without being measured. If you want faster
+feedback, order the highest-signal surfaces first in your spec, but still let
+the full sweep finish before treating the gate as passed.
+
+```yaml
+on:
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+```
+
+
+## What the PR gets
+
+On every PR, StyleProof posts a small summary comment that links to the committed
+full report. GitHub comments cannot carry the crops, so the link is a product
+limit, not a design choice. The README inlines that same report. The report
+groups each distinct visual change with:
+
+- before/after crops from the same page rectangle;
+- highlighted crops that box the changed element;
+- a plain-English summary such as `columns: 2 -> 3` or
+  `background brand-cyan -> brand-amber`;
+- the exact computed CSS properties that changed.
+
+In review-gate mode, one **Approve all changes** checkbox turns the `StyleProof`
+status green for that commit. Clean runs still leave a receipt: `No visual
+changes detected.` New surfaces are shown as new baselines and require approval;
+coverage gaps are handled by `expected`. Element additions, removals, and
+retags inside an existing surface are content/structure changes: they stay out
+of style certification by default and appear only in the opt-in advisory
+content section.
+
+### What a report looks like
+
+New pages, states, and surfaces appear before element-level changes. Existing
+surfaces render one distinct change per section, with aligned crops, truthful
+annotations, a one-line summary, and exact properties under a toggle.
+
+Headline counts cover **matched-element restyles** ("N computed-style
+difference(s)") and interaction-state differences. One-sided DOM structure has
+no like-for-like style baseline, so it cannot certify a style change. Turn on
+`--include-content` when copy and element structure belong in the review; that
+section stays advisory and never changes the style verdict.
+
+CSSOM resolves layout-dependent values to pixels. StyleProof also records the
+browser's CSS Typed OM computed value, so an `auto` margin or percentage width
+can move with surrounding content without being mistaken for a stylesheet
+change. If the computed value itself changes — including a deliberate `width`,
+`margin`, colour, font, grid, or state change — it remains a blocking finding.
+
+Tiny changes also receive a magnified crop. Structural matching avoids painting
+an unchanged shifted subtree as changed, while ambiguous duplicate elements stay
+explicit rather than receiving invented provenance.
+
+**[Open the full generated report](demo/report.md).** The fixture includes a
+new surface, two real restyles, an added element, and a structural insertion.
+With content comparison off, only the new surface and real restyles appear;
+`npm run demo:check` verifies that this default report matches current code.
+
+The report shown at the top of this README renders this exact entry:
+
+```text
+### `button.cta` · 1 element restyled
+_home @ 900_
+
+- **`button.cta`** — background blue (`#2563eb`) → red (`#dc2626`)
+
+▾ Show the property change
+   | Property         | Before  | After   |
+   | background-color | #2563eb | #dc2626 |
+```
+
+
+## Coverage: what you own, what's discovered
+
+The important boundary: **StyleProof only certifies states it can reach.** It
+diffs the surfaces your spec lists or discovers — so a page nobody added to
+either set is invisible to the gate. Its change has no base capture _and_ no
+head capture, so it never appears in any diff, and the status goes green having
+never looked at it. This is the one thing the captures can't catch on their
+own: a capture that was never taken.
+
+Auto-discovery keeps the boring inventory out of your hands where it can be
+inferred safely: Next.js routes, crawlable links, component files, semantic
+popups, one-step variants, breakpoints, and volatile/live candidates. You own
+the app-specific list of states that matter:
+
+- routes and views belong in `surfaces`;
+- open states belong in `variants` or `popups`;
+- loading/loaded/empty/error states belong in `liveStates`;
+- component catalogs can be wired through `discoverComponentFiles`;
+- required-but-not-yet-captured states belong in `expected`, where the coverage
+  guard fails until they are captured or explicitly excluded with a reason.
+
+That boundary is deliberate. StyleProof should not guess destructive flows,
+auth-only fixtures, or which product state your component needs. It should make
+missing coverage loud.
+
+`expected` is what makes it loud. Declare your app's route/view universe in
+`expected` and StyleProof emits a coverage-guard test in your **normal** suite
+(it runs even without `STYLEMAP_DIR` — it's a static check, no browser). It
+fails when `expected` and your captured surfaces diverge — a route you listed in
+`expected` with no surface and no `exclude` entry fails as missing coverage, so
+a registry entry can't quietly ship uncaptured:
+
+```ts
+import { defineStyleMapCapture } from 'styleproof';
+import { ROUTES } from '../app/routes'; // your registry — wherever routes live
+
+defineStyleMapCapture({
+  dir: process.env.STYLEMAP_DIR,
+  surfaces: SURFACES,
+  expected: ROUTES.map((r) => r.id), // every route StyleProof should cover
+  exclude: { checkout: 'auth-gated — capture fixture pending' }, // visible, reviewed opt-outs (key → reason)
+});
+```
+
+A route that's neither a captured surface nor an `exclude` entry fails the guard; an `exclude` key that isn't in `expected` (a renamed/removed route) fails too, so the opt-out ledger can't quietly rot. Captured surfaces beyond `expected` are fine — one route can have several states (`landing`, `landing-nav-open`). Omit `expected` and behaviour is unchanged.
+
+What's guarded depends on how `expected` is fed —
+
+- **Next.js:** auto-covered. `styleproof-init` derives both `surfaces` and
+  `expected` from the same `discoverNextRoutes()` call, so a new static route lands
+  in both at once — captured and expected together, with nothing to keep in sync.
+- **Link-crawled SPAs:** pass `expected` to `defineCrawlCapture` and the crawl
+  reconciles it against the _rendered nav_ (the route universe for such an app),
+  both directions — a new linked route with no `expected` entry fails, and an
+  `expected` route the nav stopped linking fails. This runs inside the capture, so
+  it fires when you capture (unlike the Next guard, which runs in your plain suite).
+- **Other frameworks:** point `expected` at your own route registry.
+- **Modals, dropdowns, toasts:** guarded only for the state keys you enumerate in
+  `expected` (e.g. `dashboard-dialog-open`) — nothing discovers UI states for you.
+
+### Config-level coverage manifest
+
+When expected surfaces come from an external registry (a sitemap, router config,
+or build-time enumeration), declare them via a JSON manifest in
+`styleproof.config.ts` instead of passing `expected` programmatically:
+
+```ts
+// styleproof.config.ts
+export default {
+  coverage: {
+    manifest: './coverage-manifest.json',
+    strict: true,
+    exclude: { checkout: 'auth-gated — capture fixture pending' },
+  },
+};
+```
+
+The manifest format is version 1:
+
+```json
+{
+  "version": 1,
+  "surfaces": ["home", "dashboard", "settings", "settings-profile-open"]
+}
+```
+
+Manifest surfaces **union** with programmatic `expected` (neither can hide a
+hole). Config `exclude` wins over programmatic for the same key. `strict: true`
+fails the coverage guard if any expected surface is uncaptured.
+
+This separation keeps StyleProof owning the coverage engine and config contract,
+while adopters generate the manifest however they like — from Next.js routes, a
+sitemap, or a framework-specific router export.
+
+### The un-exercised-state gap: an honest green gate can still miss a real restyle
+
+The sharpest form of the boundary, observed end-to-end on a real consumer: a PR
+restyled a view's **conditional render branch** (a fault overlay repainting
+indicators green→amber when a probe reports a fault) and shipped through a
+fully-wired gate with every layer passing _honestly_. The capture spec served no
+fixture that put the view into the fault state, so the changed branch never
+rendered on either side — an honest recapture produced **byte-identical maps**,
+the diff was trivially clean, and the green gate certified a restyle it never
+saw. No component lied. The gap is structural: **maps prove only the states the
+spec exercises.** A restyle confined to an un-exercised conditional state
+(fault / error / empty / permission branches behind data) is invisible to any
+amount of honest recapturing, and the coverage guard cannot substitute — it
+checks that declared keys have captures, not that your branches have keys.
+
+So the rule is: **every conditional render branch whose styling matters needs a
+surface that exercises it.** The recommended wiring is two-part:
+
+1. a **dedicated capture surface** (a `liveState` or variant) driving the
+   branch via a **per-surface fixture override** — `page.route` in that
+   surface's `setup`, per-surface rather than global, so other surfaces reading
+   the same endpoint keep their own state (exactly the shape of the
+   [`liveStates` example](#live-ui-states-capture-each-state-not-an-average));
+2. a **browserless guard test** tied to the branch's source, failing loudly if
+   the surface, fixture, or state assertion is removed while the conditional
+   branch still exists — so the coverage can't silently rot.
+
+This pairs with the [data-residue guard](#failed-data-request-a-failed-api-call-is-named-not-swallowed),
+which names the _failing_ half of the same blind spot: a data request that
+errors during capture is flagged as residue. An endpoint that **succeeds** with
+healthy data — so the fault branch simply never renders — is this gap, and only
+a fixture-driven surface closes it.
+
+
+## Declaring surfaces
+
+Discovery captures every route your app links to. It deliberately **won't
+guess** app-specific states — a modal's open state, an auth-gated view, a
+destructive flow, a loading/error render — because guessing one wrong is worse
+than flagging it missing. Those are the only things you list by hand, and you
+add them to the spec `styleproof-init` already generated. This section covers
+each kind.
+
+### Next.js routes: wired for you
+
+Run `styleproof-init` in a Next.js project and the generated spec discovers your routes (App Router `app/` + Pages Router `pages/`) at run time and derives **both** the surfaces and `expected` from that same `discoverNextRoutes()` call. Because they share one source, a static route you add later is captured and expected in the same step — auto-covered, never a guard failure, with nothing to keep in sync. The guard exists for the cases where the two genuinely diverge: a dynamic `[param]` route (it can't be navigated without a value, so it's placed in `exclude` with a reason rather than captured), a registry you hand-maintain instead of the live call, or a route you drop from `surfaces` while it's still `expected`:
+
+```ts
+import { defineStyleMapCapture, discoverNextRoutes } from 'styleproof';
+
+const ROUTES = discoverNextRoutes(); // [{ key, path, dynamic }, …] from app/ + pages/
+defineStyleMapCapture({
+  surfaces: ROUTES.filter((r) => !r.dynamic).map((r) => ({
+    key: r.key,
+    go: (p) => p.goto(r.path),
+    widths: [1280, 768, 390],
+  })),
+  expected: ROUTES.map((r) => r.key),
+  exclude: Object.fromEntries(
+    ROUTES.filter((r) => r.dynamic).map((r) => [
+      r.key,
+      `dynamic route ${r.path} — add a surface with a concrete param`,
+    ]),
+  ),
+  dir: process.env.STYLEMAP_DIR,
+});
+```
+
+`discoverNextRoutes(cwd?)` reads the filesystem only (route groups `(group)` and `@slots` stripped, `[param]`/`[...catchall]` flagged `dynamic`) — a heuristic, not a router; edit the generated spec for exotic routing. For any other framework, point `expected` at your own route registry as above.
+
+### Single-route SPAs: crawl the nav
+
+Filesystem discovery can't see a surface that isn't a page — a tab SPA where every view is `/?tab=overview` on one `app/page.tsx`, or anything client-routed. There the surfaces exist only in the rendered nav, as its links. `defineCrawlCapture` discovers them at run time: it loads a root URL, reads its same-origin `<a href>`s, and captures each — so the surface set _is_ the nav, with no list to hand-maintain (and so none to drift).
+
+```ts
+import { defineCrawlCapture } from 'styleproof';
+
+defineCrawlCapture({
+  from: '/', // crawl the app root for links
+  match: /\?tab=/, // keep just the tab views (omit to take every same-origin link)
+  widths: [1440, 1024, 768],
+  dir: process.env.STYLEMAP_DIR,
+});
+```
+
+Each discovered link becomes a surface keyed by its URL (`/?tab=overview` → `overview`; pass `key` for a different scheme). The app only has to render its nav as real `<a href>` links — a button-only nav (`<button onClick>`) exposes nothing to crawl. Replay, self-check and clock-freeze behave exactly as for explicit surfaces; one Playwright test runs the whole sweep (the link set isn't known until the page renders).
+
+Pass `expected` (a route registry) to turn the crawl into a coverage guard: the crawl reconciles the rendered link set against it, both directions — a rendered link with no `expected` entry fails as a new route with no owner, and an `expected` route the nav stopped linking fails as a nav regression. For a link-crawled SPA the rendered nav _is_ the route universe, so this is the same list-vs-ledger discipline as the spec guard with the nav as the source of truth. Because the link set isn't known until the page renders, this reconciliation runs _inside the capture test_ — so it fires when you capture (`STYLEMAP_DIR` set), not in every `npm test`, unlike the static Next guard. A link that renders conditionally (behind auth or a feature flag) would otherwise make the guard flaky either direction; list it in `exclude` (`key → reason`) to opt it out visibly — an `exclude` key in neither `expected` nor the rendered nav fails as stale, so the ledger can't rot. Omit `expected` and the crawl keeps its default: capture what the nav links to, assert no completeness.
+
+```ts
+defineCrawlCapture({
+  from: '/',
+  expected: ['index', 'pricing'], // the routes the nav must link to
+  exclude: { admin: 'feature-flagged, renders only for staff' },
+  dir: process.env.STYLEMAP_DIR,
+});
+```
+
+### Component inventory: fail when the catalog misses a component
+
+StyleProof cannot render arbitrary component files by itself across frameworks;
+props, providers, loaders, portals, and app shell context are app-owned. What it
+can do reliably is inventory component files and make your catalog/story route
+prove it has a capture for each one:
+
+```ts
+import { componentCatalogSurfaces, defineStyleMapCapture, discoverComponentFiles } from 'styleproof';
+
+const COMPONENTS = discoverComponentFiles({
+  roots: ['src/components'],
+  ignore: [/\/icons\//],
+});
+
+defineStyleMapCapture({
+  surfaces: componentCatalogSurfaces(COMPONENTS, {
+    url: (component) => `/styleproof/components/${component.key}`,
+    widths: [390, 1024],
+  }),
+  expected: COMPONENTS.map((component) => component.key),
+  exclude: {
+    'component-payment-card': 'needs a billing provider fixture',
+  },
+  dir: process.env.STYLEMAP_DIR,
+});
+```
+
+Use Storybook, Ladle, a framework route, or a tiny app-specific catalog for
+`/styleproof/components/:key`. The inventory feeds both `surfaces` and
+`expected`, so a new component file appears immediately and CI fails until it has
+a rendered surface or an explicit exclusion.
+
+### Dialogs, popovers and menus: capture the open state as a variant
+
+StyleProof cannot guess which app-specific button opens a modal, but once you
+tell it the interaction, it compares matching states on base and head
+(`home-dialog-open` to `home-dialog-open`). Keep these under the route/view that
+owns them:
+
+```ts
+const SURFACES: Surface[] = [
+  {
+    key: 'home',
+    go: (page) => page.goto('/'),
+    variants: [
+      {
+        key: 'dialog-open',
+        go: async (page) => {
+          await page.getByRole('button', { name: /open settings/i }).click();
+          await page.getByRole('dialog').waitFor();
+        },
+      },
+      {
+        key: 'popover-open',
+        go: async (page) => {
+          await page.getByRole('button', { name: /more/i }).click();
+          await page.locator('[popover], [role="menu"]').first().waitFor();
+        },
+      },
+    ],
+  },
+];
+```
+
+Non-live `variants` add captures; the owning surface still captures too. Use
+`liveStates` instead when the default live state is too fuzzy and only pinned
+states such as `loading`, `loaded`, `empty`, or `error` should be compared.
+
+### Popups, discovered automatically
+
+When `popups: true` is enabled, StyleProof also tries visible safe triggers and
+captures opened dialogs, menus, listboxes, modal roots, popovers, tooltips, and
+toast/status roots. Each saved map includes `overlays` proof metadata for
+semantic roots that were actually present in the computed-style map, so tests can
+assert a capture reached `role="dialog"`, `aria-modal`, `role="menu"`,
+`role="listbox"`, or hot-toast text.
+
+Triggers are enumerated once per surface and every reopen re-binds to that same
+element by identity — its DOM path **and** its accessible label — never by
+position. Between popups the surface is reset (Escape + `go()`) and the reset is
+verified: if an overlay a previous popup left behind is still visible (Escape
+closes dialogs, not toasts or status regions), or an enumerated trigger
+disappeared or changed identity (e.g. a same-tag sibling shifted in earlier),
+that candidate is **skipped loudly** — a `styleproof:` warning names the popup and
+why — instead of capturing contaminated state or keying a popup under the wrong
+trigger. Dismiss the leaking overlay in the surface's `go()`, or capture it as an
+explicit variant.
+
+### Harvest one-step variants
+
+Routes are not the whole UI: drawers, tabs, dialogs, empty form errors, selects,
+and other one-step states need their own captures. `styleproof-variants` opens a
+running app, tries semantic controls (`[aria-expanded]`, tabs, summaries,
+selects, required forms, etc.), captures a baseline and post-action StyleMap, and
+keeps only actions that change computed styles. It also reports live-state
+candidates that need fixtures or opt-outs.
+
+```bash
+styleproof-variants --base-url http://localhost:3000 --route / --route settings=/settings
+```
+
+Use it as a manifest generator, not a replacement for review. To refresh that
+manifest as part of the map loop, pass the same crawl inputs to `styleproof-map`;
+it runs the crawler before Playwright captures the maps:
+
+```bash
+styleproof-map --crawl-base-url http://localhost:3000 --crawl-route / --crawl-route settings=/settings
+```
+
+The app must already be reachable at `--crawl-base-url`. If Playwright's
+`webServer` is the thing starting the app, keep route-link crawling inside the
+capture run with `defineCrawlCapture`.
+
+```json
+{
+  "routes": [
+    {
+      "key": "settings",
+      "url": "/settings",
+      "variants": [
+        {
+          "key": "plan-selected",
+          "action": "select-option",
+          "selector": "select[aria-label=\"Plan\"]",
+          "value": "pro"
+        }
+      ],
+      "liveStates": [{ "key": "status", "fixtureRequired": true }],
+      "skipped": []
+    }
+  ]
+}
+```
+
+```ts
+defineStyleMapCapture({
+  surfaces: [
+    {
+      key: 'settings',
+      go: (page) => page.goto('/settings'),
+      variants: [
+        {
+          key: 'plan-selected',
+          go: (page) => page.locator('select[aria-label="Plan"]').selectOption('pro'),
+        },
+      ],
+    },
+  ],
+});
+```
+
+Destructive labels are skipped, duplicate computed-style outcomes are deduped,
+and `--strict` exits non-zero when live-state fixtures or skipped candidates
+remain unresolved. The harvester only finds states **reachable by interacting**
+— it clicks, selects, and expands. A data-driven conditional branch (a fault
+overlay, an empty render) has no control to click, so it never appears in the
+manifest; those need `liveStates` fixtures, per the
+[un-exercised-state gap](#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle).
+
+### State recipes: explicit interaction, transient, and network-error variants
+
+For states that must be driven as **independent, named captures** (not multi-step
+choreography), StyleProof exports a typed **state recipe** contract and wires it
+through `Surface.stateRecipes` (and the same field on crawl capture options):
+
+```ts
+import {
+  defineStyleMapCapture,
+  parseStateRecipes,
+  stateRecipeGo,
+  applyStateRecipe,
+  type SurfaceVariant,
+} from 'styleproof';
+
+const recipes = parseStateRecipes([
+  { action: 'hover', selector: '#plan-card', label: 'Plan card' },
+  { action: 'focus', selector: '#email', label: 'Email' },
+  { action: 'press', selector: '#menu', key: 'ArrowDown', label: 'Open menu' },
+  { action: 'click', selector: '#menu', label: 'Open menu' },
+  {
+    action: 'click',
+    selector: '#notify',
+    stateKey: 'toast-visible',
+    observeSelector: '[aria-live]',
+    observeMs: 250,
+  },
+  {
+    action: 'route',
+    stateKey: 'plans-network-error',
+    urlPattern: '**/api/plans',
+    status: 503,
+  },
+]);
+
+// Preferred: declare on the surface — each recipe expands to
+// `<surface>-<stateKey>` after parent `go`, with `variantKind: 'state-recipe'`
+// and report-only provenance (stable key, action, optional safe interaction
+// selector / press key / observation window / response status). Declared labels,
+// route patterns, and observation selectors are runtime-only. Metadata is ignored
+// by the certification diff.
+defineStyleMapCapture({
+  dir: process.env.STYLEMAP_DIR,
+  surfaces: [
+    {
+      key: 'pricing',
+      go: (page) => page.goto('/pricing'),
+      stateRecipes: recipes,
+    },
+  ],
+});
+
+// Still supported: hand-wire a single recipe through SurfaceVariant.go
+const variant: SurfaceVariant = {
+  key: 'plan-card-hover',
+  go: stateRecipeGo(recipes[0]),
+};
+
+// Or drive ad hoc when you need AppliedStateRecipe provenance:
+// const applied = await applyStateRecipe(page, recipes[0]);
+```
+
+Rules for this slice:
+
+- Interaction actions are `hover`, `focus`, `press`, and `click`. Their fields
+  are `action`, `selector`, optional `key`, `label`, `stateKey`, and paired
+  `observeSelector` / `observeMs`. A `route` recipe instead requires explicit
+  `stateKey`, value-free `urlPattern`, and integer `status` from 400–599; it
+  rejects every interaction field. All shapes are closed-world.
+- Every interaction, including `press`, requires an explicit **CSS-only, value-free**
+  selector (`#id`, `.class`, `[aria-expanded]`, `input[name]`, `li:nth-child(2)`,
+  `nav > a`, …). Quotes/backticks, attribute-equality, Playwright engine prefixes
+  (`text=`, `xpath=`, `css=`, …), Playwright locator chaining (`>>`,
+  `button >> …`; single CSS `>` is fine), and value-carrying functions
+  (`:text()`, `:has-text()`, `url()`) are rejected so secrets never enter keys,
+  provenance, or error messages. Public `stateRecipeKey` runs full
+  `validateStateRecipe` then shared internal key derivation. Labels and
+  `stateKey` are length-bounded and control-sanitized; labels/`stateKey` that
+  cannot produce a non-empty safe slug fragment (emoji/CJK/punctuation-only)
+  are rejected before browser I/O (no generic `state` collision key). Bare
+  Escape / ambient keyboard is deferred rather than unsafe.
+- A collection is a set of **independent variants** from a known baseline, not a
+  multi-step choreography. Interaction expansion runs parent `go` then one
+  recipe. A route recipe installs its one-shot intercept, parks the inherited
+  pointer outside the viewport, and only then runs parent `go`, so navigation
+  cannot dispatch a sticky `mouseenter` from prior hover discovery. Duplicate
+  derived keys are rejected; order is sorted by stable key. Declared invalid/unsafe
+  recipes fail closed at expansion (before browser tests register); unsafe live
+  targets still fail the capture with a privacy-safe `StateRecipeError`.
+- Stable keys come from declared `stateKey` / label / selector. Live accessible
+  labels still feed the destructive-action guard (so a benign declared label
+  cannot authorize a control whose live label is `Delete` / `Remove` / …).
+- `press` keys are a fixed disclosure/navigation allowlist (`Enter`, `Escape`,
+  `Space`, `Tab`, arrows, `Home`, `End`). The driver focuses the target, then
+  presses — never ambient page focus.
+- Transient observation requires an explicit state key and paired structural
+  selector/window. StyleProof waits at most one second for appearance, proves
+  continuous visibility for the bounded 50–5000 ms window, then checks again
+  before, during, and after map extraction. Disappearance fails with state key
+  and phase only; the observation selector and rendered copy are never persisted
+  or echoed.
+- `route` recipes install one empty-body error response only. No request values,
+  inline payloads, arbitrary headers, or success fixtures enter the recipe. Use a
+  consumer-owned `liveStates.setup` fixture for loaded/empty payload states.
+- Expanded keys participate in `assertUniqueExpandedKeys` alongside variants and
+  live states (collision messages name origins without selectors/secrets).
+  Coverage translation treats recipe expansions like other metadata-bearing
+  captures.
+
+#### Safe discovery ledger
+
+`styleproof variants` performs one bounded semantic scan per route and records
+hover/focus candidates separately in `route.stateCoverage`. It never clicks these
+candidates during discovery. CSS pseudo-state evidence comes from the same CDP
+forced-state layer used by certification; a real browser action is only a fallback
+for JS-driven effects when no pseudo-state delta exists.
+
+```sh
+styleproof variants \
+  --base-url http://localhost:3000 \
+  --route home=/ \
+  --max-state-actions 40
+```
+
+Every entry has a stable hashed `stateKey`, a value-free structural selector, and
+one exact outcome: `captured`, `deduplicated`, `skipped`, `timed-out`, or
+`requires-fixture`. Unsafe labels are checked inside the browser and discarded;
+the new ledger never persists the label, role, rendered text, attribute value, or
+exception string.
+
+Detected live regions produce a typed `consumer-owned-setup` recommendation with
+an `observeSelector` and 250 ms observation window. They remain
+`requires-fixture`. StyleProof does not fabricate the missing application state or
+guess which control should trigger it. In `--strict` mode, skipped, timed-out, and
+fixture-required outcomes fail the command.
+
+Config-file recipe parsing and bare Escape without a target selector remain
+follow-up slices.
+
+Before promoting a new state class, capture it in five fresh browser contexts and
+pass the determinism oracle. The capture CLI does this for you:
+
+```bash
+styleproof-map --prove-determinism
+```
+
+That captures your whole declared surface set five times, requires every canonical
+map hash to match, writes `styleproof-determinism.json` beside the maps, and records
+`determinism: oracle-proven` in the coverage ledger — the strongest of the four bases
+the gate accepts, and the only one that can see a flake which happens to repeat
+twice. A failing run discards the bundle rather than publishing it: a
+nondeterministic capture must never become a baseline. It costs five capture runs,
+so it is opt-in; the default single run still self-checks (captures twice and
+compares).
+
+The same oracle is a public API when you need to drive it yourself:
+
+```ts
+import { assessDeterminismOracle, determinismRunReceipt } from 'styleproof';
+
+const runs = captureDirs.map((dir) => determinismRunReceipt(mapsIn(dir)));
+
+const verdict = assessDeterminismOracle(runs);
+if (verdict.status !== 'deterministic') throw new Error(JSON.stringify(verdict));
+```
+
+`determinismRunReceipt` takes `[stateKey, map]` pairs and sorts the keys, so two
+honest runs can never disagree on filesystem ordering alone. `hashDeterminismMap`
+remains exported for callers that build receipts by hand.
+
+`deterministic` means exactly five valid runs were supplied and all five match.
+Every other result is `flake`, with a machine-readable reason: `run-count`,
+`invalid-receipt`, or `mismatch`. Receipts require unique non-empty ordered state
+keys, an exact matching hash-key set, and 64-character SHA-256 hexadecimal map
+hashes. CI prints and uploads `test-results/determinism-oracle.json`; use that
+artifact as the review receipt instead of inferring determinism from a green test
+count. Do not retry or weaken the assertion until a `flake` turns green; diagnose
+the unstable or malformed input.
+
+### Live UI states: capture each state, not an average
+
+StyleProof automatically detects semantic live-state candidates (`aria-live`,
+`role=status`, `role=alert`, `aria-busy=true`) and keeps stable ones in the
+normal diff. If a stream, poll, or live region represents product states you
+want certified (`loading`, `loaded`, `empty`, `error`), list only those pinned
+states with `liveStates`. StyleProof writes separate captures such as
+`dashboard-loading@1440` and `dashboard-loaded@1440`, so the base branch's
+loading state compares to the feature branch's loading state, and loaded
+compares to loaded.
+
+This is also how you close the
+[un-exercised-state gap](#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle):
+a conditional branch that only renders under specific data (a fault overlay, an
+empty list, a permission wall) needs its own pinned state here, with the
+fixture in **that surface's** `setup` — per-surface, not a global route
+override, which would leak the faulty payload into every other surface reading
+the same endpoint. Note both fixtures in the example below are scoped this way.
+
+```ts
+defineStyleMapCapture({
+  dir: process.env.STYLEMAP_DIR,
+  surfaces: [
+    {
+      key: 'dashboard',
+      go: (page) => page.goto('/dashboard'),
+      widths: [1440, 768],
+      liveStates: [
+        {
+          key: 'loading',
+          setup: (page) =>
+            page.route('**/api/widgets', (route) => route.fulfill({ json: { status: 'loading', widgets: [] } })),
+        },
+        {
+          key: 'loaded',
+          setup: (page) =>
+            page.route('**/api/widgets', (route) =>
+              route.fulfill({ json: { status: 'loaded', widgets: [{ label: 'Revenue' }] } }),
+            ),
+        },
+      ],
+    },
+  ],
+});
+```
+
+
+## Deterministic by default
+
+A style diff only means something if both sides saw the same inputs; otherwise live-data drift (a backend blip, a `5m ago` timestamp, a status chip that flips) reads as a style change on a PR that touched no CSS. StyleProof handles this for you — **no fixtures required**:
+
+- **Record / replay.** The base capture records each surface's data responses (anything matching `**/api/**`) to a HAR; the head capture replays them, so the head renders _its_ code against the _base's_ data — the app's own JS/CSS still load live. Backend down during a run? Both sides replay the same recording, so there's no phantom diff. Point the head capture at the base's recording with `STYLEPROOF_REPLAY_FROM=<base dir>` (set on the head capture); tune the data boundary with `STYLEPROOF_REPLAY_URL` / `replayUrl` if your API isn't under `/api`.
+- **Frozen clock.** `Date.now()` / `new Date()` are pinned to a fixed instant, so time-derived styling (`stale > 1h → red`) can't drift. Timers keep running, so settling still works. Both clocks are covered: the **browser** clock on every captured page, and the **spec process** — `styleproof-map` sets `STYLEPROOF_FREEZE_SPEC_CLOCK=1` so that importing `styleproof` pins Node's `Date` before your spec's module body runs. A fixture stamped `new Date().toISOString()` at module level is therefore identical on the base and head captures, instead of leaking each run's wall clock into the rendered page as phantom text-width diffs (the in-run self-check can't see that class — both of its captures share one process and therefore one stamp). Align a custom instant with `STYLEPROOF_CLOCK_TIME`; opt out with `STYLEPROOF_FREEZE_SPEC_CLOCK=0` or `freezeClock: false`.
+- **Live / age / clock text.** A frozen browser clock cannot pin ages the server already rendered (`open 102.1d` → `open 103.1d`). Declare them so that drift cannot masquerade as a stylesheet regression:
+
+```ts
+defineStyleMapCapture({
+  surfaces: SURFACES,
+  dir: process.env.STYLEMAP_DIR,
+  captureText: true,
+  liveText: true, // age-only drift is advisory — not STYLE_REVIEW_REQUIRED
+  // liveText: { freeze: true, selectors: ['.age'] }, // fail closed if ages still change
+});
+```
+
+`liveText: true` (or `{ freeze: false, selectors?: [...] }`) keeps age-only text — and the geometry that follows a longer/shorter age — in the advisory content channel. `{ freeze: true }` is the integrity check: you claimed the ages are pinned (fixtures + frozen clock), so any remaining drift is `CERTIFICATION_FAILED`, not a style review and not a soft-green. `liveText` requires `captureText: true` so the freeze can be verified. Selectors are optional; without them StyleProof classifies compact ages (`102.1d`), relative phrases (`2m ago`), and clock faces.
+
+- **Self-check** — captures each surface twice and fails if they differ, so a replay gap or unseeded randomness surfaces as a clear _"non-deterministic capture"_ error, never as a phantom change on an unrelated PR. **On by default while recording** (where live nondeterminism shows up); off on the replay run, which renders against the recorded HAR and is deterministic by construction. `STYLEPROOF_SELFCHECK=1` forces it on for both; `selfCheck: false` opts out.
+- **Framework noise is skipped by default.** Non-visual and framework-injected elements never count as a change — `<meta>`/`<title>`/`<script>`/`<style>`/… (which Next.js streams into the body then hoists) and live regions like Next's `next-route-announcer`. A real stylesheet change still shows up in the affected elements' computed styles, not in the `<style>` tag. Add your own selectors with `ignore` — they extend this default, they don't replace it.
+- **Layout-equivalent margin noise is normalised.** If the browser reports
+  horizontal auto-centering margins (`margin-left`/`margin-right` and logical
+  equivalents) differently but the captured document-space rectangle is
+  identical, StyleProof treats that as the same rendered layout, including in
+  forced `:hover`/`:focus`/`:active` deltas. The suppression only fires when the
+  sides drift **together** (no demonstrable px imbalance between a side and its
+  opposite): a one-sided change like `margin-left: 0 → 40px` still reports even
+  when something else compensates and the box doesn't move, and if the box moves
+  or resizes, any margin change reports.
+
+> Replay covers data the page _fetches_. If your app **server-renders** differently per environment (SSR feature flags, locale), still capture both sides with the same server env so the rendered HTML matches.
+
+**Live pages just work when the intended state is deterministic.** Before each capture, StyleProof settles the page, and the settle is **network-aware**: it holds while the page's data requests are in flight (excluding long-lived `EventSource`/WebSocket streams, which never finish) _and_ until the computed-style map stops changing. So async content (a fetch backfilling a grid, an SSE stream) is captured **loaded, not mid-load** — and, crucially, it **can't false-settle on the loading state before a slow backend's response arrives**. That's the failure mode of a fixed wait: against a slow server (e.g. a dev server under CI load) a timer settles on the loading skeleton one run and the loaded deck the next — a phantom diff / self-check flake. Waiting on the actual request removes it.
+
+Anything still moving on its own after that is detected as a volatile region and excluded from direct element comparison, so a stream or ticker never reads as a change just because its value changed. That is not the same as certifying every state of the live UI: an ignored or volatile subtree can still change `html`/`body` layout if its height changes. When those states matter, make them deterministic `liveStates` (`loading`, `loaded`, `empty`, `error`) and capture each on both branches. Self-check and reports automatically mention detected live-state candidates when volatile layout drift appears. `defineStyleMapCapture` arms the request tracker before each `go()` automatically; for a direct `captureStyleMap` call, arm one before you navigate with `trackInflightRequests(page)` and pass `{ pendingRequests }`. Disable or tune with `{ stabilize: false }` / `{ stabilize: { quietFor, timeout, waitForRequests } }`.
+
+**At a glance — almost everything is automatic.** The few knobs exist only for what StyleProof can't know about your app, and each says why:
+
+| Handled for you — zero config                               | How                                                                                                              |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| In-flight data, fonts, late layout                          | network-aware settle holds until requests finish _and_ the computed styles stop changing                         |
+| Animations, transitions, real hover/focus, caret            | frozen / neutralised before the map is read; forced states are captured separately                               |
+| Clock-derived styling (`stale > 1h → red`)                  | `Date.now()` / `new Date()` frozen to a fixed instant                                                            |
+| Framework & non-visual noise (`<script>`, route announcers) | skipped by default                                                                                               |
+| Layout-equivalent horizontal auto margins                   | ignored only when the rectangle is unchanged **and** the sides drift together — a one-sided change still reports |
+| Semantic live-state candidates (`aria-live`, `role=status`) | auto-detected and kept in the diff when stable                                                                   |
+| Live / volatile regions (tickers, third-party embeds)       | auto-detected as still-moving and excluded from direct element comparison                                        |
+| Non-deterministic capture (replay gap, unseeded randomness) | self-check flags it _while recording_, with a named error                                                        |
+
+| You set this — only because it's app-specific | Why it exists                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STYLEPROOF_REPLAY_FROM` (record / replay)    | Base and head capture at different times against a live backend; replaying the base's recorded data pins the head to the same inputs, so the diff is **your code, not data drift**. The one piece of real setup.                                                                                         |
+| `replayUrl` / `STYLEPROOF_REPLAY_URL`         | Your data endpoints aren't under `**/api/**`.                                                                                                                                                                                                                                                            |
+| `ignore: ['.selector']`                       | You want a region gone **explicitly** — auto-exclude already handles most live regions, but a known-noisy element reads clearer named.                                                                                                                                                                   |
+| `liveStates: [{ key, setup, go }]`            | A live feature has real states to certify. Capture each state on base and head (`surface-loading`, `surface-loaded`) instead of relying on a single moving page state.                                                                                                                                   |
+| `variants: [{ key, setup, go }]`              | Non-live deterministic variants, such as nav-open, modal-open, toast-visible, or overlay-expanded states.                                                                                                                                                                                                |
+| `popups: true`                                | Visible click-triggered overlays should be discovered automatically. Captures each matching trigger's persistent dialogs, modal roots, popovers, menus, listboxes, toast/status roots, and open data-state overlays as `surface-popup-XX`; keep hover-only or destructive states as explicit `variants`. |
+| `clockTime`                                   | Your styling keys off a **specific** date, not just "now".                                                                                                                                                                                                                                               |
+| `stabilize: { quietFor, timeout }`            | An unusually slow surface needs a longer quiet window before the map is read.                                                                                                                                                                                                                            |
+
+### Failed data request: a failed API call is named, not swallowed
+
+A subtler gap than a _missing_ surface is a surface that renders the **wrong** state, silently. If a surface requests a data endpoint that nothing routes — no fixture, no `liveStates` — the request falls through and **fails during capture**, so the view paints its _fallback_ branch. Every capture then embeds that fallback; the state its real responses would drive is never captured, and a restyle confined to it ships green. StyleProof used to watch that request fail and say nothing.
+
+Now it names it. During a spec-driven capture, any request matching the data boundary (`replayUrl`, default `**/api/**`) that **fails** — a network error, or a 4xx/5xx — is:
+
+- **warned on stderr, always**, naming the surface and endpoint, what it means (the fallback branch was captured; the response-driven states are unproven), and what to do — fixture it with `page.route`/`liveStates`, or acknowledge it;
+- **recorded on the capture** (`StyleMap.dataResidue`) so `styleproof-diff` and the report's certification block surface it, deduped per surface·endpoint across widths and the self-check re-run;
+- **gated by default.** An _unacknowledged_ failing endpoint blocks the diff (exit 1): a silently-failing endpoint means the fallback branch shipped as the certified state, so gating is the correct default, not an opt-in. Acknowledge intentional ones in `styleproof.data-residue.json` (`{"<surface·endpoint>": "why"}`) — they render as visible opt-outs — and a **stale** acknowledgement (the endpoint no longer fails or isn't present) also fails, so the ledger can't rot. The same `exclude`-ledger discipline as the [inventory guard](inventory-guard.md). Set `dataResidue: 'warn'` to opt down to record-and-warn without gating.
+
+A 2xx endpoint that merely wasn't fixtured is **never** flagged: in recording mode every live response is legitimately recorded, so a blanket "uncontrolled" flag would fire on every healthy record run. Only _failures_ are residue. And StyleProof never synthesises the missing state for you — declaring an app's data states stays app-owned (see the un-exercised-state gap this pairs with). A capture with no failing data request is byte-identical whichever mode you run, so a clean app is unaffected.
+
+```ts
+// Gate by default — an unacknowledged failing data endpoint blocks the diff.
+defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR });
+
+// Opt down to record-and-warn without gating:
+defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, dataResidue: 'warn' });
+```
+
+## Any styling system, real breakpoints
+
+StyleProof reads the browser's **computed styles** — the values it actually resolves — never your source CSS. Tailwind, CSS Modules, styled-components, Sass, vanilla CSS, inline styles: all produce the same computed output, and that's what it diffs. Elements are keyed by **DOM structure, not class name**, so a refactor that rewrites every `class` still lines up element-for-element.
+
+Breakpoints are detected the same way: omit `widths` on a surface and StyleProof reads your app's real `@media` breakpoints from the **loaded CSSOM** at capture time and sweeps one viewport per band — no config. It's framework-agnostic for the same reason the diff is: it reads the rules the browser actually parsed, not your source, so Tailwind / CSS Modules / Sass / vanilla all resolve to the same `@media` boundaries. And it's authoritative **or it fails** — an unreadable cross-origin stylesheet throws rather than silently miss a band; it never guesses. Pin `widths` explicitly when you want a fixed sweep, or to cover a JS-only (`matchMedia`) breakpoint that has no CSS rule.
+
+
+## Match a design pixel-for-pixel
+
+When you build a design in production, "looks the same" is a judgement call — and small gaps ship. `styleproof-capture` makes it an objective check: point it at the **design** (a deployed mockup, a static export, a standalone HTML file), point it at your **build**, and diff. Zero diff means the production UI renders _identically_ to the design; anything else is named exactly, down to the computed style, so you know precisely what's still off.
+
+```bash
+styleproof-capture https://example.com/pricing --key pricing --widths 1440,1024,768 --out design
+styleproof-diff design .styleproof/maps/current   # design vs build — zero diff = pixel-identical
+```
+
+You watch one number as you implement: the diff starts large and shrinks toward zero, and it hits zero the moment the built page matches the design. It's the objective version of putting the mockup and the app side by side and squinting.
+
+(`styleproof-map` is the spec-driven flow for your own app's surfaces, with the coverage guard, map store, and record/replay; `styleproof-capture` is the one-shot for a page you just point at.) It writes `design/pricing@1440.json.gz` (+ `.png`) and a `styleproof-manifest.json`, the same shape any capture writes, so `styleproof-diff` compares it against anything — the manifest is what lets the two-directory compare verify both sides came from the same environment (v4 refuses a manifest-less side). Omit `--widths` to auto-detect the page's own `@media` breakpoints; pin them for a page whose CSS is cross-origin (a font stylesheet, say), since detection reads every sheet and fails loudly rather than guess. `--wait <selector>` holds until the intended state is on screen; `--ignore <selector>` skips a live region. Capture both sides in the same browser + fonts, since that's what "identical" is measured against.
+
+### Crawl the whole interactive design: `--crawl`
+
+A design is mostly _behind clicks_ — modals, drawers, popovers, tabs that don't exist in the DOM until you open them. A single capture sees only the landing state. `--crawl` maps the rest for you: point it at the URL and it drives every non-destructive control, keeps whatever opens a structurally new surface, and recurses into it — a modal's tabs, a drawer's sub-views, a popover's panels — capturing each under a derived key. No spec, no selectors, no hand-holding.
+
+It follows the nav too: every same-origin page the site links to is crawled the same way, keyed by its route (`about`, `pricing`, `blog-post`, …), with class coverage aggregated across the pages that share stylesheets. `--no-follow-links` keeps the sweep to the entry page's interactive surface only.
+
+```bash
+styleproof-capture https://example.com --crawl --out design    # maps every reachable surface
+styleproof-diff design .styleproof/maps/current                # diff the whole surface vs your build
+```
+
+It's **exhaustive by default**: the crawl stops when there is nothing left to drive — every control tried once, every structurally new surface captured — not at a budget. Dedup bounds the normal case — controls dedup by selector, surfaces by a structural fingerprint, so a finite UI runs out of new surfaces — and the `--max-depth` cap bounds the pathological one: an append-generator (a composer that appends a fresh-identity node per click) never repeats a fingerprint, so dedup can't stop it; the depth cap (16 by default) does. `--max-depth` / `--max-actions` / `--max-states` are otherwise deliberate throttles. It's deterministic (document order; the same surface reached two ways is captured once) and self-settling — it waits for an async app (React/Vue/Babel that boots after `load`) to mount before reading, so a bare crawl of a client-rendered page still captures the mounted UI.
+
+What makes exhaustive affordable is that the sweep works **in place**: standing in a state, each control is clicked right where the page is, and a cheap DOM fingerprint decides what happened — a no-op click costs nothing, and only a state-changing click pays a reset (fresh navigation + replay of the click-path), which is then **verified by fingerprint** so children are never attributed to the wrong parent. New surfaces are captured at every width the moment they're reached — a deep or animated click-path is never re-driven to capture, so it can't be the thing that drops a surface. Progress streams as it goes, one line per captured surface. And it's **parallel by default** — `--workers <n>` (default 4) sweeps states concurrently on isolated browser contexts with the exact same surface set as a serial crawl (dedup is shared; children only enter the queue when their parent's sweep completes); `--workers 1` if you want byte-stable dup-key attribution.
+
+**And it proves nothing was missed.** After the crawl, StyleProof compares every class the page's own stylesheets define (read from the parsed CSSOM) against the classes actually rendered across the captured surfaces, and prints what — if anything — was never seen. `--require-full-coverage` turns any residue into exit code 4, so "the design is fully covered" is a CI-checkable property, not a judgement call. What's left is either dead CSS (delete it) or a state the crawl couldn't reach (drive it with a spec, or file the gap). When coverage is the goal rather than the map, `--until-covered` stops the crawl early the moment every class has rendered — the fast check, vs the exhaustive default.
+
+**Destructive-looking controls (delete, deploy, pay, revoke…) are never clicked** — mapping must not mutate; states gated behind one of those need a spec. Prefer the spec-driven `defineStyleMapCapture` when you want stable, named keys and the coverage guard; reach for `--crawl` to map a design (or a third-party page) you don't have a spec for.
+
+### Data states, out of the box
+
+Every data-driven page has states that almost never sit on a click path: the **loading skeleton** and the **error render**. The crawl captures both automatically — it watches the entry page's data requests, then re-loads once with them **stalled** (the skeleton is the settled state, captured as `loading`) and once with them **fulfilled as 500** (captured as `error`). States that render identically to the base (e.g. server-rendered pages) dedup away silently. On by default; `--no-data-states` to skip. Deeper data states — a specific empty list, a partial payload — are fixture territory: model them as `liveStates`/`variants` in a spec.
+
+### Input-gated states: `--setup`
+
+A crawler clicks and selects; it does not guess your password. States behind typed input — a login, an unlock code, a seeded search — become crawlable with a deterministic setup file, run after **every** fresh navigation so each reset re-establishes the gate identically:
+
+```json
+[
+  { "action": "fill", "selector": "#user", "value": "${CAPTURE_USER}" },
+  { "action": "fill", "selector": "#pass", "value": "${CAPTURE_PASS}" },
+  { "action": "click", "selector": "#sign-in" },
+  { "action": "waitFor", "selector": ".dashboard" }
+]
+```
+
+```bash
+CAPTURE_USER=demo CAPTURE_PASS=… styleproof-capture https://example.com --crawl --setup login.json --out design
+```
+
+`${ENV_VAR}` in `value`/`url` is interpolated from the environment at load time — **credentials never live in the file, the shell history, or the captured maps.** A non-optional step that fails aborts the crawl loudly (a half-established gate must never silently crawl the ungated page); mark a step `"optional": true` when it legitimately may not apply (a cookie-session app that shows the login form only once).
+
+### What the crawler can and cannot reach — honestly
+
+The crawl's vocabulary is **click, select, neutral typing, scrolling, and your setup steps** — and it sweeps the page's real `@media` breakpoints automatically when you give it none. Within it, mapping is exhaustive. Outside it, states are not reached by crawling — and the coverage verifier is what keeps that honest: anything unreached is _named_, never silently missed.
+
+### Authentication boundaries and crawl confidence
+
+When a crawl lands on a sign-in form or is redirected (document navigation 3xx) to an auth route, StyleProof records a **redacted** auth-boundary observation (route path, selector structure, reason — never field values, cookies, tokens, or query strings) and sets run-level confidence to `incomplete-auth`. Fetch/XHR 3xx responses are not auth boundaries. Surfaces behind the wall are **unknown**; no coverage percentage is invented for them. Unacknowledged boundaries **fail closed** (`styleproof-capture --crawl` exits 5). With `--require-full-coverage`, coverage residue exit **4** intentionally takes precedence over auth exit 5. The optional resolver status `incomplete-unknown` is for callers that pass `unknownIncompleteness`; crawl does not auto-emit it today.
+
+Unlock protected surfaces with `--setup` and environment-interpolated values (the only credential path). To mark a wall deliberately outside certification scope without claiming full coverage:
+
+```bash
+styleproof-capture https://example.com --crawl \
+  --auth-boundary-exclude auth-exclude.json --out design
+```
+
+```json
+{ "/login": "SSO entry — outside certification scope" }
+```
+
+Empty exclusion reasons are rejected. Acknowledged exclusions keep status `incomplete-auth` and `certifiesFully: false` so a visual PASS is never confused with complete surface access. Programmatic consumers read `CrawlReport.confidence` from `crawlAndCapture`.
+
+### Incomplete UI: blocked continuations fail closed
+
+A visually clean capture can still be incomplete when the page contains a form whose submitted state was never reached, an empty required field, a disabled/inert/`aria-disabled` control, a button blocked by `pointer-events: none`, or a closed `details`/`aria-expanded="false"` disclosure. The crawl records these as privacy-safe structural reasons only. It never stores field values, labels, text content, names, cookies, tokens, or query strings. Hidden leftovers (`display: none`, `visibility: hidden`, or no layout box) are ignored.
+
+Unacknowledged incomplete UI exits **6**, persists `inaccessible` confidence rows, and blocks downstream diff and GitHub Action certification as `CERTIFICATION_FAILED`. Coverage exit 4 still wins; incomplete UI exit 6 wins over auth exit 5. The report keeps the visual diff and completeness separate, names each blocked surface and reason, and never invents a coverage percentage.
+
+Prefer a deterministic fixture or `--setup` step that reaches the blocked state. That increases the certified area. If the surface is deliberately outside this certification scope, acknowledge it with a non-empty reason:
+
+```bash
+styleproof-capture https://example.com --crawl \
+  --incomplete-ui-exclude incomplete-ui-exclude.json --out design
+```
+
+```json
+{ "base": "Contact submission is certified by the isolated component fixture." }
+```
+
+Reasoned exclusions become `excluded-with-reason`: the capture may continue, but the report remains explicitly limited. Empty reasons are rejected. The same file can be configured as `crawl.incompleteUiExclude` in `styleproof.config.json`, or via `STYLEPROOF_INCOMPLETE_UI_EXCLUDE`.
+
+| State                                                                        | Reached by                                                                                                                                                                            |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Click-opened surfaces (modals, drawers, popovers, tabs, toggles)             | crawl, automatically                                                                                                                                                                  |
+| Mode × sibling combinations (a tab's edit state, a decided list's other tab) | crawl — family retry                                                                                                                                                                  |
+| Loading / error data states of the entry page                                | crawl — automatic data states                                                                                                                                                         |
+| Login / unlock / typed input                                                 | `--setup` steps                                                                                                                                                                       |
+| `:hover` / `:focus` / `:active` styling                                      | the forced-state layer of every capture                                                                                                                                               |
+| Deeper data states (empty, partial, streaming)                               | spec `liveStates` / `variants` with fixtures                                                                                                                                          |
+| States behind destructive actions                                            | a spec, deliberately — the crawl never clicks them                                                                                                                                    |
+| Drag-and-drop, keyboard-shortcut, scroll-triggered states                    | a spec driving them explicitly                                                                                                                                                        |
+| Components not mounted anywhere in the UI                                    | a component catalog page (each component per prop-state is a surface — Storybook/Ladle stories work; `discoverComponentFiles` fails CI when a component file has no captured surface) |
+
+The rule of thumb: **a rendered state is a function of props, data, and input.** Control all three — mock the data, script the input, mount the component — and every state a component can render is a capturable surface. The verifier tells you, by name, which ones you haven't controlled yet.
+
+
+## Forks and Dependabot
+
+If you **always capture in CI** rather than restoring maps from `styleproof-maps` (a better fit when many outside contributors push from different machines), the simplest setup runs the whole gate in one `pull_request` job that captures base + head and diffs them. That job needs a **write** token to push the report branch, post the comment, and set the `StyleProof` status. That's fine for same-repo PRs, but **fork and Dependabot PRs run with a read-only `GITHUB_TOKEN`** (GitHub's security default for untrusted PRs). So the job can't post the status — and a required `StyleProof` check then sits `pending` forever, blocking the PR even though a dependency or fork change usually touches no UI at all.
+
+Fix it by splitting capture from reporting, the way the approve workflow is already split out:
+
+- **[`example/styleproof-capture.yml`](../example/styleproof-capture.yml)** runs `on: pull_request` with a **read-only** token and no secrets — safe to run untrusted PR code. It only builds, captures the style maps, and uploads them as an artifact.
+- **[`example/styleproof-report.yml`](../example/styleproof-report.yml)** runs `on: workflow_run` (after capture finishes) from your **default branch** with a write token. It downloads the artifact and does the diff, comment, and status — but **never checks out or runs the PR's code**, only the trusted style-map data.
+
+That last point is why this works where `pull_request_target` does not: StyleProof builds and serves the PR's head, so running it under `pull_request_target` would hand a write token (and your secrets) to untrusted code — the exact supply-chain risk StyleProof exists to help you catch. The `workflow_run` split keeps the privileged half away from PR code entirely.
+
+**Where the PR identity comes from.** The report stage comments on the PR and sets the `StyleProof` status against a specific PR number and head commit, so those values have to be trustworthy. It takes them from the trusted `workflow_run` event — `head_sha`, then the event's `pull_requests`, with a commit→PR lookup against that **same trusted head SHA** for fork PRs (whose association the event doesn't carry directly) — and **never** from the downloaded artifact. The artifact is produced by the untrusted capture job, so treating anything in it as identity would let a malicious PR point the privileged comment and status at a victim PR or an arbitrary commit (a confused-deputy attack). The artifact therefore carries only the style-map captures, consumed purely as diff input.
+
+Copy both `capture` and `report` files to `.github/workflows/` (the `report` one must be on your default branch, like `styleproof-approve.yml`), then require the `StyleProof` status in branch protection. A single combined `pull_request` job that captures base + head and diffs them is fine for repos that never see fork or bot PRs; this split is only needed for untrusted PRs.
+
+
+## Platform Integration
+
+### Vercel
+
+StyleProof publishes to `styleproof-maps` and `styleproof-reports` branches. These
+artifact branches contain JSON maps and Markdown reports, not deployable code.
+Vercel auto-deploys every branch push by default, including these artifact branches,
+which wastes build minutes and fails with confusing framework errors.
+
+Prevent Vercel from deploying artifact branches by adding to your repo root:
+
+**`vercel.json`:**
+
+```json
+{
+  "git": {
+    "deploymentEnabled": {
+      "styleproof-maps": false,
+      "styleproof-reports": false
+    }
+  }
+}
+```
+
+Alternatively, use `ignoreBuildStep` in your Vercel project settings to skip builds
+on these branches.
+
+**Artifact-branch CI guard.** `styleproof-init` now scaffolds
+`.github/workflows/styleproof-lint-artifacts.yml`, which fails the PR if StyleProof
+map artifacts are accidentally committed to a PR branch. This is a belt-and-suspenders
+guard: `.gitignore` already excludes these patterns, but a misconfigured ignore or
+`git add -f` can still land them. The guard is scaffolded automatically; no manual
+copy required.
+
+
+## Optional: pixel gate
+
+Computed styles are the cause; pixels are the effect. The computed-style gate
+cannot see image content, canvas paint, or font rasterisation, and it needs a
+base-to-head element correspondence before it can compare anything. The pixel
+gate needs neither. It compares the screenshots every capture already writes
+(`<surface>.png` plus the forced `:hover`, `:focus`, and `:active` layers) and
+attributes every changed region to the captured elements under it, innermost
+first, so the reviewer still gets an element name next to the crop.
+
+```bash
+styleproof-diff base head --pixels            # exit 1 on any changed region
+styleproof-diff --pixels --json diff.json     # regions, per layer, under `pixels`
+```
+
+Deterministic captures from the same compatibility environment render
+byte-identical, so the gate expects exact equality and tolerates only
+anti-aliasing noise: a per-pixel YIQ colour distance under `0.1` is not a change,
+and a connected region smaller than 4 pixels is dropped. A screenshot layer that
+exists on one side only cannot be certified and fails the gate closed. Pixel
+results never enter the computed-style counts; the two verdicts are reported
+side by side.
+
+
+## Optional: content layer (advisory)
+
+StyleProof is **computed-styles first**, and stays that way: copy and DOM
+structure can change while the stylesheet remains identical, and live text (a
+clock, "2m ago") must not read as a style regression. But content changes are
+still important review evidence: new or longer text can overflow, and inserted
+or removed elements can reflow the page. The content layer is therefore an
+explicit **opt-in**, off by default, and **advisory** — it never feeds style
+certification or the gate.
+
+Turn it on in the report renderer. Enable text capture as well when copy changes
+belong in the evidence; structural additions, removals, and retags are available
+without storing text:
+
+```ts
+// styleproof.spec.ts — record each element's own text alongside its computed style
+defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captureText: true });
+```
+
+```bash
+# render the advisory content section (each change with a before/after crop)
+styleproof-report before after --out report --include-content
+```
+
+For the GitHub Action, set the equivalent explicit input:
+
+```yaml
+- uses: BenSheridanEdwards/StyleProof@v6
+  with:
+    baseline-dir: __stylemaps__/base
+    fresh-dir: __stylemaps__/head
+    include-content: true
+```
+
+The report then carries a separate **📝 Content and structure changes
+(advisory)** section. Element additions, removals, and retags are available from
+every capture; set `captureText: true` to add before/after copy. Each entry gets
+a side-by-side crop. The section does **not** affect `changed`, the `StyleProof`
+status, or the diff exit code, by design. With `captureText` off, structural
+evidence still renders but text values are never stored.
+
+The first token of a developer-authored `data-style` value participates in the
+capture's hashed semantic path when it uniquely identifies a sibling. This
+prevents a new row, card, or control variant at the same `nth-child` position
+from being compared as though it were the displaced element; the replacement
+remains visible in this advisory section when content reporting is enabled.
+Later tokens remain free for dynamic state (`status ok` → `status warn`) without
+changing identity, so their real computed-style differences still gate.
+When StyleProof aligns elements shifted by a sibling insertion, it normalizes
+only numeric `nth-child` positions and preserves every one of those hashed
+semantic segments in the ancestry. Correspondence therefore cannot undo the
+identity boundary and compare two different semantic roles as a restyle.
+
+Notes: only an element's _own_ text is recorded (so a parent and child never double-report the same string); text churn in a live region is auto-excluded by the same settle pass that guards styles; live/age/clock copy (`open 102.1d`) is labeled in this section so it cannot be mistaken for a stylesheet edit; declare `liveText` when that drift must also stay off the style gate (or `liveText: { freeze: true }` to fail closed if a declared freeze did not pin it); and the certification CLI (`styleproof-diff`) is deliberately left content-blind except for that declared freeze check.
+
+
+## Typed component manifests and catalog coverage
+
+Capture isolated component states without putting a framework adapter in
+StyleProof's production package. Scaffold explicit declarations from local
+component roots:
+
+```sh
+npx styleproof-init --manifest styleproof.components.json \
+  --component-roots src/components,src/widgets
+```
+
+The starter creates one `default` variant per discovered file and invents no
+props or providers. Your development catalog statically imports the declared
+modules, owns providers and committed serializable fixture data, and exposes a
+registry to `collectManifestDiagnostics`. Stable
+`componentManifestCatalogSurfaces` routes turn each declared variant into a
+capture surface.
+
+Audit completeness with:
+
+```sh
+npx styleproof-components --manifest styleproof.components.json \
+  --component-root src/components --component-root src/widgets
+```
+
+Its JSON keeps `declared`, `excludedWithReason`, and `uncovered` separate. The
+default exit is `1` while uncovered files remain; `--uncovered-ok` changes only
+the exit code, never the evidence. Missing exports/providers, invalid props,
+duplicate keys, malformed manifests, overlaps, and duplicate discovered paths
+are explicit diagnostics, not silent omissions.
+
+React is development-fixture-only. It is neither a runtime nor peer dependency,
+and production-bundle plus packed-tarball oracles prove the catalog stays out
+unless a consumer explicitly imports it. See the packaged
+[component manifest guide](component-manifest.md) for the full contract and
+reference fixture.
+
+
+## Optional: React component layer (advisory)
+
+For a React app, knowing _which component_ rendered an element is often the fastest way to read a change. Off by default, opt in with `captureComponent`:
+
+```ts
+// styleproof.spec.ts — record the React component + props behind each element
+defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captureComponent: true });
+```
+
+Capture reads the React fiber in-page (`__reactFiber$*`/`__reactProps$*` on React 17+, `__reactInternalInstance$*` on ≤16) and records the component display name plus a **sanitized** subset of its props (primitives only — `children`, handlers, and objects are dropped) on `ElementEntry.component`. The report then names the element — **`React component: Button (variant=primary, size=sm)`** — instead of showing a bare `<button>`.
+
+Like the content layer it is **advisory**: never fed to the certification diff or the gate, so captures stay deterministic. Component names are mangled in minified production builds, so it's most useful against a dev / non-minified target; on a non-React page the fiber keys are absent and the field is simply omitted.
+
+
+## Optional: selective remap (advisory)
+
+On a large app, capturing every surface on every PR is the slow part. `affectedSurfaces` answers the question that lets you skip most of it: **given the files a change touched, which declared surfaces could have rendered differently?** Everything it doesn't return can reuse its restored base map.
+
+It is **opt-in and never part of the default gate** — the gate still captures every surface and lets the map be the oracle. This is a helper for wiring a faster pre-push/CI path yourself, and it is built to be wrong only in the safe direction: when it cannot _prove_ a surface is unaffected, it returns the sentinel `'all'` (re-capture everything). A global stylesheet or token, a vanilla (unscoped) stylesheet, a `createGlobalStyle`, a design-system config, an unbounded `import(x)`, or a file it can't place — all resolve to `'all'`.
+
+The module graph is an **input**, so StyleProof stays framework-agnostic and adds no dependency. Produce it with any tool whose output you can shape into `{ from, to }` edges — [dependency-cruiser](https://www.npmjs.com/package/dependency-cruiser)'s `modules[].dependencies[]` maps directly:
+
+Multiple surface keys may share an entry module (for example, resting and open states). A change reaching that module selects every associated surface, including entries using equivalent `./` path spellings.
+
+```ts
+import { affectedSurfaces } from 'styleproof';
+import { readFileSync } from 'node:fs';
+
+// A dependency-cruiser run: `depcruise src --no-config --output-type json`
+const cruise = JSON.parse(readFileSync('dc.json', 'utf8'));
+const graph = cruise.modules.flatMap((m) =>
+  (m.dependencies ?? []).map((d) => ({ from: m.source, to: d.resolved, dynamic: d.dynamic })),
+);
+
+const result = affectedSurfaces({
+  changedFiles: ['src/components/PriceTable.tsx'], // e.g. `git diff --name-only origin/main`
+  surfaces: { home: 'src/pages/Home.tsx', pricing: 'src/pages/Pricing.tsx' },
+  graph,
+  files: cruise.modules.map((m) => m.source),
+  readFile: (p) => readFileSync(p, 'utf8'),
+});
+// → Set { 'pricing' }  (capture only these; reuse the base map for the rest)
+// → 'all'              (some change couldn't be bounded — capture everything)
+```
+
+Two honest limits, both resolving to `'all'`: a computed `import(`../dir/${x}`)` is treated as a bundler **context module** (every file under that dir is a possible target, so precision there is directory-level, never a miss); and a CSS-Module (`.module.scss`/`.module.sass`) that carries a Sass `@use`/`@forward` load resolves to `'all'`, because those pull in a partial the JS import graph can't bound. One honest **residual** stays `'scope'` by design: the CSS-in-JS global list (`createGlobalStyle`, `injectGlobal`, `globalStyle`, …) must match the libraries you use — an allowlist can't fail closed on an _unknown_ member, so an unrecognized global API in a `.tsx` is the one way a scoped verdict could be unsound. Treat an unsupported styling system as a reason to skip selective remap. Because a PR-time miss would be silent, always let `main` (or a scheduled run) capture **all** surfaces as the trust-but-verify net.
+
+### Show the skip list, then wire the pre-push hook
+
+Computed-import context directories include nested folders. For example, ``import(`../components/${name}`)`` can load `components/nested/Card.tsx`; changes to that module or its scoped stylesheet select the importing surface. Sibling directories such as `components-extra` remain outside that context.
+
+Before you trust a skip, print it. `explainAffectedSurfaces(result, allSurfaceKeys)` renders the verdict as reviewer-checkable lines — which surfaces re-capture and which reuse their restored base map — and takes an optional reason string for the `'all'` case:
+
+```ts
+import { affectedSurfaces, explainAffectedSurfaces } from 'styleproof';
+
+const result = affectedSurfaces(/* … */);
+console.log(explainAffectedSurfaces(result, Object.keys(surfaces)));
+```
+
+A scoped change (only `dashboard`'s subtree touched) prints:
+
+```
+selective remap: ON → re-capture 1, reuse 2 from base
+  ↻ dashboard (re-capture — a changed file reaches it)
+  ✓ home (reuse base map — no changed file reaches it)
+  ✓ pricing (reuse base map — no changed file reaches it)
+```
+
+A global/token change fails closed to a full re-capture:
+
+```
+selective remap: OFF → re-capture all 3 surface(s) — src/tokens.css is a global (unscoped) stylesheet
+  ↻ dashboard (re-capture)
+  ↻ home (re-capture)
+  ↻ pricing (re-capture)
+```
+
+The whole recipe is packaged as the **`styleproof-affected`** CLI — it maps a dependency-cruiser JSON into edges, derives the changed files from git (or takes them explicitly), calls `affectedSurfaces`, and prints `explainAffectedSurfaces`. Declare the key → entry-module map, graph path, and base ref once in the `affected` block of `styleproof.config.json` and the command runs bare; exit `0` is a scoped verdict, exit `3` means unbounded (re-capture everything):
+
+```sh
+#!/usr/bin/env sh
+# .husky/pre-push (opt-in; the default CI gate still captures every surface)
+npx dependency-cruiser src --no-config --output-type json > dc.json
+if npx styleproof-affected --graph dc.json --surfaces styleproof.surfaces.json --base origin/main --json > verdict.json; then
+  : # capture only .recapture from verdict.json; copy each .reuse surface's restored base map forward
+else
+  npx styleproof-map   # unbounded change (or usage error): capture everything
+fi
+```
+
+The capture-the-subset step stays yours (it depends on your map layout), but the graph mapping, diffing, verdict, and skip-list printing no longer are. `main` re-captures everything, so a PR-time miss is still caught at merge. The programmatic `affectedSurfaces` API above remains for custom pipelines.
+
+
+## Forced-state capture resource limits
+
+Forced hover, focus and active capture reads the whole unignored document for
+each control, including sibling and ancestor effects. It defaults to 2,000
+elements per read and 32,000 total element reads. A static page with `E` elements
+and `T` controls needs `4 * E * T` reads: one resting read and three forced reads
+per control. Going over either allowance persists `statesSkipped: true` and
+prevents state certification.
+
+Set `maxForcedStateElements` and `maxForcedStateScanWork` on
+`captureStyleMap`, `defineStyleMapCapture`, or `defineCrawlCapture` to choose an
+explicit allowance. Both must be positive safe integers. For example:
+
+```ts
+defineStyleMapCapture({
+  dir: process.env.STYLEPROOF_DIR,
+  maxForcedStateScanWork: 80_000,
+  surfaces: [
+    {
+      key: 'home',
+      widths: [1280],
+      go: async (page) => {
+        await page.goto('/');
+      },
+    },
+  ],
+});
+```
+
+Surfaces can override either value. Variants and live states inherit their
+surface's values and can override them independently. State recipes and popup
+captures inherit their surface's values. Each primary capture and self-check
+gets the same resolved limits and a fresh allowance.
+
+Increasing a limit does not make capture faster or extend `surfaceTimeoutMs`.
+Measure complete capture and self-check time before increasing allowances for
+large pages. Raising `maxInteractive` alone does not change either scan limit.
+These options do not disable states, sample controls, or certify truncated maps.
+CLI URL/crawl commands do not expose these options.
+
+
+## Reference
+
+**Action `BenSheridanEdwards/StyleProof@v6`** — key inputs:
+
+| Input                 | Default                      | Purpose                                                                                                        |
+| --------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `fresh-dir`           | _required_                   | PR-head captures restored from `styleproof-maps` or freshly captured in CI.                                    |
+| `baseline-dir`        | _required_                   | Base-branch captures dir restored from `styleproof-maps` or freshly captured in CI.                            |
+| `base-capture-failed` | `false`                      | Mark a bare baseline caused by a capture failure; publishes head-only evidence but hard-fails as degraded.     |
+| `include-content`     | `false`                      | Render advisory content and DOM-structure evidence in the durable report; never changes the style verdict.     |
+| `require-approval`    | `false`                      | Review-gate mode: set the `StyleProof` status instead of failing.                                              |
+| `fail-on-diff`        | `true`                       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                                       |
+| `status-context`      | `StyleProof`                 | Commit-status name. Must match the approve workflow and branch protection.                                     |
+| `comment-marker`      | `<!-- styleproof-report -->` | HTML comment used to upsert the PR report. Set a distinct value when more than one Action runs on the same PR. |
+
+Outputs include `changed`, `content-changes`, `report-url`, `trust-state`, and `data-residue-keys`. `trust-state` distinguishes a clean style comparison (`NO_REVIEWABLE_STYLE_CHANGES`), style review (`STYLE_REVIEW_REQUIRED`), unapprovable evidence failures, `PARTIAL_BASELINE` (named surface+SHA failed on the base bundle — not a recapture failure; approval cannot clear), `DEGRADED_BASELINE` (the base capture failed with zero maps, so the receipt is head-only evidence rather than a comparison), and publication failure. `content-changes` is the advisory count rendered when `include-content` is enabled; it never changes `changed` or the gate status. `styleproof-diff --json` carries `explainedMissingBaselineSurfaces` and `partialBaseline` so consumers need not reimplement `@auto` width matching. The action **self-verifies** the publish before exposing `report-url`: it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
+
+**Config file `styleproof.config.ts`** (optional, at the repo root) — the one place a project declares its facts. CLIs discover it by walking upward from the current working directory to the git root (`styleproof.config.ts` / `.mjs` / `.js` / `.json`), so a package-subdirectory cwd (for example `working-directory: hud`) still finds the repo-root file. Relative file-path fields (`spec`, `crawl.setup`, `crawl.authBoundaryExclude`, `crawl.incompleteUiExclude`, `crawl.out`, `coverage.manifest`, `affected.graph`) resolve from the config file's directory, not from `process.cwd()`. When a discovered `.ts` is evaluated, `styleproof` and peer packages resolve from that file's directory and the nearest package root walking up from it — not only `process.cwd()`. Linked git worktrees (`styleproof-ci` probes without their own `node_modules`) also search the main working tree's matching package roots so a host install stays visible. If the package still cannot be resolved, StyleProof fails closed and names those searched roots. A missing spec after that walk fails closed and lists every config path that was searched — there is no silent fallback to `e2e/styleproof.spec.ts` when a parent config exists. The Action reads the gate-policy keys; every CLI reads the project-default keys as its lowest-precedence layer (explicit flag > environment variable > this file > built-in default). A malformed file or wrongly-typed key fails loudly — config you wrote is never silently dropped:
+
+```ts
+// styleproof.config.ts
+import { defineConfig } from 'styleproof';
+
+export default defineConfig({
+  blocking: true,
+  requireApproval: true,
+  spec: 'e2e/styleproof.spec.ts',
+  roots: ['hud'],
+});
+```
+
+`styleproof.config.ts` is the supported format with full IDE autocomplete. A JS-shaped `.ts` (no type syntax) is evaluated on every supported Node, including 18/20. Files that need type stripping require Node 22.18+ (or `--experimental-strip-types`) **and** a resolvable `styleproof` package from the config file's directory, nearest package root, or — for a linked probe worktree — the main working tree's matching package root. If that file is found but cannot be evaluated, StyleProof fails closed and names the path, the reason, and the package roots it searched — it does not invent `{}` or `e2e/styleproof.spec.ts`, and a sibling `styleproof.config.json` does not override the discovered `.ts` for policy or spec. Runtime formats that always load are `.json` / `.mjs` / `.js` when no `.ts` is present. Legacy `styleproof.config.json` remains supported with a deprecation warning directing migration to the typed config:
+
+| Key                       | Default                  | Purpose                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blocking`                | `true`                   | Review-gate mode only: on **unapproved** visual changes, also **fail the job** (red ✗), so the check blocks even without a branch-protection rule requiring the status. On by default; set `false` for advisory-only (status red, job green). See below.                                                                                                                                                         |
+| `gateInventoryRemovals`   | `true`                   | Fail the Action on an **unacknowledged navigable removal** (see [What a green certifies](../README.md#what-a-green-certifies)). Set `false` to make inventory advisory.                                                                                                                                                                                                                                                      |
+| `spec`                    | `e2e/styleproof.spec.ts` | Capture spec path, used by `styleproof-map`/`-prepush`/`-ci` when no `--spec` is passed. Resolved from the config file's directory, so a repo-root value like `hud/tests/e2e/styleproof.spec.ts` stays valid when the CLI runs from `hud`.                                                                                                                                                                       |
+| `dirtyAllow`              | `[]`                     | Tracked files/dirs a dev tool rewrites on every run (e.g. a regenerated `tsconfig.json`) that must never mark a capture dirty. Accumulates with `--dirty-allow` flags and `STYLEPROOF_DIRTY_ALLOW`.                                                                                                                                                                                                              |
+| `cacheBranch`             | `styleproof-maps`        | Map store branch.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `remote`                  | `origin`                 | Git remote for the map store.                                                                                                                                                                                                                                                                                                                                                                                    |
+| `affected`                | —                        | `{ "surfaces": { key: entryModulePath }, "graph": "dc.json", "base": "origin/main" }` — pins `styleproof-affected`'s inputs so a configured repo runs it bare, with no flags.                                                                                                                                                                                                                                    |
+| `crawl`                   | —                        | One-config crawl/auth defaults for `styleproof-capture`: `{ "baseUrl", "routes", "setup", "authBoundaryExclude", "strict", "out", "maxActions", "width", "height" }`. `setup` and `authBoundaryExclude` are repo-relative JSON files; setup values use `${ENV_VAR}` interpolation so secrets never enter config. `styleproof-map` refuses these auth knobs because its Playwright spec path cannot execute them. |
+| `mapStore`                | —                        | Map store config: `{ "token": "inherit", "gitTimeoutMs": 120000, "pruneRetentionDays": 14, "pruneBudgetBytes": 1500000000 }`. `token: "inherit"` uses `GITHUB_TOKEN`; CLI flags override prune defaults.                                                                                                                                                                                                         |
+| `reportStore`             | —                        | Report store prune config: `{ "pruneRetentionDays": 30, "pruneBudgetBytes": 2000000000 }`. CLI flags override.                                                                                                                                                                                                                                                                                                   |
+| `ancestorBaseline`        | `{ enabled: true }`      | Ancestor baseline reuse config: `{ "enabled": true, "roots": ["src"] }`. When enabled (the default), CI falls back to the nearest compatible ancestor bundle on a base cache miss. Set `enabled: false` to disable. `roots` controls which directories' changes count as capture-relevant.                                                                                                                       |
+| `suppressPlatformWarning` | `true`                   | Suppress the compatibility-key mismatch warning when local and CI browsers differ. Set `false` to see the warning. The exit-code behavior is unchanged.                                                                                                                                                                                                                                                          |
+
+Example for a protected app:
+
+```json
+{
+  "blocking": true,
+  "crawl": {
+    "baseUrl": "http://127.0.0.1:3000",
+    "routes": ["/", "account=/account"],
+    "setup": "styleproof.setup.json",
+    "authBoundaryExclude": "styleproof.auth-boundary-exclude.json",
+    "strict": true
+  }
+}
+```
+
+### Blocking without branch protection
+
+A commit status only _blocks a merge_ where a branch-protection rule requires it — which needs GitHub Pro or a public repo. On a free private repo the `StyleProof` status is advisory. So review-gate mode is **blocking by default**: on unapproved changes it also fails the report job, and the PR shows a red check regardless of branch protection.
+
+For advisory-only (the status goes red but the job stays green — useful when a branch-protection rule already requires the `StyleProof` status), opt out in `styleproof.config.json`:
+
+```json
+{ "blocking": false }
+```
+
+It's **asynchronous by design**: approval is a checkbox tick handled by a separate workflow, so to clear the red you tick **Approve all changes**, then **re-run the StyleProof job** — the re-run sees the sign-off on the commit status and passes. (A new push that changes styles re-opens it.)
+
+**Capture spec `defineStyleMapCapture({ surfaces, … })`** — determinism is on by default; you rarely set more than `surfaces` and `dir`:
+
+| Option             | Default                     | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaces`         | _required_                  | Page states to certify — each `{ key, go, widths?, ignore?, height?, liveStates?, variants?, popups? }`. `go(page)` drives to a settled state. Omit `widths` to auto-detect the app's `@media` breakpoints and sweep one width per band.                                                                                                                                                                                                                               |
+| `liveStates`       | _none_                      | Optional pinned live product states. Each `{ key, setup?, go?, widths?, height?, ignore? }` becomes `<surface>-<state>` and is labeled as a live state in reports.                                                                                                                                                                                                                                                                                                     |
+| `variants`         | _none_                      | Optional non-live deterministic states under a surface. The base surface still captures; each variant becomes `<surface>-<variant>` so base/head compare matching states.                                                                                                                                                                                                                                                                                              |
+| `popups`           | `false`                     | Optional automatic popup capture. Set `true` or `{ max, triggers, overlays, timeoutMs }` to click visible safe triggers and save each opened overlay state as `<surface>-popup-XX`; maps include `overlays` proof metadata for captured semantic roots.                                                                                                                                                                                                                |
+| `expected`         | _none_                      | Your route/view/state/component universe. Emits a coverage-guard test (runs without a capture dir) that fails when a required key has no surface and isn't excluded.                                                                                                                                                                                                                                                                                                   |
+| `exclude`          | `{}`                        | `key → reason` for routes deliberately not captured. Keeps the guard green for known gaps; a key absent from `expected` fails the guard, so the ledger can't go stale.                                                                                                                                                                                                                                                                                                 |
+| `dir`              | `STYLEMAP_DIR`              | Output label (`base`/`head`); the spec is **inert until set**, so it sits safely beside your other specs.                                                                                                                                                                                                                                                                                                                                                              |
+| `replayFrom`       | `STYLEPROOF_REPLAY_FROM`    | Baseline dir whose recorded responses to replay. Unset → this run **records** its HAR for the comparison to use.                                                                                                                                                                                                                                                                                                                                                       |
+| `replayUrl`        | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.                                                                                                                                                                                                                                                                                                                                                           |
+| `dataResidue`      | `'gate'`                    | Name data-boundary (`replayUrl`) requests that **fail** during capture (network error / 4xx/5xx — the fallback branch got captured). Always warned + recorded; `'gate'` (the default) also blocks the diff on an unacknowledged one, `'warn'` is the opt-out that records + warns without gating. See [Data residue](#failed-data-request-a-failed-api-call-is-named-not-swallowed).                                                                                      |
+| `freezeClock`      | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works. Covers the browser clock and (via `STYLEPROOF_FREEZE_SPEC_CLOCK=1`, set by `styleproof-map`) the spec process's own clock, so module-level fixture stamps are identical across runs. `false` also restores the real spec-process clock.                                                                                                                |
+| `liveText`         | _off_                       | Declare live/age/clock text (`true` or `{ freeze?, selectors? }`). Age-only drift stays advisory and is not `STYLE_REVIEW_REQUIRED`. `{ freeze: true }` fail-closes if captured ages still change. Requires `captureText: true`. See [Deterministic by default](#deterministic-by-default).                                                                                                                                                                            |
+| `clockTime`        | `2025-01-01T00:00:00Z`      | The frozen instant. Set `STYLEPROOF_CLOCK_TIME` to the same value on the capture command so spec-process fixture stamps (frozen at import time, before options are read) agree with it.                                                                                                                                                                                                                                                                                |
+| `parallel`         | `true`                      | Run the generated capture tests across Playwright workers, even when the project config pins `fullyParallel: false` — every capture test is independent, so a multi-surface spec speeds up ~workers×. Set `false` only for a spec file whose own sibling tests read the captured maps in file order.                                                                                                                                                                   |
+| `selfCheck`        | on while recording          | Capture each surface twice and fail on any difference — proves the capture is deterministic. Off on the replay run; `STYLEPROOF_SELFCHECK=1` forces both.                                                                                                                                                                                                                                                                                                              |
+| `surfaceTimeoutMs` | `300000` (5 min)            | Per-surface capture ceiling, ms (`STYLEPROOF_SURFACE_TIMEOUT_MS` overrides when unset). On breach the capture fails loudly, naming the surface and the phase in flight (navigate / settle / capture / self-check), so one stuck surface can't silently consume the job budget. Each completed surface also logs a heartbeat line — `styleproof: surface 17/41 (factory@1280) captured in 42.1s (self-check 12.3s)` — so a slow run is distinguishable from a hung one. |
+| `screenshots`      | `true`                      | Save full-page screenshots for the report's before/after crops.                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `baseDir`          | `__stylemaps__`             | Output root directory.                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<style>`/… and `next-route-announcer`) are skipped automatically; a surface's `ignore` adds to that default, it doesn't replace it.
+
+**Capture env vars** (wire CI without editing the spec):
+
+| Env                                    | Purpose                                                                                                                                                                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STYLEMAP_DIR`                         | Output label; the capture is skipped entirely when unset.                                                                                                                                                                                                                 |
+| `STYLEPROOF_BASEDIR`                   | Output root dir (runner default `__stylemaps__`; `styleproof-map` CLI default `.styleproof/maps`).                                                                                                                                                                        |
+| `STYLEPROOF_SCREENSHOTS`               | `0` to skip full-page screenshots. The CLI keeps screenshots by default so reports can crop maps restored from cache.                                                                                                                                                     |
+| `STYLEPROOF_REPLAY_FROM`               | Baseline dir to replay recorded data from — set this on the **head** capture.                                                                                                                                                                                             |
+| `STYLEPROOF_REPLAY_URL`                | Override the `**/api/**` data-boundary glob.                                                                                                                                                                                                                              |
+| `STYLEPROOF_SELFCHECK`                 | `1` to capture each surface twice and fail if the two differ.                                                                                                                                                                                                             |
+| `STYLEPROOF_SURFACE_TIMEOUT_MS`        | Per-surface capture ceiling in ms (default `300000`); a breach fails loudly naming the surface and phase in flight.                                                                                                                                                       |
+| `STYLEPROOF_UPLOAD`                    | `1` to require map-store upload; `0` to capture locally only.                                                                                                                                                                                                             |
+| `STYLEPROOF_CACHE_BRANCH`              | Map store branch (default `styleproof-maps`).                                                                                                                                                                                                                             |
+| `STYLEPROOF_SKIP_CAPTURE`              | `1` to skip the scaffolded pre-push capture/publish hook for one push.                                                                                                                                                                                                    |
+| `STYLEPROOF_DIRTY_ALLOW`               | Comma-separated tracked paths whose changes never mark a capture dirty (same as repeated `--dirty-allow`).                                                                                                                                                                |
+| `STYLEPROOF_CRAWL_BASE_URL`            | App URL for the optional pre-map `styleproof-variants` crawl.                                                                                                                                                                                                             |
+| `STYLEPROOF_CRAWL_ROUTES`              | Comma-separated routes for the optional pre-map crawl, e.g. `/,settings=/settings`.                                                                                                                                                                                       |
+| `STYLEPROOF_CRAWL_STRICT`              | `1` to fail the optional pre-map crawl on live-state fixtures or skipped candidates.                                                                                                                                                                                      |
+| `STYLEPROOF_ANCESTOR_BASELINE`         | `0` to disable ancestor baseline reuse. On by default: `styleproof-ci` reuses the nearest first-parent ancestor's stored bundle on a base cache miss when nothing capture-relevant changed since it. Set `ancestorBaseline.enabled: false` in config for the same effect. |
+| `STYLEPROOF_ANCESTOR_BASELINE_ROOTS`   | Comma-separated repo-relative app source directories (e.g. `src,styles`) whose changes are capture-relevant to the ancestor-reuse gate. The Playwright capture config is always relevant. With no roots declared, every changed path counts as relevant.                  |
+| `STYLEPROOF_SKIP_BROWSER_PREFLIGHT`    | `1` to skip `styleproof-ci`'s pre-capture browser-build verification and always run the unconditional `playwright install`.                                                                                                                                               |
+| `STYLEPROOF_SUPPRESS_PLATFORM_WARNING` | `0` to show the compatibility-key mismatch warning when local and CI browsers differ. Suppressed by default (`suppressPlatformWarning: true`); the exit-code behavior is unchanged.                                                                                       |
+
+**CLIs** (every flag accepts `--flag value` and `--flag=value`; `--help` lists all):
+
+- `styleproof-init` — scaffold the gate along three independent axes: `--workflow single|split` (one in-job capture+report workflow — the default — or the fork/Dependabot-safe read-only capture job plus trusted `workflow_run` report job), `--storage artifact|branch` (maps as workflow artifacts — the default — or the SHA-keyed `styleproof-maps` store branch), and `--mode advisory|certify|review-gate` (advisory reporting — the default — a blocking diff, or the reviewer-approval gate that also emits the `styleproof-approve.yml` handler). Every scaffold writes the capture spec (inventory guard on; Next.js repos get route discovery + the coverage guard, others a crawl-by-default spec), a dedicated `playwright.styleproof.config.ts` (production-build `webServer`, parallel capture), `styleproof.config.ts` (typed config; an unloadable `.ts` fails closed instead of falling through a spec-less sibling JSON), `.gitignore` cache entries, and the lint-artifacts guard; `split` adds the report workflow, `review-gate` adds the approval workflow, and `branch` storage adds the restore-or-publish pre-push hook. A `# styleproof-scaffold:` marker in the generated workflow records the chosen axes so `--check` and `--upgrade` verify that mode's file set; unmarked pre-v7 scaffolds are inferred from their files (`split`+`branch`+`review-gate` still emits byte-identical output). With `--storage branch` in a Git worktree with no effective local, worktree, global, or system `core.hooksPath` and no existing default pre-push hook, init activates the generated `.githooks/pre-push` shim automatically. A matching `.githooks` path is reported active; an existing default or custom path is preserved and reported with an explicit inactive warning and opt-in replacement command; Husky is reported active only when Git's resolved shim exists. Repository-owned hook bytes are never replaced or silently activated. In branch-storage mode the CI hot path restores exact-SHA maps and runs no browser; a compatible base hit plus head miss captures only the head; a base miss captures the pair; every fallback is published for reuse. On the first adoption PR, if the base commit lacks either the capture spec or dedicated Playwright config, packaged `styleproof-ci` temporarily sources the complete harness from the PR head while still rendering the base application's code and dependencies. Generated commands prefer a supported `packageManager` declaration, otherwise follow an unambiguous repo lockfile (`bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, or npm by default), respect pnpm/Corepack version pins, and detect Vite/Next production preview commands instead of assuming every repo has `start`. Generated files carrying StyleProof's ownership marker are **machine-owned** thin wrappers over packaged commands: after upgrading styleproof, `styleproof-init --check` reports whether they drifted from the release's templates (exit 1 — wire it into CI), and `styleproof-init --upgrade` refreshes them in place without touching your spec, playwright config, or a repository-owned Husky hook. Custom spec paths are canonical-base64 data decoded and repository-bound by packaged Node code; generated YAML and shell remain fixed source. The generated workflow performs its freshness check immediately after dependency installation. Use the explicit `--hook` command only when you intend to replace that hook.
+- `styleproof-map` — capture the current commit's computed-style map through Playwright. By default it writes `.styleproof/maps/current`, keeps screenshots for reports, writes a manifest, and uploads to `styleproof-maps` outside CI when the working tree was clean and a git remote is available. The manifest preserves the complete application lockfile hash as provenance, while the compatibility key includes only the lockfile's Playwright runtime descriptor; application dependency migrations therefore remain comparable without allowing Playwright-runtime mismatches. Diff and report JSON expose matching or changed lockfile provenance as `sourceBinding.applicationDependencyProvenance`. Pass `--crawl-base-url` plus repeated `--crawl-route` to run `styleproof-variants` before capture, `--no-upload`, `--restore --sha <commit>`, `--spec`, `--dir`, `--base-dir`, `--no-screenshots`, or repeated `--dirty-allow <path>` (a tracked file a dev tool rewrites on every run — e.g. `next dev` regenerating a `tsconfig.json` — that must not mark the capture dirty) for custom flows.
+- `styleproof-diff` — the certify gate. With no args, it restores cached maps for the current commit and inferred base (`GITHUB_BASE_REF`, `branch.<name>.gh-merge-base`, `gh pr view`, then main/master fallbacks); `styleproof-diff main` / `styleproof-diff master` pins the base; `styleproof-diff <beforeDir> <afterDir>` keeps the manual two-directory form for CI fallback captures. Exits `0` certified (identical); `1` on a reviewable diff — matched-element computed-style/state differences, and equally an unacknowledged inventory removal, an unacknowledged failing data endpoint under an armed `dataResidue: 'gate'`, an incomplete coverage registry, or an unproven-determinism capture; `2` on a usage/capture error (including a **manifest-less side** — since **v4**, a two-directory compare where a side ships maps but no `styleproof-manifest.json` is refused loudly, naming the bare side(s), because the same-environment guard can't be enforced without one; re-capture with current StyleProof; **and** a **missing map** — a bundle that claims to exist yet holds zero captures, i.e. a `styleproof-manifest.json` present with no maps, on either side, or a head capture that produced nothing; refused loudly rather than mislabelled as all-new — **and** the no-args case where the cached base map can't be restored at all: no map-store remote, no cached bundle, nothing to compare. A "nothing was compared" outcome always exits `2`, never a soft `0` that would read as certified; the error names the two ways forward — run in CI where the base is restorable, or use the two-directory form); `3` when only new surfaces are present — surfaces captured only on the **head** side (a surface present only on the **base** side is a **removed** surface, a reviewable change: exit `1`) — (no baseline for _those_ surfaces to diff against — new surfaces against an existing baseline, or a base dir with no maps at all (and hence no manifest), meaning no baseline was ever captured: the first-adoption review path; approval policy decides whether to gate). Element additions, removals, and retags inside a paired surface belong to the advisory content layer and do not affect these exits. A clean run prints `0 changed surfaces across N captured surface(s)`, and `--json` includes `compared`. The human output **groups the same way the report does**: surfaces that changed identically collapse into one finding (with the per-surface count on its header), longhands fold into shorthands, and size/position-derived longhands fold behind a `(+N derived longhands)` count — so one real change reads as one entry, not dozens of raw lines. A change that rode the shared frame every view draws (a persistent nav/header/footer) is promoted to a "🧱 Global chrome change" callout up top. `--json` stays the complete, unchanged machine contract — every surface and every raw longhand — regardless of the human grouping.
+- `styleproof-report` — render the diff to a Markdown report with before/after crops. With no args, it reports cached maps for the current commit against the inferred base; `styleproof-report main` / `styleproof-report master` pins the base; `styleproof-report <beforeDir> <afterDir> --out <dir>` keeps the manual two-directory form. Add `--include-content` for the opt-in, advisory content and structure section (see above). Shares the same comparison truth as `styleproof-diff` (`reviewableCounts` / `reportConsistency` in `report.json`): raw-only style evidence never claims “all surfaces identical.” Content/structure evidence remains separate and never affects the verdict.
+- `styleproof-capture` — one-shot capture of any URL (no spec): `styleproof-capture <url> --key <name> --out <dir>`, with `--widths` (omit to auto-detect `@media` bands), `--wait <selector>`, `--ignore <selector>`, `--no-screenshots`, and the crawler flags (`--crawl`, `--setup <file>`, `--require-full-coverage` → exit 4 on residue, `--until-covered`, `--workers <n>`, `--no-data-states`) described in [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel).
+- `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
+- `styleproof-prepush` — the canonical pre-push flow, packaged: reads git's refspecs from stdin, captures the pushed commit only when its tip is the checked-out tree, skips docs-only pushes, restores an already-published exact-SHA map or captures and publishes once, then runs the advisory diff. The hook `styleproof-init` writes is a two-line shim that execs the installed local binary directly, so the rules update with each release instead of drifting in a copied hook file and a missing install fails instead of falling through to a package-registry download — refresh an old hook with `styleproof-init --hook`.
+- `styleproof-ci`: the whole cache-first CI flow as one command: `--base <sha> --head <sha>` restores both exact-SHA bundles from `styleproof-maps` (failing loudly on a map-store/network fault, exit codes 0 hit / 4 miss / other fault come from `styleproof-map --restore`), or with `--no-store` — the flag the default single-workflow scaffold emits — skips every restore probe and ancestor-baseline reuse, captures base and head in the same job, and implies `--no-upload` (no map-store branch exists or is touched); restore probes and cold base capture run in detached ephemeral worktrees so the consumer checkout never visits `--base`; on a head-only miss captures just the head in the consumer (replaying the base's recorded data when HAR files are present); on a base miss rebuilds the pair under the head's exact StyleProof release, detecting the package manager independently at each checkout. For npm adopters, that exact StyleProof runtime is installed under the ephemeral session directory and linked into the base worktree without altering the dependency tree produced by `npm ci`. Pass `--spec-ref <ref>` to source the spec and its colocated harness from that ref for both base and head; when the checkout lacks `playwright.styleproof.config.ts`, the overlay sources that dedicated config from the ref as well. The product commits do not need to track the harness; each overlay is removed after the restore probe or capture while app code and lockfiles remain pinned to `--base` or `--head`. If base capture fails it replaces partial output with a bare baseline, captures the head, and emits `base-capture-failed=true`; head capture remains fail-closed. Writes `base-hit`/`head-hit`/`capture-needed`/`base-capture-failed` to `$GITHUB_OUTPUT`. Before each capture it verifies the pinned Playwright browser build exists on the host (resolving the executable through the consumer's own Playwright — webkit too when the capture config mentions it): a healthy host logs one `verified` line per browser and skips the install; a missing build (e.g. a re-provisioned runner with an empty ms-playwright cache) self-heals with one `playwright install`, and if that fails or leaves the executable missing the run exits non-zero immediately, naming the missing revision and the exact `npx playwright install …` remedy instead of dying minutes later at `browserType.launch`; `STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1` skips the verification. It may `git checkout --force` the consumer to `--head` only; it refuses to run without `CI=1` unless `--force` is passed. The init-generated workflow step is a single invocation of this command and passes the degraded signal into the Action. **Nearest-ancestor baseline reuse** (default-on; disable with `STYLEPROOF_ANCESTOR_BASELINE=0` or `ancestorBaseline.enabled: false`): on a base miss it walks up to 50 first-parent ancestors of `--base` for the nearest commit with a stored bundle and, only when **no** path changed since it is capture-relevant (the capture spec's directory, the Playwright capture config, `styleproof.config.json`, package manifests/lockfiles, or a declared `STYLEPROOF_ANCESTOR_BASELINE_ROOTS` app source root — with no roots declared every changed path counts as relevant), restores that bundle **byte-for-byte** as the baseline; its manifest keeps naming the ancestor it was verified at, so reuse never relabels a map to a SHA it never rendered. Any error or doubt falls back to the ordinary capture path. Reuse is never silent: the run appends `base-restored-from-ancestor=<sha>` to `$GITHUB_OUTPUT`, records a `styleproof-baseline-provenance.json` sidecar, and the report and `styleproof-diff --json` state whether the baseline was restored from the exact SHA, reused from an ancestor (with the changed-path-count proof), or captured fresh.
+- `styleproof-affected` — the selective-remap verdict as a command: `--graph dc.json --surfaces styleproof.surfaces.json --base origin/main` answers "which declared surfaces could this change have restyled?" from a dependency-cruiser graph and the git diff, printing the reviewer-checkable skip list and (with `--json`) a machine verdict of `recapture` vs `reuse` keys. Exit `0` = scoped, `3` = unbounded (`'all'` — re-capture everything), `2` = usage error. Advisory: it never captures or gates by itself (see **Optional: selective remap**).
+- `styleproof-prune-maps` — bound the sha-keyed map store branch: prune bundles older than `--retention-days` (default 14) and beyond a `--max-bundles` cap (default 40), then squash the branch to a **single orphan commit** holding only the retained bundle trees. The map store is a cache — bundles for commits the base branch moved past can never be restored again, and nothing links into the branch's history — so unlike `styleproof-prune-reports` (fast-forward only, history preserved for pinned report links) the rewrite is total. Git-data APIs only, never a clone; retained bundles keep their existing tree SHAs so nothing re-uploads. The final GraphQL `updateRefs` mutation atomically requires the exact tip used for retention selection. A concurrent publication triggers a bounded retry from its new tip; errors never fall back to an unconditional force update. Bundle ages come from the publish commit log merged over a `styleproof-map-store-prune.json` sidecar that carries dates across squashes; undated legacy bundles prune first. A quiet, already-compact branch (`--history-limit`, default 30 commits) is left untouched. Requires `GH_TOKEN` with `contents: write`; run it on a schedule next to the report prune.
+- `styleproof-prune-reports` — delete `pr-<n>/` report folders from the report branch through the git-data API (never a clone): `--pull-request <n>` on PR close, or a scheduled sweep with `--retention-days` and `--budget-bytes` (oldest-closed first; open PRs never touched).
+
+A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.

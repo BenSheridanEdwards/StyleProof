@@ -24,7 +24,10 @@ Required:
   --run-attempt <n>     GitHub Actions run attempt
 
 Options:
-  -h, --help            show this help`;
+  -h, --help            show this help
+
+styleproof-publish-report is a compatibility alias for the unified CLI: styleproof publish-report
+`;
 
 const argv = process.argv.slice(2);
 if (argv.includes('--help') || argv.includes('-h')) {

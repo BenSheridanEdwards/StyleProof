@@ -86,6 +86,7 @@ options:
   -h, --help                show this help
 
 exit: 0 no changes, 1 report generated, 2 usage error.
+styleproof-report is a compatibility alias for the unified CLI: styleproof report
 `;
 
 const argv = process.argv.slice(2);

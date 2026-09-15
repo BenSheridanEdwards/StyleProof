@@ -12,6 +12,7 @@ const reusableApproveYml = fs.readFileSync(
 );
 const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+const reference = fs.readFileSync(path.join(root, 'docs/REFERENCE.md'), 'utf8');
 const liveReportScript = fs.readFileSync(path.join(root, 'scripts/live-readme-report.mjs'), 'utf8');
 const liveComment = fs.readFileSync(path.join(root, 'docs/readme/live-report/comment.md'), 'utf8');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -294,8 +295,8 @@ test('every rendered approval caption names the author rule (#477)', () => {
   ]) {
     assert.ok(source.includes(clause), `${name} should state the approver rule in the comment caption`);
   }
-  assert.match(readme, /#### Who may tick the box/);
-  assert.match(readme, /STYLEPROOF_ALLOW_SELF_APPROVAL/);
+  assert.match(reference, /#### Who may tick the box/);
+  assert.match(reference, /STYLEPROOF_ALLOW_SELF_APPROVAL/);
 });
 
 // Reusable workflow tests (#598)
@@ -400,8 +401,8 @@ test('dogfood approve stub is a thin caller of the reusable at main (#644)', () 
   assert.doesNotMatch(executable, /script:\s*\|/, 'must not copy the github-script program');
   assert.doesNotMatch(executable, /require-approval/, 'must not enable require-approval; that is the Action input');
   assert.doesNotMatch(executable, /fail-on-diff/, 'must not change certify or advisory evidence');
-  assert.match(readme, /thin caller/);
-  assert.match(readme, /styleproof-approve-reusable\.yml@v7/);
-  assert.match(readme, /pinned to `@main`/);
-  assert.match(readme, /does not set `require-approval`/);
+  assert.match(reference, /thin caller/);
+  assert.match(reference, /styleproof-approve-reusable\.yml@v7/);
+  assert.match(reference, /pinned to `@main`/);
+  assert.match(reference, /does not set `require-approval`/);
 });

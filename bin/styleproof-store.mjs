@@ -25,7 +25,10 @@ options:
   --include-har  import HAR files (import only; excluded by default)
   --no-ref       import objects without updating the commit ref (import only)
   --json         print a deterministic machine-readable receipt
-  -h, --help     show this help`;
+  -h, --help     show this help
+
+styleproof-store is a compatibility alias for the unified CLI: styleproof store
+`;
 
 const argv = process.argv.slice(2);
 if (argv.includes('--help') || argv.includes('-h') || argv.length === 0) {

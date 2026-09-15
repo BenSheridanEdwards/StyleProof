@@ -6,21 +6,19 @@ import http from 'node:http';
 import { PNG } from 'pngjs';
 import type { CDPSession, Page } from '@playwright/test';
 import {
-  captureStateLayerScreenshots,
   captureStyleMap,
   saveStyleMap,
   loadStyleMap,
   trackInflightRequests,
-  captureUrlToDir,
-} from '../dist/index.js';
-import {
-  diffContentMaps,
   diffStyleMapDirs,
   diffStyleMaps,
-  selectCrawlLinks,
   detectViewportWidths,
-  crawlAndCapture,
 } from '../dist/index.js';
+import { captureStateLayerScreenshots } from '../dist/capture.js';
+import { captureUrlToDir } from '../dist/capture-url.js';
+import { diffContentMaps } from '../dist/diff.js';
+import { selectCrawlLinks } from '../dist/crawl.js';
+import { crawlAndCapture } from '../dist/crawl-surfaces.js';
 import { passLiveStreams } from '../src/runner.js'; // src, not dist: dist/ is gitignored so fallow can't resolve it
 
 // Every test here builds its own fixture (mkdtemp / own page); none reads another

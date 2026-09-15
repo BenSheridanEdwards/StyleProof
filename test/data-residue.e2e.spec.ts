@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { trackDataResidue } from '../dist/index.js';
+import { trackDataResidue } from '../dist/capture.js';
 
 // The incident, generic: a page requests a `/api/**` data endpoint that nothing routes,
 // so the request FALLS THROUGH and fails during capture; the view renders its fallback

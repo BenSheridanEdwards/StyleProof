@@ -49,6 +49,7 @@ options:
 
 A styleproof.config.json at the repo root supplies project defaults ("spec",
 "dirtyAllow", …) so the generated hook shim needs no per-repo flag threading.
+styleproof-prepush is a compatibility alias for the unified CLI: styleproof prepush
 `;
 
 const argv = process.argv.slice(2);

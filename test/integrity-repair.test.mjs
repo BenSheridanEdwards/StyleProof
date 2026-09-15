@@ -38,7 +38,7 @@ import { mkTmp, rmTmp, makeMap, writeCapture, fixtureCommitSha, fixtureCompatibi
 const here = path.dirname(fileURLToPath(import.meta.url));
 const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
 const dogfoodYml = fs.readFileSync(path.join(here, '..', '.github/workflows/action-dogfood.yml'), 'utf8');
-const readme = fs.readFileSync(path.join(here, '..', 'README.md'), 'utf8');
+const reference = fs.readFileSync(path.join(here, '..', 'docs/REFERENCE.md'), 'utf8');
 
 const HEALTHY_SHA = fixtureCommitSha('integrity-healthy');
 
@@ -333,10 +333,10 @@ test('action-dogfood reproduces each integrity reason and asserts guidance', () 
   assert.match(dogfoodYml, /What broke/);
 });
 
-test('README documents the repair path for each integrity reason', () => {
-  assert.match(readme, /connector-partial/);
-  assert.match(readme, /duplicate-id/);
-  assert.match(readme, /integrity-mismatch/);
-  assert.match(readme, /What broke/);
-  assert.match(readme, /cannot clear/i);
+test('the reference documents the repair path for each integrity reason', () => {
+  assert.match(reference, /connector-partial/);
+  assert.match(reference, /duplicate-id/);
+  assert.match(reference, /integrity-mismatch/);
+  assert.match(reference, /What broke/);
+  assert.match(reference, /cannot clear/i);
 });

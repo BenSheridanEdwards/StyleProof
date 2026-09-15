@@ -378,6 +378,7 @@ exit: 0 identical (certified), 1 differences found OR non-certifying evidence
       inventory/residue failures, removed surfaces), 2 usage/capture error,
       3 only NEW surfaces (present only on the head side, no baseline to diff
       against); a REMOVED surface (present only on the base side) exits 1
+styleproof-diff is a compatibility alias for the unified CLI: styleproof compare
 `;
 
 const argv = process.argv.slice(2);

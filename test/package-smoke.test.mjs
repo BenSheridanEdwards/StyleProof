@@ -141,7 +141,7 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
       process.execPath,
       [
         '-e',
-        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function' || typeof m.createEvidenceCapture !== 'function' || typeof m.writeEvidenceRef !== 'function' || typeof m.diffStyleMapDirs !== 'function' || typeof m.pixelDiffSurface !== 'function' || m.createReleaseConfidenceManifest !== undefined || m.projectReleaseConfidence !== undefined || m.parsePhase0Contract !== undefined) process.exit(1); })",
+        "import('styleproof').then((m) => { if (typeof m.generateStyleMapReport !== 'function' || typeof m.defineStyleMapCapture !== 'function' || typeof m.defineCrawlCapture !== 'function' || typeof m.defineConfig !== 'function' || typeof m.captureStyleMap !== 'function' || typeof m.diffStyleMaps !== 'function' || typeof m.diffStyleMapDirs !== 'function' || typeof m.parseStateRecipes !== 'function' || typeof m.assessDeterminismOracle !== 'function' || m.createEvidenceCapture !== undefined || m.pixelDiffSurface !== undefined || m.createReleaseConfidenceManifest !== undefined || m.projectReleaseConfidence !== undefined || m.parsePhase0Contract !== undefined) process.exit(1); })",
       ],
       { cwd: app },
     );
@@ -190,8 +190,12 @@ test('packed package installs with its peer and exposes API plus CLI help', { ti
     assert.equal(setup.status, 0, commandFailure(setup));
     assert.match(setup.stdout, /StyleProof setup complete/);
     assert.ok(
-      fs.existsSync(path.join(scaffold, '.github/workflows/styleproof-approve.yml')),
-      'the packed setup command did not scaffold the approval workflow',
+      fs.existsSync(path.join(scaffold, '.github/workflows/styleproof.yml')),
+      'the packed setup command did not scaffold the default single workflow',
+    );
+    assert.ok(
+      !fs.existsSync(path.join(scaffold, '.github/workflows/styleproof-approve.yml')),
+      'the packed setup defaults to advisory — the approval workflow is opt-in',
     );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

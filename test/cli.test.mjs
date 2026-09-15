@@ -1253,7 +1253,12 @@ test('init scaffolds auto breakpoints — no hardcoded widths, by design', () =>
 test('init scaffolds the out-of-the-box gate: cache-first maps + report workflow + pre-push publish hook', () => {
   const dir = makeInitProject();
   try {
-    const r = spawnSync(process.execPath, [INIT], { cwd: dir, encoding: 'utf8' });
+    // Legacy architecture is opt-in since #480: split + branch + review-gate.
+    const r = spawnSync(
+      process.execPath,
+      [INIT, '--workflow', 'split', '--storage', 'branch', '--mode', 'review-gate'],
+      { cwd: dir, encoding: 'utf8' },
+    );
     assert.equal(r.status, 0, r.stderr);
 
     const hook = fs.readFileSync(path.join(dir, '.githooks', 'pre-push'), 'utf8');

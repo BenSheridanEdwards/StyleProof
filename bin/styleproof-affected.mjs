@@ -58,6 +58,7 @@ config, an unlisted file, or an unbounded dynamic import all yield 'all'.
 Examples:
   styleproof-affected --graph dc.json --surfaces styleproof.surfaces.json --base origin/main
   styleproof-affected --graph dc.json --surface home=src/pages/Home.tsx --changed src/components/Nav.tsx --json
+styleproof-affected is a compatibility alias for the unified CLI: styleproof affected
 `;
 
 const argv = process.argv.slice(2);

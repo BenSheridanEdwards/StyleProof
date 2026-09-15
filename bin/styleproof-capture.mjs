@@ -112,6 +112,7 @@ Then diff against another capture — zero diff = pixel-identical:
 exit: 0 captured, 2 usage error, 3 capture failed, 4 coverage gap (--require-full-coverage),
       5 unacknowledged auth boundary, 6 unacknowledged incomplete UI.
       Precedence: coverage 4, incomplete UI 6, auth 5.
+styleproof-capture is a compatibility alias for the unified CLI: styleproof crawl
 `;
 
 const argv = process.argv.slice(2);
