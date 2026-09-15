@@ -760,6 +760,155 @@ test('loadStyleProofConfig: unresolved styleproof fails closed and lists searche
   }
 });
 
+function commitHostApp(root) {
+  execFileSync('git', ['config', 'user.email', 'styleproof@example.test'], { cwd: root, stdio: 'pipe' });
+  execFileSync('git', ['config', 'user.name', 'StyleProof Test'], { cwd: root, stdio: 'pipe' });
+  execFileSync('git', ['add', 'package.json', 'hud/styleproof.config.ts', 'hud/tests/e2e/styleproof.spec.ts'], {
+    cwd: root,
+    stdio: 'pipe',
+  });
+  execFileSync('git', ['commit', '-qm', 'test: host app with typed config'], { cwd: root, stdio: 'pipe' });
+}
+
+function addDetachedProbeWorktree(root) {
+  const probe = path.join(mkTmp('styleproof-config-probe-'), 'worktree');
+  execFileSync('git', ['worktree', 'add', '--detach', probe, 'HEAD'], { cwd: root, stdio: 'pipe' });
+  return probe;
+}
+
+function removeProbeWorktree(root, probe) {
+  try {
+    execFileSync('git', ['worktree', 'remove', '--force', probe], { cwd: root, stdio: 'pipe' });
+  } catch {
+    // leftover scratch still deleted below
+  }
+  rmTmp(path.dirname(probe));
+}
+
+test('loadStyleProofConfig: probe worktree without node_modules resolves styleproof from the host package root', () => {
+  const { root, nested } = mkRepoTree();
+  let probe;
+  try {
+    writePackageRootApp(root);
+    writeDefineConfigPackage(root);
+    writeInstalledPackage(root, 'styleproof-peer-fixture', "export const marker = 'from-host-package-root';\n");
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), PACKAGE_ROOT_TS);
+    fs.mkdirSync(path.join(nested, 'tests', 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'tests', 'e2e', 'styleproof.spec.ts'), '// spec\n');
+    commitHostApp(root);
+    probe = addDetachedProbeWorktree(root);
+    const probeNested = path.join(probe, 'hud');
+    assert.equal(fs.existsSync(path.join(probe, 'node_modules')), false, 'probe worktree must not carry node_modules');
+    assert.equal(fs.existsSync(path.join(probeNested, 'styleproof.config.ts')), true);
+
+    const loaded = loadStyleProofConfig(probeNested);
+    assert.equal(loaded.blocking, true);
+    assert.equal(loaded.spec, 'tests/e2e/styleproof.spec.ts');
+    assert.deepEqual(loaded.dirtyAllow, ['from-host-package-root']);
+    assertNoSoftDefaultSpec('');
+  } finally {
+    if (probe) removeProbeWorktree(root, probe);
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfigAsync: probe worktree without node_modules resolves styleproof from the host package root', async () => {
+  const { root, nested } = mkRepoTree();
+  let probe;
+  try {
+    writePackageRootApp(root);
+    writeDefineConfigPackage(root);
+    writeInstalledPackage(root, 'styleproof-peer-fixture', "export const marker = 'from-host-package-root';\n");
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), PACKAGE_ROOT_TS);
+    fs.mkdirSync(path.join(nested, 'tests', 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'tests', 'e2e', 'styleproof.spec.ts'), '// spec\n');
+    commitHostApp(root);
+    probe = addDetachedProbeWorktree(root);
+    const loaded = await loadStyleProofConfigAsync(path.join(probe, 'hud'));
+    assert.equal(loaded.blocking, true);
+    assert.deepEqual(loaded.dirtyAllow, ['from-host-package-root']);
+  } finally {
+    if (probe) removeProbeWorktree(root, probe);
+    rmTmp(root);
+  }
+});
+
+test('styleproof-map: probe worktree without node_modules does not invent e2e/styleproof.spec.ts', () => {
+  const { root, nested } = mkRepoTree();
+  let probe;
+  try {
+    writePackageRootApp(root);
+    writeDefineConfigPackage(root);
+    writeInstalledPackage(root, 'styleproof-peer-fixture', "export const marker = 'from-host-package-root';\n");
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), PACKAGE_ROOT_TS);
+    fs.mkdirSync(path.join(nested, 'tests', 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'tests', 'e2e', 'styleproof.spec.ts'), '// spec\n');
+    commitHostApp(root);
+    probe = addDetachedProbeWorktree(root);
+    const map = spawnSync(process.execPath, [MAP], { cwd: path.join(probe, 'hud'), encoding: 'utf8' });
+    assert.doesNotMatch(map.stderr, /could not be evaluated/);
+    assert.doesNotMatch(map.stderr, /Cannot find package 'styleproof'/);
+    assert.doesNotMatch(map.stderr, /no StyleProof spec at e2e\/styleproof\.spec\.ts/);
+    assert.doesNotMatch(`${map.stderr}${map.stdout}`, /using sibling styleproof\.config\.json/);
+  } finally {
+    if (probe) removeProbeWorktree(root, probe);
+    rmTmp(root);
+  }
+});
+
+test('loadStyleProofConfig: probe worktree without a host styleproof install fails closed and names searched roots', () => {
+  const { root, nested } = mkRepoTree();
+  let probe;
+  try {
+    writePackageRootApp(root);
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+    fs.mkdirSync(path.join(nested, 'tests', 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'tests', 'e2e', 'styleproof.spec.ts'), '// spec\n');
+    commitHostApp(root);
+    probe = addDetachedProbeWorktree(root);
+    const probeConfig = path.join(probe, 'hud', 'styleproof.config.ts');
+    assert.equal(fs.existsSync(path.join(probe, 'node_modules')), false);
+    assert.throws(
+      () => loadStyleProofConfig(path.join(probe, 'hud')),
+      (error) => {
+        assert.match(error.message, /could not be evaluated/);
+        assert.match(error.message, /searched package roots/i);
+        assert.ok(error.message.includes(path.dirname(probeConfig)), error.message);
+        assert.ok(error.message.includes(root), error.message);
+        assertNoSoftDefaultSpec(error);
+        return true;
+      },
+    );
+  } finally {
+    if (probe) removeProbeWorktree(root, probe);
+    rmTmp(root);
+  }
+});
+
+test('unloadableStyleProofConfigMessage: probe worktree names the host package root among searched roots', () => {
+  const { root, nested } = mkRepoTree();
+  let probe;
+  try {
+    writePackageRootApp(root);
+    fs.writeFileSync(path.join(nested, 'styleproof.config.ts'), INIT_TS_SCAFFOLD);
+    fs.mkdirSync(path.join(nested, 'tests', 'e2e'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'tests', 'e2e', 'styleproof.spec.ts'), '// spec\n');
+    commitHostApp(root);
+    probe = addDetachedProbeWorktree(root);
+    const error = new Error("Cannot find package 'styleproof' imported from styleproof.config.ts");
+    error.code = 'ERR_MODULE_NOT_FOUND';
+    const message = unloadableStyleProofConfigMessage(path.join(probe, 'hud', 'styleproof.config.ts'), error);
+    assert.match(message, /could not be evaluated/);
+    assert.match(message, /searched package roots/i);
+    assert.ok(message.includes(path.join(probe, 'hud')), message);
+    assert.ok(message.includes(root), message);
+    assertNoSoftDefaultSpec(message);
+  } finally {
+    if (probe) removeProbeWorktree(root, probe);
+    rmTmp(root);
+  }
+});
+
 test('unloadableStyleProofConfigMessage: names searched package roots for an unresolved styleproof import', () => {
   const { root, nested } = mkRepoTree();
   try {

@@ -26,8 +26,11 @@
  * that file is the discovered config. When that file is evaluated, `styleproof`
  * and other bare specifiers resolve from the config file's directory and the
  * nearest package root walking up from that file — not only `process.cwd()`.
- * If the package still cannot be resolved, the error names those searched
- * package roots. A missing spec after that walk fails closed and names every
+ * When that file lives in a linked git worktree (a `styleproof-ci` probe
+ * without `node_modules`), resolution also searches the main working tree's
+ * matching package roots so a host install remains visible. If the package
+ * still cannot be resolved, the error names those searched package roots.
+ * A missing spec after that walk fails closed and names every
  * config path that was searched.
  *
  * Migration: TS config takes precedence. When only JSON exists, a deprecation
@@ -952,28 +955,78 @@ export function missingStyleProofSpecMessage(options: {
   return lines.join('\n');
 }
 
+function gitRevParse(cwd: string, flag: string): string | undefined {
+  const result = spawnSync('git', ['rev-parse', flag], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const raw = result.status === 0 ? result.stdout.trim() : '';
+  if (!raw) return undefined;
+  return path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(cwd, raw);
+}
+
 /**
- * Directories to search for `styleproof` (and peers) when evaluating a `.ts`
- * config: each package.json walking up from the config file, then the config
- * file's directory if it is not already a package root. Never `process.cwd()`
- * unless that happens to be one of those directories.
+ * Main working-tree root when `cwd` is a linked git worktree. Undefined in a
+ * normal checkout so isolated fixtures do not pick up an unrelated install.
  */
-function findStyleProofConfigPackageRoots(filePath: string): string[] {
-  const configDir = path.dirname(path.resolve(filePath));
+function linkedHostWorkingTree(cwd: string): { hostRoot: string; toplevel: string } | undefined {
+  const toplevel = gitRevParse(cwd, '--show-toplevel');
+  const commonDir = gitRevParse(cwd, '--git-common-dir');
+  if (!toplevel || !commonDir || path.basename(commonDir) !== '.git') return undefined;
+  const hostRoot = path.dirname(commonDir);
+  if (path.resolve(hostRoot) === path.resolve(toplevel)) return undefined;
+  return { hostRoot, toplevel };
+}
+
+function pushUnique(list: string[], value: string): void {
+  if (!list.includes(value)) list.push(value);
+}
+
+function collectPackageJsonDirs(startDir: string, stopAt?: string): string[] {
   const packageRoots: string[] = [];
-  let dir = configDir;
+  let dir = path.resolve(startDir);
+  const stop = stopAt === undefined ? undefined : path.resolve(stopAt);
   for (;;) {
     try {
       if (fs.existsSync(path.join(dir, 'package.json'))) packageRoots.push(dir);
     } catch {
       // unreadable directory — keep walking
     }
-    if (isGitRoot(dir)) break;
+    if (stop !== undefined ? dir === stop : isGitRoot(dir)) break;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  if (!packageRoots.includes(configDir)) packageRoots.push(configDir);
+  return packageRoots;
+}
+
+function findHostWorktreePackageRoots(configDir: string): string[] {
+  const linked = linkedHostWorkingTree(configDir);
+  if (!linked) return [];
+  const rel = path.relative(linked.toplevel, configDir);
+  const hostStart =
+    rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? path.join(linked.hostRoot, rel) : linked.hostRoot;
+  const roots = collectPackageJsonDirs(hostStart, linked.hostRoot);
+  pushUnique(roots, linked.hostRoot);
+  return roots;
+}
+
+/**
+ * Directories to search for `styleproof` (and peers) when evaluating a `.ts`
+ * config: each package.json walking up from the config file, then the config
+ * file's directory if it is not already a package root, then the same walk on
+ * the main working tree when the file lives in a linked git worktree. Never
+ * `process.cwd()` or this package's own install unless those are one of those
+ * directories.
+ */
+function findStyleProofConfigPackageRoots(filePath: string): string[] {
+  const configDir = path.dirname(path.resolve(filePath));
+  const packageRoots = collectPackageJsonDirs(configDir);
+  for (const hostRoot of findHostWorktreePackageRoots(configDir)) {
+    pushUnique(packageRoots, hostRoot);
+  }
+  pushUnique(packageRoots, configDir);
   return packageRoots;
 }
 
