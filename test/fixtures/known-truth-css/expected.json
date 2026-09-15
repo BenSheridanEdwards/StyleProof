@@ -134,6 +134,63 @@
           "color": "rgb(203, 213, 225)"
         }
       }
+    },
+    "flex-layout": {
+      "tag": "div",
+      "cls": "flex-layout",
+      "expectedStyles": {
+        "display": "flex",
+        "flex-direction": "row-reverse",
+        "justify-content": "space-between",
+        "align-items": "center",
+        "column-gap": "12px",
+        "row-gap": "12px"
+      }
+    },
+    "grid-layout": {
+      "tag": "div",
+      "cls": "grid-layout",
+      "expectedStyles": {
+        "display": "grid",
+        "grid-template-columns": "120px 240px",
+        "column-gap": "16px",
+        "row-gap": "8px"
+      }
+    },
+    "visual-box": {
+      "tag": "div",
+      "cls": "visual-box",
+      "expectedStyles": {
+        "border-top-left-radius": "14px",
+        "border-top-right-radius": "6px",
+        "border-bottom-right-radius": "10px",
+        "border-bottom-left-radius": "4px",
+        "box-shadow": "rgb(15, 23, 42) 0px 4px 12px 0px"
+      }
+    },
+    "transform-box": {
+      "tag": "div",
+      "cls": "transform-box",
+      "expectedStyles": {
+        "transform": "matrix(1, 0, 0, 1, 12, 8)",
+        "opacity": "0.65"
+      }
+    },
+    "focus-visible-control": {
+      "tag": "button",
+      "cls": "focus-visible-control",
+      "expectedStyles": {
+        "background-color": "rgb(248, 250, 252)"
+      },
+      "expectedStates": {
+        "focus": {
+          "outline-style": "solid",
+          "outline-color": "rgb(37, 99, 235)",
+          "outline-width": "4px",
+          "outline-offset": "2px",
+          "box-shadow": "rgb(22, 163, 74) 0px 0px 0px 4px"
+        }
+      }
     }
   },
   "customProperties": {

@@ -1,0 +1,13 @@
+{
+  "description": "Oracle: exact computed styles for the declared light and dark prefers-color-scheme states.",
+  "byScheme": {
+    "light": {
+      "background-color": "rgb(241, 245, 249)",
+      "color": "rgb(15, 23, 42)"
+    },
+    "dark": {
+      "background-color": "rgb(15, 23, 42)",
+      "color": "rgb(241, 245, 249)"
+    }
+  }
+}

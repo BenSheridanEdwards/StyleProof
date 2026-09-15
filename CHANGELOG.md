@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Known-truth browser oracles now cover light/dark color scheme, flex/grid layout,
+  `:focus-visible` with `:focus`, box shadow/radius, and transform/opacity fidelity.
+  Each fixture fails closed on missing or wrong exact computed values. (#626, #627,
+  #628, #629, #630)
 - **Dogfood approve stub.** StyleProof now ships `.github/workflows/styleproof-approve.yml`,
   the same thin caller adopters get from `styleproof-init`, pointing at
   `styleproof-approve-reusable.yml@main`. Reviewer ticks stay inert until advisory
