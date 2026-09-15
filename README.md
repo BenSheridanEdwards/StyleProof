@@ -1881,13 +1881,18 @@ receipt. Missing, duplicated, skipped, failed, or retried tests fail verificatio
 The `browser-evidence-node-22` artifact retains the inventory, shard results, and
 oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
 
-The repository also carries a source-bound four-case detection benchmark for
-[#447](https://github.com/BenSheridanEdwards/StyleProof/issues/447). Run
-`npm run bench:detection -- --corpus bench/detection-corpus-v1.json --out <new-dir> --scope pilot --expect-source-sha $(git rev-parse HEAD)`
-from a clean checkout. The committed [pilot receipt](docs/proof/issue-447/pilot-654319ad/receipt.json)
-is diagnostic evidence for exactly two computed-style changes, one cross-element hover
-change, and one equivalent-color no-op. It is not the full #447 corpus, class-wide
-recall evidence, or whole-application coverage.
+The repository also carries a source-bound detection benchmark for
+[#447](https://github.com/BenSheridanEdwards/StyleProof/issues/447). The frozen
+Phase-0 corpus `styleproof-issue447-phase0-full@2.0.0` holds 23 mutants across
+computed-style, forced-state, cross-element, structural, and no-op classes. Run
+`npm run bench:detection -- --corpus bench/detection-corpus-v2.json --out <new-dir> --scope full --expect-source-sha $(git rev-parse HEAD)`
+from a clean checkout; `--scope diagnostic --case ID[,ID...]` and
+`--scope sharded --shard I/N` run bound subsets, and `--scope smoke --case ID`
+checks a single case. The committed [full-corpus receipt](docs/proof/issue-447/full-v2-run-1/receipt.json)
+recorded 23 requested, 23 executed, 23 valid, 18 detected, 1 missed (a rendered
+image change with no computed-style correspondence, by design), 1 no-op false
+positive, and 3 no-op true negatives. It is not class-wide recall evidence or
+whole-application coverage.
 
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
 for the dev loop, and [AGENTS.md](https://github.com/BenSheridanEdwards/StyleProof/blob/main/AGENTS.md)

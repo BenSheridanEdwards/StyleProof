@@ -23,8 +23,9 @@ export type DetectionBenchmarkReceiptExpectation = {
   expectationDigest: string;
   reviewDigest: string;
   corpusCardinality: number;
-  scopeKind: 'smoke' | 'pilot';
+  scopeKind: 'smoke' | 'pilot' | 'diagnostic' | 'sharded' | 'full';
   requestedCardinality?: number;
+  shard?: { index: number; of: number };
   sensorDigest: string;
   sensorSourceDigest: string;
   artifactRoot?: string;
@@ -135,15 +136,18 @@ function validateRenderProof(item: JsonRecord, expectedChange: boolean, index: n
     reasons.push(`cases[${index}].renderProof.expectedChange conflicts with frozen expectation`);
   if (proof.propertyMatches !== true || proof.proofMatches !== true)
     reasons.push(`cases[${index}].renderProof does not prove the frozen property values`);
-  if (typeof proof.observedPropertyChange !== 'boolean' || proof.observedPropertyChange !== expectedChange)
-    reasons.push(`cases[${index}].renderProof.observedPropertyChange conflicts with frozen expectation`);
+  const before = requireString(proof, 'before', reasons, `cases[${index}].renderProof.before`);
+  const after = requireString(proof, 'after', reasons, `cases[${index}].renderProof.after`);
+  if (
+    typeof proof.observedPropertyChange !== 'boolean' ||
+    (before !== null && after !== null && proof.observedPropertyChange !== (before !== after))
+  )
+    reasons.push(`cases[${index}].renderProof.observedPropertyChange conflicts with the observed values`);
   if (typeof proof.observedPixelChange !== 'boolean' || proof.observedPixelChange !== expectedChange)
     reasons.push(`cases[${index}].renderProof.observedPixelChange conflicts with frozen expectation`);
   const changedPixels = nonnegativeInteger(proof.changedPixels);
   if (changedPixels === null || (expectedChange ? changedPixels === 0 : changedPixels !== 0))
     reasons.push(`cases[${index}].renderProof.changedPixels conflicts with frozen expectation`);
-  requireString(proof, 'before', reasons, `cases[${index}].renderProof.before`);
-  requireString(proof, 'after', reasons, `cases[${index}].renderProof.after`);
 }
 
 function pngDimensions(bytes: Buffer): { width: number; height: number } | null {
@@ -441,9 +445,37 @@ function validateScope(receipt: JsonRecord, expected: DetectionBenchmarkReceiptE
   const full447 = requireRecord(receipt, 'full447', reasons);
   bindingMatches(scope?.kind, expected.scopeKind, 'scope.kind', reasons);
   if (scope?.issue !== 447) reasons.push('scope.issue must equal 447');
-  if (scope?.full447 !== false) reasons.push('scope.full447 must be false for this bounded implementation');
+  validateFullClaim(scope, full447, expected.scopeKind === 'full', reasons);
+  validateShardClaim(scope, expected, reasons);
+}
+function validateFullClaim(
+  scope: JsonRecord | null,
+  full447: JsonRecord | null,
+  isFull: boolean,
+  reasons: string[],
+): void {
+  if (isFull) {
+    if (scope?.full447 !== true) reasons.push('scope.full447 must be true for a full corpus run');
+    if (full447?.claimed !== true || full447?.status !== 'complete')
+      reasons.push('full447 must be complete and claimed for a full corpus run');
+    return;
+  }
+  if (scope?.full447 !== false) reasons.push('scope.full447 must be false for a bounded run');
   if (full447?.claimed !== false || full447?.status !== 'not-run')
-    reasons.push('full447 must be not-run and unclaimed; this implementation cannot validate full447');
+    reasons.push('full447 must be not-run and unclaimed outside a full corpus run');
+}
+function validateShardClaim(
+  scope: JsonRecord | null,
+  expected: DetectionBenchmarkReceiptExpectation,
+  reasons: string[],
+): void {
+  if (expected.shard) {
+    const shard = requireRecord(scope, 'shard', reasons, 'scope.shard');
+    bindingMatches(shard?.index, expected.shard.index, 'scope.shard.index', reasons);
+    bindingMatches(shard?.of, expected.shard.of, 'scope.shard.of', reasons);
+  } else if (scope && 'shard' in scope) {
+    reasons.push('scope.shard must not appear outside a sharded run');
+  }
 }
 function validateReceipt(
   input: unknown,

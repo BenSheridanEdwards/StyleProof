@@ -1,0 +1,1552 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "styleproof-detection-rate",
+  "scope": {
+    "kind": "full",
+    "issue": 447,
+    "full447": true
+  },
+  "bindings": {
+    "sourceSha": "3a20e30ee820f86afd67202013402c508893cccd",
+    "packageVersion": "6.4.0",
+    "browser": {
+      "name": "chromium",
+      "version": "149.0.7827.55"
+    },
+    "runner": {
+      "node": "v26.7.0",
+      "platform": "darwin",
+      "release": "23.4.0",
+      "arch": "arm64",
+      "osVersion": "14.4",
+      "osBuild": "23E214"
+    },
+    "sensor": {
+      "name": "captureStyleMap+diffStyleMaps",
+      "contractVersion": 2,
+      "digest": "3b54f1ccfe621945d9c042bfaec84e3b9156c32455287c90f3e3631aca71d14b",
+      "sourceDigest": "c61da9dff11aba69675548d255d0bc12997f650434b098bec5dc41a7e9ec747c",
+      "buildCommand": "npm run clean && npm run build"
+    },
+    "corpus": {
+      "id": "styleproof-issue447-phase0-full",
+      "version": "2.0.0",
+      "digest": "982034eba893238ece57116b0c2ab5939809bec3d337ef6f25335c4724f3439a",
+      "expectationDigest": "a71fb4e21d50b795a9cec26badbbb1738a13842fd1a36b368d2bf4fe75f8dce3",
+      "reviewDigest": "a55a2b8436a4b09e50e7c5f7145ec17cf6f805faa8c2a526a43d66bacc0f4eb7",
+      "cardinality": 23,
+      "manifest": "bench/detection-corpus-v2.manifest.json"
+    }
+  },
+  "counts": {
+    "requested": 23,
+    "executed": 23,
+    "valid": 23,
+    "detected": 18,
+    "missed": 1,
+    "unsupported": 0,
+    "skipped": 0,
+    "timeout": 0,
+    "invalid": 0,
+    "duplicate": 0,
+    "noOpFalsePositives": 1,
+    "noOpTrueNegatives": 3
+  },
+  "cases": [
+    {
+      "id": "computed-rest-background-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 12801,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(200, 200, 200)",
+        "after": "rgb(80, 120, 200)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "background-color",
+              "before": "rgb(200, 200, 200)",
+              "after": "rgb(80, 120, 200)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-rest-background-v2/before.png",
+          "sha256": "44846c2276790b22bd499022bf817a2653c9e9124b60b731860520daa6c2700c",
+          "width": 640,
+          "height": 120,
+          "bytes": 2437
+        },
+        {
+          "path": "cases/computed-rest-background-v2/after.png",
+          "sha256": "a113d78bef88ac345098c92c4714dc77970b9db4744858be8fc71e20467af972",
+          "width": 640,
+          "height": 120,
+          "bytes": 2673
+        }
+      ]
+    },
+    {
+      "id": "computed-text-color-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 777,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 0, 0)",
+        "after": "rgb(160, 0, 0)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > p:nth-child(1)",
+          "cls": "copy",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "caret-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "outline-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "rgb(0, 0, 0)",
+              "after": "rgb(160, 0, 0)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-text-color-v2/before.png",
+          "sha256": "d53dcabdfcd8c5de1199a711ae80a8f3575baa09417786262be6099a6aed1561",
+          "width": 640,
+          "height": 98,
+          "bytes": 2564
+        },
+        {
+          "path": "cases/computed-text-color-v2/after.png",
+          "sha256": "3eefbb41666c48ddaeeb0396bedff0a087f18a348d7d9d40da1a3e03bbba77e1",
+          "width": 640,
+          "height": 98,
+          "bytes": 2822
+        }
+      ]
+    },
+    {
+      "id": "computed-font-size-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 79360,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "16px",
+        "after": "24px"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > p:nth-child(1)",
+          "cls": "copy",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "font-size",
+              "before": "16px",
+              "after": "24px"
+            },
+            {
+              "prop": "margin-block-end",
+              "before": "16px",
+              "after": "24px"
+            },
+            {
+              "prop": "margin-block-start",
+              "before": "16px",
+              "after": "24px"
+            },
+            {
+              "prop": "margin-bottom",
+              "before": "16px",
+              "after": "24px"
+            },
+            {
+              "prop": "margin-top",
+              "before": "16px",
+              "after": "24px"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-font-size-v2/before.png",
+          "sha256": "bcd7759e03cfcdc3818af9cd0ed35cccbd9fef46b45a3a3c90827c0340c50bec",
+          "width": 640,
+          "height": 98,
+          "bytes": 2534
+        },
+        {
+          "path": "cases/computed-font-size-v2/after.png",
+          "sha256": "1f41856af1ed9acf457bfe2b398637f09241555f11eb5d3f3b55286fa74c153a",
+          "width": 640,
+          "height": 124,
+          "bytes": 3691
+        }
+      ]
+    },
+    {
+      "id": "computed-margin-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 92160,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "0px",
+        "after": "24px"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "margin-block-start",
+              "before": "0px",
+              "after": "24px"
+            },
+            {
+              "prop": "margin-top",
+              "before": "0px",
+              "after": "24px"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-margin-v2/before.png",
+          "sha256": "3b661bed4a82db97528efe8a78295ef145e435b0317d47c918b57075db9aaa07",
+          "width": 640,
+          "height": 120,
+          "bytes": 2342
+        },
+        {
+          "path": "cases/computed-margin-v2/after.png",
+          "sha256": "2ded6e747ff37f41c9441eae7e71a84b2459b3db820179845cd6e8938aed3bf9",
+          "width": 640,
+          "height": 144,
+          "bytes": 2441
+        }
+      ]
+    },
+    {
+      "id": "computed-border-radius-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 165,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "0px",
+        "after": "12px"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-bottom-left-radius",
+              "before": "0px",
+              "after": "12px"
+            },
+            {
+              "prop": "border-bottom-right-radius",
+              "before": "0px",
+              "after": "12px"
+            },
+            {
+              "prop": "border-end-end-radius",
+              "before": "0px",
+              "after": "12px"
+            },
+            {
+              "prop": "border-end-start-radius",
+              "before": "0px",
+              "after": "12px"
+            },
+            {
+              "prop": "border-start-end-radius",
+              "before": "0px",
+              "after": "12px"
+            },
+            {
+              "prop": "border-start-start-radius",
+              "before": "0px",
+              "after": "12px"
+            },
+            {
+              "prop": "border-top-left-radius",
+              "before": "0px",
+              "after": "12px"
+            },
+            {
+              "prop": "border-top-right-radius",
+              "before": "0px",
+              "after": "12px"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-border-radius-v2/before.png",
+          "sha256": "9db71fc5feaf37d568d10045c924146bb97266ae28b064c8207af2296283c212",
+          "width": 640,
+          "height": 120,
+          "bytes": 2720
+        },
+        {
+          "path": "cases/computed-border-radius-v2/after.png",
+          "sha256": "a5f1407d4eb16f68340feebb817c3f62ef8587c7da56a711d9b6e3a1315848de",
+          "width": 640,
+          "height": 120,
+          "bytes": 3159
+        }
+      ]
+    },
+    {
+      "id": "computed-box-shadow-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 6356,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 0, 0) 0px 0px 8px 0px",
+        "after": "rgb(200, 0, 0) 0px 0px 8px 0px"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "box-shadow",
+              "before": "rgb(0, 0, 0) 0px 0px 8px 0px",
+              "after": "rgb(200, 0, 0) 0px 0px 8px 0px"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-box-shadow-v2/before.png",
+          "sha256": "b4401f3ad88824144088fceb9b7581d17614e0077a969e92aaf456805ec93e5b",
+          "width": 640,
+          "height": 120,
+          "bytes": 3865
+        },
+        {
+          "path": "cases/computed-box-shadow-v2/after.png",
+          "sha256": "9f679dd42a18a4d174eaceda3290310e675aa302ac78f83d3719e98cbeaed1d1",
+          "width": 640,
+          "height": 120,
+          "bytes": 4198
+        }
+      ]
+    },
+    {
+      "id": "computed-transform-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 3543,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "matrix(1, 0, 0, 1, 0, 0)",
+        "after": "matrix(1, 0, 0, 1, 20, 0)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "transform",
+              "before": "matrix(1, 0, 0, 1, 0, 0)",
+              "after": "matrix(1, 0, 0, 1, 20, 0)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-transform-v2/before.png",
+          "sha256": "8886c7c0c579b57f9db2414a8579e84a4414c5a21c61430357c12e75dd3afae5",
+          "width": 640,
+          "height": 120,
+          "bytes": 2276
+        },
+        {
+          "path": "cases/computed-transform-v2/after.png",
+          "sha256": "f9e89f57775cb8382c7b9421d43c2ff74f77350921b8d2541f5585c512ae40d3",
+          "width": 640,
+          "height": 120,
+          "bytes": 2274
+        }
+      ]
+    },
+    {
+      "id": "computed-opacity-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 12960,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "1",
+        "after": "0.25"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "opacity",
+              "before": "1",
+              "after": "0.25"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-opacity-v2/before.png",
+          "sha256": "d97eb4b5e02237840110ef7220bfa6fdb09ef04d3302a71a16cb96bdffa1daa5",
+          "width": 640,
+          "height": 120,
+          "bytes": 2342
+        },
+        {
+          "path": "cases/computed-opacity-v2/after.png",
+          "sha256": "90f2883240b7ac1854b521c0feb7c68416e70b79a900e5dc92a14f7cd121775f",
+          "width": 640,
+          "height": 120,
+          "bytes": 1967
+        }
+      ]
+    },
+    {
+      "id": "computed-css-var-color-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 12792,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 128, 0)",
+        "after": "rgb(0, 0, 200)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "background-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(0, 0, 200)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-css-var-color-v2/before.png",
+          "sha256": "8ac09aab4dece76bdb421827e5c22bf9004659becbddcdd372c9a49b3e4ae2e5",
+          "width": 640,
+          "height": 120,
+          "bytes": 1881
+        },
+        {
+          "path": "cases/computed-css-var-color-v2/after.png",
+          "sha256": "5446d73c2378fb95260361e2946d1257055893728791dd5e23ba12be329a71fc",
+          "width": 640,
+          "height": 120,
+          "bytes": 1890
+        }
+      ]
+    },
+    {
+      "id": "computed-flex-gap-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 2004,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "8px",
+        "after": "32px"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "row",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "column-gap",
+              "before": "8px",
+              "after": "32px"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-flex-gap-v2/before.png",
+          "sha256": "5f737bb4253eadbd16abb5a8c3657e5f7478299ea7749eeb8dcd5392a17cb881",
+          "width": 640,
+          "height": 88,
+          "bytes": 1130
+        },
+        {
+          "path": "cases/computed-flex-gap-v2/after.png",
+          "sha256": "613fa7dc095af3a602b706d3defa580dec7e808dbf40ef1cbcf7159436271204",
+          "width": 640,
+          "height": 88,
+          "bytes": 1125
+        }
+      ]
+    },
+    {
+      "id": "computed-grid-columns-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 4000,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "100px 100px",
+        "after": "100px 200px"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "grid",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "grid-template-columns",
+              "before": "100px 100px",
+              "after": "100px 200px"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-grid-columns-v2/before.png",
+          "sha256": "23272adf9458dd2d77e4e8381d7a2098a74db9f26ccef733f8539b5d4da03fdd",
+          "width": 640,
+          "height": 88,
+          "bytes": 1113
+        },
+        {
+          "path": "cases/computed-grid-columns-v2/after.png",
+          "sha256": "5058daf71d644a3ddc485c99e22925f48ea03f6af4790b10afbb0339a7d6129b",
+          "width": 640,
+          "height": 88,
+          "bytes": 1112
+        }
+      ]
+    },
+    {
+      "id": "computed-display-none-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 89600,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "block",
+        "after": "none"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "perspective-origin",
+              "before": "90px 36px",
+              "after": "50% 50%"
+            },
+            {
+              "prop": "transform-origin",
+              "before": "90px 36px",
+              "after": "50% 50%"
+            },
+            {
+              "prop": "display",
+              "before": "block",
+              "after": "none"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-display-none-v2/before.png",
+          "sha256": "eb7abcd84fa961b455fef5f04cc25fd61476024a8784fe9e8132abc44341382a",
+          "width": 640,
+          "height": 140,
+          "bytes": 4618
+        },
+        {
+          "path": "cases/computed-display-none-v2/after.png",
+          "sha256": "e7ca613185fe179cc9cbecace0f87e0fb54b85902fb9e2920a9724c68880d9e2",
+          "width": 640,
+          "height": 68,
+          "bytes": 2159
+        }
+      ]
+    },
+    {
+      "id": "computed-pseudo-before-color-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 55,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 128, 0)",
+        "after": "rgb(200, 0, 0)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "label",
+          "pseudo": "::before",
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "caret-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "outline-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-pseudo-before-color-v2/before.png",
+          "sha256": "c04d31d10d3012ed7d0d224388206be9b67984484176c1dfc5881df821d332a7",
+          "width": 640,
+          "height": 98,
+          "bytes": 2580
+        },
+        {
+          "path": "cases/computed-pseudo-before-color-v2/after.png",
+          "sha256": "ecd15198112fc9f06fd5c0fc553f139a1265596fb9c482660453a4c3f7bddcec",
+          "width": 640,
+          "height": 98,
+          "bytes": 2579
+        }
+      ]
+    },
+    {
+      "id": "computed-pseudo-marker-color-v2",
+      "class": "computed-style",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 25,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 128, 0)",
+        "after": "rgb(200, 0, 0)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > ul:nth-child(1) > li:nth-child(1)",
+          "cls": "entry",
+          "pseudo": "::marker",
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "caret-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "column-rule-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "outline-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "row-rule-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "text-decoration-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "text-emphasis-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "-webkit-text-fill-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            },
+            {
+              "prop": "-webkit-text-stroke-color",
+              "before": "rgb(0, 128, 0)",
+              "after": "rgb(200, 0, 0)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/computed-pseudo-marker-color-v2/before.png",
+          "sha256": "78759f5d62bccd9729b2bd673add06cd74550b69cf260eb57333ccb8e383eb7e",
+          "width": 640,
+          "height": 98,
+          "bytes": 1906
+        },
+        {
+          "path": "cases/computed-pseudo-marker-color-v2/after.png",
+          "sha256": "5682887a983d41e6e53088aa16f7880b79719fbfb269e70d18244c8f46aa014c",
+          "width": 640,
+          "height": 98,
+          "bytes": 1907
+        }
+      ]
+    },
+    {
+      "id": "state-hover-background-v2",
+      "class": "forced-state",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 3033,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 0, 255)",
+        "after": "rgb(0, 128, 0)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "state",
+          "path": "body > main:nth-child(1) > button:nth-child(1)",
+          "cls": "cta",
+          "state": "hover",
+          "sub": "body > main:nth-child(1) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "background-color",
+              "before": "rgb(0, 0, 255)",
+              "after": "rgb(0, 128, 0)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/state-hover-background-v2/before.png",
+          "sha256": "471bfdbe7b1c437b030b6194f5823acdcc92b259ca030e3e0f8365beadd27752",
+          "width": 640,
+          "height": 91,
+          "bytes": 1195
+        },
+        {
+          "path": "cases/state-hover-background-v2/after.png",
+          "sha256": "faa6ef63acd85ba87e8fb17bce8a58d7e3f8507c8eccdfed23f840013fd2fc10",
+          "width": 640,
+          "height": 91,
+          "bytes": 1179
+        }
+      ]
+    },
+    {
+      "id": "state-focus-outline-v2",
+      "class": "forced-state",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 1072,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(255, 0, 0)",
+        "after": "rgb(0, 0, 255)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "state",
+          "path": "body > main:nth-child(1) > button:nth-child(1)",
+          "cls": "cta",
+          "state": "focus",
+          "sub": "body > main:nth-child(1) > button:nth-child(1)",
+          "props": [
+            {
+              "prop": "outline-color",
+              "before": "rgb(255, 0, 0)",
+              "after": "rgb(0, 0, 255)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/state-focus-outline-v2/before.png",
+          "sha256": "18bebfb6606e74a0305df3b40306c774396eb3d7548168dc585a7818e3de89ee",
+          "width": 640,
+          "height": 91,
+          "bytes": 1636
+        },
+        {
+          "path": "cases/state-focus-outline-v2/after.png",
+          "sha256": "a1fd17f3b1eb0927ac9cda0b556e5c275619e5a8ca1add3ba29762c02ed72b46",
+          "width": 640,
+          "height": 91,
+          "bytes": 1635
+        }
+      ]
+    },
+    {
+      "id": "cross-element-hover-panel-v2",
+      "class": "cross-element-state",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": true,
+        "observedPixelChange": true,
+        "changedPixels": 29530,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 0, 255)",
+        "after": "rgb(0, 128, 0)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "state",
+          "path": "body > main:nth-child(1) > button:nth-child(1)",
+          "cls": "",
+          "state": "hover",
+          "sub": "body > main:nth-child(1) > section:nth-child(2)",
+          "props": [
+            {
+              "prop": "background-color",
+              "before": "rgb(0, 0, 255)",
+              "after": "rgb(0, 128, 0)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/cross-element-hover-panel-v2/before.png",
+          "sha256": "71cce1120f47136a2b8066cf10803677d945e63f0aaf081455b916743b1bf4a3",
+          "width": 640,
+          "height": 153,
+          "bytes": 2431
+        },
+        {
+          "path": "cases/cross-element-hover-panel-v2/after.png",
+          "sha256": "504a4b55532eb8da366abf74ad825f0e8388bb1ede0cb71c76e3f32e06353fce",
+          "width": 640,
+          "height": 153,
+          "bytes": 2424
+        }
+      ]
+    },
+    {
+      "id": "structure-sibling-insertion-v2",
+      "class": "structure",
+      "outcome": "detected",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": false,
+        "observedPixelChange": true,
+        "changedPixels": 85760,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 0, 0)",
+        "after": "rgb(0, 0, 0)"
+      },
+      "findingCount": 3,
+      "findings": [
+        {
+          "kind": "dom",
+          "path": "body > main:nth-child(1) > ul:nth-child(1) > li:nth-child(3)",
+          "cls": "item",
+          "change": "added"
+        },
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > ul:nth-child(1) > li:nth-child(3)",
+          "cls": "item",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "Arial, sans-serif"
+            },
+            {
+              "prop": "inline-size",
+              "before": "(unset)",
+              "after": "568px"
+            },
+            {
+              "prop": "list-style-position",
+              "before": "(unset)",
+              "after": "outside"
+            },
+            {
+              "prop": "perspective-origin",
+              "before": "(unset)",
+              "after": "284px 9px"
+            },
+            {
+              "prop": "transform-origin",
+              "before": "(unset)",
+              "after": "284px 9px"
+            },
+            {
+              "prop": "width",
+              "before": "(unset)",
+              "after": "568px"
+            }
+          ]
+        },
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > ul:nth-child(1) > li:nth-child(3)",
+          "cls": "item",
+          "pseudo": "::marker",
+          "props": [
+            {
+              "prop": "block-size",
+              "before": "(unset)",
+              "after": "18px"
+            },
+            {
+              "prop": "display",
+              "before": "(unset)",
+              "after": "inline-block"
+            },
+            {
+              "prop": "font-family",
+              "before": "(unset)",
+              "after": "Arial, sans-serif"
+            },
+            {
+              "prop": "height",
+              "before": "(unset)",
+              "after": "18px"
+            },
+            {
+              "prop": "inline-size",
+              "before": "(unset)",
+              "after": "7px"
+            },
+            {
+              "prop": "list-style-position",
+              "before": "(unset)",
+              "after": "outside"
+            },
+            {
+              "prop": "margin-inline-end",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "margin-inline-start",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "margin-left",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "margin-right",
+              "before": "(unset)",
+              "after": "0px"
+            },
+            {
+              "prop": "perspective-origin",
+              "before": "(unset)",
+              "after": "3.5px 9px"
+            },
+            {
+              "prop": "text-wrap-mode",
+              "before": "(unset)",
+              "after": "nowrap"
+            },
+            {
+              "prop": "transform-origin",
+              "before": "(unset)",
+              "after": "3.5px 9px"
+            },
+            {
+              "prop": "white-space-collapse",
+              "before": "(unset)",
+              "after": "preserve"
+            },
+            {
+              "prop": "width",
+              "before": "(unset)",
+              "after": "7px"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/structure-sibling-insertion-v2/before.png",
+          "sha256": "c625cda6e8de491aa48ca771e535a684c74f7160eac53bd96baf021c4cfb2d1a",
+          "width": 640,
+          "height": 116,
+          "bytes": 2086
+        },
+        {
+          "path": "cases/structure-sibling-insertion-v2/after.png",
+          "sha256": "d1ace97e63f9f4e21b61ec594da561103c348761c0b7927ea72c096c2877f273",
+          "width": 640,
+          "height": 134,
+          "bytes": 2926
+        }
+      ]
+    },
+    {
+      "id": "media-image-content-v2",
+      "class": "rendered-no-computed",
+      "outcome": "missed",
+      "renderProof": {
+        "expectedChange": true,
+        "observedPropertyChange": false,
+        "observedPixelChange": true,
+        "changedPixels": 3200,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 0, 0)",
+        "after": "rgb(0, 0, 0)"
+      },
+      "findingCount": 0,
+      "findings": [],
+      "screenshots": [
+        {
+          "path": "cases/media-image-content-v2/before.png",
+          "sha256": "f3ac91275ce577e09bc7a97af14f60bf0e3a34c7fff08384240eef0868395c51",
+          "width": 640,
+          "height": 88,
+          "bytes": 461
+        },
+        {
+          "path": "cases/media-image-content-v2/after.png",
+          "sha256": "0058667fa3930911e8004ad921f7e8a8c52e8f6f849a7e537ce8d89f782b6794",
+          "width": 640,
+          "height": 88,
+          "bytes": 461
+        }
+      ]
+    },
+    {
+      "id": "noop-color-spelling-v2",
+      "class": "no-op-control",
+      "outcome": "no-op-true-negative",
+      "renderProof": {
+        "expectedChange": false,
+        "observedPropertyChange": false,
+        "observedPixelChange": false,
+        "changedPixels": 0,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(200, 200, 200)",
+        "after": "rgb(200, 200, 200)"
+      },
+      "findingCount": 0,
+      "findings": [],
+      "screenshots": [
+        {
+          "path": "cases/noop-color-spelling-v2/before.png",
+          "sha256": "b8d66c7f7677fc4c4a36fa0165c18094f551f7a041ce9d458f42a287c7eca409",
+          "width": 640,
+          "height": 120,
+          "bytes": 2660
+        },
+        {
+          "path": "cases/noop-color-spelling-v2/after.png",
+          "sha256": "b8d66c7f7677fc4c4a36fa0165c18094f551f7a041ce9d458f42a287c7eca409",
+          "width": 640,
+          "height": 120,
+          "bytes": 2660
+        }
+      ]
+    },
+    {
+      "id": "noop-declaration-order-v2",
+      "class": "no-op-control",
+      "outcome": "no-op-true-negative",
+      "renderProof": {
+        "expectedChange": false,
+        "observedPropertyChange": false,
+        "observedPixelChange": false,
+        "changedPixels": 0,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(0, 0, 0)",
+        "after": "rgb(0, 0, 0)"
+      },
+      "findingCount": 0,
+      "findings": [],
+      "screenshots": [
+        {
+          "path": "cases/noop-declaration-order-v2/before.png",
+          "sha256": "55493a915ab1f3e2c0f5a0d37f4e7a7e832a2dbf7699b89b09a255a85dc19450",
+          "width": 640,
+          "height": 66,
+          "bytes": 1953
+        },
+        {
+          "path": "cases/noop-declaration-order-v2/after.png",
+          "sha256": "55493a915ab1f3e2c0f5a0d37f4e7a7e832a2dbf7699b89b09a255a85dc19450",
+          "width": 640,
+          "height": 66,
+          "bytes": 1953
+        }
+      ]
+    },
+    {
+      "id": "noop-unused-rule-v2",
+      "class": "no-op-control",
+      "outcome": "no-op-true-negative",
+      "renderProof": {
+        "expectedChange": false,
+        "observedPropertyChange": false,
+        "observedPixelChange": false,
+        "changedPixels": 0,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(200, 200, 200)",
+        "after": "rgb(200, 200, 200)"
+      },
+      "findingCount": 0,
+      "findings": [],
+      "screenshots": [
+        {
+          "path": "cases/noop-unused-rule-v2/before.png",
+          "sha256": "28a2dc215c3f1720d15860b6755ca19a39f99ff31212861a82e864b654d3e016",
+          "width": 640,
+          "height": 120,
+          "bytes": 2543
+        },
+        {
+          "path": "cases/noop-unused-rule-v2/after.png",
+          "sha256": "28a2dc215c3f1720d15860b6755ca19a39f99ff31212861a82e864b654d3e016",
+          "width": 640,
+          "height": 120,
+          "bytes": 2543
+        }
+      ]
+    },
+    {
+      "id": "noop-zero-width-border-v2",
+      "class": "computed-no-render",
+      "outcome": "no-op-false-positive",
+      "renderProof": {
+        "expectedChange": false,
+        "observedPropertyChange": true,
+        "observedPixelChange": false,
+        "changedPixels": 0,
+        "propertyMatches": true,
+        "proofMatches": true,
+        "before": "rgb(255, 0, 0)",
+        "after": "rgb(0, 0, 255)"
+      },
+      "findingCount": 1,
+      "findings": [
+        {
+          "kind": "style",
+          "path": "body > main:nth-child(1) > div:nth-child(1)",
+          "cls": "box",
+          "pseudo": null,
+          "props": [
+            {
+              "prop": "border-block-end-color",
+              "before": "rgb(255, 0, 0)",
+              "after": "rgb(0, 0, 255)"
+            },
+            {
+              "prop": "border-block-start-color",
+              "before": "rgb(255, 0, 0)",
+              "after": "rgb(0, 0, 255)"
+            },
+            {
+              "prop": "border-bottom-color",
+              "before": "rgb(255, 0, 0)",
+              "after": "rgb(0, 0, 255)"
+            },
+            {
+              "prop": "border-inline-end-color",
+              "before": "rgb(255, 0, 0)",
+              "after": "rgb(0, 0, 255)"
+            },
+            {
+              "prop": "border-inline-start-color",
+              "before": "rgb(255, 0, 0)",
+              "after": "rgb(0, 0, 255)"
+            },
+            {
+              "prop": "border-left-color",
+              "before": "rgb(255, 0, 0)",
+              "after": "rgb(0, 0, 255)"
+            },
+            {
+              "prop": "border-right-color",
+              "before": "rgb(255, 0, 0)",
+              "after": "rgb(0, 0, 255)"
+            },
+            {
+              "prop": "border-top-color",
+              "before": "rgb(255, 0, 0)",
+              "after": "rgb(0, 0, 255)"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "cases/noop-zero-width-border-v2/before.png",
+          "sha256": "50b55647d57bf0f942dad0e0fe2396151add3a8038ff6ab625d2cbf2d26a53b7",
+          "width": 640,
+          "height": 120,
+          "bytes": 2509
+        },
+        {
+          "path": "cases/noop-zero-width-border-v2/after.png",
+          "sha256": "50b55647d57bf0f942dad0e0fe2396151add3a8038ff6ab625d2cbf2d26a53b7",
+          "width": 640,
+          "height": 120,
+          "bytes": 2509
+        }
+      ]
+    }
+  ],
+  "full447": {
+    "status": "complete",
+    "claimed": true
+  },
+  "validation": {
+    "ok": true,
+    "reasons": []
+  }
+}

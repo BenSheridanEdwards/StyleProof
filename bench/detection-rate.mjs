@@ -14,11 +14,26 @@ const FIXED_INPUTS = [
   'bench/detection-corpus-v1.json',
   'bench/detection-corpus-v1.manifest.json',
   'bench/detection-corpus-v1.review.md',
+  'bench/detection-corpus-v2.json',
+  'bench/detection-corpus-v2.manifest.json',
+  'bench/detection-corpus-v2.review.md',
   'bench/detection-rate.mjs',
   'package.json',
   'package-lock.json',
   'tsconfig.json',
 ];
+const CORPORA = {
+  'bench/detection-corpus-v1.json': {
+    manifest: 'bench/detection-corpus-v1.manifest.json',
+    scopes: new Set(['smoke', 'pilot']),
+  },
+  'bench/detection-corpus-v2.json': {
+    manifest: 'bench/detection-corpus-v2.manifest.json',
+    scopes: new Set(['smoke', 'diagnostic', 'sharded', 'full']),
+  },
+};
+const SCOPES = new Set(['smoke', 'pilot', 'diagnostic', 'sharded', 'full']);
+const SCORED_RESULTS = new Set(['detected', 'missed', 'no-op-false-positive', 'no-op-true-negative']);
 
 function parseArgs(argv) {
   const values = {};
@@ -27,13 +42,14 @@ function parseArgs(argv) {
     const value = argv[index + 1];
     if (!key?.startsWith('--') || value === undefined)
       throw new Error(
-        'usage: detection-rate --corpus FILE --out DIR --scope smoke|pilot [--case ID] [--expect-source-sha SHA]',
+        'usage: detection-rate --corpus FILE --out DIR --scope smoke|pilot|diagnostic|sharded|full [--case ID[,ID...]] [--shard I/N] [--expect-source-sha SHA]',
       );
     values[key.slice(2)] = value;
   }
   if (!values.corpus || !values.out || !values.scope) throw new Error('missing required benchmark argument');
-  if (!['smoke', 'pilot'].includes(values.scope))
-    throw new Error('this bounded runner supports only smoke and pilot scopes, not full447');
+  if (!SCOPES.has(values.scope)) throw new Error(`unknown benchmark scope ${values.scope}`);
+  if (values.shard !== undefined && !/^[1-9]\d*\/[1-9]\d*$/.test(values.shard))
+    throw new Error('--shard must be written as I/N with positive integers');
   if (values['expect-source-sha'] && !/^[0-9a-f]{40}$/.test(values['expect-source-sha']))
     throw new Error('--expect-source-sha must be a full lowercase commit SHA');
   return values;
@@ -119,13 +135,37 @@ function verifyCorpus(corpusBytes, corpus, manifest) {
     throw new Error('corpus expectations are not frozen');
   return { corpusDigest, expectationDigest, reviewDigest };
 }
+function parseShard(value) {
+  if (value === undefined) return null;
+  const [index, of] = value.split('/').map(Number);
+  if (index > of) throw new Error('--shard index must not exceed the shard count');
+  return { index, of };
+}
+function caseSubset(corpus, options) {
+  const ids = options.case ? String(options.case).split(',') : null;
+  const shard = parseShard(options.shard);
+  if (ids && shard) throw new Error('--case and --shard select different subsets; pass only one');
+  if (ids) {
+    const selected = corpus.cases.filter((entry) => ids.includes(entry.id));
+    if (selected.length !== new Set(ids).size)
+      throw new Error('--case names an unknown or duplicated case ID');
+    return { selected, shard };
+  }
+  if (shard)
+    return { selected: corpus.cases.filter((_, index) => index % shard.of === shard.index - 1), shard };
+  return { selected: corpus.cases, shard };
+}
+const COMPLETE_SCOPES = new Set(['pilot', 'full']);
 function selectCases(corpus, options) {
-  const selected = options.case ? corpus.cases.filter((entry) => entry.id === options.case) : corpus.cases;
+  const { selected, shard } = caseSubset(corpus, options);
   if (options.scope === 'smoke' && selected.length !== 1)
     throw new Error('smoke scope requires exactly one known --case');
-  if (options.scope === 'pilot' && (options.case || selected.length !== corpus.cases.length))
-    throw new Error('pilot scope must execute the exact complete pilot corpus');
-  return selected;
+  if (COMPLETE_SCOPES.has(options.scope) && (options.case || selected.length !== corpus.cases.length))
+    throw new Error(`${options.scope} scope must execute the exact complete corpus`);
+  if (options.scope === 'diagnostic' && !options.case)
+    throw new Error('diagnostic scope requires an explicit --case ID list');
+  if (options.scope === 'sharded' && !shard) throw new Error('sharded scope requires --shard I/N');
+  return { selected, shard };
 }
 function documentFor(css, body) {
   return (
@@ -134,8 +174,12 @@ function documentFor(css, body) {
     `main{padding:24px}${css}</style></head><body>${body}</body></html>`
   );
 }
+function caseBody(benchmarkCase, side) {
+  return benchmarkCase[`${side}Body`] ?? benchmarkCase.body;
+}
 async function observeProof(page, proof) {
   if (proof.action === 'hover') await page.locator(proof.actionSelector).hover();
+  if (proof.action === 'focus') await page.locator(proof.actionSelector).focus();
   return page
     .locator(proof.selector)
     .evaluate(
@@ -144,27 +188,27 @@ async function observeProof(page, proof) {
       proof,
     );
 }
-async function captureProofSide(context, benchmarkCase, side, screenshotPath) {
+async function withCasePage(context, benchmarkCase, side, action) {
   const page = await context.newPage();
   try {
     await page.setViewportSize({ width: 640, height: 360 });
-    await page.setContent(documentFor(benchmarkCase[`${side}Css`], benchmarkCase.body), { waitUntil: 'load' });
-    const observed = await observeProof(page, benchmarkCase.proof);
-    await page.locator(benchmarkCase.proof.selector).screenshot({ path: screenshotPath });
-    return observed;
+    await page.setContent(documentFor(benchmarkCase[`${side}Css`], caseBody(benchmarkCase, side)), {
+      waitUntil: 'load',
+    });
+    return await action(page);
   } finally {
     await page.close();
   }
 }
-async function captureSensorSide(context, benchmarkCase, side, captureStyleMap) {
-  const page = await context.newPage();
-  try {
-    await page.setViewportSize({ width: 640, height: 360 });
-    await page.setContent(documentFor(benchmarkCase[`${side}Css`], benchmarkCase.body), { waitUntil: 'load' });
-    return await captureStyleMap(page, { stabilize: false });
-  } finally {
-    await page.close();
-  }
+async function captureProofSide(context, benchmarkCase, side, screenshotPath) {
+  return withCasePage(context, benchmarkCase, side, async (page) => {
+    const observed = await observeProof(page, benchmarkCase.proof);
+    await page.locator('main').screenshot({ path: screenshotPath });
+    return observed;
+  });
+}
+function captureSensorSide(context, benchmarkCase, side, captureStyleMap) {
+  return withCasePage(context, benchmarkCase, side, (page) => captureStyleMap(page, { stabilize: false }));
 }
 function changedPixelCount(beforePath, afterPath) {
   const before = PNG.sync.read(fs.readFileSync(beforePath));
@@ -203,8 +247,7 @@ async function runCase(context, benchmarkCase, outputDirectory, sensor) {
   const observedPropertyChange = beforeObserved !== afterObserved;
   const observedPixelChange = changedPixels > 0;
   const propertyMatches = beforeObserved === benchmarkCase.proof.before && afterObserved === benchmarkCase.proof.after;
-  const renderProven =
-    propertyMatches && observedPropertyChange === expectedChange && observedPixelChange === expectedChange;
+  const renderProven = propertyMatches && observedPixelChange === expectedChange;
   const renderProof = {
     expectedChange,
     observedPropertyChange,
@@ -224,10 +267,13 @@ async function runCase(context, benchmarkCase, outputDirectory, sensor) {
       id: benchmarkCase.id,
       class: benchmarkCase.class,
       outcome: 'invalid',
-      renderProof,
       findingCount: 0,
       findings: [],
-      screenshots,
+      screenshots: [],
+      reason:
+        `render proof failed: propertyMatches=${propertyMatches}, ` +
+        `observedPropertyChange=${observedPropertyChange}, ` +
+        `observedPixelChange=${observedPixelChange}, changedPixels=${changedPixels}`,
     };
   const beforeMap = await captureSensorSide(context, benchmarkCase, 'before', sensor.captureStyleMap);
   const afterMap = await captureSensorSide(context, benchmarkCase, 'after', sensor.captureStyleMap);
@@ -308,13 +354,17 @@ function macosValue(flag, fallback) {
 }
 function markdown(receipt) {
   const counts = receipt.counts;
+  const scopeNote =
+    receipt.scope.kind === 'full'
+      ? `Complete frozen corpus run for issue #447 (${receipt.bindings.corpus.id}@${receipt.bindings.corpus.version}). This is still not a class-wide recall measurement or a whole-application coverage claim.`
+      : `Diagnostic ${receipt.scope.kind} only. This is not a full issue #447 run, class-wide recall measurement, or whole-application coverage claim.`;
   const lines = receipt.cases
     .map(
       (entry) =>
         `- \`${entry.id}\`: **${entry.outcome}**; render proof ${entry.renderProof?.proofMatches ? 'matched' : 'did not match'}; ${entry.findingCount ?? 0} finding(s)`,
     )
     .join('\n');
-  return `# StyleProof issue #447 detection benchmark: ${receipt.scope.kind}\n\nDiagnostic ${receipt.scope.kind} only. This is not a full issue #447 run, class-wide recall measurement, or whole-application coverage claim.\n\n- Source SHA: \`${receipt.bindings.sourceSha}\`\n- Corpus: \`${receipt.bindings.corpus.id}@${receipt.bindings.corpus.version}\` (sha256:\`${receipt.bindings.corpus.digest}\`)\n- Frozen expectation digest: sha256:\`${receipt.bindings.corpus.expectationDigest}\`\n- Browser: ${receipt.bindings.browser.name} ${receipt.bindings.browser.version}\n- OS: ${receipt.bindings.runner.osVersion} (${receipt.bindings.runner.osBuild})\n- Clean-build executable closure: sha256:\`${receipt.bindings.sensor.digest}\`\n- Bound source/build-input closure: sha256:\`${receipt.bindings.sensor.sourceDigest}\`\n\n## Exact counts\n\n| requested | executed | valid | detected | missed | unsupported | skipped | timeout | invalid | duplicate | no-op false positives | no-op true negatives |\n|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n| ${counts.requested} | ${counts.executed} | ${counts.valid} | ${counts.detected} | ${counts.missed} | ${counts.unsupported} | ${counts.skipped} | ${counts.timeout} | ${counts.invalid} | ${counts.duplicate} | ${counts.noOpFalsePositives} | ${counts.noOpTrueNegatives} |\n\n## Cases\n\n${lines}\n\n## Excluded / unknown\n\n- Full issue #447 corpus: not run.\n- Unsupported sensor classes and whole-application states: excluded.\n- These observations must not be extrapolated beyond the named corpus and bound environment.\n`;
+  return `# StyleProof issue #447 detection benchmark: ${receipt.scope.kind}\n\n${scopeNote}\n\n- Source SHA: \`${receipt.bindings.sourceSha}\`\n- Corpus: \`${receipt.bindings.corpus.id}@${receipt.bindings.corpus.version}\` (sha256:\`${receipt.bindings.corpus.digest}\`)\n- Frozen expectation digest: sha256:\`${receipt.bindings.corpus.expectationDigest}\`\n- Browser: ${receipt.bindings.browser.name} ${receipt.bindings.browser.version}\n- OS: ${receipt.bindings.runner.osVersion} (${receipt.bindings.runner.osBuild})\n- Clean-build executable closure: sha256:\`${receipt.bindings.sensor.digest}\`\n- Bound source/build-input closure: sha256:\`${receipt.bindings.sensor.sourceDigest}\`\n\n## Exact counts\n\n| requested | executed | valid | detected | missed | unsupported | skipped | timeout | invalid | duplicate | no-op false positives | no-op true negatives |\n|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n| ${counts.requested} | ${counts.executed} | ${counts.valid} | ${counts.detected} | ${counts.missed} | ${counts.unsupported} | ${counts.skipped} | ${counts.timeout} | ${counts.invalid} | ${counts.duplicate} | ${counts.noOpFalsePositives} | ${counts.noOpTrueNegatives} |\n\n## Cases\n\n${lines}\n\n## Excluded / unknown\n\n${receipt.scope.kind === 'full' ? '- This run covers the complete frozen Phase-0 corpus; classes outside it remain unmeasured.' : '- Full issue #447 corpus: not run.'}\n- Unsupported sensor classes and whole-application states: excluded.\n- These observations must not be extrapolated beyond the named corpus and bound environment.\n`;
 }
 function expectedCases(selected) {
   return selected.map((entry) => ({ id: entry.id, class: entry.class, ...entry.expected }));
@@ -322,14 +372,16 @@ function expectedCases(selected) {
 
 const options = parseArgs(process.argv.slice(2));
 const source = assertCleanSource(options['expect-source-sha']);
-const corpusPath = path.resolve(ROOT, options.corpus);
-if (corpusPath !== path.resolve(ROOT, 'bench/detection-corpus-v1.json'))
-  throw new Error('runner accepts only the reviewed, frozen detection-corpus-v1.json');
-const corpusBytes = fs.readFileSync(corpusPath);
+const corpusKey = path.relative(ROOT, path.resolve(ROOT, options.corpus)).split(path.sep).join('/');
+const corpusEntry = CORPORA[corpusKey];
+if (!corpusEntry) throw new Error('runner accepts only a reviewed, frozen corpus from the registry');
+if (!corpusEntry.scopes.has(options.scope))
+  throw new Error(`corpus ${corpusKey} does not support ${options.scope} scope`);
+const corpusBytes = fs.readFileSync(path.resolve(ROOT, corpusKey));
 const corpus = JSON.parse(corpusBytes.toString('utf8'));
-const manifest = JSON.parse(fs.readFileSync(path.resolve(ROOT, 'bench/detection-corpus-v1.manifest.json'), 'utf8'));
+const manifest = JSON.parse(fs.readFileSync(path.resolve(ROOT, corpusEntry.manifest), 'utf8'));
 const frozen = verifyCorpus(corpusBytes, corpus, manifest);
-const selected = selectCases(corpus, options);
+const { selected, shard } = selectCases(corpus, options);
 runCleanBuild();
 const executableDigest = builtClosureDigest();
 const sensor = await import(pathToFileURL(path.resolve(ROOT, 'dist/index.js')).href);
@@ -369,10 +421,11 @@ try {
         });
         continue;
       }
+      let result;
       try {
-        results.push(await executeCase(browser, benchmarkCase, publication.stagingDirectory, sensor, lifecycle));
+        result = await executeCase(browser, benchmarkCase, publication.stagingDirectory, sensor, lifecycle);
       } catch (error) {
-        results.push({
+        result = {
           id: benchmarkCase.id,
           class: benchmarkCase.class,
           outcome: 'invalid',
@@ -380,8 +433,14 @@ try {
           findings: [],
           screenshots: [],
           reason: String(error?.message ?? error),
-        });
+        };
       }
+      if (!SCORED_RESULTS.has(result.outcome))
+        fs.rmSync(path.join(publication.stagingDirectory, 'cases', benchmarkCase.id), {
+          recursive: true,
+          force: true,
+        });
+      results.push(result);
     }
   } finally {
     await browser.close();
@@ -389,7 +448,12 @@ try {
   const receipt = {
     schemaVersion: 1,
     benchmark: 'styleproof-detection-rate',
-    scope: { kind: options.scope, issue: 447, full447: false },
+    scope: {
+      kind: options.scope,
+      issue: 447,
+      full447: options.scope === 'full',
+      ...(shard ? { shard } : {}),
+    },
     bindings: {
       sourceSha: source.sourceSha,
       packageVersion: JSON.parse(fs.readFileSync(path.resolve(ROOT, 'package.json'), 'utf8')).version,
@@ -416,12 +480,15 @@ try {
         expectationDigest: frozen.expectationDigest,
         reviewDigest: frozen.reviewDigest,
         cardinality: corpus.cases.length,
-        manifest: 'bench/detection-corpus-v1.manifest.json',
+        manifest: corpusEntry.manifest,
       },
     },
     counts: countOutcomes(results, selected.length),
     cases: results,
-    full447: { status: 'not-run', claimed: false },
+    full447:
+      options.scope === 'full'
+        ? { status: 'complete', claimed: true }
+        : { status: 'not-run', claimed: false },
   };
   const expectation = {
     sourceSha: source.sourceSha,
@@ -433,6 +500,7 @@ try {
     corpusCardinality: corpus.cases.length,
     scopeKind: options.scope,
     requestedCardinality: selected.length,
+    ...(shard ? { shard } : {}),
     sensorDigest: executableDigest,
     sensorSourceDigest: source.sourceDigest,
     artifactRoot: publication.stagingDirectory,
