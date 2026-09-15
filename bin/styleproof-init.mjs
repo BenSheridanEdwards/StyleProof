@@ -885,7 +885,7 @@ ${PM.setup}
           BASE_SHA="\${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
           PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec-ref-if-missing "$HEAD_SHA" --base-dir "\${{ runner.temp }}/styleproof-maps"${CI_STORAGE_SUFFIX}
-      - uses: BenSheridanEdwards/StyleProof@v6
+      - uses: BenSheridanEdwards/StyleProof@v7
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
@@ -942,7 +942,7 @@ jobs:
             failed=false
           fi
           echo "base-capture-failed=$failed" >> "$GITHUB_OUTPUT"
-      - uses: BenSheridanEdwards/StyleProof@v6
+      - uses: BenSheridanEdwards/StyleProof@v7
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head

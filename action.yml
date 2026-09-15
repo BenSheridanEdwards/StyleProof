@@ -109,8 +109,8 @@ runs:
   steps:
     # Composite actions run from a checked-out action ref, but bare `npx
     # styleproof-*` resolves from the consumer workspace or npm latest. Install and
-    # build this action checkout, then run the checked-out bins so `uses: ...@v6`
-    # truly executes v6 code even though `dist/` is not committed to git. The
+    # build this action checkout, then run the checked-out bins so `uses: ...@v7`
+    # truly executes v7 code even though `dist/` is not committed to git. The
     # checkout-bound stamp is job-local by design: never publish or cache it.
     - name: Install StyleProof action runtime
       shell: bash
