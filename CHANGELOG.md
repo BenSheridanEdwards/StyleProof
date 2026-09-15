@@ -9,6 +9,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Framework-neutral SPA route discovery (#584).** `defineCrawlCapture` now
+  observes programmatic navigation — `history.pushState`, `replaceState`, and
+  `popstate`, the APIs every client router funnels through — during the crawl,
+  and adds each newly observed same-origin route to the surface set. Routes the
+  app lands on through router redirects or a `settle` hook's client-side click
+  are captured without router-specific adapters; in-page `<a href="#…">`
+  anchors never reach the observer. Discovery is bounded (64 observed routes,
+  3 passes), logged, reconciled by the `expected`/`exclude` coverage guard, and
+  can be disabled with `observeNavigation: false`.
 - **Phase-0 detection corpus v2 (#447).** `bench/detection-corpus-v2.json`
   freezes 23 reviewed mutants — resting computed-style changes across color,
   typography, spacing, borders, effects, layout, and CSS variables; pseudo-element

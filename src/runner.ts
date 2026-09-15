@@ -44,7 +44,14 @@ import {
 } from './surface-progress.js';
 import { assertSafeCaptureKey, captureArtifactStem } from './surface-keys.js';
 import { detectViewportWidths } from './breakpoints.js';
-import { selectCrawlLinks, crawlCoverageError, type CrawlLink, type LinkMatch } from './crawl.js';
+import {
+  selectCrawlLinks,
+  selectObservedNavs,
+  crawlCoverageError,
+  dedupIdentity,
+  type CrawlLink,
+  type LinkMatch,
+} from './crawl.js';
 import type { Page } from '@playwright/test';
 import {
   applyStateRecipe,
@@ -1593,6 +1600,20 @@ export type CrawlOptions = CaptureConfig & {
    *  (an SPA hydrates its nav client-side). Default 15000. */
   linkTimeout?: number;
   /**
+   * Watch programmatic navigation during the crawl — history.pushState /
+   * replaceState / popstate, the APIs every client router funnels through —
+   * and capture each newly observed same-origin route as a surface (#584).
+   * This is the framework-neutral part of SPA discovery: a button-only nav
+   * still routes through the history API, so routes the app itself lands on
+   * (initial router redirects, default-tab selection, navigation triggered by
+   * a `settle` hook) join the frontier without router-specific adapters.
+   * In-page `<a href="#section">` anchors never call the history API, so
+   * fragment noise cannot pollute the surface set. Default true; set false to
+   * crawl rendered links only. Bounded: up to 64 observed routes over up to 3
+   * discovery passes.
+   */
+  observeNavigation?: boolean;
+  /**
    * The full set of surface keys the app knows its nav should link to — its route
    * universe. When set, the crawl reconciles the DISCOVERED link set against it, both
    * directions: an `expected` key with no rendered link fails (nav regression), and a
@@ -1747,6 +1768,40 @@ async function sweepCrawlSurfaces(page: Page, captureSurfaces: ExpandedSurface[]
   }
 }
 
+// Framework-neutral SPA route discovery (#584): the page-side hook reports
+// every URL the app lands on through the history API. pushState/replaceState
+// cover every client router; popstate covers app-driven back/forward.
+// `hashchange` is deliberately NOT observed — it also fires for in-page
+// `<a href="#section">` anchors, which are same-page content, not routes.
+const NAV_OBSERVER_FN = '__styleproofObservedNav';
+const NAV_OBSERVER_SNIPPET = `(() => {
+  const report = () => {
+    try { window.${NAV_OBSERVER_FN}(location.href); } catch { /* binding not yet installed */ }
+  };
+  for (const fn of ['pushState', 'replaceState']) {
+    const orig = history[fn];
+    history[fn] = function (...args) {
+      const ret = orig.apply(this, args);
+      report();
+      return ret;
+    };
+  };
+  addEventListener('popstate', report);
+})();`;
+
+// Discovery is bounded so a runaway app (scroll-position URL updates, a router
+// loop) can't spin the crawl forever: at most this many extra capture passes,
+// and at most this many observed routes total.
+const OBSERVED_NAV_MAX_PASSES = 3;
+const OBSERVED_NAV_MAX_ROUTES = 64;
+
+/** Name newly observed routes so a discovered surface is never silent. */
+function reportObservedRoutes(fresh: CrawlLink[]): void {
+  process.stderr.write(
+    `styleproof: navigation observer discovered ${fresh.length} route(s): ${fresh.map((l) => l.key).join(', ')}\n`,
+  );
+}
+
 export function defineCrawlCapture(options: CrawlOptions): void {
   const {
     from,
@@ -1764,6 +1819,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     settle,
     expected,
     exclude = {},
+    observeNavigation = true,
   } = options;
   if (!dir) return;
 
@@ -1788,27 +1844,50 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     writeCoverageLedgerTest(settings, dir, expected ?? null, exclude, ledgerSurfaces);
     writeBrowserBuildTest(settings, dir);
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {
+      const testStart = Date.now();
+      // SPA discovery (#584): observe programmatic navigation — the history API
+      // every client router funnels through — so routes the app itself lands on
+      // join the rendered-link frontier without router-specific adapters.
+      const observedNavs = observeNavigation ? new Set<string>() : undefined;
+      if (observedNavs) {
+        await page.exposeFunction(NAV_OBSERVER_FN, (href: string) => {
+          observedNavs.add(href);
+        });
+        await page.addInitScript(NAV_OBSERVER_SNIPPET);
+      }
       // 1. Load the root and read its hydrated nav links into the surface set.
       const links = await discoverCrawlLinks(page, { from, match, key, linkTimeout });
-      // Coverage guard for a crawled nav. The rendered link set IS the route universe
-      // for a link-crawled SPA, so reconciling it against `expected` (both directions)
-      // is the spec guard's list-vs-ledger discipline with the nav as source of truth.
-      // Runs here — inside the capture test — because the link set isn't known until
-      // the page renders (unlike the static spec guard, which runs in the plain suite).
-      const gap = expected
-        ? crawlCoverageError(
-            from,
-            links.map((l) => l.key),
-            expected,
-            exclude,
-          )
-        : null;
-      if (gap) throw new Error(gap);
       // The nav's hrefs are same-origin by selection, but a link can still 302
       // off-origin (SSO, /out?url=…). External content is nondeterministic and
       // never belongs in a map, so the landing origin is verified per surface.
       const entryOrigin = new URL(page.url()).origin;
-      const captureSurfaces = links.flatMap((link) =>
+      const seen = new Set(links.map((l) => dedupIdentity(l.url)));
+      const usedKeys = new Set(links.map((l) => l.key));
+      let observedCount = 0;
+      const mergeObserved = (): CrawlLink[] => {
+        if (!observedNavs?.size) return [];
+        const fresh = selectObservedNavs([...observedNavs], {
+          base: page.url(),
+          match,
+          key,
+          seen,
+          usedKeys,
+        });
+        observedNavs.clear();
+        const take = fresh.slice(0, Math.max(0, OBSERVED_NAV_MAX_ROUTES - observedCount));
+        if (fresh.length > take.length) {
+          process.stderr.write(
+            `styleproof: navigation observer capped at ${OBSERVED_NAV_MAX_ROUTES} discovered route(s); ` +
+              `${fresh.length - take.length} further route(s) observed but not captured\n`,
+          );
+        }
+        observedCount += take.length;
+        links.push(...take);
+        return take;
+      };
+      const initialObserved = mergeObserved(); // router redirect / default tab during hydration
+      if (initialObserved.length) reportObservedRoutes(initialObserved);
+      const expandLink = (link: CrawlLink): ExpandedSurface[] =>
         expandSurfaceVariants({
           key: link.key,
           go: async (p) => {
@@ -1828,23 +1907,55 @@ export function defineCrawlCapture(options: CrawlOptions): void {
           liveStates,
           stateRecipes,
           popups,
-        }),
-      );
-      assertUniqueExpandedKeys(captureSurfaces);
-      // Budget the whole sweep up front: one test captures every surface, and
-      // captureSurface no longer sets its own timeout, so size it to the work found.
-      // With auto-width the band count isn't known until each surface renders, so
-      // assume up to 4 bands per surface. Sized from the per-surface ceiling so a
-      // breach is always reported by the NAMED per-surface timeout, never by the
-      // anonymous whole-sweep one.
-      test.setTimeout(
-        captureTestBudgetMs(
-          settings.surfaceTimeoutMs,
-          captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0),
-        ),
-      );
+        });
       // 2. Capture each discovered surface, aggregating per-surface failures.
-      await sweepCrawlSurfaces(page, captureSurfaces, settings);
+      // Navigation observed while a surface settles (a `settle` hook that clicks
+      // a client-routed tab, an app that replaces its URL after load) expands
+      // the frontier for another bounded pass.
+      let frontier = [...links];
+      for (let pass = 0; frontier.length && pass < OBSERVED_NAV_MAX_PASSES; pass++) {
+        const captureSurfaces = frontier.flatMap(expandLink);
+        assertUniqueExpandedKeys(captureSurfaces);
+        // Budget per pass: one test captures every surface, and captureSurface
+        // no longer sets its own timeout, so size it to the work found. With
+        // auto-width the band count isn't known until each surface renders, so
+        // assume up to 4 bands per surface. The deadline extends from test start
+        // so each pass gets its own fresh slice; a breach is still reported by
+        // the NAMED per-surface timeout, never by the anonymous whole-sweep one.
+        test.setTimeout(
+          Date.now() -
+            testStart +
+            captureTestBudgetMs(
+              settings.surfaceTimeoutMs,
+              captureSurfaces.reduce((sum, surface) => sum + (surface.widths?.length ?? 4), 0),
+            ),
+        );
+        await sweepCrawlSurfaces(page, captureSurfaces, settings);
+        const fresh = mergeObserved();
+        if (fresh.length) reportObservedRoutes(fresh);
+        frontier = fresh;
+      }
+      if (observedNavs?.size) {
+        observedNavs.clear();
+        process.stderr.write(
+          `styleproof: navigation observer stopped after ${OBSERVED_NAV_MAX_PASSES} discovery passes — later-observed route(s) not captured\n`,
+        );
+      }
+      // Coverage guard for a crawled nav. The rendered link set PLUS the routes
+      // the app navigated to IS the route universe, so reconciling it against
+      // `expected` (both directions) is the spec guard's list-vs-ledger
+      // discipline with the app's own surface truth as source of truth. Runs
+      // after the sweep so observed routes reconcile too — the maps are already
+      // written, so a gap still reports with full capture evidence attached.
+      const gap = expected
+        ? crawlCoverageError(
+            from,
+            links.map((l) => l.key),
+            expected,
+            exclude,
+          )
+        : null;
+      if (gap) throw new Error(gap);
     });
   });
 }
