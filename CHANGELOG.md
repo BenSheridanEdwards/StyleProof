@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-09-14
+
+> **StyleProof 7.0.0: Trustworthy adoption**
+>
+> This major release establishes the supported 7.x line after the breaking Phase 0
+> and Release Confidence API removals that shipped in 6.4.0. It also includes
+> one-command setup, typed configuration, advisory adoption, exact audit output,
+> stricter known-truth browser evidence, and the pre-push audit-file repair.
+> Existing 6.x users must upgrade the package and Action together, refresh generated
+> workflows, and regenerate baselines.
+
 ### Added
 
 - **Coverage config manifest** (`coverage.manifest`): declare expected surfaces via
@@ -53,6 +64,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   unless you explicitly set `suppressPlatformWarning: false` in config or
   `STYLEPROOF_SUPPRESS_PLATFORM_WARNING=0`. The warning was noisy for adopters
   who understood the tradeoff; the exit-code behavior is unchanged. (#600)
+
+### Changed
+
+- Generated report workflows, supported examples, the README, and repository skills
+  now use the `v7` Action and reusable-workflow aliases.
+- Package and lockfile metadata now identify version 7.0.0. Dependency resolution is
+  unchanged.
 
 ### Fixed
 
@@ -3719,7 +3737,9 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.3.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.0.0...HEAD
+[7.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.4.0...v7.0.0
+[6.4.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.3.0...v6.4.0
 [6.3.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.2...v6.3.0
 [6.2.2]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.1...v6.2.2
 [6.2.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v6.2.0...v6.2.1

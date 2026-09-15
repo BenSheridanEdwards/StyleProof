@@ -741,7 +741,7 @@ jobs:
             failed=false
           fi
           echo "base-capture-failed=$failed" >> "$GITHUB_OUTPUT"
-      - uses: BenSheridanEdwards/StyleProof@v6
+      - uses: BenSheridanEdwards/StyleProof@v7
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
