@@ -33,6 +33,7 @@ const CORPORA = {
   },
 };
 const SCOPES = new Set(['smoke', 'pilot', 'diagnostic', 'sharded', 'full']);
+const SCORED_RESULTS = new Set(['detected', 'missed', 'no-op-false-positive', 'no-op-true-negative']);
 
 function parseArgs(argv) {
   const values = {};
@@ -202,7 +203,7 @@ async function withCasePage(context, benchmarkCase, side, action) {
 async function captureProofSide(context, benchmarkCase, side, screenshotPath) {
   return withCasePage(context, benchmarkCase, side, async (page) => {
     const observed = await observeProof(page, benchmarkCase.proof);
-    await page.locator(benchmarkCase.proof.selector).screenshot({ path: screenshotPath });
+    await page.locator('main').screenshot({ path: screenshotPath });
     return observed;
   });
 }
@@ -266,10 +267,13 @@ async function runCase(context, benchmarkCase, outputDirectory, sensor) {
       id: benchmarkCase.id,
       class: benchmarkCase.class,
       outcome: 'invalid',
-      renderProof,
       findingCount: 0,
       findings: [],
-      screenshots,
+      screenshots: [],
+      reason:
+        `render proof failed: propertyMatches=${propertyMatches}, ` +
+        `observedPropertyChange=${observedPropertyChange}, ` +
+        `observedPixelChange=${observedPixelChange}, changedPixels=${changedPixels}`,
     };
   const beforeMap = await captureSensorSide(context, benchmarkCase, 'before', sensor.captureStyleMap);
   const afterMap = await captureSensorSide(context, benchmarkCase, 'after', sensor.captureStyleMap);
@@ -417,10 +421,11 @@ try {
         });
         continue;
       }
+      let result;
       try {
-        results.push(await executeCase(browser, benchmarkCase, publication.stagingDirectory, sensor, lifecycle));
+        result = await executeCase(browser, benchmarkCase, publication.stagingDirectory, sensor, lifecycle);
       } catch (error) {
-        results.push({
+        result = {
           id: benchmarkCase.id,
           class: benchmarkCase.class,
           outcome: 'invalid',
@@ -428,8 +433,14 @@ try {
           findings: [],
           screenshots: [],
           reason: String(error?.message ?? error),
-        });
+        };
       }
+      if (!SCORED_RESULTS.has(result.outcome))
+        fs.rmSync(path.join(publication.stagingDirectory, 'cases', benchmarkCase.id), {
+          recursive: true,
+          force: true,
+        });
+      results.push(result);
     }
   } finally {
     await browser.close();
