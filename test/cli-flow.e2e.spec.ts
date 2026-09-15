@@ -762,6 +762,121 @@ test('crawl coverage guard: a rendered link with no `expected` owner fails the c
   }
 });
 
+/** A client-routed SPA: one HTML document, a BUTTON-only nav (no <a href>
+ *  anywhere), and views reachable only through history.pushState — the shape
+ *  link-crawl alone can never discover. The bare root replaceStates onto the
+ *  home route like a router's default redirect. */
+function writeSpaNavApp(dir: string, port: number) {
+  writeFixtureApp(dir, port);
+  fs.writeFileSync(
+    path.join(dir, 'server.mjs'),
+    `import http from 'node:http';
+const port = Number(process.argv[2]);
+http.createServer((req, res) => {
+  res.setHeader('content-type', 'text/html');
+  res.end(\`<!doctype html><html><head><meta charset="utf-8"><style>
+    body{margin:0;font-family:system-ui} nav{padding:16px;background:rgb(240,240,245)} nav button{margin-right:12px}
+    main{padding:32px} h1{color:rgb(20,20,30)}
+  </style></head><body>
+<nav><button data-view="home">Home</button><button data-view="reports">Reports</button></nav>
+<main id="view"></main>
+<script>
+  const VIEWS = { home: '<h1>Home</h1>', reports: '<h1>Reports</h1>' };
+  function render() {
+    const view = new URL(location.href).searchParams.get('view') ?? 'home';
+    document.getElementById('view').innerHTML = VIEWS[view] ?? '<h1>404</h1>';
+  }
+  if (!new URL(location.href).searchParams.has('view')) {
+    history.replaceState({}, '', '/?view=home'); // router default-route redirect
+  }
+  for (const b of document.querySelectorAll('nav button')) {
+    b.addEventListener('click', () => {
+      history.pushState({}, '', '/?view=' + b.dataset.view);
+      render();
+    });
+  }
+  render();
+</script>
+</body></html>\`);
+}).listen(port, '127.0.0.1');
+`,
+  );
+}
+
+test('SPA discovery: client-routed views observed through the history API join the crawl (#584)', async () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-spa-nav-'));
+  const port = await freePort();
+  try {
+    writeSpaNavApp(app, port);
+    git(app, ['init', '-q']);
+    git(app, ['config', 'user.email', 'styleproof@example.test']);
+    git(app, ['config', 'user.name', 'StyleProof Test']);
+    git(app, ['checkout', '-qb', 'main']);
+    const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
+    expect(init.status, init.stderr).toBe(0);
+
+    // No <a href> exists, so the rendered-link frontier holds only the
+    // includeSelf root. `home` arrives via the app's own replaceState redirect;
+    // `reports` arrives when the settle hook clicks the client-routed button —
+    // both through the history API, no router adapter.
+    fs.writeFileSync(
+      path.join(app, 'e2e/styleproof.spec.ts'),
+      `import { defineCrawlCapture } from 'styleproof';
+defineCrawlCapture({
+  from: '/',
+  widths: [1280],
+  screenshots: false,
+  linkTimeout: 3000,
+  settle: async (page) => {
+    if (!page.url().includes('view=reports')) await page.click('nav button[data-view="reports"]');
+  },
+  dir: process.env.STYLEMAP_DIR,
+});
+`,
+    );
+    const map = run(app, process.execPath, [MAP], { STYLEMAP_DIR: 'current' });
+    expect(map.status, map.stderr + map.stdout).toBe(0);
+    expect(map.stderr).toContain('navigation observer discovered');
+
+    // `home` covers the root twice over: the app replaceStates '/' → '/?view=home'
+    // during hydration, so the includeSelf root IS the home route (the crawl keys
+    // the landed URL), and the observer dedupes its own sighting of it.
+    const mapsDir = path.join(app, '.styleproof/maps/current');
+    const files = fs.readdirSync(mapsDir);
+    for (const key of ['home', 'reports']) {
+      expect(
+        files.some((f) => f === `${key}@1280.json.gz`),
+        `${key} captured — a route that exists only through the history API`,
+      ).toBe(true);
+    }
+
+    // Opt-out: observeNavigation: false crawls rendered links only. The app's
+    // own replaceState still lands the root on ?view=home, so `home` is
+    // captured as self — but `reports`, reachable only via the button click,
+    // is never seen.
+    fs.writeFileSync(
+      path.join(app, 'e2e/styleproof.spec.ts'),
+      `import { defineCrawlCapture } from 'styleproof';
+defineCrawlCapture({ from: '/', widths: [1280], screenshots: false, linkTimeout: 3000, observeNavigation: false, dir: process.env.STYLEMAP_DIR });
+`,
+    );
+    fs.rmSync(mapsDir, { recursive: true, force: true });
+    const off = run(app, process.execPath, [MAP], { STYLEMAP_DIR: 'current' });
+    expect(off.status, off.stderr + off.stdout).toBe(0);
+    const offFiles = fs.readdirSync(mapsDir);
+    expect(
+      offFiles.some((f) => f === 'home@1280.json.gz'),
+      'landed root still captured',
+    ).toBe(true);
+    expect(
+      offFiles.some((f) => /^reports@1280\.json\.gz$/.test(f)),
+      'no observed route is captured with the observer off',
+    ).toBe(false);
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Pre-push hook dogfood: the ONE place the real scaffolded `.githooks/pre-push`
 // is executed the way git executes it (refspecs on stdin), driving the full

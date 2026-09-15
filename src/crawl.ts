@@ -133,6 +133,17 @@ export function dedupIdentity(pathAndSearch: string): string {
   return normPath + search;
 }
 
+/** Disambiguate a key against those already emitted: first wins bare, the next
+ *  collider gets `-2`, `-3`, … — deterministic in discovery order. Shared by the
+ *  link frontier and the navigation observer so a route found by both keeps one
+ *  key and two genuinely different colliding routes both survive. */
+function uniqueKeyFor(key: string, usedKeys: Set<string>): string {
+  let k = key;
+  for (let i = 2; usedKeys.has(k); i++) k = `${key}-${i}`;
+  usedKeys.add(k);
+  return k;
+}
+
 /**
  * Turn a page's raw `<a href>` values into a deduped, keyed surface list.
  *
@@ -156,16 +167,8 @@ export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opt
   const seen = new Set<string>();
   const usedKeys = new Set<string>();
   const out: CrawlLink[] = [];
-  // Disambiguate a key against those already emitted, mirroring deriveKey: first
-  // wins bare, the next collider gets `-2`, `-3`, … — deterministic in nav order.
-  const uniqueKey = (key: string): string => {
-    let k = key;
-    for (let i = 2; usedKeys.has(k); i++) k = `${key}-${i}`;
-    usedKeys.add(k);
-    return k;
-  };
   const push = (link: CrawlLink): void => {
-    out.push({ key: uniqueKey(link.key), url: link.url });
+    out.push({ key: uniqueKeyFor(link.key, usedKeys), url: link.url });
   };
   if (opts.includeSelf) {
     const selfUrl = base.pathname + base.search;
@@ -179,6 +182,61 @@ export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opt
     if (seen.has(id)) continue;
     seen.add(id);
     push(link);
+  }
+  return out;
+}
+
+/**
+ * Classify a URL the app navigated to PROGRAMMATICALLY — history.pushState /
+ * replaceState / popstate, observed by the crawl's navigation hook — into a
+ * surface link, or `null` to skip (malformed, non-http(s), off-origin, filtered
+ * by `match`). Unlike {@link toLink} the fragment is KEPT: a pushState to
+ * `/#/route` is a deliberate app navigation and hash routers exist, while
+ * in-page `<a href="#section">` anchors can never reach this path — the hook
+ * only sees the history API, not default anchor behaviour.
+ */
+function toObservedLink(href: string, base: URL, keyFor: (url: URL) => string, match?: LinkMatch): CrawlLink | null {
+  let url: URL;
+  try {
+    url = new URL(href, base);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  if (url.origin !== base.origin) return null;
+  if (!matches(url, match)) return null;
+  return { key: keyFor(url), url: url.pathname + url.search + url.hash };
+}
+
+/**
+ * Turn URLs observed through the history API into surface links, deduped
+ * against the shared frontier state. `seen` holds the {@link dedupIdentity}
+ * values of every surface emitted so far (link or observed — an observed URL's
+ * fragment is part of its url, so it is part of the identity too) and
+ * `usedKeys` the emitted keys; both are mutated so repeated drains stay deduped
+ * across passes.
+ */
+export function selectObservedNavs(
+  hrefs: Iterable<string | null | undefined>,
+  opts: {
+    /** Absolute URL the observed hrefs resolve and same-origin-check against. */
+    base: string;
+    match?: LinkMatch;
+    key?: (url: URL) => string;
+    seen: Set<string>;
+    usedKeys: Set<string>;
+  },
+): CrawlLink[] {
+  const base = new URL(opts.base);
+  const keyFor = opts.key ?? defaultLinkKey;
+  const out: CrawlLink[] = [];
+  for (const href of hrefs) {
+    const link = href ? toObservedLink(href, base, keyFor, opts.match) : null;
+    if (!link) continue;
+    const id = dedupIdentity(link.url);
+    if (opts.seen.has(id)) continue;
+    opts.seen.add(id);
+    out.push({ key: uniqueKeyFor(link.key, opts.usedKeys), url: link.url });
   }
   return out;
 }

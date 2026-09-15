@@ -242,3 +242,62 @@ test('crawlCoverageError: null when clean, a named message per failing direction
   const regressed = crawlCoverageError('/', ['index'], ['index', 'pricing']);
   assert.match(regressed, /nav regression.*pricing/);
 });
+
+// ------------------------------------------------------- selectObservedNavs
+
+import { selectObservedNavs, dedupIdentity } from '../dist/crawl.js';
+
+const observe = (hrefs, opts = {}) => {
+  const seen = opts.seen ?? new Set();
+  const usedKeys = opts.usedKeys ?? new Set();
+  return { links: selectObservedNavs(hrefs, { base: BASE, seen, usedKeys, ...opts }), seen, usedKeys };
+};
+
+test('selectObservedNavs: client-route pushStates become keyed surfaces', () => {
+  const { links } = observe(['https://app.test/?view=overview', 'https://app.test/settings']);
+  assert.deepEqual(links, [
+    { key: 'overview', url: '/?view=overview' },
+    { key: 'settings', url: '/settings' },
+  ]);
+});
+
+test('selectObservedNavs: drops external, malformed, and non-http navigations', () => {
+  const { links } = observe(['https://evil.test/x', 'http://[::1', 'javascript:void(0)', null, '/keep']);
+  assert.deepEqual(links, [{ key: 'keep', url: '/keep' }]);
+});
+
+test('selectObservedNavs: dedupes against the rendered-link frontier via shared seen', () => {
+  const seen = new Set([dedupIdentity('/?view=overview')]);
+  const usedKeys = new Set(['index', 'overview']);
+  const { links } = observe(['https://app.test/?view=overview', 'https://app.test/dashboard'], { seen, usedKeys });
+  assert.deepEqual(links, [{ key: 'dashboard', url: '/dashboard' }], 'already-linked route is not re-captured');
+});
+
+test('selectObservedNavs: disambiguates a key that collides with a link surface', () => {
+  // A nav link /a?tab=x already claimed key `a-x`; an observed /a?view=x keys
+  // identically (path segments + param values) — it must survive as `a-x-2`,
+  // never silently overwrite the first surface's map.
+  const seen = new Set([dedupIdentity('/a?tab=x')]);
+  const usedKeys = new Set(['a-x']);
+  const { links } = observe(['https://app.test/a?view=x'], { seen, usedKeys });
+  assert.deepEqual(links, [{ key: 'a-x-2', url: '/a?view=x' }]);
+});
+
+test('selectObservedNavs: keeps the fragment — a pushState hash route is a distinct surface', () => {
+  const { links } = observe(['https://app.test/#/dashboard']);
+  assert.deepEqual(links.length, 1);
+  assert.equal(links[0].url, '/#/dashboard', 'hash kept so the route navigates to its content');
+});
+
+test('selectObservedNavs: match filter applies to observed URLs the same as links', () => {
+  const { links } = observe(['https://app.test/?view=a', 'https://app.test/other'], { match: /\?view=/ });
+  assert.deepEqual(links, [{ key: 'a', url: '/?view=a' }]);
+});
+
+test('selectObservedNavs: repeated drains stay deduped across passes', () => {
+  const seen = new Set();
+  const usedKeys = new Set();
+  observe(['https://app.test/one'], { seen, usedKeys });
+  const second = observe(['https://app.test/one', 'https://app.test/two'], { seen, usedKeys });
+  assert.deepEqual(second.links, [{ key: 'two', url: '/two' }], 'pass-one route is not re-emitted');
+});
