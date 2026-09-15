@@ -193,8 +193,8 @@ jobs:
           name: ${{ steps.notes.outputs.release_name }}
           generate_release_notes: true
 
-      # Move the major alias (e.g. v6) to this release, so consumers pinning
-      # `uses: BenSheridanEdwards/StyleProof@v6` always get the latest 6.x. A
+      # Move the major alias (for example v7) to this release, so consumers pinning
+      # the supported major always receive its latest compatible release. A
       # GITHUB_TOKEN push does not retrigger workflows, so this never loops.
       - name: Move the major tag
         if: steps.check.outputs.released == 'true'
