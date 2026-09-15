@@ -127,8 +127,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "5dfed0ae7ed7972902883cf8bbc6fbd46523b436",
-      "observed": "5dfed0ae7ed7972902883cf8bbc6fbd46523b436",
+      "expected": "2a645389e2cb066196fd67bf0190d89753ce67e3",
+      "observed": "2a645389e2cb066196fd67bf0190d89753ce67e3",
       "result": "matched"
     }
   },
@@ -136,17 +136,17 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "2459bbf9a24ce719a41062a797e4d57a8f8824020189f7182571cab3d114783f",
+      "digest": "8574d4a4195a5492bc7db8fbd0657993f2ce8be81250b872a1bef1f6d1098b9f",
       "fileCount": 18,
       "mapCount": 3,
-      "byteCount": 295651
+      "byteCount": 295650
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "f714df36cc5f49ef1b764f618b787b4ba398138a534e8a8fb51cd85f94888576",
+      "digest": "cb780ba9d6f105996ca986736cff1515dc10068e0c1b199e0a14fa463b55f78f",
       "fileCount": 18,
       "mapCount": 3,
-      "byteCount": 295652
+      "byteCount": 295648
     }
   },
   "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
