@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import http from 'node:http';
-import { captureStyleMap, diffStyleMaps, harvestStyleVariants, type HarvestedVariant } from '../dist/index.js';
+import { captureStyleMap, diffStyleMaps } from '../dist/index.js';
+import { harvestStyleVariants, type HarvestedVariant } from '../dist/variant-crawler.js';
 
 function fixture(): string {
   return `<!doctype html><html><head><meta charset="utf-8"><style>

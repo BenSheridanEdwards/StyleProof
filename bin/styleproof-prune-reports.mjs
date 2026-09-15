@@ -30,7 +30,10 @@ Sweep closed reports by retention and branch-size budget (default mode):
 
 Options:
   --branch <name>       report branch (default: styleproof-reports)
-  -h, --help            show this help`;
+  -h, --help            show this help
+
+styleproof-prune-reports is a compatibility alias for the unified CLI: styleproof prune-reports
+`;
 
 const argv = process.argv.slice(2);
 if (argv.includes('--help') || argv.includes('-h')) {

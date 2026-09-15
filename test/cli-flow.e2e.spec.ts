@@ -828,7 +828,8 @@ test('pre-push hook dogfood: capture→publish→docs-skip→fresh-clone restore
     git(remote, ['init', '--bare', '-q']);
     git(app, ['remote', 'add', 'origin', remote]);
 
-    const init = run(app, process.execPath, [INIT, '--base-url', `http://127.0.0.1:${port}`]);
+    // The pre-push hook is emitted only with --storage branch since #480.
+    const init = run(app, process.execPath, [INIT, '--storage', 'branch', '--base-url', `http://127.0.0.1:${port}`]);
     expect(init.status, init.stderr).toBe(0);
     expect(fs.existsSync(path.join(app, '.githooks/pre-push'))).toBe(true);
     fs.writeFileSync(path.join(app, 'README.md'), '# dogfood\n');

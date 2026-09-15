@@ -731,7 +731,11 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
       assert.equal(installedAt.at(-1), head, 'head install runs at the head commit');
       assert.match(result.stderr, /overlaying 3 spec-harness file\(s\) from/);
       assert.match(generatedMapScript, /--spec-ref-if-missing "\$HEAD_SHA"/);
-      assert.match(generatedMapScript, /--no-upload/, 'untrusted PR capture must not publish to the map store');
+      assert.match(
+        generatedMapScript,
+        /--no-store/,
+        'the default single-workflow scaffold runs with no map-store branch and therefore no upload',
+      );
 
       // Untrusted generated capture intentionally leaves maps local (artifact-only).
       // A second generated run therefore cannot restore from styleproof-maps.
@@ -761,11 +765,11 @@ git status --porcelain --untracked-files=all > "$STYLEPROOF_BASEDIR/$STYLEMAP_DI
 
       // The publish/restore contract still holds when upload is allowed (trusted
       // local/pre-push or a future trusted publisher). Prove it with the same
-      // first-adoption args minus the generated --no-upload flag.
+      // first-adoption args minus the generated --no-store flag.
       fs.rmSync(mapRoot, { recursive: true, force: true });
       const publishOutput = path.join(root, 'github-output-publish');
-      const publishScript = generatedMapScript.replace(/ --no-upload\b/g, '');
-      assert.doesNotMatch(publishScript, /--no-upload/);
+      const publishScript = generatedMapScript.replace(/ --no-store\b/g, '');
+      assert.doesNotMatch(publishScript, /--no-store/);
       const published = spawnSync('/bin/bash', ['-c', publishScript], {
         cwd: repo,
         encoding: 'utf8',
@@ -1707,6 +1711,99 @@ test('styleproof-ci: invalid --head SHA fails loudly before capture', () => {
     rmTmp(root);
   }
 });
+
+test(
+  'styleproof-ci --no-store: no restore probes, no upload, both sides captured in the job',
+  { timeout: 30_000 },
+  () => {
+    const root = mkTmp('styleproof-ci-no-store-');
+    const remote = path.join(root, 'remote.git');
+    const repo = path.join(root, 'consumer');
+    const mapRoot = path.join(root, 'maps');
+    const githubOutput = path.join(root, 'github-output');
+    const gitLog = path.join(root, 'git-calls.log');
+    const git = (cwd, args) => {
+      const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    try {
+      fs.mkdirSync(repo);
+      git(root, ['init', '--bare', '-q', remote]);
+      git(repo, ['init', '-q', '-b', 'main']);
+      git(repo, ['config', 'user.email', 'styleproof@example.test']);
+      git(repo, ['config', 'user.name', 'StyleProof Test']);
+      git(repo, ['remote', 'add', 'origin', remote]);
+      fs.writeFileSync(path.join(repo, 'package.json'), '{"private":true}\n');
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// base\n');
+      git(repo, ['add', '-A']);
+      git(repo, ['commit', '-qm', 'base']);
+      const base = git(repo, ['rev-parse', 'HEAD']);
+      fs.writeFileSync(path.join(repo, 'styleproof.spec.ts'), '// head\n');
+      git(repo, ['add', 'styleproof.spec.ts']);
+      git(repo, ['commit', '-qm', 'head']);
+      const head = git(repo, ['rev-parse', 'HEAD']);
+      git(repo, ['push', '-q', '-u', 'origin', 'main']);
+
+      const bin = path.join(repo, 'node_modules', '.bin');
+      fs.mkdirSync(bin, { recursive: true });
+      fs.writeFileSync(path.join(bin, 'npm'), npmShim());
+      fs.writeFileSync(
+        path.join(bin, 'playwright'),
+        `#!/bin/sh
+if [ "$1" = "install" ]; then exit 0; fi
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"
+printf '{}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+`,
+      );
+      fs.chmodSync(path.join(bin, 'npm'), 0o755);
+      fs.chmodSync(path.join(bin, 'playwright'), 0o755);
+
+      // Record every git invocation; --no-store must never probe restore
+      // worktrees (probe-base/probe-head) nor touch the map-store branch.
+      const wrapper = `echo "$@" >> "$GIT_CALLS"
+`;
+      const result = runCi(
+        [
+          '--base',
+          base,
+          '--head',
+          head,
+          '--spec',
+          'styleproof.spec.ts',
+          '--base-dir',
+          mapRoot,
+          '--no-store',
+          '--force',
+        ],
+        ciEnvWithGitWrapper(root, wrapper, {
+          CI: '1',
+          GIT_CALLS: gitLog,
+          GITHUB_OUTPUT: githubOutput,
+          STYLEPROOF_MAP_STORE_RESTORE_ATTEMPTS: '1',
+        }),
+        repo,
+      );
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      assert.match(result.stderr, /no map store \(--no-store\)/);
+
+      const calls = fs.existsSync(gitLog) ? fs.readFileSync(gitLog, 'utf8') : '';
+      assert.match(calls, /worktree add .*cold-base/, 'the git call log captured the cold capture worktree');
+      assert.doesNotMatch(calls, /worktree add .*probe-(base|head)/, 'no restore-probe worktrees');
+      assert.doesNotMatch(calls, /worktree add .*restore/, 'no restore worktrees');
+      assert.doesNotMatch(calls, /(fetch|push) .*styleproof-maps/, 'no map-store branch access');
+
+      const outputs = fs.readFileSync(githubOutput, 'utf8');
+      assert.match(outputs, /base-hit=false/);
+      assert.match(outputs, /head-hit=false/);
+      assert.match(outputs, /capture-needed=true/);
+      assert.ok(fs.existsSync(path.join(mapRoot, 'base', 'home@900.json')), 'base capture produced a map in this job');
+      assert.ok(fs.existsSync(path.join(mapRoot, 'head', 'home@900.json')), 'head capture produced a map in this job');
+    } finally {
+      rmTmp(root);
+    }
+  },
+);
 
 test('styleproof-ci: mid-run worktree add failure exits 2 and removes ephemeral worktrees', () => {
   const root = mkTmp('styleproof-ci-wt-add-fail-');

@@ -2,13 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  captureStateLayerScreenshots,
-  captureStyleMap,
-  diffStyleMapDirs,
-  diffStyleMaps,
-  saveStyleMap,
-} from '../dist/index.js';
+import { captureStyleMap, diffStyleMapDirs, diffStyleMaps, saveStyleMap } from '../dist/index.js';
+import { captureStateLayerScreenshots } from '../dist/capture.js';
 
 const PROOF_DIR = path.resolve('.styleproof', 'fresh-fix');
 

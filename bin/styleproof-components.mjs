@@ -18,6 +18,7 @@ options:
 
 Prints exact declared, excluded-with-reason, and uncovered JSON sections.
 Exit 1 when uncovered files remain (default), 2 for usage or manifest errors.
+styleproof-components is a compatibility alias for the unified CLI: styleproof components
 `;
 
 const argv = process.argv.slice(2);

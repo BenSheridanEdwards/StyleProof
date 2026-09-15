@@ -11,7 +11,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { crawlAndCapture, CRAWL_DEFAULTS, diffStyleMapDirs } from '../dist/index.js';
+import { diffStyleMapDirs } from '../dist/index.js';
+import { crawlAndCapture, CRAWL_DEFAULTS } from '../dist/crawl-surfaces.js';
 import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
 
 test.describe.configure({ mode: 'parallel' });

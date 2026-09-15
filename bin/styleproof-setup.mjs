@@ -23,6 +23,11 @@ options:
                       explicit production build/serve command
   --external-server  do not manage a server; BASE_URL must already be available
   --force            overwrite the existing capture spec
+  --workflow <mode>  single (default) | split — one in-job capture+report workflow,
+                     or the fork/Dependabot-safe two-stage layout
+  --storage <mode>   artifact (default) | branch — no map-store branch, or the
+                     styleproof-maps cache with a pre-push publish hook
+  --mode <gate>      advisory (default) | certify | review-gate
   --skip-install     do not add StyleProof and Playwright to the project
   --skip-browser     do not install Playwright Chromium
   --dry-run          print the exact plan without running commands or writing files
@@ -32,11 +37,12 @@ Default workflow:
   1. detect npm, pnpm, Yarn, or Bun from the lockfile
   2. install styleproof@${version} and @playwright/test
   3. install Chromium
-  4. scaffold the capture spec, workflows, and pre-push integration
+  4. scaffold the capture spec and one StyleProof workflow
   5. verify generated files against this release
 
 Setup proves installation and scaffold integrity. Full certification still requires
 an asserted expected inventory and proven deterministic capture evidence.
+styleproof-setup is a compatibility alias for the unified CLI: styleproof setup
 `;
 
 const argv = process.argv.slice(2);
@@ -81,6 +87,12 @@ for (let i = 0; i < argv.length; i++) {
     i++;
     initArgs.push(arg, value);
     checkArgs.push(arg, value);
+  } else if (arg === '--workflow' || arg === '--storage' || arg === '--mode') {
+    const value = requireOptionValue(arg, i);
+    i++;
+    initArgs.push(arg, value);
+  } else if (arg.startsWith('--workflow=') || arg.startsWith('--storage=') || arg.startsWith('--mode=')) {
+    initArgs.push(arg);
   } else if (arg.startsWith('--dir=')) {
     if (!arg.slice('--dir='.length)) {
       process.stderr.write('styleproof setup: --dir requires a value\n');

@@ -19,14 +19,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  captureStyleMap,
-  captureSurfaceScreenshots,
-  diffStyleMaps,
-  diffStyleMapDirs,
-  auditRunInventory,
-  type StyleMap,
-} from '../dist/index.js';
+import { captureStyleMap, diffStyleMaps, diffStyleMapDirs, type StyleMap } from '../dist/index.js';
+import { captureSurfaceScreenshots } from '../dist/capture.js';
+import { auditRunInventory } from '../dist/inventory.js';
 import { correspondBeforeMap } from '../dist/path-correspondence.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { harvestInventory, diffInventory, auditRemovals, captureStyleMap, auditRunInventory } from '../dist/index.js';
+import { captureStyleMap } from '../dist/index.js';
+import { harvestInventory, diffInventory, auditRemovals, auditRunInventory } from '../dist/inventory.js';
 
 // Proves the in-page harvest end-to-end: run harvestInventory against two
 // real rendered pages (a nav that drops an item between them) and confirm the diff

@@ -9,6 +9,16 @@ import { mkNonGitTmp, mkTmp, rmTmp } from './helpers.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
 
+// Scaffold axes (issue #480): the default is one in-job workflow, artifact
+// storage, advisory gate. These opt-ins select the architectures tests exercise:
+// --storage branch emits the pre-push publish hook, --workflow split emits the
+// untrusted-capture + trusted-report pair, --mode review-gate emits the approve
+// caller workflow. LEGACY_SCAFFOLD reproduces the pre-#480 file set exactly.
+const BRANCH = ['--storage', 'branch'];
+const SPLIT = ['--workflow', 'split'];
+const REVIEW = ['--mode', 'review-gate'];
+const LEGACY_SCAFFOLD = [...SPLIT, ...BRANCH, ...REVIEW];
+
 const runInit = (cwd, args = [], env = {}) => {
   const hasServerChoice = args.some(
     (arg) => arg === '--server-command' || arg.startsWith('--server-command=') || arg === '--external-server',
@@ -156,7 +166,7 @@ for (const manager of [
         path.join(root, 'package.json'),
         JSON.stringify({ scripts: { build: 'build', start: 'start' } }),
       );
-      const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+      const res = runInit(root, [...LEGACY_SCAFFOLD, '--dir', 'e2e/styleproof.spec.ts']);
       assert.equal(res.status, 0, res.stderr);
 
       const config = readFile(root, 'playwright.styleproof.config.ts');
@@ -243,6 +253,126 @@ for (const manager of [
     }
   });
 }
+
+test('styleproof-init: default scaffold is one workflow, no map-store branch, advisory gate', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+
+    // Exactly two generated workflow files: the one-job CI workflow and the
+    // lint guard. No split report workflow, no approval caller, no hook.
+    const workflow = readFile(root, '.github/workflows/styleproof.yml');
+    assert.equal(fs.existsSync(path.join(root, '.github/workflows/styleproof-report.yml')), false);
+    assert.equal(fs.existsSync(path.join(root, '.github/workflows/styleproof-approve.yml')), false);
+    assert.equal(fs.existsSync(path.join(root, '.githooks', 'pre-push')), false);
+    assert.equal(fs.existsSync(path.join(root, '.husky', 'pre-push')), false);
+
+    // The scaffold marker records the axes so --check/--upgrade rebuild the
+    // exact file this mode emits.
+    assert.match(workflow, /# styleproof-scaffold: workflow=single storage=artifact gate=advisory/);
+
+    // One job: in-job capture with no map-store branch, then the Action diffs
+    // and publishes in place. Advisory mode never blocks the PR.
+    assert.match(workflow, /--no-store/);
+    assert.doesNotMatch(workflow, /--no-upload/);
+    assert.match(workflow, /BenSheridanEdwards\/StyleProof@v6/);
+    assert.match(workflow, /mode: advisory/);
+    assert.doesNotMatch(workflow, /require-approval/);
+    assert.doesNotMatch(workflow, /fail-on-diff/);
+    // runner.temp/styleproof-maps is just the local base-dir name; the
+    // map-store BRANCH must be absent — no fetch, push, or sparse-checkout.
+    assert.doesNotMatch(workflow, /BRANCH: styleproof-maps|sparse-checkout|git push/);
+    assert.doesNotMatch(workflow, /upload-artifact/);
+
+    // Same-repo pull_request tokens can comment; forked PRs get a read-only
+    // token, so the job documents the split-mode escape hatch.
+    assert.match(workflow, /pull-requests:\s*write/);
+    assert.match(workflow, /--workflow split/);
+
+    // --check passes on the emitted scaffold and exits non-zero after drift.
+    const checked = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+    assert.match(checked.stdout, /all machine-owned files match/);
+    fs.writeFileSync(
+      path.join(root, '.github/workflows/styleproof.yml'),
+      workflow.replace('# styleproof-scaffold:', '# drifted scaffold:'),
+    );
+    assert.equal(runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']).status, 1);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: --mode certify emits a blocking gate without an approval workflow', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, ['--mode', 'certify', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    const workflow = readFile(root, '.github/workflows/styleproof.yml');
+    assert.match(workflow, /gate=certify/);
+    assert.match(workflow, /mode: certify/);
+    assert.doesNotMatch(workflow, /require-approval/);
+    assert.equal(fs.existsSync(path.join(root, '.github/workflows/styleproof-approve.yml')), false);
+  } finally {
+    rmTmp(root);
+  }
+
+  // Review-gate is the only mode that needs the approval caller.
+  const reviewRoot = mkTmp();
+  try {
+    const review = runInit(reviewRoot, ['--mode', 'review-gate', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(review.status, 0, review.stderr);
+    const workflow = readFile(reviewRoot, '.github/workflows/styleproof.yml');
+    assert.match(workflow, /require-approval: true/);
+    assert.equal(fs.existsSync(path.join(reviewRoot, '.github/workflows/styleproof-approve.yml')), true);
+  } finally {
+    rmTmp(reviewRoot);
+  }
+});
+
+test('styleproof-init: --workflow split + --storage branch reproduces the legacy file set', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, [...LEGACY_SCAFFOLD, '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    const capture = readFile(root, '.github/workflows/styleproof.yml');
+    assert.match(capture, /# styleproof-scaffold: workflow=split storage=branch gate=review-gate/);
+    assert.match(capture, /name: StyleProof capture/);
+    assert.match(capture, /--no-upload/);
+    assert.doesNotMatch(capture, /--no-store/);
+    assert.equal(fs.existsSync(path.join(root, '.github/workflows/styleproof-report.yml')), true);
+    assert.equal(fs.existsSync(path.join(root, '.github/workflows/styleproof-approve.yml')), true);
+    assert.equal(fs.existsSync(path.join(root, '.githooks', 'pre-push')), true);
+    // The marker lets --check rebuild the legacy file set on a later release.
+    const checked = runInit(root, [...LEGACY_SCAFFOLD, '--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: an unmarked legacy scaffold is detected from its files, not rewritten', () => {
+  const root = mkTmp();
+  try {
+    // Emit the legacy set, then strip the marker — a pre-#480 install has the
+    // split capture + report + approve files and a marker-bearing hook but no
+    // styleproof-scaffold line. --check must infer the same mode and stay silent.
+    assert.equal(runInit(root, [...LEGACY_SCAFFOLD, '--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    for (const file of ['styleproof.yml', 'styleproof-report.yml', 'styleproof-approve.yml']) {
+      const p = path.join(root, '.github/workflows', file);
+      fs.writeFileSync(p, readFile(root, `.github/workflows/${file}`).replace(/^# styleproof-scaffold:[^\n]*\n/m, ''));
+    }
+    const checked = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+    assert.match(checked.stdout, /all machine-owned files match/);
+    // A bare --check must NOT demand the new default's file set on a legacy repo.
+    assert.doesNotMatch(checked.stdout, /missing .*styleproof-report\.yml/);
+    assert.doesNotMatch(checked.stdout, /missing .*pre-push/);
+  } finally {
+    rmTmp(root);
+  }
+});
 
 test('styleproof-init: gitignore includes all map artifact patterns to prevent accidental commits', () => {
   const root = mkTmp();
@@ -389,7 +519,7 @@ test('styleproof-init: hostile custom spec paths remain encoded data, never gene
     const root = mkTmp();
     try {
       const specPath = `tests/${segment}/visual.spec.ts`;
-      const result = runInit(root, ['--dir', specPath]);
+      const result = runInit(root, [...BRANCH, '--dir', specPath]);
       assert.equal(result.status, 0, `${JSON.stringify(segment)}: ${result.stderr}`);
       const workflow = readFile(root, '.github/workflows/styleproof.yml');
       const hook = readFile(root, '.githooks/pre-push');
@@ -457,7 +587,7 @@ test('styleproof-init: absolute, traversing, and control-bearing spec paths fail
 test('styleproof-init: untrusted PR capture never receives write credentials', () => {
   const root = mkTmp();
   try {
-    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(root, [...SPLIT, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
 
     const captureFile = readFile(root, '.github/workflows/styleproof.yml');
@@ -512,7 +642,7 @@ test('styleproof-init: installs the approval workflow so require-approval is not
   // so logic improvements ship via StyleProof releases without adopter drift.
   const root = mkTmp();
   try {
-    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(root, [...REVIEW, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
 
     const approve = readFile(root, '.github/workflows/styleproof-approve.yml');
@@ -530,7 +660,7 @@ test('styleproof-init: installs the approval workflow so require-approval is not
     assert.match(res.stdout, /styleproof-approve\.yml \(approval gate/);
 
     // Idempotent: a second run leaves an existing workflow untouched.
-    const rerun = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const rerun = runInit(root, [...REVIEW, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(rerun.status, 0, rerun.stderr);
     assert.match(rerun.stdout, /styleproof-approve\.yml already exists — left untouched/);
   } finally {
@@ -542,7 +672,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
   const root = mkTmp();
   try {
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: root }).status, 0);
-    const res = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     const hookPath = path.join(root, '.githooks', 'pre-push');
     assert.match(res.stdout, /created \.githooks\/pre-push/);
@@ -555,11 +685,11 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
       assert.ok(fs.statSync(hookPath).mode & 0o111, 'hook is executable');
     }
     // Idempotent: a second run leaves an existing hook untouched.
-    const rerun = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const rerun = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(rerun.status, 0, rerun.stderr);
     assert.match(rerun.stdout, /pre-push already exists — left untouched/);
     assert.match(rerun.stdout, /active via core\.hooksPath=\.githooks/);
-    const checked = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    const checked = runInit(root, [...BRANCH, '--check', '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(checked.status, 0, checked.stderr);
     assert.match(checked.stdout, /\.githooks\/pre-push is active via core\.hooksPath=\.githooks/);
     const missingBinary = spawnSync('/bin/sh', [hookPath], { cwd: root, encoding: 'utf8', input: '' });
@@ -572,7 +702,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
   const nonExecutableManaged = mkTmp();
   try {
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: nonExecutableManaged }).status, 0);
-    const initial = runInit(nonExecutableManaged, ['--dir', 'e2e/styleproof.spec.ts']);
+    const initial = runInit(nonExecutableManaged, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(initial.status, 0, initial.stderr);
     assert.equal(
       spawnSync('git', ['config', '--local', '--unset', 'core.hooksPath'], { cwd: nonExecutableManaged }).status,
@@ -580,7 +710,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
     );
     fs.chmodSync(path.join(nonExecutableManaged, '.githooks', 'pre-push'), 0o644);
 
-    const res = runInit(nonExecutableManaged, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(nonExecutableManaged, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     assert.match(res.stderr, /generated \.githooks\/pre-push is inactive: the hook is not executable/);
     assert.match(res.stderr, /refresh it with: styleproof-init --hook/);
@@ -598,7 +728,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
   try {
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: custom }).status, 0);
     assert.equal(spawnSync('git', ['config', '--local', 'core.hooksPath', '.custom-hooks'], { cwd: custom }).status, 0);
-    const res = runInit(custom, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(custom, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     assert.equal(readFile(custom, '.githooks/pre-push').includes('styleproof-prepush'), true);
     assert.equal(
@@ -631,7 +761,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
           0,
         );
       }
-      const res = runInit(scoped, ['--dir', 'e2e/styleproof.spec.ts'], env);
+      const res = runInit(scoped, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'], env);
       assert.equal(res.status, 0, res.stderr);
       assert.equal(spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: scoped }).status, 1);
       assert.match(res.stderr, new RegExp(`core\\.hooksPath is \\.${scope}-hooks`));
@@ -647,7 +777,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
     const defaultHookPath = path.join(defaultHook, '.git', 'hooks', 'pre-push');
     fs.writeFileSync(defaultHookPath, '#!/bin/sh\nnpm test\n');
     fs.chmodSync(defaultHookPath, 0o755);
-    const res = runInit(defaultHook, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(defaultHook, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     assert.equal(spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: defaultHook }).status, 1);
     assert.match(res.stderr, /existing active hook at \.git\/hooks\/pre-push was left unchanged/);
@@ -666,7 +796,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
     const huskyShim = path.join(husky, '.husky', '_', 'pre-push');
     fs.writeFileSync(huskyShim, '#!/bin/sh\necho husky\n');
     fs.chmodSync(huskyShim, 0o755);
-    const res = runInit(husky, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(husky, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     assert.equal(fs.existsSync(path.join(husky, '.githooks')), false);
     assert.equal(readFile(husky, '.husky/pre-push'), '#!/bin/sh\nnpm test\n'); // untouched
@@ -689,7 +819,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
     assert.equal(spawnSync('git', ['config', 'core.hooksPath', '.husky/_'], { cwd: inactiveHusky }).status, 0);
     fs.mkdirSync(path.join(inactiveHusky, '.husky'));
     fs.writeFileSync(path.join(inactiveHusky, '.husky', 'pre-push'), '#!/bin/sh\nnpm test\n');
-    const res = runInit(inactiveHusky, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(inactiveHusky, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     assert.match(res.stderr, /generated \.husky\/pre-push is inactive/);
     assert.match(res.stderr, /active shim does not exist/);
@@ -706,7 +836,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
     fs.writeFileSync(path.join(nonExecutableHusky, '.husky', '_', 'pre-push'), '#!/bin/sh\necho husky\n', {
       mode: 0o644,
     });
-    const res = runInit(nonExecutableHusky, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(nonExecutableHusky, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     assert.match(res.stderr, /generated \.husky\/pre-push is inactive/);
     assert.match(res.stderr, /active shim is not executable/);
@@ -721,7 +851,7 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
       spawnSync('git', ['config', '--local', 'core.hooksPath', '.githooks'], { cwd: missingMatchingHook }).status,
       0,
     );
-    const checked = runInit(missingMatchingHook, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    const checked = runInit(missingMatchingHook, [...BRANCH, '--check', '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(checked.status, 1, checked.stderr);
     assert.match(checked.stdout, /missing {2}\.githooks\/pre-push/);
     assert.match(checked.stderr, /Git resolves pre-push there, but the hook does not exist/);
@@ -734,11 +864,11 @@ test('styleproof-init: pre-push publish hook — husky-aware, executable, idempo
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: unmanaged }).status, 0);
     fs.mkdirSync(path.join(unmanaged, '.githooks'));
     fs.writeFileSync(path.join(unmanaged, '.githooks', 'pre-push'), '#!/bin/sh\nnpm test\n');
-    const res = runInit(unmanaged, ['--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(unmanaged, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
     assert.equal(spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: unmanaged }).status, 1);
     assert.match(res.stderr, /repository-owned \.githooks\/pre-push was left unchanged and inactive/);
-    const checked = runInit(unmanaged, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    const checked = runInit(unmanaged, [...BRANCH, '--check', '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(checked.status, 0, checked.stderr);
     assert.match(checked.stdout, /unmanaged \.githooks\/pre-push/);
     assert.match(checked.stderr, /repository-owned \.githooks\/pre-push was left unchanged and inactive/);
@@ -760,7 +890,7 @@ test('styleproof-init: linked worktree activation never changes another worktree
     assert.equal(git(root, ['config', 'extensions.worktreeConfig', 'true']).status, 0);
     assert.equal(git(root, ['worktree', 'add', '-q', '-b', 'linked', linked]).status, 0);
 
-    const initialized = runInit(linked, ['--dir', 'e2e/styleproof.spec.ts']);
+    const initialized = runInit(linked, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(initialized.status, 0, initialized.stderr);
     assert.equal(git(linked, ['config', '--worktree', '--get', 'core.hooksPath']).stdout.trim(), '.githooks');
     assert.equal(
@@ -784,7 +914,7 @@ test('styleproof-init: a spoofed ownership comment never activates repository-ow
       '#!/bin/sh\n# StyleProof pre-push\nprintf "repository-owned\\n"\n',
       { mode: 0o755 },
     );
-    const initialized = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const initialized = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(initialized.status, 0, initialized.stderr);
     assert.equal(spawnSync('git', ['config', '--get', 'core.hooksPath'], { cwd: root }).status, 1);
     assert.match(initialized.stderr, /repository-owned \.githooks\/pre-push was left unchanged and inactive/);
@@ -797,7 +927,7 @@ test('styleproof-init: symlinked hook destinations are never followed by init, -
   const source = mkNonGitTmp('styleproof-hook-bytes-');
   let generatedHook;
   try {
-    assert.equal(runInit(source, ['--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    assert.equal(runInit(source, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']).status, 0);
     const sourceHook = path.join(source, '.githooks', 'pre-push');
     assert.equal(fs.lstatSync(sourceHook).isSymbolicLink(), false);
     generatedHook = fs.readFileSync(sourceHook, 'utf8');
@@ -806,10 +936,10 @@ test('styleproof-init: symlinked hook destinations are never followed by init, -
   }
 
   for (const args of [
-    ['--dir', 'e2e/styleproof.spec.ts'],
+    [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'],
     ['--hook', '--dir', 'e2e/styleproof.spec.ts'],
-    ['--check', '--dir', 'e2e/styleproof.spec.ts'],
-    ['--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
+    [...BRANCH, '--check', '--dir', 'e2e/styleproof.spec.ts'],
+    [...BRANCH, '--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
   ]) {
     const root = mkNonGitTmp('styleproof-hook-symlink-');
     const target = `${root}-target`;
@@ -840,10 +970,10 @@ test('styleproof-init: symlinked hook destinations are never followed by init, -
 test('styleproof-init: symlinked hook parent directories never redirect generated writes outside the repository', () => {
   for (const hookDir of ['.githooks', '.husky']) {
     for (const args of [
-      ['--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'],
       ['--hook', '--dir', 'e2e/styleproof.spec.ts'],
-      ['--check', '--dir', 'e2e/styleproof.spec.ts'],
-      ['--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--check', '--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
     ]) {
       const root = mkNonGitTmp(`styleproof-${hookDir.slice(1)}-parent-symlink-`);
       const outside = `${root}-outside`;
@@ -879,8 +1009,8 @@ test('styleproof-init: symlinked hook parent directories never redirect generate
 
 test('styleproof-init: configured hook status never follows a symlinked generated parent', () => {
   for (const args of [
-    ['--dir', 'e2e/styleproof.spec.ts'],
-    ['--check', '--dir', 'e2e/styleproof.spec.ts'],
+    [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'],
+    [...BRANCH, '--check', '--dir', 'e2e/styleproof.spec.ts'],
   ]) {
     const root = mkNonGitTmp('styleproof-configured-hook-parent-');
     const outside = mkNonGitTmp('styleproof-configured-hook-parent-outside-');
@@ -891,7 +1021,7 @@ test('styleproof-init: configured hook status never follows a symlinked generate
       assert.equal(spawnSync('git', ['config', '--local', 'core.hooksPath', '.githooks'], { cwd: root }).status, 0);
 
       const result = runInit(root, args);
-      const expectedStatus = args[0] === '--check' ? 1 : 0;
+      const expectedStatus = args.includes('--check') ? 1 : 0;
       assert.equal(result.status, expectedStatus, `${args.join(' ')}: ${result.stderr}`);
       assert.match(`${result.stdout}\n${result.stderr}`, /unmanaged \.githooks\/pre-push/);
       assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /repository-owned \.githooks\/pre-push is active/);
@@ -907,10 +1037,10 @@ test('styleproof-init: configured hook status never follows a symlinked generate
 test('styleproof-init: non-directory hook parents fail closed without partial hook writes or activation', () => {
   for (const hookDir of ['.githooks', '.husky']) {
     for (const args of [
-      ['--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'],
       ['--hook', '--dir', 'e2e/styleproof.spec.ts'],
-      ['--check', '--dir', 'e2e/styleproof.spec.ts'],
-      ['--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--check', '--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
     ]) {
       const root = mkNonGitTmp(`styleproof-${hookDir.slice(1)}-parent-file-`);
       const parent = path.join(root, hookDir);
@@ -967,7 +1097,7 @@ test('styleproof-init: unsafe generated destinations are reported as unmanaged d
     const outside = mkNonGitTmp(`styleproof-unmanaged-${generatedCase.name.replaceAll(' ', '-')}-outside-`);
     try {
       generatedCase.setup(root, outside);
-      const result = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+      const result = runInit(root, [...REVIEW, '--dir', 'e2e/styleproof.spec.ts']);
       assert.equal(result.status, 0, `${generatedCase.name}: ${result.stderr}`);
       for (const generatedPath of generatedCase.paths) {
         assert.match(
@@ -1000,7 +1130,7 @@ test('styleproof-init: permission-denied generated parents fail closed without c
     try {
       fs.mkdirSync(parent, { recursive: true });
       fs.chmodSync(parent, 0o555);
-      const result = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+      const result = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
       assert.equal(result.status, 0, `${generatedCase.parent}: ${result.stderr}`);
       assert.match(
         `${result.stdout}\n${result.stderr}`,
@@ -1095,9 +1225,9 @@ test('styleproof-init: malformed default hooks fail closed instead of being shad
 
   for (const hookCase of cases) {
     for (const args of [
-      ['--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'],
       ['--hook', '--dir', 'e2e/styleproof.spec.ts'],
-      ['--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
     ]) {
       const root = mkNonGitTmp(`styleproof-default-${hookCase.name.replaceAll(' ', '-')}-`);
       const hookPath = path.join(root, '.git', 'hooks', 'pre-push');
@@ -1149,7 +1279,7 @@ test('styleproof-init: malformed default hook parents never activate generated h
         fs.symlinkSync(path.join(outside, 'missing-hooks'), hooksParent);
       }
 
-      const result = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+      const result = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
       assert.equal(result.status, 0, `${kind}: ${result.stderr}`);
       assert.equal(
         spawnSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: root }).status,
@@ -1210,19 +1340,19 @@ test('styleproof-init: effective system/global/local/worktree/custom/default/Hus
   try {
     fs.writeFileSync(systemConfig, '[core]\n\thooksPath = .system-hooks\n');
     fs.writeFileSync(globalConfig, '');
-    const system = runInit(root, ['--dir', 'e2e/styleproof.spec.ts'], configEnv);
+    const system = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'], configEnv);
     assert.equal(system.status, 0, system.stderr);
     assert.match(system.stderr, /core\.hooksPath is \.system-hooks/);
     assert.equal(git(['config', '--local', '--get', 'core.hooksPath']).status, 1);
 
     fs.writeFileSync(globalConfig, '[core]\n\thooksPath = .global-hooks\n');
-    const global = runInit(root, ['--dir', 'e2e/styleproof.spec.ts'], configEnv);
+    const global = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'], configEnv);
     assert.equal(global.status, 0, global.stderr);
     assert.match(global.stderr, /core\.hooksPath is \.global-hooks/);
     assert.equal(git(['config', '--local', '--get', 'core.hooksPath']).status, 1);
 
     assert.equal(git(['config', '--local', 'core.hooksPath', '.githooks']).status, 0);
-    const local = runInit(root, ['--dir', 'e2e/styleproof.spec.ts'], configEnv);
+    const local = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'], configEnv);
     assert.equal(local.status, 0, local.stderr);
     assert.match(local.stdout, /\.githooks\/pre-push is active via core\.hooksPath=\.githooks/);
     assert.equal(git(['config', '--local', '--get', 'core.hooksPath']).stdout.trim(), '.githooks');
@@ -1237,9 +1367,9 @@ test('styleproof-init: effective system/global/local/worktree/custom/default/Hus
     const repositoryHook = '#!/bin/sh\necho repository-owned\n';
     fs.writeFileSync(defaultHookPath, repositoryHook, { mode: 0o755 });
     for (const args of [
-      ['--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'],
       ['--hook', '--dir', 'e2e/styleproof.spec.ts'],
-      ['--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
+      [...BRANCH, '--upgrade', '--dir', 'e2e/styleproof.spec.ts'],
     ]) {
       const result = runInit(defaultHook, args);
       assert.equal(result.status, 0, `${args.join(' ')}: ${result.stderr}`);
@@ -1269,7 +1399,7 @@ test('styleproof-init: effective system/global/local/worktree/custom/default/Hus
     assert.equal(worktreeGit(worktreeRoot, ['commit', '-qm', 'test: seed']).status, 0);
     assert.equal(worktreeGit(worktreeRoot, ['worktree', 'add', '-q', '-b', 'linked-precedence', linked]).status, 0);
 
-    const linkedInit = runInit(linked, ['--dir', 'e2e/styleproof.spec.ts'], worktreeEnv);
+    const linkedInit = runInit(linked, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts'], worktreeEnv);
     assert.equal(linkedInit.status, 0, linkedInit.stderr);
     assert.equal(
       worktreeGit(linked, ['config', '--get', 'extensions.worktreeConfig']).status,
@@ -1288,10 +1418,10 @@ test('styleproof-init: malformed existing hook paths are preserved without crash
   const root = mkNonGitTmp('styleproof-hook-malformed-');
   try {
     fs.mkdirSync(path.join(root, '.githooks', 'pre-push'), { recursive: true });
-    const initialized = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const initialized = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(initialized.status, 0, initialized.stderr);
     assert.match(initialized.stderr, /unmanaged \.githooks\/pre-push .*hook destination is directory/);
-    const checked = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    const checked = runInit(root, [...BRANCH, '--check', '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(checked.status, 0, checked.stderr);
     assert.match(checked.stdout, /unmanaged \.githooks\/pre-push/);
   } finally {
@@ -1302,11 +1432,11 @@ test('styleproof-init: malformed existing hook paths are preserved without crash
 test('styleproof-init --upgrade activates an exact managed hook', () => {
   const root = mkNonGitTmp('styleproof-hook-upgrade-');
   try {
-    const initialized = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+    const initialized = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(initialized.status, 0, initialized.stderr);
     assert.equal(spawnSync('git', ['config', '--local', '--unset', 'core.hooksPath'], { cwd: root }).status, 0);
 
-    const upgraded = runInit(root, ['--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
+    const upgraded = runInit(root, [...BRANCH, '--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(upgraded.status, 0, upgraded.stderr);
     assert.equal(
       spawnSync('git', ['config', '--get', 'core.hooksPath'], { cwd: root, encoding: 'utf8' }).stdout.trim(),
@@ -1321,8 +1451,8 @@ test('styleproof-init --check / --upgrade: machine-owned files track the release
   const root = mkTmp();
   try {
     // Fresh scaffold → everything current, exit 0.
-    assert.equal(runInit(root, ['--dir', 'e2e/styleproof.spec.ts']).status, 0);
-    const clean = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(runInit(root, [...LEGACY_SCAFFOLD, '--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    const clean = runInit(root, [...LEGACY_SCAFFOLD, '--check', '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(clean.status, 0, clean.stdout);
     assert.match(clean.stdout, /current {2}\.githooks\/pre-push/);
     assert.match(clean.stdout, /all machine-owned files match/);
@@ -1338,7 +1468,7 @@ test('styleproof-init --check / --upgrade: machine-owned files track the release
     const specBefore = readFile(root, 'e2e/styleproof.spec.ts') + '// my customization\n';
     fs.writeFileSync(path.join(root, 'e2e/styleproof.spec.ts'), specBefore);
 
-    const drifted = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+    const drifted = runInit(root, [...LEGACY_SCAFFOLD, '--check', '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(drifted.status, 1, 'drift exits 1 so CI can flag it');
     assert.match(drifted.stdout, /unmanaged \.githooks\/pre-push/);
     assert.match(drifted.stdout, /stale {4}\.github\/workflows\/styleproof\.yml/);
@@ -1349,7 +1479,7 @@ test('styleproof-init --check / --upgrade: machine-owned files track the release
 
     // --upgrade refreshes the owned workflow, but uncertain executable bytes are
     // repository-owned until the operator explicitly adopts them with --hook.
-    const upgraded = runInit(root, ['--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
+    const upgraded = runInit(root, [...LEGACY_SCAFFOLD, '--upgrade', '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(upgraded.status, 0, upgraded.stderr);
     assert.match(upgraded.stdout, /unmanaged \.githooks\/pre-push .*left unchanged/);
     assert.match(upgraded.stdout, /refreshed \.github\/workflows\/styleproof\.yml/);
@@ -1359,7 +1489,7 @@ test('styleproof-init --check / --upgrade: machine-owned files track the release
     assert.equal(readFile(root, 'e2e/styleproof.spec.ts'), specBefore, 'user-owned spec untouched');
 
     // Unmanaged hooks do not make --check red. Explicit adoption closes the loop.
-    assert.equal(runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']).status, 0);
+    assert.equal(runInit(root, [...LEGACY_SCAFFOLD, '--check', '--dir', 'e2e/styleproof.spec.ts']).status, 0);
     assert.equal(runInit(root, ['--hook', '--dir', 'e2e/styleproof.spec.ts']).status, 0);
     assert.match(readFile(root, '.githooks/pre-push'), /exec \.\/node_modules\/\.bin\/styleproof-prepush/);
   } finally {
@@ -1369,7 +1499,7 @@ test('styleproof-init --check / --upgrade: machine-owned files track the release
   // A never-scaffolded repo: --check reports the files as missing and exits 1.
   const bare = mkTmp();
   try {
-    const res = runInit(bare, ['--check']);
+    const res = runInit(bare, [...LEGACY_SCAFFOLD, '--check']);
     assert.equal(res.status, 1);
     assert.match(res.stdout, /missing {2}\.githooks\/pre-push/);
     assert.match(res.stdout, /missing {2}\.github\/workflows\/styleproof\.yml/);
@@ -1448,15 +1578,15 @@ test('styleproof-init --upgrade: never overwrites a repository-owned Husky hook'
     const repositoryHook = '#!/bin/sh\nnpm test\n';
     fs.writeFileSync(hookPath, repositoryHook);
 
-    const init = runInit(root);
+    const init = runInit(root, [...BRANCH]);
     assert.equal(init.status, 0, init.stderr);
     assert.equal(readFile(root, '.husky/pre-push'), repositoryHook, 'normal init preserves the repository hook');
 
-    const check = runInit(root, ['--check']);
+    const check = runInit(root, [...BRANCH, '--check']);
     assert.equal(check.status, 0, check.stdout);
     assert.match(check.stdout, /unmanaged \.husky\/pre-push/);
 
-    const upgrade = runInit(root, ['--upgrade']);
+    const upgrade = runInit(root, [...BRANCH, '--upgrade']);
     assert.equal(upgrade.status, 0, upgrade.stderr);
     assert.match(upgrade.stdout, /unmanaged \.husky\/pre-push \(left unchanged/);
     assert.equal(

@@ -101,7 +101,7 @@ test.describe('styleproof-init scaffold drift E2E (#536)', () => {
           JSON.stringify({ scripts: { build: 'build', start: 'start' } }),
         );
 
-        const init = runInit(root, ['--dir', 'e2e/styleproof.spec.ts']);
+        const init = runInit(root, ['--mode', 'review-gate', '--dir', 'e2e/styleproof.spec.ts']);
         expect(init.status).toBe(0);
 
         const generatedApprove = readFile(root, '.github/workflows/styleproof-approve.yml');
@@ -138,8 +138,8 @@ test.describe('styleproof-init scaffold drift E2E (#536)', () => {
           );
         }
 
-        runInit(root1, ['--dir', 'e2e/styleproof.spec.ts']);
-        runInit(root2, ['--dir', 'e2e/styleproof.spec.ts']);
+        runInit(root1, ['--storage', 'branch', '--dir', 'e2e/styleproof.spec.ts']);
+        runInit(root2, ['--storage', 'branch', '--dir', 'e2e/styleproof.spec.ts']);
 
         const hook1 = readFile(root1, '.githooks/pre-push');
         const hook2 = readFile(root2, '.githooks/pre-push');
@@ -253,7 +253,7 @@ test.describe('styleproof-init scaffold drift E2E (#536)', () => {
           JSON.stringify({ scripts: { build: 'build', start: 'start' } }),
         );
 
-        const check = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
+        const check = runInit(root, ['--storage', 'branch', '--check', '--dir', 'e2e/styleproof.spec.ts']);
         expect(check.status).toBe(1);
         expect(check.stdout).toMatch(/missing.*pre-push/);
       } finally {
@@ -274,7 +274,7 @@ test.describe('styleproof-init scaffold drift E2E (#536)', () => {
         // Modify the workflow
         const workflowPath = path.join(root, '.github/workflows/styleproof.yml');
         const content = fs.readFileSync(workflowPath, 'utf8');
-        fs.writeFileSync(workflowPath, content.replace('StyleProof capture', 'Modified capture'));
+        fs.writeFileSync(workflowPath, content + '\n# drifted content\n');
 
         const check = runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']);
         expect(check.status).toBe(1);

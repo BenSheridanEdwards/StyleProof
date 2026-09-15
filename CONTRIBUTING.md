@@ -104,7 +104,7 @@ When review-gate dogfood is live:
    failures stay red.
 
 Self-approval is refused (`allow-self-approval: false`). The author may always
-untick. See the README [Who may tick the box](README.md#who-may-tick-the-box)
+untick. See the reference [Who may tick the box](docs/REFERENCE.md#who-may-tick-the-box)
 section and [approval binding](docs/report-delivery-contract.md#approval-binding).
 
 ## Pull request norms

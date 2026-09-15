@@ -17,15 +17,15 @@
  *   - playwright.styleproof.config.ts: a dedicated production-build Playwright
  *     config for StyleProof captures, so an existing app Playwright config is
  *     never disturbed or accidentally reused.
- *   - .github/workflows/styleproof.yml: restores reusable maps from the
- *     styleproof-maps branch and only captures in CI when the maps are missing.
- *   - .github/workflows/styleproof-approve.yml: the issue_comment handler that
- *     flips the StyleProof status when a reviewer ticks "Approve all changes".
+ *   - .github/workflows/styleproof.yml: one job captures base/head maps, diffs
+ *     them, and publishes the report (default; --workflow split separates
+ *     untrusted capture from a trusted workflow_run report stage).
+ *   - with --mode review-gate: .github/workflows/styleproof-approve.yml, the
+ *     issue_comment handler that flips the StyleProof status when a reviewer
+ *     ticks "Approve all changes". GitHub only runs issue_comment workflows
+ *     from the default branch, so it takes effect once the init PR merges.
  *   - --manifest <path> with --component-roots: a typed starter component
  *     manifest with one explicit default variant per discovered file.
- *     The report workflow runs with `require-approval: true`, so without this the
- *     approval checkbox is inert. GitHub only runs issue_comment workflows from the
- *     default branch, so it takes effect once the init PR merges.
  *
  * Idempotent: re-running never overwrites an existing spec (use --force) and
  * never touches an existing app playwright.config.ts or an existing workflow.
@@ -62,11 +62,21 @@ options:
   --component-roots <dirs>
                       comma-separated component roots; repeatable
   --force             overwrite the spec if it already exists
+  --workflow <layout> single (default): one job captures, diffs, and reports.
+                      split: untrusted read-only capture job + trusted
+                      workflow_run report stage — required when fork or
+                      Dependabot pull requests must be able to publish
+  --storage <mode>    artifact (default): maps live and die in the job, no
+                      map-store branch. branch: cache maps on the
+                      styleproof-maps branch and install the pre-push hook
+  --mode <gate>       advisory (default): report but never block. certify:
+                      fail on any style diff. review-gate: red status until a
+                      reviewer approves (adds the approval caller workflow)
   --hook              (re)write ONLY the pre-push hook, overwriting an existing one —
                       the upgrade path after a styleproof release changes the hook
-  --upgrade           refresh every MACHINE-OWNED generated file (pre-push hook,
-                      report workflow, approval workflow) to this release's
-                      templates; never touches the spec or playwright config
+  --upgrade           refresh every MACHINE-OWNED generated file to this
+                      release's templates; never touches the spec or
+                      playwright config
   --check             report drift between the machine-owned files and this
                       release's templates without writing; exit 1 if any differ —
                       the generated workflow runs it before capture so upgrades
@@ -85,19 +95,19 @@ What it writes:
     route is auto-covered (captured + expected together); the guard fails only when
     the two diverge. Otherwise it writes one sample surface + a commented guard block.
   - playwright.styleproof.config.ts, a dedicated production-build Playwright config
-  - .github/workflows/styleproof.yml, a cache-first PR report workflow
-  - .github/workflows/styleproof-approve.yml, the "Approve all changes" gate
-    (active once merged to your default branch)
-  - .githooks/pre-push and, when the effective core.hooksPath is unset and no
-    default pre-push hook exists, activates .githooks for this repository.
-    Existing default/custom hooks and Husky remain untouched.
+  - .github/workflows/styleproof.yml, the PR gate workflow (one-job layout by
+    default; --workflow split adds the trusted report stage)
+  - with --mode review-gate: .github/workflows/styleproof-approve.yml, the
+    "Approve all changes" gate (active once merged to your default branch)
+  - with --storage branch: .githooks/pre-push and, when the effective
+    core.hooksPath is unset and no default pre-push hook exists, activates
+    .githooks for this repository. Existing default/custom hooks and Husky
+    remain untouched.
 
-After running, build and upload this commit's map outside CI when possible:
-  npx styleproof-map
-
-To certify a refactor:
-  npx styleproof-map
-  npx styleproof-diff
+To capture and diff locally:
+  npx styleproof capture   # this commit → the local map cache
+  npx styleproof compare   # compare cached base/head maps by commit SHA
+styleproof-init is a compatibility alias for the unified CLI: styleproof init
 `;
 
 const argv = process.argv.slice(2);
@@ -114,6 +124,9 @@ let serverCommand;
 let externalServer = false;
 let manifestPath;
 const componentRoots = [];
+let workflowFlag;
+let storageFlag;
+let gateFlag;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
@@ -139,6 +152,12 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--component-roots') componentRoots.push(...String(argv[++i] ?? '').split(','));
   else if (a.startsWith('--component-roots=')) componentRoots.push(...a.slice('--component-roots='.length).split(','));
   else if (a === '--force') force = true;
+  else if (a === '--workflow') workflowFlag = argv[++i];
+  else if (a.startsWith('--workflow=')) workflowFlag = a.slice('--workflow='.length);
+  else if (a === '--storage') storageFlag = argv[++i];
+  else if (a.startsWith('--storage=')) storageFlag = a.slice('--storage='.length);
+  else if (a === '--mode') gateFlag = argv[++i];
+  else if (a.startsWith('--mode=')) gateFlag = a.slice('--mode='.length);
   else if (a === '--hook') hookOnly = true;
   else if (a === '--upgrade') upgrade = true;
   else if (a === '--check') checkOnly = true;
@@ -251,8 +270,8 @@ const HEADER = `/**
  * detects your @media breakpoints from the loaded CSS and sweeps one viewport per
  * band — no config. Capture against a PRODUCTION build — dev servers inject styles.
  *
- *   npx styleproof-map   # capture this commit into the local cache and map store
- *   npx styleproof-diff  # compare cached base/head maps by commit SHA
+ *   npx styleproof capture   # capture this commit into the local map cache
+ *   npx styleproof compare   # compare cached base/head maps by commit SHA
  */`;
 
 // Next.js detected: derive BOTH surfaces and the coverage guard from the app's
@@ -556,9 +575,191 @@ const CI_PATH = '.github/workflows/styleproof.yml';
 const CI_OWNERSHIP_MARKER = '# StyleProof CI workflow';
 const REPORT_PATH = '.github/workflows/styleproof-report.yml';
 const REPORT_OWNERSHIP_MARKER = '# StyleProof report workflow';
-const CI_WORKFLOW = `name: StyleProof capture
+const APPROVE_PATH = '.github/workflows/styleproof-approve.yml';
+const APPROVE_OWNERSHIP_MARKER = '# StyleProof approval caller';
+const LINT_ARTIFACTS_PATH = '.github/workflows/styleproof-lint-artifacts.yml';
+const LINT_ARTIFACTS_OWNERSHIP_MARKER = '# StyleProof map artifact lint';
+const HOOK_OWNERSHIP_MARKER = '# StyleProof pre-push';
+
+function hookFilePath() {
+  return path.join(fs.existsSync('.husky') ? '.husky' : '.githooks', 'pre-push');
+}
+
+// Scaffold mode (issue #480). Every generated workflow stamps its axes on a
+// `# styleproof-scaffold:` marker line so --check/--upgrade can rebuild exactly
+// the file this release would emit for the scaffold that wrote it. Without a
+// marker (pre-#480 scaffolds), the axes are inferred from which marker-bearing
+// files exist — the old release always emitted all of them, so existence maps
+// exactly to the legacy architecture and --check stays silent on real installs.
+const SCAFFOLD_MARKER_RE =
+  /^# styleproof-scaffold: workflow=(single|split) storage=(artifact|branch) gate=(advisory|certify|review-gate)$/m;
+
+function markerFileExists(file, marker) {
+  const text = readRegularTextFile(file);
+  return text !== undefined && text.includes(marker);
+}
+
+function readScaffoldMarker() {
+  for (const file of [CI_PATH, REPORT_PATH]) {
+    const text = readRegularTextFile(file);
+    const match = text === undefined ? undefined : text.match(SCAFFOLD_MARKER_RE);
+    if (match) return { workflow: match[1], storage: match[2], gate: match[3] };
+  }
+  return undefined;
+}
+
+const SCAFFOLD_VALID = {
+  workflow: new Set(['single', 'split']),
+  storage: new Set(['artifact', 'branch']),
+  gate: new Set(['advisory', 'certify', 'review-gate']),
+};
+
+function scaffoldFlag(value, axis, flag) {
+  if (value === undefined) return undefined;
+  if (!SCAFFOLD_VALID[axis].has(value)) {
+    console.error(`styleproof-init: ${flag} must be one of: ${[...SCAFFOLD_VALID[axis]].join(', ')}`);
+    process.exit(2);
+  }
+  return value;
+}
+
+const scaffoldMarker = readScaffoldMarker();
+const inferredScaffold = scaffoldMarker ?? {
+  workflow: markerFileExists(REPORT_PATH, REPORT_OWNERSHIP_MARKER) ? 'split' : 'single',
+  storage: markerFileExists(hookFilePath(), HOOK_OWNERSHIP_MARKER) ? 'branch' : 'artifact',
+  gate: markerFileExists(APPROVE_PATH, APPROVE_OWNERSHIP_MARKER) ? 'review-gate' : 'advisory',
+};
+const scaffold = {
+  workflow: scaffoldFlag(workflowFlag, 'workflow', '--workflow') ?? inferredScaffold.workflow,
+  storage: scaffoldFlag(storageFlag, 'storage', '--storage') ?? inferredScaffold.storage,
+  gate: scaffoldFlag(gateFlag, 'gate', '--mode') ?? inferredScaffold.gate,
+};
+const SCAFFOLD_MARKER_LINE = `# styleproof-scaffold: workflow=${scaffold.workflow} storage=${scaffold.storage} gate=${scaffold.gate}`;
+
+// --check/--upgrade compare generated files with the marker line stripped, so a
+// scaffold written before the marker existed still compares equal to the same
+// mode's template instead of reporting spurious drift.
+function stripScaffoldMarker(text) {
+  return text === undefined ? text : text.replace(/^# styleproof-scaffold:[^\n]*\n/m, '');
+}
+
+// The capture command's storage flags. The split workflow's capture job is
+// untrusted (read-only) and always passes --no-upload; artifact storage adds
+// --no-store because there is no branch to restore from or publish to.
+const CI_STORAGE_FLAGS = `${scaffold.workflow === 'split' ? '--no-upload' : ''}${scaffold.storage === 'artifact' ? `${scaffold.workflow === 'split' ? ' ' : ''}--no-store` : ''}`;
+const CI_STORAGE_SUFFIX = CI_STORAGE_FLAGS ? ` ${CI_STORAGE_FLAGS}` : '';
+
+// The Action gate input: review-gate needs the approval caller; advisory and
+// certify select a mode.
+const GATE_INPUT = scaffold.gate === 'review-gate' ? 'require-approval: true' : `mode: ${scaffold.gate}`;
+
+// Shared tail jobs: both workflow layouts prune this PR's report folder on close
+// and sweep the report branch on a schedule. The map-store prune step exists only
+// when the scaffold opted into the styleproof-maps branch (--storage branch).
+const PRUNE_AND_SWEEP_JOBS = `  prune:
+    # PR closed: drop its pr-<n>/ folder from the report branch so the branch
+    # never grows without bound. Runs only default-branch package bytes — never
+    # PR-controlled product code — under an explicit write permission.
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: \${{ github.event.repository.default_branch }}
+${PM.setup}
+      - run: ${PM.install}
+      - name: Prune this PR's report folder
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          node node_modules/styleproof/bin/styleproof-prune-reports.mjs \\
+            --repository '\${{ github.repository }}' \\
+            --branch styleproof-reports \\
+            --pull-request '\${{ github.event.pull_request.number }}'${
+              scaffold.storage === 'branch'
+                ? `
+      - name: Prune this PR's head map from the map store
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+          BRANCH: styleproof-maps
+          REPO: \${{ github.repository }}
+          HEAD_SHA: \${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          # The map store grows one \`<sha>/\` folder per pushed commit and never shrank.
+          # On close, drop this PR's head-SHA maps — UNLESS that SHA landed on the default
+          # branch (a fast-forward / rebase merge), where it is now the base-tip map every
+          # later PR restores. A squash / merge-commit close orphans the head SHA, so it is
+          # safe to reclaim. Fail safe: any uncertainty keeps the map.
+          status="$(gh api "repos/$REPO/compare/$HEAD_SHA...$DEFAULT_BRANCH" --jq .status 2>/dev/null || echo unknown)"
+          case "$status" in
+            ahead|identical|behind|unknown)
+              echo "Head $HEAD_SHA is on $DEFAULT_BRANCH (or status unknown: '$status') — keeping its map."
+              exit 0 ;;
+          esac
+          REMOTE="https://x-access-token:\${GH_TOKEN}@github.com/$REPO.git"
+          if ! git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "No $BRANCH branch yet — nothing to prune."; exit 0
+          fi
+          TMP="$(mktemp -d)"
+          # Blobless + no-checkout: fetch the tree metadata only, then sparse-checkout just
+          # this one SHA's folder — never download every cached bundle's blobs to delete one.
+          git clone --filter=blob:none --no-checkout --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
+          cd "$TMP"
+          git sparse-checkout set "$HEAD_SHA"
+          git checkout -q "$BRANCH"
+          if [ ! -d "$HEAD_SHA" ]; then
+            echo "No $HEAD_SHA/ folder — nothing to prune."; exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r --quiet "$HEAD_SHA"
+          git commit -m "chore(styleproof): prune map for closed PR #\${{ github.event.pull_request.number }} ($HEAD_SHA)"
+          git push origin "$BRANCH"`
+                : ''
+            }
+
+  report-sweep:
+    # Daily backstop for the report branch. Close-triggered pruning alone
+    # cannot bound it: a missed close event leaks a folder forever, and one PR
+    # can publish hundreds of megabytes of crops, so the folders that blow the
+    # budget are often younger than any reasonable retention window. The sweep
+    # deletes reports whose PR closed more than the retention window ago, then,
+    # if the branch is still over the size budget, keeps deleting oldest-closed
+    # first until it fits. Reports for open PRs are never touched.
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+${PM.setup}
+      - run: ${PM.install}
+      - name: Sweep the report branch by retention and size budget
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          node node_modules/styleproof/bin/styleproof-prune-reports.mjs \\
+            --repository '\${{ github.repository }}' \\
+            --branch styleproof-reports \\
+            --retention-days 14 \\
+            --budget-bytes 1500000000
+`;
+
+// --workflow split: the fork-safe two-stage architecture. The pull_request job
+// is untrusted (read-only, PR-controlled code) and uploads maps as an artifact;
+// a trusted workflow_run job on the default branch reports and publishes.
+const SPLIT_WORKFLOW = `name: StyleProof capture
 
 # StyleProof CI workflow (generated by styleproof-init; refreshed by styleproof-init --upgrade).
+${SCAFFOLD_MARKER_LINE}
 # Untrusted PR stage:
 # - pull_request jobs may install and execute PR-controlled code;
 # - they therefore hold ONLY read permissions and never publish maps, comments,
@@ -606,7 +807,7 @@ ${PM.setup}
           # workflow_run stage.
           BASE_SHA="\${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec-ref-if-missing "$HEAD_SHA" --base-dir "\${{ runner.temp }}/styleproof-maps" --no-upload
+          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec-ref-if-missing "$HEAD_SHA" --base-dir "\${{ runner.temp }}/styleproof-maps"${CI_STORAGE_SUFFIX}
       - uses: actions/upload-artifact@v4
         with:
           name: styleproof-stylemaps
@@ -614,102 +815,76 @@ ${PM.setup}
           retention-days: 3
           if-no-files-found: error
 
-  prune:
-    # PR closed: drop its pr-<n>/ folder from the report branch so the branch
-    # never grows without bound. Runs only default-branch package bytes — never
-    # PR-controlled product code — under an explicit write permission.
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+${PRUNE_AND_SWEEP_JOBS}`;
+
+// --workflow single (default): one job captures the base and head maps, diffs
+// them, and publishes the report — no second workflow and no map-store branch.
+// pull_request tokens from forks are read-only, so a forked PR cannot publish
+// and the job fails; repositories that accept fork or Dependabot pull requests
+// should scaffold --workflow split instead.
+const SINGLE_WORKFLOW = `name: StyleProof
+
+# StyleProof CI workflow — one-job layout (generated by styleproof-init; refreshed by styleproof-init --upgrade).
+${SCAFFOLD_MARKER_LINE}
+# One job on a same-repo pull request: capture base and head maps in this job
+# (no map-store branch), then diff and publish the report in place.
+# Forked-PR tokens are read-only, so forked PRs cannot publish and this job
+# fails — repositories that accept fork/Dependabot PRs should regenerate with
+# --workflow split (untrusted capture stage + trusted workflow_run report stage).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  schedule:
+    # Daily report-branch sweep: retention window plus a hard size budget.
+    - cron: '47 4 * * *'
+
+jobs:
+  styleproof:
+    # Capture, diff, and report on open/update only. Closed and scheduled events
+    # are handled by the jobs below.
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # publish report files to the styleproof-reports branch
+      pull-requests: write # upsert the report comment
+      statuses: write # commit status in review-gate mode
+      actions: read
+    env:
+      ${SPEC_PATH_ENV}: ${encodedSpecPath}
+      STYLEPROOF_SERVER_MODE: ${serverMode}
+      STYLEPROOF_SERVER_COMMAND_B64: ${encodedServerCommand}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: \${{ github.event.repository.default_branch }}
+          fetch-depth: 0 # need base/head commits for the in-job base capture
 ${PM.setup}
       - run: ${PM.install}
-      - name: Prune this PR's report folder
+      - name: Verify StyleProof scaffold matches the installed release
         shell: bash
-        env:
-          GH_TOKEN: \${{ github.token }}
         run: |
-          node node_modules/styleproof/bin/styleproof-prune-reports.mjs \\
-            --repository '\${{ github.repository }}' \\
-            --branch styleproof-reports \\
-            --pull-request '\${{ github.event.pull_request.number }}'
-      - name: Prune this PR's head map from the map store
+          node node_modules/styleproof/bin/styleproof-init.mjs --check
+      - id: maps
+        name: Capture StyleProof maps for base and head
         shell: bash
-        env:
-          GH_TOKEN: \${{ github.token }}
-          BRANCH: styleproof-maps
-          REPO: \${{ github.repository }}
-          HEAD_SHA: \${{ github.event.pull_request.head.sha }}
-          DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
         run: |
-          set -euo pipefail
-          # The map store grows one \`<sha>/\` folder per pushed commit and never shrank.
-          # On close, drop this PR's head-SHA maps — UNLESS that SHA landed on the default
-          # branch (a fast-forward / rebase merge), where it is now the base-tip map every
-          # later PR restores. A squash / merge-commit close orphans the head SHA, so it is
-          # safe to reclaim. Fail safe: any uncertainty keeps the map.
-          status="$(gh api "repos/$REPO/compare/$HEAD_SHA...$DEFAULT_BRANCH" --jq .status 2>/dev/null || echo unknown)"
-          case "$status" in
-            ahead|identical|behind|unknown)
-              echo "Head $HEAD_SHA is on $DEFAULT_BRANCH (or status unknown: '$status') — keeping its map."
-              exit 0 ;;
-          esac
-          REMOTE="https://x-access-token:\${GH_TOKEN}@github.com/$REPO.git"
-          if ! git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
-            echo "No $BRANCH branch yet — nothing to prune."; exit 0
-          fi
-          TMP="$(mktemp -d)"
-          # Blobless + no-checkout: fetch the tree metadata only, then sparse-checkout just
-          # this one SHA's folder — never download every cached bundle's blobs to delete one.
-          git clone --filter=blob:none --no-checkout --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
-          cd "$TMP"
-          git sparse-checkout set "$HEAD_SHA"
-          git checkout -q "$BRANCH"
-          if [ ! -d "$HEAD_SHA" ]; then
-            echo "No $HEAD_SHA/ folder — nothing to prune."; exit 0
-          fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -r --quiet "$HEAD_SHA"
-          git commit -m "chore(styleproof): prune map for closed PR #\${{ github.event.pull_request.number }} ($HEAD_SHA)"
-          git push origin "$BRANCH"
+          BASE_SHA="\${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
+          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec-ref-if-missing "$HEAD_SHA" --base-dir "\${{ runner.temp }}/styleproof-maps"${CI_STORAGE_SUFFIX}
+      - uses: BenSheridanEdwards/StyleProof@v6
+        with:
+          baseline-dir: \${{ runner.temp }}/styleproof-maps/base
+          fresh-dir: \${{ runner.temp }}/styleproof-maps/head
+          base-capture-failed: \${{ steps.maps.outputs.base-capture-failed }}
+          ${GATE_INPUT}
 
-  report-sweep:
-    # Daily backstop for the report branch. Close-triggered pruning alone
-    # cannot bound it: a missed close event leaks a folder forever, and one PR
-    # can publish hundreds of megabytes of crops, so the folders that blow the
-    # budget are often younger than any reasonable retention window. The sweep
-    # deletes reports whose PR closed more than the retention window ago, then,
-    # if the branch is still over the size budget, keeps deleting oldest-closed
-    # first until it fits. Reports for open PRs are never touched.
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@v4
-${PM.setup}
-      - run: ${PM.install}
-      - name: Sweep the report branch by retention and size budget
-        shell: bash
-        env:
-          GH_TOKEN: \${{ github.token }}
-        run: |
-          node node_modules/styleproof/bin/styleproof-prune-reports.mjs \\
-            --repository '\${{ github.repository }}' \\
-            --branch styleproof-reports \\
-            --retention-days 14 \\
-            --budget-bytes 1500000000
-`;
+${PRUNE_AND_SWEEP_JOBS}`;
+
+const CI_WORKFLOW = scaffold.workflow === 'split' ? SPLIT_WORKFLOW : SINGLE_WORKFLOW;
 
 const REPORT_WORKFLOW = `name: StyleProof report
 
 # StyleProof report workflow (generated by styleproof-init; refreshed by styleproof-init --upgrade).
+${SCAFFOLD_MARKER_LINE}
 # Trusted default-branch stage:
 # - runs only after the untrusted capture workflow completes;
 # - holds write permissions for report/comment/status publication;
@@ -757,7 +932,7 @@ jobs:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
           base-capture-failed: \${{ steps.capture-meta.outputs.base-capture-failed }}
-          require-approval: true
+          ${GATE_INPUT}
 `;
 
 function writeFileSafe(file, contents, { force: f } = {}) {
@@ -869,7 +1044,6 @@ ${SPEC_PATH_ENV}='${encodedSpecPath}'
 export ${SPEC_PATH_ENV}
 exec ./node_modules/.bin/styleproof-prepush
 `;
-const HOOK_OWNERSHIP_MARKER = '# StyleProof pre-push';
 
 function isExecutableFile(file) {
   try {
@@ -1134,10 +1308,8 @@ if (hookOnly) {
   process.exit(0);
 }
 
-const APPROVE_PATH = '.github/workflows/styleproof-approve.yml';
 // Thin caller workflow that invokes the upstream reusable approval workflow.
 // This keeps adopter CI minimal while logic improvements ship via StyleProof releases.
-const APPROVE_OWNERSHIP_MARKER = '# StyleProof approval caller';
 const APPROVE_WORKFLOW = `name: StyleProof approve
 
 # StyleProof approval caller (generated by styleproof-init; refreshed by styleproof-init --upgrade).
@@ -1161,9 +1333,7 @@ jobs:
       token: \${{ secrets.GITHUB_TOKEN }}
 `;
 
-const LINT_ARTIFACTS_PATH = '.github/workflows/styleproof-lint-artifacts.yml';
 // First line of example/lint-map-artifacts.yml — the packaged template carries it.
-const LINT_ARTIFACTS_OWNERSHIP_MARKER = '# StyleProof map artifact lint';
 function readLintArtifactsTemplate() {
   const lintSource = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'example', 'lint-map-artifacts.yml');
   try {
@@ -1181,19 +1351,29 @@ function readLintArtifactsTemplate() {
 // playwright.styleproof.config.ts are USER-owned — never listed here, never touched.
 // (Custom spec path? Pass the same --dir you scaffolded with, so the templates
 // interpolate the matching path.)
+// The file set follows the scaffold axes: the hook exists only with branch
+// storage, the trusted report workflow only with the split layout, and the
+// approval caller only with the review-gate mode.
 function machineOwnedFiles() {
   const lintArtifacts = readLintArtifactsTemplate();
-  const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
   return [
-    {
-      file: path.join(hookDir, 'pre-push'),
-      contents: HOOK,
-      executable: true,
-      ownershipMarker: HOOK_OWNERSHIP_MARKER,
-    },
+    ...(scaffold.storage === 'branch'
+      ? [
+          {
+            file: hookFilePath(),
+            contents: HOOK,
+            executable: true,
+            ownershipMarker: HOOK_OWNERSHIP_MARKER,
+          },
+        ]
+      : []),
     { file: CI_PATH, contents: CI_WORKFLOW, ownershipMarker: CI_OWNERSHIP_MARKER },
-    { file: REPORT_PATH, contents: REPORT_WORKFLOW, ownershipMarker: REPORT_OWNERSHIP_MARKER },
-    { file: APPROVE_PATH, contents: APPROVE_WORKFLOW, ownershipMarker: APPROVE_OWNERSHIP_MARKER },
+    ...(scaffold.workflow === 'split'
+      ? [{ file: REPORT_PATH, contents: REPORT_WORKFLOW, ownershipMarker: REPORT_OWNERSHIP_MARKER }]
+      : []),
+    ...(scaffold.gate === 'review-gate'
+      ? [{ file: APPROVE_PATH, contents: APPROVE_WORKFLOW, ownershipMarker: APPROVE_OWNERSHIP_MARKER }]
+      : []),
     ...(lintArtifacts === undefined
       ? []
       : [{ file: LINT_ARTIFACTS_PATH, contents: lintArtifacts, ownershipMarker: LINT_ARTIFACTS_OWNERSHIP_MARKER }]),
@@ -1219,7 +1399,7 @@ if (checkOnly) {
       (ownershipMarker === HOOK_OWNERSHIP_MARKER ? existing !== contents : !existing.includes(ownershipMarker))
     ) {
       console.log(`unmanaged ${file} (left to the repository owner)`);
-    } else if (existing !== contents) {
+    } else if (stripScaffoldMarker(existing) !== stripScaffoldMarker(contents)) {
       console.log(`stale    ${file}`);
       stale++;
     } else {
@@ -1252,12 +1432,14 @@ if (upgrade) {
     const managed =
       existing !== undefined &&
       (!ownershipMarker ||
-        (ownershipMarker === HOOK_OWNERSHIP_MARKER ? existing === contents : existing.includes(ownershipMarker)));
+        (ownershipMarker === HOOK_OWNERSHIP_MARKER
+          ? stripScaffoldMarker(existing) === stripScaffoldMarker(contents)
+          : existing.includes(ownershipMarker)));
     if (exists && !managed) {
       console.log(`unmanaged ${file} (left unchanged; delete it and rerun --upgrade to adopt the packaged template)`);
       continue;
     }
-    if (existing === contents) {
+    if (stripScaffoldMarker(existing) === stripScaffoldMarker(contents)) {
       console.log(`current   ${file}`);
       continue;
     }
@@ -1387,11 +1569,13 @@ if (gitignore.unmanaged) {
   wroteSomething = true;
 }
 
-// Untrusted capture workflow — never overwrite an existing workflow.
+// CI workflow — never overwrite an existing workflow.
 const ci = writeFileSafe(CI_PATH, CI_WORKFLOW);
 if (ci.wrote) {
   touched.push(CI_PATH);
-  console.log(`created ${CI_PATH} (read-only StyleProof PR capture)`);
+  console.log(
+    `created ${CI_PATH} (${scaffold.workflow === 'split' ? 'read-only StyleProof PR capture' : 'one-job StyleProof PR gate'})`,
+  );
   wroteSomething = true;
 } else if (ci.unmanaged) {
   reportUnmanagedGeneratedPath(CI_PATH);
@@ -1399,32 +1583,36 @@ if (ci.wrote) {
   console.log(`${CI_PATH} already exists — left untouched`);
 }
 
-// Trusted report workflow — never checks out PR code; publishes from workflow_run.
-const report = writeFileSafe(REPORT_PATH, REPORT_WORKFLOW);
-if (report.wrote) {
-  touched.push(REPORT_PATH);
-  console.log(`created ${REPORT_PATH} (trusted StyleProof report stage)`);
-  wroteSomething = true;
-} else if (report.unmanaged) {
-  reportUnmanagedGeneratedPath(REPORT_PATH);
-} else {
-  console.log(`${REPORT_PATH} already exists — left untouched`);
+// Trusted report workflow — split layout only; never checks out PR code.
+if (scaffold.workflow === 'split') {
+  const report = writeFileSafe(REPORT_PATH, REPORT_WORKFLOW);
+  if (report.wrote) {
+    touched.push(REPORT_PATH);
+    console.log(`created ${REPORT_PATH} (trusted StyleProof report stage)`);
+    wroteSomething = true;
+  } else if (report.unmanaged) {
+    reportUnmanagedGeneratedPath(REPORT_PATH);
+  } else {
+    console.log(`${REPORT_PATH} already exists — left untouched`);
+  }
 }
 
-// Approval gate — thin caller workflow that invokes the upstream reusable approval
-// workflow. Logic improvements ship via StyleProof releases. The report workflow above
-// runs with `require-approval: true`, so this is what makes the checkbox live; without
-// it the gate can never go green. GitHub only runs issue_comment workflows from the
-// DEFAULT branch, so it activates when the init PR merges.
-const approve = writeFileSafe(APPROVE_PATH, APPROVE_WORKFLOW);
-if (approve.wrote) {
-  touched.push(APPROVE_PATH);
-  console.log(`created ${APPROVE_PATH} (approval gate — active once merged to your default branch)`);
-  wroteSomething = true;
-} else if (approve.unmanaged) {
-  reportUnmanagedGeneratedPath(APPROVE_PATH);
-} else {
-  console.log(`${APPROVE_PATH} already exists — left untouched`);
+// Approval gate — review-gate mode only. The Action runs with
+// `require-approval: true`, so this thin caller is what makes the "Approve all
+// changes" checkbox live; without it the gate can never go green. GitHub only
+// runs issue_comment workflows from the DEFAULT branch, so it activates when
+// the init PR merges.
+if (scaffold.gate === 'review-gate') {
+  const approve = writeFileSafe(APPROVE_PATH, APPROVE_WORKFLOW);
+  if (approve.wrote) {
+    touched.push(APPROVE_PATH);
+    console.log(`created ${APPROVE_PATH} (approval gate — active once merged to your default branch)`);
+    wroteSomething = true;
+  } else if (approve.unmanaged) {
+    reportUnmanagedGeneratedPath(APPROVE_PATH);
+  } else {
+    console.log(`${APPROVE_PATH} already exists — left untouched`);
+  }
 }
 
 // Lint-artifacts guard — fails the PR if StyleProof map artifacts are accidentally
@@ -1445,10 +1633,14 @@ if (lintArtifactsWorkflow !== undefined) {
   }
 }
 
-const hook = installPrePushHook();
-if (hook.wrote) {
-  touched.push(hook.hookPath);
-  wroteSomething = true;
+// Pre-push publish hook — only with --storage branch. The default artifact
+// storage has no map-store branch for the hook to publish to.
+if (scaffold.storage === 'branch') {
+  const hook = installPrePushHook();
+  if (hook.wrote) {
+    touched.push(hook.hookPath);
+    wroteSomething = true;
+  }
 }
 
 if (touched.length) {
@@ -1460,18 +1652,31 @@ if (touched.length) {
 }
 
 console.log('\nHow the gate works:');
-console.log('  1. Merge this scaffold PR first. workflow_run report + approve only run from your');
-console.log('     default branch — the first PR captures maps but cannot publish the trusted report');
-console.log('     until styleproof-report.yml (and styleproof-approve.yml) are on default.');
-console.log('  2. On later PRs, the read-only capture workflow installs and captures under');
-console.log('     contents: read only, then uploads style maps as an artifact.');
-console.log('  3. The trusted default-branch report workflow downloads that artifact, diffs,');
-console.log('     comments, and sets status — without ever checking out PR-controlled code.');
-console.log('  4. The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
-console.log('     Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
+if (scaffold.workflow === 'split') {
+  console.log('  1. Merge this scaffold PR first. workflow_run report + approve only run from your');
+  console.log('     default branch — the first PR captures maps but cannot publish the trusted report');
+  console.log('     until styleproof-report.yml (and styleproof-approve.yml) are on default.');
+  console.log('  2. On later PRs, the read-only capture workflow installs and captures under');
+  console.log('     contents: read only, then uploads style maps as an artifact.');
+  console.log('  3. The trusted default-branch report workflow downloads that artifact, diffs,');
+  console.log('     comments, and sets status — without ever checking out PR-controlled code.');
+} else {
+  console.log('  1. One job per pull request: capture base and head maps in place, diff them,');
+  console.log('     and publish the report — no second workflow, no map-store branch.');
+  console.log('  2. Forked pull requests get a read-only token and cannot publish; if you accept');
+  console.log('     fork or Dependabot PRs, re-scaffold with --workflow split.');
+}
+if (scaffold.storage === 'branch') {
+  console.log('  The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
+  console.log('  Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
+}
+console.log(
+  `  Gate mode: ${scaffold.gate} — ${scaffold.gate === 'advisory' ? 'reports but never blocks. When the signal proves out, re-scaffold with --mode certify or --mode review-gate.' : scaffold.gate === 'certify' ? 'fails the job on any style diff.' : 'sets a red status until a reviewer ticks "Approve all changes".'}`,
+);
 console.log('');
 console.log('  Maps should NEVER be committed to a PR branch. They travel via the styleproof-maps');
-console.log('  branch or CI artifacts — committed maps bloat the repo and force cross-PR rebases.');
+console.log('  branch (--storage branch) or job-local dirs — committed maps bloat the repo and');
+console.log('  force cross-PR rebases.');
 
 if (!wroteSomething) console.log('\nnothing to write — project already scaffolded.');
 process.exit(0);

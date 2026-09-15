@@ -105,6 +105,9 @@ options:
                       (default: $RUNNER_TEMP/styleproof-maps, else .styleproof/ci-maps)
   --no-upload         capture without publishing to the map-store branch (required for
                       untrusted PR jobs that must not hold write credentials)
+  --no-store          no map-store branch exists: skip every restore probe and capture
+                      both sides in this job. Implies --no-upload. This is the default
+                      styleproof-init scaffold's storage mode (issue #480).
   --force             run outside CI (the flow may force-checkout --head in the consumer
                       tree and uses ephemeral worktrees for --base — uncommitted changes
                       can still be lost on the head checkout)
@@ -136,6 +139,7 @@ exit codes:
   2  usage error
   *  a persistent map-store/network fault keeps the restore CLI's code (a re-run
      is cheap and correct); a failed capture propagates its own code
+styleproof-ci is a compatibility alias for the unified CLI: styleproof ci
 `;
 
 const argv = process.argv.slice(2);
@@ -151,6 +155,7 @@ let specRefIfMissing = '';
 let baseDir = process.env.RUNNER_TEMP ? path.join(process.env.RUNNER_TEMP, 'styleproof-maps') : '.styleproof/ci-maps';
 let force = false;
 let noUpload = false;
+let noStore = false;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (isHelpArg(a)) showHelpAndExit(HELP);
@@ -177,6 +182,7 @@ for (let i = 0; i < argv.length; i++) {
   } else if (a === '--base-dir') baseDir = argv[++i];
   else if (a.startsWith('--base-dir=')) baseDir = a.slice(11);
   else if (a === '--no-upload') noUpload = true;
+  else if (a === '--no-store') noStore = true;
   else if (a === '--force') force = true;
   else {
     console.error(unknownFlagMessage('styleproof-ci', a));
@@ -704,6 +710,10 @@ async function restoreHead(cwd) {
   }
 }
 
+// --no-store: no map-store branch exists — restore probes and ancestor reuse are
+// impossible, and there is nothing to publish to, so capture is forced to --no-upload.
+if (noStore) noUpload = true;
+
 let baseHit;
 let headHit;
 let baseRestoredFromAncestorSha = '';
@@ -712,19 +722,25 @@ let exitCode = 0;
 try {
   // --- Restore both sides from detached worktrees so the consumer never visits --base.
   fs.rmSync(root, { recursive: true, force: true });
-  const baseWorktree = worktrees.addDetached(base, 'probe-base');
-  const baseRunCwd = worktreeRunCwd(baseWorktree, consumerRel);
-  baseHit = await restoreBase(baseRunCwd);
-  if (baseHit) {
-    recordBaselineProvenance({ baseline: 'exact-restore', restoredSha: base });
+  if (noStore) {
+    log('no map store (--no-store) — capturing base and head in this job');
+    baseHit = false;
+    headHit = false;
   } else {
-    baseRestoredFromAncestorSha = await tryRestoreNearestAncestorBaseline(baseRunCwd);
-    if (baseRestoredFromAncestorSha) baseHit = true;
-  }
+    const baseWorktree = worktrees.addDetached(base, 'probe-base');
+    const baseRunCwd = worktreeRunCwd(baseWorktree, consumerRel);
+    baseHit = await restoreBase(baseRunCwd);
+    if (baseHit) {
+      recordBaselineProvenance({ baseline: 'exact-restore', restoredSha: base });
+    } else {
+      baseRestoredFromAncestorSha = await tryRestoreNearestAncestorBaseline(baseRunCwd);
+      if (baseRestoredFromAncestorSha) baseHit = true;
+    }
 
-  const headWorktree = worktrees.addDetached(head, 'probe-head');
-  const headRunCwd = worktreeRunCwd(headWorktree, consumerRel);
-  headHit = await restoreHead(headRunCwd);
+    const headWorktree = worktrees.addDetached(head, 'probe-head');
+    const headRunCwd = worktreeRunCwd(headWorktree, consumerRel);
+    headHit = await restoreHead(headRunCwd);
+  }
 
   if (baseHit && headHit) {
     writeOutputs();

@@ -111,6 +111,35 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- **Adoption surface consolidated (#480).** `styleproof-init` now scaffolds the
+  smallest honest gate by default: one `pull_request` workflow that captures
+  base and head in the same job and diffs them, maps carried as workflow
+  artifacts, and an advisory gate — no `styleproof-maps` branch, no report
+  branch requirement, no pre-push hook, no approval workflow. Three explicit
+  opt-ins reproduce the previous architecture: `--workflow split` (read-only
+  capture job plus trusted `workflow_run` report job for fork/Dependabot PRs),
+  `--storage branch` (map-store branch plus the pre-push publish hook), and
+  `--mode certify|review-gate` (blocking diff or reviewer approval).
+  `split + branch + review-gate` emits byte-identical files to the previous
+  default. A `# styleproof-scaffold:` marker in the generated workflow records
+  the chosen axes so `--check` and `--upgrade` verify that mode's file set;
+  scaffolds created before the marker are inferred from their existing files.
+- **`styleproof-ci --no-store`.** Skips every map-store restore probe and
+  ancestor-baseline reuse, captures base and head in the same job, and implies
+  `--no-upload`. The default single-workflow scaffold emits it.
+- **Named binaries are compatibility aliases.** The unified `styleproof` CLI
+  remains canonical; every `styleproof-*` binary documents itself as an alias
+  for one major version.
+- **`src/index.ts` trimmed to the public contract.** The package root now
+  exports the spec API (`defineStyleMapCapture`, `defineCrawlCapture`,
+  `defineConfig`, discovery/recipe/determinism/affected-surface helpers), the
+  three core functions (`captureStyleMap`, `diffStyleMaps`,
+  `generateStyleMapReport`), and their types. Internal machinery stays
+  importable only through leaf modules. (#480)
+- **README split.** The README keeps the quickstart, the two modes, and the
+  certification boundary; the long-form contract moved to
+  `docs/REFERENCE.md`. (#480)
+
 - **Ancestor baseline reuse is now default-on (opt-out).** When the exact base
   commit has no map in the store, CI automatically falls back to the nearest
   ancestor whose bundle exists and is compatible. Configure via

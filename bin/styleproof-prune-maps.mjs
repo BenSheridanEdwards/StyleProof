@@ -26,7 +26,10 @@ Options:
   --history-limit <count>  skip the rewrite when nothing is prunable and the
                            branch holds no more than this many commits
                            (default: 30)
-  -h, --help               show this help`;
+  -h, --help               show this help
+
+styleproof-prune-maps is a compatibility alias for the unified CLI: styleproof prune-maps
+`;
 
 const argv = process.argv.slice(2);
 if (argv.includes('--help') || argv.includes('-h')) {
