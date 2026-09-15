@@ -9,6 +9,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Phase-0 detection corpus v2 (#447).** `bench/detection-corpus-v2.json`
+  freezes 23 reviewed mutants — resting computed-style changes across color,
+  typography, spacing, borders, effects, layout, and CSS variables; pseudo-element
+  and forced-state divergence; a sibling-insertion structural change; one
+  rendered image change with no computed-style correspondence (a designed,
+  counted miss); and four no-op controls including a computed-but-not-rendered
+  border color. `npm run bench:detection` now supports `smoke`, `pilot` (v1
+  corpus), `diagnostic` (`--case ID[,ID...]`), `sharded` (`--shard I/N`), and
+  `full` scopes; a `full` receipt must execute the complete frozen corpus and is
+  the only scope that may claim the run. Render proof decouples computed-property
+  change from pixel change so computed-but-not-rendered mutants validate
+  honestly, and proof screenshots cover the `main` container so out-of-box
+  effects are measured. The committed full-corpus receipt recorded 23 executed
+  and valid cases: 18 detected, 1 designed miss, 1 no-op false positive, 3
+  true negatives.
 - Known-truth browser oracles now cover light/dark color scheme, flex/grid layout,
   `:focus-visible` with `:focus`, box shadow/radius, and transform/opacity fidelity.
   Each fixture fails closed on missing or wrong exact computed values. (#626, #627,
