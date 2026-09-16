@@ -1,0 +1,27 @@
+{
+  "description": "Phase 1 structure harness (#670): known DOM addition on the StyleProof demo callout marker.",
+  "softPass": "HOLD — incomplete or wrong report mapping must fail closed; do not soft-pass.",
+  "surfaceKey": "demo-structure",
+  "width": 900,
+  "element": {
+    "tag": "p",
+    "cls": "structure-callout",
+    "label": "p.structure-callout"
+  },
+  "queryParams": {
+    "base": "structure=base",
+    "head": "structure=head"
+  },
+  "expectedFinding": {
+    "kind": "structure",
+    "change": "added"
+  },
+  "report": {
+    "migrationHeader": "StyleProof Migration Report",
+    "galleryLabel": "New/removed elements",
+    "surfaceCaption": "demo-structure @ 900",
+    "elementHeading": "p.structure-callout",
+    "structureLine": "element added",
+    "trustGlanceContains": "added"
+  }
+}
