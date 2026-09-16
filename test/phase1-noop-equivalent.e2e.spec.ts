@@ -50,11 +50,21 @@ function ctaSurface(caseId: string, tone: 'base' | 'head') {
   const caseDef = oracle.cases.find((entry) => entry.id === caseId);
   if (!caseDef) throw new Error(`missing oracle case ${caseId}`);
   const query = tone === 'head' ? caseDef.queryParams.head : caseDef.queryParams.base;
+  const expectedCtaTone =
+    caseId === 'equivalent-color-spelling' && tone === 'head'
+      ? 'equiv'
+      : tone === 'head' && caseDef.queryParams.head.includes('ctaTone=head')
+        ? 'head'
+        : 'base';
   return {
     key: oracle.surfaceKey,
     widths: [oracle.width],
     go: async (page: import('@playwright/test').Page) => {
       await page.goto(phase1DemoUrl(DEMO, query), { waitUntil: 'load' });
+      await expect(page.locator('button.btn').first(), `${caseId} ${tone} Save button`).toHaveAttribute(
+        'data-cta-tone',
+        expectedCtaTone,
+      );
     },
   };
 }
