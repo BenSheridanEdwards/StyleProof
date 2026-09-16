@@ -39,7 +39,7 @@
     "globalRequiredUnprovenSurfaces": 0,
     "liveTextFreezeViolated": false,
     "status": "comparable",
-    "requireStateIdentity": true,
+    "requireStateIdentity": false,
     "blocksCertification": false,
     "counts": {
       "comparable": 1,
@@ -85,7 +85,9 @@
     "legacyPairs": [],
     "declared": [],
     "undeclared": [],
-    "staleAcknowledgements": []
+    "staleAcknowledgements": [
+      "home"
+    ]
   },
   "sourceBinding": {
     "status": "bound",
@@ -118,5 +120,5 @@
       "byteCount": 1525
     }
   },
-  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
+  "actionTrustState": "CERTIFICATION_FAILED"
 }
