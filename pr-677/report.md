@@ -8,18 +8,27 @@
 
 **Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
-🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 320`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
+⚠️ **1 baseline capture failure(s)**: these named surface(s) failed on the base SHA and were omitted from the baseline bundle: `about@auto` at `6beed918c6505d653c5cf3fb82ed30d91bdc26aa`. The base bundle was produced (`base-capture-failed=false`); this is not a base recapture failure. Repair the named surface(s) on that SHA; do not approve indefinitely. Raw exception details stay private.
+⚠️ **1 head surface(s)** have no base map because a named baseline surface capture failed (not first adoption, not a base recapture failure): `about @ 320`.
+
+
+### Baseline capture failure receipt
+
+- `about@auto` · `capture_failed` · `6beed918c6505d653c5cf3fb82ed30d91bdc26aa`
+
+_Named surface+SHA above. This is not a base recapture failure (`base-capture-failed=false`)._
+
 
 ## One-sided pages, states, or surfaces — review first
 
-### `pricing@320` · new surface <!-- styleproof-new -->
+### `about@320` · baseline repair needed ⚠️
 
-_pricing @ 320_
+_about @ 320_
 
-![new surface — after](crops/pricing-320-1-new.png)
+![baseline repair needed — after](crops/about-320-1-new.png)
 
-<sub>after · pricing @ 320</sub>
+<sub>after · about @ 320</sub>
 
-_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
+_The matching baseline surface capture failed. This is **baseline repair needed**, not first adoption and not a base recapture failure; repair `about@320` on the named SHA in the receipt above._
 
 <!-- styleproof-receipt head-sha:0b9bfc086bcb0d8dc50b108871463f4ec19a8c09 run-id:35119418420 run-attempt:1 -->
