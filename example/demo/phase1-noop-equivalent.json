@@ -1,0 +1,32 @@
+{
+  "description": "Phase 1 no-op/equivalent harness (#672): intentional non-change must not invent a false reviewable change.",
+  "softPass": "HOLD — a false STYLE_REVIEW_REQUIRED or invented change section must fail closed; do not soft-pass.",
+  "surfaceKey": "demo-cta-noop",
+  "width": 900,
+  "element": {
+    "tag": "button",
+    "cls": "btn",
+    "label": "button.btn"
+  },
+  "cases": [
+    {
+      "id": "identical-capture",
+      "description": "True no-op: base and head use the same demo query params.",
+      "queryParams": { "base": "ctaTone=base", "head": "ctaTone=base" }
+    },
+    {
+      "id": "equivalent-color-spelling",
+      "description": "Equivalent CSS: head restyles via hex while computed rgb matches base.",
+      "queryParams": { "base": "ctaTone=base", "head": "ctaTone=equiv" },
+      "expectedComputed": {
+        "background-color": "rgb(20, 184, 166)",
+        "border-top-color": "rgb(56, 214, 198)"
+      }
+    }
+  ],
+  "report": {
+    "surfaceCaption": "demo-cta-noop @ 900",
+    "cleanMatchLine": "No reviewable computed-style changes",
+    "forbiddenTrustStates": ["STYLE_REVIEW_REQUIRED"]
+  }
+}

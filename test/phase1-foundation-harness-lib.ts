@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import type { StyleMap } from '../src/capture.js';
 import type { ContentChange, Finding } from '../src/diff.js';
 import { MIGRATION_GALLERY_LABELS } from '../src/report.js';
+import { classifyStyleProofVerdict, type StyleProofTrustState } from '../src/verdict.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,6 +39,7 @@ export type Phase1CssDeltaOracle = {
 };
 
 export const PHASE1_ORACLE_PATH = path.join(here, '..', 'example', 'demo', 'phase1-css-delta.json');
+export const PHASE1_NOOP_ORACLE_PATH = path.join(here, '..', 'example', 'demo', 'phase1-noop-equivalent.json');
 
 export function loadPhase1CssDeltaOracle(oraclePath = PHASE1_ORACLE_PATH): Phase1CssDeltaOracle {
   return JSON.parse(fs.readFileSync(oraclePath, 'utf8')) as Phase1CssDeltaOracle;
@@ -238,5 +240,147 @@ export function assertPhase1StructureReportMapping(input: {
   }
   if (reportJson.gateMode !== 'migration' && reportJson.migration !== true) {
     throw new Error('FAIL-CLOSED: report.json must record migration mode (gateMode or migration marker)');
+  }
+}
+
+export type Phase1NoopEquivalentOracle = {
+  description: string;
+  softPass: string;
+  surfaceKey: string;
+  width: number;
+  element: { tag: string; cls: string; label: string };
+  cases: Array<{
+    id: string;
+    description: string;
+    queryParams: { base: string; head: string };
+    expectedComputed?: Record<string, string>;
+  }>;
+  report: {
+    surfaceCaption: string;
+    cleanMatchLine: string;
+    forbiddenTrustStates: StyleProofTrustState[];
+  };
+};
+
+export function loadPhase1NoopEquivalentOracle(oraclePath = PHASE1_NOOP_ORACLE_PATH): Phase1NoopEquivalentOracle {
+  return JSON.parse(fs.readFileSync(oraclePath, 'utf8')) as Phase1NoopEquivalentOracle;
+}
+
+type NoopReportJsonShape = {
+  comparison?: {
+    rawChangedSurfaces?: number;
+    reviewableChangedSurfaces?: number;
+    hasReviewableEvidence?: boolean;
+    rawCounts?: { dom?: number; style?: number; state?: number };
+    reviewableCounts?: { dom?: number; style?: number; state?: number };
+    blocksCertification?: boolean;
+  };
+  rawCounts?: { dom?: number; style?: number; state?: number };
+  counts?: { dom?: number; style?: number; state?: number };
+  reviewableCounts?: { dom?: number; style?: number; state?: number };
+  reportConsistency?: { ok?: boolean; reason?: string };
+  surfaces?: Array<{ representative?: string; surface?: string; findings?: unknown[] }>;
+};
+
+function reviewableStyleCount(reportJson: NoopReportJsonShape): number {
+  return (
+    reportJson.comparison?.reviewableCounts?.style ??
+    reportJson.reviewableCounts?.style ??
+    reportJson.comparison?.rawCounts?.style ??
+    reportJson.rawCounts?.style ??
+    reportJson.counts?.style ??
+    0
+  );
+}
+
+function reviewableTotal(reportJson: NoopReportJsonShape): number {
+  const counts =
+    reportJson.comparison?.reviewableCounts ??
+    reportJson.reviewableCounts ??
+    reportJson.comparison?.rawCounts ??
+    reportJson.rawCounts ??
+    reportJson.counts;
+  if (!counts) return 0;
+  return (counts.dom ?? 0) + (counts.style ?? 0) + (counts.state ?? 0);
+}
+
+/** Fail closed when a known no-op/equivalent case invents reviewable evidence. */
+export function assertPhase1NoopReportMapping(input: {
+  reportMd: string;
+  reportJson: NoopReportJsonShape;
+  oracle: Phase1NoopEquivalentOracle;
+  caseId: string;
+}): void {
+  const { reportMd, reportJson, oracle, caseId } = input;
+
+  if (reviewableStyleCount(reportJson) > 0) {
+    throw new Error(
+      `FAIL-CLOSED [${caseId}]: report.json shows reviewable style changes for a known no-op/equivalent case`,
+    );
+  }
+  if (reviewableTotal(reportJson) > 0) {
+    throw new Error(
+      `FAIL-CLOSED [${caseId}]: report.json shows reviewable dom/style/state changes for a known no-op/equivalent case`,
+    );
+  }
+
+  const changedSurfaces =
+    reportJson.comparison?.reviewableChangedSurfaces ?? reportJson.comparison?.rawChangedSurfaces ?? 0;
+  if (changedSurfaces > 0) {
+    throw new Error(
+      `FAIL-CLOSED [${caseId}]: report.json shows ${changedSurfaces} changed surface(s) for a no-op case`,
+    );
+  }
+  if (reportJson.comparison?.hasReviewableEvidence === true) {
+    throw new Error(`FAIL-CLOSED [${caseId}]: report.json comparison.hasReviewableEvidence is true for a no-op case`);
+  }
+
+  const surfaceFilePrefix = `${oracle.surfaceKey}@${oracle.width}`;
+  const surfaceFinding = reportJson.surfaces?.find(
+    (surface) =>
+      surface.representative?.startsWith(surfaceFilePrefix) || surface.surface?.startsWith(surfaceFilePrefix),
+  );
+  if (surfaceFinding?.findings?.length) {
+    throw new Error(`FAIL-CLOSED [${caseId}]: report.json lists findings for ${surfaceFilePrefix} on a no-op case`);
+  }
+
+  if (!new RegExp(oracle.report.cleanMatchLine, 'i').test(reportMd)) {
+    throw new Error(
+      `FAIL-CLOSED [${caseId}]: report.md missing "${oracle.report.cleanMatchLine}" for a known no-op/equivalent case`,
+    );
+  }
+  if (/STYLE_REVIEW_REQUIRED/i.test(reportMd)) {
+    throw new Error(`FAIL-CLOSED [${caseId}]: report.md advertises STYLE_REVIEW_REQUIRED for a no-op case`);
+  }
+
+  const verdict = classifyStyleProofVerdict(
+    {
+      comparison: reportJson.comparison ?? {},
+      reportConsistency: reportJson.reportConsistency ?? { ok: true, reason: 'aligned' },
+      reviewableCounts: reportJson.comparison?.reviewableCounts ??
+        reportJson.reviewableCounts ?? {
+          dom: 0,
+          style: 0,
+          state: 0,
+        },
+      surfaces: reportJson.surfaces ?? [],
+    },
+    { gateInventoryRemovals: true, baseCaptureFailed: false, changed: false },
+  );
+  for (const forbidden of oracle.report.forbiddenTrustStates) {
+    if (verdict.state === forbidden) {
+      throw new Error(`FAIL-CLOSED [${caseId}]: trust verdict ${forbidden} invented for a known no-op/equivalent case`);
+    }
+  }
+  if (verdict.reviewableChanged) {
+    throw new Error(`FAIL-CLOSED [${caseId}]: trust verdict reviewableChanged=true for a known no-op/equivalent case`);
+  }
+}
+
+export function assertPhase1NoopDiffFindings(findings: Finding[], caseId: string): void {
+  if (findings.length > 0) {
+    throw new Error(
+      `FAIL-CLOSED [${caseId}]: diffStyleMaps returned ${findings.length} finding(s) for a known no-op/equivalent case`,
+    );
   }
 }

@@ -9,7 +9,8 @@
       (test/dogfood.e2e.spec.ts). No web fonts, no animation, no live data.
       Contracts: .btn background is restyled; ?ctaTone=head restyles Save for
       Phase 1 (#669); ?structure=head injects p.structure-callout for Phase 1
-      (#670); status-card loading/loaded + data-tone=head; exactly
+      (#670); ?ctaTone=equiv is hex-equivalent to base for #672;
+      status-card loading/loaded + data-tone=head; exactly
       @media 600 / 900.
 
       One situation at a time. Default is the atom: a single command button.
@@ -167,6 +168,25 @@
         letter-spacing: 0.08em;
         text-transform: uppercase;
       }
+      /* Phase 1 (#672): equivalent spelling — hex computes to the same rgb as .btn */
+      .btn[data-cta-tone='equiv'] {
+        background: #14b8a6;
+        border-color: #38d6c6;
+      }
+      .btn[data-cta-tone='equiv']:hover {
+        background: rgb(7, 9, 12);
+        color: rgb(94, 234, 212);
+        border-color: rgb(94, 234, 212);
+      }
+      .btn[data-cta-tone='equiv']:focus {
+        outline: 3px solid rgb(94, 234, 212);
+        outline-offset: 3px;
+        border-color: rgb(165, 243, 252);
+      }
+      .btn[data-cta-tone='equiv']:active {
+        background: rgb(13, 148, 136);
+        border-color: rgb(15, 118, 110);
+      }
       .modal {
         max-width: 420px;
         padding: 22px 22px 18px;
@@ -256,7 +276,9 @@
       const params = new URLSearchParams(window.location.search);
       const state = params.get('state') === 'loaded' ? 'loaded' : 'loading';
       const tone = state === 'loaded' && params.get('tone') === 'head' ? 'head' : 'base';
-      const ctaTone = params.get('ctaTone') === 'head' ? 'head' : 'base';
+      const ctaToneParam = params.get('ctaTone');
+      const ctaTone =
+        ctaToneParam === 'head' || ctaToneParam === 'equiv' ? ctaToneParam : 'base';
       const structure = params.get('structure') === 'head' ? 'head' : 'base';
       const scale = params.get('scale') === 'organism' ? 'organism' : 'atom';
       const status = document.querySelector('.status-card');

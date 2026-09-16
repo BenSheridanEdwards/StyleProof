@@ -1,0 +1,50 @@
+# AC1 TDD red — phase 1 no-op/equivalent harness e2e on unfixed ?ctaTone=equiv mapping
+
+Command (commit before demo `?ctaTone=equiv` → `data-cta-tone=equiv` JS wiring):
+
+```
+npx playwright test test/phase1-noop-equivalent.e2e.spec.ts --reporter=line
+```
+
+Output (exit 1 — 15 passed, 1 failed, 4 did not run):
+
+```
+Running 20 tests using 1 worker
+
+[1/20] Phase 1 no-op harness capture: identical-capture › styleproof coverage ledger
+[2/20] Phase 1 no-op harness capture: identical-capture › styleproof browser build
+[3/20] Phase 1 no-op harness capture: identical-capture › demo-cta-noop @ 900
+styleproof: surface 1/1 (demo-cta-noop@900) captured in 2.4s (self-check 1.1s)
+[4/20] Phase 1 no-op harness capture head: identical-capture › styleproof coverage ledger
+[5/20] Phase 1 no-op harness capture head: identical-capture › styleproof browser build
+[6/20] Phase 1 no-op harness capture head: identical-capture › demo-cta-noop @ 900
+styleproof: surface 1/1 (demo-cta-noop@900) captured in 2.4s (self-check 1.1s)
+[7/20] Phase 1 no-op harness capture: equivalent-color-spelling › styleproof coverage ledger
+[8/20] Phase 1 no-op harness capture: equivalent-color-spelling › styleproof browser build
+[9/20] Phase 1 no-op harness capture: equivalent-color-spelling › demo-cta-noop @ 900
+styleproof: surface 1/1 (demo-cta-noop@900) captured in 2.4s (self-check 1.1s)
+[10/20] Phase 1 no-op harness capture head: equivalent-color-spelling › styleproof coverage ledger
+[11/20] Phase 1 no-op harness capture head: equivalent-color-spelling › styleproof browser build
+[12/20] Phase 1 no-op harness capture head: equivalent-color-spelling › demo-cta-noop @ 900
+
+  1) Phase 1 no-op harness capture head: equivalent-color-spelling › demo-cta-noop @ 900
+
+    Error: equivalent-color-spelling head Save button
+
+    expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('button.btn').first()
+    Expected: "equiv"
+    Received: "base"
+
+    Call log:
+      - 14 × locator resolved to <button class="btn" type="button" data-cta-tone="base">Save</button>
+           - unexpected value "base"
+
+  1 failed
+    Phase 1 no-op harness capture head: equivalent-color-spelling › demo-cta-noop @ 900
+  4 did not run
+  15 passed (16.5s)
+```
+
+The harness captures base maps but the demo fixture maps `?ctaTone=equiv` to `data-cta-tone=base`, so the hex-equivalent CSS never applies and the fail-closed attribute assertion rejects the dead path.
