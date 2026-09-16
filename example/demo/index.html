@@ -8,7 +8,8 @@
       Deterministic page StyleProof certifies against itself in CI
       (test/dogfood.e2e.spec.ts). No web fonts, no animation, no live data.
       Contracts: .btn background is restyled; ?ctaTone=head restyles Save for
-      Phase 1 (#669); status-card loading/loaded + data-tone=head; exactly
+      Phase 1 (#669); ?structure=head injects p.structure-callout for Phase 1
+      (#670); status-card loading/loaded + data-tone=head; exactly
       @media 600 / 900.
 
       One situation at a time. Default is the atom: a single command button.
@@ -154,6 +155,18 @@
         background: rgb(220, 38, 38);
         border-color: rgb(185, 28, 28);
       }
+      /* Phase 1 (#670): deterministic head-side DOM addition toggled by ?structure=head */
+      .structure-callout {
+        margin: 0 0 14px;
+        padding: 8px 10px;
+        border: 1px solid rgb(251, 191, 36);
+        background: rgb(42, 32, 10);
+        color: rgb(254, 215, 170);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
       .modal {
         max-width: 420px;
         padding: 22px 22px 18px;
@@ -244,6 +257,7 @@
       const state = params.get('state') === 'loaded' ? 'loaded' : 'loading';
       const tone = state === 'loaded' && params.get('tone') === 'head' ? 'head' : 'base';
       const ctaTone = params.get('ctaTone') === 'head' ? 'head' : 'base';
+      const structure = params.get('structure') === 'head' ? 'head' : 'base';
       const scale = params.get('scale') === 'organism' ? 'organism' : 'atom';
       const status = document.querySelector('.status-card');
       const organism = document.querySelector('.stage-organism');
@@ -251,6 +265,14 @@
       document.querySelectorAll('.btn').forEach((btn) => {
         btn.dataset.ctaTone = ctaTone;
       });
+      const atomStage = document.querySelector('.stage-atom');
+      if (structure === 'head' && atomStage) {
+        const callout = document.createElement('p');
+        callout.className = 'structure-callout';
+        callout.textContent = 'Structure delta marker';
+        const saveButton = atomStage.querySelector('.btn');
+        atomStage.insertBefore(callout, saveButton);
+      }
       status.className = `status-card ${state}`;
       status.dataset.tone = tone;
       status.setAttribute('aria-busy', state === 'loading' ? 'true' : 'false');

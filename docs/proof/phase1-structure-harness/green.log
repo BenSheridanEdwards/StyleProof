@@ -1,0 +1,26 @@
+# AC1 TDD green — phase 1 structure harness e2e after demo DOM delta
+
+Command (commit after demo `?structure=head` injects `p.structure-callout`):
+
+```
+npx playwright test test/phase1-structure-harness.e2e.spec.ts --reporter=line
+```
+
+Output (exit 0 — 9/9 pass):
+
+```
+Running 9 tests using 1 worker
+
+[1/9] Phase 1 structure harness: demo structure base capture › styleproof coverage ledger
+[2/9] Phase 1 structure harness: demo structure base capture › styleproof browser build
+[3/9] Phase 1 structure harness: demo structure base capture › demo-structure @ 900
+styleproof: surface 1/1 (demo-structure@900) captured in 2.4s (self-check 1.1s)
+[4/9] Phase 1 structure harness: demo structure head capture › styleproof coverage ledger
+[5/9] Phase 1 structure harness: demo structure head capture › styleproof browser build
+[6/9] Phase 1 structure harness: demo structure head capture › demo-structure @ 900
+styleproof: surface 1/1 (demo-structure@900) captured in 2.3s (self-check 1.1s)
+[7/9] oracle and demo contract files exist
+[8/9] fail-closed: incomplete structure report mapping is rejected
+[9/9] Phase 1: known demo structure delta maps through capture → diff → report and real CLIs
+  9 passed (7.3s)
+```

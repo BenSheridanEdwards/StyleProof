@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { StyleMap } from '../src/capture.js';
-import type { Finding } from '../src/diff.js';
+import type { ContentChange, Finding } from '../src/diff.js';
+import { MIGRATION_GALLERY_LABELS } from '../src/report.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,7 +48,35 @@ export function phase1DemoUrl(demoFileUrl: string, query: string): string {
   return `${demoFileUrl}${joiner}${query}`;
 }
 
-export function findDemoElementPath(map: StyleMap, oracle: Phase1CssDeltaOracle): string | undefined {
+export type Phase1ElementOracle = { element: { tag: string; cls: string; label: string } };
+
+export type Phase1StructureDeltaOracle = {
+  description: string;
+  softPass: string;
+  surfaceKey: string;
+  width: number;
+  element: Phase1ElementOracle['element'];
+  queryParams: { base: string; head: string };
+  expectedFinding: {
+    kind: 'structure';
+    change: 'added' | 'removed' | 'retagged';
+  };
+  report: {
+    migrationHeader: string;
+    galleryLabel: string;
+    gallerySurfaceLine: string;
+    galleryAddedCount: string;
+    trustGlanceContains: string;
+  };
+};
+
+export const PHASE1_STRUCTURE_ORACLE_PATH = path.join(here, '..', 'example', 'demo', 'phase1-structure-delta.json');
+
+export function loadPhase1StructureDeltaOracle(oraclePath = PHASE1_STRUCTURE_ORACLE_PATH): Phase1StructureDeltaOracle {
+  return JSON.parse(fs.readFileSync(oraclePath, 'utf8')) as Phase1StructureDeltaOracle;
+}
+
+export function findDemoElementPath(map: StyleMap, oracle: Phase1ElementOracle): string | undefined {
   return Object.entries(map.elements).find(
     ([, entry]) => entry.tag === oracle.element.tag && entry.cls === oracle.element.cls,
   )?.[0];
@@ -144,5 +173,70 @@ export function assertPhase1CssReportMapping(input: {
   }
   if (/No reviewable computed-style changes/i.test(reportMd)) {
     throw new Error('FAIL-CLOSED: report.md claims no reviewable changes despite a known CSS delta');
+  }
+}
+
+type MigrationReportJsonShape = ReportJsonShape & {
+  migrationGallery?: {
+    newRemovedElements?: Array<{ surface: string; added: number; removed: number; retagged: number }>;
+  };
+  gateMode?: string;
+};
+
+export function assertPhase1StructureContentFinding(
+  changes: ContentChange[],
+  afterPath: string,
+  oracle: Phase1StructureDeltaOracle,
+): Extract<ContentChange, { kind: 'structure' }> {
+  const expected = oracle.expectedFinding;
+  const actual = changes.find(
+    (change): change is Extract<ContentChange, { kind: 'structure' }> =>
+      change.kind === expected.kind && change.path === afterPath && change.change === expected.change,
+  );
+  if (!actual) {
+    throw new Error(
+      `FAIL-CLOSED: missing ${expected.change} structure finding on ${oracle.element.label} (after=${afterPath})`,
+    );
+  }
+  if (actual.cls !== oracle.element.cls) {
+    throw new Error(`FAIL-CLOSED: ${oracle.element.label} cls expected "${oracle.element.cls}" got "${actual.cls}"`);
+  }
+  return actual;
+}
+
+export function assertPhase1StructureReportMapping(input: {
+  reportMd: string;
+  reportJson: MigrationReportJsonShape;
+  oracle: Phase1StructureDeltaOracle;
+  migrationGallery?: MigrationReportJsonShape['migrationGallery'];
+}): void {
+  const { reportMd, reportJson, oracle, migrationGallery } = input;
+  const surfaceFilePrefix = `${oracle.surfaceKey}@${oracle.width}`;
+  const galleryEntry =
+    migrationGallery?.newRemovedElements?.find((entry) => entry.surface.startsWith(surfaceFilePrefix)) ??
+    reportJson.migrationGallery?.newRemovedElements?.find((entry) => entry.surface.startsWith(surfaceFilePrefix));
+  if (!galleryEntry || galleryEntry.added < 1) {
+    const mdGalleryFallback =
+      reportMd.includes(oracle.report.galleryAddedCount) && reportMd.includes(oracle.report.gallerySurfaceLine);
+    if (!mdGalleryFallback) {
+      throw new Error(`FAIL-CLOSED: migration gallery lacks added element on ${surfaceFilePrefix}`);
+    }
+  }
+
+  const requiredMd = [
+    oracle.report.migrationHeader,
+    MIGRATION_GALLERY_LABELS.newRemovedElements,
+    oracle.report.galleryLabel,
+    oracle.report.gallerySurfaceLine,
+    oracle.report.galleryAddedCount,
+    oracle.report.trustGlanceContains,
+  ];
+  for (const needle of requiredMd) {
+    if (!reportMd.includes(needle)) {
+      throw new Error(`FAIL-CLOSED: report.md missing "${needle}" for the known structure delta`);
+    }
+  }
+  if (reportJson.gateMode !== 'migration' && reportJson.migration !== true) {
+    throw new Error('FAIL-CLOSED: report.json must record migration mode (gateMode or migration marker)');
   }
 }
