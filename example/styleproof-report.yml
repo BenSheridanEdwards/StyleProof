@@ -17,7 +17,7 @@ on:
     types: [completed]
 
 permissions:
-  contents: write # push the report branch
+  contents: read # the report uploads as a workflow artifact — nothing is written to git
   pull-requests: write # post/update the comment
   statuses: write # set the StyleProof status
   actions: read # download the artifact from the capture run

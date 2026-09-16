@@ -31,7 +31,7 @@ test('live dogfood captures declared config.ts surfaces and runs the Action advi
   assert.match(workflow, /uses: \.\//);
   assert.match(workflow, /fail-on-diff:\s*'false'/);
   assert.match(workflow, /mode:\s*'advisory'/);
-  assert.match(workflow, /report-branch:\s*styleproof-reports/);
+  assert.doesNotMatch(workflow, /report-branch/, 'live dogfood exercises the default artifact report storage (#587)');
   assert.match(workflow, /status-context:\s*'StyleProof dogfood'/);
   assert.match(workflow, /comment-marker:\s*'<!-- styleproof-dogfood-report -->'/);
   assert.doesNotMatch(workflow, /require-approval:\s*'true'/);
@@ -42,9 +42,14 @@ test('live dogfood stays same-repo, writes maps/reports, and publishes a distinc
   assert.match(workflow, /contents: write/);
   assert.match(workflow, /pull-requests: write/);
   assert.match(workflow, /<!-- styleproof-dogfood-report -->/);
-  assert.match(workflow, /styleproof-reports/);
+  assert.doesNotMatch(
+    workflow,
+    /styleproof-reports/,
+    'report evidence leaves git history under artifact storage (#587)',
+  );
   assert.match(workflow, /STYLEPROOF_CACHE_BRANCH|styleproof-maps|--upload/);
-  assert.match(workflow, /Assert PR report was published/);
+  assert.match(workflow, /Assert PR report was published as a workflow artifact/);
+  assert.match(workflow, /actions\/runs\/\$\{GITHUB_RUN_ID\}\/artifacts/);
   assert.match(workflow, /compatibilityKey/);
   assert.match(workflow, /\$\{HEAD_SHA\}\/\$\{compat\}\/styleproof-manifest\.json/);
   assert.doesNotMatch(
@@ -58,6 +63,7 @@ test('live dogfood stays same-repo, writes maps/reports, and publishes a distinc
 test('live dogfood does not replace the synthetic action-dogfood contract suite', () => {
   assert.match(actionDogfood, /node scripts\/action-dogfood-fixtures\.mjs/);
   assert.match(actionDogfood, /report-branch: styleproof-action-dogfood/);
+  assert.match(actionDogfood, /report-storage: branch/);
   assert.match(actionDogfood, /Synthetic action dogfood receipt/);
   assert.doesNotMatch(workflow, /action-dogfood-fixtures\.mjs/);
   assert.doesNotMatch(workflow, /report-branch: styleproof-action-dogfood/);

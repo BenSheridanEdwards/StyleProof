@@ -45,8 +45,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   real `example/demo` surfaces in advisory mode (`blocking: 'advisory'`,
   `requireApproval: false`). Same-repo PRs run `.github/workflows/styleproof-dogfood.yml`:
   capture those surfaces, publish maps to `styleproof-maps`, and run the Action
-  with `fail-on-diff: false` / `mode: advisory` so a report comment lands on
-  `styleproof-reports`. This check is advisory and is not part of hosted
+  with `fail-on-diff: false` / `mode: advisory` so a report comment links the
+  run's report artifact. This check is advisory and is not part of hosted
   required CI. The synthetic `action-dogfood.yml` contract suite is unchanged.
   (#642, #643)
 
@@ -120,6 +120,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- **Report delivery defaults to workflow artifacts (#587).** The Action gains a
+  `report-storage` input: `artifact` (default) uploads `styleproof-report/` as
+  a workflow artifact on the run — the PR comment links the artifact entry, and
+  `report-retention-days` (default 30) bounds its lifetime. Nothing is written
+  to repository git history, and the generated scaffold drops the
+  report-branch publish, the close-triggered and scheduled prune jobs, and
+  `contents: write`. `report-storage: branch` keeps the proven
+  `styleproof-reports` orphan-branch path with its commit-bound rendered link,
+  receipt readback, and prune jobs — `styleproof-init --storage branch` emits
+  it. The approval workflow verifies the same receipt either way: it reads
+  `report.md`/`report.json` at the publication commit in branch mode, or out of
+  the run's immutable report artifact in artifact mode, so reviewer approval
+  never lowers the evidence bar. Approval callers now grant `actions: read`
+  (artifact readback) and `contents: read` (branch readback) — adopters with a
+  hand-written or pre-v7 approve caller should add both.
 - **Adoption surface consolidated (#480).** `styleproof-init` now scaffolds the
   smallest honest gate by default: one `pull_request` workflow that captures
   base and head in the same job and diffs them, maps carried as workflow

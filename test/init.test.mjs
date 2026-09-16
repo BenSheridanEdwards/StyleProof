@@ -285,6 +285,16 @@ test('styleproof-init: default scaffold is one workflow, no map-store branch, ad
     assert.doesNotMatch(workflow, /BRANCH: styleproof-maps|sparse-checkout|git push/);
     assert.doesNotMatch(workflow, /upload-artifact/);
 
+    // Report storage is the workflow artifact, not a branch (#587): no report
+    // branch, no close-prune or sweep jobs, no closed/schedule triggers, and the
+    // job never needs contents: write — evidence stays out of git history.
+    assert.match(workflow, /report-storage: artifact/);
+    assert.doesNotMatch(workflow, /report-storage: branch|report-branch/);
+    assert.match(workflow, /contents: read/);
+    assert.doesNotMatch(workflow, /contents:\s*write/);
+    assert.match(workflow, /types: \[opened, synchronize, reopened\]/);
+    assert.doesNotMatch(workflow, /schedule:|prune:|report-sweep:|prune-reports|prune-maps|styleproof-reports/);
+
     // Same-repo pull_request tokens can comment; forked PRs get a read-only
     // token, so the job documents the split-mode escape hatch.
     assert.match(workflow, /pull-requests:\s*write/);
@@ -299,6 +309,37 @@ test('styleproof-init: default scaffold is one workflow, no map-store branch, ad
       workflow.replace('# styleproof-scaffold:', '# drifted scaffold:'),
     );
     assert.equal(runInit(root, ['--check', '--dir', 'e2e/styleproof.spec.ts']).status, 1);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('styleproof-init: split + artifact storage keeps the fork-safe layout with no evidence branches', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, [...SPLIT, '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+
+    // The fork-safe layout is unchanged: untrusted capture stays read-only and
+    // hands maps to the trusted workflow_run report stage as an artifact.
+    const capture = readFile(root, '.github/workflows/styleproof.yml');
+    assert.match(capture, /# styleproof-scaffold: workflow=split storage=artifact gate=advisory/);
+    assert.match(capture, /--no-upload --no-store/);
+    assert.match(capture, /name: styleproof-stylemaps/);
+
+    // With artifact report storage the trusted stage needs no repository write
+    // permission, publishes nothing to git, and no prune/sweep jobs exist —
+    // so the closed/schedule triggers are gone too.
+    assert.doesNotMatch(capture, /schedule:|prune:|report-sweep:|types: \[opened, synchronize, reopened, closed\]/);
+    const report = readFile(root, '.github/workflows/styleproof-report.yml');
+    assert.match(report, /report-storage: artifact/);
+    assert.match(report, /contents: read/);
+    assert.doesNotMatch(report, /contents:\s*write/);
+    assert.doesNotMatch(report, /report-branch|styleproof-reports/);
+
+    // --check honours the marker: the emitted pair compares current.
+    const checked = runInit(root, [...SPLIT, '--check', '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
   } finally {
     rmTmp(root);
   }
@@ -587,7 +628,7 @@ test('styleproof-init: absolute, traversing, and control-bearing spec paths fail
 test('styleproof-init: untrusted PR capture never receives write credentials', () => {
   const root = mkTmp();
   try {
-    const res = runInit(root, [...SPLIT, '--dir', 'e2e/styleproof.spec.ts']);
+    const res = runInit(root, [...SPLIT, ...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
     assert.equal(res.status, 0, res.stderr);
 
     const captureFile = readFile(root, '.github/workflows/styleproof.yml');

@@ -27,7 +27,10 @@ on:
         default: false
     secrets:
       token:
-        description: 'Token with statuses:write, pull-requests:read, issues:write'
+        description: >-
+          Token with statuses:write, pull-requests:read, issues:write,
+          contents:read (branch-published reports), and actions:read
+          (artifact-published reports)
         required: true
 
 jobs:
@@ -52,6 +55,44 @@ jobs:
           script: |
             const STATUS = '${{ inputs.status-context }}';
             const allowSelfApproval = ${{ inputs.allow-self-approval }};
+
+            // Minimal zip reader for artifact publications (#587): the report
+            // artifact is the zip actions/upload-artifact produced for this run.
+            // The central directory is authoritative for entry sizes, entries are
+            // inflated with a bounded output cap, and anything unexpected fails
+            // closed — the receipt inside report.md stays the real integrity
+            // proof; this reader only has to extract it reliably.
+            const readZipEntry = async (zip, name) => {
+              const { inflateRawSync } = await import('node:zlib');
+              if (!Buffer.isBuffer(zip) || zip.length < 22) return null;
+              let eocd = -1;
+              for (let i = zip.length - 22; i >= 0 && i >= zip.length - 65558; i--) {
+                if (zip.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+              }
+              if (eocd < 0) return null;
+              const entries = zip.readUInt16LE(eocd + 10);
+              let offset = zip.readUInt32LE(eocd + 16);
+              for (let i = 0; i < entries; i++) {
+                if (offset + 46 > zip.length || zip.readUInt32LE(offset) !== 0x02014b50) return null;
+                const method = zip.readUInt16LE(offset + 10);
+                const compressedSize = zip.readUInt32LE(offset + 20);
+                const nameLength = zip.readUInt16LE(offset + 28);
+                const extraLength = zip.readUInt16LE(offset + 30);
+                const commentLength = zip.readUInt16LE(offset + 32);
+                const localOffset = zip.readUInt32LE(offset + 42);
+                if (zip.toString('utf8', offset + 46, offset + 46 + nameLength) === name) {
+                  if (localOffset + 30 > zip.length || zip.readUInt32LE(localOffset) !== 0x04034b50) return null;
+                  const dataStart = localOffset + 30 + zip.readUInt16LE(localOffset + 26) + zip.readUInt16LE(localOffset + 28);
+                  if (dataStart + compressedSize > zip.length) return null;
+                  const data = zip.subarray(dataStart, dataStart + compressedSize);
+                  if (method === 8) return inflateRawSync(data, { maxOutputLength: 64 * 1024 * 1024 }).toString('utf8');
+                  if (method === 0) return data.toString('utf8');
+                  return null;
+                }
+                offset += 46 + nameLength + extraLength + commentLength;
+              }
+              return null;
+            };
 
             // Re-fetch the comment so concurrent ticks all compute from the LATEST
             // body and converge (the event payload is the body as of one edit). The
@@ -143,23 +184,46 @@ jobs:
             if (headSha !== reportSha) return;
 
             const escapedRepository = `${context.repo.owner}/${context.repo.repo}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const reportLinks = [...body.matchAll(new RegExp(
+            // The report link is a commit-bound blob URL when the Action publishes
+            // to the report branch (report-storage: branch), or a workflow-artifact
+            // link on this repository's own run when the report is an artifact
+            // (report-storage: artifact — the default). Exactly one canonical link
+            // of either shape is a delivery identity; any other mix is not.
+            const branchLinks = [...body.matchAll(new RegExp(
               `https://github\\.com/${escapedRepository}/blob/([0-9a-f]{40})/pr-${context.payload.issue.number}/report\\.md\\)`,
               'g',
             ))];
+            const artifactLinks = [...body.matchAll(new RegExp(
+              `https://github\\.com/${escapedRepository}/actions/runs/(\\d+)(/artifacts/(\\d+))?\\)`,
+              'g',
+            ))];
             let reportUrl = '';
-            if (reportLinks.length === 1) {
-              const publicationSha = reportLinks[0][1];
-              const candidateUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${publicationSha}/pr-${context.payload.issue.number}/report.md`;
-              if (reportLinks[0][0] === `${candidateUrl})`) reportUrl = candidateUrl;
+            let publication = null;
+            if (branchLinks.length + artifactLinks.length === 1) {
+              if (branchLinks.length === 1) {
+                const publicationSha = branchLinks[0][1];
+                const candidateUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${publicationSha}/pr-${context.payload.issue.number}/report.md`;
+                if (branchLinks[0][0] === `${candidateUrl})`) {
+                  reportUrl = candidateUrl;
+                  publication = { kind: 'branch', publicationSha };
+                }
+              } else {
+                const candidateUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${artifactLinks[0][1]}${artifactLinks[0][2] || ''}`;
+                // The link's run must be the run named by the comment's own
+                // receipt markers — a link to another run's artifact is not
+                // this delivery.
+                if (artifactLinks[0][0] === `${candidateUrl})` && artifactLinks[0][1] === runId) {
+                  reportUrl = candidateUrl;
+                  publication = { kind: 'artifact', runId: artifactLinks[0][1], artifactId: artifactLinks[0][3] || '' };
+                }
+              }
             }
 
             // A tick is authority-bearing, so bind it to the one current immutable
             // publication before evaluating self-approval. Unticks remain a safe way to
             // withdraw approval and never need publication readback to turn the gate red.
             if (approved) {
-              if (!reportUrl) return;
-              const publicationSha = reportLinks[0][1];
+              if (!reportUrl || !publication) return;
 
               // The marker comment is an upsert. Reject a copied or superseded bot
               // comment: exactly one current thread comment may own the marker, and it
@@ -201,29 +265,74 @@ jobs:
               };
               if (!(await readPendingStatus())) return;
 
-              // Read both canonical artifacts at the publication commit named by the
+              // Read both canonical artifacts of the immutable publication named by the
               // status and comment. This consumes the publisher's established receipt;
               // it does not trust a new assertion invented by the approval workflow.
-              const readPublishedFile = async (name) => {
-                let response;
-                try {
-                  response = await github.rest.repos.getContent({
-                    ...context.repo,
-                    path: `pr-${context.payload.issue.number}/${name}`,
-                    ref: publicationSha,
-                  });
-                } catch (error) {
-                  throw new Error(
-                    'StyleProof approval verification could not read the immutable publication; the approval workflow requires contents: read',
-                    { cause: error },
-                  );
+              // Branch publications are files at the publication commit; artifact
+              // publications (#587) are entries in the run's report-artifact zip.
+              // Uploaded artifacts cannot be replaced, so either substrate pins the
+              // same evidence to the same run.
+              let artifactZipPromise = null;
+              const readArtifactEntry = async (name) => {
+                if (!artifactZipPromise) {
+                  artifactZipPromise = (async () => {
+                    let artifactId = publication.artifactId;
+                    if (!artifactId) {
+                      // Run-page link: resolve the one report artifact by name
+                      // inside the run the comment's receipt markers name.
+                      const listed = await github.paginate(
+                        github.rest.actions.listWorkflowRunArtifacts,
+                        { ...context.repo, run_id: Number(publication.runId), per_page: 100 },
+                      );
+                      const matches = (listed || []).filter(
+                        (artifact) => artifact && artifact.name === `styleproof-report-pr-${context.payload.issue.number}`,
+                      );
+                      if (matches.length !== 1) return null;
+                      artifactId = String(matches[0].id);
+                    }
+                    let download;
+                    try {
+                      download = await github.rest.actions.downloadArtifact({
+                        ...context.repo,
+                        artifact_id: Number(artifactId),
+                        archive_format: 'zip',
+                      });
+                    } catch (error) {
+                      throw new Error(
+                        'StyleProof approval verification could not read the immutable publication; the approval workflow requires actions: read',
+                        { cause: error },
+                      );
+                    }
+                    const response = await fetch(download.url);
+                    if (!response || !response.ok) return null;
+                    return Buffer.from(await response.arrayBuffer());
+                  })();
                 }
-                const file = response.data;
-                if (Array.isArray(file) || file?.type !== 'file' || file?.encoding !== 'base64' || typeof file.content !== 'string') {
-                  return null;
-                }
-                return Buffer.from(file.content.replace(/\s/g, ''), 'base64').toString('utf8');
+                const zip = await artifactZipPromise;
+                return zip ? readZipEntry(zip, name) : null;
               };
+              const readPublishedFile = (name) => publication.kind === 'artifact'
+                ? readArtifactEntry(name)
+                : (async () => {
+                    let response;
+                    try {
+                      response = await github.rest.repos.getContent({
+                        ...context.repo,
+                        path: `pr-${context.payload.issue.number}/${name}`,
+                        ref: publication.publicationSha,
+                      });
+                    } catch (error) {
+                      throw new Error(
+                        'StyleProof approval verification could not read the immutable publication; the approval workflow requires contents: read',
+                        { cause: error },
+                      );
+                    }
+                    const file = response.data;
+                    if (Array.isArray(file) || file?.type !== 'file' || file?.encoding !== 'base64' || typeof file.content !== 'string') {
+                      return null;
+                    }
+                    return Buffer.from(file.content.replace(/\s/g, ''), 'base64').toString('utf8');
+                  })();
               const [publishedMarkdown, publishedJson] = await Promise.all([
                 readPublishedFile('report.md'),
                 readPublishedFile('report.json'),

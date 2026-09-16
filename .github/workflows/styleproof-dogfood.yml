@@ -15,6 +15,7 @@ permissions:
   issues: write
   pull-requests: write
   statuses: write
+  actions: read
 
 concurrency:
   group: styleproof-dogfood-${{ github.ref }}
@@ -104,7 +105,6 @@ jobs:
           fresh-dir: ${{ runner.temp }}/styleproof-dogfood/head
           fail-on-diff: 'false'
           mode: 'advisory'
-          report-branch: styleproof-reports
           status-context: 'StyleProof dogfood'
           comment-marker: '<!-- styleproof-dogfood-report -->'
 
@@ -118,24 +118,25 @@ jobs:
           grep -F '"armed": true' styleproof-report/report.json
           grep -E 'home@' styleproof-report/report.json
 
-      - name: Assert PR report was published
+      - name: Assert PR report was published as a workflow artifact
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPORT_BRANCH: styleproof-reports
           MAP_BRANCH: styleproof-maps
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          report_path="pr-${PR_NUMBER}/report.md"
+          # report-storage: artifact (the default) — the comment links the report
+          # artifact on this run, and nothing lands on a report branch.
           body="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq 'map(select(.body | contains("<!-- styleproof-dogfood-report -->"))) | last | .body // ""')"
           printf '%s\n' "$body" | grep -F '<!-- styleproof-dogfood-report -->'
-          printf '%s\n' "$body" | grep -Eq "https://github.com/${GITHUB_REPOSITORY}/blob/[0-9a-f]{40}/${report_path}"
+          printf '%s\n' "$body" | grep -Eq "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
           for i in 1 2 3 4 5; do
-            gh api "repos/${GITHUB_REPOSITORY}/contents/${report_path}?ref=${REPORT_BRANCH}" --jq .path | grep -Fx "$report_path" && break
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
+              --jq '.artifacts[].name' | grep -Fx "styleproof-report-pr-${PR_NUMBER}" && break
             if [ "$i" -eq 5 ]; then
-              echo "StyleProof report file missing at ${REPORT_BRANCH}/${report_path}" >&2
+              echo "StyleProof report artifact missing on run ${GITHUB_RUN_ID}" >&2
               exit 1
             fi
             sleep $((i * 2))

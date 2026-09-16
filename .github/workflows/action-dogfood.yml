@@ -37,6 +37,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/clean-base
           fresh-dir: action-dogfood/clean-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
 
       - name: Assert clean output
@@ -52,6 +53,7 @@ jobs:
           baseline-dir: action-dogfood/content-base
           fresh-dir: action-dogfood/content-head
           include-content: 'true'
+          report-storage: branch
           report-branch: styleproof-action-dogfood
 
       - name: Assert advisory content evidence is durable but non-gating
@@ -69,6 +71,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/changed-base
           fresh-dir: action-dogfood/changed-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -84,6 +87,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/new-base
           fresh-dir: action-dogfood/new-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -106,6 +110,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/partial-base
           fresh-dir: action-dogfood/partial-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -125,6 +130,7 @@ jobs:
           baseline-dir: action-dogfood/degraded-base
           fresh-dir: action-dogfood/degraded-head
           base-capture-failed: 'true'
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -141,6 +147,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/residue-base
           fresh-dir: action-dogfood/residue-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -156,6 +163,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/removed-base
           fresh-dir: action-dogfood/removed-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -175,6 +183,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/integrity-repair-connector-base
           fresh-dir: action-dogfood/integrity-repair-connector-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -194,6 +203,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/integrity-repair-duplicate-base
           fresh-dir: action-dogfood/integrity-repair-duplicate-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -211,6 +221,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/integrity-repair-mismatch-base
           fresh-dir: action-dogfood/integrity-repair-mismatch-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -228,6 +239,7 @@ jobs:
           baseline-dir: action-dogfood/clean-base
           fresh-dir: action-dogfood/clean-head
           require-state-identity: 'true'
+          report-storage: branch
           report-branch: styleproof-action-dogfood
 
       - name: Assert declared productState identity certifies under require-state-identity
@@ -243,6 +255,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/legacy-declared-base
           fresh-dir: action-dogfood/legacy-declared-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -263,6 +276,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/legacy-undeclared-base
           fresh-dir: action-dogfood/legacy-undeclared-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
@@ -280,6 +294,7 @@ jobs:
         with:
           baseline-dir: action-dogfood/certfail-base
           fresh-dir: action-dogfood/certfail-head
+          report-storage: branch
           report-branch: styleproof-action-dogfood
           fail-on-diff: 'false'
 
