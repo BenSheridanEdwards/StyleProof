@@ -8,8 +8,8 @@ name: Phase 1 advisory dogfood
 # fails closed when mapping is wrong or evidence is incomplete; it does not
 # soft-pass incomplete mapping or bypass merge protection.
 #
-# Sibling Phase 1 specs (structure #670, noop #671, extra harness #672) plug
-# into PHASE1_MAPPING_SPECS after they land — same job, no redesign.
+# Sibling Phase 1 specs (noop #671, extra harness #672) plug into
+# PHASE1_MAPPING_SPECS after they land — same job, no redesign.
 
 on:
   pull_request:
@@ -26,7 +26,7 @@ jobs:
     name: Phase 1 mapping (advisory)
     runs-on: ubuntu-latest
     env:
-      PHASE1_MAPPING_SPECS: test/phase1-foundation-harness.e2e.spec.ts
+      PHASE1_MAPPING_SPECS: test/phase1-foundation-harness.e2e.spec.ts test/phase1-structure-harness.e2e.spec.ts
     steps:
       - uses: actions/checkout@v7
 
@@ -57,8 +57,10 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install chromium
 
-      - name: Assert soft-pass HOLD is declared in the Phase 1 oracle
-        run: grep -F 'HOLD' example/demo/phase1-css-delta.json
+      - name: Assert soft-pass HOLD is declared in Phase 1 oracles
+        run: |
+          grep -F 'HOLD' example/demo/phase1-css-delta.json
+          grep -F 'HOLD' example/demo/phase1-structure-delta.json
 
       - name: Run Phase 1 mapping proof (capture → diff → report)
         run: npx playwright test $PHASE1_MAPPING_SPECS --reporter=line

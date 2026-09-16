@@ -8,13 +8,13 @@ Self-attested local evidence for AC1 (TDD red→green) and the privacy-clean rep
 | --- | --- | --- |
 | **`Phase 1 mapping (advisory)`** | `.github/workflows/phase1-advisory-dogfood.yml` | Advisory — **not** part of hosted `required`. Soft-pass: **HOLD** — fails closed when mapping is wrong or evidence incomplete. |
 
-Command the job runs:
+Commands the job runs (via `PHASE1_MAPPING_SPECS`):
 
 ```bash
-npx playwright test test/phase1-foundation-harness.e2e.spec.ts --reporter=line
+npx playwright test test/phase1-foundation-harness.e2e.spec.ts test/phase1-structure-harness.e2e.spec.ts --reporter=line
 ```
 
-Sibling Phase 1 specs plug into `PHASE1_MAPPING_SPECS` in that workflow after they land.
+Sibling Phase 1 specs (noop #671, extra harness #672) plug into `PHASE1_MAPPING_SPECS` after they land.
 
 ## Local proof artifacts
 
