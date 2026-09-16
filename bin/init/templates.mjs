@@ -367,24 +367,39 @@ const captureStep = ({ scaffold }) => {
 const gateInput = ({ scaffold }) =>
   scaffold.gate === 'review-gate' ? 'require-approval: true' : `mode: ${scaffold.gate}`;
 
-const actionStep = (ctx, failedOutput) => `      - uses: BenSheridanEdwards/StyleProof@v6
+// The Action's report-storage input follows the maps' storage axis: artifact keeps
+// the report out of git history; branch publishes it to the styleproof-reports branch.
+const actionStep = (ctx, failedOutput) => `      - uses: BenSheridanEdwards/StyleProof@v7
         with:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
           base-capture-failed: \${{ ${failedOutput} }}
+          report-storage: ${ctx.scaffold.storage}
           ${gateInput(ctx)}`;
+
+const isBranch = ({ scaffold }) => scaffold.storage === 'branch';
+const reportPermission = (ctx) =>
+  isBranch(ctx)
+    ? 'contents: write # publish report files to the styleproof-reports branch'
+    : 'contents: read # report uploads as a workflow artifact — nothing is written to git';
+// Branch storage needs close-pruning and a scheduled sweep; artifact storage needs neither.
+const onPullRequest = (ctx) => `on:
+  pull_request:
+${
+  isBranch(ctx)
+    ? `    types: [opened, synchronize, reopened, closed]
+  schedule:
+    # Daily report-branch sweep: retention window plus a hard size budget.
+    - cron: '47 4 * * *'`
+    : '    types: [opened, synchronize, reopened]'
+}`;
+const pruneJobs = (ctx) => (isBranch(ctx) ? `\n${pruneAndSweepJobs(ctx)}` : '');
+const closedNote = (ctx, text) => (isBranch(ctx) ? ` ${text}` : '');
 
 const jobEnv = ({ encodedSpecPath, serverMode, encodedServerCommand }) => `    env:
       ${SPEC_PATH_ENV}: ${encodedSpecPath}
       STYLEPROOF_SERVER_MODE: ${serverMode}
       STYLEPROOF_SERVER_COMMAND_B64: ${encodedServerCommand}`;
-
-const ON_PULL_REQUEST = `on:
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-  schedule:
-    # Daily report-branch sweep: retention window plus a hard size budget.
-    - cron: '47 4 * * *'`;
 
 const VERIFY_STEP = `      - name: Verify StyleProof scaffold matches the installed release
         shell: bash
@@ -402,11 +417,11 @@ ${scaffoldMarkerLine(ctx.scaffold)}
 #   reviews, or statuses;
 # - captured maps are uploaded as a short-lived artifact for the trusted report stage.
 # Trusted publication lives in styleproof-report.yml (workflow_run on the default branch).
-${ON_PULL_REQUEST}
+${onPullRequest(ctx)}
 
 jobs:
   capture:
-    # Capture on open/update only. Closed and scheduled events are handled below.
+    # Capture on open/update only.${closedNote(ctx, 'Closed and scheduled events are handled below.')}
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
@@ -437,8 +452,7 @@ ${captureStep(ctx)}
           path: \${{ runner.temp }}/styleproof-maps
           retention-days: 3
           if-no-files-found: error
-
-${pruneAndSweepJobs(ctx)}`;
+${pruneJobs(ctx)}`;
 
 // --workflow single (default): one job captures, diffs, and publishes.
 const singleWorkflow = (ctx) => `name: StyleProof
@@ -450,16 +464,15 @@ ${scaffoldMarkerLine(ctx.scaffold)}
 # Forked-PR tokens are read-only, so forked PRs cannot publish and this job
 # fails — repositories that accept fork/Dependabot PRs should regenerate with
 # --workflow split (untrusted capture stage + trusted workflow_run report stage).
-${ON_PULL_REQUEST}
+${onPullRequest(ctx)}
 
 jobs:
   styleproof:
-    # Capture, diff, and report on open/update only. Closed and scheduled events
-    # are handled by the jobs below.
+    # Capture, diff, and report on open/update only.${closedNote(ctx, 'Closed and scheduled events are handled by the jobs below.')}
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # publish report files to the styleproof-reports branch
+      ${reportPermission(ctx)}
       pull-requests: write # upsert the report comment
       statuses: write # commit status in review-gate mode
       actions: read
@@ -477,8 +490,7 @@ ${VERIFY_STEP}
         run: |
 ${captureStep(ctx)}
 ${actionStep(ctx, 'steps.maps.outputs.base-capture-failed')}
-
-${pruneAndSweepJobs(ctx)}`;
+${pruneJobs(ctx)}`;
 
 export const ciWorkflow = (ctx) => (ctx.scaffold.workflow === 'split' ? splitWorkflow(ctx) : singleWorkflow(ctx));
 
@@ -488,7 +500,7 @@ export const reportWorkflow = (ctx) => `name: StyleProof report
 ${scaffoldMarkerLine(ctx.scaffold)}
 # Trusted default-branch stage:
 # - runs only after the untrusted capture workflow completes;
-# - holds write permissions for report/comment/status publication;
+# - holds write permissions for comment/status publication${isBranch(ctx) ? ' and the report branch' : ''};
 # - NEVER checks out or installs PR-controlled code;
 # - resolves PR identity only from the trusted workflow_run event / GitHub API.
 on:
@@ -497,7 +509,7 @@ on:
     types: [completed]
 
 permissions:
-  contents: write
+  contents: ${isBranch(ctx) ? 'write' : 'read'}
   pull-requests: write
   statuses: write
   actions: read
@@ -545,6 +557,16 @@ export const APPROVE_WORKFLOW = `name: StyleProof approve
 on:
   issue_comment:
     types: [edited]
+
+# statuses:write flips the gate; pull-requests:read resolves the PR head and
+# author; issues:write posts refusal replies; contents:read verifies
+# branch-published reports; actions:read verifies artifact-published reports.
+permissions:
+  statuses: write
+  pull-requests: read
+  issues: write
+  contents: read
+  actions: read
 
 jobs:
   approve:

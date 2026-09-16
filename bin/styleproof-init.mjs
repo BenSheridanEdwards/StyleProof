@@ -456,6 +456,9 @@ for (const line of HOW[scaffold.workflow]) console.log(line);
 if (scaffold.storage === 'branch') {
   console.log('  The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
   console.log('  Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
+  console.log('  Reports publish to the styleproof-reports branch — the comment links a rendered report.');
+} else {
+  console.log('  Reports upload as bounded-retention workflow artifacts — nothing enters git history.');
 }
 console.log(`  Gate mode: ${scaffold.gate} — ${GATE_NOTE[scaffold.gate]}`);
 console.log('');
