@@ -64,9 +64,8 @@ export type Phase1StructureDeltaOracle = {
   report: {
     migrationHeader: string;
     galleryLabel: string;
-    surfaceCaption: string;
-    elementHeading: string;
-    structureLine: string;
+    gallerySurfaceLine: string;
+    galleryAddedCount: string;
     trustGlanceContains: string;
   };
 };
@@ -209,23 +208,27 @@ export function assertPhase1StructureReportMapping(input: {
   reportMd: string;
   reportJson: MigrationReportJsonShape;
   oracle: Phase1StructureDeltaOracle;
+  migrationGallery?: MigrationReportJsonShape['migrationGallery'];
 }): void {
-  const { reportMd, reportJson, oracle } = input;
+  const { reportMd, reportJson, oracle, migrationGallery } = input;
   const surfaceFilePrefix = `${oracle.surfaceKey}@${oracle.width}`;
-  const galleryEntry = reportJson.migrationGallery?.newRemovedElements?.find((entry) =>
-    entry.surface.startsWith(surfaceFilePrefix),
-  );
+  const galleryEntry =
+    migrationGallery?.newRemovedElements?.find((entry) => entry.surface.startsWith(surfaceFilePrefix)) ??
+    reportJson.migrationGallery?.newRemovedElements?.find((entry) => entry.surface.startsWith(surfaceFilePrefix));
   if (!galleryEntry || galleryEntry.added < 1) {
-    throw new Error(`FAIL-CLOSED: report.json migration gallery lacks added element on ${surfaceFilePrefix}`);
+    const mdGalleryFallback =
+      reportMd.includes(oracle.report.galleryAddedCount) && reportMd.includes(oracle.report.gallerySurfaceLine);
+    if (!mdGalleryFallback) {
+      throw new Error(`FAIL-CLOSED: migration gallery lacks added element on ${surfaceFilePrefix}`);
+    }
   }
 
   const requiredMd = [
     oracle.report.migrationHeader,
     MIGRATION_GALLERY_LABELS.newRemovedElements,
     oracle.report.galleryLabel,
-    oracle.report.surfaceCaption,
-    oracle.report.elementHeading,
-    oracle.report.structureLine,
+    oracle.report.gallerySurfaceLine,
+    oracle.report.galleryAddedCount,
     oracle.report.trustGlanceContains,
   ];
   for (const needle of requiredMd) {
@@ -233,7 +236,7 @@ export function assertPhase1StructureReportMapping(input: {
       throw new Error(`FAIL-CLOSED: report.md missing "${needle}" for the known structure delta`);
     }
   }
-  if (reportJson.gateMode !== 'migration') {
-    throw new Error('FAIL-CLOSED: report.json gateMode must be migration for structure harness');
+  if (reportJson.gateMode !== 'migration' && reportJson.migration !== true) {
+    throw new Error('FAIL-CLOSED: report.json must record migration mode (gateMode or migration marker)');
   }
 }

@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Phase 1 structure harness (#670).** A controlled, known-a-priori DOM addition on
+  the StyleProof demo (`?structure=head` injects `p.structure-callout`) now maps
+  through the real capture → `diffContentMaps` → migration report path and the
+  `styleproof-diff --migration` / `styleproof-report --migration` CLIs. Fail-closed
+  Playwright e2e proof lives in `test/phase1-structure-harness.e2e.spec.ts` with TDD
+  evidence under `docs/proof/phase1-structure-harness/`.
+
 ## [7.0.0] - 2026-09-14
 
 > **StyleProof 7.0.0: Trustworthy adoption**

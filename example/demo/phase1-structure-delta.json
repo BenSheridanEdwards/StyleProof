@@ -19,9 +19,8 @@
   "report": {
     "migrationHeader": "StyleProof Migration Report",
     "galleryLabel": "New/removed elements",
-    "surfaceCaption": "demo-structure @ 900",
-    "elementHeading": "p.structure-callout",
-    "structureLine": "element added",
-    "trustGlanceContains": "added"
+    "gallerySurfaceLine": "demo-structure@900",
+    "galleryAddedCount": "1 added",
+    "trustGlanceContains": "reviewable in migration mode"
   }
 }

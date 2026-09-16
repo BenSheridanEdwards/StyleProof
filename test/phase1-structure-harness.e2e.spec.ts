@@ -122,7 +122,13 @@ test('Phase 1: known demo structure delta maps through capture → diff → repo
 
   const reportMd = fs.readFileSync(report.reportMdPath, 'utf8');
   const reportJson = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
-  assertPhase1StructureReportMapping({ reportMd, reportJson, oracle });
+  expect(reportJson.gateMode, 'API report.json gateMode').toBe('migration');
+  assertPhase1StructureReportMapping({
+    reportMd,
+    reportJson,
+    oracle,
+    migrationGallery: report.migrationGallery,
+  });
   expect(fs.existsSync(path.join(outDir, 'crops'))).toBe(true);
 
   const diff = runCli(DIFF_BIN, ['--migration', 'phase1-structure-base', 'phase1-structure-head'], HARNESS_ROOT);
@@ -141,5 +147,11 @@ test('Phase 1: known demo structure delta maps through capture → diff → repo
 
   const cliReportMd = fs.readFileSync(path.join(reportOut, 'report.md'), 'utf8');
   const cliReportJson = JSON.parse(fs.readFileSync(path.join(reportOut, 'report.json'), 'utf8'));
-  assertPhase1StructureReportMapping({ reportMd: cliReportMd, reportJson: cliReportJson, oracle });
+  assertPhase1StructureReportMapping({
+    reportMd: cliReportMd,
+    reportJson: cliReportJson,
+    oracle,
+    migrationGallery: cliReportJson.migrationGallery,
+  });
+  expect(cliReportJson.migration, 'CLI report.json must record migration mode').toBe(true);
 });
