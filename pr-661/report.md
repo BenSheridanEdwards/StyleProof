@@ -8,13 +8,13 @@
 
 ⛔ **Integrity repair required** — `CERTIFICATION_FAILED`. Reviewer approval cannot clear this. Repair the evidence, then re-run.
 
-- **`duplicate-id` — Duplicate identity in a style map.**
-  - **What broke:** A style map contains a duplicate JSON key or a duplicate inventory identity. JSON.parse would keep only the last value, so correspondence and inventory would silently drop a real element. Affected surface(s): `home@320`.
-  - **What to fix:** Give each element or navigable affordance a unique key (stable `id`, `data-testid`, or href). Recapture the surface so the map no longer carries a duplicate identity.
-  - **How to verify:** Re-run styleproof-diff (or the Action). The report must no longer name `duplicate-id`, and styleproof-audit.json must show the integrity check clean.
+- **`integrity-mismatch` — Claimed evidence digest does not match the bytes.**
+  - **What broke:** A source SHA or content digest declared by the connector or integrity receipt does not match the bytes on disk. The comparison would be bound to the wrong capture.
+  - **What to fix:** Restore or recapture from the exact claimed SHA, then republish the bundle. Do not reuse a map that failed digest verification.
+  - **How to verify:** Re-run styleproof-diff (or the Action) against the republished bundle. Claimed and actual digests must match, and the integrity repair block must disappear.
 
-⛔ **Product-state comparison** — unproven; 1 required-unproven paired capture(s). Raw detector evidence is diagnostic only, is not approval evidence, and cannot certify this comparison.
+**Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
-Computed-style scope only: No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
+✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
 <!-- styleproof-receipt head-sha:b468943801e8fff98297c8ed95a5b606202958e2 run-id:35095866773 run-attempt:1 -->
