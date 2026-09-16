@@ -1788,10 +1788,10 @@ export async function publishMapBundle(options: {
     const existingRef = readEvidenceRef(evidenceStoreRoot, refKey);
     writeEvidenceRef(evidenceStoreRoot, refKey, imported.capture, existingRef);
   } catch (error) {
-    console.warn(
+    process.stderr.write(
       `styleproof: v2 evidence dual-write failed (v1 Git-branch publication succeeded): ${
         error instanceof Error ? error.message : String(error)
-      }`,
+      }\n`,
     );
   }
 
