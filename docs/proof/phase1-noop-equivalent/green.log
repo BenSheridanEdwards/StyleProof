@@ -1,0 +1,37 @@
+# AC1 TDD green — phase 1 no-op/equivalent harness e2e after ?ctaTone=equiv fix
+
+Command (same harness after `?ctaTone=equiv` → `data-cta-tone=equiv` JS wiring and pseudo-state parity):
+
+```
+npx playwright test test/phase1-noop-equivalent.e2e.spec.ts --reporter=line
+```
+
+Output (exit 0):
+
+```
+Running 20 tests using 1 worker
+
+[1/20] Phase 1 no-op harness capture: identical-capture › styleproof coverage ledger
+[2/20] Phase 1 no-op harness capture: identical-capture › styleproof browser build
+[3/20] Phase 1 no-op harness capture: identical-capture › demo-cta-noop @ 900
+styleproof: surface 1/1 (demo-cta-noop@900) captured in 2.4s (self-check 1.1s)
+[4/20] Phase 1 no-op harness capture head: identical-capture › styleproof coverage ledger
+[5/20] Phase 1 no-op harness capture head: identical-capture › styleproof browser build
+[6/20] Phase 1 no-op harness capture head: identical-capture › demo-cta-noop @ 900
+styleproof: surface 1/1 (demo-cta-noop@900) captured in 2.3s (self-check 1.1s)
+[7/20] Phase 1 no-op harness capture: equivalent-color-spelling › styleproof coverage ledger
+[8/20] Phase 1 no-op harness capture: equivalent-color-spelling › styleproof browser build
+[9/20] Phase 1 no-op harness capture: equivalent-color-spelling › demo-cta-noop @ 900
+styleproof: surface 1/1 (demo-cta-noop@900) captured in 2.3s (self-check 1.1s)
+[10/20] Phase 1 no-op harness capture head: equivalent-color-spelling › styleproof coverage ledger
+[11/20] Phase 1 no-op harness capture head: equivalent-color-spelling › styleproof browser build
+[12/20] Phase 1 no-op harness capture head: equivalent-color-spelling › demo-cta-noop @ 900
+styleproof: surface 1/1 (demo-cta-noop@900) captured in 2.3s (self-check 1.1s)
+[13/20] oracle and demo contract files exist
+[14/20] fail-closed: invented reviewable change is rejected
+[15/20] Phase 1 [identical-capture]: no-op/equivalent maps through capture → diff → report without false review
+[16/20] Phase 1 [equivalent-color-spelling]: no-op/equivalent maps through capture → diff → report without false review
+  20 passed (13.7s)
+```
+
+The equiv head capture now sets `data-cta-tone=equiv`, applies hex CSS that computes to the same rgb as base, and forced :hover/:focus/:active states match so diff/report stay zero reviewable.
