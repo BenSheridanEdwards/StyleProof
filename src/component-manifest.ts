@@ -16,6 +16,7 @@ import {
   type DiscoveredComponent,
 } from './components.js';
 import type { Surface } from './runner.js';
+import { toSlash } from './util.js';
 
 export type ManifestJsonPrimitive = string | number | boolean | null;
 export type ManifestJsonValue = ManifestJsonPrimitive | ManifestJsonValue[] | { [key: string]: ManifestJsonValue };
@@ -129,10 +130,6 @@ function isSerializableManifestValueInner(value: unknown, ancestors: WeakSet<obj
   } finally {
     ancestors.delete(value);
   }
-}
-
-function toSlash(file: string): string {
-  return file.split(path.sep).join('/');
 }
 
 /**

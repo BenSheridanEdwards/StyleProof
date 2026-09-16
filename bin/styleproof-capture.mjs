@@ -1,23 +1,9 @@
 #!/usr/bin/env node
-/**
- * Capture a single URL's computed-style map — one shot, no spec, no config.
- *
- *   styleproof-capture <url> [options]
- *
- * For a page you just want to point at: a deployed URL, a static export, or a
- * standalone HTML mockup. Writes `<key>@<width>.json.gz` (+ `.png`) into --out,
- * the same shape a surface capture writes, so `styleproof-diff <a> <b>` compares
- * it against any other capture. Capture a design mockup once, then diff each
- * build against it to measure how close the implementation is.
- *
- * (Use styleproof-map — the spec-driven flow — for your own app's surfaces, where
- * you also want the coverage guard, the map store, and record/replay.)
- *
- * Exit code 0 = captured, 2 = usage error, 3 = capture failed (e.g. browser
- * missing, page unreachable, cross-origin CSS with no explicit --widths).
- */
+// Capture one URL's computed-style map(s) with no spec and no config: a deployed
+// page, a static export, or a design mockup. Output has the same shape as a
+// surface capture, so styleproof-diff compares it against any other capture.
+// Exit 0 = captured, 2 = usage error, 3 = capture failed (see HELP for 4-6).
 import { chromium } from '@playwright/test';
-import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
 import {
   UsageError,
   parseCaptureUrlArgs,
@@ -39,6 +25,7 @@ import {
   writeConfidenceLedger,
   CONFIDENCE_LEDGER,
 } from '../dist/confidence-ledger.js';
+import { errorMessage } from './cli.mjs';
 
 const COMMAND = 'styleproof-capture';
 
@@ -116,73 +103,59 @@ styleproof-capture is a compatibility alias for the unified CLI: styleproof craw
 `;
 
 const argv = process.argv.slice(2);
-if (isHelpArg(argv[0])) showHelpAndExit(HELP);
+if (argv[0] === '-h' || argv[0] === '--help') {
+  process.stdout.write(HELP);
+  process.exit(0);
+}
+
+// The three crawl input files resolve flag > env > styleproof.config crawl block; a
+// config-sourced path resolves from the config dir so head and base worktrees agree.
+const CRAWL_FILES = [
+  {
+    field: 'setupFile',
+    flag: '--setup',
+    env: ['STYLEPROOF_SETUP', 'STYLEPROOF_CRAWL_SETUP'],
+    key: 'setup',
+    load: loadSetupSteps,
+    into: 'setup',
+  },
+  {
+    field: 'authBoundaryExcludeFile',
+    flag: '--auth-boundary-exclude',
+    env: ['STYLEPROOF_AUTH_BOUNDARY_EXCLUDE', 'STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE'],
+    key: 'authBoundaryExclude',
+    load: loadAuthBoundaryExclude,
+    into: 'authBoundaryExclude',
+  },
+  {
+    field: 'incompleteUiExcludeFile',
+    flag: '--incomplete-ui-exclude',
+    env: ['STYLEPROOF_INCOMPLETE_UI_EXCLUDE', 'STYLEPROOF_CRAWL_INCOMPLETE_UI_EXCLUDE'],
+    key: 'incompleteUiExclude',
+    load: loadIncompleteUiExclude,
+    into: 'incompleteUiExclude',
+  },
+];
 
 let opts;
-let setupSteps;
-let authBoundaryExclude;
-let incompleteUiExclude;
 try {
   opts = parseCaptureUrlArgs(argv);
-  // Config projection: flag > env > styleproof.config.json crawl block.
-  // Paths resolve from the repo/config root so head and detached base worktrees agree.
-  const loadedConfig = loadStyleProofConfigWithLocation(process.cwd());
-  const projectConfig = loadedConfig.config;
-  const resolveCfg = (filePath, configValue) =>
-    !filePath
-      ? ''
-      : path.isAbsolute(filePath)
-        ? filePath
-        : path.resolve(configValue && filePath === configValue ? loadedConfig.configDir : process.cwd(), filePath);
-  if (!opts.setupFile) {
-    opts.setupFile =
-      process.env.STYLEPROOF_SETUP || process.env.STYLEPROOF_CRAWL_SETUP || projectConfig.crawl?.setup || undefined;
+  const loaded = loadStyleProofConfigWithLocation(process.cwd());
+  for (const { field, flag, env, key, load, into } of CRAWL_FILES) {
+    const configured = loaded.config.crawl?.[key];
+    const file = opts[field] || env.map((name) => process.env[name]).find(Boolean) || configured;
+    if (!file) continue;
+    const root = file === configured ? loaded.configDir : process.cwd();
+    opts[field] = path.resolve(root, file);
+    if (!fs.existsSync(opts[field])) throw new UsageError(`${flag}: cannot read ${opts[field]}`);
+    opts[into] = load(opts[field]);
   }
-  if (!opts.authBoundaryExcludeFile) {
-    opts.authBoundaryExcludeFile =
-      process.env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE ||
-      process.env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE ||
-      projectConfig.crawl?.authBoundaryExclude ||
-      undefined;
-  }
-  if (!opts.incompleteUiExcludeFile) {
-    opts.incompleteUiExcludeFile =
-      process.env.STYLEPROOF_INCOMPLETE_UI_EXCLUDE ||
-      process.env.STYLEPROOF_CRAWL_INCOMPLETE_UI_EXCLUDE ||
-      projectConfig.crawl?.incompleteUiExclude ||
-      undefined;
-  }
-  if (opts.setupFile) opts.setupFile = resolveCfg(opts.setupFile, projectConfig.crawl?.setup);
-  if (opts.authBoundaryExcludeFile)
-    opts.authBoundaryExcludeFile = resolveCfg(opts.authBoundaryExcludeFile, projectConfig.crawl?.authBoundaryExclude);
-  if (opts.incompleteUiExcludeFile)
-    opts.incompleteUiExcludeFile = resolveCfg(opts.incompleteUiExcludeFile, projectConfig.crawl?.incompleteUiExclude);
-  if (opts.setupFile && !fs.existsSync(opts.setupFile)) {
-    throw new UsageError(`--setup: cannot read ${opts.setupFile}`);
-  }
-  if (opts.authBoundaryExcludeFile && !fs.existsSync(opts.authBoundaryExcludeFile)) {
-    throw new UsageError(`--auth-boundary-exclude: cannot read ${opts.authBoundaryExcludeFile}`);
-  }
-  if (opts.incompleteUiExcludeFile && !fs.existsSync(opts.incompleteUiExcludeFile)) {
-    throw new UsageError(`--incomplete-ui-exclude: cannot read ${opts.incompleteUiExcludeFile}`);
-  }
-  setupSteps = opts.setupFile ? loadSetupSteps(opts.setupFile) : undefined;
-  opts.setup = setupSteps; // one-shot capture honours setup steps too
-  authBoundaryExclude = opts.authBoundaryExcludeFile
-    ? loadAuthBoundaryExclude(opts.authBoundaryExcludeFile)
-    : undefined;
-  opts.authBoundaryExclude = authBoundaryExclude;
-  incompleteUiExclude = opts.incompleteUiExcludeFile
-    ? loadIncompleteUiExclude(opts.incompleteUiExcludeFile)
-    : undefined;
-  opts.incompleteUiExclude = incompleteUiExclude;
 } catch (e) {
-  if (e instanceof UsageError) {
-    console.error(`${COMMAND}: ${e.message}\nNext: run ${COMMAND} --help to see supported options.`);
-    process.exit(2);
-  }
-  throw e;
+  if (!(e instanceof UsageError)) throw e;
+  console.error(`${COMMAND}: ${e.message}\nNext: run ${COMMAND} --help to see supported options.`);
+  process.exit(2);
 }
+const { setup: setupSteps, authBoundaryExclude, incompleteUiExclude } = opts;
 
 // Read the freshly-loaded page's same-origin nav links, keyed by route.
 async function harvestPageLinks(page, url) {
@@ -373,7 +346,7 @@ async function crawlPage(browser, page, url, prefix, statesLeft) {
     return await crawlAndCapture(page, pageCrawlOptions(browser, url, prefix, statesLeft));
   } catch (e) {
     if (prefix === '') throw e;
-    console.log(`⚠ ${url}: ${e instanceof Error ? e.message : String(e)} — page skipped`);
+    console.log(`⚠ ${url}: ${errorMessage(e)} — page skipped`);
     return null;
   }
 }
@@ -483,7 +456,7 @@ try {
   console.log(`✓ ${results.length} capture(s) → ${opts.out}`);
   process.exit(0);
 } catch (e) {
-  console.error(`${COMMAND}: capture failed: ${e instanceof Error ? e.message : String(e)}`);
+  console.error(`${COMMAND}: capture failed: ${errorMessage(e)}`);
   console.error(
     'Next: check the URL is reachable and run `npx playwright install chromium` if the browser is missing.',
   );

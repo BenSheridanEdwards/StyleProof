@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { removeDirRecursive, runGit } from './node-util.js';
 
 export class CiWorktreeError extends Error {
   readonly exitCode: number;
@@ -18,14 +18,6 @@ export class CiWorktreeError extends Error {
     this.name = 'CiWorktreeError';
     this.exitCode = exitCode;
   }
-}
-
-function runGit(cwd: string, args: string[]) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
-}
-
-function removeDirRecursive(dir: string): void {
-  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 }
 
 /** Parent directory for ephemeral CI worktrees (`RUNNER_TEMP` in Actions, else OS tmp). */

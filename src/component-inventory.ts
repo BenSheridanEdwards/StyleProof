@@ -1,5 +1,6 @@
 import type { ComponentManifest } from './component-manifest.js';
 import type { DiscoveredComponent } from './components.js';
+import { toSlash } from './util.js';
 
 export type DeclaredComponentInventoryEntry = {
   path: string;
@@ -19,10 +20,6 @@ export type ComponentManifestInventory = {
 };
 
 export class ComponentInventoryError extends Error {}
-
-function toSlash(value: string): string {
-  return value.replace(/\\/g, '/');
-}
 
 function uniqueDiscoveredPaths(discovered: DiscoveredComponent[]): string[] {
   const seen = new Set<string>();

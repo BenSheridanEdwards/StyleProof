@@ -1,16 +1,11 @@
 import { spawnSync } from 'node:child_process';
+import { gitOutput as gitStdout, runGit } from './node-util.js';
 
 /** A readable failure inferring a base branch — CLIs map this to exit 2. */
 export class GitRefError extends Error {}
 
-function git(args: string[]) {
-  return spawnSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 28 });
-}
-
-function gitOutput(args: string[]): string {
-  const r = git(args);
-  return r.status === 0 ? r.stdout.trim() : '';
-}
+const git = (args: string[]) => runGit(process.cwd(), args);
+const gitOutput = (args: string[]) => gitStdout(process.cwd(), args);
 
 function refExists(ref: string): boolean {
   return git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).status === 0;

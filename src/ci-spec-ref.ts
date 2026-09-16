@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { runGit } from './node-util.js';
 
 export class CiSpecRefError extends Error {
   readonly exitCode: number;
@@ -13,10 +14,6 @@ export class CiSpecRefError extends Error {
     this.name = 'CiSpecRefError';
     this.exitCode = exitCode;
   }
-}
-
-function runGit(cwd: string, args: string[]) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
 }
 
 /** Relative path only — resolved against the directory styleproof-ci runs in, like

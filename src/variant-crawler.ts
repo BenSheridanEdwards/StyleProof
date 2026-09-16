@@ -1,8 +1,9 @@
-import { createHash } from 'node:crypto';
 import type { Page } from '@playwright/test';
 import { captureStyleMap, type CaptureOptions, type LiveRegionCandidate } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
 import { DANGER_SOURCE } from './danger.js';
+import { sha256 } from './node-util.js';
+import { slug as slugOf } from './util.js';
 
 export type HarvestRoute = {
   /** Stable route/surface key in the generated manifest. */
@@ -120,15 +121,7 @@ type Candidate = {
   value?: string;
 };
 
-function slug(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 48) || 'state'
-  );
-}
+const slug = (value: string) => slugOf(value, 48);
 
 function routeUrl(route: HarvestRoute, baseUrl?: string): string {
   if (!baseUrl) return route.url;
@@ -141,7 +134,7 @@ function pathAndSearch(url: string): string {
 }
 
 function diffHash(findings: Finding[]): string {
-  return createHash('sha256').update(JSON.stringify(findings)).digest('hex').slice(0, 16);
+  return sha256(JSON.stringify(findings)).slice(0, 16);
 }
 
 function variantKey(candidate: Candidate): string {
@@ -343,7 +336,7 @@ async function discoverStateCandidates(page: Page, maxCandidates: number): Promi
 }
 
 function stateCoverageKey(prefix: 'hover' | 'focus' | 'live-region', selector: string): string {
-  return `${prefix}-${createHash('sha256').update(`${prefix}\u0000${selector}`).digest('hex').slice(0, 12)}`;
+  return `${prefix}-${sha256(`${prefix}\u0000${selector}`).slice(0, 12)}`;
 }
 
 async function perform(page: Page, candidate: Candidate): Promise<void> {
@@ -491,7 +484,7 @@ async function tryStateCandidate(
   }
   const forcedDelta = forcedStateMap.states[candidate.mapPath]?.[candidate.action];
   if (forcedDelta) {
-    const hash = createHash('sha256').update(JSON.stringify(forcedDelta)).digest('hex').slice(0, 16);
+    const hash = sha256(JSON.stringify(forcedDelta)).slice(0, 16);
     const findings = Object.values(forcedDelta).reduce((sum, properties) => sum + Object.keys(properties).length, 0);
     return capturedStateOutcome(identity, hash, findings, seenDiffs);
   }

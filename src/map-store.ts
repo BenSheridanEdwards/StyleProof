@@ -9,6 +9,8 @@ import { inferBaseRef } from './gitref.js';
 import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
 import { readRegularFileNoFollow } from './safe-filesystem.js';
+import { removeDirRecursive, runGit as spawnGit, sha256 as hash } from './node-util.js';
+import { errorMessage } from './util.js';
 
 export const DEFAULT_MAP_DIR = '.styleproof/maps';
 export const DEFAULT_MAP_LABEL = 'current';
@@ -54,13 +56,11 @@ const PUBLIC_BASELINE_SHA = /^(?:[0-9a-f]{40}|uncommitted)$/;
 export function publicBaselineSha(sha: string | undefined): string {
   if (sha && PUBLIC_BASELINE_SHA.test(sha)) return sha;
   if (!sha) return 'unknown';
-  return `sha-${createHash('sha256').update(sha).digest('hex').slice(0, 12)}`;
+  return `sha-${hash(sha).slice(0, 12)}`;
 }
 
 function publicCaptureFailureKey(key: string): string {
-  return PUBLIC_CAPTURE_FAILURE_KEY.test(key)
-    ? key
-    : `capture-${createHash('sha256').update(key).digest('hex').slice(0, 12)}`;
+  return PUBLIC_CAPTURE_FAILURE_KEY.test(key) ? key : `capture-${hash(key).slice(0, 12)}`;
 }
 
 function namedSurfaceShaList(items: readonly { key: string; sha: string }[]): string {
@@ -450,18 +450,8 @@ function gitProcessEnvironment(): NodeJS.ProcessEnv {
   return environment;
 }
 
-function runGit(cwd: string, args: string[], maxBuffer = 1 << 28) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer, env: gitProcessEnvironment() });
-}
-
-/** Node's recursive `rmSync` can spuriously throw ENOTEMPTY (also EBUSY/EPERM) on macOS and
- *  Windows when a directory is unlinked while the OS — or a lingering Git helper — still holds
- *  a handle to one of its children. It surfaces most on a busy CI runner where several
- *  StyleProof runs churn TMPDIR at once. Node retries exactly this class of transient error
- *  when given `maxRetries`/`retryDelay`, so route every recursive removal through here rather
- *  than the bare `{ recursive: true, force: true }` (which retries nothing). */
-function removeDirRecursive(dir: string): void {
-  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+function runGit(cwd: string, args: string[], maxBuffer?: number) {
+  return spawnGit(cwd, args, { maxBuffer, env: gitProcessEnvironment() });
 }
 
 /** Best-effort removal of a THROWAWAY temp workspace (an `fs.mkdtemp` dir under `os.tmpdir()`).
@@ -601,10 +591,6 @@ function effectiveGitHttpExtraHeaders(cwd: string): GitHttpExtraHeader[] {
 function gitOutput(cwd: string, args: string[]): string {
   const r = runGit(cwd, args);
   return r.status === 0 ? r.stdout.trim() : '';
-}
-
-function hash(input: string | Buffer): string {
-  return createHash('sha256').update(input).digest('hex');
 }
 
 function hashFile(file: string): string | undefined {
@@ -874,7 +860,7 @@ function failureFileName(key: string): string {
   // Sanitization can collide distinct keys (`a/b@1280` vs `a_b@1280`); suffix a
   // short hash of the RAW key so a later write can never erase another surface's
   // ledger entry (which would resurface its missing surface as greenfield-new).
-  const digest = createHash('sha256').update(key).digest('hex').slice(0, 8);
+  const digest = hash(key).slice(0, 8);
   const stem = key.replace(/[^a-zA-Z0-9@._-]+/g, '_').slice(0, 200);
   return `${stem}-${digest}.json`;
 }
@@ -1652,10 +1638,6 @@ function pushMapStoreCommit(
 
 function removeTemporaryMapStoreCheckout(temporaryCheckout: string | undefined): void {
   removeTempWorkspace(temporaryCheckout);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function publishMapStoreAttempt(options: {

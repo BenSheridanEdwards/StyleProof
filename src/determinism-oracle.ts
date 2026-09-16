@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { sha256 } from './node-util.js';
 
 export type DeterminismRunReceipt = {
   stateKeys: readonly string[];
@@ -97,7 +97,7 @@ function canonicalJson(value: unknown, active = new Set<object>()): string {
 
 /** Hash a strict JSON computed map after recursively sorting object keys. Array order remains significant. */
 export function hashDeterminismMap(map: unknown): string {
-  return createHash('sha256').update(canonicalJson(map)).digest('hex');
+  return sha256(canonicalJson(map));
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

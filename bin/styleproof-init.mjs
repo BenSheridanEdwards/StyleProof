@@ -1,1442 +1,297 @@
 #!/usr/bin/env node
-/**
- * Scaffold a styleproof capture spec into a project.
- *
- *   styleproof-init [--dir <path>] [--base-url <url>] [--force] [-h|--help]
- *
- * Writes:
- *   - <dir> (default e2e/styleproof.spec.ts): a starter capture spec with a
- *     minimal settle() helper (triggers scroll-reveal content; StyleProof itself
- *     handles fonts, animation freeze, and the settle). For a detected Next.js app it derives BOTH the
- *     surfaces AND the `expected` coverage guard from the same `discoverNextRoutes()`
- *     call, so a static route added later is captured and expected together —
- *     auto-covered, never a guard failure; the guard fails only on genuine
- *     divergence (a dynamic route, a hand-maintained registry, or a route dropped
- *     from surfaces but still expected). Otherwise it writes one sample surface
- *     plus a commented guard block to wire to your own route registry.
- *   - playwright.styleproof.config.ts: a dedicated production-build Playwright
- *     config for StyleProof captures, so an existing app Playwright config is
- *     never disturbed or accidentally reused.
- *   - .github/workflows/styleproof.yml: one job captures base/head maps, diffs
- *     them, and publishes the report (default; --workflow split separates
- *     untrusted capture from a trusted workflow_run report stage).
- *   - with --mode review-gate: .github/workflows/styleproof-approve.yml, the
- *     issue_comment handler that flips the StyleProof status when a reviewer
- *     ticks "Approve all changes". GitHub only runs issue_comment workflows
- *     from the default branch, so it takes effect once the init PR merges.
- *   - --manifest <path> with --component-roots: a typed starter component
- *     manifest with one explicit default variant per discovered file.
- *
- * Idempotent: re-running never overwrites an existing spec (use --force) and
- * never touches an existing app playwright.config.ts or an existing workflow.
- * Exit 0 = done (or nothing to do), 2 = usage error.
- */
+// Scaffold StyleProof into a project: the capture spec, a dedicated Playwright
+// config, styleproof.config.ts, the CI workflow(s), and (with --storage branch)
+// the pre-push hook. Idempotent: existing user-owned files are never overwritten
+// without --force; machine-owned files are refreshed by --upgrade and audited by --check.
+// Exit 0 = done, 1 = --check found drift, 2 = usage error.
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
-// Import from the leaf module, not the barrel: styleproof-init only scaffolds
-// files and never captures. Pulling `../dist/index.js` here dragged the whole
-// library — capture, crawler, report, and six Playwright-importing modules —
-// into a tiny scaffolder's load path, and that oversized concurrent module
-// graph is what made init's tests flake in CI. routes.js needs only fs + path.
+// Leaf modules only: init scaffolds files and must never load the capture graph.
 import { discoverNextRoutes } from '../dist/routes.js';
 import { discoverComponentFiles } from '../dist/components.js';
 import { validateComponentManifest } from '../dist/component-manifest.js';
-import { isHelpArg, showHelpAndExit } from '../dist/cli-errors.js';
 import { loadStyleProofConfig } from '../dist/config.js';
-import { decodeSpecPathEnv, encodeSpecPath, SPEC_PATH_ENV, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
+import { decodeSpecPathEnv, encodeSpecPath, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
 import { detectPackageManager } from './package-manager.mjs';
+import { defineCli, errorMessage, fail } from './cli.mjs';
+import { ensureGitignoreLines, generatedPathState, readRegularTextFile, writeFileSafe } from './init/files.mjs';
+import { hookFilePath, installPrePushHook, reportOrActivateHook } from './init/hooks.mjs';
+import {
+  APPROVE_WORKFLOW,
+  PACKAGE_MANAGERS,
+  STYLEPROOF_CONFIG_TEMPLATE,
+  ciWorkflow,
+  hookTemplate,
+  lintArtifactsTemplate,
+  playwrightConfigTemplate,
+  reportWorkflow,
+  specTemplate,
+} from './init/templates.mjs';
 
-const HELP = `styleproof-init — scaffold a styleproof capture spec
-
-usage: styleproof-init [options]
-
-options:
-  --dir <path>        spec output path (default: e2e/styleproof.spec.ts)
-  --base-url <url>    application URL (default: http://localhost:3000)
-  --server-command <command>
-                      explicit production build/serve command
-  --external-server   do not manage a server; BASE_URL must already be available
-  --manifest <path>   write a typed starter component manifest
-  --component-roots <dirs>
-                      comma-separated component roots; repeatable
-  --force             overwrite the spec if it already exists
-  --workflow <layout> single (default): one job captures, diffs, and reports.
-                      split: untrusted read-only capture job + trusted
-                      workflow_run report stage — required when fork or
-                      Dependabot pull requests must be able to publish
-  --storage <mode>    artifact (default): maps live and die in the job, no
-                      map-store branch. branch: cache maps on the
-                      styleproof-maps branch and install the pre-push hook
-  --mode <gate>       advisory (default): report but never block. certify:
-                      fail on any style diff. review-gate: red status until a
-                      reviewer approves (adds the approval caller workflow)
-  --hook              (re)write ONLY the pre-push hook, overwriting an existing one —
-                      the upgrade path after a styleproof release changes the hook
-  --upgrade           refresh every MACHINE-OWNED generated file to this
-                      release's templates; never touches the spec or
-                      playwright config
-  --check             report drift between the machine-owned files and this
-                      release's templates without writing; exit 1 if any differ —
-                      the generated workflow runs it before capture so upgrades
-                      fail with the --upgrade remedy instead of silently drifting
-  -h, --help          show this help
-
---upgrade/--check interpolate the spec path into the templates: pass the same
---dir you scaffolded with if your spec is not at the default location.
-
-What it writes:
-  - with --manifest + --component-roots, a typed starter component manifest;
-    one default variant per file, with no inferred props or providers
-  - the spec at --dir, with a minimal settle() helper (scroll-reveal only).
-    In a Next.js app it discovers your routes at run time and derives both the
-    surfaces and the \`expected\` coverage guard from that one call, so a new static
-    route is auto-covered (captured + expected together); the guard fails only when
-    the two diverge. Otherwise it writes one sample surface + a commented guard block.
-  - playwright.styleproof.config.ts, a dedicated production-build Playwright config
-  - .github/workflows/styleproof.yml, the PR gate workflow (one-job layout by
-    default; --workflow split adds the trusted report stage)
-  - with --mode review-gate: .github/workflows/styleproof-approve.yml, the
-    "Approve all changes" gate (active once merged to your default branch)
-  - with --storage branch: .githooks/pre-push and, when the effective
-    core.hooksPath is unset and no default pre-push hook exists, activates
-    .githooks for this repository. Existing default/custom hooks and Husky
-    remain untouched.
-
-To capture and diff locally:
-  npx styleproof capture   # this commit → the local map cache
-  npx styleproof compare   # compare cached base/head maps by commit SHA
-styleproof-init is a compatibility alias for the unified CLI: styleproof init
-`;
-
-const argv = process.argv.slice(2);
+const NAME = 'styleproof-init';
 const DEFAULT_SPEC_PATH = 'e2e/styleproof.spec.ts';
-let specPath;
-let specPathProvided = false;
-let baseUrl = 'http://localhost:3000';
-let force = false;
-let hookOnly = false;
-let upgrade = false;
-let checkOnly = false;
-let validateServerOnly = false;
-let serverCommand;
-let externalServer = false;
-let manifestPath;
-const componentRoots = [];
-let workflowFlag;
-let storageFlag;
-let gateFlag;
-for (let i = 0; i < argv.length; i++) {
-  const a = argv[i];
-  if (isHelpArg(a)) showHelpAndExit(HELP);
-  else if (a === '--dir') {
-    specPathProvided = true;
-    specPath = argv[++i];
-  } else if (a.startsWith('--dir=')) {
-    specPathProvided = true;
-    specPath = a.slice(6);
-  } else if (a === '--base-url') baseUrl = argv[++i];
-  else if (a.startsWith('--base-url=')) baseUrl = a.slice(11);
-  else if (a === '--server-command') {
-    serverCommand = argv[++i];
-    if (serverCommand === undefined || serverCommand.startsWith('--')) {
-      console.error('styleproof-init: --server-command requires a value');
-      process.exit(2);
-    }
-  } else if (a.startsWith('--server-command=')) serverCommand = a.slice('--server-command='.length);
-  else if (a === '--external-server') externalServer = true;
-  else if (a === '--validate-server') validateServerOnly = true;
-  else if (a === '--manifest') manifestPath = argv[++i];
-  else if (a.startsWith('--manifest=')) manifestPath = a.slice('--manifest='.length);
-  else if (a === '--component-roots') componentRoots.push(...String(argv[++i] ?? '').split(','));
-  else if (a.startsWith('--component-roots=')) componentRoots.push(...a.slice('--component-roots='.length).split(','));
-  else if (a === '--force') force = true;
-  else if (a === '--workflow') workflowFlag = argv[++i];
-  else if (a.startsWith('--workflow=')) workflowFlag = a.slice('--workflow='.length);
-  else if (a === '--storage') storageFlag = argv[++i];
-  else if (a.startsWith('--storage=')) storageFlag = a.slice('--storage='.length);
-  else if (a === '--mode') gateFlag = argv[++i];
-  else if (a.startsWith('--mode=')) gateFlag = a.slice('--mode='.length);
-  else if (a === '--hook') hookOnly = true;
-  else if (a === '--upgrade') upgrade = true;
-  else if (a === '--check') checkOnly = true;
-  else {
-    console.error(`unknown argument: ${a}\n`);
-    process.stderr.write(HELP);
-    process.exit(2);
-  }
-}
+const AXES = {
+  workflow: ['single', 'split'],
+  storage: ['artifact', 'branch'],
+  gate: ['advisory', 'certify', 'review-gate'],
+};
+
+const cli = defineCli({
+  name: NAME,
+  alias: 'init',
+  usage: [`${NAME} [options]`],
+  flags: {
+    dir: { value: 'path', help: `spec output path (default: ${DEFAULT_SPEC_PATH})` },
+    'base-url': { value: 'url', help: 'application URL', default: 'http://localhost:3000' },
+    'server-command': { value: 'command', help: 'explicit production build/serve command' },
+    'external-server': { help: 'do not manage a server; BASE_URL must already be available' },
+    'validate-server': { help: 'only validate the server contract, then exit' },
+    manifest: { value: 'path', help: 'write a typed starter component manifest' },
+    'component-roots': { value: 'dirs', repeat: true, help: 'comma-separated component roots' },
+    force: { help: 'overwrite the spec if it already exists' },
+    workflow: {
+      value: 'layout',
+      help: 'single (default): one job captures, diffs, and reports. split: untrusted read-only capture job + trusted workflow_run report stage — required when fork or Dependabot pull requests must publish',
+    },
+    storage: {
+      value: 'mode',
+      help: 'artifact (default): maps live and die in the job. branch: cache maps on the styleproof-maps branch and install the pre-push hook',
+    },
+    mode: {
+      value: 'gate',
+      help: 'advisory (default): report but never block. certify: fail on any style diff. review-gate: red status until a reviewer approves (adds the approval caller workflow)',
+    },
+    hook: {
+      help: '(re)write ONLY the pre-push hook, overwriting an existing one — the upgrade path after a release changes it',
+    },
+    upgrade: {
+      help: "refresh every machine-owned generated file to this release's templates; never touches the spec or playwright config",
+    },
+    check: { help: 'report drift between the machine-owned files and this release; exit 1 if any differ' },
+  },
+  notes: [
+    '--upgrade/--check interpolate the spec path into the templates: pass the same',
+    '--dir you scaffolded with if your spec is not at the default location.',
+    '',
+    'What it writes:',
+    '  - the spec at --dir (routes-aware in a Next.js app, crawl-by-default elsewhere)',
+    '  - playwright.styleproof.config.ts, a dedicated production-build Playwright config',
+    '  - styleproof.config.ts and .github/workflows/styleproof.yml',
+    '  - with --workflow split: the trusted styleproof-report.yml stage',
+    '  - with --mode review-gate: styleproof-approve.yml (active once merged to your default branch)',
+    '  - with --storage branch: .githooks/pre-push, activated when no other hook owns the slot',
+    '  - with --manifest + --component-roots: a typed starter component manifest',
+    '',
+    'To capture and diff locally:',
+    '  npx styleproof capture   # this commit → the local map cache',
+    '  npx styleproof compare   # compare cached base/head maps by commit SHA',
+  ],
+});
+
+const { opts } = cli.parse();
+const force = Boolean(opts.force);
+const baseUrl = opts['base-url'];
+let serverCommand = opts['server-command'];
+let externalServer = Boolean(opts['external-server']);
+
+// Server contract: flag > env (set by the generated workflow) > inference.
 if (serverCommand === undefined && !externalServer) {
   const serverMode = process.env.STYLEPROOF_SERVER_MODE;
   if (serverMode === 'external') externalServer = true;
-  else if (serverMode === 'custom') {
-    const encoded = process.env.STYLEPROOF_SERVER_COMMAND_B64 ?? '';
-    try {
-      serverCommand = Buffer.from(encoded, 'base64').toString('utf8');
-    } catch {
-      serverCommand = '';
-    }
-  }
+  else if (serverMode === 'custom')
+    serverCommand = Buffer.from(process.env.STYLEPROOF_SERVER_COMMAND_B64 ?? '', 'base64').toString('utf8');
 }
+if (serverCommand !== undefined && (!serverCommand.trim() || serverCommand.includes('\0')))
+  fail(NAME, '--server-command requires a non-empty command without NUL bytes');
+if (serverCommand !== undefined && externalServer)
+  fail(NAME, '--server-command and --external-server are mutually exclusive');
 
-if (Boolean(manifestPath) !== Boolean(componentRoots.length)) {
-  console.error('styleproof-init: --manifest and --component-roots must be provided together');
-  process.exit(2);
-}
-if (serverCommand !== undefined && (!serverCommand.trim() || serverCommand.includes('\0'))) {
-  console.error('styleproof-init: --server-command requires a non-empty command without NUL bytes');
-  process.exit(2);
-}
-if (serverCommand !== undefined && externalServer) {
-  console.error('styleproof-init: --server-command and --external-server are mutually exclusive');
-  process.exit(2);
-}
+const componentRoots = opts['component-roots'].flatMap((roots) => roots.split(','));
+let manifestPath = opts.manifest;
+if (Boolean(manifestPath) !== Boolean(componentRoots.length))
+  fail(NAME, '--manifest and --component-roots must be provided together');
 if (manifestPath) {
   try {
     manifestPath = validateRepoRelativeSpecPath(manifestPath);
-    for (let index = 0; index < componentRoots.length; index++) {
-      componentRoots[index] = validateRepoRelativeSpecPath(componentRoots[index].trim());
-    }
+    componentRoots.forEach((root, i) => (componentRoots[i] = validateRepoRelativeSpecPath(root.trim())));
   } catch (error) {
-    console.error(
-      `styleproof-init: invalid component manifest input: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    process.exit(2);
+    fail(NAME, `invalid component manifest input: ${errorMessage(error)}`);
   }
 }
-if (!specPathProvided) {
-  let configuredSpec;
+
+// Spec path: flag > styleproof.config > the hook-encoded env > default.
+function configuredSpecPath() {
   try {
-    configuredSpec = loadStyleProofConfig().spec;
+    return loadStyleProofConfig().spec;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
-    if (code !== 'STYLEPROOF_UNLOADABLE_TS' && !/could not be evaluated|cannot evaluate/i.test(message)) {
-      console.error(`styleproof-init: ${message}`);
-      process.exit(2);
-    }
-  }
-  try {
-    specPath = configuredSpec ?? decodeSpecPathEnv() ?? DEFAULT_SPEC_PATH;
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exit(2);
+    const message = errorMessage(error);
+    const unloadable =
+      error?.code === 'STYLEPROOF_UNLOADABLE_TS' || /could not be evaluated|cannot evaluate/i.test(message);
+    return unloadable ? undefined : fail(NAME, message);
   }
 }
+let specPath;
 try {
-  specPath = validateRepoRelativeSpecPath(specPath);
+  specPath = validateRepoRelativeSpecPath(opts.dir ?? configuredSpecPath() ?? decodeSpecPathEnv() ?? DEFAULT_SPEC_PATH);
 } catch (error) {
-  console.error(`--dir ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`--dir ${errorMessage(error)}`);
   process.exit(2);
 }
-const encodedSpecPath = encodeSpecPath(specPath);
-const serverMode = externalServer ? 'external' : serverCommand === undefined ? 'infer' : 'custom';
-const encodedServerCommand = serverCommand === undefined ? '' : Buffer.from(serverCommand, 'utf8').toString('base64');
 
-// Captures read whatever is in front of them, so the page must be settled and
-// deterministic first — this helper is shared by both spec variants below.
-const SETTLE = `// StyleProof settles the page for you before it reads — it waits out in-flight data
-// and fonts, freezes animations/transitions, and blurs focus. The one thing it can't
-// know about is *scroll-reveal* content: elements an IntersectionObserver mounts (or
-// fades in) only once they're scrolled into view. settle() triggers that — it scrolls
-// the page so those reveals fire, forces common reveal markers to their final state so
-// nothing is caught mid-fade, then returns to the top. Tune the selectors to match
-// your project. No reveal-on-scroll content? Delete settle() and use the one-liner
-// \`go: (page) => page.goto('/')\`.
-async function settle(page: Page) {
-  await page.addStyleTag({
-    content: \`.reveal, [data-reveal], .fade-in, .animate-in {
-      opacity: 1 !important;
-      transform: none !important;
-      visibility: visible !important;
-    }\`,
-  });
-  const dimensions = await page.evaluate(() => ({
-    scrollHeight: document.body.scrollHeight,
-    viewportHeight: Math.max(window.innerHeight, 1),
-  }));
-  for (let y = 0; y < dimensions.scrollHeight; y += dimensions.viewportHeight) {
-    await page.evaluate((scrollY) => window.scrollTo(0, scrollY), y);
-    await page.waitForTimeout(60);
-  }
-  await page.evaluate(() => window.scrollTo(0, 0));
-}`;
-
-const HEADER = `/**
- * styleproof capture spec (generated by \`styleproof-init\`).
- *
- * Each surface is one deterministic page state. Omit \`widths\` and StyleProof
- * detects your @media breakpoints from the loaded CSS and sweeps one viewport per
- * band — no config. Capture against a PRODUCTION build — dev servers inject styles.
- *
- *   npx styleproof capture   # capture this commit into the local map cache
- *   npx styleproof compare   # compare cached base/head maps by commit SHA
- */`;
-
-// Next.js detected: derive BOTH surfaces and the coverage guard from the app's
-// routes AT RUN TIME, from one `discoverNextRoutes()` call — so a static page added
-// later is a captured surface AND `expected` in the same step (auto-covered, never a
-// guard failure), with no static list to drift. The guard fires only when the two
-// diverge (a dynamic route, a hand-maintained registry, or a route dropped from
-// surfaces but still expected).
-const NEXT_SPEC = `import type { Page } from '@playwright/test';
-import { defineStyleMapCapture, discoverNextRoutes, type Surface } from 'styleproof';
-
-${HEADER}
-
-${SETTLE}
-
-// Routes discovered from your Next.js app (app/ + pages/) at RUN TIME. Both SURFACES
-// and \`expected\` below come from this one list, so a static route you add later is
-// captured and expected together — covered automatically, with no surface list to
-// keep in sync. Edit freely; this is your spec. Static routes each get a capture;
-// dynamic [param] routes can't be navigated without a value, so they're listed in
-// \`exclude\` until you add a surface with a concrete param.
-const ROUTES = discoverNextRoutes();
-
-const SURFACES: Surface[] = ROUTES.filter((r) => !r.dynamic).map((r) => ({
-  key: r.key,
-  go: async (page) => {
-    await page.goto(r.path);
-    await settle(page);
-  },
-  ignore: [], // e.g. ['.live-feed', '.ad-slot'] for nondeterministic regions
-  // No widths → StyleProof detects your @media breakpoints from the loaded CSS and
-  // sweeps one viewport per band. Pass an explicit array (e.g. 1280, 768, 390) to pin them (or to
-  // cover a JS-only matchMedia breakpoint that has no CSS @media rule).
-}));
-
-defineStyleMapCapture({
-  surfaces: SURFACES,
-  // Coverage guard: every \`expected\` route must be a captured surface or excluded, or
-  // the suite fails (it runs without STYLEMAP_DIR — a static check, no browser). Since
-  // both sides come from ROUTES, static routes never trip it; it fires when they
-  // diverge — a dynamic route (excluded below), or a route you drop from SURFACES.
-  expected: ROUTES.map((r) => r.key),
-  exclude: Object.fromEntries(
-    ROUTES.filter((r) => r.dynamic).map((r) => [r.key, \`dynamic route (\${r.path}) — add a surface with a concrete param\`]),
-  ),
-  inventory: true, // also fail the diff when a nav item / route the UI used to offer disappears
-  dir: process.env.STYLEMAP_DIR,
-});
-`;
-
-// Non-Next project: crawl every surface the nav links to, so ANY app captures its
-// whole reachable surface out of the box with nothing to hand-list. The crawl reads
-// the rendered nav; the surface set can't drift from it.
-const GENERIC_SPEC = `import type { Page } from '@playwright/test';
-import { defineCrawlCapture } from 'styleproof';
-
-${HEADER}
-
-${SETTLE}
-
-// Zero-config capture: crawl every surface your nav links to from '/'. The surface set
-// is DISCOVERED from the rendered nav, so it can't drift from it — no hand-listed
-// \`surfaces\` array to maintain, and a page you add to the nav is captured automatically.
-// The root (/) is always captured, plus every same-origin <a href> it links to.
-defineCrawlCapture({
-  from: '/',
-  settle, // trigger scroll-reveal per surface (StyleProof handles fonts/animation/network itself)
-  // No \`widths\` → StyleProof detects each surface's @media breakpoints and sweeps one
-  // viewport per band. Pass an array (e.g. [1440, 768, 390]) to pin them.
-  inventory: true, // also fail the diff when a nav item / route the UI used to offer disappears
-  ignore: [], // e.g. ['.live-feed', '.ad-slot'] for nondeterministic regions
-  dir: process.env.STYLEMAP_DIR,
-  // A single-route SPA whose views are ?tab= / client-routed? Keep only those:
-  //   match: /\\?tab=/,
-  // Turn the crawl into a coverage guard: reconcile the rendered nav against a route
-  // registry, both directions — a new linked route with no \`expected\` entry fails, and
-  // an \`expected\` route the nav stopped linking fails. (Runs inside the capture, so it
-  // fires when you capture, not in every test run.) List conditionally-rendered links
-  // (auth / feature-flag) in \`exclude\` so they can't flake the guard either direction:
-  //   expected: ['index', 'pricing'],
-  //   exclude: { admin: 'feature-flagged, renders only for staff' },
-  // Certify menus, dialogs, tabs, and form-error states on every surface as variants:
-  //   variants: [{ key: 'menu-open', go: async (page) => { await page.getByRole('button', { name: /menu/i }).click(); } }],
-});
-`;
-
-// The styleproof.config.ts template — typed configuration with IDE autocomplete.
-// Only includes the minimal commonly-needed keys; adopters add more as needed.
-const STYLEPROOF_CONFIG_TEMPLATE = `import { defineConfig } from 'styleproof';
-
-/**
- * StyleProof configuration — typed, IDE-autocompleted.
- *
- * For all available options, see the StyleProof docs or hover over defineConfig().
- */
-export default defineConfig({
-  // Advisory mode: posts comments and artifacts but NEVER blocks CI.
-  // Trust is earned, not assumed — observe the signal quality for a release cycle,
-  // then flip to blocking: true once confident in coverage.
-  blocking: 'advisory',
-
-  // Require explicit reviewer approval for visual changes (active when blocking: true)
-  requireApproval: true,
-
-  // Capture spec path (default e2e/styleproof.spec.ts)
-  // spec: 'e2e/styleproof.spec.ts',
-
-  // Subdirs with their own surfaces (multi-directory projects)
-  // roots: ['hud'],
-
-  // Tracked files/dirs whose changes never mark a capture dirty
-  // dirtyAllow: ['docs/**', '.github/**'],
-});
-`;
-
-const STYLEPROOF_CONFIG_PATH = 'styleproof.config.ts';
-
-const PACKAGE_MANAGERS = {
-  npm: {
-    label: 'npm',
-    run: (script) => `npm run ${script}`,
-    exec: (command) => `npx ${command}`,
-    install: 'npm ci',
-    setup: `      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm`,
-  },
-  yarn: {
-    label: 'Yarn v1',
-    run: (script) => `npx -y yarn@1.22.22 ${script}`,
-    exec: (command) => `npx -y yarn@1.22.22 ${command}`,
-    install: 'npx -y yarn@1.22.22 install --frozen-lockfile --non-interactive',
-    setup: `      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: yarn
-          cache-dependency-path: yarn.lock`,
-  },
-  pnpm: {
-    label: 'pnpm',
-    run: (script) => `pnpm run ${script}`,
-    exec: (command) => `pnpm exec ${command}`,
-    install: 'pnpm install --frozen-lockfile',
-    setup: `      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - run: corepack enable`,
-  },
-  bun: {
-    label: 'Bun',
-    run: (script) => `bun run ${script}`,
-    exec: (command) => `bunx ${command}`,
-    install: 'bun install --frozen-lockfile',
-    setup: `      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: oven-sh/setup-bun@v2`,
-  },
-};
-
-let PM;
-if (hookOnly) {
-  // The hook shim is package-manager agnostic. Keep --hook usable as a standalone
-  // refresh/install operation even before a manifest exists or while lockfiles are
-  // being migrated; npm is only a harmless placeholder for templates we never write.
-  PM = PACKAGE_MANAGERS.npm;
-} else {
+const hookOnly = Boolean(opts.hook);
+let PM = PACKAGE_MANAGERS.npm; // --hook is package-manager agnostic; npm is a placeholder
+if (!hookOnly) {
   try {
     PM = PACKAGE_MANAGERS[detectPackageManager(process.cwd(), { allowMissingManifest: true })];
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`styleproof-init: ${detail}\n`);
-    process.exit(2);
-  }
-}
-function readPackageJson(root) {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  } catch {
-    return {};
+    fail(NAME, errorMessage(error));
   }
 }
 
-function hasDep(pkg, name) {
-  return Boolean(pkg.dependencies?.[name] ?? pkg.devDependencies?.[name]);
-}
-
-function hasScript(pkg, script) {
-  return typeof pkg.scripts?.[script] === 'string' && pkg.scripts[script].trim().length > 0;
-}
-
-function scriptIncludes(pkg, script, text) {
-  return typeof pkg.scripts?.[script] === 'string' && pkg.scripts[script].includes(text);
-}
-
-function portFromBaseUrl(url) {
-  try {
-    const parsed = new URL(url);
-    if (parsed.port) return parsed.port;
-    return parsed.protocol === 'https:' ? '443' : '80';
-  } catch {
-    return '3000';
-  }
-}
-
-function productionServerCommand(root, base) {
+// Production server inference from package.json: first matching recipe wins.
+const SERVER_RECIPES = [
+  { when: (has) => has.tool('vite'), serve: (port) => PM.exec(`vite preview --host 127.0.0.1 --port ${port}`) },
+  { when: (has) => has.tool('next') && !has.script('start'), serve: (port) => PM.exec(`next start -p ${port}`) },
+  { when: (has) => has.script('start'), serve: () => PM.run('start') },
+  { when: (has) => has.script('preview'), serve: () => PM.run('preview') },
+];
+function productionServerCommand() {
   if (externalServer) return undefined;
   if (serverCommand !== undefined) return serverCommand;
-
-  const pkg = readPackageJson(root);
-  const port = portFromBaseUrl(base);
-  const build = hasScript(pkg, 'build') ? `${PM.run('build')} && ` : '';
-  const looksLikeVite =
-    hasDep(pkg, 'vite') || scriptIncludes(pkg, 'dev', 'vite') || scriptIncludes(pkg, 'build', 'vite');
-  const looksLikeNext =
-    hasDep(pkg, 'next') || scriptIncludes(pkg, 'dev', 'next') || scriptIncludes(pkg, 'build', 'next');
-
-  if (looksLikeVite) return `${build}${PM.exec(`vite preview --host 127.0.0.1 --port ${port}`)}`;
-  if (looksLikeNext) {
-    const start = hasScript(pkg, 'start') ? PM.run('start') : PM.exec(`next start -p ${port}`);
-    return `${build}${start}`;
+  let pkg = {};
+  try {
+    pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  } catch {
+    /* no manifest: nothing to infer from */
   }
-  if (hasScript(pkg, 'start')) return `${build}${PM.run('start')}`;
-  if (hasScript(pkg, 'preview')) return `${build}${PM.run('preview')}`;
-  return undefined;
+  const scriptText = (name) => (typeof pkg.scripts?.[name] === 'string' ? pkg.scripts[name] : '');
+  const has = {
+    script: (name) => scriptText(name).trim().length > 0,
+    tool: (tool) =>
+      Boolean(pkg.dependencies?.[tool] ?? pkg.devDependencies?.[tool]) ||
+      scriptText('dev').includes(tool) ||
+      scriptText('build').includes(tool),
+  };
+  const recipe = SERVER_RECIPES.find(({ when }) => when(has));
+  if (!recipe) return undefined;
+  const port = new URL(baseUrl).port || (baseUrl.startsWith('https:') ? '443' : '80');
+  return `${has.script('build') ? `${PM.run('build')} && ` : ''}${recipe.serve(port)}`;
 }
-
 function productionServerOrExit() {
-  const command = productionServerCommand(process.cwd(), baseUrl);
-  if (!externalServer && command === undefined) {
-    console.error(
-      'styleproof-init: could not infer a production server command from Next.js, Vite, or package.json scripts.start/scripts.preview.\n' +
+  const command = productionServerCommand();
+  if (!externalServer && command === undefined)
+    fail(
+      NAME,
+      'could not infer a production server command from Next.js, Vite, or package.json scripts.start/scripts.preview.\n' +
         'Next: pass --server-command "<build-and-serve command>", or --external-server when BASE_URL is managed separately.',
     );
-    process.exit(2);
-  }
   return command;
 }
-
-function configTestDir(spec) {
-  const dir = path.dirname(path.resolve(process.cwd(), spec));
-  const rel = path.relative(process.cwd(), dir).replace(/\\/g, '/');
-  return rel ? `./${rel}` : '.';
-}
-
-function playwrightConfig(command) {
-  const webServer =
-    command === undefined
-      ? ''
-      : `  webServer: {
-    command: ${JSON.stringify(command)},
-    url: process.env.BASE_URL || ${JSON.stringify(baseUrl)},
-    env: { PORT: ${JSON.stringify(portFromBaseUrl(baseUrl))} },
-    reuseExistingServer: !process.env.CI,
-    timeout: 600_000, // a cold production build can take a few minutes
-  },
-`;
-  return `import { defineConfig, devices } from '@playwright/test';
-
-// Generated by styleproof-init.
-//
-// Capture against a PRODUCTION build, never a dev server. Dev servers (\`next dev\`,
-// \`vite\`, …) JIT-compile each route on first request — slow and TIMING-VARIABLE
-// under parallel CI load, so a capture can settle on the loading state on one run and
-// the loaded state on the next: phantom diffs and self-check flakes. A built-and-served
-// app serves precompiled routes at consistent timing. (StyleProof's settle waits for
-// in-flight data either way, but a production build removes the variance at the source.)
-export default defineConfig({
-  testDir: ${JSON.stringify(configTestDir(specPath))},
-  testMatch: ${JSON.stringify(path.basename(specPath))},
-  timeout: 120_000,
-  // Capture surfaces in PARALLEL. StyleProof generates one test per surface × width,
-  // each an isolated page writing a uniquely-keyed file (\`<key>@<width>.json.gz\`), with
-  // per-page record/replay and frozen clock — so they're independent and safe to run
-  // concurrently. Without this, all surfaces sit in one spec file and capture serially;
-  // with it they fan out across workers, a near-linear speedup on a multi-surface app.
-  // (\`--shard\` splits them across CI machines too; they write disjoint files into one
-  // dir.) Tune \`workers\` to your machine if needed.
-  fullyParallel: true,
-  use: {
-    baseURL: process.env.BASE_URL || ${JSON.stringify(baseUrl)},
-  },
-  // When present, this builds once and serves THAT production build for captures.
-  // --external-server omits webServer so the caller-provided BASE_URL is used as-is.
-${webServer}  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-});
-`;
-}
-
-if (validateServerOnly) {
+if (opts['validate-server']) {
   productionServerOrExit();
   process.exit(0);
 }
-
 const selectedProductionServer = hookOnly ? undefined : productionServerOrExit();
 
+// Scaffold axes: explicit flags > the marker line of an existing workflow > which
+// marker-bearing files exist (pre-marker scaffolds always emitted all of them).
 const CI_PATH = '.github/workflows/styleproof.yml';
-const CI_OWNERSHIP_MARKER = '# StyleProof CI workflow';
 const REPORT_PATH = '.github/workflows/styleproof-report.yml';
-const REPORT_OWNERSHIP_MARKER = '# StyleProof report workflow';
 const APPROVE_PATH = '.github/workflows/styleproof-approve.yml';
-const APPROVE_OWNERSHIP_MARKER = '# StyleProof approval caller';
 const LINT_ARTIFACTS_PATH = '.github/workflows/styleproof-lint-artifacts.yml';
-const LINT_ARTIFACTS_OWNERSHIP_MARKER = '# StyleProof map artifact lint';
-const HOOK_OWNERSHIP_MARKER = '# StyleProof pre-push';
-
-function hookFilePath() {
-  return path.join(fs.existsSync('.husky') ? '.husky' : '.githooks', 'pre-push');
-}
-
-// Scaffold mode (issue #480). Every generated workflow stamps its axes on a
-// `# styleproof-scaffold:` marker line so --check/--upgrade can rebuild exactly
-// the file this release would emit for the scaffold that wrote it. Without a
-// marker (pre-#480 scaffolds), the axes are inferred from which marker-bearing
-// files exist — the old release always emitted all of them, so existence maps
-// exactly to the legacy architecture and --check stays silent on real installs.
+const MARKERS = {
+  ci: '# StyleProof CI workflow',
+  report: '# StyleProof report workflow',
+  approve: '# StyleProof approval caller',
+  lint: '# StyleProof map artifact lint',
+  hook: '# StyleProof pre-push',
+};
+const hasMarker = (file, marker) => Boolean(readRegularTextFile(file)?.includes(marker));
 const SCAFFOLD_MARKER_RE =
   /^# styleproof-scaffold: workflow=(single|split) storage=(artifact|branch) gate=(advisory|certify|review-gate)$/m;
+const stripScaffoldMarker = (text) => text?.replace(/^# styleproof-scaffold:[^\n]*\n/m, '');
 
-function markerFileExists(file, marker) {
-  const text = readRegularTextFile(file);
-  return text !== undefined && text.includes(marker);
-}
-
-function readScaffoldMarker() {
+function inferScaffold() {
   for (const file of [CI_PATH, REPORT_PATH]) {
-    const text = readRegularTextFile(file);
-    const match = text === undefined ? undefined : text.match(SCAFFOLD_MARKER_RE);
+    const match = readRegularTextFile(file)?.match(SCAFFOLD_MARKER_RE);
     if (match) return { workflow: match[1], storage: match[2], gate: match[3] };
   }
-  return undefined;
+  return {
+    workflow: hasMarker(REPORT_PATH, MARKERS.report) ? 'split' : 'single',
+    storage: hasMarker(hookFilePath(), MARKERS.hook) ? 'branch' : 'artifact',
+    gate: hasMarker(APPROVE_PATH, MARKERS.approve) ? 'review-gate' : 'advisory',
+  };
 }
-
-const SCAFFOLD_VALID = {
-  workflow: new Set(['single', 'split']),
-  storage: new Set(['artifact', 'branch']),
-  gate: new Set(['advisory', 'certify', 'review-gate']),
-};
-
-function scaffoldFlag(value, axis, flag) {
-  if (value === undefined) return undefined;
-  if (!SCAFFOLD_VALID[axis].has(value)) {
-    console.error(`styleproof-init: ${flag} must be one of: ${[...SCAFFOLD_VALID[axis]].join(', ')}`);
-    process.exit(2);
-  }
+const inferred = inferScaffold();
+const axis = (name, flag) => {
+  const value = opts[flag];
+  if (value === undefined) return inferred[name];
+  if (!AXES[name].includes(value)) fail(NAME, `--${flag} must be one of: ${AXES[name].join(', ')}`);
   return value;
-}
-
-const scaffoldMarker = readScaffoldMarker();
-const inferredScaffold = scaffoldMarker ?? {
-  workflow: markerFileExists(REPORT_PATH, REPORT_OWNERSHIP_MARKER) ? 'split' : 'single',
-  storage: markerFileExists(hookFilePath(), HOOK_OWNERSHIP_MARKER) ? 'branch' : 'artifact',
-  gate: markerFileExists(APPROVE_PATH, APPROVE_OWNERSHIP_MARKER) ? 'review-gate' : 'advisory',
 };
 const scaffold = {
-  workflow: scaffoldFlag(workflowFlag, 'workflow', '--workflow') ?? inferredScaffold.workflow,
-  storage: scaffoldFlag(storageFlag, 'storage', '--storage') ?? inferredScaffold.storage,
-  gate: scaffoldFlag(gateFlag, 'gate', '--mode') ?? inferredScaffold.gate,
+  workflow: axis('workflow', 'workflow'),
+  storage: axis('storage', 'storage'),
+  gate: axis('gate', 'mode'),
 };
-const SCAFFOLD_MARKER_LINE = `# styleproof-scaffold: workflow=${scaffold.workflow} storage=${scaffold.storage} gate=${scaffold.gate}`;
 
-// --check/--upgrade compare generated files with the marker line stripped, so a
-// scaffold written before the marker existed still compares equal to the same
-// mode's template instead of reporting spurious drift.
-function stripScaffoldMarker(text) {
-  return text === undefined ? text : text.replace(/^# styleproof-scaffold:[^\n]*\n/m, '');
-}
+const templates = {
+  PM,
+  scaffold,
+  encodedSpecPath: encodeSpecPath(specPath),
+  serverMode: externalServer ? 'external' : serverCommand === undefined ? 'infer' : 'custom',
+  encodedServerCommand: serverCommand === undefined ? '' : Buffer.from(serverCommand, 'utf8').toString('base64'),
+};
+const HOOK = hookTemplate(templates.encodedSpecPath);
 
-// The capture command's storage flags. The split workflow's capture job is
-// untrusted (read-only) and always passes --no-upload; artifact storage adds
-// --no-store because there is no branch to restore from or publish to.
-const CI_STORAGE_FLAGS = `${scaffold.workflow === 'split' ? '--no-upload' : ''}${scaffold.storage === 'artifact' ? `${scaffold.workflow === 'split' ? ' ' : ''}--no-store` : ''}`;
-const CI_STORAGE_SUFFIX = CI_STORAGE_FLAGS ? ` ${CI_STORAGE_FLAGS}` : '';
-
-// The Action gate input: review-gate needs the approval caller; advisory and
-// certify select a mode.
-const GATE_INPUT = scaffold.gate === 'review-gate' ? 'require-approval: true' : `mode: ${scaffold.gate}`;
-
-// The Action report-storage input follows the same storage axis as maps
-// (#587): artifact keeps the rendered report out of the adopter's git history
-// entirely (bounded workflow-artifact retention); branch publishes it to the
-// styleproof-reports orphan branch so the comment links an in-browser report.
-const REPORT_STORAGE_INPUT = `report-storage: ${scaffold.storage}`;
-
-// Branch storage keeps evidence on the styleproof-reports / styleproof-maps
-// branches, which need close-pruning and a scheduled size-budget sweep — the
-// closed/schedule triggers and contents: write exist only for those jobs.
-// Artifact storage leaves nothing in git history, so the jobs, the triggers,
-// and the write permission all drop.
-const STORAGE_TRIGGERS =
-  scaffold.storage === 'branch'
-    ? `    types: [opened, synchronize, reopened, closed]
-  schedule:
-    # Daily report-branch sweep: retention window plus a hard size budget.
-    - cron: '47 4 * * *'`
-    : `    types: [opened, synchronize, reopened]`;
-const REPORT_PERMISSION =
-  scaffold.storage === 'branch'
-    ? 'contents: write # publish report files to the styleproof-reports branch'
-    : 'contents: read # report uploads as a workflow artifact — nothing is written to git';
-
-// Shared tail jobs for --storage branch only: prune this PR's report folder on
-// close and sweep the report branch on a schedule, plus the map-store head-SHA
-// prune. Artifact storage emits none of this — nothing reaches git history.
-const PRUNE_AND_SWEEP_JOBS = `  prune:
-    # PR closed: drop its pr-<n>/ folder from the report branch so the branch
-    # never grows without bound. Runs only default-branch package bytes — never
-    # PR-controlled product code — under an explicit write permission.
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: \${{ github.event.repository.default_branch }}
-${PM.setup}
-      - run: ${PM.install}
-      - name: Prune this PR's report folder
-        shell: bash
-        env:
-          GH_TOKEN: \${{ github.token }}
-        run: |
-          node node_modules/styleproof/bin/styleproof-prune-reports.mjs \\
-            --repository '\${{ github.repository }}' \\
-            --branch styleproof-reports \\
-            --pull-request '\${{ github.event.pull_request.number }}'
-      - name: Prune this PR's head map from the map store
-        shell: bash
-        env:
-          GH_TOKEN: \${{ github.token }}
-          BRANCH: styleproof-maps
-          REPO: \${{ github.repository }}
-          HEAD_SHA: \${{ github.event.pull_request.head.sha }}
-          DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
-        run: |
-          set -euo pipefail
-          # The map store grows one \`<sha>/\` folder per pushed commit and never shrank.
-          # On close, drop this PR's head-SHA maps — UNLESS that SHA landed on the default
-          # branch (a fast-forward / rebase merge), where it is now the base-tip map every
-          # later PR restores. A squash / merge-commit close orphans the head SHA, so it is
-          # safe to reclaim. Fail safe: any uncertainty keeps the map.
-          status="$(gh api "repos/$REPO/compare/$HEAD_SHA...$DEFAULT_BRANCH" --jq .status 2>/dev/null || echo unknown)"
-          case "$status" in
-            ahead|identical|behind|unknown)
-              echo "Head $HEAD_SHA is on $DEFAULT_BRANCH (or status unknown: '$status') — keeping its map."
-              exit 0 ;;
-          esac
-          REMOTE="https://x-access-token:\${GH_TOKEN}@github.com/$REPO.git"
-          if ! git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
-            echo "No $BRANCH branch yet — nothing to prune."; exit 0
-          fi
-          TMP="$(mktemp -d)"
-          # Blobless + no-checkout: fetch the tree metadata only, then sparse-checkout just
-          # this one SHA's folder — never download every cached bundle's blobs to delete one.
-          git clone --filter=blob:none --no-checkout --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
-          cd "$TMP"
-          git sparse-checkout set "$HEAD_SHA"
-          git checkout -q "$BRANCH"
-          if [ ! -d "$HEAD_SHA" ]; then
-            echo "No $HEAD_SHA/ folder — nothing to prune."; exit 0
-          fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -r --quiet "$HEAD_SHA"
-          git commit -m "chore(styleproof): prune map for closed PR #\${{ github.event.pull_request.number }} ($HEAD_SHA)"
-          git push origin "$BRANCH"
-
-  report-sweep:
-    # Daily backstop for the report branch. Close-triggered pruning alone
-    # cannot bound it: a missed close event leaks a folder forever, and one PR
-    # can publish hundreds of megabytes of crops, so the folders that blow the
-    # budget are often younger than any reasonable retention window. The sweep
-    # deletes reports whose PR closed more than the retention window ago, then,
-    # if the branch is still over the size budget, keeps deleting oldest-closed
-    # first until it fits. Reports for open PRs are never touched.
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@v4
-${PM.setup}
-      - run: ${PM.install}
-      - name: Sweep the report branch by retention and size budget
-        shell: bash
-        env:
-          GH_TOKEN: \${{ github.token }}
-        run: |
-          node node_modules/styleproof/bin/styleproof-prune-reports.mjs \\
-            --repository '\${{ github.repository }}' \\
-            --branch styleproof-reports \\
-            --retention-days 14 \\
-            --budget-bytes 1500000000
-`;
-
-// The prune/sweep jobs exist only for branch storage — artifact storage writes
-// nothing to git history, so there is nothing to reclaim.
-const PRUNE_JOBS = scaffold.storage === 'branch' ? `\n${PRUNE_AND_SWEEP_JOBS}` : '';
-
-// --workflow split: the fork-safe two-stage architecture. The pull_request job
-// is untrusted (read-only, PR-controlled code) and uploads maps as an artifact;
-// a trusted workflow_run job on the default branch reports and publishes.
-const SPLIT_WORKFLOW = `name: StyleProof capture
-
-# StyleProof CI workflow (generated by styleproof-init; refreshed by styleproof-init --upgrade).
-${SCAFFOLD_MARKER_LINE}
-# Untrusted PR stage:
-# - pull_request jobs may install and execute PR-controlled code;
-# - they therefore hold ONLY read permissions and never publish maps, comments,
-#   reviews, or statuses;
-# - captured maps are uploaded as a short-lived artifact for the trusted report stage.
-# Trusted publication lives in styleproof-report.yml (workflow_run on the default branch).
-on:
-  pull_request:
-${STORAGE_TRIGGERS}
-
-jobs:
-  capture:
-    # Capture on open/update only.${scaffold.storage === 'branch' ? ' Closed and scheduled events are handled below.' : ''}
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-    env:
-      ${SPEC_PATH_ENV}: ${encodedSpecPath}
-      STYLEPROOF_SERVER_MODE: ${serverMode}
-      STYLEPROOF_SERVER_COMMAND_B64: ${encodedServerCommand}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # need base/head commits for cache fallback capture
-          persist-credentials: false
-${PM.setup}
-      - run: ${PM.install}
-      - name: Verify StyleProof scaffold matches the installed release
-        shell: bash
-        run: |
-          node node_modules/styleproof/bin/styleproof-init.mjs --check
-      - id: maps
-        name: Restore or capture StyleProof maps
-        shell: bash
-        run: |
-          # Cache-first, in one packaged command: restore both exact-SHA bundles
-          # from the styleproof-maps branch when readable; on a miss, capture in
-          # this pinned environment WITHOUT publishing (untrusted PR jobs must not
-          # hold write credentials). Publication/report happens in the trusted
-          # workflow_run stage.
-          BASE_SHA="\${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec-ref-if-missing "$HEAD_SHA" --base-dir "\${{ runner.temp }}/styleproof-maps"${CI_STORAGE_SUFFIX}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: styleproof-stylemaps
-          path: \${{ runner.temp }}/styleproof-maps
-          retention-days: 3
-          if-no-files-found: error
-${PRUNE_JOBS}`;
-
-// --workflow single (default): one job captures the base and head maps, diffs
-// them, and publishes the report — no second workflow and no map-store branch.
-// pull_request tokens from forks are read-only, so a forked PR cannot publish
-// and the job fails; repositories that accept fork or Dependabot pull requests
-// should scaffold --workflow split instead.
-const SINGLE_WORKFLOW = `name: StyleProof
-
-# StyleProof CI workflow — one-job layout (generated by styleproof-init; refreshed by styleproof-init --upgrade).
-${SCAFFOLD_MARKER_LINE}
-# One job on a same-repo pull request: capture base and head maps in this job
-# (no map-store branch), then diff and publish the report in place.
-# Forked-PR tokens are read-only, so forked PRs cannot publish and this job
-# fails — repositories that accept fork/Dependabot PRs should regenerate with
-# --workflow split (untrusted capture stage + trusted workflow_run report stage).
-on:
-  pull_request:
-${STORAGE_TRIGGERS}
-
-jobs:
-  styleproof:
-    # Capture, diff, and report on open/update only.${scaffold.storage === 'branch' ? ' Closed and scheduled events are handled by the jobs below.' : ''}
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    runs-on: ubuntu-latest
-    permissions:
-      ${REPORT_PERMISSION}
-      pull-requests: write # upsert the report comment
-      statuses: write # commit status in review-gate mode
-      actions: read
-    env:
-      ${SPEC_PATH_ENV}: ${encodedSpecPath}
-      STYLEPROOF_SERVER_MODE: ${serverMode}
-      STYLEPROOF_SERVER_COMMAND_B64: ${encodedServerCommand}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # need base/head commits for the in-job base capture
-${PM.setup}
-      - run: ${PM.install}
-      - name: Verify StyleProof scaffold matches the installed release
-        shell: bash
-        run: |
-          node node_modules/styleproof/bin/styleproof-init.mjs --check
-      - id: maps
-        name: Capture StyleProof maps for base and head
-        shell: bash
-        run: |
-          BASE_SHA="\${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="\${{ github.event.pull_request.head.sha }}"
-          PATH="$PWD/node_modules/.bin:$PATH" node node_modules/styleproof/bin/styleproof-ci.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --spec-ref-if-missing "$HEAD_SHA" --base-dir "\${{ runner.temp }}/styleproof-maps"${CI_STORAGE_SUFFIX}
-      - uses: BenSheridanEdwards/StyleProof@v7
-        with:
-          baseline-dir: \${{ runner.temp }}/styleproof-maps/base
-          fresh-dir: \${{ runner.temp }}/styleproof-maps/head
-          base-capture-failed: \${{ steps.maps.outputs.base-capture-failed }}
-          ${REPORT_STORAGE_INPUT}
-          ${GATE_INPUT}
-${PRUNE_JOBS}`;
-
-const CI_WORKFLOW = scaffold.workflow === 'split' ? SPLIT_WORKFLOW : SINGLE_WORKFLOW;
-
-const REPORT_WORKFLOW = `name: StyleProof report
-
-# StyleProof report workflow (generated by styleproof-init; refreshed by styleproof-init --upgrade).
-${SCAFFOLD_MARKER_LINE}
-# Trusted default-branch stage:
-# - runs only after the untrusted capture workflow completes;
-# - holds write permissions for comment/status publication${scaffold.storage === 'branch' ? ' and the report branch' : ''};
-# - NEVER checks out or installs PR-controlled code;
-# - resolves PR identity only from the trusted workflow_run event / GitHub API.
-on:
-  workflow_run:
-    workflows: ['StyleProof capture']
-    types: [completed]
-
-permissions:
-  contents: ${scaffold.storage === 'branch' ? 'write' : 'read'}
-  pull-requests: write
-  statuses: write
-  actions: read
-
-jobs:
-  report:
-    if: >-
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download captured style maps
-        uses: actions/download-artifact@v4
-        with:
-          name: styleproof-stylemaps
-          path: \${{ runner.temp }}/styleproof-maps
-          run-id: \${{ github.event.workflow_run.id }}
-          github-token: \${{ github.token }}
-      - id: capture-meta
-        name: Read capture-stage outputs sidecar
-        shell: bash
-        run: |
-          set -euo pipefail
-          meta="\${{ runner.temp }}/styleproof-maps/styleproof-ci-outputs.json"
-          if [ -f "$meta" ]; then
-            failed="$(node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(j.baseCaptureFailed===true?'true':'false')" "$meta")"
-          else
-            failed=false
-          fi
-          echo "base-capture-failed=$failed" >> "$GITHUB_OUTPUT"
-      - uses: BenSheridanEdwards/StyleProof@v7
-        with:
-          baseline-dir: \${{ runner.temp }}/styleproof-maps/base
-          fresh-dir: \${{ runner.temp }}/styleproof-maps/head
-          base-capture-failed: \${{ steps.capture-meta.outputs.base-capture-failed }}
-          ${REPORT_STORAGE_INPUT}
-          ${GATE_INPUT}
-`;
-
-function writeFileSafe(file, contents, { force: f } = {}) {
-  const state = generatedPathState(file);
-  const exists = state.kind !== 'missing';
-  if (state.kind !== 'missing' && state.kind !== 'file') return { wrote: false, exists: true, unmanaged: true };
-  if (state.kind === 'file') {
-    try {
-      fs.accessSync(file, fs.constants.R_OK);
-    } catch {
-      return { wrote: false, exists: true, unmanaged: true };
-    }
-  }
-  if (exists && !f) return { wrote: false, exists: true };
-  if (!generatedPathIsWritable(file, state)) return { wrote: false, exists, unmanaged: true };
-  try {
-    fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
-    fs.writeFileSync(file, contents);
-  } catch {
-    return { wrote: false, exists, unmanaged: true };
-  }
-  return { wrote: true, exists };
-}
-
-function generatedPathIsWritable(file, state = generatedPathState(file)) {
-  try {
-    if (state.kind === 'file') {
-      fs.accessSync(file, fs.constants.R_OK | fs.constants.W_OK);
-      return true;
-    }
-    if (state.kind !== 'missing') return false;
-
-    let parent = path.dirname(path.resolve(file));
-    while (true) {
-      const parentState = hookPathState(parent);
-      if (parentState.kind === 'directory') {
-        fs.accessSync(parent, fs.constants.W_OK | fs.constants.X_OK);
-        return true;
-      }
-      if (parentState.kind !== 'missing') return false;
-      const next = path.dirname(parent);
-      if (next === parent) return false;
-      parent = next;
-    }
-  } catch {
-    return false;
-  }
-}
-
-function decodeUtf8Exact(bytes) {
-  const text = bytes.toString('utf8');
-  return Buffer.from(text, 'utf8').equals(bytes) ? text : undefined;
-}
-
-function reportUnmanagedGeneratedPath(file) {
-  console.log(`unmanaged ${file} (left unchanged; generated destination is unsafe or non-regular)`);
-}
-
-function ensureGitignoreLines(lines) {
-  const file = '.gitignore';
-  const state = generatedPathState(file);
-  if (state.kind !== 'missing' && state.kind !== 'file') return { added: [], unmanaged: true };
-
-  let existing = '';
-  if (state.kind === 'file') {
-    try {
-      fs.accessSync(file, fs.constants.R_OK | fs.constants.W_OK);
-      existing = decodeUtf8Exact(fs.readFileSync(file));
-      if (existing === undefined) return { added: [], unmanaged: true };
-    } catch {
-      return { added: [], unmanaged: true };
-    }
-  }
-
-  const present = new Set(existing.split(/\r?\n/));
-  const added = lines.filter((line) => !present.has(line));
-  if (!added.length) return { added, unmanaged: false };
-  const prefix = existing && !existing.endsWith('\n') ? '\n' : '';
-  const result = writeFileSafe(file, `${existing}${prefix}${added.join('\n')}\n`, { force: true });
-  return result.unmanaged ? { added: [], unmanaged: true } : { added, unmanaged: false };
-}
-
-// Pre-push publish hook — the default fast path. Capture locally at push time and
-// publish to the SHA-keyed styleproof-maps branch; CI restores by SHA and stays
-// report-only. Maps are NEVER committed to the PR branch: a shared tracked map path
-// shows up in every PR's changed files and forces cross-PR rebases on each merge.
-//
-// The hook file is a thin shim: the refspec/docs-only/capture rules live in the
-// packaged styleproof-prepush command, so behavior updates with each styleproof
-// release instead of drifting in a copied bash file per consumer.
-// Only a NON-default spec path gets baked into the hook. With the default,
-// styleproof-prepush resolves the spec itself (flag > env > styleproof.config.json
-// > built-in), so a later config-only spec move doesn't strand a stale baked path.
-const HOOK = `#!/bin/sh
-# StyleProof pre-push (generated by styleproof-init; refresh with: styleproof-init --hook).
-# Capture the pushed commit's map and publish it to the styleproof-maps branch, so CI
-# restores it and reports without a browser. Maps never get committed to the PR branch.
-# The rules (pushed-refspec selection, docs-only skip, restore-before-capture) live in
-# the packaged styleproof-prepush command, which reads git's refspecs from stdin.
-#
-# A skipped capture is always safe — CI just recaptures on a cache miss:
-#   STYLEPROOF_SKIP_CAPTURE=1 git push
-[ "\${STYLEPROOF_SKIP_CAPTURE:-}" = "1" ] && exit 0
-if [ ! -x ./node_modules/.bin/styleproof-prepush ]; then
-  echo "StyleProof: styleproof-prepush is unavailable; CI will capture on cache miss." >&2
-  exit 0
-fi
-${SPEC_PATH_ENV}='${encodedSpecPath}'
-export ${SPEC_PATH_ENV}
-exec ./node_modules/.bin/styleproof-prepush
-`;
-
-function isExecutableFile(file) {
-  try {
-    const stat = fs.lstatSync(file);
-    return stat.isFile() && (process.platform === 'win32' || (stat.mode & 0o111) !== 0);
-  } catch {
-    return false;
-  }
-}
-
-function hookPathState(file) {
-  try {
-    const stat = fs.lstatSync(file);
-    if (stat.isSymbolicLink()) return { kind: 'symlink' };
-    if (stat.isFile()) return { kind: 'file' };
-    if (stat.isDirectory()) return { kind: 'directory' };
-    return { kind: 'other' };
-  } catch (error) {
-    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return { kind: 'missing' };
-    return { kind: 'unreadable' };
-  }
-}
-
-function pathStateWithin(file, trustedRoot) {
-  const root = path.resolve(trustedRoot);
-  const absolute = path.resolve(file);
-  const relative = path.relative(root, absolute);
-  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    return { kind: 'outside' };
-  }
-
-  let current = root;
-  for (const part of relative.split(path.sep).slice(0, -1)) {
-    current = path.join(current, part);
-    try {
-      const stat = fs.lstatSync(current);
-      if (stat.isSymbolicLink()) return { kind: 'symlink-parent' };
-      if (!stat.isDirectory()) return { kind: 'non-directory-parent' };
-    } catch (error) {
-      if (error?.code === 'ENOENT') break;
-      return { kind: 'unreadable-parent' };
-    }
-  }
-  return hookPathState(absolute);
-}
-
-/** Classify a repository-generated destination without following symlinked parents. */
-function generatedPathState(file) {
-  return pathStateWithin(file, '.');
-}
-
-function defaultHookPathState(file) {
-  const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { encoding: 'utf8' });
-  const commonPath = common.status === 0 ? common.stdout.trim() : '';
-  if (!commonPath || commonPath.includes('\n') || commonPath.includes('\r')) return { kind: 'unreadable-parent' };
-  return pathStateWithin(file, commonPath);
-}
-
-function readRegularTextFile(file) {
-  try {
-    if (generatedPathState(file).kind !== 'file') return undefined;
-    return fs.readFileSync(file, 'utf8');
-  } catch {
-    return undefined;
-  }
-}
-
-function hookConfigScope() {
-  const listed = spawnSync('git', ['worktree', 'list', '--porcelain'], { encoding: 'utf8' });
-  if (listed.status !== 0) return undefined;
-  const worktreeCount = listed.stdout.split('\n').filter((line) => line.startsWith('worktree ')).length;
-  if (worktreeCount <= 1) return { flag: '--local', label: 'local repository' };
-
-  const enabled = spawnSync('git', ['config', '--bool', '--get', 'extensions.worktreeConfig'], {
-    encoding: 'utf8',
-  });
-  if (enabled.status === 0 && enabled.stdout.trim() === 'true') {
-    return { flag: '--worktree', label: 'current worktree' };
-  }
-  return undefined;
-}
-
-function reportHuskyHookStatus({ hookPath, configuredPath, activeHookPath, activeHookAbsolute }) {
-  const huskyRoot = path.resolve('.husky');
-  const activeState = generatedPathState(activeHookAbsolute);
-  const executable = activeState.kind === 'file' && isExecutableFile(activeHookAbsolute);
-  if (activeHookAbsolute.startsWith(`${huskyRoot}${path.sep}`) && executable) {
-    console.log(`  Husky manages hook activation via core.hooksPath=${configuredPath}`);
-    return;
-  }
-
-  let reason = 'the active shim is outside Husky';
-  if (activeState.kind === 'missing') reason = 'that active shim does not exist';
-  else if (activeState.kind === 'symlink') reason = 'that active shim is a symlink';
-  else if (activeState.kind !== 'file') reason = `that active shim is ${activeState.kind}`;
-  else if (!executable) reason = 'that active shim is not executable';
-  console.warn(
-    `generated ${hookPath} is inactive: Git resolves pre-push to ${activeHookPath}; ${reason}; ` +
-      `core.hooksPath left unchanged for Husky to manage`,
-  );
-}
-
-function reportMatchingHookStatus({ hookPath, configuredPath, activeHookAbsolute, managed }) {
-  const activeState = generatedPathState(activeHookAbsolute);
-  if (!managed && activeState.kind !== 'file' && activeState.kind !== 'missing') {
-    console.warn(`unmanaged ${hookPath} (left unchanged; hook destination is ${activeState.kind})`);
-    return;
-  }
-  if (activeState.kind !== 'file' || !isExecutableFile(activeHookAbsolute)) {
-    console.warn(
-      `generated ${hookPath} is inactive: Git resolves pre-push there, but the hook ` +
-        `${activeState.kind === 'missing' ? 'does not exist' : 'is not executable'}`,
-    );
-    return;
-  }
-  console.log(
-    managed
-      ? `  ${hookPath} is active via core.hooksPath=${configuredPath}`
-      : `  repository-owned ${hookPath} is active; StyleProof left it unchanged`,
-  );
-}
-
-function activateGeneratedHook(hookPath, generatedHookAbsolute) {
-  const scope = hookConfigScope();
-  if (!scope) {
-    console.warn(
-      `generated ${hookPath} is inactive: multiple linked worktrees require worktree-scoped Git config; ` +
-        `enable it explicitly with: git config extensions.worktreeConfig true && ` +
-        `git config --worktree core.hooksPath .githooks`,
-    );
-    return;
-  }
-  const activated = spawnSync('git', ['config', scope.flag, 'core.hooksPath', '.githooks'], {
-    encoding: 'utf8',
-  });
-  if (activated.status === 0) {
-    const verified = spawnSync('git', ['rev-parse', '--git-path', 'hooks/pre-push'], { encoding: 'utf8' });
-    const verifiedPath = verified.status === 0 ? path.resolve(verified.stdout.trim()) : undefined;
-    if (verifiedPath === generatedHookAbsolute && isExecutableFile(generatedHookAbsolute)) {
-      console.log(`  activated ${hookPath} for the ${scope.label} via core.hooksPath=.githooks`);
-      return;
-    }
-    spawnSync('git', ['config', scope.flag, '--unset', 'core.hooksPath'], { encoding: 'utf8' });
-  }
-  console.warn(`generated ${hookPath} is inactive: could not set worktree-safe core.hooksPath`);
-}
-
-function handleUnconfiguredHook({ hookPath, generatedHookAbsolute, activate, managed }) {
-  if (!managed) {
-    const state = generatedPathState(generatedHookAbsolute);
-    if (state.kind !== 'file') {
-      console.warn(`unmanaged ${hookPath} (left unchanged; hook destination is ${state.kind})`);
-      return;
-    }
-    console.warn(`repository-owned ${hookPath} was left unchanged and inactive; StyleProof did not activate it`);
-    return;
-  }
-  if (!isExecutableFile(generatedHookAbsolute)) {
-    console.warn(
-      `generated ${hookPath} is inactive: the hook is not executable; refresh it with: styleproof-init --hook`,
-    );
-    return;
-  }
-  if (!activate) {
-    console.warn(
-      `generated ${hookPath} is inactive in this checkout; activate with: git config --local core.hooksPath .githooks`,
-    );
-    return;
-  }
-  activateGeneratedHook(hookPath, generatedHookAbsolute);
-}
-
-function reportOrActivateHook(hookDir, hookPath, { activate = true, managed = true } = {}) {
-  const worktree = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' });
-  if (worktree.status !== 0 || worktree.stdout.trim() !== 'true') {
-    console.warn(
-      `generated ${hookPath} is inactive outside a Git worktree; after git init run: git config --local core.hooksPath .githooks`,
-    );
-    return;
-  }
-
-  const configured = spawnSync('git', ['config', '--get', 'core.hooksPath'], { encoding: 'utf8' });
-  const active = spawnSync('git', ['rev-parse', '--git-path', 'hooks/pre-push'], { encoding: 'utf8' });
-  if (active.status !== 0) {
-    console.warn(`generated ${hookPath} is inactive: could not resolve Git's active pre-push hook path`);
-    return;
-  }
-  const activeHookPath = active.stdout.trim();
-  if (!activeHookPath || activeHookPath.includes('\n') || activeHookPath.includes('\r')) {
-    console.warn(`generated ${hookPath} is inactive: Git returned an ambiguous active pre-push hook path`);
-    return;
-  }
-  const activeHookAbsolute = path.resolve(activeHookPath);
-  const generatedHookAbsolute = path.resolve(hookPath);
-  const configuredPath = configured.stdout.trim();
-
-  if (hookDir === '.husky') {
-    reportHuskyHookStatus({ hookPath, configuredPath, activeHookPath, activeHookAbsolute });
-    return;
-  }
-
-  if (activeHookAbsolute === generatedHookAbsolute) {
-    reportMatchingHookStatus({ hookPath, configuredPath, activeHookAbsolute, managed });
-    return;
-  }
-
-  if (configured.status !== 0 && configured.status !== 1) {
-    console.warn(`generated ${hookPath} is inactive: could not read core.hooksPath`);
-    return;
-  }
-
-  if (configured.status === 1) {
-    const activeState = defaultHookPathState(activeHookAbsolute);
-    if (activeState.kind === 'missing') {
-      handleUnconfiguredHook({ hookPath, generatedHookAbsolute, activate, managed });
-      return;
-    }
-    if (activeState.kind === 'file' && isExecutableFile(activeHookAbsolute)) {
-      console.warn(
-        `generated ${hookPath} is inactive: existing active hook at ${activeHookPath} was left unchanged; ` +
-          `integrate styleproof-prepush there or explicitly run: git config --local core.hooksPath .githooks`,
-      );
-      return;
-    }
-    console.warn(
-      `generated ${hookPath} is inactive: default hook at ${activeHookPath} is ${activeState.kind} or not a readable executable; ` +
-        `core.hooksPath left unchanged`,
-    );
-    return;
-  }
-
-  console.warn(
-    `generated ${hookPath} is inactive: core.hooksPath is ${configuredPath} (active hook: ${activeHookPath}); left unchanged. ` +
-      `If you intend to replace it, run: git config --local core.hooksPath .githooks`,
-  );
-}
-
-function installPrePushHook({ force: f = false } = {}) {
-  const hookDir = fs.existsSync('.husky') ? '.husky' : '.githooks';
-  const hookPath = path.join(hookDir, 'pre-push');
-  const hook = writeFileSafe(hookPath, HOOK, { force: f });
-  if (hook.wrote) {
-    fs.chmodSync(hookPath, 0o755);
-    console.log(
-      `${hook.exists ? 'refreshed' : 'created'} ${hookPath} (pre-push capture → publish via styleproof-prepush; maps never land on the PR branch)`,
-    );
-  } else if (hook.unmanaged) {
-    console.log(`unmanaged ${hookPath} (left unchanged; generated destination is unsafe or non-regular)`);
-  } else {
-    console.log(`${hookPath} already exists — left untouched (refresh it with: styleproof-init --hook)`);
-  }
-  const managed = readRegularTextFile(hookPath) === HOOK;
-  reportOrActivateHook(hookDir, hookPath, { activate: managed, managed });
-  return { ...hook, hookPath };
-}
-
-// --hook: (re)write ONLY the pre-push hook — the upgrade path for a hook installed
-// by an older release (init never overwrites it during a full scaffold, so without
-// this a stale copy would outlive every fix shipped to the shim or its flags).
 if (hookOnly) {
-  installPrePushHook({ force: true });
+  installPrePushHook(HOOK, { force: true });
   process.exit(0);
 }
 
-// Thin caller workflow that invokes the upstream reusable approval workflow.
-// This keeps adopter CI minimal while logic improvements ship via StyleProof releases.
-const APPROVE_WORKFLOW = `name: StyleProof approve
-
-# StyleProof approval caller (generated by styleproof-init; refreshed by styleproof-init --upgrade).
-# Thin wrapper that invokes the upstream reusable approval workflow — logic improvements
-# ship via StyleProof releases. The reusable workflow flips the commit status when a
-# write-access reviewer (not the PR author) ticks "Approve all changes".
-#
-# issue_comment workflows only run from the default branch, so this takes effect once
-# merged to main. Until then the approval checkbox is inert.
-on:
-  issue_comment:
-    types: [edited]
-
-# statuses:write flips the gate; pull-requests:read resolves the PR head and
-# author; issues:write posts refusal replies; contents:read verifies
-# branch-published reports; actions:read verifies artifact-published reports.
-permissions:
-  statuses: write
-  pull-requests: read
-  issues: write
-  contents: read
-  actions: read
-
-jobs:
-  approve:
-    uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7
-    with:
-      status-context: StyleProof
-      allow-self-approval: false
-    secrets:
-      token: \${{ secrets.GITHUB_TOKEN }}
-`;
-
-// First line of example/lint-map-artifacts.yml — the packaged template carries it.
-function readLintArtifactsTemplate() {
-  const lintSource = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'example', 'lint-map-artifacts.yml');
-  try {
-    return fs.readFileSync(lintSource, 'utf8');
-  } catch {
-    // Packaged example missing (unexpected) — don't abort the rest of init.
-    console.warn(`could not read the lint-artifacts workflow template at ${lintSource} — skipped`);
-    return undefined;
-  }
-}
-
-// MACHINE-OWNED generated files: their content is fully derived from this release
-// plus init's inputs (spec path, package manager), so `--upgrade` may rewrite them
-// and `--check` can diff them against the current templates. The capture spec and
-// playwright.styleproof.config.ts are USER-owned — never listed here, never touched.
-// (Custom spec path? Pass the same --dir you scaffolded with, so the templates
-// interpolate the matching path.)
-// The file set follows the scaffold axes: the hook exists only with branch
-// storage, the trusted report workflow only with the split layout, and the
-// approval caller only with the review-gate mode.
+// Machine-owned files: fully derived from this release plus init's inputs, so
+// --upgrade may rewrite them and --check can diff them. The spec and playwright
+// config are user-owned and never listed here.
 function machineOwnedFiles() {
-  const lintArtifacts = readLintArtifactsTemplate();
+  const lint = lintArtifactsTemplate();
   return [
-    ...(scaffold.storage === 'branch'
-      ? [
-          {
-            file: hookFilePath(),
-            contents: HOOK,
-            executable: true,
-            ownershipMarker: HOOK_OWNERSHIP_MARKER,
-          },
-        ]
-      : []),
-    { file: CI_PATH, contents: CI_WORKFLOW, ownershipMarker: CI_OWNERSHIP_MARKER },
-    ...(scaffold.workflow === 'split'
-      ? [{ file: REPORT_PATH, contents: REPORT_WORKFLOW, ownershipMarker: REPORT_OWNERSHIP_MARKER }]
-      : []),
-    ...(scaffold.gate === 'review-gate'
-      ? [{ file: APPROVE_PATH, contents: APPROVE_WORKFLOW, ownershipMarker: APPROVE_OWNERSHIP_MARKER }]
-      : []),
-    ...(lintArtifacts === undefined
-      ? []
-      : [{ file: LINT_ARTIFACTS_PATH, contents: lintArtifacts, ownershipMarker: LINT_ARTIFACTS_OWNERSHIP_MARKER }]),
-  ];
+    scaffold.storage === 'branch' && { file: hookFilePath(), contents: HOOK, executable: true, marker: MARKERS.hook },
+    { file: CI_PATH, contents: ciWorkflow(templates), marker: MARKERS.ci },
+    scaffold.workflow === 'split' && { file: REPORT_PATH, contents: reportWorkflow(templates), marker: MARKERS.report },
+    scaffold.gate === 'review-gate' && { file: APPROVE_PATH, contents: APPROVE_WORKFLOW, marker: MARKERS.approve },
+    lint !== undefined && { file: LINT_ARTIFACTS_PATH, contents: lint, marker: MARKERS.lint },
+  ].filter(Boolean);
 }
+// The hook has no stable ownership marker line, so it is "managed" only when byte-identical.
+const isManaged = (entry, existing) =>
+  existing !== undefined &&
+  (entry.marker === MARKERS.hook ? existing === entry.contents : existing.includes(entry.marker));
+const reportHook = (owned, activate) => {
+  const hook = owned.find((entry) => entry.marker === MARKERS.hook);
+  if (!hook) return;
+  const managed = readRegularTextFile(hook.file) === HOOK;
+  if (activate && !managed) return;
+  reportOrActivateHook(path.dirname(hook.file), hook.file, { activate, managed });
+};
 
-// --check: report drift between the machine-owned files on disk and this release's
-// templates, writing NOTHING. Exit 1 on any drift so a consumer CI step can say
-// "a styleproof upgrade changed the generated files — run styleproof-init --upgrade".
-if (checkOnly) {
+if (opts.check) {
+  const owned = machineOwnedFiles();
   let stale = 0;
-  const ownedFiles = machineOwnedFiles();
-  for (const { file, contents, ownershipMarker } of ownedFiles) {
-    const state = generatedPathState(file);
-    const existing = readRegularTextFile(file);
-    if (state.kind === 'missing') {
-      console.log(`missing  ${file}`);
+  for (const entry of owned) {
+    const existing = readRegularTextFile(entry.file);
+    if (generatedPathState(entry.file).kind === 'missing') {
+      console.log(`missing  ${entry.file}`);
       stale++;
-    } else if (existing === undefined) {
-      console.log(`unmanaged ${file} (left to the repository owner)`);
-    } else if (
-      ownershipMarker &&
-      (ownershipMarker === HOOK_OWNERSHIP_MARKER ? existing !== contents : !existing.includes(ownershipMarker))
-    ) {
-      console.log(`unmanaged ${file} (left to the repository owner)`);
-    } else if (stripScaffoldMarker(existing) !== stripScaffoldMarker(contents)) {
-      console.log(`stale    ${file}`);
+    } else if (!isManaged(entry, existing)) {
+      console.log(`unmanaged ${entry.file} (left to the repository owner)`);
+    } else if (stripScaffoldMarker(existing) !== stripScaffoldMarker(entry.contents)) {
+      console.log(`stale    ${entry.file}`);
       stale++;
     } else {
-      console.log(`current  ${file}`);
+      console.log(`current  ${entry.file}`);
     }
   }
-  const hookFile = ownedFiles.find(({ ownershipMarker }) => ownershipMarker === HOOK_OWNERSHIP_MARKER)?.file;
-  if (hookFile) {
-    const managed = readRegularTextFile(hookFile) === HOOK;
-    reportOrActivateHook(path.dirname(hookFile), hookFile, { activate: false, managed });
-  }
+  reportHook(owned, false);
   if (stale) {
     console.log(
       `\n${stale} machine-owned file(s) differ from this styleproof release — run: styleproof-init --upgrade`,
@@ -1447,138 +302,96 @@ if (checkOnly) {
   process.exit(0);
 }
 
-// --upgrade: refresh every machine-owned file to this release's template, leaving
-// the user-owned spec and playwright config alone. Idempotent — an already-current
-// file is reported, not rewritten.
-if (upgrade) {
-  const ownedFiles = machineOwnedFiles();
-  for (const { file, contents, executable, ownershipMarker } of ownedFiles) {
-    const exists = generatedPathState(file).kind !== 'missing';
-    const existing = readRegularTextFile(file);
-    const managed =
-      existing !== undefined &&
-      (!ownershipMarker ||
-        (ownershipMarker === HOOK_OWNERSHIP_MARKER
-          ? stripScaffoldMarker(existing) === stripScaffoldMarker(contents)
-          : existing.includes(ownershipMarker)));
-    if (exists && !managed) {
-      console.log(`unmanaged ${file} (left unchanged; delete it and rerun --upgrade to adopt the packaged template)`);
-      continue;
+if (opts.upgrade) {
+  const owned = machineOwnedFiles();
+  for (const entry of owned) {
+    const existing = readRegularTextFile(entry.file);
+    const exists = generatedPathState(entry.file).kind !== 'missing';
+    if (exists && !isManaged(entry, existing)) {
+      console.log(
+        `unmanaged ${entry.file} (left unchanged; delete it and rerun --upgrade to adopt the packaged template)`,
+      );
+    } else if (stripScaffoldMarker(existing) === stripScaffoldMarker(entry.contents)) {
+      console.log(`current   ${entry.file}`);
+    } else {
+      const wrote = writeFileSafe(entry.file, entry.contents, { force: true });
+      if (wrote.wrote && entry.executable) fs.chmodSync(entry.file, 0o755);
+      if (wrote.wrote) console.log(`${wrote.exists ? 'refreshed' : 'created'} ${entry.file}`);
+      else console.log(`unmanaged ${entry.file} (left unchanged; destination is not a regular file)`);
     }
-    if (stripScaffoldMarker(existing) === stripScaffoldMarker(contents)) {
-      console.log(`current   ${file}`);
-      continue;
-    }
-    const wrote = writeFileSafe(file, contents, { force: true });
-    if (wrote.wrote && executable) fs.chmodSync(file, 0o755);
-    if (wrote.wrote) console.log(`${wrote.exists ? 'refreshed' : 'created'} ${file}`);
-    else console.log(`unmanaged ${file} (left unchanged; destination is not a regular file)`);
   }
-  const hookFile = ownedFiles.find(({ ownershipMarker }) => ownershipMarker === HOOK_OWNERSHIP_MARKER)?.file;
-  if (hookFile && readRegularTextFile(hookFile) === HOOK) {
-    reportOrActivateHook(path.dirname(hookFile), hookFile, { activate: true, managed: true });
-  }
+  reportHook(owned, true);
   console.log('\nmachine-owned files now match this styleproof release (spec and playwright config untouched)');
   process.exit(0);
 }
 
-// Choose the scaffold: routes-aware when this is a Next.js app with discoverable
-// routes, else the generic one-surface starter.
-const routes = discoverNextRoutes(process.cwd());
-const isNext = routes.length > 0;
-const SPEC = isNext ? NEXT_SPEC : GENERIC_SPEC;
-
-let wroteSomething = false;
-// Every path init created or modified this run, so the summary can name exactly what
-// it touched — and, by omission, what it did NOT (init never writes package.json or a
-// lockfile; that's the package manager's `install`, not this scaffolder).
+// Full scaffold. `touched` names exactly what init wrote.
 const touched = [];
+function scaffoldFile(file, contents, { force: f = false, note = '', forceHint = false, onWrite } = {}) {
+  const result = writeFileSafe(file, contents, { force: f });
+  if (result.wrote) {
+    touched.push(file);
+    console.log(`${result.exists ? 'overwrote' : 'created'} ${file}${note ? ` (${note})` : ''}`);
+    onWrite?.();
+  } else if (result.unmanaged) {
+    console.log(`unmanaged ${file} (left unchanged; generated destination is unsafe or non-regular)`);
+  } else {
+    console.log(`${file} already exists — left untouched${forceHint ? ' (use --force to overwrite)' : ''}`);
+  }
+}
 
 if (manifestPath) {
   try {
     const discovered = discoverComponentFiles({ cwd: process.cwd(), roots: componentRoots });
-    const starterManifest = validateComponentManifest(
-      {
-        version: 1,
-        components: discovered.map((component) => ({
-          module: component.path,
-          variants: [{ key: 'default' }],
-        })),
-      },
+    const manifest = validateComponentManifest(
+      { version: 1, components: discovered.map((c) => ({ module: c.path, variants: [{ key: 'default' }] })) },
       { cwd: process.cwd() },
     );
-    const manifest = writeFileSafe(manifestPath, `${JSON.stringify(starterManifest, null, 2)}\n`, { force });
-    if (manifest.wrote) {
-      touched.push(manifestPath);
-      console.log(
-        `${manifest.exists ? 'overwrote' : 'created'} ${manifestPath} (${discovered.length} component file(s))`,
-      );
-      wroteSomething = true;
-    } else if (manifest.unmanaged) {
-      reportUnmanagedGeneratedPath(manifestPath);
-    } else {
-      console.log(`${manifestPath} already exists — left untouched (use --force to overwrite)`);
-    }
+    scaffoldFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, {
+      force,
+      note: `${discovered.length} component file(s)`,
+      forceHint: true,
+    });
   } catch (error) {
-    console.error(`styleproof-init: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(2);
+    fail(NAME, errorMessage(error));
   }
 }
 
-const spec = writeFileSafe(specPath, SPEC, { force });
-if (spec.wrote) {
-  touched.push(specPath);
-  console.log(`${spec.exists ? 'overwrote' : 'created'} ${specPath}`);
-  if (isNext) {
-    const dynamic = routes.filter((r) => r.dynamic).length;
-    console.log(
-      `  detected ${routes.length} Next.js route(s) — wired surfaces + the \`expected\` coverage guard to them` +
-        (dynamic ? ` (${dynamic} dynamic route(s) excluded pending a concrete param)` : ''),
-    );
-  } else {
-    console.log('  no Next.js routes detected — wrote a crawl-by-default spec that captures every');
-    console.log('  surface your nav links to from / (nothing to hand-list; the inventory guard is on)');
-  }
-  wroteSomething = true;
-} else if (spec.unmanaged) {
-  reportUnmanagedGeneratedPath(specPath);
-} else {
-  console.log(`${specPath} already exists — left untouched (use --force to overwrite)`);
-}
+const routes = discoverNextRoutes(process.cwd());
+const isNext = routes.length > 0;
+scaffoldFile(specPath, specTemplate(isNext), {
+  force,
+  forceHint: true,
+  onWrite: () => {
+    if (isNext) {
+      const dynamic = routes.filter((r) => r.dynamic).length;
+      console.log(
+        `  detected ${routes.length} Next.js route(s) — wired surfaces + the \`expected\` coverage guard to them` +
+          (dynamic ? ` (${dynamic} dynamic route(s) excluded pending a concrete param)` : ''),
+      );
+    } else {
+      console.log('  no Next.js routes detected — wrote a crawl-by-default spec that captures every');
+      console.log('  surface your nav links to from / (nothing to hand-list; the inventory guard is on)');
+    }
+  },
+});
 
-const configPath = 'playwright.styleproof.config.ts';
-const config = writeFileSafe(configPath, playwrightConfig(selectedProductionServer), { force });
-if (config.wrote) {
-  touched.push(configPath);
-  console.log(`${config.exists ? 'overwrote' : 'created'} ${configPath} (dedicated StyleProof capture config)`);
-  wroteSomething = true;
-} else if (config.unmanaged) {
-  reportUnmanagedGeneratedPath(configPath);
-} else {
-  console.log(`${configPath} already exists — left untouched (use --force to overwrite)`);
-}
-if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js')) {
+scaffoldFile(
+  'playwright.styleproof.config.ts',
+  playwrightConfigTemplate({ specPath, baseUrl, command: selectedProductionServer }),
+  {
+    force,
+    note: 'dedicated StyleProof capture config',
+    forceHint: true,
+  },
+);
+if (fs.existsSync('playwright.config.ts') || fs.existsSync('playwright.config.js'))
   console.log(
     'app playwright.config exists — left untouched; styleproof-map uses playwright.styleproof.config.ts by default',
   );
-}
+scaffoldFile('styleproof.config.ts', STYLEPROOF_CONFIG_TEMPLATE, { note: 'typed config with defineConfig()' });
 
-// StyleProof config file — typed configuration with defineConfig()
-const styleproofConfig = writeFileSafe(STYLEPROOF_CONFIG_PATH, STYLEPROOF_CONFIG_TEMPLATE);
-if (styleproofConfig.wrote) {
-  touched.push(STYLEPROOF_CONFIG_PATH);
-  console.log(
-    `${styleproofConfig.exists ? 'overwrote' : 'created'} ${STYLEPROOF_CONFIG_PATH} (typed config with defineConfig())`,
-  );
-  wroteSomething = true;
-} else if (styleproofConfig.unmanaged) {
-  reportUnmanagedGeneratedPath(STYLEPROOF_CONFIG_PATH);
-} else {
-  console.log(`${STYLEPROOF_CONFIG_PATH} already exists — left untouched`);
-}
-
-// Map artifact patterns: current (.styleproof/) + legacy (stylemaps/, __stylemaps__/).
-// Legacy patterns prevent accidental commits from old StyleProof versions or renamed dirs.
+// Current (.styleproof/) plus legacy map artifact patterns.
 const gitignore = ensureGitignoreLines([
   '.styleproof/',
   'styleproof-audit.json',
@@ -1587,125 +400,65 @@ const gitignore = ensureGitignoreLines([
   'test-results/',
   'playwright-report/',
 ]);
-if (gitignore.unmanaged) {
-  reportUnmanagedGeneratedPath('.gitignore');
-} else if (gitignore.added.length) {
+if (gitignore.unmanaged)
+  console.log('unmanaged .gitignore (left unchanged; generated destination is unsafe or non-regular)');
+else if (gitignore.added.length) {
   touched.push('.gitignore');
   console.log(`updated .gitignore (${gitignore.added.join(', ')})`);
-  wroteSomething = true;
 }
 
-// CI workflow — never overwrite an existing workflow.
-const ci = writeFileSafe(CI_PATH, CI_WORKFLOW);
-if (ci.wrote) {
-  touched.push(CI_PATH);
-  console.log(
-    `created ${CI_PATH} (${scaffold.workflow === 'split' ? 'read-only StyleProof PR capture' : 'one-job StyleProof PR gate'})`,
-  );
-  wroteSomething = true;
-} else if (ci.unmanaged) {
-  reportUnmanagedGeneratedPath(CI_PATH);
-} else {
-  console.log(`${CI_PATH} already exists — left untouched`);
-}
-
-// Trusted report workflow — split layout only; never checks out PR code.
-if (scaffold.workflow === 'split') {
-  const report = writeFileSafe(REPORT_PATH, REPORT_WORKFLOW);
-  if (report.wrote) {
-    touched.push(REPORT_PATH);
-    console.log(`created ${REPORT_PATH} (trusted StyleProof report stage)`);
-    wroteSomething = true;
-  } else if (report.unmanaged) {
-    reportUnmanagedGeneratedPath(REPORT_PATH);
-  } else {
-    console.log(`${REPORT_PATH} already exists — left untouched`);
-  }
-}
-
-// Approval gate — review-gate mode only. The Action runs with
-// `require-approval: true`, so this thin caller is what makes the "Approve all
-// changes" checkbox live; without it the gate can never go green. GitHub only
-// runs issue_comment workflows from the DEFAULT branch, so it activates when
-// the init PR merges.
-if (scaffold.gate === 'review-gate') {
-  const approve = writeFileSafe(APPROVE_PATH, APPROVE_WORKFLOW);
-  if (approve.wrote) {
-    touched.push(APPROVE_PATH);
-    console.log(`created ${APPROVE_PATH} (approval gate — active once merged to your default branch)`);
-    wroteSomething = true;
-  } else if (approve.unmanaged) {
-    reportUnmanagedGeneratedPath(APPROVE_PATH);
-  } else {
-    console.log(`${APPROVE_PATH} already exists — left untouched`);
-  }
-}
-
-// Lint-artifacts guard — fails the PR if StyleProof map artifacts are accidentally
-// committed to a PR branch. A belt-and-suspenders guard since .gitignore already
-// excludes them, but a misconfigured .gitignore or force-add can still land them.
-// Prevents Vercel and other CI systems from auto-deploying artifact branches.
-const lintArtifactsWorkflow = readLintArtifactsTemplate();
-if (lintArtifactsWorkflow !== undefined) {
-  const lintArtifacts = writeFileSafe(LINT_ARTIFACTS_PATH, lintArtifactsWorkflow);
-  if (lintArtifacts.wrote) {
-    touched.push(LINT_ARTIFACTS_PATH);
-    console.log(`created ${LINT_ARTIFACTS_PATH} (artifact-branch guard — fails PR if maps are committed)`);
-    wroteSomething = true;
-  } else if (lintArtifacts.unmanaged) {
-    reportUnmanagedGeneratedPath(LINT_ARTIFACTS_PATH);
-  } else {
-    console.log(`${LINT_ARTIFACTS_PATH} already exists — left untouched`);
-  }
-}
-
-// Pre-push publish hook — only with --storage branch. The default artifact
-// storage has no map-store branch for the hook to publish to.
+scaffoldFile(CI_PATH, ciWorkflow(templates), {
+  note: scaffold.workflow === 'split' ? 'read-only StyleProof PR capture' : 'one-job StyleProof PR gate',
+});
+if (scaffold.workflow === 'split')
+  scaffoldFile(REPORT_PATH, reportWorkflow(templates), { note: 'trusted StyleProof report stage' });
+if (scaffold.gate === 'review-gate')
+  scaffoldFile(APPROVE_PATH, APPROVE_WORKFLOW, { note: 'approval gate — active once merged to your default branch' });
+const lint = lintArtifactsTemplate();
+if (lint !== undefined)
+  scaffoldFile(LINT_ARTIFACTS_PATH, lint, { note: 'artifact-branch guard — fails PR if maps are committed' });
 if (scaffold.storage === 'branch') {
-  const hook = installPrePushHook();
-  if (hook.wrote) {
-    touched.push(hook.hookPath);
-    wroteSomething = true;
-  }
+  const hook = installPrePushHook(HOOK);
+  if (hook.wrote) touched.push(hook.hookPath);
 }
 
 if (touched.length) {
-  // State exactly what init wrote, and — because adopters have blamed init for the
-  // `styleproof` entry their package manager's `install` added — say plainly that it
-  // did NOT touch package.json or the lockfile. Truth over assumption.
   console.log(`\nstyleproof-init wrote only: ${touched.join(', ')}`);
   console.log('It did NOT modify package.json or your lockfile (that was your package manager’s install).');
 }
 
+const GATE_NOTE = {
+  advisory:
+    'reports but never blocks. When the signal proves out, re-scaffold with --mode certify or --mode review-gate.',
+  certify: 'fails the job on any style diff.',
+  'review-gate': 'sets a red status until a reviewer ticks "Approve all changes".',
+};
+const HOW = {
+  split: [
+    '  1. Merge this scaffold PR first. workflow_run report + approve only run from your',
+    '     default branch — the first PR captures maps but cannot publish the trusted report',
+    '     until styleproof-report.yml (and styleproof-approve.yml) are on default.',
+    '  2. On later PRs, the read-only capture workflow installs and captures under',
+    '     contents: read only, then uploads style maps as an artifact.',
+    '  3. The trusted default-branch report workflow downloads that artifact, diffs,',
+    '     comments, and sets status — without ever checking out PR-controlled code.',
+  ],
+  single: [
+    '  1. One job per pull request: capture base and head maps in place, diff them,',
+    '     and publish the report — no second workflow, no map-store branch.',
+    '  2. Forked pull requests get a read-only token and cannot publish; if you accept',
+    '     fork or Dependabot PRs, re-scaffold with --workflow split.',
+  ],
+};
 console.log('\nHow the gate works:');
-if (scaffold.workflow === 'split') {
-  console.log('  1. Merge this scaffold PR first. workflow_run report + approve only run from your');
-  console.log('     default branch — the first PR captures maps but cannot publish the trusted report');
-  console.log('     until styleproof-report.yml (and styleproof-approve.yml) are on default.');
-  console.log('  2. On later PRs, the read-only capture workflow installs and captures under');
-  console.log('     contents: read only, then uploads style maps as an artifact.');
-  console.log('  3. The trusted default-branch report workflow downloads that artifact, diffs,');
-  console.log('     comments, and sets status — without ever checking out PR-controlled code.');
-} else {
-  console.log('  1. One job per pull request: capture base and head maps in place, diff them,');
-  console.log('     and publish the report — no second workflow, no map-store branch.');
-  console.log('  2. Forked pull requests get a read-only token and cannot publish; if you accept');
-  console.log('     fork or Dependabot PRs, re-scaffold with --workflow split.');
-}
+for (const line of HOW[scaffold.workflow]) console.log(line);
 if (scaffold.storage === 'branch') {
   console.log('  The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
   console.log('  Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
-  console.log('  Reports publish to the styleproof-reports branch — the comment links a rendered report.');
-} else {
-  console.log('  Reports upload as bounded-retention workflow artifacts — nothing enters git history.');
 }
-console.log(
-  `  Gate mode: ${scaffold.gate} — ${scaffold.gate === 'advisory' ? 'reports but never blocks. When the signal proves out, re-scaffold with --mode certify or --mode review-gate.' : scaffold.gate === 'certify' ? 'fails the job on any style diff.' : 'sets a red status until a reviewer ticks "Approve all changes".'}`,
-);
+console.log(`  Gate mode: ${scaffold.gate} — ${GATE_NOTE[scaffold.gate]}`);
 console.log('');
 console.log('  Maps should NEVER be committed to a PR branch. They travel via the styleproof-maps');
 console.log('  branch (--storage branch) or job-local dirs — committed maps bloat the repo and');
 console.log('  force cross-PR rebases.');
-
-if (!wroteSomething) console.log('\nnothing to write — project already scaffolded.');
-process.exit(0);
+if (!touched.length) console.log('\nnothing to write — project already scaffolded.');

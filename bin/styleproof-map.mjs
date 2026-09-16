@@ -398,13 +398,14 @@ function runOracleCaptures(extraRunDirs) {
   return 0;
 }
 
-const oracleReceipt = (runDir) =>
-  determinismRunReceipt(
+function oracleReceipt(runDir) {
+  return determinismRunReceipt(
     fs
       .readdirSync(runDir)
       .filter(isMapFile)
       .map((file) => [file.replace(/\.json(\.gz)?$/, ''), loadStyleMap(path.join(runDir, file))]),
   );
+}
 
 /** Compare every run's receipt; on success stamp the receipt + ledger. Returns the exit code. */
 function recordOracleVerdict(runDirs) {

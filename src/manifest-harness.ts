@@ -31,6 +31,7 @@ import {
   type ComponentManifestVariant,
   validateComponentManifest,
 } from './component-manifest.js';
+import { toSlash } from './util.js';
 
 export type StaticModuleExports = {
   /** Named exports, including `'default'` when the module exports a default. */
@@ -59,10 +60,6 @@ export type CollectManifestDiagnosticsOptions = {
   /** Same semantics as {@link validateComponentManifest}: root for file-existence checks. */
   cwd?: string;
 };
-
-function toSlash(value: string): string {
-  return value.replace(/\\/g, '/');
-}
 
 function registryEntry(registry: ComponentStaticRegistry, modulePath: string): StaticModuleExports | undefined {
   const key = toSlash(modulePath);

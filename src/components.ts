@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Surface } from './runner.js';
+import { toSlash } from './util.js';
 
 export type DiscoveredComponent = {
   /** Stable surface key, e.g. `component-dashboard-pr-card`. */
@@ -43,10 +44,6 @@ const DEFAULT_IGNORE = [
   /\.(?:test|spec|stories|story)\.[^/]+$/,
   /\.d\.ts$/,
 ];
-
-function toSlash(file: string): string {
-  return file.split(path.sep).join('/');
-}
 
 function componentKey(root: string, file: string, prefix: string): string {
   const rel = toSlash(path.relative(root, file))

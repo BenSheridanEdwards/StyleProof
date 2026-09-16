@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { errorMessage as errorMessageText } from './util.js';
 
 /** The browsers StyleProof captures can launch. Chromium is always required
  *  (the capture runner and crawl CLIs launch it); webkit only when the
@@ -77,10 +78,6 @@ export function browsersRequiredByCaptureConfig(configText: string | undefined):
 }
 
 type PlaywrightBrowserTypeLike = { executablePath: () => string };
-
-function errorMessageText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function browserTypeFromModule(
   playwrightModule: unknown,

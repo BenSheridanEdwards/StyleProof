@@ -29,7 +29,7 @@
  * Path matching reuses {@link canonicalPath} from the affected-surfaces module
  * so a `./`-prefixed or `//`-collapsed spelling can never dodge the gate.
  */
-import { spawnSync } from 'node:child_process';
+import { runGit } from './node-util.js';
 import { canonicalPath } from './affected-surfaces.js';
 
 /** A readable failure walking ancestors or diffing trees. Callers treat any
@@ -53,10 +53,6 @@ const PACKAGE_MANIFEST_FILE_NAMES = new Set([
   'bun.lock',
   'bun.lockb',
 ]);
-
-function runGit(cwd: string, args: string[]) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
-}
 
 function gitLines(cwd: string, args: string[], what: string): string[] {
   const result = runGit(cwd, args);
