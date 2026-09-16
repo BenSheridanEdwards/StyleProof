@@ -1,9 +1,4 @@
-/**
- * Durable machine JSON + human summary audit trail for StyleProof runs.
- * Captures the full decision provenance: what was captured, compared, and why.
- *
- * @see https://github.com/BenSheridanEdwards/StyleProof/issues/581
- */
+/** Durable machine-JSON audit trail for a StyleProof run: what was captured, compared, and why. */
 
 import type { StyleProofTrustState } from './verdict.js';
 
@@ -12,15 +7,9 @@ export const AUDIT_SCHEMA_VERSION = 1;
 
 export const AUDIT_FILE_NAME = 'styleproof-audit.json';
 
-// ─── Capture Phase ───────────────────────────────────────────────────────────
-
 export type SkippedSurfaceReason = 'auth-boundary' | 'incomplete-ui' | 'timeout' | 'capture-error' | 'excluded';
 
-export type SkippedSurface = {
-  surface: string;
-  reason: SkippedSurfaceReason;
-  acknowledged: boolean;
-};
+export type SkippedSurface = { surface: string; reason: SkippedSurfaceReason; acknowledged: boolean };
 
 export type CaptureAudit = {
   surfacesCaptured: number;
@@ -30,8 +19,6 @@ export type CaptureAudit = {
   totalMapsWritten: number;
   captureTimeMs: number;
 };
-
-// ─── Comparison Phase ────────────────────────────────────────────────────────
 
 export type BaselineSource = 'exact-restore' | 'ancestor-reuse' | 'captured' | 'degraded' | 'none';
 
@@ -45,15 +32,9 @@ export type ComparisonAudit = {
   contentChanges: number;
 };
 
-// ─── Trust Decision ──────────────────────────────────────────────────────────
-
 export type TrustCheckResult = 'bound' | 'clean' | 'complete' | 'proven' | 'found' | 'advisory' | 'failed' | 'unknown';
 
-export type TrustCheck = {
-  check: string;
-  result: TrustCheckResult;
-  detail: string;
-};
+export type TrustCheck = { check: string; result: TrustCheckResult; detail: string };
 
 export type TrustDecision = {
   finalState: StyleProofTrustState;
@@ -63,8 +44,6 @@ export type TrustDecision = {
   exitReason: string;
 };
 
-// ─── Budget ──────────────────────────────────────────────────────────────────
-
 export type BudgetAudit = {
   surfaceTimeoutMs: number;
   totalBudgetMs: number;
@@ -72,8 +51,6 @@ export type BudgetAudit = {
   statesSkipped: number;
   statesSkippedReasons: string[];
 };
-
-// ─── Full Audit Receipt ──────────────────────────────────────────────────────
 
 export type StyleProofAudit = {
   version: typeof AUDIT_SCHEMA_VERSION;
@@ -87,30 +64,24 @@ export type StyleProofAudit = {
   budget?: BudgetAudit;
 };
 
-// ─── Builder Helpers ─────────────────────────────────────────────────────────
+export const createEmptyCaptureAudit = (): CaptureAudit => ({
+  surfacesCaptured: 0,
+  surfacesSkipped: 0,
+  skippedReasons: [],
+  widthsPerSurface: {},
+  totalMapsWritten: 0,
+  captureTimeMs: 0,
+});
 
-export function createEmptyCaptureAudit(): CaptureAudit {
-  return {
-    surfacesCaptured: 0,
-    surfacesSkipped: 0,
-    skippedReasons: [],
-    widthsPerSurface: {},
-    totalMapsWritten: 0,
-    captureTimeMs: 0,
-  };
-}
-
-export function createEmptyComparisonAudit(): ComparisonAudit {
-  return {
-    baselineSource: 'none',
-    baselineSha: null,
-    surfacesCompared: 0,
-    surfacesNew: 0,
-    surfacesRemoved: 0,
-    changesFound: 0,
-    contentChanges: 0,
-  };
-}
+export const createEmptyComparisonAudit = (): ComparisonAudit => ({
+  baselineSource: 'none',
+  baselineSha: null,
+  surfacesCompared: 0,
+  surfacesNew: 0,
+  surfacesRemoved: 0,
+  changesFound: 0,
+  contentChanges: 0,
+});
 
 export type CreateAuditOptions = {
   runId: string;

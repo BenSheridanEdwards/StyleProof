@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-// Scaffold StyleProof into a project: the capture spec, a dedicated Playwright
-// config, styleproof.config.ts, the CI workflow(s), and (with --storage branch)
-// the pre-push hook. Idempotent: existing user-owned files are never overwritten
-// without --force; machine-owned files are refreshed by --upgrade and audited by --check.
-// Exit 0 = done, 1 = --check found drift, 2 = usage error.
+// Scaffold StyleProof into a project: spec, Playwright config, styleproof.config.ts,
+// CI workflow(s), and (with --storage branch) the pre-push hook. User-owned files are
+// never overwritten without --force; machine-owned files are refreshed by --upgrade
+// and audited by --check. Exit 0 = done, 1 = --check found drift, 2 = usage error.
 import fs from 'node:fs';
 import path from 'node:path';
-// Leaf modules only: init scaffolds files and must never load the capture graph.
+// Leaf modules only: init must never load the capture graph.
 import { discoverNextRoutes } from '../dist/routes.js';
 import { discoverComponentFiles } from '../dist/components.js';
 import { validateComponentManifest } from '../dist/component-manifest.js';
@@ -193,8 +192,7 @@ if (opts['validate-server']) {
 }
 const selectedProductionServer = hookOnly ? undefined : productionServerOrExit();
 
-// Scaffold axes: explicit flags > the marker line of an existing workflow > which
-// marker-bearing files exist (pre-marker scaffolds always emitted all of them).
+// Scaffold axes: explicit flags > an existing workflow's marker line > which marker-bearing files exist.
 const CI_PATH = '.github/workflows/styleproof.yml';
 const REPORT_PATH = '.github/workflows/styleproof-report.yml';
 const APPROVE_PATH = '.github/workflows/styleproof-approve.yml';
@@ -249,9 +247,8 @@ if (hookOnly) {
   process.exit(0);
 }
 
-// Machine-owned files: fully derived from this release plus init's inputs, so
-// --upgrade may rewrite them and --check can diff them. The spec and playwright
-// config are user-owned and never listed here.
+// Machine-owned files are derived from this release plus init's inputs, so --upgrade may
+// rewrite them and --check can diff them. The spec and playwright config are user-owned.
 function machineOwnedFiles() {
   const lint = lintArtifactsTemplate();
   return [
@@ -274,22 +271,27 @@ const reportHook = (owned, activate) => {
   reportOrActivateHook(path.dirname(hook.file), hook.file, { activate, managed });
 };
 
+/** missing | unmanaged | stale | current, against this release's template. */
+function ownedFileState(entry) {
+  if (generatedPathState(entry.file).kind === 'missing') return 'missing';
+  const existing = readRegularTextFile(entry.file);
+  if (!isManaged(entry, existing)) return 'unmanaged';
+  return stripScaffoldMarker(existing) === stripScaffoldMarker(entry.contents) ? 'current' : 'stale';
+}
+
 if (opts.check) {
   const owned = machineOwnedFiles();
+  const CHECK_LINE = {
+    missing: (file) => `missing  ${file}`,
+    unmanaged: (file) => `unmanaged ${file} (left to the repository owner)`,
+    stale: (file) => `stale    ${file}`,
+    current: (file) => `current  ${file}`,
+  };
   let stale = 0;
   for (const entry of owned) {
-    const existing = readRegularTextFile(entry.file);
-    if (generatedPathState(entry.file).kind === 'missing') {
-      console.log(`missing  ${entry.file}`);
-      stale++;
-    } else if (!isManaged(entry, existing)) {
-      console.log(`unmanaged ${entry.file} (left to the repository owner)`);
-    } else if (stripScaffoldMarker(existing) !== stripScaffoldMarker(entry.contents)) {
-      console.log(`stale    ${entry.file}`);
-      stale++;
-    } else {
-      console.log(`current  ${entry.file}`);
-    }
+    const state = ownedFileState(entry);
+    console.log(CHECK_LINE[state](entry.file));
+    if (state === 'missing' || state === 'stale') stale++;
   }
   reportHook(owned, false);
   if (stale) {
@@ -305,13 +307,12 @@ if (opts.check) {
 if (opts.upgrade) {
   const owned = machineOwnedFiles();
   for (const entry of owned) {
-    const existing = readRegularTextFile(entry.file);
-    const exists = generatedPathState(entry.file).kind !== 'missing';
-    if (exists && !isManaged(entry, existing)) {
+    const state = ownedFileState(entry);
+    if (state === 'unmanaged') {
       console.log(
         `unmanaged ${entry.file} (left unchanged; delete it and rerun --upgrade to adopt the packaged template)`,
       );
-    } else if (stripScaffoldMarker(existing) === stripScaffoldMarker(entry.contents)) {
+    } else if (state === 'current') {
       console.log(`current   ${entry.file}`);
     } else {
       const wrote = writeFileSafe(entry.file, entry.contents, { force: true });
@@ -325,7 +326,7 @@ if (opts.upgrade) {
   process.exit(0);
 }
 
-// Full scaffold. `touched` names exactly what init wrote.
+// Full scaffold; `touched` names exactly what init wrote.
 const touched = [];
 function scaffoldFile(file, contents, { force: f = false, note = '', forceHint = false, onWrite } = {}) {
   const result = writeFileSafe(file, contents, { force: f });

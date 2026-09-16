@@ -1,5 +1,5 @@
-// Safe writes into a consumer repository: classify destinations without following
-// symlinked parents, never overwrite unless told to, and never touch non-regular files.
+// Safe writes into a consumer repository: never follow symlinked parents, never
+// overwrite unless told to, never touch non-regular files.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -67,21 +67,18 @@ export function readRegularTextFile(file) {
   }
 }
 
-function readable(file) {
+const accessible = (file, mode) => {
   try {
-    fs.accessSync(file, fs.constants.R_OK);
+    fs.accessSync(file, mode);
     return true;
   } catch {
     return false;
   }
-}
+};
 
 function writableDestination(file, state) {
   try {
-    if (state.kind === 'file') {
-      fs.accessSync(file, fs.constants.R_OK | fs.constants.W_OK);
-      return true;
-    }
+    if (state.kind === 'file') return accessible(file, fs.constants.R_OK | fs.constants.W_OK);
     if (state.kind !== 'missing') return false;
     for (let parent = path.dirname(path.resolve(file)); ; parent = path.dirname(parent)) {
       const parentState = pathState(parent);
@@ -100,7 +97,8 @@ function writableDestination(file, state) {
 export function writeFileSafe(file, contents, { force = false } = {}) {
   const state = generatedPathState(file);
   const exists = state.kind !== 'missing';
-  if (exists && (state.kind !== 'file' || !readable(file))) return { wrote: false, exists: true, unmanaged: true };
+  if (exists && (state.kind !== 'file' || !accessible(file, fs.constants.R_OK)))
+    return { wrote: false, exists: true, unmanaged: true };
   if (exists && !force) return { wrote: false, exists: true };
   if (!writableDestination(file, state)) return { wrote: false, exists, unmanaged: true };
   try {

@@ -1,33 +1,13 @@
-// Inventory guard — assert the navigable UI doesn't silently shrink.
-//
-// StyleProof's certification diff answers "did surface X change between base and
-// head?" — a same-key regression check. It is structurally blind to a whole class
-// of high-stakes change: a redesign delivered as a NEW surface beside the old one
-// (the diff is old-vs-old, clean), or a nav item / route that DISAPPEARS (a feature
-// stops being reachable). Those aren't restyles — they're the reachable set of the
-// UI shrinking, which is an information-architecture change the pixel diff catches
-// only incidentally, if at all.
-//
-// This module harvests the *navigable inventory* of each captured surface — the
-// user-reachable affordances (route links, tabs, menu items, button-only SPA nav) —
-// keyed by a stable id, then diffs the UNION across a run. A key present on base but
-// absent on head is a REMOVAL: a feature the UI no longer offers. Removals gate
-// (like the `exclude` coverage ledger) unless explicitly acknowledged with a reason,
-// so "we dropped Model Config" is a decision on the record, never a silent green.
-//
-// The harvest (`collectNavAffordances`) runs in-page, mirroring
-// `detectOverlayCandidates`; the diff/union/guard are pure and unit-testable.
+// Inventory guard — assert the navigable UI doesn't silently shrink. The certification
+// diff is same-key (old-vs-old) and blind to a nav item or route that DISAPPEARS. This
+// harvests each surface's user-reachable affordances, keyed stably, and diffs the UNION
+// across a run: a key on base but not head is a removal that gates unless acknowledged.
 
 import { INVENTORY_LEDGER, readLedger } from './ack-ledger.js';
 
 /** One user-reachable navigation affordance, keyed stably across base/head. */
 export type NavigableItem = {
-  /**
-   * Stable identity across captures. `route:<pathname><search>` for internal
-   * links; `<role>:<slug(name)>` for tabs / menu items / button-only nav — so a
-   * tab labelled "MODEL CONFIG" keys as `tab:model-config` regardless of styling,
-   * and lines up with an app's own view id.
-   */
+  /** `route:<pathname><search>` for internal links; `<role>:<slug(name)>` (or `<role>:#<id>`) otherwise. */
   key: string;
   kind: 'link' | 'tab' | 'menuitem' | 'nav-button';
   /** Visible accessible name at capture time (for the report). */
@@ -37,7 +17,7 @@ export type NavigableItem = {
 };
 
 export type InventoryDelta = {
-  /** Present on head, absent on base — a newly-offered affordance (informational). */
+  /** Present on head, absent on base (informational). */
   added: NavigableItem[];
   /** Present on base, absent on head — a feature the UI stopped offering (gates). */
   removed: NavigableItem[];
@@ -56,21 +36,17 @@ export type RawAffordance = {
   tag: string;
   role: string;
   name: string;
-  /** pathname+search for a same-origin `<a href>`; null otherwise. Resolved in-page. */
+  /** pathname+search for a same-origin `<a href>`; null otherwise. */
   internalPath: string | null;
-  /** `data-testid` — developer-authored, trusted as a stable identity when present. */
+  /** `data-testid` — developer-authored, trusted as a stable identity. */
   testId: string | null;
-  /** `id` — used as a stable identity only when it doesn't look framework-generated. */
+  /** `id` — a stable identity only when it doesn't look framework-generated. */
   domId: string | null;
   /** `aria-controls` (a tab's panel) — a stable identity when not framework-generated. */
   controls: string | null;
 };
 
-// ── in-page harvest ───────────────────────────────────────────────────────────
-// Split in two: the DOM-touching half stays thin (and serializable to the page,
-// like detectOverlayCandidates); the classification is pure and unit-testable.
-
-/** In-page: collect visible navigable affordances. No classification. */
+/** In-page (serialized by page.evaluate; self-contained): collect visible navigable affordances. */
 export function collectNavAffordances(): RawAffordance[] {
   const visible = (el: Element): boolean => {
     if ((el as HTMLElement).hidden || el.getAttribute('aria-hidden') === 'true') return false;
@@ -81,8 +57,7 @@ export function collectNavAffordances(): RawAffordance[] {
   const nameOf = (el: Element): string =>
     (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
   const internalPath = (el: Element): string | null => {
-    // SVG anchors carry the target in `xlink:href` (legacy) or `href`; fall back so
-    // an <svg><a> nav link resolves like an HTML one.
+    // SVG anchors carry the target in `xlink:href` (legacy) or `href`.
     const raw = (el.getAttribute('href') || el.getAttribute('xlink:href') || '').trim();
     if (!raw || raw.startsWith('#')) return null;
     try {
@@ -92,15 +67,9 @@ export function collectNavAffordances(): RawAffordance[] {
       return null;
     }
   };
-  // Semantic nav first (a[href], role=tab/menuitem, <nav>/tablist buttons); then a
-  // conservative class heuristic for button-only navs that skip ARIA — a container
-  // whose class strongly implies navigation (nav / navtab / subnav / tabs / subtab).
-  // Erring broad is correct here: a stray non-nav button is harmless noise, but a
-  // MISSED nav item defeats the guard. Prefer semantic markup (role=tablist) for
-  // fully reliable harvesting; see docs/inventory-guard.md.
-  // `a[*|href]` (any-namespace href) not `a[href]`: an SVG anchor may carry only the
-  // XLink-namespaced `xlink:href`, which `a[href]` never selects — so the xlink:href
-  // fallback in internalPath would be dead without it.
+  // Semantic nav first, then a conservative class heuristic for button-only navs that skip
+  // ARIA. Erring broad is correct: a stray button is noise, a MISSED nav item defeats the guard.
+  // `a[*|href]` (any namespace) so an SVG anchor with only `xlink:href` is selected.
   const SEL =
     'a[*|href], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], nav button, [role="navigation"] button, [role="tablist"] button, [class*="navtab" i] button, [class*="nav-tab" i] button, [class*="subnav" i] button, [class*="subtab" i] button, [class*="tabs" i] button';
   return Array.from(document.querySelectorAll(SEL))
@@ -109,7 +78,6 @@ export function collectNavAffordances(): RawAffordance[] {
       tag: el.tagName.toLowerCase(),
       role: (el.getAttribute('role') || '').toLowerCase(),
       name: nameOf(el),
-      // SVG anchors report tagName `a` (lowercase), HTML reports `A` — match either.
       internalPath: el.tagName.toLowerCase() === 'a' ? internalPath(el) : null,
       testId: el.getAttribute('data-testid'),
       domId: el.getAttribute('id'),
@@ -124,13 +92,7 @@ const slug = (s: string): string =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
 
-/**
- * Whether an `id` / `aria-controls` value is a STABLE identity worth keying on, vs a
- * framework-generated one (React useId `:r0:`, Headless UI `headlessui-tabs-tab-3`,
- * Radix `radix-:r1:`, Emotion hashes) that wobbles across renders/builds. Keying by a
- * generated id would ADD churn, so those fall back to the label slug. (`data-testid` is
- * developer-authored by definition, so it's trusted without this check.)
- */
+/** Whether an `id` / `aria-controls` is a STABLE identity, vs a framework-generated one that wobbles across builds. */
 export function isStableId(id: string | null | undefined): id is string {
   if (!id) return false;
   const v = id.trim();
@@ -141,23 +103,11 @@ export function isStableId(id: string | null | undefined): id is string {
   return true;
 }
 
-// A tab/menuitem/button's stable identity, if it exposes one: a data-testid (trusted),
-// else a non-generated id or aria-controls. Preferred over the label so a count badge
-// or re-label in the text doesn't move the key. (Links already key by href, the most
-// stable target of all.) When absent, we fall back to the label slug — the wobble is a
-// false removed+added, which the guard SURFACES; it never hides a real removal.
-function stableIdOf(c: RawAffordance): string | null {
-  if (c.testId && c.testId.trim()) return c.testId.trim();
-  if (isStableId(c.domId)) return c.domId.trim();
-  if (isStableId(c.controls)) return c.controls.trim();
-  return null;
-}
-
-// `<role>:#<stable-id>` when the affordance exposes a stable identity, else
-// `<role>:<slug(name)>`. The `#` marker keeps id-keys from colliding with slug-keys
-// (a slug never contains `#`).
+// `<role>:#<stable-id>` when the affordance exposes one (testid, then id, then aria-controls),
+// else `<role>:<slug(name)>`. The `#` keeps id-keys from colliding with slug-keys.
 function affordanceKey(role: string, c: RawAffordance): string {
-  const id = stableIdOf(c);
+  const id =
+    c.testId?.trim() || (isStableId(c.domId) && c.domId.trim()) || (isStableId(c.controls) && c.controls.trim());
   return id ? `${role}:#${id}` : `${role}:${slug(c.name)}`;
 }
 
@@ -186,18 +136,7 @@ export async function harvestInventory(page: { evaluate: <T>(fn: () => T) => Pro
   return classifyInventory(await page.evaluate(collectNavAffordances));
 }
 
-// ── pure diff / union / guard ───────────────────────────────────────────────────
-
-/**
- * Did ANY captured map on either side actually carry an inventory?
- *
- * This is the one definition of "the navigable-removal gate had data to run on".
- * An empty union is indistinguishable from "nothing was removed" once diffed, so
- * every consumer that reports or gates on inventory must ask this FIRST — or it
- * will state `navigable set unchanged` about a set it never captured. Keeping the
- * rule here, rather than re-deriving it per caller, stops the report and the diff
- * CLI drifting into two subtly different answers.
- */
+/** Did ANY captured map on either side carry an inventory? Every consumer must ask this FIRST. */
 export function hasCapturedInventory(...sides: Array<Array<{ inventory?: NavigableItem[] } | undefined>>): boolean {
   return sides.some((maps) => maps.some((map) => (map?.inventory?.length ?? 0) > 0));
 }
@@ -221,12 +160,7 @@ export function diffInventory(base: NavigableItem[], head: NavigableItem[]): Inv
   };
 }
 
-/**
- * The gate. Removals that aren't acknowledged in `allowed` (key -> reason) are
- * unexplained — the caller fails on a non-empty result. An `allowed` key that
- * isn't actually removed is a stale acknowledgement, returned separately so the
- * ledger can't quietly rot (mirrors the `exclude` coverage guard).
- */
+/** The gate: unacknowledged removals fail; acknowledged keys that are not removed are stale. */
 export function auditRemovals(
   delta: InventoryDelta,
   allowed: AllowedRemovals = {},
@@ -238,12 +172,7 @@ export function auditRemovals(
   };
 }
 
-/**
- * Run-level entry point: union both sides' per-surface `map.inventory`, diff, and
- * audit removals. This is what a gate calls — pass every base map and every head
- * map (the reachable set is the union across all surfaces). `unexplained` non-empty
- * ⇒ the gate should fail; `staleAllowances` non-empty ⇒ prune the ledger.
- */
+/** Run-level entry: union both sides, diff, audit removals. `unexplained` non-empty ⇒ the gate should fail. */
 export function auditRunInventory(
   baseMaps: Array<{ inventory?: NavigableItem[] } | undefined>,
   headMaps: Array<{ inventory?: NavigableItem[] } | undefined>,

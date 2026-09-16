@@ -45,15 +45,19 @@ const DEFAULT_IGNORE = [
   /\.d\.ts$/,
 ];
 
-function componentKey(root: string, file: string, prefix: string): string {
-  const rel = toSlash(path.relative(root, file))
+/** Slug a path or id into a key segment (kebab-case, no extension, no leading/trailing hyphens). */
+export function componentSlug(input: string): string {
+  return toSlash(input)
     .replace(/\.[^.]+$/, '')
     .replace(/\/index$/, '')
     .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase();
-  return [prefix, rel].filter(Boolean).join('-');
+}
+
+function componentKey(root: string, file: string, prefix: string): string {
+  return [prefix, componentSlug(path.relative(root, file))].filter(Boolean).join('-');
 }
 
 function readDir(dir: string): fs.Dirent[] {
@@ -77,10 +81,8 @@ function assertComponentRoot(root: string, rootInput: string): void {
 }
 
 /**
- * Discover component files so apps can make StyleProof coverage explicit:
- * map these keys to a Storybook/Ladle/custom catalog route, then pass the keys
- * to `expected`. StyleProof inventories files; the app still owns rendering
- * because props, providers, data, portals, and framework bootstraps are app-specific.
+ * Discover component files so apps can make coverage explicit: map these keys to
+ * a catalog route, then pass them to `expected`. The app still owns rendering.
  */
 export function discoverComponentFiles(options: DiscoverComponentFilesOptions): DiscoveredComponent[] {
   const cwd = options.cwd ?? process.cwd();

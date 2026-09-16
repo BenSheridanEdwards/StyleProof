@@ -1,18 +1,14 @@
 #!/usr/bin/env node
-// The canonical pre-push capture → publish flow. The generated hook shim execs
-// this command with git's refspec lines on stdin; all behaviour (which pushed
-// ref to capture, the docs-only skip, restore-before-capture, the advisory
-// diff) lives here so it ships with the release instead of as copied bash.
-//
-// Exit 0 on success or any safe skip (CI recaptures on a cache miss); a failed
-// capture/upload propagates its code and blocks the push.
+// The pre-push capture → publish flow the generated hook shim execs with git's
+// refspec lines on stdin. Exit 0 on success or any safe skip (CI recaptures on a
+// cache miss); a failed capture/upload propagates its code and blocks the push.
 import fs from 'node:fs';
-import { classifyRestoreExit } from '../dist/ci.js';
-import { resolveProjectSpec, specPathForCwd } from '../dist/config.js';
+import { loadStyleProofConfigWithLocation } from '../dist/config.js';
 import { DEFAULT_MAP_DIR, DEFAULT_MAP_LABEL } from '../dist/map-store.js';
 import { choosePrePushCaptureSha, parsePrePushRefs } from '../dist/prepush.js';
-import { decodeSpecPathEnv, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
-import { defineCli, errorMessage, fail, gitOutput, runBin } from './cli.mjs';
+import { validateRepoRelativeSpecPath } from './spec-path-env.mjs';
+import { defineCli, gitOutput, run, runBin } from './cli.mjs';
+import { captureMap, checkoutSpec, dirtyAllowArgs, restoreMap } from './ci-shared.mjs';
 
 const NAME = 'styleproof-prepush';
 const cli = defineCli({
@@ -43,46 +39,29 @@ const cli = defineCli({
 });
 
 const { opts } = cli.parse();
-let spec = opts.spec;
-try {
-  if (!spec) {
-    const resolved = resolveProjectSpec({ startDir: process.cwd(), requireSpec: false });
-    spec = resolved.configFile
-      ? specPathForCwd(resolved.spec, process.cwd())
-      : (decodeSpecPathEnv() ?? resolved.specDeclared);
-  }
-  spec = validateRepoRelativeSpecPath(spec ?? 'e2e/styleproof.spec.ts');
-} catch (error) {
-  fail(NAME, errorMessage(error));
-}
+await run(
+  NAME,
+  () => {
+    const spec = opts.spec
+      ? validateRepoRelativeSpecPath(opts.spec)
+      : checkoutSpec(loadStyleProofConfigWithLocation(), process.cwd());
+    if (process.env.STYLEPROOF_SKIP_CAPTURE === '1') return;
 
-if (process.env.STYLEPROOF_SKIP_CAPTURE === '1') process.exit(0);
+    const choice = choosePrePushCaptureSha({
+      refs: parsePrePushRefs(process.stdin.isTTY ? '' : fs.readFileSync(0, 'utf8')),
+      headSha: gitOutput(['rev-parse', 'HEAD']),
+      changedFiles: (from, to) => gitOutput(['diff', '--name-only', from, to])?.split(/\r?\n/).filter(Boolean),
+    });
+    for (const note of choice.notes) console.error(note);
+    // Nothing to faithfully capture (all deletes / docs-only / a non-checked-out ref).
+    if (!choice.sha) return;
 
-const headSha = gitOutput(['rev-parse', 'HEAD']);
-const stdinText = process.stdin.isTTY ? '' : fs.readFileSync(0, 'utf8');
-const choice = choosePrePushCaptureSha({
-  refs: parsePrePushRefs(stdinText),
-  headSha,
-  changedFiles: (from, to) => gitOutput(['diff', '--name-only', from, to])?.split(/\r?\n/).filter(Boolean),
-});
-for (const note of choice.notes) console.error(note);
-// Nothing to faithfully capture (all deletes / docs-only / a non-checked-out ref).
-if (!choice.sha) process.exit(0);
-
-const mapArgs = ['--sha', choice.sha, '--dir', opts.dir, '--base-dir', opts['base-dir'], '--spec', spec];
-const restore = runBin('styleproof-map', ['--restore', ...mapArgs]);
-const outcome = classifyRestoreExit(restore.status);
-if (outcome === 'fault') {
-  fail(
-    NAME,
-    `map restore hit a map-store/network fault (exit ${restore.status}). Retry the push.`,
-    restore.status ?? 5,
-  );
-}
-if (outcome === 'miss') {
-  const dirtyAllow = opts['dirty-allow'].flatMap((p) => ['--dirty-allow', p]);
-  const capture = runBin('styleproof-map', [...mapArgs, '--upload', ...dirtyAllow]);
-  if ((capture.status ?? 1) !== 0) process.exit(capture.status ?? 1);
-}
-if (opts.diff) runBin('styleproof-diff', []); // advisory: show drift before CI does
-process.exit(0);
+    const mapArgs = ['--sha', choice.sha, '--dir', opts.dir, '--base-dir', opts['base-dir'], '--spec', spec];
+    if (!restoreMap(mapArgs, { next: 'Retry the push.' })) {
+      const status = captureMap(NAME, [...mapArgs, '--upload', ...dirtyAllowArgs(opts['dirty-allow'])]);
+      if (status !== 0) process.exit(status);
+    }
+    if (opts.diff) runBin('styleproof-diff', []); // advisory: show drift before CI does
+  },
+  { exitCode: 2 },
+);

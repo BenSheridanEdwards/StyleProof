@@ -1,28 +1,8 @@
 /**
- * Static registry diagnostics for the typed component manifest (#392 S2).
- *
- * StyleProof never loads component modules itself — no dynamic `import()`, no
- * eval, no AST. The CONSUMER's dev entry already imports every component and
- * provider statically; that set of imports is the only honest picture of what
- * the app can render. Consumers hand StyleProof that picture as a
- * {@link ComponentStaticRegistry}: module path (repo-relative, `/` separators,
- * exactly as the manifest declares it) -> the module's exported names.
- *
- * `collectManifestDiagnostics` walks a manifest against that registry and
- * returns deterministic, framework-neutral diagnostics:
- *   - `missing-export`   a declared component export (or its whole module) is
- *                        not in the static registry;
- *   - `missing-provider` a declared variant provider module is not in the
- *                        static registry;
- *   - `invalid-props`    variant props fail {@link validateComponentManifest}
- *                        serializability;
- *   - `duplicate-keys`   two variants collide on one surface key;
- *   - `invalid-manifest` any other schema failure (fail closed: a manifest
- *                        that cannot be validated is never silently clean).
- *
- * The same module must also satisfy {@link validateComponentManifest} for the
- * manifest to be loadable at all; diagnostics are advisory reporting, schema
- * enforcement stays in the validator.
+ * Static registry diagnostics for the typed component manifest. StyleProof never
+ * loads component modules (no dynamic import, eval, or AST): the consumer hands
+ * over a {@link ComponentStaticRegistry} built from its own static imports, and
+ * the manifest is checked against it. Schema enforcement stays in the validator.
  */
 import {
   ComponentManifestError,
@@ -38,11 +18,7 @@ export type StaticModuleExports = {
   exports: readonly string[];
 };
 
-/**
- * Static consumer registry: repo-relative module path -> exported names.
- * Built from the consumer's own static imports; never populated by loading
- * modules from the manifest (no dynamic import / eval / AST).
- */
+/** Repo-relative module path -> exported names, built from the consumer's own static imports. */
 export type ComponentStaticRegistry = Record<string, StaticModuleExports>;
 
 export type ManifestDiagnosticKind =
@@ -139,13 +115,9 @@ function validationDiagnostics(error: ComponentManifestError): ManifestDiagnosti
 }
 
 /**
- * Collect deterministic diagnostics for `input` against a static registry.
- *
- * Returns `[]` only when the manifest validates AND every declared export and
- * provider is present in the registry. When the manifest itself is invalid,
- * the first validation failure is reported (fail closed: never a silent
- * clean). Other diagnostics follow manifest order (components, then per
- * component: export, then variants).
+ * Deterministic diagnostics for `input` against a static registry: `[]` only when
+ * the manifest validates AND every declared export and provider is registered. An
+ * invalid manifest reports its first validation failure (never a silent clean).
  */
 export function collectManifestDiagnostics(
   input: unknown,

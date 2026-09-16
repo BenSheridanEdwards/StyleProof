@@ -28,6 +28,13 @@ function hookConfigScope() {
     : undefined;
 }
 
+function huskyShimProblem(state, executable) {
+  if (state.kind === 'missing') return 'that active shim does not exist';
+  if (state.kind === 'symlink') return 'that active shim is a symlink';
+  if (state.kind !== 'file') return `that active shim is ${state.kind}`;
+  return executable ? 'the active shim is outside Husky' : 'that active shim is not executable';
+}
+
 function reportHuskyHookStatus({ hookPath, configuredPath, activeHookPath, activeHookAbsolute }) {
   const huskyRoot = path.resolve('.husky');
   const activeState = generatedPathState(activeHookAbsolute);
@@ -36,16 +43,7 @@ function reportHuskyHookStatus({ hookPath, configuredPath, activeHookPath, activ
     console.log(`  Husky manages hook activation via core.hooksPath=${configuredPath}`);
     return;
   }
-  const reason =
-    activeState.kind === 'missing'
-      ? 'that active shim does not exist'
-      : activeState.kind === 'symlink'
-        ? 'that active shim is a symlink'
-        : activeState.kind !== 'file'
-          ? `that active shim is ${activeState.kind}`
-          : !executable
-            ? 'that active shim is not executable'
-            : 'the active shim is outside Husky';
+  const reason = huskyShimProblem(activeState, executable);
   inactive(
     hookPath,
     `Git resolves pre-push to ${activeHookPath}; ${reason}; core.hooksPath left unchanged for Husky to manage`,

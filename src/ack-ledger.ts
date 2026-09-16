@@ -1,9 +1,7 @@
-// Acknowledgement ledgers — the one reader behind every `styleproof.<gate>.json`
-// file (`{ "<key>": <value> }`): inventory removals, data residue, legacy
-// product-state pairs, and critical state obligations. A ledger arms its gate when
-// it is requested (flag or env) or its default file exists in cwd. A requested but
-// missing or malformed ledger throws: a broken file must never silently
-// un-acknowledge a real gap.
+// Acknowledgement ledgers: the one reader behind every `styleproof.<gate>.json`
+// (`{ "<key>": <value> }`). A ledger arms its gate when requested (flag or env)
+// or when its default file exists in cwd. A requested but missing or malformed
+// ledger throws: a broken file must never silently un-acknowledge a real gap.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,28 +17,30 @@ export type LedgerSpec = {
   keyLabel?: string;
 };
 
-export const INVENTORY_LEDGER: LedgerSpec = {
-  label: 'inventory acknowledgement',
-  file: 'styleproof.inventory.json',
-  env: 'STYLEPROOF_INVENTORY',
-};
-export const DATA_RESIDUE_LEDGER: LedgerSpec = {
-  label: 'data-residue acknowledgement',
-  file: 'styleproof.data-residue.json',
-  env: 'STYLEPROOF_DATA_RESIDUE',
-};
-export const LEGACY_PAIRS_LEDGER: LedgerSpec = {
-  label: 'legacy product-state declare',
-  file: 'styleproof.product-state.json',
-  env: 'STYLEPROOF_PRODUCT_STATE',
-  keyLabel: 'legacy product-state pair',
-};
-export const CRITICAL_STATES_LEDGER: LedgerSpec = {
-  label: 'critical-states obligation',
-  file: 'styleproof.critical-states.json',
-  env: 'STYLEPROOF_CRITICAL_STATES',
-  keyLabel: 'critical state obligation',
-};
+const spec = (label: string, file: string, env: string, keyLabel?: string): LedgerSpec => ({
+  label,
+  file,
+  env,
+  keyLabel,
+});
+export const INVENTORY_LEDGER = spec('inventory acknowledgement', 'styleproof.inventory.json', 'STYLEPROOF_INVENTORY');
+export const DATA_RESIDUE_LEDGER = spec(
+  'data-residue acknowledgement',
+  'styleproof.data-residue.json',
+  'STYLEPROOF_DATA_RESIDUE',
+);
+export const LEGACY_PAIRS_LEDGER = spec(
+  'legacy product-state declare',
+  'styleproof.product-state.json',
+  'STYLEPROOF_PRODUCT_STATE',
+  'legacy product-state pair',
+);
+export const CRITICAL_STATES_LEDGER = spec(
+  'critical-states obligation',
+  'styleproof.critical-states.json',
+  'STYLEPROOF_CRITICAL_STATES',
+  'critical state obligation',
+);
 
 function envPath(spec: LedgerSpec, env: NodeJS.ProcessEnv): string | undefined {
   return Object.hasOwn(env, spec.env) && env[spec.env] ? env[spec.env] : undefined;
@@ -74,7 +74,7 @@ function assertSafeLedgerKey(keyLabel: string, key: string): void {
 }
 
 /** The default value parser: a non-empty reason string. */
-export function reasonString(spec: LedgerSpec, raw: unknown, key: string, source: string): string {
+function reasonString(spec: LedgerSpec, raw: unknown, key: string, source: string): string {
   if (typeof raw !== 'string' || raw.trim().length === 0) {
     throw new Error(`${source}: "${key}" must be a non-empty reason string`);
   }
@@ -83,10 +83,7 @@ export function reasonString(spec: LedgerSpec, raw: unknown, key: string, source
 
 export type LedgerValueParser<T> = (spec: LedgerSpec, raw: unknown, key: string, source: string) => T;
 
-/**
- * Read a ledger as `{ key: value }`. `{}` when nothing was requested and the default
- * file is absent; throws when a requested file is missing, unreadable, or malformed.
- */
+/** Read a ledger as `{ key: value }`: `{}` when unrequested and absent; throws when a requested file is missing or malformed. */
 export function readLedger<T = string>(
   spec: LedgerSpec,
   explicitPath?: string,

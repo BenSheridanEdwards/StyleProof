@@ -5,33 +5,15 @@ import { STATE_LAYER_NAMES, stateLayerScreenshotPath, type Rect, type StyleMap }
 
 /**
  * Pixel gate: compare the screenshots a capture already writes (`<surface>.png`
- * plus the forced `:hover` / `:focus` / `:active` layers) and attribute every
- * changed region to the captured elements whose boxes cover it.
- *
- * Computed styles are the CAUSE signal; pixels are the EFFECT. The computed-style
- * differ needs a correspondence between base and head elements before it can
- * compare anything, and it cannot see image content, canvas paint, or font
- * rasterisation at all (issue #473). This module needs no correspondence: it
- * compares the rendered output directly and only then asks the maps which
- * elements sat under each changed region, so the report can still name the
- * element and its computed-style delta.
- *
- * Deterministic captures from the same compatibility environment render
- * byte-identical, so the comparison expects exact equality and tolerates only
- * anti-aliasing noise: a per-pixel YIQ colour distance under `threshold` is not a
- * change, and a connected region smaller than `minRegionPixels` is dropped.
+ * plus the forced-state layers) and attribute every changed region to the
+ * captured elements under it. Pixels are the EFFECT signal (image content, canvas
+ * paint, font rasterisation) and need no element correspondence. Deterministic
+ * captures render byte-identical, so only anti-aliasing noise is tolerated: a
+ * YIQ distance under `threshold`, and regions smaller than `minRegionPixels`.
  */
 
-export type PixelOptions = {
-  /** Per-pixel YIQ colour-distance threshold, 0–1 (default 0.1, the pixelmatch convention). */
-  threshold?: number;
-  /** Connected regions with fewer changed pixels than this are anti-aliasing noise (default 4). */
-  minRegionPixels?: number;
-  /** Grid cell size in px used to cluster changed pixels into regions (default 8). */
-  cell?: number;
-  /** Maximum element paths attributed per region (default 3). */
-  attributionLimit?: number;
-};
+/** Defaults: threshold 0.1 (YIQ distance, pixelmatch convention), minRegionPixels 4 (smaller is anti-aliasing noise), cell 8 (px clustering grid), attributionLimit 3 (element paths per region). */
+export type PixelOptions = { threshold?: number; minRegionPixels?: number; cell?: number; attributionLimit?: number };
 
 /** A captured element under a changed region: its structural path and class list. */
 export type AttributedElement = { path: string; cls: string };
@@ -72,30 +54,27 @@ export type PixelSurfaceResult = {
 
 const DEFAULTS = { threshold: 0.1, minRegionPixels: 4, cell: 8, attributionLimit: 3 };
 
-// ─── colour distance (YIQ, pixelmatch convention) ──────────────────────────────
+// Colour distance (YIQ, pixelmatch convention): RGB→YIQ rows, then weighted squared difference.
+const RGB_TO_YIQ = [
+  [0.29889531, 0.58662247, 0.11448223],
+  [0.59597799, -0.2741761, -0.32180189],
+  [0.21147017, -0.52261711, 0.31114694],
+];
+const YIQ_WEIGHTS = [0.5053, 0.299, 0.1957];
 
-const blendToWhite = (channel: number, alpha: number): number => 255 + (channel - 255) * alpha;
-const rgb2y = (r: number, g: number, b: number): number => r * 0.29889531 + g * 0.58662247 + b * 0.11448223;
-const rgb2i = (r: number, g: number, b: number): number => r * 0.59597799 - g * 0.2741761 - b * 0.32180189;
-const rgb2q = (r: number, g: number, b: number): number => r * 0.21147017 - g * 0.52261711 + b * 0.31114694;
+/** The pixel at byte offset `k`, alpha-blended onto white, as [y, i, q]. */
+function yiq(data: Uint8Array, k: number): number[] {
+  const alpha = data[k + 3]! / 255;
+  const rgb = [0, 1, 2].map((c) => 255 + (data[k + c]! - 255) * alpha);
+  return RGB_TO_YIQ.map((row) => row[0] * rgb[0] + row[1] * rgb[1] + row[2] * rgb[2]);
+}
 
 /** Perceptual distance between the pixels at byte offset `k` (a) and `m` (b). */
 function colorDelta(a: Uint8Array, b: Uint8Array, k: number, m: number): number {
-  const alphaA = a[k + 3]! / 255;
-  const alphaB = b[m + 3]! / 255;
-  const r1 = blendToWhite(a[k]!, alphaA);
-  const g1 = blendToWhite(a[k + 1]!, alphaA);
-  const b1 = blendToWhite(a[k + 2]!, alphaA);
-  const r2 = blendToWhite(b[m]!, alphaB);
-  const g2 = blendToWhite(b[m + 1]!, alphaB);
-  const b2 = blendToWhite(b[m + 2]!, alphaB);
-  const dy = rgb2y(r1, g1, b1) - rgb2y(r2, g2, b2);
-  const di = rgb2i(r1, g1, b1) - rgb2i(r2, g2, b2);
-  const dq = rgb2q(r1, g1, b1) - rgb2q(r2, g2, b2);
-  return 0.5053 * dy * dy + 0.299 * di * di + 0.1957 * dq * dq;
+  const p = yiq(a, k);
+  const q = yiq(b, m);
+  return YIQ_WEIGHTS.reduce((sum, w, i) => sum + w * (p[i] - q[i]) ** 2, 0);
 }
-
-// ─── clustering ────────────────────────────────────────────────────────────────
 
 type Cluster = { minX: number; minY: number; maxX: number; maxY: number; changed: number };
 
@@ -165,8 +144,6 @@ function clusterCells(
   return clusters.map((c) => toPixelSpace(c, cell, width, height));
 }
 
-// ─── comparison ────────────────────────────────────────────────────────────────
-
 type ChangedCells = { cols: number; rows: number; cellCounts: Uint32Array; changedPixels: number };
 
 /** Count changed pixels over the shared area, bucketed into grid cells. */
@@ -194,10 +171,7 @@ function countChangedCells(
   return { cols, rows, cellCounts, changedPixels };
 }
 
-/**
- * The band present on one side only is a change in its own right — a page that
- * grew or shrank — and it has no pixels to compare, so it is one whole region.
- */
+/** The band present on one side only (a page that grew or shrank) is one whole region. */
 function sizeMismatchRegion(before: PNG, after: PNG, width: number, height: number): PixelRegion {
   const bandWidth = Math.max(before.width, after.width);
   const bandHeight = Math.max(before.height, after.height);
@@ -246,16 +220,10 @@ export function comparePngFiles(beforePath: string, afterPath: string, options: 
   return comparePngs(PNG.sync.read(fs.readFileSync(beforePath)), PNG.sync.read(fs.readFileSync(afterPath)), options);
 }
 
-// ─── attribution ───────────────────────────────────────────────────────────────
-
 const intersects = ([ax, ay, aw, ah]: Rect, [bx, by, bw, bh]: Rect): boolean =>
   ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
 
-/**
- * Captured element paths whose box intersects `rect`, smallest box first, so the
- * innermost element under a changed region is named before its containers.
- * `html`/`body` are skipped: every region sits inside them.
- */
+/** Elements whose box intersects `rect`, smallest first (innermost named before its containers); `html`/`body` skipped. */
 export function attributeRegion(map: StyleMap, rect: Rect, limit = DEFAULTS.attributionLimit): AttributedElement[] {
   const candidates: Array<{ path: string; cls: string; area: number }> = [];
   for (const [elementPath, element] of Object.entries(map.elements)) {
@@ -271,7 +239,7 @@ export function attributeRegion(map: StyleMap, rect: Rect, limit = DEFAULTS.attr
 }
 
 /** Attribute every region: head-side elements first, base-side when the head has none there. */
-export function attributeComparison(
+function attributeComparison(
   comparison: PixelComparison,
   before: StyleMap,
   after: StyleMap,
@@ -286,8 +254,6 @@ export function attributeComparison(
   };
 }
 
-// ─── per-surface driver ────────────────────────────────────────────────────────
-
 const LAYERS: PixelLayer[] = ['rest', ...STATE_LAYER_NAMES];
 
 function layerPath(dir: string, surface: string, layer: PixelLayer): string {
@@ -295,11 +261,7 @@ function layerPath(dir: string, surface: string, layer: PixelLayer): string {
   return layer === 'rest' ? `${stem}.png` : stateLayerScreenshotPath(stem, layer);
 }
 
-/**
- * Compare every screenshot layer of one paired surface. A layer absent on both
- * sides was never captured and is skipped; absent on one side only is reported
- * as uncompared so the gate can fail closed instead of reading it as identical.
- */
+/** Compare every screenshot layer of one paired surface; a layer on one side only is reported as uncompared. */
 export function pixelDiffSurface(
   dirA: string,
   dirB: string,

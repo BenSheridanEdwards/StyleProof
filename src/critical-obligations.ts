@@ -1,18 +1,12 @@
-// Critical state obligations — declare state/surface IDs that must certify, or fail closed.
-//
-// The inverse of the legacy-pairs ledger: `styleproof.critical-states.json`
-// (`{"<surface>": {"owner": "...", "reason": "..."}}`) names obligations that MUST
-// produce certifying evidence. When armed, a declared ID whose paired evidence is
-// unproven or incomparable blocks, one with no paired evidence blocks (obligations
-// never silently expire), and one that is also coverage-excluded is contradictory.
+// Critical state obligations (`styleproof.critical-states.json`, `{"<surface>": {"owner", "reason"}}`):
+// IDs that MUST certify. When armed, unproven/incomparable evidence blocks, no
+// evidence blocks (obligations never silently expire), coverage-excluded is contradictory.
 
 import { CRITICAL_STATES_LEDGER, type LedgerSpec, ledgerArmed, readLedger, resolveLedgerPath } from './ack-ledger.js';
 import { surfaceBase } from './surface-keys.js';
 
 export type CriticalObligation = { owner: string; reason: string };
 export type DeclaredCriticalObligations = Record<string, CriticalObligation>;
-
-export const CRITICAL_STATES_FILE = CRITICAL_STATES_LEDGER.file;
 
 const MAX_METADATA_LENGTH = 160;
 

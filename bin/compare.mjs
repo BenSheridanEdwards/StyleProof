@@ -70,8 +70,7 @@ export function compareFlags() {
   };
 }
 
-/** Config is the lowest-precedence layer (flag > env > file > built-in), so a repo whose
- *  config moves the spec or store branch computes the same compatibility key as capture did. */
+/** Flag > env > config file > built-in, so compare computes the same compatibility key as capture did. */
 function captureSource(name, opts) {
   const config = projectConfigOrExit(name);
   const resolved = resolveProjectSpec({ startDir: process.cwd(), requireSpec: false });
@@ -84,11 +83,7 @@ function captureSource(name, opts) {
   };
 }
 
-/**
- * Resolve everything a compare needs before reading maps: the two capture dirs
- * (restored from the map store, or the explicit pair), trusted SHAs, and the
- * armed ledgers. Exits 2 on any usage problem.
- */
+/** The capture dirs (restored or explicit), trusted SHAs, and armed ledgers a compare needs. Exits 2 on usage problems. */
 export function resolveCompareInputs(name, { opts, args, purpose, usage }) {
   let config;
   let configDir;
@@ -130,39 +125,37 @@ export function resolveCompareInputs(name, { opts, args, purpose, usage }) {
     process.exit(2);
   }
 
-  let beforeDir;
-  let afterDir;
-  let cacheCapture = null;
-  if (args.length <= 1) {
-    try {
-      const source = captureSource(name, opts);
-      cacheCapture = resolveCachedCaptureDirs({
-        command: name,
-        args,
-        spec: source.spec,
-        branch: source.branch,
-        remote: source.remote,
-        baseUrl: process.env.BASE_URL,
-        usage,
-      });
-      ({ beforeDir, afterDir } = cacheCapture);
-    } catch (error) {
-      console.error(cachedMapsUnavailableMessage(name, purpose, error));
-      process.exit(2);
-    }
-  } else {
-    if (args.length !== 2) {
-      console.error(`usage: ${name} <beforeDir> <afterDir> [options]  (--help for all options)`);
-      process.exit(2);
-    }
-    [beforeDir, afterDir] = args;
-    for (const dir of args) {
-      if (fs.existsSync(dir)) continue;
-      console.error(missingManualCaptureMessage(name, dir));
-      process.exit(2);
-    }
+  const dirs = args.length <= 1 ? cachedDirs(name, opts, args, purpose, usage) : explicitDirs(name, args);
+  return { ...dirs, requireStateIdentity, expectedBeforeSha, expectedAfterSha, ...ledgers };
+}
+
+function cachedDirs(name, opts, args, purpose, usage) {
+  try {
+    const cacheCapture = resolveCachedCaptureDirs({
+      command: name,
+      args,
+      ...captureSource(name, opts),
+      baseUrl: process.env.BASE_URL,
+      usage,
+    });
+    return { beforeDir: cacheCapture.beforeDir, afterDir: cacheCapture.afterDir, cacheCapture };
+  } catch (error) {
+    console.error(cachedMapsUnavailableMessage(name, purpose, error));
+    return process.exit(2);
   }
-  return { beforeDir, afterDir, cacheCapture, requireStateIdentity, expectedBeforeSha, expectedAfterSha, ...ledgers };
+}
+
+function explicitDirs(name, args) {
+  if (args.length !== 2) {
+    console.error(`usage: ${name} <beforeDir> <afterDir> [options]  (--help for all options)`);
+    process.exit(2);
+  }
+  const missing = args.find((dir) => !fs.existsSync(dir));
+  if (missing) {
+    console.error(missingManualCaptureMessage(name, missing));
+    process.exit(2);
+  }
+  return { beforeDir: args[0], afterDir: args[1], cacheCapture: null };
 }
 
 /** The head coverage ledger's exclusions — a declared critical obligation that is also opted out is contradictory. */
@@ -172,12 +165,8 @@ export function coverageExclusions(afterDir) {
   return JSON.parse(fs.readFileSync(ledgerPath, 'utf8'))?.exclude ?? {};
 }
 
-/**
- * Read both captures inside one bracket: refuse a manifest-less side, bind both
- * manifests to the trusted SHAs, run `read`, and prove the evidence did not change
- * underneath it. Cached (restored) dirs are removed afterwards, so everything that
- * needs the files must happen inside `read`. Exits 2 on failure.
- */
+/** Bind both manifests to the trusted SHAs, run `read`, and prove the evidence did not change
+ *  underneath it. Restored dirs are removed afterwards, so read everything inside `read`. Exits 2 on failure. */
 export function withCaptureDirs(name, inputs, read) {
   const { beforeDir, afterDir } = inputs;
   try {

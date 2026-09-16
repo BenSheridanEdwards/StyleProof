@@ -1,12 +1,10 @@
+import { parseColor } from './canonicalize.js';
 import type { PropChange } from './diff.js';
 
 /**
- * Deterministic, offline plain-English summariser for a crop's changes. Turns a
- * wall of computed-style deltas into a few bullets that tell a reviewer WHAT to
- * look for ("Grid: 2 → 3 columns", "Accent recoloured cyan → red") instead of
- * leaving them to spot the difference. No LLM — just curated rules over the
- * already-summarised property changes, so the same input always yields the same
- * words and it runs with no network.
+ * Deterministic, offline plain-English summariser for a crop's changes: curated
+ * rules over the already-summarised property changes, so the same input always
+ * yields the same words ("Grid: 2 → 3 columns", "Accent recoloured cyan → red").
  */
 
 /** One changed element, with its property deltas already run through summarizeProps. */
@@ -21,7 +19,7 @@ export type ElementChange = {
   states?: string[];
 };
 
-// --- colour naming: nearest of a small, legible palette -----------------------
+// Colour naming: nearest of a small, legible palette.
 const PALETTE: [string, [number, number, number]][] = [
   ['black', [0, 0, 0]],
   ['white', [255, 255, 255]],
@@ -41,15 +39,6 @@ const PALETTE: [string, [number, number, number]][] = [
   ['pink', [236, 64, 122]],
 ];
 
-function parseColor(v: string): [number, number, number, number] | null {
-  // Anchored: only a value that IS a colour parses. An embedded colour inside a
-  // gradient/shadow/url must not stand in for the whole value — that once made a
-  // report show the same "representative" rgba on both sides of a real diff.
-  const m = v.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,/\s]+([\d.]+))?\s*\)$/i);
-  if (!m) return null;
-  return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? 1 : Number(m[4])];
-}
-
 /** Nearest palette word to an rgb point, by squared distance. */
 function nearest(r: number, g: number, b: number): string {
   let best = PALETTE[0][0];
@@ -66,7 +55,7 @@ export function colorName(v: string): string | null {
   if (v === 'transparent') return 'transparent';
   const c = parseColor(v);
   if (!c) return null;
-  const [r, g, b, a] = c;
+  const { r, g, b, a } = c;
   if (a === 0) return 'transparent';
   const best = nearest(r, g, b);
   // Light/dark qualifier for the chromatic colours, where it reads naturally.
@@ -80,7 +69,7 @@ export function colorName(v: string): string | null {
 export function toHex(v: string): string {
   const c = parseColor(v);
   if (!c) return v;
-  const [r, g, b, a] = c;
+  const { r, g, b, a } = c;
   if (a < 1) return `rgba(${r}, ${g}, ${b}, ${a})`;
   const h = (n: number) => n.toString(16).padStart(2, '0');
   return `#${h(r)}${h(g)}${h(b)}`;
@@ -89,7 +78,7 @@ export function toHex(v: string): string {
 /** Canonical key for matching a colour value against the token index. */
 function colorKey(v: string): string | null {
   const c = parseColor(v);
-  return c ? c.join(',') : null;
+  return c ? `${c.r},${c.g},${c.b},${c.a}` : null;
 }
 
 /** Reverse-index a token map (`--red-200` → `rgb(...)`) to value → token name,
@@ -139,7 +128,6 @@ const shift = (before: string, after: string, idxB?: Map<string, string>, idxA?:
   return `${sidePart(b, noop)} → ${sidePart(a, noop)}`;
 };
 
-// --- track counting for grid columns/rows ------------------------------------
 /** Count grid tracks in a `grid-template-*` value, honouring the `Npx ×K` form. */
 export function trackCount(v: string): number {
   if (v === 'none' || !v) return 0;
@@ -148,7 +136,7 @@ export function trackCount(v: string): number {
   return v.split(/\s+/).filter((t) => t && t !== '0px' && t !== '0').length;
 }
 
-// --- per-element phrase building: one small rule per visual category ----------
+// Per-element phrase building: one small rule per visual category.
 type Vals = Map<string, PropChange>;
 /** Token reverse-indexes for each side, so colour rules can name `red-200`. */
 export type DescribeCtx = { tokensBefore?: Map<string, string>; tokensAfter?: Map<string, string> };
@@ -156,21 +144,32 @@ export type DescribeCtx = { tokensBefore?: Map<string, string>; tokensAfter?: Ma
 type Rule = (m: Vals, mark: (...p: string[]) => void, ctx: DescribeCtx) => string[];
 const round = (v: string): boolean => /50%|9999|999px/.test(v);
 
+/** A rule keyed on one prop: consume it (plus `also`), emit one phrase. */
+const single =
+  (prop: string, phrase: (c: PropChange, m: Vals) => string, also: string[] = []): Rule =>
+  (m, mark) => {
+    const c = m.get(prop);
+    if (!c) return [];
+    mark(prop, ...also);
+    return [phrase(c, m)];
+  };
+
 const flexPhrase = (m: Vals, before: string): string => {
   const col = m.get('flex-direction')?.after?.startsWith('column') ? 'vertical ' : '';
   const centered = m.get('justify-content')?.after === 'center' || m.get('align-items')?.after === 'center';
   return `becomes a${centered ? ' centered' : ''} ${col}flex layout (was ${before})`;
 };
-const layoutRule: Rule = (m, mark) => {
-  const d = m.get('display');
-  if (!d) return [];
-  mark('display', 'justify-content', 'align-items', 'flex-direction');
-  if (d.after === 'none') return ['**hidden**'];
-  if (d.before === 'none') return ['**shown**'];
-  if (/flex/.test(d.after)) return [flexPhrase(m, d.before)];
-  if (/grid/.test(d.after)) return [`becomes a grid (was ${d.before})`];
-  return [`display ${d.before} → ${d.after}`];
-};
+const layoutRule = single(
+  'display',
+  (d, m) => {
+    if (d.after === 'none') return '**hidden**';
+    if (d.before === 'none') return '**shown**';
+    if (/flex/.test(d.after)) return flexPhrase(m, d.before);
+    if (/grid/.test(d.after)) return `becomes a grid (was ${d.before})`;
+    return `display ${d.before} → ${d.after}`;
+  },
+  ['justify-content', 'align-items', 'flex-direction'],
+);
 
 const gridRule: Rule = (m, mark) => {
   const out: string[] = [];
@@ -182,9 +181,8 @@ const gridRule: Rule = (m, mark) => {
     if (!g) continue;
     mark(prop);
     const [b, a] = [trackCount(g.before), trackCount(g.after)];
-    // A 0-track side that coincides with a display change is the grid becoming
-    // (or leaving) a grid — the layout rule already names that, so don't add a
-    // confusing "columns: 3 → 0". Only emit a genuine track-count change.
+    // A 0-track side alongside a display change is the grid becoming (or leaving)
+    // a grid, which the layout rule already names; only emit a real track-count change.
     if (b !== a && (b > 0 || a > 0) && !(m.has('display') && (b === 0 || a === 0))) {
       out.push(`**${word}: ${b} → ${a}**`);
     }
@@ -193,25 +191,20 @@ const gridRule: Rule = (m, mark) => {
 };
 
 const noBorder = (v: string): boolean => /^0/.test(v) || v === '(unset)';
-const borderWidthRule: Rule = (m, mark) => {
-  const bw = m.get('border-width');
-  if (!bw) return [];
-  mark('border-width', 'border-style', 'border-color');
-  const wasZero = noBorder(bw.before);
-  const isZero = noBorder(bw.after);
-  if (wasZero && !isZero) return [`gains a ${bw.after} border`];
-  if (!wasZero && isZero) return ['loses its border'];
-  return [`border ${bw.before} → ${bw.after}`];
-};
+const borderWidthRule = single(
+  'border-width',
+  ({ before, after }) => {
+    const [wasZero, isZero] = [noBorder(before), noBorder(after)];
+    if (wasZero && !isZero) return `gains a ${after} border`;
+    return !wasZero && isZero ? 'loses its border' : `border ${before} → ${after}`;
+  },
+  ['border-style', 'border-color'],
+);
 
-const borderRadiusRule: Rule = (m, mark) => {
-  const r = m.get('border-radius');
-  if (!r) return [];
-  mark('border-radius');
-  if (round(r.before) && !round(r.after)) return [`corners squared off (${r.before} → ${r.after})`];
-  if (!round(r.before) && round(r.after)) return ['corners fully rounded'];
-  return [`corner radius ${r.before} → ${r.after}`];
-};
+const borderRadiusRule = single('border-radius', ({ before, after }) => {
+  if (round(before) && !round(after)) return `corners squared off (${before} → ${after})`;
+  return !round(before) && round(after) ? 'corners fully rounded' : `corner radius ${before} → ${after}`;
+});
 
 const colorRule: Rule = (m, mark, ctx) => {
   const fields: [string, string][] = [
@@ -231,46 +224,22 @@ const colorRule: Rule = (m, mark, ctx) => {
   return present.map(([c, w]) => deRole(`${w} ${sh(c)}`));
 };
 
-const fillRule: Rule = (m, mark) => {
-  const bgi = m.get('background-image');
-  if (!bgi) return [];
-  mark('background-image');
-  const kind = (v: string) =>
-    /gradient/.test(v) ? 'a gradient' : /url\(/.test(v) ? 'an image' : v === 'none' ? 'no fill' : v;
-  return [`fill → ${kind(bgi.after)} (was ${kind(bgi.before)})`];
-};
-
-const effectsRule: Rule = (m, mark) => {
-  const out: string[] = [];
-  const sh = m.get('box-shadow');
-  if (sh) {
-    mark('box-shadow');
-    out.push(sh.before === 'none' ? 'gains a shadow' : sh.after === 'none' ? 'loses its shadow' : 'shadow changes');
-  }
-  const op = m.get('opacity');
-  if (op) {
-    mark('opacity');
-    out.push(`opacity ${op.before} → ${op.after}`);
-  }
-  return out;
-};
-
+const fillKind = (v: string) =>
+  /gradient/.test(v) ? 'a gradient' : /url\(/.test(v) ? 'an image' : v === 'none' ? 'no fill' : v;
+const fillRule = single(
+  'background-image',
+  ({ before, after }) => `fill → ${fillKind(after)} (was ${fillKind(before)})`,
+);
+const shadowRule = single('box-shadow', ({ before, after }) =>
+  before === 'none' ? 'gains a shadow' : after === 'none' ? 'loses its shadow' : 'shadow changes',
+);
+const opacityRule = single('opacity', ({ before, after }) => `opacity ${before} → ${after}`);
+const fontSizeRule = single('font-size', ({ before, after }) => `text size ${before} → ${after}`);
 const weight = (v: string): number => Number(v) || (v === 'bold' ? 700 : v === 'normal' ? 400 : NaN);
-const typographyRule: Rule = (m, mark) => {
-  const out: string[] = [];
-  const fs = m.get('font-size');
-  if (fs) {
-    mark('font-size');
-    out.push(`text size ${fs.before} → ${fs.after}`);
-  }
-  const fw = m.get('font-weight');
-  if (fw) {
-    mark('font-weight');
-    const d = weight(fw.after) - weight(fw.before);
-    out.push(Number.isNaN(d) ? `weight ${fw.before} → ${fw.after}` : d > 0 ? 'bolder text' : 'lighter text');
-  }
-  return out;
-};
+const fontWeightRule = single('font-weight', ({ before, after }) => {
+  const d = weight(after) - weight(before);
+  return Number.isNaN(d) ? `weight ${before} → ${after}` : d > 0 ? 'bolder text' : 'lighter text';
+});
 
 const spacingRule: Rule = (m, mark) => {
   const spacing = ['padding', 'margin', 'gap'].filter((p) => m.has(p));
@@ -285,29 +254,19 @@ const RULES: Rule[] = [
   borderRadiusRule,
   colorRule,
   fillRule,
-  effectsRule,
-  typographyRule,
+  shadowRule,
+  opacityRule,
+  fontSizeRule,
+  fontWeightRule,
   spacingRule,
 ];
 
 // Props that rarely matter to a visual reviewer — excluded from the "+N more"
 // tail (they're still in the table) so a bullet stays signal, not noise.
-const LOW_SIGNAL = new Set([
-  'font-family',
-  'letter-spacing',
-  'word-spacing',
-  'flex-grow',
-  'flex-shrink',
-  'flex-basis',
-  'object-fit',
-  'white-space',
-  'text-rendering',
-  '-webkit-font-smoothing',
-  '-webkit-box-orient',
-  'text-overflow',
-  'word-break',
-  'overflow-wrap',
-]);
+const LOW_SIGNAL = new Set(
+  `font-family letter-spacing word-spacing flex-grow flex-shrink flex-basis object-fit white-space text-rendering
+   -webkit-font-smoothing -webkit-box-orient text-overflow word-break overflow-wrap`.split(/\s+/),
+);
 
 /** Build the English phrases for ONE element's deltas, capped so a bullet stays a
  *  glance: the top `cap` rule phrases (rules are priority-ordered), then a single

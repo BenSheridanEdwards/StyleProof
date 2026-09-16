@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-// The packaged selective-remap verdict: given the files a change touched and a
-// module graph, which declared surfaces could have rendered differently? Advisory
-// by design — it never captures or gates on its own. Exit 0 = scoped, 3 = unbounded.
+// Selective-remap verdict: given the changed files and a module graph, which declared
+// surfaces could have rendered differently? Advisory only. Exit 0 = scoped, 3 = unbounded.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -54,8 +53,7 @@ const { opts } = cli.parse();
 const root = opts.root;
 const usageError = (message) => fail(NAME, message);
 
-// The config's "affected" block is the lowest-precedence layer. Loaded from --root:
-// in a monorepo the subpackage's config governs its own graph and surfaces.
+// The config's "affected" block is the lowest-precedence layer, loaded from --root (monorepo-aware).
 const affectedConfig = projectConfigOrExit(NAME, root).affected ?? {};
 const { configDir } = loadStyleProofConfigWithLocation(root);
 const graphPath = opts.graph || (affectedConfig.graph && resolveStyleProofConfigPath(affectedConfig.graph, configDir));
@@ -98,9 +96,8 @@ if (changedFiles.length === 0) {
   const diff = spawnSync('git', ['diff', '--name-only', `${baseRef}...HEAD`], { cwd: root, encoding: 'utf8' });
   if (diff.status !== 0) usageError(`git diff --name-only ${baseRef}...HEAD failed\n${(diff.stderr || '').trim()}`);
   changedFiles = diff.stdout.split(/\r?\n/).filter(Boolean);
-  // git prints repo-root-relative paths; the graph is --root-relative. Strip the
-  // --root prefix (realpath both sides: macOS temp dirs are symlinked) so subpackage
-  // files resolve; a file outside --root keeps its repo path and classifies unbounded.
+  // git prints repo-root-relative paths; the graph is --root-relative. Strip the --root
+  // prefix (realpath both sides: macOS temp dirs are symlinked); a file outside --root stays unbounded.
   const toplevel = gitOutput(['rev-parse', '--show-toplevel'], root);
   if (toplevel) {
     const realpath = (p) => {
@@ -123,10 +120,11 @@ const explanation = explainAffectedSurfaces(result, Object.keys(surfaces), reaso
 if (opts.json) {
   console.error(explanation);
   const keys = Object.keys(surfaces).sort();
+  const hit = (k) => result === 'all' || result.has(k);
   const verdict = {
     verdict: result === 'all' ? 'all' : 'scoped',
-    recapture: result === 'all' ? keys : keys.filter((k) => result.has(k)),
-    reuse: result === 'all' ? [] : keys.filter((k) => !result.has(k)),
+    recapture: keys.filter(hit),
+    reuse: keys.filter((k) => !hit(k)),
     changed: changedFiles,
     ...(reason ? { reason } : {}),
   };

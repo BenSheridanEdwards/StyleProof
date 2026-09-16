@@ -43,7 +43,7 @@ const inputs = resolveCompareInputs(NAME, {
   usage: `usage: ${NAME} [baseRef] [--out <dir>] [options]`,
 });
 const foldDetailsAt = opts['fold-details-at'] === undefined ? undefined : Number(opts['fold-details-at']);
-if (foldDetailsAt !== undefined && Number.isNaN(foldDetailsAt)) {
+if (Number.isNaN(foldDetailsAt)) {
   console.error('--fold-details-at must be a number (or Infinity)');
   process.exit(2);
 }
@@ -94,38 +94,41 @@ if (sourceBindingFailed) {
 }
 
 const consistencyFailed = result.reportConsistency?.ok === false;
-const cleanPrefix = sourceBindingFailed ? '⚠ UNVERIFIED DIAGNOSTIC:' : '✓';
+const { changedSurfaces, oneSidedSurfaces, newSurfaces, totalFindings, contentChanges } = result;
+
+function summaryLine() {
+  if (changedSurfaces > 0) {
+    const newNote = newSurfaces ? ` (+${newSurfaces} new surface(s) with no baseline)` : '';
+    return `✗ ${changedSurfaces} changed surface(s), ${totalFindings} finding(s)${newNote}`;
+  }
+  if (oneSidedSurfaces > 0) {
+    return newSurfaces > 0
+      ? `ℹ ${newSurfaces} new surface(s) with no baseline — report written for review`
+      : `⚠ ${oneSidedSurfaces} removed or baseline-repair-debt surface(s) — report written for review`;
+  }
+  if (consistencyFailed) return '⚠ no presentation changes — report consistency failure written';
+  const prefix = sourceBindingFailed ? '⚠ UNVERIFIED DIAGNOSTIC:' : '✓';
+  if (!includeContent) return `${prefix} no reviewable computed-style changes — content/structure not evaluated`;
+  if (contentChanges > 0) {
+    return `${prefix} no reviewable computed-style changes — ${contentChanges} advisory content/structure change(s) written`;
+  }
+  return `${prefix} no reviewable computed-style or advisory content/structure changes`;
+}
+
 if (consistencyFailed) {
   console.log(`⚠ report consistency: ${result.reportConsistency.reason} — not a clean no-change (fail closed)`);
 }
 console.log(summaryLine());
 console.log(`report: ${result.reportMdPath}`);
-if (includeContent && result.contentChanges > 0) {
-  console.log(`📝 ${result.contentChanges} advisory content change(s) — does not affect the exit code`);
-}
-
-function summaryLine() {
-  if (result.changedSurfaces > 0) {
-    const newNote = result.newSurfaces ? ` (+${result.newSurfaces} new surface(s) with no baseline)` : '';
-    return `✗ ${result.changedSurfaces} changed surface(s), ${result.totalFindings} finding(s)${newNote}`;
-  }
-  if (result.oneSidedSurfaces > 0) {
-    return result.newSurfaces > 0
-      ? `ℹ ${result.newSurfaces} new surface(s) with no baseline — report written for review`
-      : `⚠ ${result.oneSidedSurfaces} removed or baseline-repair-debt surface(s) — report written for review`;
-  }
-  if (consistencyFailed) return '⚠ no presentation changes — report consistency failure written';
-  if (!includeContent) return `${cleanPrefix} no reviewable computed-style changes — content/structure not evaluated`;
-  return result.contentChanges > 0
-    ? `${cleanPrefix} no reviewable computed-style changes — ${result.contentChanges} advisory content/structure change(s) written`
-    : `${cleanPrefix} no reviewable computed-style or advisory content/structure changes`;
+if (includeContent && contentChanges > 0) {
+  console.log(`📝 ${contentChanges} advisory content change(s) — does not affect the exit code`);
 }
 
 // Exit 1 when there is anything to review or any evidence that cannot certify.
 const armedFailure = (audit, keys) => Boolean(audit?.armed) && keys.some((key) => (audit[key]?.length ?? 0) > 0);
 const clean =
-  result.changedSurfaces === 0 &&
-  result.oneSidedSurfaces === 0 &&
+  changedSurfaces === 0 &&
+  oneSidedSurfaces === 0 &&
   !consistencyFailed &&
   result.comparison?.blocksCertification !== true &&
   !armedFailure(result.legacyPairs, ['undeclared', 'staleAcknowledgements']) &&

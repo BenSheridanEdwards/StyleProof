@@ -1,10 +1,6 @@
-// Legacy product-state pair ledger — declare known undeclared pairs, or fail closed.
-//
-// An explicit `productState {id, revision}` makes a pair comparable; the ledger
-// (`styleproof.product-state.json`, `{"<surface>": "<why>"}`) records the remaining
-// unproven pairs. When armed, an unproven pair that is not on the record fails
-// closed; a declared pair stays advisory and never certifies; a stale declaration
-// fails like a stale inventory acknowledgement.
+// Legacy product-state pair ledger (`styleproof.product-state.json`, `{"<surface>": "<why>"}`).
+// When armed, an unproven pair off the record fails closed; a declared pair stays
+// advisory and never certifies; a stale declaration fails like a stale inventory ack.
 
 import { LEGACY_PAIRS_LEDGER, ledgerArmed, readLedger, reconcileLedger, resolveLedgerPath } from './ack-ledger.js';
 import { surfaceBase } from './surface-keys.js';

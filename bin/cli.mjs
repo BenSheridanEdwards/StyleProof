@@ -124,13 +124,10 @@ export function number(name, flag, value, { integer = false, min = -Infinity, ma
   const valid = Number.isFinite(parsed) && (!integer || Number.isInteger(parsed)) && parsed >= min && parsed <= max;
   if (valid) return parsed;
   const kind = integer ? 'integer' : 'number';
-  const range =
-    min === 0 && max === Infinity
-      ? `a finite non-negative ${kind}`
-      : min === 1 && max === Infinity
-        ? `a positive ${kind}`
-        : `${integer ? 'an' : 'a'} ${kind} from ${min} to ${max}`;
-  return fail(name, `--${flag} must be ${range}`);
+  const unbounded = max === Infinity;
+  if (unbounded && min === 0) return fail(name, `--${flag} must be a finite non-negative ${kind}`);
+  if (unbounded && min === 1) return fail(name, `--${flag} must be a positive ${kind}`);
+  return fail(name, `--${flag} must be ${integer ? 'an' : 'a'} ${kind} from ${min} to ${max}`);
 }
 
 /** Read and parse a JSON file, or fail with a usage error naming it. */
@@ -169,6 +166,16 @@ export function childEnv(cwd = process.cwd(), extra = {}) {
 /** Run a sibling styleproof-* command with inherited stdio. */
 export function runBin(command, args, { cwd, env = childEnv(cwd), stdio = 'inherit' } = {}) {
   return spawnSync(process.execPath, [path.join(binDir, `${command}.mjs`), ...args], { stdio, cwd, env });
+}
+
+/** Every regular file under `dir` (recursive); [] when it does not exist. */
+export function filesUnder(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return filesUnder(full);
+    return entry.isFile() ? [full] : [];
+  });
 }
 
 /** `git <args>` stdout (trimmed) or undefined on failure. */

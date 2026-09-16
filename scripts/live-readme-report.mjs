@@ -1,18 +1,14 @@
 #!/usr/bin/env node
-/**
- * One-shot: capture the real demo and write the StyleProof report the README
- * inlines. Not a stitched gallery. The product report is the receipt.
- *
- * Save: rest style + size. Docs: hover / focus / active from state-layer shots.
- */
+// One-shot: capture the real demo and write the StyleProof report the README inlines.
+// Not a stitched gallery — the product report is the receipt.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gzipSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { captureStyleMap, generateStyleMapReport } from '../dist/index.js';
 import { captureStateLayerScreenshots } from '../dist/capture.js';
+import { writeCapture } from './fixture-util.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -40,12 +36,6 @@ async function captureOne(page, extraCss) {
   const map = await captureStyleMap(page, CAPTURE);
   const png = await page.screenshot({ type: 'png', fullPage: true });
   return { map, png };
-}
-
-function writeCapture(dir, surface, map, png) {
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `${surface}.json.gz`), gzipSync(JSON.stringify(map)));
-  fs.writeFileSync(path.join(dir, `${surface}.png`), png);
 }
 
 const browser = await chromium.launch();
@@ -86,11 +76,7 @@ function restingChangesFirst(markdown) {
   const body = markdown.slice(bodyStart);
   const blocks = body.split(/(?=^### )/m);
   const resting = blocks.filter(
-    (block) =>
-      block.startsWith('### ') &&
-      !block.includes('`:hover`') &&
-      !block.includes('`:focus`') &&
-      !block.includes('`:active`'),
+    (block) => block.startsWith('### ') && !['`:hover`', '`:focus`', '`:active`'].some((s) => block.includes(s)),
   );
   const states = blocks.filter((block) => !resting.includes(block));
   return markdown.slice(0, bodyStart) + [...resting, ...states].join('');

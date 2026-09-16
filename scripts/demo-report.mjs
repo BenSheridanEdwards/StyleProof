@@ -1,26 +1,21 @@
 #!/usr/bin/env node
-/**
- * Generate the committed demo report at docs/demo/ — the ACTUAL StyleProof report
- * (real rendered images: clean before/after, the highlighted twin, and the zoom
- * crop for a sub-pixel change), so every PR shows what the report really looks
- * like instead of pasted Markdown nobody can verify.
- *
- *   node scripts/demo-report.mjs           # regenerate docs/demo/ (commit the result)
- *   node scripts/demo-report.mjs --check   # CI: fail if docs/demo/ is stale
- *
- * The inputs are SYNTHETIC and deterministic (drawn with pngjs, not a browser),
- * so the output is byte-stable and the --check gate is robust across machines:
- * it compares the report Markdown and the DECODED PIXELS of each crop (not raw
- * PNG bytes), so zlib differences across Node versions never cause a false stale.
- */
+// Generate the committed demo report at docs/demo/ — the ACTUAL StyleProof report
+// (real rendered images), so every PR shows what the report really looks like.
+//
+//   node scripts/demo-report.mjs           # regenerate docs/demo/ (commit the result)
+//   node scripts/demo-report.mjs --check   # CI: fail if docs/demo/ is stale
+//
+// The inputs are SYNTHETIC and deterministic (drawn with pngjs, not a browser). The
+// --check gate compares the report Markdown and the DECODED PIXELS of each crop, so
+// zlib differences across Node versions never cause a false stale.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
 import { generateStyleMapReport } from '../dist/index.js';
 import { fillRect as fill } from '../dist/png-util.js';
+import { solidPng, writeCapture } from './fixture-util.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_DIR = path.join(here, '..', 'docs', 'demo');
@@ -47,16 +42,11 @@ const CONTENT_ADJACENT = [16, 185, 129];
 const CONTENT_BASE = [239, 68, 68];
 const CONTENT_HEAD = [59, 130, 246];
 
-function newPng(w, h, [r, g, b]) {
-  const png = new PNG({ width: w, height: h });
-  for (let i = 0; i < png.data.length; i += 4) {
-    png.data[i] = r;
-    png.data[i + 1] = g;
-    png.data[i + 2] = b;
-    png.data[i + 3] = 255;
-  }
-  return png;
-}
+const page = () => solidPng(W, H, PAGE);
+const bg = (color) => ({ 'background-color': rgb(color) });
+/** One style-map element; `extra` adds e.g. `text`. */
+const el = (tag, cls, rect, style, extra = {}) => ({ tag, cls, rect, style, ...extra });
+const body = el('body', '', [0, 0, W, H], bg(PAGE));
 
 const CONTENT_GLYPHS = {
   D: ['110', '101', '101', '101', '110'],
@@ -83,98 +73,73 @@ function drawContentWord(png, word, x, y, scale = 2) {
 // One landing "screenshot": dark header with a small caret icon, a CTA button,
 // and a card. `tone` picks the base (before) or head (after) palette.
 function homeScreenshot(tone) {
-  const png = newPng(W, H, PAGE);
+  const base = tone === 'base';
+  const png = page();
   fill(png, 0, 0, W, 64, HEADER); // header bar
   fill(png, 24, 24, 90, 16, BRAND); // brand wordmark
-  fill(png, 150, 40, 12, 16, tone === 'base' ? CARET_BASE : CARET_HEAD); // tiny caret
-  fill(png, 40, 110, 180, 52, tone === 'base' ? CTA_BASE : CTA_HEAD); // CTA
+  fill(png, 150, 40, 12, 16, base ? CARET_BASE : CARET_HEAD); // tiny caret
+  fill(png, 40, 110, 180, 52, base ? CTA_BASE : CTA_HEAD); // CTA
   fill(png, 40, 200, 360, 150, CARD); // card
   fill(png, 450, 200, 400, 80, CONTENT_CONTROL); // contextual content control
   fill(png, 470, 220, 100, 40, CONTENT_ADJACENT); // adjacent control proves context
-  fill(png, 790, 232, 40, 16, tone === 'base' ? CONTENT_BASE : CONTENT_HEAD); // changed label
-  drawContentWord(png, tone === 'base' ? 'OLD' : 'NEW', 798, 235);
+  fill(png, 790, 232, 40, 16, base ? CONTENT_BASE : CONTENT_HEAD); // changed label
+  drawContentWord(png, base ? 'OLD' : 'NEW', 798, 235);
   return PNG.sync.write(png);
 }
 function homeMap(tone) {
+  const base = tone === 'base';
   return makeMap({
-    body: { tag: 'body', cls: '', rect: [0, 0, W, H], style: { 'background-color': rgb(PAGE) } },
-    'body > header:nth-child(1)': {
-      tag: 'header',
-      cls: 'topbar',
-      rect: [0, 0, W, 64],
-      style: { 'background-color': rgb(HEADER) },
-    },
-    'body > header:nth-child(1) > span:nth-child(1)': {
-      tag: 'span',
-      cls: 'caret',
-      rect: [150, 40, 12, 16],
-      style: { color: tone === 'base' ? rgb(CARET_BASE) : rgb(CARET_HEAD) },
-    },
-    'body > main:nth-child(2) > button:nth-child(1)': {
-      tag: 'button',
-      cls: 'cta primary',
-      rect: [40, 110, 180, 52],
-      style: { 'background-color': tone === 'base' ? rgb(CTA_BASE) : rgb(CTA_HEAD) },
-    },
-    'body > main:nth-child(2) > section:nth-child(2)': {
-      tag: 'section',
-      cls: 'card',
-      rect: [40, 200, 360, 150],
-      style: { 'background-color': rgb(CARD) },
-    },
-    'body > main:nth-child(2) > div:nth-child(3)': {
-      tag: 'div',
-      cls: 'content-control',
-      rect: [450, 200, 400, 80],
-      style: { 'background-color': rgb(CONTENT_CONTROL) },
-    },
-    'body > main:nth-child(2) > div:nth-child(3) > button:nth-child(1)': {
-      tag: 'button',
-      cls: 'adjacent-action',
-      rect: [470, 220, 100, 40],
-      style: { 'background-color': rgb(CONTENT_ADJACENT) },
-    },
-    'body > main:nth-child(2) > div:nth-child(3) > span:nth-child(2)': {
-      tag: 'span',
-      cls: 'content-label',
-      rect: [790, 232, 40, 16],
-      text: tone === 'base' ? 'Old' : 'New',
-      style: { color: rgb(BRAND) },
-    },
-    // The property change is auditable, but the element is fully left of the
-    // screenshot canvas. The report must name that limitation instead of
-    // cropping unrelated visible content and presenting it as proof.
-    'body > aside:nth-child(3)': {
-      tag: 'aside',
-      cls: 'off-canvas-status',
-      rect: [-241, 400, 76, 37],
-      style: { opacity: tone === 'base' ? '0.85' : '1' },
-    },
+    body,
+    'body > header:nth-child(1)': el('header', 'topbar', [0, 0, W, 64], bg(HEADER)),
+    'body > header:nth-child(1) > span:nth-child(1)': el('span', 'caret', [150, 40, 12, 16], {
+      color: rgb(base ? CARET_BASE : CARET_HEAD),
+    }),
+    'body > main:nth-child(2) > button:nth-child(1)': el(
+      'button',
+      'cta primary',
+      [40, 110, 180, 52],
+      bg(base ? CTA_BASE : CTA_HEAD),
+    ),
+    'body > main:nth-child(2) > section:nth-child(2)': el('section', 'card', [40, 200, 360, 150], bg(CARD)),
+    'body > main:nth-child(2) > div:nth-child(3)': el(
+      'div',
+      'content-control',
+      [450, 200, 400, 80],
+      bg(CONTENT_CONTROL),
+    ),
+    'body > main:nth-child(2) > div:nth-child(3) > button:nth-child(1)': el(
+      'button',
+      'adjacent-action',
+      [470, 220, 100, 40],
+      bg(CONTENT_ADJACENT),
+    ),
+    'body > main:nth-child(2) > div:nth-child(3) > span:nth-child(2)': el(
+      'span',
+      'content-label',
+      [790, 232, 40, 16],
+      { color: rgb(BRAND) },
+      { text: base ? 'Old' : 'New' },
+    ),
+    // The property change is auditable, but the element is fully left of the canvas:
+    // the report must name that limitation instead of cropping unrelated content.
+    'body > aside:nth-child(3)': el('aside', 'off-canvas-status', [-241, 400, 76, 37], {
+      opacity: base ? '0.85' : '1',
+    }),
   });
 }
 
-// A second surface that exists only on the head — a brand-new page, to show the
-// `🆕 new surface` path (which never gates).
+// A second surface that exists only on the head — the `🆕 new surface` path (never gates).
 function pricingScreenshot() {
-  const png = newPng(W, H, PAGE);
+  const png = page();
   fill(png, 0, 0, W, 64, HEADER);
   fill(png, 40, 120, 820, 220, HERO);
   return PNG.sync.write(png);
 }
-function pricingMap() {
-  return makeMap({
-    body: { tag: 'body', cls: '', rect: [0, 0, W, H], style: { 'background-color': rgb(PAGE) } },
-    'body > section:nth-child(1)': {
-      tag: 'section',
-      cls: 'hero',
-      rect: [40, 120, 820, 220],
-      style: { 'background-color': rgb(HERO) },
-    },
-  });
-}
+const pricingMap = () =>
+  makeMap({ body, 'body > section:nth-child(1)': el('section', 'hero', [40, 120, 820, 220], bg(HERO)) });
 
 function insertionScreenshot(tone) {
-  const png = newPng(W, H, PAGE);
+  const png = page();
   if (tone === 'head') {
     fill(png, 650, 20, 210, 40, SWITCH);
     fill(png, 670, 30, 80, 20, BRAND);
@@ -188,53 +153,36 @@ function insertionScreenshot(tone) {
 }
 
 function insertionMap(tone) {
-  const elements = {
-    body: { tag: 'body', cls: '', rect: [0, 0, W, H], style: { 'background-color': rgb(PAGE) } },
-  };
+  const elements = { body };
   const offset = tone === 'base' ? 0 : 1;
   if (tone === 'head') {
-    elements['body > div:nth-child(1)'] = {
-      tag: 'div',
-      cls: 'scope-switch',
-      rect: [650, 20, 210, 40],
-      style: { 'background-color': rgb(SWITCH) },
-    };
-    elements['body > div:nth-child(1) > button:nth-child(1)'] = {
-      tag: 'button',
-      cls: 'scope-option',
-      rect: [670, 30, 80, 20],
-      style: { color: rgb(BRAND) },
-    };
+    elements['body > div:nth-child(1)'] = el('div', 'scope-switch', [650, 20, 210, 40], bg(SWITCH));
+    elements['body > div:nth-child(1) > button:nth-child(1)'] = el('button', 'scope-option', [670, 30, 80, 20], {
+      color: rgb(BRAND),
+    });
   }
-  elements[`body > div:nth-child(${1 + offset})`] = {
-    tag: 'div',
-    cls: 'toolbar',
-    rect: [40, 20 + offset * 60, 820, 40],
-    style: { 'background-color': rgb(TOOLBAR) },
-  };
-  elements[`body > div:nth-child(${1 + offset}) > button:nth-child(1)`] = {
-    tag: 'button',
-    cls: 'filter',
-    rect: [60, 30 + offset * 60, 100, 20],
-    style: { color: rgb(BRAND) },
-  };
-  elements[`body > div:nth-child(${2 + offset})`] = {
-    tag: 'div',
-    cls: 'grid',
-    rect: [40, 80 + offset * 60, 820, 240],
-    style: { 'background-color': rgb(GRID) },
-  };
-  elements[`body > div:nth-child(${2 + offset}) > article:nth-child(1)`] = {
-    tag: 'article',
-    cls: 'card',
-    rect: [60, 100 + offset * 60, 340, 180],
-    style: { 'background-color': rgb(CARD) },
-  };
+  const dy = offset * 60;
+  elements[`body > div:nth-child(${1 + offset})`] = el('div', 'toolbar', [40, 20 + dy, 820, 40], bg(TOOLBAR));
+  elements[`body > div:nth-child(${1 + offset}) > button:nth-child(1)`] = el(
+    'button',
+    'filter',
+    [60, 30 + dy, 100, 20],
+    {
+      color: rgb(BRAND),
+    },
+  );
+  elements[`body > div:nth-child(${2 + offset})`] = el('div', 'grid', [40, 80 + dy, 820, 240], bg(GRID));
+  elements[`body > div:nth-child(${2 + offset}) > article:nth-child(1)`] = el(
+    'article',
+    'card',
+    [60, 100 + dy, 340, 180],
+    bg(CARD),
+  );
   return makeMap(elements);
 }
 
 function duplicateInsertionScreenshot(tone) {
-  const png = newPng(W, H, PAGE);
+  const png = page();
   fill(png, 0, 0, W, 64, HEADER);
   const count = tone === 'base' ? 1 : 2;
   for (let index = 0; index < count; index++) fill(png, 80, 120 + index * 80, 220, 44, DUPLICATE_CONTROL);
@@ -244,23 +192,17 @@ function duplicateInsertionScreenshot(tone) {
 function duplicateInsertionMap(tone) {
   const count = tone === 'base' ? 1 : 2;
   return makeMap({
-    body: { tag: 'body', cls: '', rect: [0, 0, W, H], style: { 'background-color': rgb(PAGE) } },
+    body,
     ...Object.fromEntries(
       Array.from({ length: count }, (_, index) => [
         `body > button:nth-child(${index + 1})`,
-        {
-          tag: 'button',
-          cls: 'duplicate-control',
-          rect: [80, 120 + index * 80, 220, 44],
-          style: { 'background-color': rgb(DUPLICATE_CONTROL) },
-        },
+        el('button', 'duplicate-control', [80, 120 + index * 80, 220, 44], bg(DUPLICATE_CONTROL)),
       ]),
     ),
   });
 }
 
-// Minimal StyleMap builder (mirrors test/helpers.mjs makeMap) so this script has
-// no test-only dependency.
+// Minimal StyleMap builder (mirrors test/helpers.mjs makeMap) so this script has no test-only dependency.
 function makeMap(elements) {
   const els = {};
   for (const [p, e] of Object.entries(elements)) {
@@ -275,33 +217,20 @@ function makeMap(elements) {
   return { defaults: {}, elements: els, states: {} };
 }
 
-function writeCapture(dir, surface, map, pngBuf) {
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `${surface}.json.gz`), gzipSync(JSON.stringify(map)));
-  fs.writeFileSync(path.join(dir, `${surface}.png`), pngBuf);
-}
-
 // Build the before/after captures into a temp dir, then render the real report.
 function render(outDir) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-demo-'));
   const beforeDir = path.join(work, 'before');
   const afterDir = path.join(work, 'after');
-  writeCapture(beforeDir, 'home@900', homeMap('base'), homeScreenshot('base'));
-  writeCapture(afterDir, 'home@900', homeMap('head'), homeScreenshot('head'));
-  writeCapture(beforeDir, 'sibling-insertion@900', insertionMap('base'), insertionScreenshot('base'));
-  writeCapture(afterDir, 'sibling-insertion@900', insertionMap('head'), insertionScreenshot('head'));
-  writeCapture(
-    beforeDir,
-    'duplicate-insertion@900',
-    duplicateInsertionMap('base'),
-    duplicateInsertionScreenshot('base'),
-  );
-  writeCapture(
-    afterDir,
-    'duplicate-insertion@900',
-    duplicateInsertionMap('head'),
-    duplicateInsertionScreenshot('head'),
-  );
+  const SURFACES = [
+    ['home@900', homeMap, homeScreenshot],
+    ['sibling-insertion@900', insertionMap, insertionScreenshot],
+    ['duplicate-insertion@900', duplicateInsertionMap, duplicateInsertionScreenshot],
+  ];
+  for (const [surface, map, screenshot] of SURFACES) {
+    writeCapture(beforeDir, surface, map('base'), screenshot('base'));
+    writeCapture(afterDir, surface, map('head'), screenshot('head'));
+  }
   // pricing exists only on the head → reported as a new surface.
   writeCapture(afterDir, 'pricing@900', pricingMap(), pricingScreenshot());
 

@@ -17,13 +17,8 @@ import {
   readCapturePlaywrightConfigText,
   resolveBrowserExecutablePath,
 } from '../dist/browser-preflight.js';
-import {
-  loadStyleProofConfigAsync,
-  loadStyleProofConfigWithLocationAsync,
-  resolveStyleProofConfigPath,
-  specPathForCwd,
-} from '../dist/config.js';
-import { ciOutputLines, classifyRestoreExit, detectPackageManagerPlan } from '../dist/ci.js';
+import { loadStyleProofConfigAsync, loadStyleProofConfigWithLocationAsync } from '../dist/config.js';
+import { ciOutputLines, detectPackageManagerPlan } from '../dist/ci.js';
 import { applySpecRefOverlay, CiSpecRefError, resolveSpecRefToSha } from '../dist/ci-spec-ref.js';
 import {
   CiProcessExit,
@@ -37,14 +32,15 @@ import {
 } from '../dist/ci-worktree.js';
 import {
   expectedCompatibilityKey,
-  isMapFile,
   listMapStoreBundleShas,
   restoreMapBundle,
   writeBaselineProvenance,
 } from '../dist/map-store.js';
 import { planAncestorBaselineReuse } from '../dist/ancestor-baseline.js';
-import { decodeSpecPathEnv, harnessMissingAtRef, validateRepoRelativeSpecPath } from './spec-path-env.mjs';
+import { captureKeysIn } from '../dist/capture.js';
+import { harnessMissingAtRef } from './spec-path-env.mjs';
 import { binDir, childEnv, defineCli, emitOutputs, errorMessage, fail } from './cli.mjs';
+import { ExitError, captureMap, checkoutSpec, dirtyAllowArgs, restoreMap } from './ci-shared.mjs';
 
 const NAME = 'styleproof-ci';
 const cli = defineCli({
@@ -110,7 +106,6 @@ const cli = defineCli({
 const { opts } = cli.parse();
 const { base, head } = opts;
 if (!base || !head) fail(NAME, '--base <sha> and --head <sha> are required');
-const specProvided = opts.spec !== undefined;
 let spec = opts.spec;
 let specRef = opts['spec-ref'] ?? '';
 let specRefProvided = specRef !== '';
@@ -132,7 +127,6 @@ if (!process.env.CI && !opts.force) {
   );
 }
 
-const MAP = path.join(binDir, 'styleproof-map.mjs');
 const OWN_VERSION = JSON.parse(fs.readFileSync(path.join(binDir, '..', 'package.json'), 'utf8')).version;
 const root = path.resolve(baseDir);
 const consumerCwd = process.cwd();
@@ -166,21 +160,17 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 /** The spec governing one checkout: an explicit --spec everywhere, otherwise that
  *  checkout's OWN config — after a config-only spec move, each side uses its own path. */
 async function specFor(cwd) {
-  if (specProvided) return spec;
+  if (opts.spec !== undefined) return spec;
   try {
-    const loaded = await loadStyleProofConfigWithLocationAsync(cwd);
-    const declared = loaded.config.spec ?? spec ?? decodeSpecPathEnv() ?? 'e2e/styleproof.spec.ts';
-    const absolute = resolveStyleProofConfigPath(declared, loaded.configDir);
-    const chosen = loaded.configFile ? specPathForCwd(absolute, cwd) : declared;
-    return path.isAbsolute(chosen) ? chosen : validateRepoRelativeSpecPath(chosen);
+    return checkoutSpec(await loadStyleProofConfigWithLocationAsync(cwd), cwd, spec);
   } catch (error) {
-    console.error(`${NAME}: ${errorMessage(error)}`);
+    log(errorMessage(error));
     return bail(2);
   }
 }
 
-// Project config is read AFTER the checkout is pinned to --head: the invoking tree is
-// the PR merge commit, and a head commit that moves the spec must govern this run.
+// Project config is read AFTER the checkout is pinned to --head: a head commit that
+// moves the spec must govern this run.
 let projectConfig;
 try {
   projectConfig = (await loadStyleProofConfigWithLocationAsync(consumerCwd)).config;
@@ -199,6 +189,12 @@ if (specRefIfMissing) {
     specRefProvided = true;
   }
 }
+
+function exitSpecRefError(error) {
+  console.error(errorMessage(error));
+  bail(error instanceof CiSpecRefError ? error.exitCode : 1);
+}
+
 // Resolve a symbolic ref HERE: inside the detached base worktree HEAD is --base, and
 // FETCH_HEAD/MERGE_HEAD do not resolve at all.
 if (specRefProvided) {
@@ -217,20 +213,15 @@ if (specRefProvided) {
 const binFirstPath = (cwd) => `${path.join(cwd, 'node_modules', '.bin')}${path.delimiter}${env.PATH}`;
 const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
 
-function exitSpecRefError(error) {
-  console.error(errorMessage(error));
-  bail(error instanceof CiSpecRefError ? error.exitCode : 1);
-}
-
 /** Run a command with inherited stdio; throw on failure so finally hooks still run. */
 function runOrDie(command, what, { cwd = consumerCwd, extraEnv = {} } = {}) {
   const r = spawnSync(command[0], command.slice(1), { stdio: 'inherit', cwd, env: { ...env, ...extraEnv } });
   if (r.error) {
-    console.error(`${NAME}: could not run ${command[0]} (${what})\n${r.error.message}`);
+    log(`could not run ${command[0]} (${what})\n${r.error.message}`);
     bail(1);
   }
   if ((r.status ?? 1) !== 0) {
-    console.error(`${NAME}: ${what} failed (exit ${r.status})`);
+    log(`${what} failed (exit ${r.status})`);
     bail(r.status ?? 1);
   }
 }
@@ -253,7 +244,7 @@ async function withOverlay(cwd, cwdSpec, phase, fn) {
     exitSpecRefError(error);
   }
   try {
-    return await fn(overlay.dirtyAllow.flatMap((allowed) => ['--dirty-allow', allowed]));
+    return await fn(dirtyAllowArgs(overlay.dirtyAllow));
   } finally {
     try {
       overlay.restore();
@@ -266,34 +257,14 @@ async function withOverlay(cwd, cwdSpec, phase, fn) {
 /** Probe the map store for `sha` under the same overlay the cold path publishes with. */
 async function restore(sha, dir, cwd) {
   const probeSpec = await specFor(cwd);
-  return withOverlay(cwd, probeSpec, '', async () => {
-    const r = spawnSync(
-      process.execPath,
-      [MAP, '--restore', '--sha', sha, '--dir', dir, '--base-dir', root, '--spec', probeSpec],
-      { stdio: 'inherit', cwd, env },
-    );
-    if (r.error) {
-      console.error(`${NAME}: could not run styleproof-map --restore for ${dir}\n${r.error.message}`);
-      bail(1);
-    }
-    const outcome = classifyRestoreExit(r.status);
-    if (outcome === 'fault') {
-      // A persistent map-store/network fault (the restore CLI already retried): fail the
-      // job loudly rather than silently paying a full cold recapture.
-      console.error(`${NAME}: ${dir} map restore hit a map-store/network fault (exit ${r.status}). Re-run the job.`);
-      bail(r.status ?? 5);
-    }
-    return outcome === 'hit';
-  });
-}
-
-function capture(args, cwd, extraEnv = {}) {
-  const r = spawnSync(process.execPath, [MAP, ...args], { stdio: 'inherit', cwd, env: { ...env, ...extraEnv } });
-  if (r.error) {
-    console.error(`${NAME}: could not run styleproof-map capture\n${r.error.message}`);
-    return 1;
-  }
-  return r.status ?? 1;
+  return withOverlay(cwd, probeSpec, '', () =>
+    restoreMap(['--sha', sha, '--dir', dir, '--base-dir', root, '--spec', probeSpec], {
+      cwd,
+      env,
+      dir,
+      next: 'Re-run the job.',
+    }),
+  );
 }
 
 function playwrightInstall(cwd, browserNames = ['chromium']) {
@@ -309,8 +280,8 @@ function playwrightInstall(cwd, browserNames = ['chromium']) {
 function exitWithBrowserRemedy(missing, cause) {
   const revisions = missing.map((verdict) => verdict.revisionDirectory).join(', ');
   const remedy = playwrightInstallRemedyCommand(missing.map((verdict) => verdict.browserName));
-  console.error(
-    `${NAME}: ${cause} — missing browser build(s): ${revisions}.\nNext: run \`${remedy}\` on this host (the CI runner or capture machine), then re-run.`,
+  log(
+    `${cause} — missing browser build(s): ${revisions}.\nNext: run \`${remedy}\` on this host (the CI runner or capture machine), then re-run.`,
   );
   bail(1);
 }
@@ -361,7 +332,6 @@ function hasHarFiles(dir) {
   });
 }
 
-const countMaps = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter(isMapFile).length : 0);
 const link = (target, at) => {
   fs.rmSync(at, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(at), { recursive: true });
@@ -379,7 +349,7 @@ function installExactStyleProof(pm, coldBaseCwd) {
   const isolated = pm.isolatedStyleProofPackage(exactRuntimeRoot);
   if (!isolated) return;
   if (!fs.existsSync(isolated)) {
-    console.error(`${NAME}: isolated StyleProof install is missing ${isolated}`);
+    log(`isolated StyleProof install is missing ${isolated}`);
     bail(1);
   }
   const isolatedPeer = path.join(exactRuntimeRoot, 'node_modules', '@playwright', 'test');
@@ -397,8 +367,7 @@ function installExactStyleProof(pm, coldBaseCwd) {
 // ── Nearest-ancestor baseline reuse (opt-out, enabled by default) ─────────────
 function ancestorBaselineEnabled() {
   const override = process.env.STYLEPROOF_ANCESTOR_BASELINE;
-  if (override === '0') return false;
-  if (override === '1') return true;
+  if (override === '0' || override === '1') return override === '1';
   return projectConfig?.ancestorBaseline?.enabled ?? true;
 }
 
@@ -425,12 +394,12 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
     const configAtBase = await loadStyleProofConfigAsync(baseProbeCwd);
     const branch = process.env.STYLEPROOF_CACHE_BRANCH ?? configAtBase.cacheBranch;
     const remote = process.env.STYLEPROOF_REMOTE ?? configAtBase.remote;
-    const envRoots = process.env.STYLEPROOF_ANCESTOR_BASELINE_ROOTS;
-    const sourceRoots = envRoots
+    const envRoots = (process.env.STYLEPROOF_ANCESTOR_BASELINE_ROOTS ?? '')
+      .split(',')
+      .map((r) => r.trim())
+      .filter(Boolean);
+    const sourceRoots = envRoots.length
       ? envRoots
-          .split(',')
-          .map((r) => r.trim())
-          .filter(Boolean)
       : (configAtBase?.ancestorBaseline?.roots ?? projectConfig?.ancestorBaseline?.roots ?? ['src']);
     const plan = planAncestorBaselineReuse({
       requestedSha: base,
@@ -469,6 +438,8 @@ async function tryRestoreNearestAncestorBaseline(baseProbeCwd) {
   }
 }
 
+const uploadFlag = noUpload ? '--no-upload' : '--upload';
+
 /** Rebuild the base cold inside its own worktree; returns true when the capture failed. */
 async function captureColdBase() {
   fs.rmSync(root, { recursive: true, force: true });
@@ -492,7 +463,8 @@ async function captureColdBase() {
     return false;
   }
   const status = await withOverlay(coldBaseCwd, baseSpec, 'base capture', (dirtyAllow) =>
-    capture(
+    captureMap(
+      NAME,
       [
         '--spec',
         baseSpec,
@@ -503,12 +475,11 @@ async function captureColdBase() {
         '--keep-har',
         '--sha',
         base,
-        noUpload ? '--no-upload' : '--upload',
+        uploadFlag,
         '--tolerate-surface-failures',
         ...dirtyAllow,
       ],
-      coldBaseCwd,
-      { PATH: binFirstPath(coldBaseCwd) },
+      { cwd: coldBaseCwd, env: { ...env, PATH: binFirstPath(coldBaseCwd) } },
     ),
   );
   if (status === 0) {
@@ -517,7 +488,7 @@ async function captureColdBase() {
   }
   // Tolerated failures already exit 0 with a partial baseline, so this is an untolerated
   // failure: any maps on disk are debris from a run with no publishable manifest.
-  const mapCount = countMaps(baseDirPath);
+  const mapCount = captureKeysIn(baseDirPath).length;
   if (mapCount > 0)
     log(
       `base capture exited ${status} with ${mapCount} surface map(s) on disk but no publishable manifest — discarding the debris`,
@@ -585,21 +556,13 @@ try {
     ensurePlaywrightBrowsersOrDie(consumerCwd);
     const replay = hasHarFiles(path.join(root, 'base')) ? { STYLEPROOF_REPLAY_FROM: path.join(root, 'base') } : {};
     const status = await withOverlay(consumerCwd, spec, 'head capture', (dirtyAllow) =>
-      capture(
-        [
-          '--spec',
-          spec,
-          '--dir',
-          'head',
-          '--base-dir',
-          root,
-          '--sha',
-          head,
-          noUpload ? '--no-upload' : '--upload',
-          ...dirtyAllow,
-        ],
-        consumerCwd,
-        replay,
+      captureMap(
+        NAME,
+        ['--spec', spec, '--dir', 'head', '--base-dir', root, '--sha', head, uploadFlag, ...dirtyAllow],
+        {
+          cwd: consumerCwd,
+          env: { ...env, ...replay },
+        },
       ),
     );
     if (status !== 0) bail(status);
@@ -609,6 +572,9 @@ try {
   if (error instanceof CiProcessExit) exitCode = error.exitCode;
   else if (error instanceof CiWorktreeError) {
     console.error(error.message);
+    exitCode = error.exitCode;
+  } else if (error instanceof ExitError) {
+    log(error.message);
     exitCode = error.exitCode;
   } else throw error;
 } finally {

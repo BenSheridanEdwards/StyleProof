@@ -34,8 +34,8 @@ import {
 import { CAPTURE_TEST_GREP } from '../dist/runner.js';
 import { assessDeterminismOracle, determinismRunReceipt } from '../dist/determinism-oracle.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
-import { loadStyleMap } from '../dist/capture.js';
-import { defineCli, errorMessage, fail, runBin } from './cli.mjs';
+import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
+import { defineCli, errorMessage, fail, filesUnder, runBin } from './cli.mjs';
 
 const NAME = 'styleproof-map';
 const STYLEPROOF_PLAYWRIGHT_CONFIG = 'playwright.styleproof.config.ts';
@@ -127,16 +127,9 @@ let sha = opts.sha ?? '';
 const cacheBranch =
   opts['cache-branch'] ?? env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
 const remote = opts.remote ?? env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
+// Flag > env > 'auto' (upload outside CI only).
 const uploadMode =
-  opts.upload === true
-    ? 'required'
-    : opts.upload === false
-      ? 'off'
-      : env.STYLEPROOF_UPLOAD === '1'
-        ? 'required'
-        : env.STYLEPROOF_UPLOAD === '0'
-          ? 'off'
-          : 'auto';
+  { true: 'required', false: 'off' }[opts.upload] ?? { 1: 'required', 0: 'off' }[env.STYLEPROOF_UPLOAD] ?? 'auto';
 const crawl = {
   baseUrl: opts['crawl-base-url'] ?? env.STYLEPROOF_CRAWL_BASE_URL ?? projectConfig.crawl?.baseUrl ?? '',
   routes: [...(projectConfig.crawl?.routes ?? []), ...csv(env.STYLEPROOF_CRAWL_ROUTES), ...opts['crawl-route']],
@@ -174,16 +167,14 @@ if (!fs.existsSync(spec)) {
   );
   process.exit(2);
 }
-// Auth setup / boundary exclusions belong to styleproof-capture; the spec-driven map path
-// ignores them, so their presence in config or env is a mistake we refuse rather than hide.
-const configuredAuth =
-  env.STYLEPROOF_CRAWL_SETUP ||
-  env.STYLEPROOF_SETUP ||
-  projectConfig.crawl?.setup ||
-  env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE ||
-  env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE ||
-  projectConfig.crawl?.authBoundaryExclude;
-if (configuredAuth) {
+// Auth setup / boundary exclusions belong to styleproof-capture; refusing them here is safer than ignoring them.
+const AUTH_ENV = [
+  'STYLEPROOF_CRAWL_SETUP',
+  'STYLEPROOF_SETUP',
+  'STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE',
+  'STYLEPROOF_AUTH_BOUNDARY_EXCLUDE',
+];
+if (AUTH_ENV.some((key) => env[key]) || projectConfig.crawl?.setup || projectConfig.crawl?.authBoundaryExclude) {
   fail(
     NAME,
     'crawl.setup / crawl.authBoundaryExclude (or STYLEPROOF_SETUP / STYLEPROOF_AUTH_BOUNDARY_EXCLUDE)\n' +
@@ -205,15 +196,9 @@ if (opts.restore && !sha) {
 }
 
 const removeTree = (target) => fs.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-
-function removeHarFiles(root) {
-  if (!fs.existsSync(root)) return;
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    const full = path.join(root, entry.name);
-    if (entry.isDirectory()) removeHarFiles(full);
-    else if (entry.isFile() && entry.name.endsWith('.har')) fs.rmSync(full, { force: true });
-  }
-}
+const removeHarFiles = (root) => {
+  for (const file of filesUnder(root)) if (file.endsWith('.har')) fs.rmSync(file, { force: true });
+};
 
 /** Precedence: explicit config key > env var > default (suppressed). */
 function suppressPlatformWarning() {
@@ -230,8 +215,7 @@ async function upload(dirPath) {
     console.error(`${NAME}: uploaded ${res.sha.slice(0, 12)} (${res.compatibilityKey}) to ${res.branch}`);
   } catch (error) {
     const message = errorMessage(error);
-    // A precondition the user must fix (dirty tree, missing manifest) keeps the usage
-    // code 2; everything else is the retryable map-store/network class (5).
+    // A user-fixable precondition keeps the usage code 2; everything else is the retryable class (5).
     if (uploadMode === 'required')
       fail(NAME, `upload failed\n${message}`, error instanceof MapStorePreconditionError ? 2 : 5);
     console.error(
@@ -277,25 +261,24 @@ if (opts.restore) {
     process.exit(0);
   } catch (error) {
     // 4 = bundle absent (expected miss → recapture); 5 = infrastructure fault after retries.
-    const notFound = error instanceof MapStoreNotFoundError;
-    console.error(
-      [
-        notFound
-          ? `${NAME}: no cached map for ${sha} on ${cacheBranch} (cache miss)`
-          : `${NAME}: could not reach the map store to restore ${sha} from ${cacheBranch}`,
-        errorMessage(error),
-        notFound
-          ? `Next: run ${NAME} at that commit to build/upload the map, or let CI recapture both sides.`
-          : 'Next: retry — this is a transient map-store/network fault, not a missing bundle.',
-      ].join('\n'),
-    );
-    process.exit(notFound ? 4 : 5);
+    const [what, next, code] =
+      error instanceof MapStoreNotFoundError
+        ? [
+            `no cached map for ${sha} on ${cacheBranch} (cache miss)`,
+            `Next: run ${NAME} at that commit to build/upload the map, or let CI recapture both sides.`,
+            4,
+          ]
+        : [
+            `could not reach the map store to restore ${sha} from ${cacheBranch}`,
+            'Next: retry — this is a transient map-store/network fault, not a missing bundle.',
+            5,
+          ];
+    fail(NAME, `${what}\n${errorMessage(error)}\n${next}`, code);
   }
 }
 
-// Sample the tree state the capture is ABOUT to render so the manifest binds the map
-// to it: if the source is edited or HEAD moves mid-capture, the map must not be
-// published clean for a SHA it never rendered.
+// Sample the tree state the capture is ABOUT to render: a source edit or HEAD move
+// mid-capture must not let the map publish clean for a SHA it never rendered.
 let dirtyBeforeCapture = false;
 let headBeforeCapture;
 try {
@@ -305,8 +288,7 @@ try {
   // git unreadable — the manifest falls back to `uncommitted`
 }
 
-// Clear the reserved generated namespace so a smaller capture set cannot leave prior
-// maps looking current. Restore mode never reaches here.
+// Clear the reserved generated namespace so a smaller capture set cannot leave prior maps looking current.
 try {
   clearCaptureOutput(targetDir);
 } catch (error) {
@@ -317,8 +299,7 @@ const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright
 const hasConfigArg = playwrightArgs.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
 const configArgs =
   fs.existsSync(STYLEPROOF_PLAYWRIGHT_CONFIG) && !hasConfigArg ? ['--config', STYLEPROOF_PLAYWRIGHT_CONFIG] : [];
-// The spec process clock is frozen alongside the browser clock so module-level
-// `new Date()` fixtures are identical across base and head captures.
+// The spec process clock is frozen alongside the browser clock so module-level `new Date()` fixtures match across sides.
 const captureEnv = (label) => ({
   ...env,
   STYLEMAP_DIR: label,
@@ -337,7 +318,7 @@ runVariantCrawl(captureEnv(dir));
 const result = runCapture(dir);
 if (result.error) fail(NAME, playwrightMissingMessage(result.error.message).replace(`${NAME}: `, ''));
 let status = result.status ?? 1;
-const captured = fs.existsSync(targetDir) ? fs.readdirSync(targetDir).filter(isMapFile).length : 0;
+const captured = captureKeysIn(targetDir).length;
 const toleratedFailures = readSurfaceCaptureFailures(targetDir);
 const fatalCaptureFailure = readFatalCaptureFailure(targetDir);
 if (status !== 0 && fatalCaptureFailure) {
@@ -347,8 +328,7 @@ if (status !== 0 && fatalCaptureFailure) {
   removeTree(targetDir);
   process.exit(status);
 }
-// Promote to a publishable partial baseline ONLY when the failures are ledgered:
-// an unrecorded failure class (self-check/nondeterminism) is never tolerable.
+// Promote to a publishable partial baseline ONLY when the failures are ledgered.
 if (status !== 0 && tolerateSurfaceFailures && captured > 0) {
   if (toleratedFailures.length > 0) {
     console.error(

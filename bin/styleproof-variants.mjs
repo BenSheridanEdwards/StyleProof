@@ -7,6 +7,7 @@ import { defaultLinkKey } from '../dist/crawl.js';
 import { defineCli, number } from './cli.mjs';
 
 const NAME = 'styleproof-variants';
+const OUTCOMES = ['captured', 'deduplicated', 'skipped', 'timed-out', 'requires-fixture'];
 const cli = defineCli({
   name: NAME,
   alias: 'variants',
@@ -30,6 +31,7 @@ if (!routes.length) {
   console.error(`${NAME}: at least one --route is required`);
   process.exit(2);
 }
+// Validate every numeric flag before launching a browser, so usage errors exit 2 without one.
 const limit = (flag) => number(NAME, flag, opts[flag], { integer: true, min: 0, max: 200 });
 const maxActionsPerRoute = limit('max-actions');
 const maxStateActionsPerRoute = limit('max-state-actions');
@@ -53,20 +55,16 @@ try {
   });
   fs.writeFileSync(opts.out, JSON.stringify(harvest, null, 2) + '\n');
   const sum = (pick) => harvest.routes.reduce((total, route) => total + pick(route).length, 0);
-  const variants = sum((route) => route.variants);
   const liveStates = sum((route) => route.liveStates);
   const skipped = sum((route) => route.skipped);
   const outcomes = harvest.routes.flatMap((route) => route.stateCoverage);
-  const unresolved = outcomes.filter((entry) =>
-    ['skipped', 'timed-out', 'requires-fixture'].includes(entry.outcome),
-  ).length;
+  const count = (outcome) => outcomes.filter((entry) => entry.outcome === outcome).length;
+  const unresolved = count('skipped') + count('timed-out') + count('requires-fixture');
   console.log(`${NAME}: wrote ${opts.out}`);
-  console.log(`${variants} variant(s), ${liveStates} live-state candidate(s), ${skipped} skipped candidate(s)`);
   console.log(
-    `state coverage: ${['captured', 'deduplicated', 'skipped', 'timed-out', 'requires-fixture']
-      .map((outcome) => `${outcomes.filter((entry) => entry.outcome === outcome).length} ${outcome}`)
-      .join(', ')}`,
+    `${sum((route) => route.variants)} variant(s), ${liveStates} live-state candidate(s), ${skipped} skipped candidate(s)`,
   );
+  console.log(`state coverage: ${OUTCOMES.map((outcome) => `${count(outcome)} ${outcome}`).join(', ')}`);
   if (opts.strict && (liveStates || skipped || unresolved)) process.exit(1);
 } finally {
   await browser.close();

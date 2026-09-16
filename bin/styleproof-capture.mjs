@@ -13,18 +13,19 @@ import {
   loadIncompleteUiExclude,
 } from '../dist/capture-url.js';
 import { crawlAndCapture } from '../dist/crawl-surfaces.js';
-import { selectCrawlLinks, dedupIdentity } from '../dist/crawl.js';
+import { selectCrawlLinks, dedupIdentity, uniqueKeyFor } from '../dist/crawl.js';
 import { clearCaptureOutput, writeCaptureManifest } from '../dist/map-store.js';
 import { loadStyleProofConfigWithLocation } from '../dist/config.js';
 import path from 'node:path';
 import fs from 'node:fs';
-import { cliSafeLine, crawlCaptureExitCode } from '../dist/crawl-confidence.js';
+import { crawlCaptureExitCode } from '../dist/crawl-confidence.js';
 import {
   buildConfidenceLedger,
   bundleSurfaceKeys,
   writeConfidenceLedger,
   CONFIDENCE_LEDGER,
 } from '../dist/confidence-ledger.js';
+import * as report from '../dist/crawl/report.js';
 import { errorMessage } from './cli.mjs';
 
 const COMMAND = 'styleproof-capture';
@@ -108,54 +109,38 @@ if (argv[0] === '-h' || argv[0] === '--help') {
   process.exit(0);
 }
 
-// The three crawl input files resolve flag > env > styleproof.config crawl block; a
-// config-sourced path resolves from the config dir so head and base worktrees agree.
+// The three crawl input files resolve flag > env (STYLEPROOF_<X> or STYLEPROOF_CRAWL_<X>) >
+// styleproof.config crawl.<key>; a config-sourced path resolves from the config dir so head and
+// base worktrees agree. The parsed `<key>File` field holds the path, `<key>` the loaded value.
 const CRAWL_FILES = [
-  {
-    field: 'setupFile',
-    flag: '--setup',
-    env: ['STYLEPROOF_SETUP', 'STYLEPROOF_CRAWL_SETUP'],
-    key: 'setup',
-    load: loadSetupSteps,
-    into: 'setup',
-  },
-  {
-    field: 'authBoundaryExcludeFile',
-    flag: '--auth-boundary-exclude',
-    env: ['STYLEPROOF_AUTH_BOUNDARY_EXCLUDE', 'STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE'],
-    key: 'authBoundaryExclude',
-    load: loadAuthBoundaryExclude,
-    into: 'authBoundaryExclude',
-  },
-  {
-    field: 'incompleteUiExcludeFile',
-    flag: '--incomplete-ui-exclude',
-    env: ['STYLEPROOF_INCOMPLETE_UI_EXCLUDE', 'STYLEPROOF_CRAWL_INCOMPLETE_UI_EXCLUDE'],
-    key: 'incompleteUiExclude',
-    load: loadIncompleteUiExclude,
-    into: 'incompleteUiExclude',
-  },
+  ['--setup', 'setup', loadSetupSteps],
+  ['--auth-boundary-exclude', 'authBoundaryExclude', loadAuthBoundaryExclude],
+  ['--incomplete-ui-exclude', 'incompleteUiExclude', loadIncompleteUiExclude],
 ];
 
 let opts;
 try {
   opts = parseCaptureUrlArgs(argv);
   const loaded = loadStyleProofConfigWithLocation(process.cwd());
-  for (const { field, flag, env, key, load, into } of CRAWL_FILES) {
+  for (const [flag, key, load] of CRAWL_FILES) {
+    const envName = flag.slice(2).toUpperCase().replaceAll('-', '_');
     const configured = loaded.config.crawl?.[key];
-    const file = opts[field] || env.map((name) => process.env[name]).find(Boolean) || configured;
+    const file =
+      opts[`${key}File`] ||
+      process.env[`STYLEPROOF_${envName}`] ||
+      process.env[`STYLEPROOF_CRAWL_${envName}`] ||
+      configured;
     if (!file) continue;
-    const root = file === configured ? loaded.configDir : process.cwd();
-    opts[field] = path.resolve(root, file);
-    if (!fs.existsSync(opts[field])) throw new UsageError(`${flag}: cannot read ${opts[field]}`);
-    opts[into] = load(opts[field]);
+    const resolved = path.resolve(file === configured ? loaded.configDir : process.cwd(), file);
+    if (!fs.existsSync(resolved)) throw new UsageError(`${flag}: cannot read ${resolved}`);
+    opts[`${key}File`] = resolved;
+    opts[key] = load(resolved);
   }
 } catch (e) {
   if (!(e instanceof UsageError)) throw e;
   console.error(`${COMMAND}: ${e.message}\nNext: run ${COMMAND} --help to see supported options.`);
   process.exit(2);
 }
-const { setup: setupSteps, authBoundaryExclude, incompleteUiExclude } = opts;
 
 // Read the freshly-loaded page's same-origin nav links, keyed by route.
 async function harvestPageLinks(page, url) {
@@ -164,165 +149,19 @@ async function harvestPageLinks(page, url) {
   return selectCrawlLinks(hrefs, { base: page.url() });
 }
 
-function aggregateConfidence(reports) {
-  const all = reports.map((r) => r.confidence).filter(Boolean);
-  if (all.length === 0) return { blocked: false, status: 'complete', unack: [], ack: [], stale: [] };
-  const blocked = all.some((c) => c.blocked);
-  let status = 'complete';
-  if (all.some((c) => c.status === 'incomplete-auth')) status = 'incomplete-auth';
-  else if (all.some((c) => c.status === 'incomplete-unknown')) status = 'incomplete-unknown';
-  return {
-    blocked,
-    status,
-    unack: all.flatMap((c) => c.unacknowledged ?? []),
-    ack: all.flatMap((c) => c.acknowledged ?? []),
-    stale: [...new Set(all.flatMap((c) => c.staleExclusions ?? []))].sort(),
-  };
-}
-
-function aggregateIncompleteUi(reports, exclude = {}) {
-  const bySurface = new Map();
-  for (const observation of reports.flatMap((report) => report.incompleteUi ?? [])) {
-    const reasons = bySurface.get(observation.surface) ?? new Set();
-    for (const diagnostic of observation.diagnostics ?? []) reasons.add(diagnostic.reason);
-    bySurface.set(observation.surface, reasons);
-  }
-  return [...bySurface.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([surface, reasons]) => ({
-      surface,
-      reasons: [...reasons].sort(),
-      ...(exclude[surface] ? { acknowledgedReason: exclude[surface] } : {}),
-    }));
-}
-
-function printIncompleteUi(entries) {
-  if (!entries.length) return;
-  const blocked = entries.filter((entry) => !entry.acknowledgedReason);
-  const mark = blocked.length ? '✗' : '⚠';
-  const tail = blocked.length ? 'fail closed' : 'scope explicitly limited';
-  console.log(`${mark} incomplete UI — blocked continuations leave reachable states uncaptured (${tail})`);
-  for (const entry of entries) {
-    const reasons = entry.reasons.map(cliSafeLine).join(', ');
-    const acknowledgement = entry.acknowledgedReason ? ` — acknowledged: ${cliSafeLine(entry.acknowledgedReason)}` : '';
-    console.log(`    ${cliSafeLine(entry.surface)} (${reasons})${acknowledgement}`);
-  }
-  if (blocked.length) {
-    console.log(
-      '    Next: add deterministic setup/fixtures to reach these states, or --incomplete-ui-exclude with a non-empty reason when outside scope.',
-    );
-  }
-}
-
-function printAuthIncomplete(blocked, unack, ack, stale) {
-  const mark = blocked ? '✗' : '⚠';
-  const tail = blocked ? ' — unacknowledged (fail closed)' : ' — acknowledged; scope explicitly limited';
-  console.log(
-    `${mark} crawl confidence: incomplete-auth — authentication boundary observed; ` +
-      `surfaces behind it are unknown (no coverage percentage invented)${tail}`,
-  );
-  for (const u of unack) {
-    const key = cliSafeLine(String(u.key ?? ''));
-    const reasons = cliSafeLine((u.diagnostics ?? []).map((d) => d.reason).join(', '));
-    console.log(`    unacknowledged: ${key}${reasons ? ` (${reasons})` : ''}`);
-  }
-  for (const a of ack) {
-    const key = cliSafeLine(String(a.key ?? ''));
-    const reason = cliSafeLine(String(a.reason ?? ''));
-    console.log(`    acknowledged: ${key} — ${reason}`);
-  }
-  if (stale.length) console.log(`    stale exclusions: ${stale.map((s) => cliSafeLine(String(s))).join(', ')}`);
-  if (blocked) {
-    console.log(
-      '    Next: add --setup with env-interpolated credentials, or --auth-boundary-exclude ' +
-        'with a non-empty reason when the wall is outside certification scope.',
-    );
-  }
-}
-
-function printConfidence(reports, scopeGaps = []) {
-  const aggregated = aggregateConfidence(reports);
-  const { blocked, unack, ack, stale } = aggregated;
-  const status = aggregated.status === 'complete' && scopeGaps.length > 0 ? 'incomplete-unknown' : aggregated.status;
-  if (status === 'complete') console.log('✓ crawl confidence: complete — no authentication boundary observed');
-  else if (status === 'incomplete-auth') printAuthIncomplete(blocked, unack, ack, stale);
-  else console.log('⚠ crawl confidence: incomplete-unknown');
-  if (status !== 'complete') {
-    console.log('    certification: not full — visual PASS does not imply complete surface access');
-  }
-  return { blocked, status, ack, unack };
-}
-
-function printCoverage(cov, label) {
-  const unreadable = cov.unreadable ?? [];
-  if (unreadable.length > 0) {
-    console.log(
-      `⚠ coverage${label}: ${unreadable.length} stylesheet(s) unreadable — class coverage not provable against them ` +
-        `(cross-origin, no CORS; make them same-origin / CORS-readable, or pin --widths):\n    ${unreadable.join(' ')}`,
-    );
-  }
-  if (cov.missing.length === 0) {
-    if (unreadable.length === 0)
-      console.log(
-        `✓ coverage${label}: all ${cov.defined} stylesheet classes rendered in at least one captured surface`,
-      );
-  } else {
-    console.log(
-      `⚠ coverage${label}: ${cov.rendered}/${cov.defined} stylesheet classes rendered — ${cov.missing.length} never seen ` +
-        `(dead CSS, or a state the crawl could not reach):\n    ${cov.missing.join(' ')}`,
-    );
-  }
-}
-
-function pageCrawlOptions(browser, url, prefix, statesLeft) {
-  return {
-    url,
-    out: opts.out,
-    widths: opts.widths, // empty = auto-detect the page's real breakpoints
-    ignore: opts.ignore,
-    height: opts.height,
-    screenshots: opts.screenshots,
-    waitSelector: opts.waitSelector,
-    maxDepth: opts.maxDepth,
-    maxActionsPerState: opts.maxActionsPerState,
-    maxStates: statesLeft,
-    resetStorage: opts.resetStorage,
-    setup: setupSteps,
-    authBoundaryExclude,
-    dataStates: opts.dataStates,
-    stopWhenCovered: opts.untilCovered,
-    workers: opts.workers,
-    keyPrefix: prefix,
-    // each worker page in its OWN context, so storage resets can't interfere
-    newPage: async () => (await browser.newContext()).newPage(),
-    // Stream each surface as it is captured, so progress is visible live and an
-    // interrupted run still shows exactly what it mapped.
-    onSurface: (s, ok) =>
-      console.log(`  ${'·'.repeat(s.depth)}${s.key} (${s.elements} elements)${ok ? '' : ' — CAPTURE FAILED'}`),
-  };
-}
-
-// Aggregate coverage: pages share stylesheets, so a class unrendered on one
-// page but rendered on another IS covered. defined = rendered ∪ missing.
-function aggregateCoverage(reports) {
-  const rendered = new Set(reports.flatMap((r) => r.coverage.renderedClasses));
-  const missing = [...new Set(reports.flatMap((r) => r.coverage.missing))].filter((c) => !rendered.has(c)).sort();
-  const unreadable = [...new Set(reports.flatMap((r) => r.coverage.unreadable ?? []))];
-  return { defined: rendered.size + missing.length, rendered: rendered.size, missing, unreadable };
-}
-
-function printCrawlSummary(reports) {
-  const surfaces = reports.reduce((n, r) => n + r.surfaces.length, 0);
-  const captured = reports.reduce((n, r) => n + r.captured, 0);
-  const tried = reports.reduce((n, r) => n + r.actionsTried, 0);
-  const skipped = reports.reduce((n, r) => n + r.skipped, 0);
-  const failed = reports.flatMap((r) => r.failed);
-  const widths = opts.widths.length ? `${opts.widths.length} width(s)` : 'auto widths';
-  console.log(
-    `✓ ${captured}/${surfaces} surface(s) across ${reports.length} page(s) × ${widths} → ${opts.out}  ` +
-      `(${tried} actions tried, ${skipped} skipped${failed.length ? `, ${failed.length} capture-failed` : ''})`,
-  );
-}
+// Empty widths = auto-detect the page's real breakpoints. Each worker page gets its OWN context so
+// storage resets can't interfere; surfaces stream as they are captured, so an interrupted run still
+// shows what it mapped.
+const pageCrawlOptions = (browser, url, prefix, statesLeft) => ({
+  ...opts,
+  url,
+  maxStates: statesLeft,
+  stopWhenCovered: opts.untilCovered,
+  keyPrefix: prefix,
+  newPage: async () => (await browser.newContext()).newPage(),
+  onSurface: (s, ok) =>
+    console.log(`  ${'·'.repeat(s.depth)}${s.key} (${s.elements} elements)${ok ? '' : ' — CAPTURE FAILED'}`),
+});
 
 // Enqueue every not-yet-seen page the just-crawled page links to, giving each a
 // unique route-key prefix ('base' is reserved for the entry crawl's root).
@@ -331,16 +170,13 @@ function enqueueLinkedPages(links, sweep) {
     const id = dedupIdentity(link.url);
     if (sweep.seenPages.has(id)) continue;
     sweep.seenPages.add(id);
-    let prefix = link.key;
-    for (let i = 2; sweep.usedPrefixes.has(prefix); i++) prefix = `${link.key}-${i}`;
-    sweep.usedPrefixes.add(prefix);
+    const prefix = uniqueKeyFor(link.key, sweep.usedPrefixes);
     sweep.queue.push({ url: new URL(link.url, sweep.entry).href, prefix });
   }
 }
 
-// Crawl one page of the sweep. The entry page failing is a broken run (rethrow);
-// a LINKED page failing (e.g. an off-origin redirect) returns null after warning,
-// and the sweep continues.
+// The entry page failing is a broken run (rethrow); a LINKED page failing (e.g. an
+// off-origin redirect) returns null after warning, and the sweep continues.
 async function crawlPage(browser, page, url, prefix, statesLeft) {
   try {
     return await crawlAndCapture(page, pageCrawlOptions(browser, url, prefix, statesLeft));
@@ -351,94 +187,80 @@ async function crawlPage(browser, page, url, prefix, statesLeft) {
   }
 }
 
+// Page-level breadth-first sweep: the entry page's whole interactive surface, then every
+// same-origin page its nav links to (and theirs), each namespaced by its route key.
+async function sweepPages(browser, page) {
+  const entry = new URL(opts.url);
+  const sweep = {
+    entry,
+    queue: [{ url: opts.url, prefix: '' }],
+    seenPages: new Set([dedupIdentity(entry.pathname + entry.search)]),
+    usedPrefixes: new Set(['base']),
+  };
+  const reports = [];
+  const scopeGaps = [];
+  const gap = (prefix, reason) => ({ surface: `page:${prefix}`, reason });
+  let statesLeft = opts.maxStates;
+  while (sweep.queue.length > 0 && statesLeft > 0) {
+    const { url, prefix } = sweep.queue.shift();
+    const crawled = await crawlPage(browser, page, url, prefix, statesLeft);
+    if (!crawled) {
+      scopeGaps.push(gap(prefix, 'linked page was discovered but could not be crawled'));
+      continue;
+    }
+    reports.push(crawled);
+    statesLeft -= crawled.surfaces.length;
+    if (opts.followLinks) enqueueLinkedPages(await harvestPageLinks(page, url), sweep);
+  }
+  if (sweep.queue.length > 0) {
+    console.log(`⚠ --max-states reached: ${sweep.queue.length} linked page(s) left uncrawled — raise --max-states`);
+    const reason = 'linked page was discovered but left uncrawled because --max-states was reached';
+    scopeGaps.push(...sweep.queue.map(({ prefix }) => gap(prefix, reason)));
+  }
+  return { reports, scopeGaps };
+}
+
+// Print the verdicts, persist the confidence ledger into the bundle (styleproof-report
+// renders it as the completeness badge), and return the exit code.
+function reportCrawl(reports, scopeGaps) {
+  // A manifest gives a two-directory diff the same-environment guard on both sides.
+  writeCaptureManifest({ dir: opts.out, screenshots: opts.screenshots });
+  const cov = report.aggregateCoverage(reports);
+  const conf = report.aggregateConfidence(reports);
+  const incompleteUi = report.aggregateIncompleteUi(reports, opts.incompleteUiExclude);
+  const lines = [
+    report.crawlSummaryLine(reports, opts),
+    ...report.coverageLines(cov, reports.length > 1 ? ` (${reports.length} pages)` : ''),
+    ...report.confidenceLines(conf, scopeGaps),
+    ...report.incompleteUiLines(incompleteUi),
+  ];
+  for (const line of lines) console.log(line);
+  const capturedKeys = new Set(bundleSurfaceKeys(opts.out));
+  writeConfidenceLedger(
+    opts.out,
+    buildConfidenceLedger({
+      capturedKeys,
+      coverage: null, // a crawl declares no `expected` registry — basis stays unasserted
+      auth: { acknowledged: conf.ack, unacknowledged: conf.unack },
+      incompleteUi: incompleteUi.map((entry) => ({ ...entry, surface: `${entry.surface}·incomplete-ui` })),
+      captureGaps: report.captureGaps(reports, capturedKeys, scopeGaps),
+    }),
+  );
+  console.log(`  confidence ledger → ${CONFIDENCE_LEDGER}`);
+  return crawlCaptureExitCode({
+    requireFullCoverage: opts.requireFullCoverage,
+    hasCoverageResidue: cov.missing.length > 0 || cov.unreadable.length > 0,
+    incompleteUiBlocked: incompleteUi.some((entry) => !entry.acknowledgedReason),
+    authBlocked: conf.blocked,
+  });
+}
+
 async function runCrawl() {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
-    // Page-level breadth-first sweep: crawl the entry page's whole interactive
-    // surface, then every same-origin page its nav links to (and theirs), each
-    // namespaced by its route key so a shared --out directory never collides.
-    const entry = new URL(opts.url);
-    const sweep = {
-      entry,
-      queue: [{ url: opts.url, prefix: '' }],
-      seenPages: new Set([dedupIdentity(entry.pathname + entry.search)]),
-      usedPrefixes: new Set(['base']), // 'base' is the entry crawl's root key
-    };
-    const reports = [];
-    const pageScopeGaps = [];
-    let statesLeft = opts.maxStates;
-
-    while (sweep.queue.length > 0 && statesLeft > 0) {
-      const { url, prefix } = sweep.queue.shift();
-      const report = await crawlPage(browser, page, url, prefix, statesLeft);
-      if (!report) {
-        pageScopeGaps.push({
-          surface: `page:${prefix}`,
-          reason: 'linked page was discovered but could not be crawled',
-        });
-        continue; // linked page skipped loudly (e.g. off-origin redirect)
-      }
-      reports.push(report);
-      statesLeft -= report.surfaces.length;
-      if (opts.followLinks) enqueueLinkedPages(await harvestPageLinks(page, url), sweep);
-    }
-    if (sweep.queue.length > 0) {
-      console.log(`⚠ --max-states reached: ${sweep.queue.length} linked page(s) left uncrawled — raise --max-states`);
-      pageScopeGaps.push(
-        ...sweep.queue.map(({ prefix }) => ({
-          surface: `page:${prefix}`,
-          reason: 'linked page was discovered but left uncrawled because --max-states was reached',
-        })),
-      );
-    }
-
-    // Stamp a manifest so a two-directory diff against this crawl output has the
-    // same-environment guard on both sides (v4 refuses a manifest-less side).
-    writeCaptureManifest({ dir: opts.out, screenshots: opts.screenshots });
-    printCrawlSummary(reports);
-    const cov = aggregateCoverage(reports);
-    printCoverage(cov, reports.length > 1 ? ` (${reports.length} pages)` : '');
-    const conf = printConfidence(reports, pageScopeGaps);
-    const incompleteUi = aggregateIncompleteUi(reports, incompleteUiExclude);
-    printIncompleteUi(incompleteUi);
-    // Persist the confidence ledger (#399) into the bundle so the console-only
-    // auth verdict travels with the maps: styleproof-report renders it as the
-    // completeness badge next to the visual verdict. Failed captures stay out of
-    // the captured set — they are neither certified nor silently forgotten.
-    const failedKeys = new Set(reports.flatMap((r) => r.failed));
-    const capturedKeys = new Set(bundleSurfaceKeys(opts.out));
-    const discoveredKeys = [...new Set(reports.flatMap((r) => r.surfaces.map((s) => s.key)))];
-    const captureGaps = discoveredKeys
-      .filter((key) => !capturedKeys.has(key))
-      .map((surface) => ({
-        surface,
-        reason: failedKeys.has(surface)
-          ? 'capture failed before every configured viewport completed'
-          : 'crawl stopped before this discovered surface was captured',
-      }));
-    captureGaps.push(...pageScopeGaps);
-    writeConfidenceLedger(
-      opts.out,
-      buildConfidenceLedger({
-        capturedKeys,
-        coverage: null, // a crawl declares no `expected` registry — basis stays unasserted
-        auth: { acknowledged: conf.ack, unacknowledged: conf.unack },
-        incompleteUi: incompleteUi.map((entry) => ({
-          ...entry,
-          surface: `${entry.surface}·incomplete-ui`,
-        })),
-        captureGaps,
-      }),
-    );
-    console.log(`  confidence ledger → ${CONFIDENCE_LEDGER}`);
-    // Coverage residue (exit 4) intentionally wins over unacknowledged auth (exit 5).
-    const code = crawlCaptureExitCode({
-      requireFullCoverage: opts.requireFullCoverage,
-      hasCoverageResidue: cov.missing.length > 0 || cov.unreadable.length > 0,
-      incompleteUiBlocked: incompleteUi.some((entry) => !entry.acknowledgedReason),
-      authBlocked: conf.blocked,
-    });
+    const { reports, scopeGaps } = await sweepPages(browser, page);
+    const code = reportCrawl(reports, scopeGaps);
     if (code !== 0) process.exit(code);
   } finally {
     await browser.close();

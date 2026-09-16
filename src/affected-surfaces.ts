@@ -1,36 +1,15 @@
 /**
  * Selective remap: given the files a change touched, which declared surfaces
- * could have rendered differently?
+ * could have rendered differently? An OPT-IN speed-up, never the default gate.
  *
- * This is the sound core behind "capture only what a PR can affect, reuse the
- * committed base map for the rest" — an OPT-IN speed-up, never the default gate.
- * The default gate captures every surface and lets the map be the oracle; this
- * function only decides which surfaces a caller *may* skip, and it is built to
- * be wrong only in the safe direction.
+ * SOUNDNESS: in the committed-map model a wrong "unaffected" is silent and fatal
+ * (a stale base map matches, the diff is empty, the regression ships green), so
+ * this OVER-APPROXIMATES. Every uncertainty resolves to the sentinel `'all'`:
+ * a global style change, a vanilla (non-module) stylesheet, a computed
+ * `import(x)` with no static prefix, or a changed file the graph cannot place.
  *
- * The hard constraint: in the committed-map model a wrong "unaffected" is silent
- * and fatal — a stale committed map matches the base, the diff is empty, and the
- * regression ships green. So this function OVER-APPROXIMATES. When it cannot
- * prove a surface is unaffected, it returns the sentinel `'all'`, meaning
- * "re-capture everything." Every uncertainty resolves to `'all'`:
- *
- *   - a global style change (a reset, `:root`/theme token, `@tailwind`, a
- *     `createGlobalStyle`, a design-system config) cascades everywhere → `'all'`;
- *   - a vanilla (non-module) stylesheet has a global class namespace the import
- *     graph cannot bound → `'all'`;
- *   - a computed dynamic `import(x)` with no static prefix could load anything
- *     → `'all'`; with a static prefix (`import(`../dir/${x}`)`) it is treated as
- *     a bundler context module — every file under that dir is a possible target;
- *   - a changed file the graph cannot place at all → `'all'`.
- *
- * The module graph is an INPUT, not a dependency: pass any tool's output in the
- * {@link ModuleEdge} shape (dependency-cruiser's `modules[].dependencies[]` maps
- * directly). StyleProof stays framework-agnostic and adds no dependency; the
- * caller owns graph production, which is where framework-specific resolution
- * lives.
- *
- * Pure and side-effect-free (I/O is injected via `readFile`) so it is fully
- * unit-testable and deterministic.
+ * The module graph is an INPUT in the {@link ModuleEdge} shape (dependency-cruiser
+ * maps directly); the caller owns graph production. Pure: I/O is injected via `readFile`.
  */
 
 /** One resolved import edge: `from` imports `to`. Mirrors a dependency-cruiser
@@ -58,25 +37,16 @@ export type AffectedSurfacesInput = {
  *  listed are provably unaffected and may reuse their committed base map. */
 export type AffectedSurfaces = Set<string> | 'all';
 
-// A stylesheet whose scope escapes the file that imports it. Any of these means
-// a change cascades beyond the import graph's reach.
+// Selectors/at-rules whose scope escapes the importing file.
 const GLOBAL_CSS =
   /(^|[{},(])\s*(:root|html|body|\*)(?=\s|[,.#:[\]{}()>+~])|@tailwind\b|@layer\s+base\b|@theme\b|@font-face\b/i;
-// CSS-in-JS global APIs. NOTE: soundness depends on this list being complete for
-// the libraries in use — an unlisted global API in a .tsx would be misread as a
-// scoped (local) change. Extend deliberately; when unsure, the caller should
-// treat the styling system as unsupported and skip selective remap.
+// CSS-in-JS global APIs. Soundness depends on this list being complete for the
+// libraries in use: an unlisted global API in a .tsx would be misread as scoped.
 const CSSJS_GLOBAL = /\b(createGlobalStyle|injectGlobal|globalStyle|globalCss|createGlobalTheme)\b/;
 // `:global(...)` escape hatch or cross-module composition pulls in outside scope.
 const MODULE_ESCAPES = /:global\b|\bcompose[sd]?\b[^;]*\bfrom\b/;
-// Sass `@use`/`@forward`/`@import` pull another sheet's members into a CSS-module
-// file. dependency-cruiser parses JS imports, not Sass loads, so the import graph
-// can't bound them — fail closed on any occurrence. `@import` covers both the Sass
-// partial load (`@import "vars"`, whose members — possibly global rules — merge in
-// exactly like `@use`) and the plain-CSS pass-through form (`@import url(x.css)`,
-// `@import "sheet.css"`): a CSS `@import` composes an external sheet whose selectors
-// are NOT hashed into the module's per-file scope, so it escapes the module too.
-// Either way the change is unbounded → 'all'. Only widen; never narrows a verdict.
+// `@use`/`@forward`/`@import` pull another sheet into a CSS-module file; the JS
+// import graph cannot bound them, so any occurrence fails closed.
 const SASS_LOAD = /@(?:use|forward|import)\b/;
 
 const isConfig = (f: string) =>
@@ -86,34 +56,33 @@ const isStyleSheet = (f: string) => /\.(css|scss|sass|less|styl)$/.test(f);
 const isCssModule = (f: string) => /\.module\.(css|scss|sass|less|styl)$/.test(f);
 const isCode = (f: string) => /\.[cm]?[jt]sx?$/.test(f);
 
+// A CSS Module escapes its hashed scope via `:global`, cross-module `composes … from`,
+// genuinely global selectors, or any Sass/CSS load.
+const moduleEscapes = (src: string) => MODULE_ESCAPES.test(src) || GLOBAL_CSS.test(src) || SASS_LOAD.test(src);
+
+/** Per file kind: does this source's style scope stay bounded to its importers? No test → never. */
+const SCOPED_WHEN: [matches: (file: string) => boolean, scoped?: (src: string) => boolean][] = [
+  [isConfig], // design-system config cascades to every surface
+  [isCode, (src) => !CSSJS_GLOBAL.test(src)], // .tsx: global CSS-in-JS or colocated scope
+  [isCssModule, (src) => !moduleEscapes(src)],
+  [isStyleSheet], // vanilla stylesheet: global class namespace
+];
+
 /**
- * Decide whether a single changed file's style scope is bounded to the files
- * that import it (`'scope'` → follow the import graph) or escapes them
- * (`'all'` → re-capture everything). Sound by construction: `'scope'` is
- * returned only for provably-scoped changes (a CSS Module without escapes, or
- * colocated CSS-in-JS with no global API); everything else, including anything
- * unrecognized, is `'all'`.
+ * `'scope'` (follow the import graph) only for provably-scoped changes — a CSS
+ * Module without escapes, or colocated CSS-in-JS with no global API; everything
+ * else, including anything unreadable or unrecognized, is `'all'`.
  */
 export function classifyStyleChange(file: string, readFile: (p: string) => string): 'scope' | 'all' {
-  if (isConfig(file)) return 'all'; // design-system config cascades to every surface
+  const scoped = SCOPED_WHEN.find(([matches]) => matches(file))?.[1];
+  if (!scoped) return 'all';
   let src: string;
   try {
     src = readFile(file);
   } catch {
-    return 'all'; // cannot read → cannot prove local
+    return 'all';
   }
-  if (src == null) return 'all';
-  if (isCode(file)) return CSSJS_GLOBAL.test(src) ? 'all' : 'scope'; // .tsx: global CSS-in-JS or colocated scope
-  if (isStyleSheet(file)) {
-    if (isCssModule(file)) {
-      // Hashed per-file scope — but `:global`, cross-module `composes … from`,
-      // genuinely global selectors (`:root`, `html`, `@font-face`, …), and any
-      // `@use`/`@forward`/`@import` load (Sass partial or plain-CSS sheet) escape it.
-      return MODULE_ESCAPES.test(src) || GLOBAL_CSS.test(src) || SASS_LOAD.test(src) ? 'all' : 'scope';
-    }
-    return 'all'; // vanilla stylesheet: global class namespace, import graph can't bound it
-  }
-  return 'all'; // unknown file kind → fail closed
+  return src != null && scoped(src) ? 'scope' : 'all';
 }
 
 // `import(` with a non-string-literal argument, capturing the argument text.
@@ -123,13 +92,10 @@ const dirOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) :
 const isSource = (p: string) => !p.includes('node_modules');
 
 /**
- * Canonicalize a repo-relative path so the same file spells the same regardless
- * of source (a `surfaces` value, a `changedFiles` entry, or a graph edge). Two
- * tools disagree on `./pages/Home.tsx` vs `pages/Home.tsx` vs `pages//Home.tsx`;
- * without one spelling, a reverse-reachability hit can silently miss the surface
- * whose entry key was spelled differently, dropping it from the affected set —
- * an unsound skip. Byte-cheap and fs-free: strip a leading `./`, collapse `//`,
- * and drop `.`/`..` segments as pure string math (no realpath, no resolution). */
+ * One spelling for a repo-relative path (`./pages/Home.tsx` = `pages//Home.tsx`)
+ * so a reverse-reachability hit cannot miss a differently-spelled surface entry.
+ * Pure string math: no realpath, no resolution.
+ */
 export function canonicalPath(p: string): string {
   const out: string[] = [];
   for (const seg of p.split('/')) {
@@ -138,12 +104,6 @@ export function canonicalPath(p: string): string {
     else out.push(seg);
   }
   return out.join('/');
-}
-
-function link(rev: Map<string, Set<string>>, to: string, from: string): void {
-  let s = rev.get(to);
-  if (!s) rev.set(to, (s = new Set()));
-  s.add(from);
 }
 
 /** Read a source file, mapping any throw/nullish result to `undefined`. */
@@ -155,12 +115,7 @@ function safeRead(readFile: (p: string) => string, path: string): string | undef
   }
 }
 
-/**
- * Resolve one computed `import()` argument to the directory its bundler context
- * module is rooted at: `null` for a plain string literal (the resolver already
- * captured it), `'unbounded'` when there is no static directory prefix (target
- * could be any file), else the normalized directory.
- */
+/** Directory a computed `import()` argument is rooted at: null for a string literal, `'unbounded'` without a static `/` prefix. */
 function contextDir(arg: string, fromDir: string): string | null | 'unbounded' {
   if (/^['"]/.test(arg)) return null; // plain string literal
   const prefix = arg.match(/^`([^$`]*)/)?.[1]; // static head of a template literal
@@ -168,12 +123,7 @@ function contextDir(arg: string, fromDir: string): string | null | 'unbounded' {
   return normalizeDir(fromDir, prefix);
 }
 
-/**
- * Recover computed `import()`s the graph resolver dropped, as bundler context
- * modules. Returns extra edges to add, or `'unbounded'` if any dynamic import
- * has no static directory prefix (its target could be any file → the whole
- * reachability is untrustworthy → caller must return `'all'`).
- */
+/** Recover computed `import()`s the resolver dropped as bundler context-module edges; `'unbounded'` when any has no static prefix. */
 function recoverContextEdges(from: string, src: string, files: string[]): ModuleEdge[] | 'unbounded' {
   const edges: ModuleEdge[] = [];
   const fromDir = dirOf(from);
@@ -188,61 +138,43 @@ function recoverContextEdges(from: string, src: string, files: string[]): Module
   return edges;
 }
 
-// Resolve a `../a/b/` style prefix against a source file's directory, without fs.
-function normalizeDir(fromDir: string, prefix: string): string {
-  const parts = (fromDir ? fromDir.split('/') : []).concat(prefix.split('/'));
-  const out: string[] = [];
-  for (const p of parts) {
-    if (p === '' || p === '.') continue;
-    if (p === '..') out.pop();
-    else out.push(p);
-  }
-  return out.join('/');
-}
+/** Resolve a `../a/b/` style prefix against a source file's directory, without fs. */
+const normalizeDir = (fromDir: string, prefix: string): string => canonicalPath(`${fromDir}/${prefix}`);
 
-/**
- * Build the reverse-import adjacency (`imported → importers`) from the graph plus
- * recovered context-module edges. `'all'` when an unbounded dynamic import makes
- * the whole reachability untrustworthy. Paths are already canonical; `read`
- * resolves a canonical path back to the caller's spelling before reading.
- */
+/** Reverse-import adjacency (`imported → importers`) plus recovered context edges; `'all'` when an unbounded dynamic import taints it. */
 function buildReverseGraph(
   graph: Iterable<ModuleEdge>,
   files: string[],
   read: (p: string) => string | undefined,
 ): Map<string, Set<string>> | 'all' {
   const rev = new Map<string, Set<string>>();
-  for (const e of graph) if (isSource(e.from) && isSource(e.to)) link(rev, e.to, e.from);
+  const link = (e: ModuleEdge) => rev.set(e.to, (rev.get(e.to) ?? new Set()).add(e.from));
+  for (const e of graph) if (isSource(e.from) && isSource(e.to)) link(e);
   for (const f of files) {
     const src = isCode(f) ? read(f) : undefined;
     if (src === undefined) continue;
     const extra = recoverContextEdges(f, src, files);
     if (extra === 'unbounded') return 'all';
-    for (const e of extra) link(rev, e.to, e.from);
+    extra.forEach(link);
   }
   return rev;
 }
 
 /**
- * Compute the set of declared surfaces a change could have altered, or `'all'`.
- * See the module doc for the soundness contract. Any not in the returned set are
- * provably unaffected and may reuse their committed base map.
+ * The declared surfaces a change could have altered, or `'all'`. Any surface not
+ * in the returned set is provably unaffected and may reuse its committed base map.
  */
 export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces {
-  // Canonicalize every path (surfaces values, changedFiles, graph from/to, files)
-  // through one spelling up front, so a `./`-prefixed or `//`-collapsed path from
-  // one source can't silently miss a match against another source's spelling.
-  // `readFile` is keyed on the caller's ORIGINAL spellings, so wrap it to resolve
-  // a canonical path back to the original it came from before reading.
-  const changed = [...input.changedFiles].map((f) => canonicalPath(f));
+  // Every path goes through one spelling; `readFile` is keyed on the caller's
+  // ORIGINAL spellings, so resolve a canonical path back before reading.
   const files = [...input.files];
   const canonFiles = files.map((f) => canonicalPath(f));
   const originalByCanon = new Map<string, string>();
-  files.forEach((orig, i) => originalByCanon.set(canonFiles[i], orig));
-  [...input.changedFiles].forEach((orig) => {
+  for (const orig of [...files, ...input.changedFiles]) {
     const c = canonicalPath(orig);
     if (!originalByCanon.has(c)) originalByCanon.set(c, orig);
-  });
+  }
+  const changed = [...input.changedFiles].map(canonicalPath);
   const surfaces = Object.fromEntries(Object.entries(input.surfaces).map(([k, f]) => [k, canonicalPath(f)]));
   const graph = [...input.graph].map((e) => ({ ...e, from: canonicalPath(e.from), to: canonicalPath(e.to) }));
   const read = (canon: string): string | undefined => safeRead(input.readFile, originalByCanon.get(canon) ?? canon);
@@ -256,17 +188,10 @@ export function affectedSurfaces(input: AffectedSurfacesInput): AffectedSurfaces
 
   // 3. Map each changed file to the surfaces that transitively import it.
   const entryFiles = new Set(Object.values(surfaces));
-
-  // A surface whose entry path appears in neither `files` nor any graph edge is
-  // unplaceable: reverse reachability can never route a change to it, so a genuine
-  // hit would be dropped silently. Same fail-closed rule as an unplaceable changed
-  // file → 'all'.
-  const placeable = new Set<string>(canonFiles);
-  for (const e of graph) {
-    placeable.add(e.from);
-    placeable.add(e.to);
-  }
-  for (const f of Object.values(surfaces)) if (!placeable.has(f)) return 'all';
+  // An entry path in neither `files` nor any graph edge is unplaceable: reverse
+  // reachability could never route a change to it, so fail closed.
+  const placeable = new Set<string>([...canonFiles, ...graph.flatMap((e) => [e.from, e.to])]);
+  if ([...entryFiles].some((f) => !placeable.has(f))) return 'all';
 
   const affectedFiles = new Set<string>();
   for (const f of changed) {
@@ -310,18 +235,9 @@ function reverseReach(file: string, rev: Map<string, Set<string>>): Set<string> 
 }
 
 /**
- * Render an {@link affectedSurfaces} verdict as human-readable lines a pre-push
- * hook (or CI log) can print, so a reviewer can sanity-check the skip list before
- * trusting it. Pure formatter — no I/O, no graph work.
- *
- * @param result       the value {@link affectedSurfaces} returned.
- * @param allSurfaces  every declared surface key (e.g. `Object.keys(surfaces)`),
- *                     so the helper can name what is *reused from base* — the ones
- *                     the verdict skips — not just what re-captures.
- * @param reason       optional one-line explanation for an `'all'` verdict (e.g.
- *                     the classifying file, from {@link classifyStyleChange}). The
- *                     library doesn't attach a reason to the sentinel, so pass it
- *                     if the caller knows why; omitted, the `'all'` line stands alone.
+ * Render an {@link affectedSurfaces} verdict as lines a pre-push hook or CI log
+ * can print. `allSurfaces` names what is reused from base; `reason` optionally
+ * explains an `'all'` verdict.
  */
 export function explainAffectedSurfaces(
   result: AffectedSurfaces,
@@ -337,8 +253,7 @@ export function explainAffectedSurfaces(
     ].join('\n');
   }
   const recapture = [...result].sort();
-  const hit = new Set(recapture);
-  const reused = all.filter((k) => !hit.has(k));
+  const reused = all.filter((k) => !result.has(k));
   return [
     `selective remap: ON → re-capture ${recapture.length}, reuse ${reused.length} from base`,
     ...recapture.map((k) => `  ↻ ${k} (re-capture — a changed file reaches it)`),

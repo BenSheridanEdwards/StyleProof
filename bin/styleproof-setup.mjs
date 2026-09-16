@@ -63,8 +63,7 @@ if (!fs.existsSync(path.join(cwd, 'package.json')))
   fail(NAME, `package.json was not found in project directory ${cwd}`);
 if (dryRun) process.stdout.write(`Project: ${cwd}\n`);
 
-// Validate the generated server contract before installing or scaffolding; this
-// read-only preflight also runs for --dry-run, so planning and execution agree.
+// Validate the server contract before installing or scaffolding (also under --dry-run).
 const init = path.join(binDir, 'styleproof-init.mjs');
 const preflight = spawnSync(process.execPath, [init, ...checkArgs, '--validate-server'], { cwd, encoding: 'utf8' });
 if (preflight.error) fail(NAME, `server validation failed: ${preflight.error.message}`, 5);
@@ -80,21 +79,14 @@ try {
   fail(NAME, errorMessage(error));
 }
 const packages = [`styleproof@${version}`, '@playwright/test@>=1.40'];
-const plans = {
-  npm: {
-    install: ['npm', ['install', '--save-dev', ...packages]],
-    browser: ['npm', ['exec', 'playwright', 'install', 'chromium']],
-  },
-  pnpm: {
-    install: ['pnpm', ['add', '--save-dev', ...packages]],
-    browser: ['pnpm', ['exec', 'playwright', 'install', 'chromium']],
-  },
-  yarn: {
-    install: ['yarn', ['add', '--dev', ...packages]],
-    browser: ['yarn', ['exec', 'playwright', 'install', 'chromium']],
-  },
-  bun: { install: ['bun', ['add', '--dev', ...packages]], browser: ['bunx', ['playwright', 'install', 'chromium']] },
+// [install verb, dev flag, [browser-install command, leading args]] per package manager.
+const PLANS = {
+  npm: ['install', '--save-dev', ['npm', ['exec']]],
+  pnpm: ['add', '--save-dev', ['pnpm', ['exec']]],
+  yarn: ['add', '--dev', ['yarn', ['exec']]],
+  bun: ['add', '--dev', ['bunx', []]],
 };
+const [installVerb, devFlag, [browserCommand, browserPrefix]] = PLANS[manager];
 
 const quote = (arg) => {
   if (!/\s/.test(arg)) return arg;
@@ -114,8 +106,9 @@ function run(command, args, label, display = printable(command, args)) {
   if (result.status !== 0) process.exit(result.status ?? 5);
 }
 
-if (!opts['skip-install']) run(...plans[manager].install, `installing dependencies with ${manager}`);
-if (!opts['skip-browser']) run(...plans[manager].browser, 'installing Chromium');
+if (!opts['skip-install']) run(manager, [installVerb, devFlag, ...packages], `installing dependencies with ${manager}`);
+if (!opts['skip-browser'])
+  run(browserCommand, [...browserPrefix, 'playwright', 'install', 'chromium'], 'installing Chromium');
 run(process.execPath, [init, ...initArgs], 'scaffolding project', printable('styleproof-init', initArgs));
 run(
   process.execPath,

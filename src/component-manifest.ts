@@ -1,17 +1,14 @@
 /**
- * Framework-neutral typed component manifest (#392 experiment, slice 1).
- *
- * Consumers declare component modules, export names, serializable variant props,
- * optional provider/harness modules, viewports, and exclusions-with-reason.
- * Keys and catalog URLs are deterministic and compatible with
- * {@link componentCatalogSurfaces} (`/styleproof/components/<key>` by default).
- *
+ * Framework-neutral typed component manifest: modules, export names, serializable
+ * variant props, provider modules, viewports, and exclusions-with-reason. Keys and
+ * catalog URLs are deterministic and compatible with {@link componentCatalogSurfaces}.
  * No React runtime, no eval, no remote module loading, no prop inference.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import {
   componentCatalogSurfaces,
+  componentSlug,
   type ComponentCatalogSurfaceOptions,
   type DiscoveredComponent,
 } from './components.js';
@@ -28,17 +25,12 @@ export type ComponentManifestVariant = {
   props?: ManifestJsonValue;
   /** Optional committed provider/harness module path (repo-relative). */
   provider?: string;
-  /** Viewport widths for this variant surface. */
   widths?: number[];
-  /** Viewport height for this variant surface. */
   height?: Surface['height'];
 };
 
 export type ComponentManifestComponent = {
-  /**
-   * Stable component id for keying. When omitted, derived from `module` the same
-   * way {@link discoverComponentFiles} slugs relative file paths.
-   */
+  /** Stable component id for keying; derived from `module` when omitted. */
   id?: string;
   /** Component module path (repo-relative; never a remote URL). */
   module: string;
@@ -48,22 +40,15 @@ export type ComponentManifestComponent = {
   variants: ComponentManifestVariant[];
 };
 
-export type ComponentManifestExclusion = {
-  /** Repo-relative path of a component file intentionally left out of the catalog. */
-  path: string;
-  /** Human-readable reason (required; empty reasons are rejected). */
-  reason: string;
-};
+/** A component file intentionally left out of the catalog, with a required reason. */
+export type ComponentManifestExclusion = { path: string; reason: string };
 
 export type ComponentManifest = {
-  /** Schema version. Only `1` is accepted in this experiment. */
+  /** Schema version. Only `1` is accepted. */
   version: 1;
-  /** Capture-key prefix. Defaults to `component` (matches discoverComponentFiles). */
+  /** Capture-key prefix. Defaults to `component`. */
   prefix?: string;
-  /**
-   * Catalog URL base path (no trailing slash). Defaults to
-   * `/styleproof/components` so routes plug into componentCatalogSurfaces.
-   */
+  /** Catalog URL base path (no trailing slash). Defaults to `/styleproof/components`. */
   catalogBasePath?: string;
   components: ComponentManifestComponent[];
   exclusions?: ComponentManifestExclusion[];
@@ -97,68 +82,38 @@ function nonEmptyString(value: unknown, label: string): string {
   return value.trim();
 }
 
-/**
- * True when `value` is JSON-serializable (no functions, bigint, undefined, NaN,
- * Infinity, symbols, or cyclic structures). Cycles return false instead of
- * overflowing the call stack. Repeated shared (acyclic) references are allowed,
- * matching `JSON.stringify`.
- */
+/** True when `value` is JSON-serializable (no functions, bigint, undefined, NaN, symbols, or cycles). */
 export function isSerializableManifestValue(value: unknown): value is ManifestJsonValue {
-  // Active-ancestor set only: objects leave the set after their subtree is
-  // walked so diamond/shared refs stay serializable while true cycles fail.
+  // Active-ancestor set: shared (acyclic) refs stay serializable while true cycles fail.
   return isSerializableManifestValueInner(value, new WeakSet<object>());
 }
 
 function isSerializableManifestValueInner(value: unknown, ancestors: WeakSet<object>): boolean {
-  if (value === null) return true;
-  if (typeof value === 'string' || typeof value === 'boolean') return true;
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
   if (typeof value === 'number') return Number.isFinite(value);
-  if (typeof value === 'bigint' || typeof value === 'function' || typeof value === 'symbol') return false;
-  if (typeof value === 'undefined') return false;
-  if (typeof value !== 'object') return false;
-  if (ancestors.has(value)) return false;
+  if (typeof value !== 'object' || ancestors.has(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && proto !== Object.prototype && proto !== null) return false;
   ancestors.add(value);
   try {
-    if (Array.isArray(value)) {
-      return value.every((item) => isSerializableManifestValueInner(item, ancestors));
-    }
-    const proto = Object.getPrototypeOf(value);
-    if (proto !== Object.prototype && proto !== null) return false;
-    return Object.values(value as Record<string, unknown>).every((item) =>
-      isSerializableManifestValueInner(item, ancestors),
-    );
+    return Object.values(value).every((item) => isSerializableManifestValueInner(item, ancestors));
   } finally {
     ancestors.delete(value);
   }
 }
 
-/**
- * Slug a path or id the same way component file keys are built
- * (kebab-case, no extension, no leading/trailing hyphens).
- */
-export function slugManifestSegment(input: string): string {
-  return input
-    .replace(/\\/g, '/')
-    .replace(/\.[^.]+$/, '')
-    .replace(/\/index$/, '')
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/[^a-zA-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase();
-}
+/** Module-path rejections in order: [test, message]; `%s` is the normalized path. */
+const MODULE_PATH_REJECTS: [test: (p: string) => boolean, message: string][] = [
+  [(p) => /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(p), 'must be a local module path, not a remote URL (%s)'],
+  [(p) => p.includes('\0'), 'must not contain null bytes'],
+  [(p) => path.isAbsolute(p) || /^[a-zA-Z]:\//.test(p), 'must be repo-relative, not absolute (%s)'],
+  [(p) => p.split('/').some((part) => part === '..'), "must not contain '..' segments (%s)"],
+];
 
 function assertLocalModulePath(modulePath: string, label: string): string {
   const normalized = nonEmptyString(modulePath, label).replace(/\\/g, '/');
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(normalized)) {
-    fail(`${label} must be a local module path, not a remote URL (${normalized})`);
-  }
-  if (normalized.includes('\0')) fail(`${label} must not contain null bytes`);
-  if (path.isAbsolute(normalized) || /^[a-zA-Z]:\//.test(normalized)) {
-    fail(`${label} must be repo-relative, not absolute (${normalized})`);
-  }
-  if (normalized.split('/').some((part) => part === '..')) {
-    fail(`${label} must not contain '..' segments (${normalized})`);
-  }
+  const reject = MODULE_PATH_REJECTS.find(([test]) => test(normalized));
+  if (reject) fail(`${label} ${reject[1].replace('%s', normalized)}`);
   return normalized;
 }
 
@@ -178,23 +133,18 @@ function assertVariantKey(value: unknown, label: string): string {
   return key;
 }
 
+const isPositive = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
+
 function assertOptionalWidths(value: unknown, label: string): number[] | undefined {
   if (value === undefined) return undefined;
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    value.some((w) => typeof w !== 'number' || !Number.isFinite(w) || w <= 0)
-  ) {
+  if (!Array.isArray(value) || value.length === 0 || !value.every(isPositive)) {
     fail(`${label} must be a non-empty array of positive finite numbers`);
   }
-  return value as number[];
+  return value;
 }
 
 function assertOptionalHeight(value: unknown, label: string): number | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    fail(`${label} must be a positive finite number`);
-  }
+  if (value !== undefined && !isPositive(value)) fail(`${label} must be a positive finite number`);
   return value;
 }
 
@@ -202,75 +152,52 @@ function componentIdFromModule(modulePath: string): string {
   const slash = modulePath.replace(/\\/g, '/');
   const componentsIdx = slash.lastIndexOf('/components/');
   const rel = componentsIdx >= 0 ? slash.slice(componentsIdx + '/components/'.length) : slash.replace(/^\.\//, '');
-  const slug = slugManifestSegment(rel);
+  const slug = componentSlug(rel);
   if (!slug) fail(`could not derive component id from module path ${modulePath}`);
   return slug;
 }
 
-/** True when `candidate` is the same path as `root` or a path under it (after realpath). */
-function isPathInsideRoot(root: string, candidate: string): boolean {
-  const rootNorm = path.resolve(root);
-  const candidateNorm = path.resolve(candidate);
-  if (candidateNorm === rootNorm) return true;
-  const prefix = rootNorm.endsWith(path.sep) ? rootNorm : rootNorm + path.sep;
-  return candidateNorm.startsWith(prefix);
+/** `fn()` or `fail(message)` when it throws. */
+function attempt<T>(fn: () => T, message: string): T {
+  try {
+    return fn();
+  } catch {
+    fail(message);
+  }
 }
 
-/**
- * Resolve `rel` under `cwd`, require a real file, and reject paths that escape
- * the project root via `..` or symlink (realpath containment where feasible).
- */
+/** Resolve `rel` under `cwd`, require a real file, and reject paths that escape the root via `..` or symlink. */
 function assertFileExists(cwd: string, rel: string, label: string): void {
-  const abs = path.resolve(cwd, rel);
-  let realRoot: string;
-  try {
-    realRoot = fs.realpathSync(cwd);
-  } catch {
-    fail(`${label}: project root not found (${cwd})`);
-  }
-  let realAbs: string;
-  try {
-    realAbs = fs.realpathSync(abs);
-  } catch {
-    fail(`${label} not found: ${rel}`);
-  }
-  if (!isPathInsideRoot(realRoot, realAbs)) {
-    fail(`${label} escapes project root: ${rel}`);
-  }
-  let stat: fs.Stats;
-  try {
-    stat = fs.statSync(realAbs);
-  } catch {
-    fail(`${label} not found: ${rel}`);
-  }
-  if (!stat.isFile()) fail(`${label} is not a file: ${rel}`);
+  const realRoot = attempt(() => fs.realpathSync(cwd), `${label}: project root not found (${cwd})`);
+  const realAbs = attempt(() => fs.realpathSync(path.resolve(cwd, rel)), `${label} not found: ${rel}`);
+  const rootPrefix = realRoot.endsWith(path.sep) ? realRoot : realRoot + path.sep;
+  if (realAbs !== realRoot && !realAbs.startsWith(rootPrefix)) fail(`${label} escapes project root: ${rel}`);
+  if (!attempt(() => fs.statSync(realAbs), `${label} not found: ${rel}`).isFile())
+    fail(`${label} is not a file: ${rel}`);
+}
+
+/** Drop `undefined` entries so optional fields stay absent, not present-as-undefined. */
+function compact<T extends object>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T;
 }
 
 function parseVariant(raw: unknown, index: number, componentLabel: string, cwd?: string): ComponentManifestVariant {
   const label = `${componentLabel}.variants[${index}]`;
   const v = plainObject(raw, label);
   const key = assertVariantKey(v.key, `${label}.key`);
-  let props: ManifestJsonValue | undefined;
-  if (v.props !== undefined) {
-    if (!isSerializableManifestValue(v.props)) {
-      fail(`${label}.props must be JSON-serializable (no functions, NaN, undefined, or class instances)`);
-    }
-    props = v.props;
+  if (v.props !== undefined && !isSerializableManifestValue(v.props)) {
+    fail(`${label}.props must be JSON-serializable (no functions, NaN, undefined, or class instances)`);
   }
-  let provider: string | undefined;
-  if (v.provider !== undefined) {
-    provider = assertLocalModulePath(String(v.provider), `${label}.provider`);
-    if (cwd) assertFileExists(cwd, provider, `${label}.provider`);
-  }
-  const widths = assertOptionalWidths(v.widths, `${label}.widths`);
-  const height = assertOptionalHeight(v.height, `${label}.height`);
-  return {
+  const provider =
+    v.provider === undefined ? undefined : assertLocalModulePath(String(v.provider), `${label}.provider`);
+  if (provider && cwd) assertFileExists(cwd, provider, `${label}.provider`);
+  return compact({
     key,
-    ...(props !== undefined ? { props } : {}),
-    ...(provider !== undefined ? { provider } : {}),
-    ...(widths !== undefined ? { widths } : {}),
-    ...(height !== undefined ? { height } : {}),
-  };
+    props: v.props as ManifestJsonValue | undefined,
+    provider,
+    widths: assertOptionalWidths(v.widths, `${label}.widths`),
+    height: assertOptionalHeight(v.height, `${label}.height`),
+  });
 }
 
 function parseComponent(raw: unknown, index: number, cwd?: string): ComponentManifestComponent {
@@ -279,18 +206,11 @@ function parseComponent(raw: unknown, index: number, cwd?: string): ComponentMan
   const modulePath = assertLocalModulePath(String(c.module ?? ''), `${label}.module`);
   if (cwd) assertFileExists(cwd, modulePath, `${label}.module path`);
   const exportName = c.export === undefined ? 'default' : assertExportName(c.export, `${label}.export`);
-  const id = c.id === undefined ? undefined : slugManifestSegment(nonEmptyString(c.id, `${label}.id`));
+  const id = c.id === undefined ? undefined : componentSlug(nonEmptyString(c.id, `${label}.id`));
   if (c.id !== undefined && !id) fail(`${label}.id must yield a non-empty slug`);
-  if (!Array.isArray(c.variants) || c.variants.length === 0) {
-    fail(`${label}.variants must be a non-empty array`);
-  }
+  if (!Array.isArray(c.variants) || c.variants.length === 0) fail(`${label}.variants must be a non-empty array`);
   const variants = c.variants.map((variant, i) => parseVariant(variant, i, label, cwd));
-  return {
-    ...(id ? { id } : {}),
-    module: modulePath,
-    export: exportName,
-    variants,
-  };
+  return { ...(id ? { id } : {}), module: modulePath, export: exportName, variants };
 }
 
 function parseExclusion(raw: unknown, index: number): ComponentManifestExclusion {
@@ -303,7 +223,7 @@ function parseExclusion(raw: unknown, index: number): ComponentManifestExclusion
 
 function parsePrefix(value: unknown): string {
   if (value === undefined) return DEFAULT_PREFIX;
-  const prefix = slugManifestSegment(nonEmptyString(value, 'prefix'));
+  const prefix = componentSlug(nonEmptyString(value, 'prefix'));
   if (!prefix) fail(`"prefix" must yield a non-empty slug`);
   return prefix;
 }
@@ -315,14 +235,8 @@ function parseCatalogBasePath(value: unknown): string {
     fail(`"catalogBasePath" must be an app-relative path starting with exactly one '/'`);
   }
   if (/[?#\0]/.test(raw)) fail(`"catalogBasePath" must not contain query, fragment, or NUL characters`);
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(raw);
-  } catch {
-    fail(`"catalogBasePath" must contain valid URL encoding`);
-  }
-  const segments = decoded.split('/');
-  if (segments.some((segment) => segment === '.' || segment === '..')) {
+  const decoded = attempt(() => decodeURIComponent(raw), `"catalogBasePath" must contain valid URL encoding`);
+  if (decoded.split('/').some((segment) => segment === '.' || segment === '..')) {
     fail(`"catalogBasePath" must not contain traversal segments`);
   }
   return stripTrailingSlashes(raw) || '/';
@@ -341,30 +255,29 @@ function parseExclusions(value: unknown): ComponentManifestExclusion[] | undefin
   return value.map((e, i) => parseExclusion(e, i));
 }
 
+/** Every (component, variant) pair with its deterministic surface key. */
+function variantKeys(components: ComponentManifestComponent[], prefix: string) {
+  return components.flatMap((component) => {
+    const componentId = component.id ?? componentIdFromModule(component.module);
+    return component.variants.map((variant) => ({
+      component,
+      variant,
+      key: componentManifestSurfaceKey({ prefix, componentId, variantKey: variant.key }),
+    }));
+  });
+}
+
 function assertUniqueSurfaceKeys(components: ComponentManifestComponent[], prefix: string): void {
   const seen = new Map<string, string>();
-  for (const component of components) {
-    const componentId = component.id ?? componentIdFromModule(component.module);
-    for (const variant of component.variants) {
-      const surfaceKey = componentManifestSurfaceKey({
-        prefix,
-        componentId,
-        variantKey: variant.key,
-      });
-      const previous = seen.get(surfaceKey);
-      const where = `${component.module}#${component.export} variant ${variant.key}`;
-      if (previous) {
-        fail(`duplicate surface key "${surfaceKey}" from ${previous} and ${where}`);
-      }
-      seen.set(surfaceKey, where);
-    }
+  for (const { component, variant, key } of variantKeys(components, prefix)) {
+    const previous = seen.get(key);
+    const where = `${component.module}#${component.export} variant ${variant.key}`;
+    if (previous) fail(`duplicate surface key "${key}" from ${previous} and ${where}`);
+    seen.set(key, where);
   }
 }
 
-/**
- * Validate and normalize an unknown component-manifest document.
- * Throws {@link ComponentManifestError} with actionable diagnostics.
- */
+/** Validate and normalize an unknown manifest document; throws {@link ComponentManifestError}. */
 export function validateComponentManifest(
   input: unknown,
   options: ValidateComponentManifestOptions = {},
@@ -374,18 +287,15 @@ export function validateComponentManifest(
   if (!Array.isArray(root.components)) fail(`"components" must be an array`);
 
   const prefix = parsePrefix(root.prefix);
-  const catalogBasePath = parseCatalogBasePath(root.catalogBasePath);
   const components = root.components.map((c, i) => parseComponent(c, i, options.cwd));
-  const exclusions = parseExclusions(root.exclusions);
   assertUniqueSurfaceKeys(components, prefix);
-
-  return {
-    version: 1,
+  return compact({
+    version: 1 as const,
     prefix,
-    catalogBasePath,
+    catalogBasePath: parseCatalogBasePath(root.catalogBasePath),
     components,
-    ...(exclusions ? { exclusions } : {}),
-  };
+    exclusions: parseExclusions(root.exclusions),
+  });
 }
 
 export type ComponentManifestSurfaceKeyInput = {
@@ -396,9 +306,9 @@ export type ComponentManifestSurfaceKeyInput = {
 
 /** Deterministic surface key: `<prefix>-<componentId>-<variantKey>` (slugified). */
 export function componentManifestSurfaceKey(input: ComponentManifestSurfaceKeyInput): string {
-  const prefix = slugManifestSegment(input.prefix ?? DEFAULT_PREFIX);
-  const componentId = slugManifestSegment(input.componentId);
-  const variantKey = slugManifestSegment(input.variantKey);
+  const prefix = componentSlug(input.prefix ?? DEFAULT_PREFIX);
+  const componentId = componentSlug(input.componentId);
+  const variantKey = componentSlug(input.variantKey);
   if (!componentId) fail('component id must yield a non-empty slug');
   if (!variantKey) fail('variant key must yield a non-empty slug');
   return [prefix, componentId, variantKey].filter(Boolean).join('-');
@@ -421,23 +331,11 @@ export function componentManifestCatalogPath(
   return `${base === '/' ? '' : base}/${key}`;
 }
 
-/**
- * Expand a validated manifest into {@link DiscoveredComponent} rows (one per variant)
- * sorted by key — ready for {@link componentCatalogSurfaces}.
- */
+/** Expand a validated manifest into {@link DiscoveredComponent} rows (one per variant), sorted by key. */
 export function componentManifestToDiscovered(manifest: ComponentManifest): DiscoveredComponent[] {
-  const prefix = manifest.prefix ?? DEFAULT_PREFIX;
-  const out: DiscoveredComponent[] = [];
-  for (const component of manifest.components) {
-    const componentId = component.id ?? componentIdFromModule(component.module);
-    for (const variant of component.variants) {
-      out.push({
-        key: componentManifestSurfaceKey({ prefix, componentId, variantKey: variant.key }),
-        path: toSlash(component.module),
-      });
-    }
-  }
-  return out.sort((a, b) => a.key.localeCompare(b.key));
+  return variantKeys(manifest.components, manifest.prefix ?? DEFAULT_PREFIX)
+    .map(({ component, key }) => ({ key, path: toSlash(component.module) }))
+    .sort((a, b) => a.key.localeCompare(b.key));
 }
 
 export type ComponentManifestCatalogSurfaceOptions = ComponentCatalogSurfaceOptions & {
@@ -445,50 +343,20 @@ export type ComponentManifestCatalogSurfaceOptions = ComponentCatalogSurfaceOpti
   catalogBasePath?: string;
 };
 
-function variantViewportBySurfaceKey(manifest: ComponentManifest): Map<string, Pick<Surface, 'widths' | 'height'>> {
-  const prefix = manifest.prefix ?? DEFAULT_PREFIX;
-  const byKey = new Map<string, Pick<Surface, 'widths' | 'height'>>();
-  for (const component of manifest.components) {
-    const componentId = component.id ?? componentIdFromModule(component.module);
-    for (const variant of component.variants) {
-      const viewport = pickVariantViewport(variant);
-      if (!viewport) continue;
-      const key = componentManifestSurfaceKey({
-        prefix,
-        componentId,
-        variantKey: variant.key,
-      });
-      byKey.set(key, viewport);
+type Viewport = Pick<Surface, 'widths' | 'height'>;
+
+/** Surface key → the per-variant viewport override, for variants that declare one. */
+function variantViewportBySurfaceKey(manifest: ComponentManifest): Map<string, Viewport> {
+  const byKey = new Map<string, Viewport>();
+  for (const { variant, key } of variantKeys(manifest.components, manifest.prefix ?? DEFAULT_PREFIX)) {
+    if (variant.widths !== undefined || variant.height !== undefined) {
+      byKey.set(key, compact({ widths: variant.widths, height: variant.height }));
     }
   }
   return byKey;
 }
 
-function pickVariantViewport(variant: ComponentManifestVariant): Pick<Surface, 'widths' | 'height'> | undefined {
-  if (variant.widths === undefined && variant.height === undefined) return undefined;
-  return {
-    ...(variant.widths !== undefined ? { widths: variant.widths } : {}),
-    ...(variant.height !== undefined ? { height: variant.height } : {}),
-  };
-}
-
-function applyVariantViewport(surface: Surface, override: Pick<Surface, 'widths' | 'height'> | undefined): Surface {
-  if (!override) return surface;
-  return {
-    ...surface,
-    ...(override.widths !== undefined ? { widths: override.widths } : {}),
-    ...(override.height !== undefined ? { height: override.height } : {}),
-  };
-}
-
-/**
- * Build StyleProof surfaces from a validated manifest using
- * {@link componentCatalogSurfaces}. Default URL:
- * `<catalogBasePath>/<surfaceKey>`.
- *
- * Per-variant `widths` / `height` from the manifest override catalog-level
- * viewport options for the matching surface (typed variant contract).
- */
+/** Surfaces from a validated manifest (default URL `<catalogBasePath>/<surfaceKey>`); per-variant `widths`/`height` override catalog-level options. */
 export function componentManifestCatalogSurfaces(
   manifest: ComponentManifest,
   options: ComponentManifestCatalogSurfaceOptions = {},
@@ -503,7 +371,5 @@ export function componentManifestCatalogSurfaces(
     ...rest,
     url: url ?? ((component) => componentManifestCatalogPath(component.key, { catalogBasePath })),
   });
-
-  if (variantViewport.size === 0) return surfaces;
-  return surfaces.map((surface) => applyVariantViewport(surface, variantViewport.get(surface.key)));
+  return surfaces.map((surface) => ({ ...surface, ...variantViewport.get(surface.key) }));
 }
