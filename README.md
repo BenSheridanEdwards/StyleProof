@@ -182,6 +182,27 @@ longhands, pseudo-elements, layout boxes, motion longhands, and forced
 
 ## Quickstart
 
+### Upgrading to 7.0.0
+
+Version 6.4.0 removed the Phase 0 and Release Confidence public interfaces. Version
+7.0.0 establishes the SemVer-correct major line for that contract. Upgrade the npm
+package and report Action to major 7 together, then refresh and verify generated
+workflows with the same server/spec options you used at install:
+
+```bash
+npm install --save-dev styleproof@^7
+npx styleproof-init --upgrade
+npx styleproof-init --check
+```
+
+Regenerate baselines so base and head use the same expanded forced-state evidence.
+Remove integrations with the deleted `phase0*` / `releaseConfidence*` exports,
+`report.json.releaseConfidence`, `styleproof-release-confidence.json`,
+`styleproof-publish-report --manifest-digest`, and the Action's
+`release-confidence-digest` output. Source binding, coverage, determinism,
+product-state comparability, and all other retained gates still fail closed. See the
+[7.0.0 changelog](CHANGELOG.md#700---2026-09-14).
+
 ### Set up everything
 
 ```bash
