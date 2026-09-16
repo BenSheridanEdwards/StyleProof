@@ -233,7 +233,7 @@ test('styleproof-map: refuses crawl.setup / authBoundaryExclude (auth belongs on
     fs.writeFileSync(path.join(dir, 'e2e/styleproof.spec.ts'), '// spec\n');
     const map = spawnSync(process.execPath, [MAP, '--setup', 'x.json'], { cwd: dir, encoding: 'utf8' });
     assert.equal(map.status, 2, map.stderr);
-    assert.match(map.stderr, /not supported on the spec-driven map path/);
+    assert.match(map.stderr, /not supported on the spec-driven map path|unknown flag: --setup/);
   });
 });
 

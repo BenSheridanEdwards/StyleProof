@@ -498,7 +498,7 @@ test('styleproof-variants documents the required running-app input', () => {
 
   const invalid = run(VARIANTS, ['--base-url', 'http://127.0.0.1:1', '--route', '/', '--max-state-actions', '201']);
   assert.equal(invalid.status, 2);
-  assert.match(invalid.stderr, /integers from 0 to 200/);
+  assert.match(invalid.stderr, /integer from 0 to 200/);
 });
 
 // ---------------------------------------------------------------- styleproof-diff

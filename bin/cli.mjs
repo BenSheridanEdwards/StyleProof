@@ -27,7 +27,7 @@ export async function run(name, main, { exitCode = 1 } = {}) {
 }
 
 /**
- * Define a command from a flag table. Each flag: `{ help, value?, repeat?, default?, negate?, required? }`.
+ * Define a command from a flag table. Each flag: `{ help, value?, repeat?, default?, negate?, required?, allowEmpty? }`.
  * A flag with `value` takes `--k v` or `--k=v`; without it, the flag is boolean (`--no-k` when `negate`).
  * `parse(argv)` yields `{ opts, args, passthrough }`; `-h/--help` prints the generated help.
  */
@@ -67,13 +67,13 @@ function applyFlag(name, flags, opts, argv, i) {
     opts[token.key] = !token.negated;
     return i;
   }
-  const value = token.inline ?? argv[i + 1];
-  if (value === undefined || value === '' || (token.inline === undefined && value.startsWith('--'))) {
-    fail(name, `missing value for --${token.flag}`);
-  }
+  let value = token.inline ?? argv[i + 1];
+  const missing = value === undefined || (token.inline === undefined && value.startsWith('--'));
+  if (token.spec.allowEmpty && missing) value = '';
+  else if (missing || (value === '' && !token.spec.allowEmpty)) fail(name, `--${token.flag} requires a value`);
   if (token.spec.repeat) opts[token.key].push(value);
   else opts[token.key] = value;
-  return token.inline === undefined ? i + 1 : i;
+  return token.inline === undefined && value !== '' ? i + 1 : i;
 }
 
 function initialOptions(flags) {
