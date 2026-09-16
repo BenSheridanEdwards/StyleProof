@@ -1,135 +1,81 @@
 #!/usr/bin/env node
-/**
- * The packaged selective-remap verdict: given the files a change touched and a
- * module graph, which declared surfaces could have rendered differently?
- *
- * This is the CLI over `affectedSurfaces` / `explainAffectedSurfaces` — the exact
- * recipe README's "Optional: selective remap (advisory)" documents consumers
- * hand-rolling in a scripts/selective-remap.mjs. The library stays the oracle;
- * this command only assembles its inputs (surface map, dependency-cruiser JSON,
- * `git diff --name-only`) and renders the verdict.
- *
- * Advisory by design: it never captures or gates on its own. Wire the exit code
- * into a pre-push hook or CI step that captures the returned subset and reuses
- * restored base maps for the rest — and let main (or a scheduled run) still
- * capture everything as the trust-but-verify net.
- */
+// The packaged selective-remap verdict: given the files a change touched and a
+// module graph, which declared surfaces could have rendered differently? Advisory
+// by design — it never captures or gates on its own. Exit 0 = scoped, 3 = unbounded.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { isHelpArg, projectConfigOrExit, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { projectConfigOrExit } from '../dist/cli-errors.js';
 import { loadStyleProofConfigWithLocation, resolveStyleProofConfigPath } from '../dist/config.js';
 import { affectedSurfaces, classifyStyleChange, explainAffectedSurfaces } from '../dist/affected-surfaces.js';
+import { defineCli, fail, gitOutput, readJson } from './cli.mjs';
 
-const HELP = `styleproof-affected — which declared surfaces could this change have restyled?
+const NAME = 'styleproof-affected';
+const cli = defineCli({
+  name: NAME,
+  alias: 'affected',
+  usage: [
+    `${NAME} --graph <depcruise.json> (--surfaces <json> | --surface k=path ...) (--base <ref> | --changed <path> ...) [options]`,
+  ],
+  summary:
+    'Each input falls back to the "affected" block of styleproof.config.json, so a configured repo can run a bare styleproof-affected.',
+  flags: {
+    graph: { value: 'json', help: 'dependency-cruiser JSON for the source tree (config: affected.graph)' },
+    surfaces: {
+      value: 'json',
+      help: 'JSON file mapping capture key → surface entry module path (config: affected.surfaces)',
+    },
+    surface: { value: 'k=path', help: 'one mapping entry inline; merges over the rest.', repeat: true },
+    base: { value: 'ref', help: 'derive changed files from git diff --name-only <ref>...HEAD (config: affected.base)' },
+    changed: {
+      value: 'path',
+      help: 'a changed file, repo-relative as it appears in the graph; replaces the git derivation.',
+      repeat: true,
+    },
+    root: {
+      value: 'dir',
+      help: 'the package the verdict is about; config, graph, surfaces, and source files resolve against it',
+      default: process.cwd(),
+    },
+    json: { help: 'print the machine verdict to stdout (explain lines go to stderr)' },
+  },
+  notes: [
+    'exit codes:',
+    '  0  scoped verdict — capture only the listed surfaces, reuse base maps for the rest',
+    "  3  unbounded ('all') — some change could not be proven local; re-capture everything",
+    '  2  usage error (missing/unreadable inputs)',
+    '',
+    'The verdict fails closed: a global stylesheet or token file, a design-system config,',
+    "an unlisted file, or an unbounded dynamic import all yield 'all'.",
+  ],
+});
 
-usage: styleproof-affected --graph <depcruise.json> (--surfaces <json> | --surface k=path ...)
-                           (--base <ref> | --changed <path> ...) [options]
+const { opts } = cli.parse();
+const root = opts.root;
+const usageError = (message) => fail(NAME, message);
 
-inputs (each falls back to the "affected" block of styleproof.config.json, so a
-configured repo can run a bare \`styleproof-affected\`):
-  --graph <json>      dependency-cruiser JSON for the source tree, e.g.
-                        npx depcruise src --no-config --output-type json > dc.json
-                      (config: affected.graph)
-  --surfaces <json>   JSON file mapping capture key → surface entry module path,
-                        { "home": "src/pages/Home.tsx", "pricing": "src/pages/Pricing.tsx" }
-                      (config: affected.surfaces, an inline map; --surfaces replaces it)
-  --surface <k=path>  one mapping entry inline; repeatable, merges over the rest
-  --base <ref>        derive changed files from git: git diff --name-only <ref>...HEAD
-                      (config: affected.base)
-  --changed <path>    a changed file (repo-relative, as it appears in the graph);
-                      repeatable, replaces the git derivation
-  --root <dir>        the package the verdict is about (default: cwd). Its
-                      styleproof.config.json supplies the config, source files
-                      resolve against it during classification, --graph/--surfaces
-                      paths resolve against it, and repo-root-relative git paths
-                      are remapped onto it in a monorepo
-  --json              print the machine verdict to stdout (explain lines go to stderr)
-  -h, --help          show this help
-
-exit codes:
-  0  scoped verdict — capture only the listed surfaces, reuse base maps for the rest
-  3  unbounded ('all') — some change could not be proven local; re-capture everything
-  2  usage error (missing/unreadable inputs)
-
-The verdict fails closed: a global stylesheet or token file, a design-system
-config, an unlisted file, or an unbounded dynamic import all yield 'all'.
-
-Examples:
-  styleproof-affected --graph dc.json --surfaces styleproof.surfaces.json --base origin/main
-  styleproof-affected --graph dc.json --surface home=src/pages/Home.tsx --changed src/components/Nav.tsx --json
-styleproof-affected is a compatibility alias for the unified CLI: styleproof affected
-`;
-
-const argv = process.argv.slice(2);
-let graphPath = '';
-let surfacesPath = '';
-let baseRef = '';
-let root = process.cwd();
-let json = false;
-const inlineSurfaces = [];
-const changedArgs = [];
-for (let i = 0; i < argv.length; i++) {
-  const a = argv[i];
-  if (isHelpArg(a)) showHelpAndExit(HELP);
-  else if (a === '--graph') graphPath = argv[++i];
-  else if (a.startsWith('--graph=')) graphPath = a.slice(8);
-  else if (a === '--surfaces') surfacesPath = argv[++i];
-  else if (a.startsWith('--surfaces=')) surfacesPath = a.slice(11);
-  else if (a === '--surface') inlineSurfaces.push(argv[++i]);
-  else if (a.startsWith('--surface=')) inlineSurfaces.push(a.slice(10));
-  else if (a === '--base') baseRef = argv[++i];
-  else if (a.startsWith('--base=')) baseRef = a.slice(7);
-  else if (a === '--changed') changedArgs.push(argv[++i]);
-  else if (a.startsWith('--changed=')) changedArgs.push(a.slice(10));
-  else if (a === '--root') root = argv[++i];
-  else if (a.startsWith('--root=')) root = a.slice(7);
-  else if (a === '--json') json = true;
-  else {
-    console.error(unknownFlagMessage('styleproof-affected', a));
-    process.exit(2);
-  }
-}
-
-function usageError(message) {
-  console.error(`styleproof-affected: ${message}`);
-  process.exit(2);
-}
-
-function readJson(file, what) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (e) {
-    usageError(`could not read ${what} at ${file}\n${e instanceof Error ? e.message : String(e)}`);
-  }
-}
-
-// The "affected" block of styleproof.config.json is the lowest-precedence layer,
-// so a configured repo runs a bare `styleproof-affected` with no flags at all.
-// Loaded from --root: in a monorepo the SUBPACKAGE's config governs its own
-// graph/surfaces, not whatever happens to sit at the invoking cwd.
-const affectedConfig = projectConfigOrExit('styleproof-affected', root).affected ?? {};
-const loadedConfig = loadStyleProofConfigWithLocation(root);
-if (!graphPath && affectedConfig.graph) {
-  graphPath = resolveStyleProofConfigPath(affectedConfig.graph, loadedConfig.configDir);
-}
-if (!baseRef && changedArgs.length === 0 && affectedConfig.base) baseRef = affectedConfig.base;
+// The config's "affected" block is the lowest-precedence layer. Loaded from --root:
+// in a monorepo the subpackage's config governs its own graph and surfaces.
+const affectedConfig = projectConfigOrExit(NAME, root).affected ?? {};
+const { configDir } = loadStyleProofConfigWithLocation(root);
+const graphPath = opts.graph || (affectedConfig.graph && resolveStyleProofConfigPath(affectedConfig.graph, configDir));
+const baseRef = opts.base || (opts.changed.length === 0 ? affectedConfig.base : '');
 
 if (!graphPath) usageError('--graph <depcruise.json> is required (or set affected.graph in styleproof.config.json)');
-if (!surfacesPath && inlineSurfaces.length === 0 && !affectedConfig.surfaces)
+if (!opts.surfaces && !opts.surface.length && !affectedConfig.surfaces) {
   usageError(
     'provide --surfaces <json>, at least one --surface k=path, or affected.surfaces in styleproof.config.json',
   );
-if (!baseRef && changedArgs.length === 0)
+}
+if (!baseRef && !opts.changed.length) {
   usageError('provide --base <ref>, at least one --changed <path>, or affected.base in styleproof.config.json');
+}
 
 // --surfaces replaces the config map wholesale; inline --surface entries merge on top.
-// File inputs resolve against --root (default cwd), matching the config's own
-// location — a monorepo wrapper names subpackage-relative paths, not cwd ones.
-const surfaces = surfacesPath
-  ? readJson(path.resolve(root, surfacesPath), 'the surfaces map')
+const surfaces = opts.surfaces
+  ? readJson(NAME, path.resolve(root, opts.surfaces), 'the surfaces map')
   : { ...(affectedConfig.surfaces ?? {}) };
-for (const entry of inlineSurfaces) {
+for (const entry of opts.surface) {
   const eq = entry.indexOf('=');
   if (eq <= 0) usageError(`--surface expects key=path, got '${entry}'`);
   surfaces[entry.slice(0, eq)] = entry.slice(eq + 1);
@@ -139,33 +85,24 @@ for (const [key, value] of Object.entries(surfaces)) {
 }
 if (Object.keys(surfaces).length === 0) usageError('the surfaces map is empty — nothing to prove');
 
-// dependency-cruiser's modules[].dependencies[] maps directly onto ModuleEdge.
-const cruise = readJson(path.resolve(root, graphPath), 'the dependency-cruiser graph');
-if (!Array.isArray(cruise?.modules)) {
+const cruise = readJson(NAME, path.resolve(root, graphPath), 'the dependency-cruiser graph');
+if (!Array.isArray(cruise?.modules))
   usageError(`${graphPath} has no modules[] — expected dependency-cruiser --output-type json`);
-}
 const graph = cruise.modules.flatMap((m) =>
   (m.dependencies ?? []).map((d) => ({ from: m.source, to: d.resolved, dynamic: d.dynamic })),
 );
 const files = cruise.modules.map((m) => m.source);
 
-let changedFiles = changedArgs;
+let changedFiles = opts.changed;
 if (changedFiles.length === 0) {
   const diff = spawnSync('git', ['diff', '--name-only', `${baseRef}...HEAD`], { cwd: root, encoding: 'utf8' });
-  if (diff.status !== 0) {
-    usageError(`git diff --name-only ${baseRef}...HEAD failed\n${(diff.stderr || '').trim()}`);
-  }
+  if (diff.status !== 0) usageError(`git diff --name-only ${baseRef}...HEAD failed\n${(diff.stderr || '').trim()}`);
   changedFiles = diff.stdout.split(/\r?\n/).filter(Boolean);
-  // `git diff --name-only` prints REPO-ROOT-relative paths regardless of cwd,
-  // while the graph and readFile below are --root-relative. Strip the --root
-  // prefix so subpackage files resolve into the graph; a changed file OUTSIDE
-  // --root keeps its repo path, is unreadable here, and classifies unbounded —
-  // fail closed, since this package's graph cannot prove it local.
-  const toplevel = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' });
-  if (toplevel.status === 0) {
-    // realpath both sides: git prints the physical toplevel while --root may be
-    // a symlinked spelling of the same directory (macOS temp dirs), which would
-    // corrupt the computed prefix.
+  // git prints repo-root-relative paths; the graph is --root-relative. Strip the
+  // --root prefix (realpath both sides: macOS temp dirs are symlinked) so subpackage
+  // files resolve; a file outside --root keeps its repo path and classifies unbounded.
+  const toplevel = gitOutput(['rev-parse', '--show-toplevel'], root);
+  if (toplevel) {
     const realpath = (p) => {
       try {
         return fs.realpathSync(p);
@@ -173,47 +110,27 @@ if (changedFiles.length === 0) {
         return path.resolve(p);
       }
     };
-    const prefix = path.relative(realpath(toplevel.stdout.trim()), realpath(root)).split(path.sep).join('/');
-    if (prefix) {
-      changedFiles = changedFiles.map((f) => (f.startsWith(`${prefix}/`) ? f.slice(prefix.length + 1) : f));
-    }
+    const prefix = path.relative(realpath(toplevel), realpath(root)).split(path.sep).join('/');
+    if (prefix) changedFiles = changedFiles.map((f) => (f.startsWith(`${prefix}/`) ? f.slice(prefix.length + 1) : f));
   }
 }
 
 const readFile = (p) => fs.readFileSync(path.resolve(root, p), 'utf8');
 const result = affectedSurfaces({ changedFiles, surfaces, graph, files, readFile });
-
-// The library doesn't attach a reason to the 'all' sentinel; recover the most
-// useful one we can — the first changed file that classifies as unbounded.
-let reason;
-if (result === 'all') {
-  const culprit = changedFiles.find((f) => classifyStyleChange(f, readFile) === 'all');
-  if (culprit) reason = `${culprit} could not be proven local (global/config/unreadable)`;
-}
-
+const culprit = result === 'all' ? changedFiles.find((f) => classifyStyleChange(f, readFile) === 'all') : undefined;
+const reason = culprit && `${culprit} could not be proven local (global/config/unreadable)`;
 const explanation = explainAffectedSurfaces(result, Object.keys(surfaces), reason);
-if (json) {
+if (opts.json) {
   console.error(explanation);
-  const recapture = result === 'all' ? Object.keys(surfaces).sort() : [...result].sort();
-  const reuse =
-    result === 'all'
-      ? []
-      : Object.keys(surfaces)
-          .filter((k) => !result.has(k))
-          .sort();
-  console.log(
-    JSON.stringify(
-      {
-        verdict: result === 'all' ? 'all' : 'scoped',
-        recapture,
-        reuse,
-        changed: changedFiles,
-        ...(reason ? { reason } : {}),
-      },
-      null,
-      2,
-    ),
-  );
+  const keys = Object.keys(surfaces).sort();
+  const verdict = {
+    verdict: result === 'all' ? 'all' : 'scoped',
+    recapture: result === 'all' ? keys : keys.filter((k) => result.has(k)),
+    reuse: result === 'all' ? [] : keys.filter((k) => !result.has(k)),
+    changed: changedFiles,
+    ...(reason ? { reason } : {}),
+  };
+  console.log(JSON.stringify(verdict, null, 2));
 } else {
   console.log(explanation);
 }

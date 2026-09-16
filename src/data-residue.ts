@@ -27,8 +27,7 @@
 //   - Synthesising payloads or surfaces for un-exercised response variants (app
 //     knowledge; issue #202's territory).
 
-import fs from 'node:fs';
-import path from 'node:path';
+import { DATA_RESIDUE_LEDGER, readLedger } from './ack-ledger.js';
 import { safeKey } from './change-groups.js';
 
 /** One data-boundary request that FAILED during capture — an embedded fallback branch. */
@@ -50,24 +49,9 @@ export type DataResidueEntry = {
 /** `key -> reason` — failing endpoints that are intentional/known and on the record. */
 export type AcknowledgedResidue = Record<string, string>;
 
-/** Acknowledgement file, parallel to the inventory guard's `styleproof.inventory.json`. */
-export const DATA_RESIDUE_ACK_FILE = 'styleproof.data-residue.json';
-
-/**
- * Read the acknowledged-residue file (`$STYLEPROOF_DATA_RESIDUE` or
- * `styleproof.data-residue.json`). `{}` when absent; THROWS on malformed JSON — the
- * caller picks the policy (the CI gate fails loud so a broken ack file can't silently
- * un-acknowledge a real failure; the advisory report degrades to `{}`). Mirrors
- * `readAckFile` in the inventory guard exactly.
- */
+/** Read the acknowledged-residue ledger (`$STYLEPROOF_DATA_RESIDUE` or `styleproof.data-residue.json`). */
 export function readResidueAckFile(): AcknowledgedResidue {
-  const p = path.resolve(process.env.STYLEPROOF_DATA_RESIDUE ?? DATA_RESIDUE_ACK_FILE);
-  if (!fs.existsSync(p)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf8')) as AcknowledgedResidue;
-  } catch (e) {
-    throw new Error(`${p} is not valid JSON — ${(e as Error).message}`, { cause: e });
-  }
+  return readLedger(DATA_RESIDUE_LEDGER);
 }
 
 /** Build a residue key from a surface and an endpoint URL. Query stripped, escaped. */

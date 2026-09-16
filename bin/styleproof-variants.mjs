@@ -1,83 +1,40 @@
 #!/usr/bin/env node
-/**
- * Harvest one-step UI state variants from a running app.
- *
- *   styleproof-variants --base-url http://localhost:3000 --route / --route /settings
- */
+// Harvest one-step UI state variants from a running app and write a manifest.
 import fs from 'node:fs';
 import { chromium } from '@playwright/test';
 import { harvestStyleVariants } from '../dist/variant-crawler.js';
 import { defaultLinkKey } from '../dist/crawl.js';
-import { isHelpArg, showHelpAndExit, unknownFlagMessage } from '../dist/cli-errors.js';
+import { defineCli, number } from './cli.mjs';
 
-const HELP = `styleproof-variants — discover one-step UI state variants
+const NAME = 'styleproof-variants';
+const cli = defineCli({
+  name: NAME,
+  alias: 'variants',
+  usage: [`${NAME} --base-url <url> --route <path-or-key=path> [options]`],
+  positionals: true,
+  flags: {
+    'base-url': { value: 'url', help: 'running app origin, e.g. http://localhost:3000', required: true },
+    route: { value: 'route', help: 'route path, absolute URL, or key=path.', repeat: true },
+    out: { value: 'file', help: 'manifest output', default: 'styleproof.variants.generated.json' },
+    'max-actions': { value: 'n', help: 'max attempted actions per route', default: 40 },
+    'max-state-actions': { value: 'n', help: 'max attempted hover/focus candidates per route', default: 40 },
+    width: { value: 'px', help: 'viewport width', default: 1280 },
+    height: { value: 'px', help: 'viewport height', default: 800 },
+    strict: { help: 'exit 1 if live-state fixtures or skipped candidates remain' },
+  },
+});
 
-usage: styleproof-variants --base-url <url> --route <path-or-key=path> [options]
-
-options:
-  --base-url <url>       running app origin, e.g. http://localhost:3000
-  --route <route>        route path, absolute URL, or key=path. Repeatable.
-  --out <file>           manifest output (default: styleproof.variants.generated.json)
-  --max-actions <n>      max attempted actions per route (default: 40)
-  --max-state-actions <n> max attempted hover/focus candidates per route (default: 40)
-  --width <px>           viewport width (default: 1280)
-  --height <px>          viewport height (default: 800)
-  --strict               exit 1 if live-state fixtures or skipped candidates remain
-  -h, --help             show this help
-styleproof-variants is a compatibility alias for the unified CLI: styleproof variants
-`;
-
-const argv = process.argv.slice(2);
-let baseUrl = '';
-let out = 'styleproof.variants.generated.json';
-let maxActions = 40;
-let maxStateActions = 40;
-let width = 1280;
-let height = 800;
-let strict = false;
-const routeArgs = [];
-
-for (let i = 0; i < argv.length; i++) {
-  const a = argv[i];
-  if (isHelpArg(a)) showHelpAndExit(HELP);
-  else if (a === '--base-url') baseUrl = argv[++i];
-  else if (a.startsWith('--base-url=')) baseUrl = a.slice(11);
-  else if (a === '--route') routeArgs.push(argv[++i]);
-  else if (a.startsWith('--route=')) routeArgs.push(a.slice(8));
-  else if (a === '--out') out = argv[++i];
-  else if (a.startsWith('--out=')) out = a.slice(6);
-  else if (a === '--max-actions') maxActions = Number(argv[++i]);
-  else if (a.startsWith('--max-actions=')) maxActions = Number(a.slice(14));
-  else if (a === '--max-state-actions') maxStateActions = Number(argv[++i]);
-  else if (a.startsWith('--max-state-actions=')) maxStateActions = Number(a.slice(20));
-  else if (a === '--width') width = Number(argv[++i]);
-  else if (a.startsWith('--width=')) width = Number(a.slice(8));
-  else if (a === '--height') height = Number(argv[++i]);
-  else if (a.startsWith('--height=')) height = Number(a.slice(9));
-  else if (a === '--strict') strict = true;
-  else if (a.startsWith('--')) {
-    console.error(unknownFlagMessage('styleproof-variants', a));
-    process.exit(2);
-  } else {
-    routeArgs.push(a);
-  }
-}
-
-if (!baseUrl) {
-  console.error('styleproof-variants: --base-url is required');
+const { opts, args } = cli.parse();
+const routes = [...opts.route, ...args];
+if (!routes.length) {
+  console.error(`${NAME}: at least one --route is required`);
   process.exit(2);
 }
-if (!routeArgs.length) {
-  console.error('styleproof-variants: at least one --route is required');
-  process.exit(2);
-}
-if (
-  ![maxActions, maxStateActions, width, height].every(Number.isFinite) ||
-  ![maxActions, maxStateActions].every((value) => Number.isInteger(value) && value >= 0 && value <= 200)
-) {
-  console.error('styleproof-variants: action limits must be integers from 0 to 200; width and height must be numbers');
-  process.exit(2);
-}
+const limit = (flag) => number(NAME, flag, opts[flag], { integer: true, min: 0, max: 200 });
+const maxActionsPerRoute = limit('max-actions');
+const maxStateActionsPerRoute = limit('max-state-actions');
+const viewport = { width: number(NAME, 'width', opts.width), height: number(NAME, 'height', opts.height) };
+const baseUrl = opts['base-url'];
 
 function parseRoute(input) {
   const eq = input.indexOf('=');
@@ -87,29 +44,30 @@ function parseRoute(input) {
 
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage({ viewport: { width, height } });
+  const page = await browser.newPage({ viewport });
   const harvest = await harvestStyleVariants(page, {
     baseUrl,
-    routes: routeArgs.map(parseRoute),
-    maxActionsPerRoute: maxActions,
-    maxStateActionsPerRoute: maxStateActions,
+    routes: routes.map(parseRoute),
+    maxActionsPerRoute,
+    maxStateActionsPerRoute,
   });
-  fs.writeFileSync(out, JSON.stringify(harvest, null, 2) + '\n');
-  const variants = harvest.routes.reduce((sum, route) => sum + route.variants.length, 0);
-  const liveStates = harvest.routes.reduce((sum, route) => sum + route.liveStates.length, 0);
-  const skipped = harvest.routes.reduce((sum, route) => sum + route.skipped.length, 0);
-  const stateOutcomes = harvest.routes.flatMap((route) => route.stateCoverage);
-  const unresolvedStates = stateOutcomes.filter((entry) =>
+  fs.writeFileSync(opts.out, JSON.stringify(harvest, null, 2) + '\n');
+  const sum = (pick) => harvest.routes.reduce((total, route) => total + pick(route).length, 0);
+  const variants = sum((route) => route.variants);
+  const liveStates = sum((route) => route.liveStates);
+  const skipped = sum((route) => route.skipped);
+  const outcomes = harvest.routes.flatMap((route) => route.stateCoverage);
+  const unresolved = outcomes.filter((entry) =>
     ['skipped', 'timed-out', 'requires-fixture'].includes(entry.outcome),
   ).length;
-  console.log(`styleproof-variants: wrote ${out}`);
+  console.log(`${NAME}: wrote ${opts.out}`);
   console.log(`${variants} variant(s), ${liveStates} live-state candidate(s), ${skipped} skipped candidate(s)`);
   console.log(
     `state coverage: ${['captured', 'deduplicated', 'skipped', 'timed-out', 'requires-fixture']
-      .map((outcome) => `${stateOutcomes.filter((entry) => entry.outcome === outcome).length} ${outcome}`)
+      .map((outcome) => `${outcomes.filter((entry) => entry.outcome === outcome).length} ${outcome}`)
       .join(', ')}`,
   );
-  if (strict && (liveStates || skipped || unresolvedStates)) process.exit(1);
+  if (opts.strict && (liveStates || skipped || unresolved)) process.exit(1);
 } finally {
   await browser.close();
 }
