@@ -1,0 +1,26 @@
+# AC1 TDD green — phase 1 foundation harness e2e after demo CSS delta fix
+
+Command (same harness after `?ctaTone=head` restyle lands):
+
+```
+npx playwright test test/phase1-foundation-harness.e2e.spec.ts --reporter=line
+```
+
+Output (exit 0):
+
+```
+Running 9 tests using 1 worker
+
+[1/9] Phase 1 foundation harness: demo CSS delta capture › styleproof coverage ledger
+[2/9] Phase 1 foundation harness: demo CSS delta capture › styleproof browser build
+[3/9] Phase 1 foundation harness: demo CSS delta capture › demo-cta @ 900
+styleproof: surface 1/1 (demo-cta@900) captured in 2.4s (self-check 1.1s)
+[4/9] Phase 1 foundation harness: demo CSS delta head capture › styleproof coverage ledger
+[5/9] Phase 1 foundation harness: demo CSS delta head capture › styleproof browser build
+[6/9] Phase 1 foundation harness: demo CSS delta head capture › demo-cta @ 900
+styleproof: surface 1/1 (demo-cta@900) captured in 2.4s (self-check 1.1s)
+[7/9] oracle and demo contract files exist
+[8/9] fail-closed: incomplete report mapping is rejected
+[9/9] Phase 1: known demo CSS delta maps through capture → diff → report and real CLIs
+  9 passed (7.5s)
+```

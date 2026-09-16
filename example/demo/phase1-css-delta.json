@@ -1,0 +1,29 @@
+{
+  "description": "Phase 1 foundation harness (#669): known CSS delta on the StyleProof demo Save button.",
+  "softPass": "HOLD — incomplete or wrong report mapping must fail closed; do not soft-pass.",
+  "surfaceKey": "demo-cta",
+  "width": 900,
+  "element": {
+    "tag": "button",
+    "cls": "btn",
+    "label": "button.btn"
+  },
+  "queryParams": {
+    "base": "ctaTone=base",
+    "head": "ctaTone=head"
+  },
+  "expectedFinding": {
+    "kind": "style",
+    "prop": "background-color",
+    "before": "rgb(20, 184, 166)",
+    "after": "rgb(220, 38, 38)"
+  },
+  "report": {
+    "surfaceCaption": "demo-cta @ 900",
+    "elementHeading": "button.btn",
+    "propLine": "background-color",
+    "beforeHex": "#14b8a6",
+    "afterHex": "#dc2626",
+    "trustGlanceContains": "background"
+  }
+}
