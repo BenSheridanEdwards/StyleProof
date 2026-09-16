@@ -99,13 +99,15 @@ const isBundleDirectoryEntry = (entry: GitTreeEntry): boolean =>
 
 type PruneSidecar = { version: 1; prunedAt: string; lastPublishedEpochSecondsByBundle: Record<string, number> };
 
-/** A malformed sidecar degrades to "no dates": affected bundles sort oldest, which only prunes more. */
+/** A malformed sidecar degrades to "no dates": affected bundles sort oldest, which only prunes more.
+ *  A failed blob fetch is NOT lenient: it propagates (and retries) so a transient API fault
+ *  can never turn every sidecar-dated bundle into a prune candidate. */
 async function readSidecarDates(api: GitHubApi, sidecarBlobSha: string | undefined): Promise<Map<string, number>> {
   const dates = new Map<string, number>();
   if (!sidecarBlobSha) return dates;
+  const blob = await api<{ content: string; encoding: string }>('GET', `/git/blobs/${sidecarBlobSha}`);
+  const text = blob.encoding === 'base64' ? Buffer.from(blob.content, 'base64').toString('utf8') : blob.content;
   try {
-    const blob = await api<{ content: string; encoding: string }>('GET', `/git/blobs/${sidecarBlobSha}`);
-    const text = blob.encoding === 'base64' ? Buffer.from(blob.content, 'base64').toString('utf8') : blob.content;
     const parsed = JSON.parse(text) as Partial<PruneSidecar>;
     for (const [name, epoch] of Object.entries(parsed.lastPublishedEpochSecondsByBundle ?? {})) {
       if (Number.isFinite(epoch)) dates.set(name, Number(epoch));

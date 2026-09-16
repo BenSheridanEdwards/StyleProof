@@ -36,18 +36,22 @@ files[0] = {
   content: Buffer.concat([files[0].content, Buffer.from(`\n<!-- ${expectedReceipt} -->\n`)]),
 };
 
-await run(NAME, async () => {
-  const { commitSha } = await publishReportFolder({
-    ...api,
-    reportPath,
-    files,
-    commitMessage: `StyleProof report ${reportPath} @ ${opts['head-sha']}`,
-  });
-  await verifyPublishedReceipt({ ...api, reportPath, commitSha, expectedReceipt });
-  console.error(`report receipt verified at ${commitSha}/${reportPath}`);
-  emitOutputs([
-    `sha=${commitSha}`,
-    `url=https://github.com/${opts.repository}/blob/${commitSha}/${reportPath}/report.md`,
-    `raw-base=https://raw.githubusercontent.com/${opts.repository}/${commitSha}/${reportPath}`,
-  ]);
-});
+await run(
+  NAME,
+  async () => {
+    const { commitSha } = await publishReportFolder({
+      ...api,
+      reportPath,
+      files,
+      commitMessage: `StyleProof report ${reportPath} @ ${opts['head-sha']}`,
+    });
+    await verifyPublishedReceipt({ ...api, reportPath, commitSha, expectedReceipt });
+    console.error(`report receipt verified at ${commitSha}/${reportPath}`);
+    emitOutputs([
+      `sha=${commitSha}`,
+      `url=https://github.com/${opts.repository}/blob/${commitSha}/${reportPath}/report.md`,
+      `raw-base=https://raw.githubusercontent.com/${opts.repository}/${commitSha}/${reportPath}`,
+    ]);
+  },
+  { annotate: true },
+);

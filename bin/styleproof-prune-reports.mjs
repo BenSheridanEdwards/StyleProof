@@ -45,43 +45,49 @@ const budgetBytes = number(NAME, 'budget-bytes', opts['budget-bytes'], { min: 0 
 const config = await loadStyleProofConfigAsync();
 const api = githubApi(NAME, { repository: opts.repository, branch: opts.branch });
 
-await run(NAME, async () => {
-  if (!sweepMode) {
+await run(
+  NAME,
+  async () => {
+    if (!sweepMode) {
+      const { deletedFolders } = await deleteReportFolders({
+        ...api,
+        selectFolders: () => [`pr-${pullRequest}`],
+        commitMessage: () => `chore(styleproof): prune report for closed PR #${pullRequest}`,
+      });
+      console.error(
+        deletedFolders.length
+          ? `pruned ${deletedFolders.join(', ')}`
+          : `no pr-${pullRequest}/ folder — nothing to prune`,
+      );
+      return;
+    }
+    const days = retentionDays ?? config.reportStore?.pruneRetentionDays ?? 30;
+    const retentionCutoffEpochSeconds = Math.floor(Date.now() / 1000) - days * 86400;
+    const closedAtEpochSecondsByPath = await readClosedPullRequestTimestamps(api);
     const { deletedFolders } = await deleteReportFolders({
       ...api,
-      selectFolders: () => [`pr-${pullRequest}`],
-      commitMessage: () => `chore(styleproof): prune report for closed PR #${pullRequest}`,
+      selectFolders: (folderSizesBytesByPath) => {
+        const selection = selectReportFoldersToPrune({
+          folderSizesBytesByPath,
+          closedAtEpochSecondsByPath,
+          retentionCutoffEpochSeconds,
+          budgetBytes: budgetBytes ?? config.reportStore?.pruneBudgetBytes ?? 2_000_000_000,
+        });
+        console.error(`branch size after prune: ${(selection.branchSizeAfterBytes / 1e9).toFixed(2)} GB`);
+        if (selection.openFoldersExceedBudget) {
+          console.error(
+            '::warning::open pull request reports alone exceed the size budget; every closed report is already pruned',
+          );
+        }
+        return selection.foldersToDelete;
+      },
+      commitMessage: (count) => `chore(styleproof): prune ${count} expired reports`,
     });
     console.error(
-      deletedFolders.length ? `pruned ${deletedFolders.join(', ')}` : `no pr-${pullRequest}/ folder — nothing to prune`,
+      deletedFolders.length
+        ? `pruned ${deletedFolders.length} report folders`
+        : 'no report folders were outside the retention window or the size budget',
     );
-    return;
-  }
-  const days = retentionDays ?? config.reportStore?.pruneRetentionDays ?? 30;
-  const retentionCutoffEpochSeconds = Math.floor(Date.now() / 1000) - days * 86400;
-  const closedAtEpochSecondsByPath = await readClosedPullRequestTimestamps(api);
-  const { deletedFolders } = await deleteReportFolders({
-    ...api,
-    selectFolders: (folderSizesBytesByPath) => {
-      const selection = selectReportFoldersToPrune({
-        folderSizesBytesByPath,
-        closedAtEpochSecondsByPath,
-        retentionCutoffEpochSeconds,
-        budgetBytes: budgetBytes ?? config.reportStore?.pruneBudgetBytes ?? 2_000_000_000,
-      });
-      console.error(`branch size after prune: ${(selection.branchSizeAfterBytes / 1e9).toFixed(2)} GB`);
-      if (selection.openFoldersExceedBudget) {
-        console.error(
-          '::warning::open pull request reports alone exceed the size budget; every closed report is already pruned',
-        );
-      }
-      return selection.foldersToDelete;
-    },
-    commitMessage: (count) => `chore(styleproof): prune ${count} expired reports`,
-  });
-  console.error(
-    deletedFolders.length
-      ? `pruned ${deletedFolders.length} report folders`
-      : 'no report folders were outside the retention window or the size budget',
-  );
-});
+  },
+  { annotate: true },
+);

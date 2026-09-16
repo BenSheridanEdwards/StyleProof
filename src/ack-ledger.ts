@@ -15,6 +15,8 @@ export type LedgerSpec = {
   env: string;
   /** When set, keys must be safe single path segments (surface or capture keys). */
   keyLabel?: string;
+  /** Lenient ledgers return `{}` for a missing file even when requested, and keep values as written. */
+  lenient?: boolean;
 };
 
 const spec = (label: string, file: string, env: string, keyLabel?: string): LedgerSpec => ({
@@ -23,12 +25,14 @@ const spec = (label: string, file: string, env: string, keyLabel?: string): Ledg
   env,
   keyLabel,
 });
-export const INVENTORY_LEDGER = spec('inventory acknowledgement', 'styleproof.inventory.json', 'STYLEPROOF_INVENTORY');
-export const DATA_RESIDUE_LEDGER = spec(
-  'data-residue acknowledgement',
-  'styleproof.data-residue.json',
-  'STYLEPROOF_DATA_RESIDUE',
-);
+export const INVENTORY_LEDGER: LedgerSpec = {
+  ...spec('inventory acknowledgement', 'styleproof.inventory.json', 'STYLEPROOF_INVENTORY'),
+  lenient: true,
+};
+export const DATA_RESIDUE_LEDGER: LedgerSpec = {
+  ...spec('data-residue acknowledgement', 'styleproof.data-residue.json', 'STYLEPROOF_DATA_RESIDUE'),
+  lenient: true,
+};
 export const LEGACY_PAIRS_LEDGER = spec(
   'legacy product-state declare',
   'styleproof.product-state.json',
@@ -83,17 +87,19 @@ function reasonString(spec: LedgerSpec, raw: unknown, key: string, source: strin
 
 export type LedgerValueParser<T> = (spec: LedgerSpec, raw: unknown, key: string, source: string) => T;
 
-/** Read a ledger as `{ key: value }`: `{}` when unrequested and absent; throws when a requested file is missing or malformed. */
+const asWritten: LedgerValueParser<unknown> = (_spec, raw) => raw;
+
+/** Read a ledger as `{ key: value }`: `{}` when absent (unless requested and strict); throws on malformed JSON. */
 export function readLedger<T = string>(
   spec: LedgerSpec,
   explicitPath?: string,
-  parseValue: LedgerValueParser<T> = reasonString as LedgerValueParser<T>,
+  parseValue: LedgerValueParser<T> = (spec.lenient ? asWritten : reasonString) as LedgerValueParser<T>,
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, T> {
   const requested = explicitPath || envPath(spec, env);
   const filePath = path.resolve(requested ?? spec.file);
   if (!fs.existsSync(filePath)) {
-    if (requested)
+    if (requested && !spec.lenient)
       throw new Error(`${filePath} is not readable — the ${spec.label} file is required when the gate is requested`);
     return {};
   }

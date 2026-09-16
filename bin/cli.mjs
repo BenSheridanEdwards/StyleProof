@@ -17,11 +17,16 @@ export function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Run `main`; any thrown error becomes `<name>: <message>` + exit code. */
-export async function run(name, main, { exitCode = 1 } = {}) {
+/** Run `main`; any thrown error becomes `<name>: <message>` + exit code.
+ *  `annotate` prints `::error::StyleProof: <message>` instead, so a workflow shows it inline. */
+export async function run(name, main, { exitCode = 1, annotate = false } = {}) {
   try {
     await main();
   } catch (error) {
+    if (annotate) {
+      console.error(`::error::StyleProof: ${errorMessage(error)}`);
+      process.exit(error?.exitCode ?? exitCode);
+    }
     fail(name, errorMessage(error), error?.exitCode ?? exitCode);
   }
 }
@@ -34,30 +39,46 @@ export async function run(name, main, { exitCode = 1 } = {}) {
 export function defineCli({ name, alias, summary, usage, flags, notes = [], positionals = false }) {
   const help = renderHelp({ name, alias, summary, usage, flags, notes });
   const parse = (argv = process.argv.slice(2)) => {
-    if (argv.some((a) => a === '-h' || a === '--help')) {
+    if (wantsHelp(argv)) {
       process.stdout.write(help);
       process.exit(0);
     }
-    const opts = initialOptions(flags);
-    const args = [];
-    let passthrough = [];
-    for (let i = 0; i < argv.length; i++) {
-      const raw = argv[i];
-      if (raw === '--') {
-        passthrough = argv.slice(i + 1);
-        break;
-      }
-      if (raw.startsWith('--')) i = applyFlag(name, flags, opts, argv, i);
-      else args.push(raw);
-    }
+    const { opts, args, passthrough } = walkArgv(name, flags, argv);
     if (!positionals && args.length) fail(name, `unexpected argument ${args[0]}`);
-    for (const [key, spec] of Object.entries(flags)) {
-      if (spec.required && (opts[key] === undefined || (spec.repeat && !opts[key].length)))
-        fail(name, `missing --${key}`);
-    }
+    assertRequired(name, flags, opts);
     return { opts, args, passthrough };
   };
   return { help, parse };
+}
+
+/** -h/--help among the command's own arguments (never inside the `--` passthrough). */
+function wantsHelp(argv) {
+  const own = argv.includes('--') ? argv.slice(0, argv.indexOf('--')) : argv;
+  return own.some((a) => a === '-h' || a === '--help');
+}
+
+/** Split argv into parsed flags, positionals, and the `--` passthrough. */
+function walkArgv(name, flags, argv) {
+  const opts = initialOptions(flags);
+  const args = [];
+  let passthrough = [];
+  for (let i = 0; i < argv.length; i++) {
+    const raw = argv[i];
+    if (raw === '--') {
+      passthrough = argv.slice(i + 1);
+      break;
+    }
+    if (raw.startsWith('--')) i = applyFlag(name, flags, opts, argv, i);
+    else args.push(raw);
+  }
+  return { opts, args, passthrough };
+}
+
+function assertRequired(name, flags, opts) {
+  for (const [key, spec] of Object.entries(flags)) {
+    if (spec.required && (opts[key] === undefined || (spec.repeat && !opts[key].length)))
+      fail(name, `missing --${key}`);
+  }
 }
 
 /** Apply the flag at argv[i]; returns the index of the last consumed argument. */
@@ -73,7 +94,8 @@ function applyFlag(name, flags, opts, argv, i) {
   else if (missing || (value === '' && !token.spec.allowEmpty)) fail(name, `--${token.flag} requires a value`);
   if (token.spec.repeat) opts[token.key].push(value);
   else opts[token.key] = value;
-  return token.inline === undefined && value !== '' ? i + 1 : i;
+  // The next token was consumed as the value unless it was inline or absent.
+  return token.inline === undefined && !missing ? i + 1 : i;
 }
 
 function initialOptions(flags) {

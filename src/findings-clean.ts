@@ -299,10 +299,11 @@ export function assessComparisonTruth(
       counts.requiredUnproven === 0 &&
       counts.globalRequiredUnproven === 0,
     contentGeometryUncertain: surfaces.some((item) => contentDrivenGeometry(item.findings).length > 0),
+    // Key order is part of the report.json byte contract: the freeze flag precedes the counts.
+    liveTextFreezeViolated: liveText.freeze && liveText.violations.length > 0,
     incomparableSurfaces: counts.incomparable,
     unprovenSurfaces: counts.unproven,
     requiredUnprovenSurfaces: counts.requiredUnproven,
     globalRequiredUnprovenSurfaces: counts.globalRequiredUnproven,
-    liveTextFreezeViolated: liveText.freeze && liveText.violations.length > 0,
   };
 }

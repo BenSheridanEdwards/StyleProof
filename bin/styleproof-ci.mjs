@@ -173,8 +173,13 @@ async function specFor(cwd) {
 // moves the spec must govern this run.
 let projectConfig;
 try {
-  projectConfig = (await loadStyleProofConfigWithLocationAsync(consumerCwd)).config;
-  spec = await specFor(consumerCwd);
+  const loadedHead = await loadStyleProofConfigWithLocationAsync(consumerCwd);
+  projectConfig = loadedHead.config;
+  // An explicit --spec is used everywhere, but it still has to stay inside the repository.
+  spec =
+    opts.spec === undefined
+      ? checkoutSpec(loadedHead, consumerCwd, spec)
+      : checkoutSpec({ config: {} }, consumerCwd, spec);
 } catch (error) {
   if (error instanceof CiProcessExit) process.exit(error.exitCode);
   fail(NAME, errorMessage(error));
