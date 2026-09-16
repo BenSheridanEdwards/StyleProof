@@ -2,6 +2,22 @@
 
 Self-attested local evidence for AC1 (TDD red→green) and the privacy-clean report mapping reviewers read.
 
+## Hosted gate (#673)
+
+| Check | Workflow | Posture |
+| --- | --- | --- |
+| **`Phase 1 mapping (advisory)`** | `.github/workflows/phase1-advisory-dogfood.yml` | Advisory — **not** part of hosted `required`. Soft-pass: **HOLD** — fails closed when mapping is wrong or evidence incomplete. |
+
+Command the job runs:
+
+```bash
+npx playwright test test/phase1-foundation-harness.e2e.spec.ts --reporter=line
+```
+
+Sibling Phase 1 specs plug into `PHASE1_MAPPING_SPECS` in that workflow after they land.
+
+## Local proof artifacts
+
 | File | Purpose |
 | --- | --- |
 | `red.log` | Playwright harness e2e **before** demo CSS delta — mapping test fails (8/9 pass, exit 1) |

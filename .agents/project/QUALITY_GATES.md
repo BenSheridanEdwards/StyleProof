@@ -27,6 +27,7 @@ is listed here only if it exists and runs on a clean checkout.
 | Action dogfood          | the Action itself, on fixtures                             | CI (`pull_request`)            | `.github/workflows/action-dogfood.yml`                                                                                                                                          |
 | Map-store dogfood       | real capture + map store + diff                            | CI (`pull_request`)            | `.github/workflows/store-dogfood.yml`                                                                                                                                           |
 | Live StyleProof dogfood | Action on `styleproof.config.ts` surfaces (`example/demo`) | CI (`pull_request`, same-repo) | `.github/workflows/styleproof-dogfood.yml` — advisory (`fail-on-diff: false`); product-state ledger armed (declare-or-fail-closed); **not** part of the hosted `required` check |
+| Phase 1 mapping (advisory) | Playwright foundation harness (`capture → diff → report`) | CI (`pull_request`) | `.github/workflows/phase1-advisory-dogfood.yml` — job **`Phase 1 mapping (advisory)`**; soft-pass HOLD (fail closed on wrong/incomplete mapping); **not** part of the hosted `required` check |
 | Gate-bypass block       | `.claude/hooks/block-gate-bypass.sh`                       | PreToolUse (Claude Code)       | Exits non-zero on `git commit`/`push` with `--no-verify`/`-n`                                                                                                                   |
 
 ## Where each gate fires
@@ -42,7 +43,8 @@ is listed here only if it exists and runs on a clean checkout.
   one stable `required` check that fails unless all three lanes succeed.
 - **CI (dedicated workflows)** — `secret-scan.yml`, `codeql.yml`, `pr-body.yml`,
   `fallow.yml`, `action-dogfood.yml`, `store-dogfood.yml`,
-  `styleproof-dogfood.yml` (advisory, not required).
+  `styleproof-dogfood.yml` (advisory, not required),
+  `phase1-advisory-dogfood.yml` (Phase 1 mapping gate — advisory, not required).
   `.github/workflows/styleproof-approve.yml` is the thin adopter-shaped approve
   caller (`styleproof-approve-reusable.yml@main`). It is not a required check;
   reviewer ticks stay inert until advisory dogfood enables `require-approval`.

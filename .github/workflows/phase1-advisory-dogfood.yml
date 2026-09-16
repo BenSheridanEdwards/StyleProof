@@ -1,0 +1,64 @@
+name: Phase 1 advisory dogfood
+
+# Thin hosted wire for Phase 1 mapping proof (#668 / #673).
+# Exercises real capture → diff → report via the foundation harness (#669).
+#
+# Gate: job `Phase 1 mapping (advisory)` in this workflow.
+# Advisory — NOT part of the hosted `required` check. Soft-pass: HOLD — the job
+# fails closed when mapping is wrong or evidence is incomplete; it does not
+# soft-pass incomplete mapping or bypass merge protection.
+#
+# Sibling Phase 1 specs (structure #670, noop #671, extra harness #672) plug
+# into PHASE1_MAPPING_SPECS after they land — same job, no redesign.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase1-advisory-dogfood-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase1-mapping:
+    name: Phase 1 mapping (advisory)
+    runs-on: ubuntu-latest
+    env:
+      PHASE1_MAPPING_SPECS: test/phase1-foundation-harness.e2e.spec.ts
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(npm ls @playwright/test --json | jq -r '.dependencies["@playwright/test"].version')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install browsers (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install browsers (cache hit, no OS deps)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+
+      - name: Assert soft-pass HOLD is declared in the Phase 1 oracle
+        run: grep -F 'HOLD' example/demo/phase1-css-delta.json
+
+      - name: Run Phase 1 mapping proof (capture → diff → report)
+        run: npx playwright test $PHASE1_MAPPING_SPECS --reporter=line
