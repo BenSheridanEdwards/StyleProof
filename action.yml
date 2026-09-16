@@ -38,7 +38,7 @@ inputs:
     description: 'Days the report artifact is kept when report-storage is artifact (bounded 1-90 by GitHub).'
     default: '30'
   report-branch:
-    description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close. Used only when report-storage is ''branch''.'
+    description: "Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close. Used only when report-storage is 'branch'."
     default: 'styleproof-reports'
   github-token:
     description: 'Token used to push the report branch and post the PR comment.'
@@ -911,16 +911,10 @@ runs:
       uses: actions/github-script@v9
       with:
         script: |
-          // Name the FAILURE DOMAIN precisely, so automation retries the right thing:
-          //   publish 'failure'            → the publish step itself broke → REPORT_PUBLICATION_FAILED;
-          //   publish 'skipped'/'cancelled' → an EARLIER step (capture/diff/config) failed —
-          //     not a publication fault; report the verdict if one exists, else the
-          //     capture/certification domain;
-          //   comment/status delivery failed after a successful publish → the consumer-
-          //     visible half of publication never landed → REPORT_PUBLICATION_FAILED,
-          //     never a green classification from a run that delivered nothing.
-          // The publish step is whichever one the storage mode ran: the branch
-          // graft or the artifact upload (#587).
+          // Name the failure domain so automation retries the right thing: a broken publish or a
+          // failed comment/status delivery is REPORT_PUBLICATION_FAILED; a skipped publish means an
+          // earlier step failed, so report the verdict if one exists. The publish step is
+          // whichever one the storage mode ran: the branch graft or the artifact upload.
           const publishOutcome = '${{ inputs.report-storage }}' === 'branch'
             ? '${{ steps.publish.outcome }}'
             : '${{ steps.report-artifact.outcome }}';

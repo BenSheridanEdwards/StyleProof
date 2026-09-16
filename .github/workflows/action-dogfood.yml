@@ -231,7 +231,6 @@ jobs:
           grep -E 'undeclared legacy pair' styleproof-report/report.md
           grep -F 'cannot certify' styleproof-report/report.md
 
-
       - id: certfail
         continue-on-error: true
         uses: ./
