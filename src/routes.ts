@@ -2,18 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * Best-effort route discovery for Next.js projects, so the coverage guard works
- * out of the box: a generated spec calls this at run time, so `expected` reflects
- * the app's *current* routes — a newly added page appears automatically, and the
- * guard fails until it has a surface. No static list to keep in sync (that drift
- * is the whole bug the guard exists to prevent).
- *
- * Covers the App Router (`app/`, `src/app/` — directories with a `page.*`) and the
- * Pages Router (`pages/`, `src/pages/` — page files, minus `_app`/`_document`/`api`).
- * Route groups `(group)` and parallel slots `@slot` are stripped; `[param]` /
- * `[...catchall]` segments mark a route dynamic. It reads the filesystem only —
- * no framework internals — so it's a heuristic, not a router; edit the generated
- * spec if your routing does something exotic.
+ * Best-effort Next.js route discovery from the filesystem (App Router `app/` / `src/app/` page
+ * directories, Pages Router `pages/` / `src/pages/` minus `_app`/`_document`/`api`), so a generated
+ * spec's `expected` reflects the app's CURRENT routes. A heuristic, not a router.
  */
 
 export type DiscoveredRoute = {
@@ -93,17 +84,12 @@ function pagesRoutes(pagesDir: string): DiscoveredRoute[] {
 const firstExisting = (cwd: string, candidates: string[]): string | undefined =>
   candidates.map((d) => path.join(cwd, d)).find((p) => fs.existsSync(p));
 
-/**
- * Discover a Next.js project's routes under `cwd` (default `process.cwd()`).
- * Returns one entry per route, deduped by path (App Router wins a tie) and sorted.
- * Empty array when no `app/` or `pages/` dir is found — the caller decides whether
- * that means "not a Next project".
- */
+/** Discover a Next.js project's routes under `cwd`, deduped by path (App Router wins) and sorted.
+ *  Empty when no `app/` or `pages/` dir is found. */
 export function discoverNextRoutes(cwd: string = process.cwd()): DiscoveredRoute[] {
   const appDir = firstExisting(cwd, ['app', 'src/app']);
   const pagesDir = firstExisting(cwd, ['pages', 'src/pages']);
   const found = [...(appDir ? appRoutes(appDir) : []), ...(pagesDir ? pagesRoutes(pagesDir) : [])];
-
   const byPath = new Map<string, DiscoveredRoute>();
   for (const r of found) if (!byPath.has(r.path)) byPath.set(r.path, r);
   return [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));

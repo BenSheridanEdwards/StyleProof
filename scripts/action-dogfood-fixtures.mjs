@@ -1,8 +1,10 @@
+// Synthetic base/head capture pairs for the Action dogfood workflow: one folder pair
+// per trust state the Action must classify. Usage: node scripts/action-dogfood-fixtures.mjs <root> <baseSha> <headSha>
 import fs from 'node:fs';
 import path from 'node:path';
-import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
 import { buildConfidenceLedger, writeConfidenceLedger } from '../dist/confidence-ledger.js';
+import { solidPng, writeCapture as writeMapFiles } from './fixture-util.mjs';
 
 const root = process.argv[2] || 'action-dogfood';
 const baseSha = process.argv[3];
@@ -10,44 +12,26 @@ const headSha = process.argv[4];
 const TRUSTED_SHA = /^[0-9a-f]{40}$/;
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const PRODUCT_STATE = { id: 'action-dogfood-ready', revision: 'fixture-v1' };
+const COVERAGE = 'styleproof-coverage.json';
+const MANIFEST_FILE = 'styleproof-manifest.json';
+const GREY = [240, 240, 240];
 
 if (!TRUSTED_SHA.test(baseSha ?? '') || !TRUSTED_SHA.test(headSha ?? '')) {
   throw new Error('action dogfood fixtures require trusted base and head SHAs');
 }
 
-function mapWithoutProductState(color = 'rgb(0, 0, 0)') {
+function map(color = 'rgb(0, 0, 0)', productState = PRODUCT_STATE) {
   return {
     defaults: {},
     elements: {
       body: { tag: 'body', cls: '', rect: [0, 0, 320, 180], style: {} },
-      'body > main:nth-child(1)': {
-        tag: 'main',
-        cls: 'panel',
-        rect: [24, 24, 180, 80],
-        style: { color },
-      },
+      'body > main:nth-child(1)': { tag: 'main', cls: 'panel', rect: [24, 24, 180, 80], style: { color } },
     },
     states: {},
-    metadata: {},
+    metadata: productState ? { productState } : {},
   };
 }
-
-function map(color = 'rgb(0, 0, 0)') {
-  return {
-    defaults: {},
-    elements: {
-      body: { tag: 'body', cls: '', rect: [0, 0, 320, 180], style: {} },
-      'body > main:nth-child(1)': {
-        tag: 'main',
-        cls: 'panel',
-        rect: [24, 24, 180, 80],
-        style: { color },
-      },
-    },
-    states: {},
-    metadata: { productState: PRODUCT_STATE },
-  };
-}
+const mapWithoutProductState = () => map(undefined, null);
 
 function mapWithAdditionalElement() {
   const styleMap = map();
@@ -60,44 +44,21 @@ function mapWithAdditionalElement() {
   return styleMap;
 }
 
-// A map that also carries a navigable inventory (route links), for the inventory-gate
-// dogfood: base offers /a + /b, head drops /b → an unacknowledged removal that must fail
-// the action even with fail-on-diff off (a removal isn't a restyle to wave through).
-function mapNav(routes, color = 'rgb(0, 0, 0)') {
-  return {
-    ...map(color),
-    inventory: routes.map((r) => ({ key: `route:${r}`, kind: 'link', label: r, href: r })),
-  };
-}
+// A map carrying a navigable inventory (route links): base offers /a + /b, head drops /b.
+const mapNav = (routes) => ({
+  ...map(),
+  inventory: routes.map((r) => ({ key: `route:${r}`, kind: 'link', label: r, href: r })),
+});
 
-function mapWithResidue() {
-  return {
-    ...map(),
-    dataResidue: [
-      {
-        key: 'home·/api/status',
-        surface: 'home',
-        endpoint: '/api/status',
-        reason: 'HTTP 500',
-      },
-    ],
-  };
-}
+const mapWithResidue = () => ({
+  ...map(),
+  dataResidue: [{ key: 'home·/api/status', surface: 'home', endpoint: '/api/status', reason: 'HTTP 500' }],
+});
 
-function png([r, g, b]) {
-  const image = new PNG({ width: 320, height: 180 });
-  for (let i = 0; i < image.data.length; i += 4) {
-    image.data[i] = r;
-    image.data[i + 1] = g;
-    image.data[i + 2] = b;
-    image.data[i + 3] = 255;
-  }
-  return PNG.sync.write(image);
-}
+const png = (rgb) => PNG.sync.write(solidPng(320, 180, rgb));
 
-// Since v4 a map-bearing dir without a styleproof-manifest.json is refused (exit 2),
-// so every fixture dir carries one. Identical on all sides — the fixtures are
-// synthetic, and the same-environment guard only needs the two sides to match.
+// Every fixture dir carries a manifest (a map-bearing dir without one is refused);
+// identical on all sides so the same-environment guard passes.
 const MANIFEST = {
   version: 1,
   packageVersion: PACKAGE_VERSION,
@@ -120,147 +81,81 @@ function fixtureSha(dir) {
   throw new Error('action dogfood fixture directory must identify its source side');
 }
 
-function writeSyntheticCoverage(dir, surface, overrides = {}) {
-  const file = path.join(dir, 'styleproof-coverage.json');
-  const prior = fs.existsSync(file)
-    ? JSON.parse(fs.readFileSync(file, 'utf8'))
-    : { version: 1, expected: [], exclude: {}, determinism: 'self-checked', dataResidue: 'warn' };
-  const surfaceKey = surface.replace(/@[^@]+$/, '');
-  const expected = [...new Set([...(prior.expected ?? []), surfaceKey])].sort();
-  fs.writeFileSync(file, JSON.stringify({ ...prior, expected, ...overrides }, null, 2));
+const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
+/** Read `file` (or `fallback` when absent), merge `patch`, write it back. */
+function patchJson(file, patch, fallback) {
+  const prior = fs.existsSync(file) ? readJson(file) : fallback;
+  fs.writeFileSync(file, JSON.stringify({ ...prior, ...patch }, null, 2));
 }
 
 function writeCapture(dir, surface, styleMap, image) {
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `${surface}.json.gz`), gzipSync(JSON.stringify(styleMap)));
-  fs.writeFileSync(path.join(dir, `${surface}.png`), image);
-  fs.writeFileSync(
-    path.join(dir, 'styleproof-manifest.json'),
-    JSON.stringify({ ...MANIFEST, sha: fixtureSha(dir) }, null, 2),
+  writeMapFiles(dir, surface, styleMap, image);
+  fs.writeFileSync(path.join(dir, MANIFEST_FILE), JSON.stringify({ ...MANIFEST, sha: fixtureSha(dir) }, null, 2));
+  const file = path.join(dir, COVERAGE);
+  const prior = fs.existsSync(file) ? readJson(file) : { expected: [] };
+  const expected = [...new Set([...(prior.expected ?? []), surface.replace(/@[^@]+$/, '')])].sort();
+  patchJson(
+    file,
+    { expected },
+    { version: 1, expected: [], exclude: {}, determinism: 'self-checked', dataResidue: 'warn' },
   );
-  writeSyntheticCoverage(dir, surface);
 }
 
-function armResidueGate(dir) {
-  const file = path.join(dir, 'styleproof-coverage.json');
-  const coverage = JSON.parse(fs.readFileSync(file, 'utf8'));
-  fs.writeFileSync(file, JSON.stringify({ ...coverage, dataResidue: 'gate' }, null, 2));
-}
-
-// A side whose capture was neither self-checked nor replayed: the styles could
-// have drifted and no one checked. assessDeterminism() turns that into
-// status: 'unproven', which the Action must escalate to CERTIFICATION_FAILED —
-// the state the approval box cannot clear (and the exact state 4.6.2's
-// content-geometry bug hid in, undetected because it was never dogfooded).
-function armUnprovenDeterminism(dir) {
-  const file = path.join(dir, 'styleproof-coverage.json');
-  const coverage = JSON.parse(fs.readFileSync(file, 'utf8'));
-  fs.writeFileSync(file, JSON.stringify({ ...coverage, determinism: 'unproven' }, null, 2));
-}
+const patchCoverage = (dir, patch) => patchJson(path.join(dir, COVERAGE), patch);
+const pair = (name, baseMap, headMap, basePng = GREY, headPng = GREY) => {
+  writeCapture(path.join(root, `${name}-base`), 'home@320', baseMap, png(basePng));
+  writeCapture(path.join(root, `${name}-head`), 'home@320', headMap, png(headPng));
+};
 
 fs.rmSync(root, { recursive: true, force: true });
 
-writeCapture(path.join(root, 'clean-base'), 'home@320', map(), png([240, 240, 240]));
-writeCapture(path.join(root, 'clean-head'), 'home@320', map(), png([240, 240, 240]));
+pair('clean', map(), map());
+pair('content', map(), mapWithAdditionalElement());
+pair('changed', map('rgb(0, 0, 0)'), map('rgb(255, 0, 0)'), GREY, [255, 230, 230]);
 
-writeCapture(path.join(root, 'content-base'), 'home@320', map(), png([240, 240, 240]));
-writeCapture(path.join(root, 'content-head'), 'home@320', mapWithAdditionalElement(), png([240, 240, 240]));
-
-writeCapture(path.join(root, 'changed-base'), 'home@320', map('rgb(0, 0, 0)'), png([240, 240, 240]));
-writeCapture(path.join(root, 'changed-head'), 'home@320', map('rgb(255, 0, 0)'), png([255, 230, 230]));
-
-writeCapture(path.join(root, 'new-base'), 'home@320', map(), png([240, 240, 240]));
-writeCapture(path.join(root, 'new-head'), 'home@320', map(), png([240, 240, 240]));
+pair('new', map(), map());
 writeCapture(path.join(root, 'new-head'), 'pricing@320', map('rgb(0, 0, 255)'), png([230, 230, 255]));
 
 // Partial baseline: base captured home but tolerated about@auto failure; head adds about@320.
-// Diff exit 0 with explained gaps → PARTIAL_BASELINE (not visual approval).
-function writePartialBaseManifest(dir) {
-  const manifestPath = path.join(dir, 'styleproof-manifest.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  manifest.surfaceCaptureFailures = [
-    { key: 'about@auto', reason: 'viewport detection failed on base', kind: 'capture' },
-  ];
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-}
-writeCapture(path.join(root, 'partial-base'), 'home@320', map(), png([240, 240, 240]));
-writePartialBaseManifest(path.join(root, 'partial-base'));
-writeCapture(path.join(root, 'partial-head'), 'home@320', map(), png([240, 240, 240]));
+pair('partial', map(), map());
+patchJson(path.join(root, 'partial-base', MANIFEST_FILE), {
+  surfaceCaptureFailures: [{ key: 'about@auto', reason: 'viewport detection failed on base', kind: 'capture' }],
+});
 writeCapture(path.join(root, 'partial-head'), 'about@320', map('rgb(0, 128, 0)'), png([230, 255, 230]));
 
-// A base capture fault is not first-adoption evidence: keep the base genuinely
-// bare and prove the Action labels the head-only receipt as degraded.
+// A base capture fault is not first-adoption evidence: keep the base genuinely bare.
 fs.mkdirSync(path.join(root, 'degraded-base'), { recursive: true });
-writeCapture(path.join(root, 'degraded-head'), 'home@320', map(), png([240, 240, 240]));
+writeCapture(path.join(root, 'degraded-head'), 'home@320', map(), png(GREY));
 
-writeCapture(path.join(root, 'residue-base'), 'home@320', map(), png([240, 240, 240]));
-writeCapture(path.join(root, 'residue-head'), 'home@320', mapWithResidue(), png([240, 240, 240]));
-armResidueGate(path.join(root, 'residue-base'));
-armResidueGate(path.join(root, 'residue-head'));
+pair('residue', map(), mapWithResidue());
+for (const side of ['base', 'head']) patchCoverage(path.join(root, `residue-${side}`), { dataResidue: 'gate' });
 
-// Inventory removal: base offers routes /a + /b; head drops /b → unacknowledged removal.
-writeCapture(path.join(root, 'removed-base'), 'home@320', mapNav(['/a', '/b']), png([240, 240, 240]));
-writeCapture(path.join(root, 'removed-head'), 'home@320', mapNav(['/a']), png([240, 240, 240]));
+// Inventory removal: an unacknowledged removal must fail even with fail-on-diff off.
+pair('removed', mapNav(['/a', '/b']), mapNav(['/a']));
 
-// Integrity repair dogfood (#650): each pair is otherwise certifying, then one
-// closed integrity reason is planted so the Action must stay CERTIFICATION_FAILED
-// and the report must name what broke / what to fix / how to verify.
-writeCapture(path.join(root, 'integrity-repair-connector-base'), 'home@320', map(), png([240, 240, 240]));
-writeCapture(path.join(root, 'integrity-repair-connector-head'), 'home@320', map(), png([240, 240, 240]));
-fs.writeFileSync(
-  path.join(root, 'integrity-repair-connector-head', 'styleproof-connector.json'),
-  JSON.stringify({ version: 1, status: 'partial', missing: ['home'] }),
-);
+// Certification failure: identical maps, but unproven determinism must escalate to
+// CERTIFICATION_FAILED — the state the approval box cannot clear.
+pair('certfail', map(), map());
+for (const side of ['base', 'head']) patchCoverage(path.join(root, `certfail-${side}`), { determinism: 'unproven' });
 
-writeCapture(path.join(root, 'integrity-repair-duplicate-base'), 'home@320', map(), png([240, 240, 240]));
-writeCapture(path.join(root, 'integrity-repair-duplicate-head'), 'home@320', map(), png([240, 240, 240]));
-fs.writeFileSync(
-  path.join(root, 'integrity-repair-duplicate-head', 'home@320.json.gz'),
-  gzipSync(
-    '{"defaults":{},"elements":{"body":{"tag":"body","cls":"","style":{}}},"elements":{"main":{"tag":"main","cls":"","style":{}}},"states":{}}',
-  ),
-);
-
-writeCapture(path.join(root, 'integrity-repair-mismatch-base'), 'home@320', map(), png([240, 240, 240]));
-writeCapture(path.join(root, 'integrity-repair-mismatch-head'), 'home@320', map(), png([240, 240, 240]));
-fs.writeFileSync(
-  path.join(root, 'integrity-repair-mismatch-head', 'styleproof-integrity.json'),
-  JSON.stringify({ version: 1, claimedDigest: '0'.repeat(64), actualDigest: 'f'.repeat(64) }),
-);
-
-// Certification failure: identical maps, but a side's determinism is unproven —
-// the Action must NOT report NO_REVIEWABLE_STYLE_CHANGES; it certifies nothing and the
-// approval box cannot clear it. Maps match so the ONLY thing under test is that
-// unproven provenance escalates to CERTIFICATION_FAILED.
-writeCapture(path.join(root, 'certfail-base'), 'home@320', map(), png([240, 240, 240]));
-writeCapture(path.join(root, 'certfail-head'), 'home@320', map(), png([240, 240, 240]));
-armUnprovenDeterminism(path.join(root, 'certfail-base'));
-armUnprovenDeterminism(path.join(root, 'certfail-head'));
-
-// Legacy product-state pairs: maps omit identity so the declare gate can prove
-// declare-vs-undeclared. Empty ledger → fail closed. Declared `home` → advisory.
-writeCapture(path.join(root, 'legacy-undeclared-base'), 'home@320', mapWithoutProductState(), png([240, 240, 240]));
-writeCapture(path.join(root, 'legacy-undeclared-head'), 'home@320', mapWithoutProductState(), png([240, 240, 240]));
-writeCapture(path.join(root, 'legacy-declared-base'), 'home@320', mapWithoutProductState(), png([240, 240, 240]));
-writeCapture(path.join(root, 'legacy-declared-head'), 'home@320', mapWithoutProductState(), png([240, 240, 240]));
+// Legacy product-state pairs: empty ledger → fail closed; declared `home` → advisory.
+pair('legacy-undeclared', mapWithoutProductState(), mapWithoutProductState());
+pair('legacy-declared', mapWithoutProductState(), mapWithoutProductState());
 fs.writeFileSync(path.join(root, 'legacy-pairs-empty.json'), '{}\n');
 fs.writeFileSync(
   path.join(root, 'legacy-pairs-declared.json'),
   `${JSON.stringify({ home: 'known dogfood shell pending identity stamp' }, null, 2)}\n`,
 );
 
-// The hosted Action consumes the same confidence artifacts as a real capture.
-// Generate them last so scenario-specific coverage mutations are reflected in
-// the canonical Release Confidence Manifest projected by styleproof-report.
+// Confidence ledgers last, so scenario-specific coverage mutations are reflected.
 for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;
   const dir = path.join(root, entry.name);
-  const coveragePath = path.join(dir, 'styleproof-coverage.json');
+  const coveragePath = path.join(dir, COVERAGE);
   if (!fs.existsSync(coveragePath)) continue;
-  const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8'));
   const capturedKeys = fs
     .readdirSync(dir)
     .filter((name) => name.endsWith('.json.gz'))
     .map((name) => name.slice(0, -'.json.gz'.length).replace(/@[^@]+$/, ''));
-  writeConfidenceLedger(dir, buildConfidenceLedger({ capturedKeys, coverage }));
+  writeConfidenceLedger(dir, buildConfidenceLedger({ capturedKeys, coverage: readJson(coveragePath) }));
 }

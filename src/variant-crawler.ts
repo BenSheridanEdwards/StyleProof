@@ -1,28 +1,19 @@
-import { createHash } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { captureStyleMap, type CaptureOptions, type LiveRegionCandidate } from './capture.js';
+import { captureStyleMap, type CaptureOptions, type LiveRegionCandidate, type StyleMap } from './capture.js';
 import { diffStyleMaps, type Finding } from './diff.js';
 import { DANGER_SOURCE } from './danger.js';
+import { sha256 } from './node-util.js';
+import { slug as slugOf } from './util.js';
+import { pathAndSearch } from './crawl/page.js';
 
-export type HarvestRoute = {
-  /** Stable route/surface key in the generated manifest. */
-  key: string;
-  /** Absolute URL or path resolved against `baseUrl`. */
-  url: string;
-};
+/** `key`: stable route/surface key in the generated manifest; `url`: absolute, or resolved against `baseUrl`. */
+export type HarvestRoute = { key: string; url: string };
 
 export type HarvestAction = 'click' | 'select-option' | 'submit-empty';
 
-export type HarvestedVariant = {
-  key: string;
-  action: HarvestAction;
-  selector: string;
-  reason: string;
-  label: string;
-  findings: number;
-  diffHash: string;
-  value?: string;
-};
+type Candidate = { action: HarvestAction; selector: string; reason: string; label: string; value?: string };
+
+export type HarvestedVariant = Candidate & { key: string; findings: number; diffHash: string };
 
 export type HarvestedLiveState = {
   key: string;
@@ -61,11 +52,7 @@ export type HarvestedStateCoverage = {
   findings?: number;
   diffHash?: string;
   /** Typed consumer-owned fixture recommendation. Never claims the state was captured. */
-  fixture?: {
-    kind: 'consumer-owned-setup';
-    observeSelector: string;
-    observeMs: 250;
-  };
+  fixture?: { kind: 'consumer-owned-setup'; observeSelector: string; observeMs: 250 };
 };
 
 export type HarvestedRoute = {
@@ -77,9 +64,7 @@ export type HarvestedRoute = {
   skipped: HarvestSkip[];
 };
 
-export type VariantHarvest = {
-  routes: HarvestedRoute[];
-};
+export type VariantHarvest = { routes: HarvestedRoute[] };
 
 export type VariantHarvestOptions = {
   baseUrl?: string;
@@ -88,209 +73,100 @@ export type VariantHarvestOptions = {
   maxActionsPerRoute?: number;
   /** Max attempted hover/focus candidates per route. Default 40. */
   maxStateActionsPerRoute?: number;
-  /** Extra selectors to skip during capture. */
   ignore?: string[];
   /** Forwarded to the cheap discovery captures; forced states stay off here. */
   stabilize?: CaptureOptions['stabilize'];
 };
 
-type StateCandidate = {
-  action: 'hover' | 'focus';
-  selector: string;
-  /** Runtime-only capture identity. Uses hashed identity tokens, never raw attribute values. */
-  mapPath: string;
-  unsafe: boolean;
+/** `mapPath` is the runtime-only capture identity (hashed identity tokens, never raw attribute values). */
+type StateCandidate = { action: 'hover' | 'focus'; selector: string; mapPath: string; unsafe: boolean };
+type Discovery = { candidates: Candidate[]; states: StateCandidate[]; liveSelectors: string[] };
+type StateIdentity = Pick<HarvestedStateCoverage, 'stateKey' | 'action' | 'selector'>;
+
+const KEY_SUFFIX: Record<string, string> = {
+  tab: '-tab',
+  'form-validation': '-errors',
+  'select-option': '-selected',
+  'aria-expanded': '-expanded',
+  'aria-haspopup': '-open',
 };
+const slug = (value: string): string => slugOf(value, 48);
+const variantKey = (candidate: Candidate): string => slug(candidate.label) + (KEY_SUFFIX[candidate.reason] ?? '');
+const diffHash = (findings: Finding[]): string => sha256(JSON.stringify(findings)).slice(0, 16);
+const stateCoverageKey = (prefix: 'hover' | 'focus' | 'live-region', selector: string): string =>
+  `${prefix}-${sha256(`${prefix}\u0000${selector}`).slice(0, 12)}`;
+const skipOf = (candidate: Candidate, reason: HarvestSkip['reason'], detail: string): HarvestSkip => ({
+  reason,
+  selector: candidate.selector,
+  label: candidate.label,
+  detail,
+});
+const captureOptions = (options: VariantHarvestOptions): CaptureOptions => ({
+  ignore: options.ignore,
+  stabilize: options.stabilize,
+  captureStates: false,
+});
 
-type StateDiscovery = {
-  candidates: StateCandidate[];
-  liveSelectors: string[];
-};
-
-type StateDiscoveryArgs = {
-  dangerSource: string;
-  maxCandidates: number;
-};
-
-type Candidate = {
-  action: HarvestAction;
-  selector: string;
-  reason: string;
-  label: string;
-  value?: string;
-};
-
-function slug(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 48) || 'state'
-  );
-}
-
-function routeUrl(route: HarvestRoute, baseUrl?: string): string {
-  if (!baseUrl) return route.url;
-  return new URL(route.url, baseUrl).href;
-}
-
-function pathAndSearch(url: string): string {
-  const parsed = new URL(url);
-  return parsed.pathname + parsed.search;
-}
-
-function diffHash(findings: Finding[]): string {
-  return createHash('sha256').update(JSON.stringify(findings)).digest('hex').slice(0, 16);
-}
-
-function variantKey(candidate: Candidate): string {
-  if (candidate.reason === 'tab') return `${slug(candidate.label)}-tab`;
-  if (candidate.reason === 'form-validation') return `${slug(candidate.label)}-errors`;
-  if (candidate.reason === 'select-option') return `${slug(candidate.label)}-selected`;
-  if (candidate.reason === 'aria-expanded') return `${slug(candidate.label)}-expanded`;
-  if (candidate.reason === 'aria-haspopup') return `${slug(candidate.label)}-open`;
-  return slug(candidate.label);
-}
-
-function liveKey(candidate: LiveRegionCandidate): string {
-  return slug(candidate.cls || candidate.role || candidate.ariaLive || candidate.reason || candidate.tag);
-}
-
-function liveSelector(candidate: LiveRegionCandidate): string {
-  return candidate.path;
-}
-
-// `dangerSource` is the shared destructive-label pattern (see {@link DANGER_SOURCE}),
-// passed in because this function is serialized into the browser and can't close over
-// a Node `RegExp`.
+// Runs in the browser (self-contained): one-step action candidates, hover/focus state candidates,
+// and live-region selectors in one bounded scan. State candidates and live selectors carry no
+// text, label, role, or attribute value; labels exist only transiently for the destructive check.
+// `dangerSource` is the shared destructive-label pattern, a string because a RegExp cannot be serialized.
 // fallow-ignore-next-line complexity
-function collectCandidates(dangerSource: string): Candidate[] {
-  const controls = [
-    '[aria-expanded]',
-    '[aria-haspopup]',
-    'button',
-    'summary',
-    '[role="button"]',
-    '[role="tab"]',
-    '[role="menuitem"]',
-    '[role="combobox"]',
-    'select',
-    'form',
-  ].join(',');
+function collectDiscovery({ dangerSource, maxStates }: { dangerSource: string; maxStates: number }): Discovery {
+  const CONTROLS =
+    '[aria-expanded],[aria-haspopup],button,summary,[role="button"],[role="tab"],[role="menuitem"],[role="combobox"],select,form';
+  const STATE_CONTROLS =
+    'button,input,select,textarea,summary,a[href],[tabindex],[role="button"],[role="tab"],[role="menuitem"],[role="combobox"]';
+  const REASONS: [string, string][] = [
+    ['[role="tab"]', 'tab'],
+    ['form', 'form-validation'],
+    ['select', 'select-option'],
+    ['[aria-expanded]', 'aria-expanded'],
+    ['[aria-haspopup]', 'aria-haspopup'],
+  ];
   const dangerous = new RegExp(dangerSource, 'i');
-  const esc = (value: string): string => CSS.escape(value);
-  const quote = (value: string): string => JSON.stringify(value);
+  const capturePath = (window as unknown as { __spPathOf?: (element: Element) => string }).__spPathOf;
   const visible = (el: Element): boolean => {
     const box = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
     return box.width > 0 && box.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
   };
+  const usable = (el: Element): boolean => visible(el) && !el.matches(':disabled,[aria-disabled="true"]');
   const unique = (selector: string): boolean => document.querySelectorAll(selector).length === 1;
   const pathSelector = (el: Element): string => {
     const parts: string[] = [];
     let cur: Element | null = el;
     while (cur && cur !== document.documentElement) {
-      const tag = cur.tagName.toLowerCase();
       let index = 1;
       for (let sib = cur.previousElementSibling; sib; sib = sib.previousElementSibling) {
         if (sib.tagName === cur.tagName) index++;
       }
-      parts.unshift(`${tag}:nth-of-type(${index})`);
+      parts.unshift(`${cur.tagName.toLowerCase()}:nth-of-type(${index})`);
       cur = cur.parentElement;
     }
     return parts.join(' > ');
   };
+  // Preference: unique id, then a unique data-testid/data-test/aria-label/name, then the positional path.
   const selectorFor = (el: Element): string => {
-    const attrs = ['data-testid', 'data-test', 'aria-label', 'name'];
     const id = el.getAttribute('id');
-    if (id && unique(`#${esc(id)}`)) return `#${esc(id)}`;
-    for (const attr of attrs) {
+    const byAttr = ['data-testid', 'data-test', 'aria-label', 'name'].map((attr) => {
       const value = el.getAttribute(attr);
-      if (!value) continue;
-      const selector = `${el.tagName.toLowerCase()}[${attr}=${quote(value)}]`;
-      if (unique(selector)) return selector;
-    }
-    return pathSelector(el);
+      return value ? `${el.tagName.toLowerCase()}[${attr}=${JSON.stringify(value)}]` : '';
+    });
+    return [id ? `#${CSS.escape(id)}` : '', ...byAttr].find((s) => s && unique(s)) || pathSelector(el);
   };
+  // aria-label > name > text > title: `title` keeps an icon-only control's tooltip name so the destructive guard still sees it.
   const labelFor = (el: Element): string => {
-    // Include `title` so an icon-only control (no text, no aria-label) announcing
-    // itself via a native tooltip — `<button title="Delete">🗑</button>` — still
-    // yields a real label. Without it the label is "button", slipping past the
-    // destructive guard below that this harvester's clicks must respect.
-    const own = (
-      el.getAttribute('aria-label') ||
-      el.getAttribute('name') ||
-      el.textContent ||
-      el.getAttribute('title') ||
-      ''
-    ).trim();
-    return own.replace(/\s+/g, ' ').slice(0, 80) || el.tagName.toLowerCase();
-  };
-  const reasonFor = (el: Element): string => {
-    if (el.getAttribute('role') === 'tab') return 'tab';
-    if (el.tagName.toLowerCase() === 'form') return 'form-validation';
-    if (el.tagName.toLowerCase() === 'select') return 'select-option';
-    if (el.hasAttribute('aria-expanded')) return 'aria-expanded';
-    if (el.hasAttribute('aria-haspopup')) return 'aria-haspopup';
-    return 'semantic-click';
-  };
-
-  const seen = new Set<string>();
-  const out: Candidate[] = [];
-  for (const el of [...document.querySelectorAll(controls)]) {
-    if (el instanceof HTMLAnchorElement && el.href) continue;
-    if (el.matches(':disabled,[aria-disabled="true"]')) continue;
-    if (!visible(el)) continue;
-    const selector = selectorFor(el);
-    if (seen.has(selector)) continue;
-    seen.add(selector);
-    const label = labelFor(el);
-    if (dangerous.test(label)) {
-      out.push({ action: 'click', selector, reason: 'unsafe-label', label });
-      continue;
-    }
-    if (el instanceof HTMLFormElement) {
-      if (el.noValidate || !el.querySelector('input[required],textarea[required],select[required]')) continue;
-      out.push({ action: 'submit-empty', selector, reason: 'form-validation', label });
-    } else if (el instanceof HTMLSelectElement) {
-      const next = [...el.options].find((o) => !o.disabled && o.value !== el.value);
-      if (next) out.push({ action: 'select-option', selector, reason: 'select-option', label, value: next.value });
-    } else {
-      out.push({ action: 'click', selector, reason: reasonFor(el), label });
-    }
-  }
-  return out;
-}
-
-async function discoverCandidates(page: Page): Promise<Candidate[]> {
-  return page.evaluate(collectCandidates, DANGER_SOURCE);
-}
-
-// One bounded state scan. It deliberately returns no text, label, role, attribute
-// value, or framework metadata. Labels exist only transiently inside the page for
-// destructive-action classification.
-function collectStateDiscovery({ dangerSource, maxCandidates }: StateDiscoveryArgs): StateDiscovery {
-  const dangerous = new RegExp(dangerSource, 'i');
-  const capturePath = (window as unknown as { __spPathOf?: (element: Element) => string }).__spPathOf;
-  const visible = (element: Element): boolean => {
-    const rect = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    let own = el.textContent || el.getAttribute('title') || '';
+    for (const attr of ['name', 'aria-label']) own = el.getAttribute(attr) || own;
+    return own.trim().replace(/\s+/g, ' ').slice(0, 80) || el.tagName.toLowerCase();
   };
   const structuralPath = (element: Element): string => {
     const segments: string[] = [];
-    let current: Element | null = element;
-    while (current && current !== document.documentElement) {
-      const tag = current.tagName.toLowerCase();
-      if (current === document.body) {
-        segments.unshift('body');
-      } else {
-        const siblings = current.parentElement ? [...current.parentElement.children] : [];
-        const position = Math.max(1, siblings.indexOf(current) + 1);
-        segments.unshift(`${tag}:nth-child(${position})`);
-      }
-      current = current.parentElement;
+    for (let cur: Element | null = element; cur && cur !== document.documentElement; cur = cur.parentElement) {
+      const siblings = cur.parentElement ? [...cur.parentElement.children] : [];
+      const position = Math.max(1, siblings.indexOf(cur) + 1);
+      segments.unshift(cur === document.body ? 'body' : `${cur.tagName.toLowerCase()}:nth-child(${position})`);
     }
     return segments.join(' > ');
   };
@@ -306,44 +182,45 @@ function collectStateDiscovery({ dangerSource, maxCandidates }: StateDiscoveryAr
       .replace(/\s+/g, ' ')
       .slice(0, 240);
 
-  const candidates: StateCandidate[] = [];
-  const controls = [
-    'button',
-    'input',
-    'select',
-    'textarea',
-    'summary',
-    'a[href]',
-    '[tabindex]',
-    '[role="button"]',
-    '[role="tab"]',
-    '[role="menuitem"]',
-    '[role="combobox"]',
-  ].join(',');
-  for (const element of [...document.querySelectorAll(controls)]) {
-    if (!visible(element) || element.matches(':disabled,[aria-disabled="true"]')) continue;
-    const selector = structuralPath(element);
-    const mapPath = capturePath?.(element) ?? selector;
-    const unsafe = dangerous.test(safetyLabel(element));
-    if (candidates.length < maxCandidates) candidates.push({ action: 'hover', selector, mapPath, unsafe });
-    if (candidates.length < maxCandidates && element instanceof HTMLElement && element.tabIndex >= 0) {
-      candidates.push({ action: 'focus', selector, mapPath, unsafe });
+  const seen = new Set<string>();
+  const candidates: Candidate[] = [];
+  for (const el of document.querySelectorAll(CONTROLS)) {
+    if ((el instanceof HTMLAnchorElement && el.href) || !usable(el)) continue;
+    const selector = selectorFor(el);
+    if (seen.has(selector)) continue;
+    seen.add(selector);
+    const label = labelFor(el);
+    if (dangerous.test(label)) {
+      candidates.push({ action: 'click', selector, reason: 'unsafe-label', label });
+    } else if (el instanceof HTMLFormElement) {
+      if (el.noValidate || !el.querySelector('input[required],textarea[required],select[required]')) continue;
+      candidates.push({ action: 'submit-empty', selector, reason: 'form-validation', label });
+    } else if (el instanceof HTMLSelectElement) {
+      const next = [...el.options].find((o) => !o.disabled && o.value !== el.value);
+      if (next)
+        candidates.push({ action: 'select-option', selector, reason: 'select-option', label, value: next.value });
+    } else {
+      const reason = REASONS.find(([s]) => el.matches(s))?.[1] ?? 'semantic-click';
+      candidates.push({ action: 'click', selector, reason, label });
     }
   }
 
+  const states: StateCandidate[] = [];
+  for (const element of document.querySelectorAll(STATE_CONTROLS)) {
+    if (!usable(element)) continue;
+    const selector = structuralPath(element);
+    const mapPath = capturePath?.(element) ?? selector;
+    const unsafe = dangerous.test(safetyLabel(element));
+    if (states.length < maxStates) states.push({ action: 'hover', selector, mapPath, unsafe });
+    if (states.length < maxStates && element instanceof HTMLElement && element.tabIndex >= 0) {
+      states.push({ action: 'focus', selector, mapPath, unsafe });
+    }
+  }
   const liveSelectors = [...document.querySelectorAll('[aria-live],[role="status"],[role="alert"],[aria-busy="true"]')]
     .filter(visible)
     .map(structuralPath)
     .filter((selector, index, all) => all.indexOf(selector) === index);
-  return { candidates, liveSelectors: liveSelectors.slice(0, 200) };
-}
-
-async function discoverStateCandidates(page: Page, maxCandidates: number): Promise<StateDiscovery> {
-  return page.evaluate(collectStateDiscovery, { dangerSource: DANGER_SOURCE, maxCandidates });
-}
-
-function stateCoverageKey(prefix: 'hover' | 'focus' | 'live-region', selector: string): string {
-  return `${prefix}-${createHash('sha256').update(`${prefix}\u0000${selector}`).digest('hex').slice(0, 12)}`;
+  return { candidates, states, liveSelectors: liveSelectors.slice(0, 200) };
 }
 
 async function perform(page: Page, candidate: Candidate): Promise<void> {
@@ -364,18 +241,10 @@ async function perform(page: Page, candidate: Candidate): Promise<void> {
   }
 }
 
-function captureOptions(options: VariantHarvestOptions): CaptureOptions {
-  return {
-    ignore: options.ignore,
-    stabilize: options.stabilize,
-    captureStates: false,
-  };
-}
-
 function liveStatesFrom(candidates: LiveRegionCandidate[] = []): HarvestedLiveState[] {
   return candidates.map((candidate) => ({
-    key: liveKey(candidate),
-    selector: liveSelector(candidate),
+    key: slug(candidate.cls || candidate.role || candidate.ariaLive || candidate.reason || candidate.tag),
+    selector: candidate.path,
     reason: candidate.reason,
     label: candidate.cls || candidate.role || candidate.tag,
     fixtureRequired: true,
@@ -385,19 +254,10 @@ function liveStatesFrom(candidates: LiveRegionCandidate[] = []): HarvestedLiveSt
   }));
 }
 
-function unsafeSkip(candidate: Candidate): HarvestSkip {
-  return {
-    reason: 'unsafe-label',
-    selector: candidate.selector,
-    label: candidate.label,
-    detail: 'label matched the built-in destructive-action guard',
-  };
-}
-
 async function tryCandidate(
   page: Page,
   url: string,
-  before: Awaited<ReturnType<typeof captureStyleMap>>,
+  before: StyleMap,
   candidate: Candidate,
   options: VariantHarvestOptions,
   seenDiffs: Set<string>,
@@ -407,91 +267,55 @@ async function tryCandidate(
   try {
     await perform(page, candidate);
     const afterUrl = pathAndSearch(page.url());
-    if (afterUrl !== start) {
-      return {
-        skip: {
-          reason: 'navigated',
-          selector: candidate.selector,
-          label: candidate.label,
-          detail: `${start} -> ${afterUrl}`,
-        },
-      };
-    }
-    const after = await captureStyleMap(page, captureOptions(options));
-    const findings = diffStyleMaps(before, after);
+    if (afterUrl !== start) return { skip: skipOf(candidate, 'navigated', `${start} -> ${afterUrl}`) };
+    const findings = diffStyleMaps(before, await captureStyleMap(page, captureOptions(options)));
     if (!findings.length) return {};
     const hash = diffHash(findings);
     if (seenDiffs.has(hash)) return {};
     seenDiffs.add(hash);
-    return {
-      variant: {
-        key: variantKey(candidate),
-        action: candidate.action,
-        selector: candidate.selector,
-        reason: candidate.reason,
-        label: candidate.label,
-        findings: findings.length,
-        diffHash: hash,
-        ...(candidate.value ? { value: candidate.value } : {}),
-      },
+    const { action, selector, reason, label, value } = candidate;
+    const variant = {
+      key: variantKey(candidate),
+      action,
+      selector,
+      reason,
+      label,
+      findings: findings.length,
+      diffHash: hash,
     };
+    return { variant: { ...variant, ...(value ? { value } : {}) } };
   } catch (e) {
-    return {
-      skip: {
-        reason: 'action-failed',
-        selector: candidate.selector,
-        label: candidate.label,
-        detail: e instanceof Error ? e.message : String(e),
-      },
-    };
+    return { skip: skipOf(candidate, 'action-failed', e instanceof Error ? e.message : String(e)) };
   }
 }
 
 function capturedStateOutcome(
-  identity: Pick<HarvestedStateCoverage, 'stateKey' | 'action' | 'selector'>,
+  identity: StateIdentity,
   hash: string,
   findings: number,
   seenDiffs: Set<string>,
 ): HarvestedStateCoverage {
-  if (seenDiffs.has(hash)) {
-    return {
-      ...identity,
-      outcome: 'deduplicated',
-      reason: 'duplicate-computed-style',
-      diffHash: hash,
-    };
-  }
+  if (seenDiffs.has(hash))
+    return { ...identity, outcome: 'deduplicated', reason: 'duplicate-computed-style', diffHash: hash };
   seenDiffs.add(hash);
-  return {
-    ...identity,
-    outcome: 'captured',
-    reason: 'semantic-control',
-    findings,
-    diffHash: hash,
-  };
+  return { ...identity, outcome: 'captured', reason: 'semantic-control', findings, diffHash: hash };
 }
 
 async function tryStateCandidate(
   page: Page,
   url: string,
-  before: Awaited<ReturnType<typeof captureStyleMap>>,
-  forcedStateMap: Awaited<ReturnType<typeof captureStyleMap>>,
+  before: StyleMap,
+  forcedStateMap: StyleMap,
   candidate: StateCandidate,
   options: VariantHarvestOptions,
   seenDiffs: Set<string>,
 ): Promise<HarvestedStateCoverage> {
   const stateKey = stateCoverageKey(candidate.action, candidate.mapPath);
-  const identity = { stateKey, action: candidate.action, selector: candidate.selector } as const;
-  if (candidate.unsafe) {
-    return {
-      ...identity,
-      outcome: 'skipped',
-      reason: 'unsafe-label',
-    };
-  }
+  const identity: StateIdentity = { stateKey, action: candidate.action, selector: candidate.selector };
+  if (candidate.unsafe) return { ...identity, outcome: 'skipped', reason: 'unsafe-label' };
   const forcedDelta = forcedStateMap.states[candidate.mapPath]?.[candidate.action];
   if (forcedDelta) {
-    const hash = createHash('sha256').update(JSON.stringify(forcedDelta)).digest('hex').slice(0, 16);
+    const hash = sha256(JSON.stringify(forcedDelta)).slice(0, 16);
     const findings = Object.values(forcedDelta).reduce((sum, properties) => sum + Object.keys(properties).length, 0);
     return capturedStateOutcome(identity, hash, findings, seenDiffs);
   }
@@ -501,15 +325,8 @@ async function tryStateCandidate(
     const target = page.locator(candidate.selector).first();
     if (candidate.action === 'hover') await target.hover({ timeout: 1_000 });
     else await target.focus({ timeout: 1_000 });
-    const after = await captureStyleMap(page, captureOptions(options));
-    const findings = diffStyleMaps(before, after);
-    if (findings.length === 0) {
-      return {
-        ...identity,
-        outcome: 'deduplicated',
-        reason: 'no-computed-style-change',
-      };
-    }
+    const findings = diffStyleMaps(before, await captureStyleMap(page, captureOptions(options)));
+    if (findings.length === 0) return { ...identity, outcome: 'deduplicated', reason: 'no-computed-style-change' };
     return capturedStateOutcome(identity, diffHash(findings), findings.length, seenDiffs);
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'TimeoutError';
@@ -539,43 +356,69 @@ function candidateLimit(value: number | undefined, field: string): number {
   return resolved;
 }
 
-/**
- * Discover one-step UI states by trying semantic controls and keeping only
- * actions whose rendered computed-style map differs from the route baseline.
- */
+async function harvestVariants(
+  page: Page,
+  url: string,
+  before: StyleMap,
+  candidates: Candidate[],
+  options: VariantHarvestOptions,
+): Promise<{ variants: HarvestedVariant[]; skipped: HarvestSkip[] }> {
+  const variants: HarvestedVariant[] = [];
+  const skipped: HarvestSkip[] = [];
+  const seenDiffs = new Set<string>();
+  for (const candidate of candidates) {
+    if (candidate.reason === 'unsafe-label') {
+      skipped.push(skipOf(candidate, 'unsafe-label', 'label matched the built-in destructive-action guard'));
+      continue;
+    }
+    const result = await tryCandidate(page, url, before, candidate, options, seenDiffs);
+    if (result.variant) variants.push(result.variant);
+    if (result.skip) skipped.push(result.skip);
+  }
+  return { variants, skipped };
+}
+
+async function harvestRoute(
+  page: Page,
+  route: HarvestRoute,
+  options: VariantHarvestOptions,
+  maxActions: number,
+  maxStates: number,
+): Promise<HarvestedRoute> {
+  const url = options.baseUrl ? new URL(route.url, options.baseUrl).href : route.url;
+  await page.goto(url, { waitUntil: 'load' });
+  await page.mouse.move(-1, -1);
+  const before = await captureStyleMap(page, captureOptions(options));
+  const discovery = await page.evaluate(collectDiscovery, { dangerSource: DANGER_SOURCE, maxStates });
+  const forcedStateMap = await captureStyleMap(page, { ...captureOptions(options), captureStates: true });
+  const { variants, skipped } = await harvestVariants(
+    page,
+    url,
+    before,
+    discovery.candidates.slice(0, maxActions),
+    options,
+  );
+  const stateCoverage = fixtureRecommendations(discovery.liveSelectors);
+  const seenStateDiffs = new Set<string>();
+  for (const candidate of discovery.states.slice(0, maxStates)) {
+    stateCoverage.push(await tryStateCandidate(page, url, before, forcedStateMap, candidate, options, seenStateDiffs));
+  }
+  return {
+    key: route.key,
+    url: route.url,
+    variants,
+    liveStates: liveStatesFrom(before.liveCandidates),
+    stateCoverage,
+    skipped,
+  };
+}
+
+/** Discover one-step UI states by trying semantic controls and keeping only actions whose
+ *  rendered computed-style map differs from the route baseline. */
 export async function harvestStyleVariants(page: Page, options: VariantHarvestOptions): Promise<VariantHarvest> {
   const maxActions = candidateLimit(options.maxActionsPerRoute, 'maxActionsPerRoute');
-  const maxStateActions = candidateLimit(options.maxStateActionsPerRoute, 'maxStateActionsPerRoute');
+  const maxStates = candidateLimit(options.maxStateActionsPerRoute, 'maxStateActionsPerRoute');
   const routes: HarvestedRoute[] = [];
-  for (const route of options.routes) {
-    const url = routeUrl(route, options.baseUrl);
-    await page.goto(url, { waitUntil: 'load' });
-    await page.mouse.move(-1, -1);
-    const before = await captureStyleMap(page, captureOptions(options));
-    const candidates = await discoverCandidates(page);
-    const stateDiscovery = await discoverStateCandidates(page, maxStateActions);
-    const forcedStateMap = await captureStyleMap(page, { ...captureOptions(options), captureStates: true });
-    const liveStates = liveStatesFrom(before.liveCandidates);
-    const variants: HarvestedVariant[] = [];
-    const skipped: HarvestSkip[] = [];
-    const seenDiffs = new Set<string>();
-    for (const candidate of candidates.slice(0, maxActions)) {
-      if (candidate.reason === 'unsafe-label') {
-        skipped.push(unsafeSkip(candidate));
-        continue;
-      }
-      const result = await tryCandidate(page, url, before, candidate, options, seenDiffs);
-      if (result.variant) variants.push(result.variant);
-      if (result.skip) skipped.push(result.skip);
-    }
-    const stateCoverage = fixtureRecommendations(stateDiscovery.liveSelectors);
-    const seenStateDiffs = new Set<string>();
-    for (const candidate of stateDiscovery.candidates.slice(0, maxStateActions)) {
-      stateCoverage.push(
-        await tryStateCandidate(page, url, before, forcedStateMap, candidate, options, seenStateDiffs),
-      );
-    }
-    routes.push({ key: route.key, url: route.url, variants, liveStates, stateCoverage, skipped });
-  }
+  for (const route of options.routes) routes.push(await harvestRoute(page, route, options, maxActions, maxStates));
   return { routes };
 }

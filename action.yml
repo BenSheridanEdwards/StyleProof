@@ -38,7 +38,7 @@ inputs:
     description: 'Days the report artifact is kept when report-storage is artifact (bounded 1-90 by GitHub).'
     default: '30'
   report-branch:
-    description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close. Used only when report-storage is ''branch''.'
+    description: "Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close. Used only when report-storage is 'branch'."
     default: 'styleproof-reports'
   github-token:
     description: 'Token used to push the report branch and post the PR comment.'
@@ -180,11 +180,8 @@ runs:
           const cfg = loadStyleProofConfig(root);
           core.info('StyleProof: loaded styleproof.config.json policy (or defaults when absent)');
           core.setOutput('blocking', cfg.blocking === 'advisory' ? 'advisory' : cfg.blocking === false ? 'false' : 'true');
-          // A removed navigable affordance (a route/tab/menu-item the UI stopped offering)
-          // is a feature going unreachable — high-stakes, and NOT something the style
-          // "approve all" box should wave through. It hard-fails unless the removal is
-          // recorded in styleproof.inventory.json. On by default; set
-          // "gateInventoryRemovals": false to opt out.
+          // A removed navigable affordance is a feature going unreachable: it hard-fails unless
+          // acknowledged in styleproof.inventory.json. On by default; "gateInventoryRemovals": false opts out.
           core.setOutput('gate-inventory-removals', cfg.gateInventoryRemovals === false ? 'false' : 'true');
 
     - id: diff
@@ -526,8 +523,7 @@ runs:
             const { data } = await github.rest.repos.listCommitStatusesForRef({ ...context.repo, ref: sha, per_page: 100 });
             const mine = data.find((s) => s.context === STATUS);
             approved = !!mine && mine.state === 'success';
-            // The approve workflow stamps "Approved by @x" into the status description,
-            // so the comment can show who signed off even on a later report re-run.
+            // The approve workflow stamps "Approved by @x" into the status description.
             const m = approved && (mine.description || '').match(/Approved by @([A-Za-z0-9-]+)/);
             if (m) approver = m[1];
           }
@@ -601,8 +597,6 @@ runs:
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const { buildReportDelivery, buildArtifactReportDelivery } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
-          const { formatIntegrityRepairComment, parseIntegrityFailures } =
-            await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
           const {
             formatPartialBaselineComment,
             formatDegradedBaselineComment,
@@ -613,17 +607,14 @@ runs:
           if (typeof marker !== 'string' || !/^<!-- [A-Za-z0-9 _.:-]{1,80} -->$/.test(marker)) {
             throw new Error('comment-marker must be an HTML comment like <!-- styleproof-report -->');
           }
-          // `changed` = review required: before/after differences OR new surfaces
-          // with no baseline. Publication always supplies the durable receipt.
+          // `changed` = review required: before/after differences OR new surfaces with no baseline.
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const { data: comments } = await github.rest.issues.listComments({
             ...context.repo, issue_number: prNumber, per_page: 100,
           });
           const existing = comments.find((c) => c.body && c.body.includes(marker));
-          // Rerun-attempt ordering guard: a late-arriving delivery from an earlier
-          // attempt of THIS run must not overwrite the verdict a newer attempt
-          // already published. The comment records its writing attempt; a stale
-          // delivery leaves the comment (and, downstream, the commit status) alone.
+          // Rerun-attempt ordering guard: a late delivery from an earlier attempt of THIS run
+          // must not overwrite the verdict a newer attempt already published.
           const runId = '${{ github.run_id }}';
           const runAttempt = '${{ github.run_attempt }}';
           if (existing && !shouldSupersedeExistingComment({
@@ -662,10 +653,8 @@ runs:
               })()
             : buildArtifactReportDelivery({ repository, reportUrl: url });
 
-          // The committed report is the COMPLETE source of truth — side-by-side crops
-          // plus per-element property tables. The comment stays lean: the summary, one
-          // approval box, and a link. It never duplicates the report (so the two can't
-          // drift), and renders identically on public and private repos.
+          // The committed report is the complete source of truth; the comment stays lean
+          // (summary, one approval box, a link) so the two can't drift.
           const reportMd = fs.existsSync('styleproof-report/report.md') ? fs.readFileSync('styleproof-report/report.md', 'utf8') : '';
           const lines = reportMd.split('\n');
           const headEnd = lines.findIndex((l) => l.startsWith('### '));
@@ -676,8 +665,7 @@ runs:
           const blocking = '${{ steps.config.outputs.blocking }}';
           const migrationMode = mode === 'migration';
           const advisoryMode = mode === 'advisory' || blocking === 'advisory';
-          // Review-gate and migration modes use approval box and commit status.
-          // Advisory mode sets status but never shows the approval box.
+          // Review-gate and migration modes use the approval box; advisory never shows it.
           const useReviewGate = !advisoryMode && (requireApproval || mode === 'review-gate' || migrationMode);
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const approver = '${{ steps.gate.outputs.approver }}';
@@ -687,9 +675,7 @@ runs:
           const headSha = '${{ steps.context.outputs.head-sha }}';
 
           const link = delivery.markdown;
-          // One box signs off every change. On a re-run that's already approved it's
-          // pre-ticked and carries "approved by @x" (reconstructed from the commit
-          // status), so the comment matches the green status without re-running approval.
+          // One box signs off every change; an already-approved re-run renders it pre-ticked.
           const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
           const box = useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED'
             ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
@@ -697,19 +683,17 @@ runs:
           const reportJson = fs.existsSync('styleproof-report/report.json')
             ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
             : {};
-          const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
           const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
           const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
           const trustGuidance = {
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-            CERTIFICATION_FAILED: formatIntegrityRepairComment(integrityFailures),
+            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report; reviewer approval cannot clear this failure._',
             PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
             DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
           }[trustState];
           const contentEvaluated = '${{ inputs.include-content }}' === 'true';
           const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
-          // Migration mode: structure changes are reviewable, not just advisory.
           const migrationCleanGuidance = `_No reviewable style or structure changes detected — the **${statusContext}** check is green._`;
           const cleanGuidance = migrationMode
             ? migrationCleanGuidance
@@ -718,11 +702,9 @@ runs:
                 ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
                 : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
               : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
-          // Advisory mode guidance: always green, never blocks, check remains green.
           const advisoryGuidance = changed
             ? `_Advisory-only mode: StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
             : `_Advisory-only mode: no reviewable changes detected — the **${statusContext}** check remains green._`;
-          // Migration-specific guidance: structure changes are reviewable alongside styles.
           const migrationPendingGuidance = `_Migration mode: tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. The report shows **Changed styles**, **New surfaces**, and **New/removed elements**. A new push that changes styles or structure re-opens it._`;
           const migrationApprovedGuidance = `_Migration mode: signed off — the **${statusContext}** check is green. A new push that changes styles or structure re-opens it._`;
           const footer = [
@@ -771,15 +753,11 @@ runs:
           const mode = '${{ inputs.mode }}';
           const blocking = '${{ steps.config.outputs.blocking }}';
           const advisoryMode = mode === 'advisory' || blocking === 'advisory';
-          // Advisory mode: ALWAYS green — never block, let adopters evaluate signal quality.
-          // Green when no review is needed OR a prior sign-off already approved this commit
-          // (so re-running the report can't clobber an approval the approve workflow set).
+          // Advisory mode is always green; otherwise green when no review is needed or a prior sign-off approved this commit.
           const green =
             advisoryMode ||
             trustState === 'NO_REVIEWABLE_STYLE_CHANGES' ||
             (trustState === 'STYLE_REVIEW_REQUIRED' && approved);
-          const { formatIntegrityStatusDescription, parseIntegrityFailures } =
-            await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
           const {
             formatPartialBaselineStatusDescription,
             formatDegradedBaselineStatusDescription,
@@ -788,7 +766,6 @@ runs:
           const reportJson = fs.existsSync('styleproof-report/report.json')
             ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
             : {};
-          const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
           const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
           const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
           const descriptions = {
@@ -798,7 +775,7 @@ runs:
               : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
-            CERTIFICATION_FAILED: formatIntegrityStatusDescription(integrityFailures),
+            CERTIFICATION_FAILED: 'Evidence incomplete on named surface+SHA — not a base recapture failure',
             PARTIAL_BASELINE: formatPartialBaselineStatusDescription(baselineFailures),
             DEGRADED_BASELINE: formatDegradedBaselineStatusDescription(baseCaptureFailed),
           };
@@ -934,16 +911,10 @@ runs:
       uses: actions/github-script@v9
       with:
         script: |
-          // Name the FAILURE DOMAIN precisely, so automation retries the right thing:
-          //   publish 'failure'            → the publish step itself broke → REPORT_PUBLICATION_FAILED;
-          //   publish 'skipped'/'cancelled' → an EARLIER step (capture/diff/config) failed —
-          //     not a publication fault; report the verdict if one exists, else the
-          //     capture/certification domain;
-          //   comment/status delivery failed after a successful publish → the consumer-
-          //     visible half of publication never landed → REPORT_PUBLICATION_FAILED,
-          //     never a green classification from a run that delivered nothing.
-          // The publish step is whichever one the storage mode ran: the branch
-          // graft or the artifact upload (#587).
+          // Name the failure domain so automation retries the right thing: a broken publish or a
+          // failed comment/status delivery is REPORT_PUBLICATION_FAILED; a skipped publish means an
+          // earlier step failed, so report the verdict if one exists. The publish step is
+          // whichever one the storage mode ran: the branch graft or the artifact upload.
           const publishOutcome = '${{ inputs.report-storage }}' === 'branch'
             ? '${{ steps.publish.outcome }}'
             : '${{ steps.report-artifact.outcome }}';

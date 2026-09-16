@@ -1,8 +1,6 @@
-// Machine validation for the PR title + body against .github/PULL_REQUEST_TEMPLATE.md.
-// Runs in CI on pull_request (see .github/workflows/pr-body.yml). The body and title
-// arrive via env (never interpolated into the command), so a hostile PR body cannot
-// inject shell. `validatePullRequest` is pure so test/validate-pr-body.test.mjs can
-// exercise every rule without a live PR.
+// Machine validation for the PR title + body against .github/PULL_REQUEST_TEMPLATE.md
+// (CI: .github/workflows/pr-body.yml). Title and body arrive via env, never interpolated
+// into a command, so a hostile PR body cannot inject shell. `validatePullRequest` is pure.
 import { fileURLToPath } from 'node:url';
 
 // The four template sections, in the order the template lays them out.
@@ -20,11 +18,9 @@ const CONVENTIONAL_TITLE = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|
 // bullet / checkbox with nothing after it (the template's placeholder shape).
 function isPlaceholderLine(line) {
   const trimmed = line.trim();
-  if (trimmed === '') return true;
-  if (trimmed.startsWith('<!--') || trimmed.startsWith('-->')) return true;
-  if (/^-\s*$/.test(trimmed)) return true;
-  if (/^-\s*\[[ x]\]\s*$/i.test(trimmed)) return true;
-  return false;
+  return (
+    trimmed === '' || trimmed.startsWith('<!--') || trimmed.startsWith('-->') || /^-\s*(\[[ x]\]\s*)?$/i.test(trimmed)
+  );
 }
 
 // Split the body into { heading -> content lines } for every `#`/`##` heading.
@@ -46,55 +42,30 @@ function sectionsByHeading(body) {
 const PROOF_SECTION = 'Behavioural Proof (with video and screenshots)';
 const WHY_SECTION = 'Why does this feature exist?';
 
-// Detects ticket-dump openings that fail the buyer-legible bar.
-// The "Why does this feature exist?" section must open with prose motivation,
-// not ticket references. This heuristic catches clear patterns while allowing
-// ticket refs AFTER establishing context.
+// Openings that read as a ticket dump rather than buyer-legible motivation.
+const TICKET_DUMP_OPENINGS = [
+  /^(Fixes|Implements|Closes|Resolves|Addresses)\s+(#|\[#)/i, // issue-closing keyword + #N
+  /^Part of\b.*#\d+/i, // "Part of parent chain #491"
+  /^(\[#\d+\]|\(#\d+\))/, // markdown issue link [#N] or inline (#N)
+  /^[1-9]\.\s/, // a numbered list (technical requirement dump)
+  /^#\d+|^\(#\d+\)/, // a bare issue ref like "#521" or "(#521)"
+];
+
+// The "Why does this feature exist?" section must open with prose motivation;
+// ticket refs are fine AFTER establishing context.
 function ticketDumpErrors(sections) {
   if (!sections.has(WHY_SECTION)) return [];
-  const lines = sections.get(WHY_SECTION);
-
-  // Find the first non-blank, non-comment, non-placeholder line.
-  let firstParagraph = '';
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed === '') continue;
-    if (trimmed.startsWith('<!--') || trimmed.endsWith('-->')) continue;
-    if (/^-\s*$/.test(trimmed)) continue;
-    firstParagraph = trimmed;
-    break;
-  }
-
-  if (!firstParagraph) return [];
-
-  // Patterns that indicate a ticket-dump opening:
-  // 1. Starts with issue-closing keywords followed by #N (possibly with words in between)
-  const startsWithIssueTerm = /^(Fixes|Implements|Closes|Resolves|Addresses)\s+(#|\[#)/i;
-  // 2. "Part of" followed by anything that leads to #N (e.g., "Part of parent chain #491")
-  const startsWithPartOf = /^Part of\b.*#\d+/i;
-  // 3. Starts with markdown issue link [#N] or inline (#N)
-  const startsWithIssueLink = /^(\[#\d+\]|\(#\d+\))/;
-  // 4. Starts with a numbered list (technical requirement dump)
-  const startsWithNumberedList = /^[1-9]\.\s/;
-  // 5. First word is literally an issue ref like "#521" or "(#521)"
-  const startsWithBareIssueRef = /^#\d+|^\(#\d+\)/;
-
-  const isBadOpening =
-    startsWithIssueTerm.test(firstParagraph) ||
-    startsWithPartOf.test(firstParagraph) ||
-    startsWithIssueLink.test(firstParagraph) ||
-    startsWithNumberedList.test(firstParagraph) ||
-    startsWithBareIssueRef.test(firstParagraph);
-
-  if (isBadOpening) {
-    return [
-      '"Why does this feature exist?" must open with buyer-legible motivation ' +
-        '(what pain, why it exists, why merge it). Ticket references (#N) should ' +
-        'come after the motivation paragraph.',
-    ];
-  }
-
-  return [];
+  const firstParagraph =
+    sections
+      .get(WHY_SECTION)
+      .map((line) => line.trim())
+      .find((line) => line && !line.startsWith('<!--') && !line.endsWith('-->') && !/^-\s*$/.test(line)) ?? '';
+  if (!TICKET_DUMP_OPENINGS.some((pattern) => pattern.test(firstParagraph))) return [];
+  return [
+    '"Why does this feature exist?" must open with buyer-legible motivation ' +
+      '(what pain, why it exists, why merge it). Ticket references (#N) should ' +
+      'come after the motivation paragraph.',
+  ];
 }
 
 function titleErrors(title) {
@@ -109,13 +80,8 @@ function sectionPresenceErrors(sections) {
   let lastIndex = -1;
   for (const required of REQUIRED_SECTIONS) {
     const index = headingOrder.indexOf(required);
-    if (index === -1) {
-      errors.push(`Missing required section: "${required}"`);
-      continue;
-    }
-    if (index < lastIndex) {
-      errors.push(`Section out of order: "${required}" must follow the template order`);
-    }
+    if (index === -1) errors.push(`Missing required section: "${required}"`);
+    else if (index < lastIndex) errors.push(`Section out of order: "${required}" must follow the template order`);
     lastIndex = Math.max(lastIndex, index);
   }
   return errors;
@@ -123,15 +89,9 @@ function sectionPresenceErrors(sections) {
 
 // No required section may be empty or placeholder-only.
 function placeholderErrors(sections) {
-  const errors = [];
-  for (const required of REQUIRED_SECTIONS) {
-    if (!sections.has(required)) continue;
-    const hasContent = sections.get(required).some((line) => !isPlaceholderLine(line));
-    if (!hasContent) {
-      errors.push(`Section "${required}" is empty or contains only template placeholders`);
-    }
-  }
-  return errors;
+  return REQUIRED_SECTIONS.filter(
+    (required) => sections.has(required) && sections.get(required).every(isPlaceholderLine),
+  ).map((required) => `Section "${required}" is empty or contains only template placeholders`);
 }
 
 // Behavioural Proof must carry an inline image (`![`) or an explicit `Not applicable`.

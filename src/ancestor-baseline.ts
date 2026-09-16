@@ -1,51 +1,21 @@
-/**
- * Nearest-ancestor baseline reuse — the CONSERVATIVE first step of issue #367.
- *
- * The map store keys bundles by whole-tree commit SHA, so every base-branch
- * merge is a full base-side cache miss even when the merge touched nothing a
- * capture renders (docs, CI config, unrelated packages). On a merge train that
- * cost is the steady state: every PR pays a double full capture.
- *
- * This module decides, on a base cache miss for commit B, whether the maps
- * stored for the NEAREST first-parent ancestor A of B may serve as B's
- * baseline: only when NONE of the paths changed between A and B is
- * capture-relevant. The rule is deliberately coarse (bundle-level, not
- * per-surface) and every uncertainty resolves to a full capture:
- *
- *   - no ancestor with a stored bundle inside the bounded walk → capture;
- *   - any changed path under a declared app source root, under the capture
- *     spec's directory, a `styleproof.config.json`, or a package
- *     manifest/lockfile → capture;
- *   - NO app source roots declared → every changed path counts as relevant
- *     (reuse then only fires on an empty diff) — opting in without declaring
- *     roots must never widen reuse;
- *   - any git failure (shallow clone, unknown SHA, no repo) → capture.
- *
- * Reuse never launders provenance: the ancestor bundle is restored byte-for-
- * byte (its manifest still names A), and the caller records a
- * {@link import('./map-store.js').BaselineProvenance} sidecar so the report
- * and diff JSON state the reuse and its proof (the changed-path count).
- *
- * Path matching reuses {@link canonicalPath} from the affected-surfaces module
- * so a `./`-prefixed or `//`-collapsed spelling can never dodge the gate.
- */
-import { spawnSync } from 'node:child_process';
+// Nearest-ancestor baseline reuse. On a base cache miss for commit B, the maps stored for
+// the nearest first-parent ancestor A may serve as B's baseline only when NONE of the
+// paths changed between A and B is capture-relevant. Every uncertainty (no stored
+// ancestor, no declared source roots, any git failure) resolves to a full capture, and
+// reuse never launders provenance: the caller records a BaselineProvenance sidecar.
+import { runGit } from './node-util.js';
 import { canonicalPath } from './affected-surfaces.js';
 
-/** A readable failure walking ancestors or diffing trees. Callers treat any
- *  throw from this module as "fall back to a full capture", never as fatal. */
+/** Callers treat any throw from this module as "fall back to a full capture", never as fatal. */
 export class AncestorBaselineError extends Error {}
 
 /** How many first-parent ancestors of the requested commit the walk considers. */
 export const DEFAULT_ANCESTOR_WALK_LIMIT = 50;
 
-const STYLEPROOF_CONFIG_FILE_NAME = 'styleproof.config.json';
-const CAPTURE_PLAYWRIGHT_CONFIG_FILE_NAME = /^playwright(?:\.styleproof)?\.config\.[cm]?[jt]s$/;
-
-/** Package manifests and lockfiles: a change to any of them (at any depth — a
- *  monorepo subpackage's included) can change what the app renders with, and
- *  the compatibility key only binds the ROOT lockfile. Always relevant. */
-const PACKAGE_MANIFEST_FILE_NAMES = new Set([
+/** File names that are relevant at any depth: harness configs plus package manifests and
+ *  lockfiles (the compatibility key binds only the ROOT lockfile). */
+const ALWAYS_RELEVANT_FILE_NAMES = new Set([
+  'styleproof.config.json',
   'package.json',
   'package-lock.json',
   'pnpm-lock.yaml',
@@ -53,10 +23,7 @@ const PACKAGE_MANIFEST_FILE_NAMES = new Set([
   'bun.lock',
   'bun.lockb',
 ]);
-
-function runGit(cwd: string, args: string[]) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
-}
+const CAPTURE_PLAYWRIGHT_CONFIG_FILE_NAME = /^playwright(?:\.styleproof)?\.config\.[cm]?[jt]s$/;
 
 function gitLines(cwd: string, args: string[], what: string): string[] {
   const result = runGit(cwd, args);
@@ -67,9 +34,7 @@ function gitLines(cwd: string, args: string[], what: string): string[] {
   return result.stdout.split(/\r?\n/).filter(Boolean);
 }
 
-/** First-parent ancestors of `sha`, nearest first, excluding `sha` itself,
- *  bounded to `limit`. A shallow history simply yields fewer ancestors; a git
- *  failure (unknown SHA, not a repository) throws {@link AncestorBaselineError}. */
+/** First-parent ancestors of `sha`, nearest first, excluding `sha` itself, bounded to `limit`. */
 export function listFirstParentAncestors(options: { sha: string; cwd: string; limit?: number }): string[] {
   const limit = options.limit ?? DEFAULT_ANCESTOR_WALK_LIMIT;
   const revisions = gitLines(
@@ -77,7 +42,6 @@ export function listFirstParentAncestors(options: { sha: string; cwd: string; li
     ['rev-list', '--first-parent', `--max-count=${limit + 1}`, options.sha],
     `rev-list --first-parent ${options.sha}`,
   );
-  // The first line is `sha` itself (as a full SHA) — the walk wants ancestors only.
   return revisions.slice(1);
 }
 
@@ -94,15 +58,12 @@ function isSameOrUnderDirectory(candidate: string, directory: string): boolean {
   return directory !== '' && (candidate === directory || candidate.startsWith(`${directory}/`));
 }
 
-/**
- * The subset of `changedPaths` that is capture-relevant, conservatively:
- * the capture spec and anything in its directory (colocated harness files),
- * the Playwright capture config, any `styleproof.config.json`, any package
- * manifest/lockfile, and anything under a declared app source root. With NO
- * source roots declared — or a root that canonicalizes to the repo root — every
- * changed path is relevant, so reuse can never fire on an undeclared app
- * layout. Pure and fs-free.
- */
+const baseName = (canonical: string): string => canonical.slice(canonical.lastIndexOf('/') + 1);
+
+/** The capture-relevant subset of `changedPaths`: the spec and its directory, the Playwright
+ *  capture config, `styleproof.config.json`, package manifests/lockfiles, and anything under
+ *  a declared source root. With NO roots (or a root meaning the whole repo) every path is
+ *  relevant, so reuse can never fire on an undeclared app layout. Pure and fs-free. */
 export function captureRelevantChangedPaths(options: {
   changedPaths: readonly string[];
   spec: string;
@@ -111,31 +72,27 @@ export function captureRelevantChangedPaths(options: {
   const spec = canonicalPath(options.spec);
   const specDirectory = spec.includes('/') ? spec.slice(0, spec.lastIndexOf('/')) : '';
   const sourceRoots = options.sourceRoots.map((root) => canonicalPath(root));
-  // Fail closed: no roots (or a root meaning "the whole repo") bounds nothing.
   if (sourceRoots.length === 0 || sourceRoots.some((root) => root === '')) return [...options.changedPaths];
   return options.changedPaths.filter((originalPath) => {
     const changed = canonicalPath(originalPath);
-    const baseName = changed.includes('/') ? changed.slice(changed.lastIndexOf('/') + 1) : changed;
-    if (baseName === STYLEPROOF_CONFIG_FILE_NAME) return true;
-    if (CAPTURE_PLAYWRIGHT_CONFIG_FILE_NAME.test(baseName)) return true;
-    if (PACKAGE_MANIFEST_FILE_NAMES.has(baseName)) return true;
-    if (changed === spec || isSameOrUnderDirectory(changed, specDirectory)) return true;
-    return sourceRoots.some((root) => isSameOrUnderDirectory(changed, root));
+    const name = baseName(changed);
+    return (
+      ALWAYS_RELEVANT_FILE_NAMES.has(name) ||
+      CAPTURE_PLAYWRIGHT_CONFIG_FILE_NAME.test(name) ||
+      changed === spec ||
+      isSameOrUnderDirectory(changed, specDirectory) ||
+      sourceRoots.some((root) => isSameOrUnderDirectory(changed, root))
+    );
   });
 }
 
-/** The verdict of {@link planAncestorBaselineReuse}: reuse names the ancestor
- *  and carries the no-relevant-changes proof; capture names the reason. */
+/** Reuse names the ancestor and carries the no-relevant-changes proof; capture names the reason. */
 export type AncestorBaselineReusePlan =
   | { decision: 'reuse'; ancestorSha: string; ancestorDepth: number; changedPathCount: number }
   | { decision: 'capture'; reason: string };
 
-/**
- * Decide whether the nearest stored-ancestor bundle may serve as the requested
- * commit's baseline. FAIL-SAFE BY CONTRACT: any error in the walk or the diff
- * returns a `capture` verdict with the failure as its reason — this function
- * never throws and never returns a reuse verdict it could not prove.
- */
+/** Decide whether the nearest stored-ancestor bundle may serve as the requested commit's
+ *  baseline. FAIL-SAFE: any error returns a `capture` verdict; this never throws. */
 export function planAncestorBaselineReuse(options: {
   requestedSha: string;
   /** Commit SHAs that have a stored bundle (top-level dirs of the map store branch). */

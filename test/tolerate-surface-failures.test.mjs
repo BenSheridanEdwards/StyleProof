@@ -715,7 +715,7 @@ test('styleproof-report never echoes untrusted baseline failure details', () => 
 test('styleproof-ci passes tolerate only on cold base capture args', () => {
   const src = fs.readFileSync(CI, 'utf8');
   assert.match(src, /--tolerate-surface-failures/);
-  const headCapture = src.match(/let headOverlay;[\s\S]*?writeOutputs\(baseCaptureFailed\);/);
+  const headCapture = src.match(/'head capture'[\s\S]*?writeOutputs\(baseCaptureFailed\);/);
   assert.ok(headCapture, 'head capture block');
   assert.doesNotMatch(headCapture[0], /tolerate-surface-failures/);
 });

@@ -115,6 +115,7 @@ function buildFakeGitHub({
   commitPages = [[]],
   blobContentsBySha = {},
   serverFailuresBeforeSuccess = 0,
+  sidecarBlobFailuresBeforeSuccess = 0,
   racingPublication,
   graphqlResponse,
   graphqlStatus = 200,
@@ -122,6 +123,7 @@ function buildFakeGitHub({
 } = {}) {
   const state = { createdTrees: [], createdCommits: [], createdBlobs: [], refUpdates: [], branchTip, rootTreeEntries };
   let remainingServerFailures = serverFailuresBeforeSuccess;
+  let remainingSidecarFailures = sidecarBlobFailuresBeforeSuccess;
   const fetchImplementation = async (url, options = {}) => {
     const method = options.method ?? 'GET';
     const apiPath = String(url).replace(`${apiBaseUrl}/repos/acme/widgets`, '');
@@ -162,6 +164,10 @@ function buildFakeGitHub({
     }
     if (method === 'GET' && apiPath.startsWith('/git/blobs/')) {
       const blobSha = apiPath.slice('/git/blobs/'.length);
+      if (blobSha === 'sidecar-blob' && remainingSidecarFailures > 0) {
+        remainingSidecarFailures -= 1;
+        return respond(502, { message: 'bad gateway' });
+      }
       const content = blobContentsBySha[blobSha];
       if (content === undefined) return respond(404, { message: 'Not Found' });
       return respond(200, { content: Buffer.from(content).toString('base64'), encoding: 'base64' });
@@ -469,6 +475,39 @@ test('transient server faults are retried', async () => {
   });
   const result = await compactMapStoreBranch({ ...apiOptions, fetchImplementation: fake.fetchImplementation });
   assert.equal(result.compacted, true);
+  assert.deepEqual(result.prunedDirectoryNames, [LEGACY_SHA]);
+});
+
+test('a transient fault fetching the sidecar is retried, never read as "no dates"', async () => {
+  // After a squash the sidecar is the only date source. Swallowing a failed blob
+  // fetch would make every sidecar-dated bundle look undated and prune it.
+  const sidecarContent = JSON.stringify({
+    version: 1,
+    prunedAt: 'earlier',
+    lastPublishedEpochSecondsByBundle: { [FRESH_SHA]: NOW - 2 * DAY_IN_SECONDS },
+  });
+  const fake = buildFakeGitHub({
+    rootTreeEntries: [
+      { path: FRESH_SHA, type: 'tree', mode: '040000', sha: 'fresh-tree' },
+      { path: LEGACY_SHA, type: 'tree', mode: '040000', sha: 'legacy-tree' },
+      { path: 'README.md', type: 'blob', mode: '100644', sha: 'readme-blob' },
+      { path: MAP_STORE_PRUNE_SIDECAR, type: 'blob', mode: '100644', sha: 'sidecar-blob' },
+    ],
+    blobContentsBySha: { 'sidecar-blob': sidecarContent },
+    sidecarBlobFailuresBeforeSuccess: 2,
+    commitPages: [
+      [
+        {
+          commit: {
+            message: 'StyleProof map store compaction: 1 bundles retained, 2 pruned',
+            committer: { date: new Date(NOW * 1000).toISOString() },
+          },
+        },
+      ],
+    ],
+  });
+  const result = await compactMapStoreBranch({ ...apiOptions, fetchImplementation: fake.fetchImplementation });
+  assert.deepEqual(result.retainedDirectoryNames, [FRESH_SHA]);
   assert.deepEqual(result.prunedDirectoryNames, [LEGACY_SHA]);
 });
 

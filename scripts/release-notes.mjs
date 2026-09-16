@@ -18,15 +18,9 @@ export function extractReleaseNotes(changelog, version) {
   const lines = changelog.split(/\r?\n/);
   const start = lines.findIndex((line) => line.startsWith(heading));
   if (start === -1) return { body: '', title: `v${version}` };
-  let end = lines.length;
-  for (let index = start + 1; index < lines.length; index += 1) {
-    if (lines[index].startsWith('## ')) {
-      end = index;
-      break;
-    }
-  }
+  const next = lines.findIndex((line, index) => index > start && line.startsWith('## '));
   const body = lines
-    .slice(start + 1, end)
+    .slice(start + 1, next === -1 ? lines.length : next)
     .join('\n')
     .trim();
   const titleLine = body.split(/\r?\n/).find((line) => line.startsWith('> **'));

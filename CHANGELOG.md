@@ -7,6 +7,58 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Removed
+
+- **Detection benchmark.** `npm run bench:detection`, `src/detection-benchmark.ts`,
+  the `bench/detection-*` corpora, and their receipts are gone. The benchmark
+  measured the detector against frozen mutants but shipped no product behavior.
+- **Evidence store v2.** The `styleproof store` noun, `styleproof-store`,
+  `src/evidence-store.ts`, `src/evidence-import.ts`, and the map-store
+  dual-write/restore path. The v2 layout was never the restore source of truth;
+  the `styleproof-maps` branch is the only store. `restoreMapBundle` now returns
+  the restored `MapManifest` directly.
+- **Integrity receipts and repair.** `src/integrity-repair.ts`, the
+  connector/integrity/source-binding receipt files, the `--manifest-digest`
+  report flag, and the three integrity steps of the action dogfood workflow.
+  Nothing in the product wrote those receipts; only test fixtures did.
+  `CERTIFICATION_FAILED` still fails closed on incomplete evidence.
+- **Audit validators and renderers.** `src/audit.ts` keeps only the audit types
+  and `createAudit`; the validator/renderer half was test-only.
+- **Config environment references.** `env()`, `EnvRef`, `resolveEnvReferences`,
+  the `${VAR}` / `${auth.X}` syntax, and the `auth` config block
+  (`auth.hudPassword`). No StyleProof command read them; secrets belong in the
+  crawl `--setup` file's `${ENV}` placeholders, which are unchanged.
+- **Product-state helpers.** `src/product-state.ts` and
+  `src/state-recipe-go-assignability.ts` (unused by any command).
+- Dead helper exports across the library: duplicated `runGit`/`gitOutput`/
+  `removeDirRecursive`/`sha256`/`errorMessage`/`toSlash`/`slug` copies now live
+  once in `src/util.ts` and `src/node-util.ts`; `cli-capture-source.ts` and the
+  unused `cli-errors` helpers are deleted.
+
+### Changed
+
+- **Codebase simplification.** Every `styleproof-*` command parses flags through
+  one shared kit (`bin/cli.mjs`); `styleproof-diff` and `styleproof-report`
+  share one comparison preamble (`bin/compare.mjs`); the inventory, data-residue,
+  legacy-pairs, and critical-states acknowledgement files are read by one
+  ledger reader (`src/ack-ledger.ts`); the three GitHub branch-maintenance
+  commands share one git-data client (`src/github-git-data.ts`);
+  `styleproof-init` is split into a driver plus `bin/init/` templates, safe
+  file writes, and hook activation. Flag names, output wording, exit codes,
+  and file formats are unchanged. Unknown-flag and missing-value messages are
+  now uniform (`<command>: unknown flag: --x` / `--x requires a value`); a
+  valued flag given without a value (for example a trailing `--json`) is now a
+  usage error (exit 2) instead of being silently ignored or swallowing the next
+  flag as its value.
+  The library's largest modules are split into folders with one public entry
+  each: `capture/`, `runner/`, `crawl/`, `map-store/`, `report/`, `config/`
+  (see `.agents/project/ARCHITECTURE.md`); every previously exported symbol
+  still resolves from its old module path. Small behavior notes: state-recipe
+  labels and keys containing `auth=` / `auth:` are rejected like the other
+  secret keys; `styleproof-prepush` resolves the spec path with the same
+  precedence as `styleproof-ci` (config → hook env → default); the crawl's DOM
+  settle is deadline-based (4 s) instead of a fixed poll count.
+
 ### Added
 
 - **Phase 1 structure harness (#670).** A controlled, known-a-priori DOM addition on
@@ -38,21 +90,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   anchors never reach the observer. Discovery is bounded (64 observed routes,
   3 passes), logged, reconciled by the `expected`/`exclude` coverage guard, and
   can be disabled with `observeNavigation: false`.
-- **Phase-0 detection corpus v2 (#447).** `bench/detection-corpus-v2.json`
-  freezes 23 reviewed mutants — resting computed-style changes across color,
-  typography, spacing, borders, effects, layout, and CSS variables; pseudo-element
-  and forced-state divergence; a sibling-insertion structural change; one
-  rendered image change with no computed-style correspondence (a designed,
-  counted miss); and four no-op controls including a computed-but-not-rendered
-  border color. `npm run bench:detection` now supports `smoke`, `pilot` (v1
-  corpus), `diagnostic` (`--case ID[,ID...]`), `sharded` (`--shard I/N`), and
-  `full` scopes; a `full` receipt must execute the complete frozen corpus and is
-  the only scope that may claim the run. Render proof decouples computed-property
-  change from pixel change so computed-but-not-rendered mutants validate
-  honestly, and proof screenshots cover the `main` container so out-of-box
-  effects are measured. The committed full-corpus receipt recorded 23 executed
-  and valid cases: 18 detected, 1 designed miss, 1 no-op false positive, 3
-  true negatives.
 - Known-truth browser oracles now cover light/dark color scheme, flex/grid layout,
   `:focus-visible` with `:focus`, box shadow/radius, and transform/opacity fidelity.
   Each fixture fails closed on missing or wrong exact computed values. (#626, #627,

@@ -203,7 +203,7 @@ test('the capture path calls the oracle: styleproof-map wires --prove-determinis
 
   assert.match(bin, /from '\.\.\/dist\/determinism-oracle\.js'/, 'the capture CLI must import the oracle');
   assert.match(bin, /assessDeterminismOracle\(/, 'the capture CLI must CALL the oracle, not just import it');
-  assert.match(bin, /--prove-determinism/, 'the flag must be documented in --help');
+  assert.match(bin, /'prove-determinism'/, 'the flag must be documented in --help');
   assert.match(bin, /determinism: 'oracle-proven'/, 'a passing oracle must be recorded in the ledger');
   // The proof must gate publication: the receipt and ledger promotion happen before the
   // manifest is stamped, and a failure discards the bundle instead of publishing it.

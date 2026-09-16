@@ -254,9 +254,6 @@ styleproof report [base]     # generate the review report on command
 styleproof variants          # inspect surface/state variants
 styleproof affected          # resolve surfaces affected by source changes
 styleproof ci                # CI orchestration: restore probes, cold capture
-styleproof store import ...  # migrate a v1 bundle into immutable evidence
-styleproof store verify ...  # verify a ref and every referenced byte
-styleproof store restore ... # atomically restore a verified ref
 ```
 
 Run `styleproof --help` for the whole journey or `styleproof <command> --help`
@@ -387,7 +384,6 @@ Every flag, config key, Action input, workflow file, hook behavior, exit code,
 and optional layer lives in [docs/REFERENCE.md](docs/REFERENCE.md). Deeper
 contracts: [what it catches](docs/what-it-catches.md) ·
 [component manifests](docs/component-manifest.md) ·
-[evidence store v2](docs/evidence-store-v2.md) ·
 [inventory guard](docs/inventory-guard.md) ·
 [product-state comparability](docs/product-state-comparability.md) ·
 [report delivery](docs/report-delivery-contract.md) ·
@@ -402,19 +398,6 @@ against a separately collected full inventory and requires the five-run determin
 receipt. Missing, duplicated, skipped, failed, or retried tests fail verification.
 The `browser-evidence-node-22` artifact retains the inventory, shard results, and
 oracle receipt for 30 days. Local `npm run test:e2e` still runs the complete suite.
-
-The repository also carries a source-bound detection benchmark for
-[#447](https://github.com/BenSheridanEdwards/StyleProof/issues/447). The frozen
-Phase-0 corpus `styleproof-issue447-phase0-full@2.0.0` holds 23 mutants across
-computed-style, forced-state, cross-element, structural, and no-op classes. Run
-`npm run bench:detection -- --corpus bench/detection-corpus-v2.json --out <new-dir> --scope full --expect-source-sha $(git rev-parse HEAD)`
-from a clean checkout; `--scope diagnostic --case ID[,ID...]` and
-`--scope sharded --shard I/N` run bound subsets, and `--scope smoke --case ID`
-checks a single case. The committed [full-corpus receipt](docs/proof/issue-447/full-v2-run-1/receipt.json)
-recorded 23 requested, 23 executed, 23 valid, 18 detected, 1 missed (a rendered
-image change with no computed-style correspondence, by design), 1 no-op false
-positive, and 3 no-op true negatives. It is not class-wide recall evidence or
-whole-application coverage.
 
 See [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md)
 for the dev loop, and [AGENTS.md](https://github.com/BenSheridanEdwards/StyleProof/blob/main/AGENTS.md)

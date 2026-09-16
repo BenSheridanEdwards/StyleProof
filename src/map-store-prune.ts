@@ -1,247 +1,152 @@
-/** Prune and compact the sha-keyed map store branch through the GitHub
- *  git-data API — never by cloning the branch (#423).
- *
- *  The map store is a CACHE: bundles are keyed by commit SHA, so once the base
- *  branch moves past a SHA its bundle can never be restored again, and nothing
- *  links into the branch (restore is a depth-1 sparse clone of the tip). That
- *  makes the correct bound a SQUASH, not a tip-only delete: the branch is
- *  rewritten as a single orphan commit holding only the retained bundles, so
- *  both the tip tree and the history are bounded in one operation. This is
- *  deliberately different from the report branch, whose history must survive
- *  because PR comments pin report blobs at commit SHAs.
- *
- *  Dating bundles: publish stamps each bundle with a commit whose message is
- *  `StyleProof map <sha12> <compatibilityKey>`, so the branch log dates every
- *  bundle — until the first squash discards that log. The squash therefore
- *  writes a `styleproof-map-store-prune.json` sidecar at the branch root
- *  carrying the retained bundles' dates forward; the next run merges log-derived
- *  dates over sidecar dates. A bundle with neither (a legacy bundle from before
- *  this tool) sorts oldest and is pruned first.
- *
- *  Concurrency: GitHub's atomic updateRefs mutation permits the orphan update
- *  only while the branch still points to the tip used for retention selection.
- *  A racing publication causes a bounded retry from the new tip; there is no
- *  unconditional force-update fallback. */
+// Prune and compact the sha-keyed map store branch through the GitHub git-data API.
+// Bundles are keyed by commit SHA, so once the base branch moves past a SHA its bundle can
+// never be restored: the correct bound is a SQUASH to one orphan commit holding only the
+// retained bundles. Publish commits date each bundle until the first squash; a
+// `styleproof-map-store-prune.json` sidecar carries the retained dates forward and an
+// undated (legacy) bundle sorts oldest. The atomic updateRefs mutation only succeeds while
+// the branch still points at the tip used for selection; a racing publish retries.
+
+import {
+  type GitHubApi,
+  type GitHubApiOptions,
+  type GitTreeEntry,
+  GitHubApiError,
+  blobSizesByFolder,
+  createBlob,
+  createCommit,
+  createTree,
+  githubClient,
+  logLine,
+  readBranchTipCommitSha,
+  readCommitTreeSha,
+  readTree,
+  withRetries,
+} from './github-git-data.js';
+import { MAP_STORE_README } from './map-store/bundle.js';
+import { asRecord } from './map-store/json.js';
 
 export const MAP_STORE_PRUNE_SIDECAR = 'styleproof-map-store-prune.json';
 
-/** Matches the per-bundle publish commit subject (`StyleProof map <sha12> <key>`). */
+/** The subject `publishMapBundle` stamps: `StyleProof map <sha12> <key>`. */
 const MAP_PUBLISH_COMMIT_SUBJECT = /^StyleProof map ([0-9a-f]{7,40}) /i;
 
 export type MapBundlePruneSelection = {
   /** Bundle directory names to keep, newest first. */
   retainedDirectoryNames: string[];
-  /** Bundle directory names to delete. */
   prunedDirectoryNames: string[];
   /** Total size of retained bundles in bytes (when size data is available). */
   retainedSizeBytes?: number;
 };
 
-/** Pure selection policy: drop bundles older than the retention cutoff, then
- *  cap what survives at `maximumBundleCount` and within `budgetBytes`, newest
- *  first. A bundle with no known date sorts oldest (epoch zero) — the only
- *  undated bundles are legacy ones from before the sidecar existed, since every
- *  publish since the map store shipped stamps a dated commit. */
+/** Pure policy: drop bundles older than the retention cutoff, then cap what survives
+ *  at `maximumBundleCount` and within `budgetBytes`, newest first. */
 export function selectMapBundlesToRetain(options: {
   bundleDirectoryNames: readonly string[];
   lastPublishedEpochSecondsByDirectoryName: ReadonlyMap<string, number>;
   retentionCutoffEpochSeconds: number;
   maximumBundleCount: number;
-  /** Budget in bytes; when provided with size data, prunes oldest bundles that exceed the budget. */
   budgetBytes?: number;
-  /** Size in bytes per bundle directory; required when budgetBytes is set. */
   sizeBytesByDirectoryName?: ReadonlyMap<string, number>;
 }): MapBundlePruneSelection {
-  const publishedAt = (directoryName: string): number =>
-    options.lastPublishedEpochSecondsByDirectoryName.get(directoryName) ?? 0;
-  const sizeOf = (directoryName: string): number => options.sizeBytesByDirectoryName?.get(directoryName) ?? 0;
-  const newestFirst = [...options.bundleDirectoryNames].sort(
-    (firstDirectory, secondDirectory) =>
-      publishedAt(secondDirectory) - publishedAt(firstDirectory) || firstDirectory.localeCompare(secondDirectory),
-  );
+  const publishedAt = (name: string) => options.lastPublishedEpochSecondsByDirectoryName.get(name) ?? 0;
+  const sizeOf = (name: string) => options.sizeBytesByDirectoryName?.get(name) ?? 0;
+  const budget = options.sizeBytesByDirectoryName === undefined ? undefined : options.budgetBytes;
   const retainedDirectoryNames: string[] = [];
   const prunedDirectoryNames: string[] = [];
   let retainedSizeBytes = 0;
-  const hasBudget = options.budgetBytes !== undefined && options.sizeBytesByDirectoryName !== undefined;
-  for (const directoryName of newestFirst) {
-    const insideRetentionWindow = publishedAt(directoryName) > options.retentionCutoffEpochSeconds;
-    const withinCountCap = retainedDirectoryNames.length < options.maximumBundleCount;
-    const bundleSize = sizeOf(directoryName);
-    const withinBudget = !hasBudget || retainedSizeBytes + bundleSize <= options.budgetBytes!;
-    if (insideRetentionWindow && withinCountCap && withinBudget) {
-      retainedDirectoryNames.push(directoryName);
-      retainedSizeBytes += bundleSize;
-    } else {
-      prunedDirectoryNames.push(directoryName);
-    }
+  const newestFirst = [...options.bundleDirectoryNames].sort(
+    (a, b) => publishedAt(b) - publishedAt(a) || a.localeCompare(b),
+  );
+  for (const name of newestFirst) {
+    const keep =
+      publishedAt(name) > options.retentionCutoffEpochSeconds &&
+      retainedDirectoryNames.length < options.maximumBundleCount &&
+      (budget === undefined || retainedSizeBytes + sizeOf(name) <= budget);
+    (keep ? retainedDirectoryNames : prunedDirectoryNames).push(name);
+    if (keep) retainedSizeBytes += sizeOf(name);
   }
-  return { retainedDirectoryNames, prunedDirectoryNames, retainedSizeBytes: hasBudget ? retainedSizeBytes : undefined };
+  return {
+    retainedDirectoryNames,
+    prunedDirectoryNames,
+    retainedSizeBytes: budget === undefined ? undefined : retainedSizeBytes,
+  };
 }
 
-type GitTreeEntry = { path: string; mode: string; type: string; sha?: string | null; size?: number };
-
-export type MapStorePruneApiOptions = {
-  apiBaseUrl: string;
-  repository: string;
-  token: string;
+export type MapStorePruneApiOptions = GitHubApiOptions & {
   branch: string;
   /** Bundles newer than this many days survive retention (default 14). */
   retentionDays?: number;
   /** At most this many bundles survive, newest first (default 40). */
   maximumBundleCount?: number;
-  /** Budget in bytes; when set, prunes oldest bundles that exceed the budget
-   *  (default 1.5GB = 1_500_000_000). Requires a recursive tree listing; if the
-   *  listing truncates, budget enforcement is skipped with a warning. */
+  /** Byte budget (default 1.5GB); skipped with a warning when the recursive listing truncates. */
   budgetBytes?: number;
-  /** Skip the rewrite when nothing is prunable and the branch history holds no
-   *  more than this many commits, so a scheduled run does not force-push a
-   *  fresh orphan commit every day for nothing (default 30). */
+  /** Skip the rewrite when nothing is prunable and the history holds no more commits than this (default 30). */
   historyCommitLimit?: number;
-  /** Upper bound on commit-log pages read for bundle dates (default 30 pages
-   *  of 100). Anything older is undated and prunes first, which is the right
-   *  answer for a bundle thousands of publishes old. */
+  /** Commit-log pages read for bundle dates (default 30 pages of 100); older bundles are undated. */
   maximumCommitPages?: number;
-  maximumAttempts?: number;
   nowEpochSeconds?: number;
-  fetchImplementation?: typeof fetch;
-  sleepImplementation?: (milliseconds: number) => Promise<void>;
-  log?: (line: string) => void;
 };
 
 export type MapStorePruneResult = {
-  /** True when the branch was rewritten (a compaction commit was pushed). */
+  /** True when the branch was rewritten. */
   compacted: boolean;
   retainedDirectoryNames: string[];
   prunedDirectoryNames: string[];
 };
 
-class MapStorePruneApiError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
+const isBundleDirectoryEntry = (entry: GitTreeEntry): boolean =>
+  entry.type === 'tree' && /^[0-9a-f]{7,40}$/i.test(entry.path);
 
-function buildClient(options: MapStorePruneApiOptions) {
-  const fetchImplementation = options.fetchImplementation ?? fetch;
-  const repositoryUrl = `${options.apiBaseUrl}/repos/${options.repository}`;
-  async function api<ResponseShape>(method: string, apiPath: string, body?: unknown): Promise<ResponseShape> {
-    const response = await fetchImplementation(`${repositoryUrl}${apiPath}`, {
-      method,
-      headers: {
-        authorization: `Bearer ${options.token}`,
-        accept: 'application/vnd.github+json',
-        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new MapStorePruneApiError(
-        `${method} ${apiPath} -> ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ''}`,
-        response.status,
-      );
-    }
-    return (await response.json()) as ResponseShape;
-  }
-  return { api };
-}
+type PruneSidecar = { version: 1; prunedAt: string; lastPublishedEpochSecondsByBundle: Record<string, number> };
 
-async function realSleep(milliseconds: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-/** A top-level tree entry that is a stored bundle directory (a hex commit SHA). */
-function isBundleDirectoryEntry(entry: GitTreeEntry): boolean {
-  return entry.type === 'tree' && /^[0-9a-f]{7,40}$/i.test(entry.path);
-}
-
-type PruneSidecar = {
-  version: 1;
-  prunedAt: string;
-  lastPublishedEpochSecondsByBundle: Record<string, number>;
-};
-
-/** Parse a sidecar blob's JSON; a malformed sidecar degrades to "no dates"
- *  rather than failing the run — the bundles it covered then sort oldest, which
- *  only ever prunes MORE aggressively, never resurrects anything. */
-function parsePruneSidecar(content: string): Map<string, number> {
+/** A malformed sidecar degrades to "no dates": affected bundles sort oldest, which only prunes more.
+ *  A failed blob fetch is NOT lenient: it propagates (and retries) so a transient API fault
+ *  can never turn every sidecar-dated bundle into a prune candidate. */
+async function readSidecarDates(api: GitHubApi, sidecarBlobSha: string | undefined): Promise<Map<string, number>> {
+  const dates = new Map<string, number>();
+  if (!sidecarBlobSha) return dates;
+  const blob = await api<{ content: string; encoding: string }>('GET', `/git/blobs/${sidecarBlobSha}`);
+  const text = blob.encoding === 'base64' ? Buffer.from(blob.content, 'base64').toString('utf8') : blob.content;
   try {
-    const parsed = JSON.parse(content) as Partial<PruneSidecar>;
-    const dates = new Map<string, number>();
-    for (const [bundleDirectoryName, epochSeconds] of Object.entries(parsed.lastPublishedEpochSecondsByBundle ?? {})) {
-      if (Number.isFinite(epochSeconds)) dates.set(bundleDirectoryName, Number(epochSeconds));
+    const parsed = JSON.parse(text) as Partial<PruneSidecar>;
+    for (const [name, epoch] of Object.entries(parsed.lastPublishedEpochSecondsByBundle ?? {})) {
+      if (Number.isFinite(epoch)) dates.set(name, Number(epoch));
     }
-    return dates;
   } catch {
-    return new Map();
+    // no dates
   }
-}
-
-/** Dates carried by the previous squash's sidecar; empty when there is none. */
-async function readSidecarDates(
-  api: ReturnType<typeof buildClient>['api'],
-  sidecarBlobSha: string | undefined,
-): Promise<Map<string, number>> {
-  if (!sidecarBlobSha) return new Map();
-  const sidecarBlob = await api<{ content: string; encoding: string }>('GET', `/git/blobs/${sidecarBlobSha}`);
-  const decoded =
-    sidecarBlob.encoding === 'base64'
-      ? Buffer.from(sidecarBlob.content, 'base64').toString('utf8')
-      : sidecarBlob.content;
-  return parsePruneSidecar(decoded);
+  return dates;
 }
 
 type ListedCommit = { commit: { message: string; committer: { date: string } | null } };
 
-/** Fold one commit-log page's publish subjects into the running date map,
- *  keeping the newest date per bundle (any log date beats the sidecar's
- *  squash-time snapshot). */
-function mergeLogPageDates(
-  page: readonly ListedCommit[],
-  directoryByPrefix: (shaPrefix: string) => string | undefined,
-  dates: Map<string, number>,
-): void {
-  for (const listedCommit of page) {
-    const subjectMatch = MAP_PUBLISH_COMMIT_SUBJECT.exec(listedCommit.commit.message);
-    if (!subjectMatch || !listedCommit.commit.committer?.date) continue;
-    const bundleDirectoryName = directoryByPrefix(subjectMatch[1]);
-    if (!bundleDirectoryName) continue;
-    const publishedEpochSeconds = Math.floor(Date.parse(listedCommit.commit.committer.date) / 1000);
-    const alreadyRecorded = dates.get(bundleDirectoryName);
-    if (alreadyRecorded === undefined || publishedEpochSeconds > alreadyRecorded) {
-      dates.set(bundleDirectoryName, publishedEpochSeconds);
-    }
+/** Keep the newest publish date per bundle seen in one commit-log page. Publish stamps the
+ *  first 12 characters of the bundle SHA; the directory carries the full SHA. */
+function mergeCommitDates(commits: readonly ListedCommit[], names: readonly string[], dates: Map<string, number>) {
+  for (const { commit } of commits) {
+    const prefix = MAP_PUBLISH_COMMIT_SUBJECT.exec(commit.message)?.[1].toLowerCase();
+    const name = prefix && commit.committer?.date ? names.find((n) => n.toLowerCase().startsWith(prefix)) : undefined;
+    if (!name) continue;
+    const epoch = Math.floor(Date.parse(commit.committer!.date) / 1000);
+    if (epoch > (dates.get(name) ?? -Infinity)) dates.set(name, epoch);
   }
 }
 
-/** Merge log-derived bundle dates over sidecar-carried ones. The log wins: it
- *  reflects publishes since the last squash, which are strictly newer than
- *  anything the sidecar recorded at squash time. */
+/** Log-derived dates win over sidecar dates: they reflect publishes since the last squash. */
 async function readBundleDates(
-  api: ReturnType<typeof buildClient>['api'],
+  api: GitHubApi,
   options: MapStorePruneApiOptions,
-  bundleDirectoryNames: readonly string[],
-  sidecarBlobSha: string | undefined,
-): Promise<{ lastPublishedEpochSecondsByDirectoryName: Map<string, number>; commitCount: number }> {
-  const dates = await readSidecarDates(api, sidecarBlobSha);
-
-  // Publish stamps the FIRST 12 characters of the bundle SHA into the commit
-  // subject while the directory carries the full SHA, so match by prefix.
-  const directoryByPrefix = (shaPrefix: string): string | undefined =>
-    bundleDirectoryNames.find((directoryName) => directoryName.toLowerCase().startsWith(shaPrefix.toLowerCase()));
-
-  const maximumCommitPages = options.maximumCommitPages ?? 30;
+  names: readonly string[],
+  sidecar?: string,
+) {
+  const dates = await readSidecarDates(api, sidecar);
   let commitCount = 0;
-  for (let pageNumber = 1; pageNumber <= maximumCommitPages; pageNumber += 1) {
-    const page = await api<ListedCommit[]>(
-      'GET',
-      `/commits?sha=${encodeURIComponent(options.branch)}&per_page=100&page=${pageNumber}`,
-    );
-    commitCount += page.length;
-    mergeLogPageDates(page, directoryByPrefix, dates);
-    if (page.length < 100) break;
+  for (let page = 1; page <= (options.maximumCommitPages ?? 30); page += 1) {
+    const query = `sha=${encodeURIComponent(options.branch)}&per_page=100&page=${page}`;
+    const commits = await api<ListedCommit[]>('GET', `/commits?${query}`);
+    commitCount += commits.length;
+    mergeCommitDates(commits, names, dates);
+    if (commits.length < 100) break;
   }
   return { lastPublishedEpochSecondsByDirectoryName: dates, commitCount };
 }
@@ -255,103 +160,43 @@ type BranchState = {
   sidecarBlobSha: string | undefined;
 };
 
-/** Read the branch tip and its ROOT tree — never a recursive listing, which
- *  truncates on a legacy map branch (200k+ entries), and selection must never
- *  run on partial data. `null` when the branch does not exist yet. */
-async function readBranchState(
-  api: ReturnType<typeof buildClient>['api'],
-  branch: string,
-): Promise<BranchState | null> {
-  let tipCommitSha: string;
-  try {
-    const tipReference = await api<{ object: { sha: string } }>(
-      'GET',
-      `/git/ref/${encodeURIComponent(`heads/${branch}`)}`,
-    );
-    tipCommitSha = tipReference.object.sha;
-  } catch (error) {
-    if (error instanceof MapStorePruneApiError && error.status === 404) return null;
-    throw error;
-  }
-  const tipCommit = await api<{ tree: { sha: string } }>('GET', `/git/commits/${tipCommitSha}`);
-  const tipTreeSha = tipCommit.tree.sha;
-  const rootTree = await api<{ tree: GitTreeEntry[] }>('GET', `/git/trees/${tipTreeSha}`);
-  const blobShaAt = (path: string): string | undefined =>
-    rootTree.tree.find((entry) => entry.type === 'blob' && entry.path === path)?.sha ?? undefined;
+/** The tip and its ROOT tree only — a recursive listing truncates on a large branch. */
+async function readBranchState(api: GitHubApi, branch: string): Promise<BranchState | null> {
+  const tipCommitSha = await readBranchTipCommitSha(api, branch);
+  if (tipCommitSha === null) return null;
+  const tipTreeSha = await readCommitTreeSha(api, tipCommitSha);
+  const { tree } = await readTree(api, tipTreeSha);
+  const blobShaAt = (name: string) =>
+    tree.find((entry) => entry.type === 'blob' && entry.path === name)?.sha ?? undefined;
   return {
     tipCommitSha,
     tipTreeSha,
-    rootTreeEntries: rootTree.tree,
-    bundleEntries: rootTree.tree.filter(isBundleDirectoryEntry),
+    rootTreeEntries: tree,
+    bundleEntries: tree.filter(isBundleDirectoryEntry),
     readmeBlobSha: blobShaAt('README.md'),
     sidecarBlobSha: blobShaAt(MAP_STORE_PRUNE_SIDECAR),
   };
 }
 
-const MAP_STORE_README =
-  '# StyleProof maps\n\nMachine-generated reusable map bundles. Each folder is keyed by commit SHA and capture compatibility.\n';
-
-/** Read bundle sizes via a recursive tree listing. Returns undefined if the
- *  listing is truncated (too many entries) — budget enforcement is then skipped
- *  rather than operating on partial data. */
-async function readBundleSizes(
-  api: ReturnType<typeof buildClient>['api'],
-  tipTreeSha: string,
-  bundleDirectoryNames: readonly string[],
-): Promise<Map<string, number> | undefined> {
-  const recursiveTree = await api<{ tree: GitTreeEntry[]; truncated: boolean }>(
-    'GET',
-    `/git/trees/${tipTreeSha}?recursive=1`,
-  );
-  if (recursiveTree.truncated) return undefined;
-
-  const sizeBytesByDirectoryName = new Map<string, number>();
-  const bundleSet = new Set(bundleDirectoryNames.map((name) => name.toLowerCase()));
-  for (const entry of recursiveTree.tree) {
-    if (entry.type !== 'blob' || entry.size === undefined) continue;
-    const topLevelFolder = entry.path.split('/')[0];
-    if (!bundleSet.has(topLevelFolder.toLowerCase())) continue;
-    const currentSize = sizeBytesByDirectoryName.get(topLevelFolder) ?? 0;
-    sizeBytesByDirectoryName.set(topLevelFolder, currentSize + entry.size);
-  }
-  return sizeBytesByDirectoryName;
-}
-
-async function createBlob(api: ReturnType<typeof buildClient>['api'], content: string): Promise<string> {
-  const blob = await api<{ sha: string }>('POST', '/git/blobs', {
-    content: Buffer.from(content).toString('base64'),
-    encoding: 'base64',
-  });
-  return blob.sha;
-}
-
-type UpdateRefsResponseKind = 'acknowledged' | 'errors' | 'invalid';
-
-function classifyUpdateRefsResponse(result: unknown, beforeOid: string): UpdateRefsResponseKind {
-  if (typeof result !== 'object' || result === null || Array.isArray(result)) return 'invalid';
-  const responseObject = result as Record<string, unknown>;
-  const errors = responseObject.errors;
-  if (errors !== undefined && (!Array.isArray(errors) || errors.length > 0)) return 'errors';
-  const data = responseObject.data;
-  if (typeof data !== 'object' || data === null || Array.isArray(data)) return 'invalid';
-  const updateRefs = (data as Record<string, unknown>).updateRefs;
-  if (typeof updateRefs !== 'object' || updateRefs === null || Array.isArray(updateRefs)) return 'invalid';
-  return (updateRefs as Record<string, unknown>).clientMutationId === beforeOid ? 'acknowledged' : 'invalid';
+function classifyUpdateRefsResponse(result: unknown, beforeOid: string): 'acknowledged' | 'errors' | 'invalid' {
+  const body = asRecord(result);
+  if (!body) return 'invalid';
+  if (body.errors !== undefined && (!Array.isArray(body.errors) || body.errors.length > 0)) return 'errors';
+  const updateRefs = asRecord(asRecord(body.data)?.updateRefs);
+  return updateRefs?.clientMutationId === beforeOid ? 'acknowledged' : 'invalid';
 }
 
 /** Atomically replace exactly the tip used to select retained bundles. */
 async function updateCompactedRef(
-  api: ReturnType<typeof buildClient>['api'],
+  api: GitHubApi,
   options: MapStorePruneApiOptions,
   beforeOid: string,
   afterOid: string,
-): Promise<void> {
+) {
   const repository = await api<{ node_id: string }>('GET', '');
-  if (!repository.node_id) throw new MapStorePruneApiError('missing repository node ID', 502);
-  const apiBaseUrl = options.apiBaseUrl.replace(/\/$/, '');
-  const graphqlUrl = apiBaseUrl.endsWith('/api/v3')
-    ? `${apiBaseUrl.slice(0, -'/api/v3'.length)}/api/graphql`
-    : `${apiBaseUrl}/graphql`;
+  if (!repository.node_id) throw new GitHubApiError('missing repository node ID', 502);
+  const base = options.apiBaseUrl.replace(/\/$/, '');
+  const graphqlUrl = base.endsWith('/api/v3') ? `${base.slice(0, -'/api/v3'.length)}/api/graphql` : `${base}/graphql`;
   const response = await (options.fetchImplementation ?? fetch)(graphqlUrl, {
     method: 'POST',
     headers: { authorization: `Bearer ${options.token}`, 'content-type': 'application/json' },
@@ -366,151 +211,99 @@ async function updateCompactedRef(
       },
     }),
   });
-  if (!response.ok) throw new MapStorePruneApiError(`map compaction updateRefs -> ${response.status}`, response.status);
-  const resultKind = classifyUpdateRefsResponse(await response.json(), beforeOid);
-  if (resultKind === 'errors') {
-    const current = await api<{ object: { sha: string } }>(
-      'GET',
-      `/git/ref/${encodeURIComponent(`heads/${options.branch}`)}`,
-    );
-    const status = current.object.sha !== beforeOid ? 409 : 400;
-    throw new MapStorePruneApiError('map compaction updateRefs returned GraphQL errors', status);
+  if (!response.ok) throw new GitHubApiError(`map compaction updateRefs -> ${response.status}`, response.status);
+  const kind = classifyUpdateRefsResponse(await response.json(), beforeOid);
+  if (kind === 'errors') {
+    const current = await readBranchTipCommitSha(api, options.branch);
+    throw new GitHubApiError('map compaction updateRefs returned GraphQL errors', current !== beforeOid ? 409 : 400);
   }
-  if (resultKind !== 'acknowledged') {
-    throw new MapStorePruneApiError('map compaction updateRefs returned no matching acknowledgement', 502);
-  }
+  if (kind !== 'acknowledged')
+    throw new GitHubApiError('map compaction updateRefs returned no matching acknowledgement', 502);
 }
 
-/** Write the squashed branch: a full new root tree (retained bundles + foreign
- *  entries by their existing SHAs, so nothing re-uploads), an orphan commit,
- *  and a conditional non-fast-forward ref update. */
+/** Write the squashed branch: retained bundles and foreign root entries by their existing
+ *  SHAs (nothing re-uploads; the squash never deletes what it does not own), an orphan
+ *  commit, and a conditional ref update. */
 async function writeCompactedBranch(
-  api: ReturnType<typeof buildClient>['api'],
+  api: GitHubApi,
   options: MapStorePruneApiOptions,
-  branchState: BranchState,
+  state: BranchState,
   selection: MapBundlePruneSelection,
-  refreshedSidecarContent: string,
+  sidecar: string,
 ): Promise<void> {
-  const sidecarBlobSha = await createBlob(api, refreshedSidecarContent);
-  const readmeBlobSha = branchState.readmeBlobSha ?? (await createBlob(api, MAP_STORE_README));
-  const retainedEntrySet = new Set(selection.retainedDirectoryNames);
-  // Consumers park operational files on the artifact branch (deployment
-  // suppression guards, CI markers). The squash must never delete anything it
-  // does not own: every root entry that is not a bundle directory or one of
-  // this tool's own files rides across unchanged.
-  const foreignRootEntries = branchState.rootTreeEntries.filter(
-    (entry) => !isBundleDirectoryEntry(entry) && entry.path !== 'README.md' && entry.path !== MAP_STORE_PRUNE_SIDECAR,
-  );
-  const compactedTree = await api<{ sha: string }>('POST', '/git/trees', {
+  const sidecarBlobSha = await createBlob(api, sidecar);
+  const readmeBlobSha = state.readmeBlobSha ?? (await createBlob(api, MAP_STORE_README));
+  const retained = new Set(selection.retainedDirectoryNames);
+  const owned = new Set(['README.md', MAP_STORE_PRUNE_SIDECAR]);
+  const treeSha = await createTree(api, {
     tree: [
-      ...branchState.bundleEntries
-        .filter((entry) => retainedEntrySet.has(entry.path))
-        .map((entry) => ({ path: entry.path, mode: '040000', type: 'tree', sha: entry.sha })),
-      ...foreignRootEntries.map((entry) => ({ path: entry.path, mode: entry.mode, type: entry.type, sha: entry.sha })),
+      ...state.bundleEntries.filter((e) => retained.has(e.path)).map((e) => ({ ...e, mode: '040000', type: 'tree' })),
+      ...state.rootTreeEntries.filter((e) => !isBundleDirectoryEntry(e) && !owned.has(e.path)),
       { path: 'README.md', mode: '100644', type: 'blob', sha: readmeBlobSha },
       { path: MAP_STORE_PRUNE_SIDECAR, mode: '100644', type: 'blob', sha: sidecarBlobSha },
-    ],
+    ].map(({ path, mode, type, sha }) => ({ path, mode, type, sha })),
   });
-  const compactionCommit = await api<{ sha: string }>('POST', '/git/commits', {
-    message:
-      `StyleProof map store compaction: ${selection.retainedDirectoryNames.length} bundles retained, ` +
-      `${selection.prunedDirectoryNames.length} pruned`,
-    tree: compactedTree.sha,
-    parents: [],
-  });
-  await updateCompactedRef(api, options, branchState.tipCommitSha, compactionCommit.sha);
+  const message = `StyleProof map store compaction: ${selection.retainedDirectoryNames.length} bundles retained, ${selection.prunedDirectoryNames.length} pruned`;
+  const commitSha = await createCommit(api, message, treeSha, []);
+  await updateCompactedRef(api, options, state.tipCommitSha, commitSha);
 }
 
-async function compactOnce(
-  options: MapStorePruneApiOptions,
-  api: ReturnType<typeof buildClient>['api'],
-  log: (line: string) => void,
-): Promise<MapStorePruneResult> {
-  const branchState = await readBranchState(api, options.branch);
-  if (branchState === null) {
+async function compactOnce(api: GitHubApi, options: MapStorePruneApiOptions): Promise<MapStorePruneResult> {
+  const log = logLine(options);
+  const state = await readBranchState(api, options.branch);
+  if (state === null) {
     log(`no ${options.branch} branch yet — nothing to prune`);
     return { compacted: false, retainedDirectoryNames: [], prunedDirectoryNames: [] };
   }
-
-  const bundleDirectoryNames = branchState.bundleEntries.map((entry) => entry.path);
+  const names = state.bundleEntries.map((entry) => entry.path);
   const { lastPublishedEpochSecondsByDirectoryName, commitCount } = await readBundleDates(
     api,
     options,
-    bundleDirectoryNames,
-    branchState.sidecarBlobSha,
+    names,
+    state.sidecarBlobSha,
   );
 
-  const budgetBytes = options.budgetBytes ?? 1_500_000_000;
-  let sizeBytesByDirectoryName: Map<string, number> | undefined;
-  if (budgetBytes !== undefined) {
-    sizeBytesByDirectoryName = await readBundleSizes(api, branchState.tipTreeSha, bundleDirectoryNames);
-    if (sizeBytesByDirectoryName === undefined) {
-      log('recursive tree listing truncated — budget enforcement skipped (count-only pruning)');
-    }
-  }
+  const { tree, truncated } = await readTree(api, state.tipTreeSha, true);
+  const bundleSet = new Set(names.map((name) => name.toLowerCase()));
+  const sizeBytesByDirectoryName = truncated
+    ? undefined
+    : blobSizesByFolder(tree, (folder) => bundleSet.has(folder.toLowerCase()));
+  if (truncated) log('recursive tree listing truncated — budget enforcement skipped (count-only pruning)');
 
   const nowEpochSeconds = options.nowEpochSeconds ?? Math.floor(Date.now() / 1000);
   const selection = selectMapBundlesToRetain({
-    bundleDirectoryNames,
+    bundleDirectoryNames: names,
     lastPublishedEpochSecondsByDirectoryName,
     retentionCutoffEpochSeconds: nowEpochSeconds - (options.retentionDays ?? 14) * 86400,
     maximumBundleCount: options.maximumBundleCount ?? 40,
-    budgetBytes: sizeBytesByDirectoryName !== undefined ? budgetBytes : undefined,
+    budgetBytes: sizeBytesByDirectoryName ? (options.budgetBytes ?? 1_500_000_000) : undefined,
     sizeBytesByDirectoryName,
   });
-
   const historyCommitLimit = options.historyCommitLimit ?? 30;
+  const summary = `${selection.retainedDirectoryNames.length} bundles retained, ${selection.prunedDirectoryNames.length} pruned`;
   if (selection.prunedDirectoryNames.length === 0 && commitCount <= historyCommitLimit) {
     log(
-      `nothing to prune (${selection.retainedDirectoryNames.length} bundles, ` +
-        `${commitCount} commits ≤ history limit ${historyCommitLimit})`,
+      `nothing to prune (${selection.retainedDirectoryNames.length} bundles, ${commitCount} commits ≤ history limit ${historyCommitLimit})`,
     );
     return { compacted: false, ...selection };
   }
-
-  const refreshedSidecar: PruneSidecar = {
+  const sidecar: PruneSidecar = {
     version: 1,
     prunedAt: new Date(nowEpochSeconds * 1000).toISOString(),
     lastPublishedEpochSecondsByBundle: Object.fromEntries(
-      selection.retainedDirectoryNames.map((directoryName) => [
-        directoryName,
-        lastPublishedEpochSecondsByDirectoryName.get(directoryName) ?? 0,
-      ]),
+      selection.retainedDirectoryNames.map((name) => [name, lastPublishedEpochSecondsByDirectoryName.get(name) ?? 0]),
     ),
   };
-  await writeCompactedBranch(api, options, branchState, selection, `${JSON.stringify(refreshedSidecar, null, 2)}\n`);
+  await writeCompactedBranch(api, options, state, selection, `${JSON.stringify(sidecar, null, 2)}\n`);
   log(
-    `compacted ${options.branch}: ${selection.retainedDirectoryNames.length} bundles retained, ` +
-      `${selection.prunedDirectoryNames.length} pruned, history squashed to one commit ` +
-      `(conditionally replaced tip ${branchState.tipCommitSha.slice(0, 12)})`,
+    `compacted ${options.branch}: ${summary}, history squashed to one commit (conditionally replaced tip ${state.tipCommitSha.slice(0, 12)})`,
   );
   return { compacted: true, ...selection };
 }
 
-/** Prune stale bundles and squash the map store branch to a single commit.
- *  Retries transient API faults; a missing branch and a nothing-to-do run are
- *  both successes. */
+/** Prune stale bundles and squash the map store branch to a single commit. A missing
+ *  branch and a nothing-to-do run are both successes. */
 export async function compactMapStoreBranch(options: MapStorePruneApiOptions): Promise<MapStorePruneResult> {
-  const { api } = buildClient(options);
-  const log = options.log ?? ((line) => process.stderr.write(`${line}\n`));
-  const sleep = options.sleepImplementation ?? realSleep;
-  const maximumAttempts = options.maximumAttempts ?? 5;
-  let lastError: unknown;
-  for (let attemptNumber = 1; attemptNumber <= maximumAttempts; attemptNumber += 1) {
-    try {
-      return await compactOnce(options, api, log);
-    } catch (error) {
-      lastError = error;
-      const retryable =
-        !(error instanceof MapStorePruneApiError) ||
-        error.status === 422 ||
-        error.status === 409 ||
-        error.status >= 500;
-      if (!retryable || attemptNumber === maximumAttempts) throw error;
-      const diagnostic = error instanceof MapStorePruneApiError ? `HTTP ${error.status}` : 'unexpected error';
-      log(`map store prune attempt ${attemptNumber} failed (${diagnostic}); retrying`);
-      await sleep(attemptNumber * 2000);
-    }
-  }
-  throw lastError;
+  const api = githubClient(options);
+  return withRetries(options, 'map store prune', () => compactOnce(api, options));
 }

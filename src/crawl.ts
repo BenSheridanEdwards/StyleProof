@@ -1,64 +1,35 @@
 /**
- * Link-crawl surface discovery, for apps whose surfaces aren't filesystem routes.
- *
- * {@link discoverNextRoutes} reads the filesystem, so it sees one route per
- * `app/.../page.*` — perfect for multi-page apps, blind to a single-route SPA that
- * expresses every view as a query param (`/?tab=overview`) or client-side push.
- * Those surfaces only exist in the *rendered* DOM, as the nav's links. This module
- * turns that rendered link set into a surface list: navigate the app's root, read
- * its `<a href>`s, and capture each — no hand-maintained `surfaces` array to drift
- * out of sync with the nav (the same drift the coverage guard exists to catch,
- * removed at the source).
- *
- * The DOM read happens at run time inside a Playwright test (a browser is needed to
- * see hydrated links), so this file holds only the PURE part — turning a list of
- * raw href strings into deduped, keyed, navigable surfaces — which is unit-testable
- * with no browser. {@link defineCrawlCapture} in `runner.ts` does the navigation and
- * feeds the hrefs here.
+ * Link-crawl surface discovery for apps whose surfaces aren't filesystem routes (a single-route
+ * SPA exposes its views only as the rendered nav's links). Pure: raw hrefs → deduped, keyed,
+ * navigable surfaces; `defineCrawlCapture` in `runner.ts` does the navigation.
  */
 
-/** A discovered surface: a filename-safe key and the same-origin path to navigate. */
-export type CrawlLink = {
-  /** Capture file-name prefix, derived from the URL (see {@link defaultLinkKey}). */
-  key: string;
-  /** Root-relative path+query to navigate (`/?tab=overview`, `/about`). */
-  url: string;
-};
+/** A discovered surface: a filename-safe key and the same-origin path+query to navigate. */
+export type CrawlLink = { key: string; url: string };
 
-/**
- * Keep only links whose resolved URL matches: a substring tested against the full
- * href, a RegExp tested against it, or a predicate over the parsed URL. Omit to keep
- * every same-origin link.
- */
+/** Keep only links whose resolved URL matches a substring, RegExp, or predicate. Omit to keep every same-origin link. */
 export type LinkMatch = string | RegExp | ((url: URL) => boolean);
 
 export type SelectLinksOptions = {
-  /** Absolute URL of the crawled page. Relative hrefs resolve against it and only
-   *  same-origin links are kept (external nav, mailto:, tel:, javascript: dropped). */
+  /** Absolute URL of the crawled page. Relative hrefs resolve against it; only same-origin links are kept. */
   base: string;
-  /** Narrow the kept links. Default: every same-origin link. */
   match?: LinkMatch;
   /** Derive the surface key from a link URL. Default: {@link defaultLinkKey}. */
   key?: (url: URL) => string;
-  /** Also capture the crawled page itself as the first surface, so `from` is always
-   *  covered — even if the nav doesn't link back to it, or it's a single-page app with
-   *  no links at all. Default false. Used for an unfiltered "capture everything" crawl. */
+  /** Also capture the crawled page itself as the first surface (a SPA with no links at all). */
   includeSelf?: boolean;
 };
 
+/** Shared frontier state for {@link selectObservedNavs}; `seen` and `usedKeys` are mutated so repeated drains stay deduped. */
+export type ObservedNavOptions = Pick<SelectLinksOptions, 'base' | 'match' | 'key'> & {
+  seen: Set<string>;
+  usedKeys: Set<string>;
+};
+
 /**
- * Filename-safe, readable key from a link URL. Joins the path segments and the
- * query-param *values* (the discriminator for a tab SPA — `/?tab=overview` →
- * `overview`), so the common single-route-with-`?tab=` case reads cleanly while a
- * multi-segment route (`/blog/post`) still keys as `blog-post`. Param names are
- * dropped (values carry the meaning); pass `key` to {@link selectCrawlLinks} when a
- * project needs a different scheme.
- *
- * Params are sorted by name before their values are joined, so the SAME logical
- * route keys identically regardless of the order the nav happened to render its
- * query string (`/?tab=a&x=b` and `/?x=b&tab=a` both → `a-b`). Without this the
- * key flaps with render order and the coverage guard reports phantom
- * nav-regressions / unowned routes for a route that never changed.
+ * Filename-safe key from a link URL: path segments plus query-param VALUES (the discriminator
+ * for a tab SPA — `/?tab=overview` → `overview`; `/blog/post` → `blog-post`). Params are sorted
+ * by name first, so the same logical route keys identically whatever order the nav rendered.
  */
 export function defaultLinkKey(url: URL): string {
   const segs = url.pathname.split('/').filter(Boolean);
@@ -81,193 +52,89 @@ function matches(url: URL, match?: LinkMatch): boolean {
   return match(url);
 }
 
-/**
- * Resolve one raw href to a navigable same-origin surface, or `null` to skip it
- * (malformed, mailto:/tel:/javascript:, external, a bare fragment of the crawl root,
- * or filtered out by `match`). Pure per-href classification — the loop in
- * {@link selectCrawlLinks} only has to dedupe what this keeps.
- */
-function toLink(href: string, base: URL, keyFor: (url: URL) => string, match?: LinkMatch): CrawlLink | null {
+/** Resolve one href to a same-origin http(s) URL passing `match`, or null (malformed, mailto:/tel:/javascript:, external). */
+function resolveLink(href: string, base: URL, match?: LinkMatch): URL | null {
   let url: URL;
   try {
     url = new URL(href, base);
   } catch {
     return null; // malformed href — skip, never throw into a spec
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null; // mailto:/tel:/javascript:
-  if (url.origin !== base.origin) return null; // external link
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  return url.origin === base.origin && matches(url, match) ? url : null;
+}
+
+function toLink(href: string, base: URL, keyFor: (url: URL) => string, match?: LinkMatch): CrawlLink | null {
+  const url = resolveLink(href, base, match);
+  if (!url) return null;
   const path = url.pathname + url.search;
-  // A pure fragment of the crawl root isn't a new surface (it's the same page).
-  if (url.hash && path === base.pathname + base.search) return null;
-  if (!matches(url, match)) return null;
+  if (url.hash && path === base.pathname + base.search) return null; // a bare fragment of the crawl root is the same page
   url.hash = ''; // navigate the surface, not a scroll anchor within it
   return { key: keyFor(url), url: path };
 }
 
-/**
- * Dedup identity for a navigable path+query. Two forms of the same route must share
- * one identity, or a static multi-page site (whose nav links the `.html` files) gets
- * captured twice as byte-near-identical maps, doubling the work and duplicating every
- * finding in the diff:
- *
- * - A trailing slash isn't a distinct surface (`/about` and `/about/` render the same
- *   route), so it's stripped — but never from the root `/` itself, nor from the query.
- * - A trailing `index.html` is the directory's index (`/index.html` IS `/`, and
- *   `/docs/index.html` IS `/docs/`), so it collapses to the directory path. Only the
- *   literal `index.html` filename normalizes — a real `about.html` is left untouched
- *   and stays a distinct surface from `about`.
- *
- * The navigable url the caller returns keeps its original form; only the SET
- * membership test is normalized, so the first-seen href still wins.
- */
+/** A URL the app navigated to PROGRAMMATICALLY (history API). The fragment is KEPT: a pushState
+ *  to `/#/route` is a deliberate navigation (hash routers), and in-page anchors never reach here. */
+function toObservedLink(href: string, base: URL, keyFor: (url: URL) => string, match?: LinkMatch): CrawlLink | null {
+  const url = resolveLink(href, base, match);
+  return url ? { key: keyFor(url), url: url.pathname + url.search + url.hash } : null;
+}
+
+/** Dedup identity for a navigable path+query, so two forms of one route never capture twice: a
+ *  trailing slash is stripped (never from the root `/`, nor from the query) and a trailing
+ *  `index.html` collapses to its directory. A real `about.html` stays distinct from `about`. */
 export function dedupIdentity(pathAndSearch: string): string {
   const q = pathAndSearch.indexOf('?');
   const path = q === -1 ? pathAndSearch : pathAndSearch.slice(0, q);
   const search = q === -1 ? '' : pathAndSearch.slice(q);
-  // `/index.html` → `/`, `/docs/index.html` → `/docs/` (the preceding slash stays so
-  // the trailing-slash step below folds it into the same identity as `/docs` / `/docs/`).
   const withoutIndex = path.replace(/(^|\/)index\.html$/, '$1');
   let end = withoutIndex.length;
   while (end > 1 && withoutIndex.charCodeAt(end - 1) === 47) end--;
-  const normPath = withoutIndex.slice(0, end);
-  return normPath + search;
+  return withoutIndex.slice(0, end) + search;
 }
 
-/** Disambiguate a key against those already emitted: first wins bare, the next
- *  collider gets `-2`, `-3`, … — deterministic in discovery order. Shared by the
- *  link frontier and the navigation observer so a route found by both keeps one
- *  key and two genuinely different colliding routes both survive. */
-function uniqueKeyFor(key: string, usedKeys: Set<string>): string {
+/** First wins bare, the next collider gets `-2`, `-3`, … — deterministic in discovery order. */
+export function uniqueKeyFor(key: string, usedKeys: Set<string>): string {
   let k = key;
   for (let i = 2; usedKeys.has(k); i++) k = `${key}-${i}`;
   usedKeys.add(k);
   return k;
 }
 
-/**
- * Turn a page's raw `<a href>` values into a deduped, keyed surface list.
- *
- * Each href is classified by {@link toLink} (resolve against `base`, keep http(s)
- * same-origin, drop a bare in-page fragment of the crawl root, apply `match`); the
- * survivors are deduped by path+query (trailing slash normalized — `/about` and
- * `/about/` are one surface, not two). Order follows first appearance in `hrefs`, so
- * the capture order is the nav's order — stable across runs.
- *
- * Keys are then disambiguated: two GENUINELY different surfaces whose derived keys
- * collide (e.g. `/a?tab=x` and `/b?tab=x` both → `x` under {@link defaultLinkKey})
- * would otherwise both write `<key>@<width>.json.gz` and the second would silently
- * overwrite the first — a captured surface vanishing without a trace. Instead the
- * second gets a `-2` suffix (mirroring the surface crawler's `deriveKey`), so both
- * survive as distinct maps. Trailing-slash duplicates never reach here — they're
- * already deduped to one surface above — so this only fires on real collisions.
- */
-export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opts: SelectLinksOptions): CrawlLink[] {
-  const base = new URL(opts.base);
-  const keyFor = opts.key ?? defaultLinkKey;
-  const seen = new Set<string>();
-  const usedKeys = new Set<string>();
+/** Dedupe by {@link dedupIdentity} (first-seen href wins) and disambiguate colliding keys so two
+ *  genuinely different surfaces never overwrite the same `<key>@<width>.json.gz`. */
+function collectUnique(links: Iterable<CrawlLink | null>, seen: Set<string>, usedKeys: Set<string>): CrawlLink[] {
   const out: CrawlLink[] = [];
-  const push = (link: CrawlLink): void => {
-    out.push({ key: uniqueKeyFor(link.key, usedKeys), url: link.url });
-  };
-  if (opts.includeSelf) {
-    const selfUrl = base.pathname + base.search;
-    seen.add(dedupIdentity(selfUrl));
-    push({ key: keyFor(base), url: selfUrl });
-  }
-  for (const href of hrefs) {
-    const link = href ? toLink(href, base, keyFor, opts.match) : null;
+  for (const link of links) {
     if (!link) continue;
     const id = dedupIdentity(link.url);
     if (seen.has(id)) continue;
     seen.add(id);
-    push(link);
+    out.push({ key: uniqueKeyFor(link.key, usedKeys), url: link.url });
   }
   return out;
 }
 
-/**
- * Classify a URL the app navigated to PROGRAMMATICALLY — history.pushState /
- * replaceState / popstate, observed by the crawl's navigation hook — into a
- * surface link, or `null` to skip (malformed, non-http(s), off-origin, filtered
- * by `match`). Unlike {@link toLink} the fragment is KEPT: a pushState to
- * `/#/route` is a deliberate app navigation and hash routers exist, while
- * in-page `<a href="#section">` anchors can never reach this path — the hook
- * only sees the history API, not default anchor behaviour.
- */
-function toObservedLink(href: string, base: URL, keyFor: (url: URL) => string, match?: LinkMatch): CrawlLink | null {
-  let url: URL;
-  try {
-    url = new URL(href, base);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-  if (url.origin !== base.origin) return null;
-  if (!matches(url, match)) return null;
-  return { key: keyFor(url), url: url.pathname + url.search + url.hash };
-}
-
-/**
- * Turn URLs observed through the history API into surface links, deduped
- * against the shared frontier state. `seen` holds the {@link dedupIdentity}
- * values of every surface emitted so far (link or observed — an observed URL's
- * fragment is part of its url, so it is part of the identity too) and
- * `usedKeys` the emitted keys; both are mutated so repeated drains stay deduped
- * across passes.
- */
-export function selectObservedNavs(
-  hrefs: Iterable<string | null | undefined>,
-  opts: {
-    /** Absolute URL the observed hrefs resolve and same-origin-check against. */
-    base: string;
-    match?: LinkMatch;
-    key?: (url: URL) => string;
-    seen: Set<string>;
-    usedKeys: Set<string>;
-  },
-): CrawlLink[] {
+/** Turn a page's raw `<a href>` values into a deduped, keyed surface list, in nav order. */
+export function selectCrawlLinks(hrefs: Iterable<string | null | undefined>, opts: SelectLinksOptions): CrawlLink[] {
   const base = new URL(opts.base);
   const keyFor = opts.key ?? defaultLinkKey;
-  const out: CrawlLink[] = [];
-  for (const href of hrefs) {
-    const link = href ? toObservedLink(href, base, keyFor, opts.match) : null;
-    if (!link) continue;
-    const id = dedupIdentity(link.url);
-    if (opts.seen.has(id)) continue;
-    opts.seen.add(id);
-    out.push({ key: uniqueKeyFor(link.key, opts.usedKeys), url: link.url });
-  }
-  return out;
+  const self = opts.includeSelf ? [{ key: keyFor(base), url: base.pathname + base.search }] : [];
+  const links = Array.from(hrefs, (href) => (href ? toLink(href, base, keyFor, opts.match) : null));
+  return collectUnique([...self, ...links], new Set(), new Set());
 }
 
-/**
- * The reconciliation of a rendered nav (the crawl's discovered link keys) against a
- * declared `expected` universe, both directions. Where the spec guard treats the
- * hand-listed `surfaces` as what's captured, here the crawl's DISCOVERED links are —
- * the nav is the route universe for a link-crawled SPA, so it is the source of truth.
- *
- * - `missing`: an `expected` key with no rendered link and no `exclude` entry — a
- *   nav-regression (a route the app promised is no longer linked).
- * - `unexpected`: a rendered link with no `expected` entry and no `exclude` entry — a
- *   new route/view with no owner in the registry.
- * - `staleExclusions`: an `exclude` key absent from BOTH `expected` and the rendered
- *   set — a rotted opt-out.
- *
- * Unlike {@link CoverageGaps} (which permits captured-not-expected so a spec can
- * tighten its registry over time), the crawl asserts BOTH directions strictly: the
- * rendered link set is complete by construction, so an unowned link is a real gap.
- * Pure and browser-free so it's unit-testable; {@link import('./runner.js')} wraps it
- * in the crawl capture test, where the link set is finally known.
- */
-export type CrawlCoverageGaps = {
-  /** Expected keys with no rendered link and no `exclude` — a nav regression. */
-  missing: string[];
-  /** Rendered link keys absent from `expected` and `exclude` — a route with no owner. */
-  unexpected: string[];
-  /** `exclude` keys in neither `expected` nor the rendered set — a rotted opt-out. */
-  staleExclusions: string[];
-};
+/** Turn URLs observed through the history API into surface links, deduped against the shared frontier. */
+export function selectObservedNavs(hrefs: Iterable<string | null | undefined>, opts: ObservedNavOptions): CrawlLink[] {
+  const base = new URL(opts.base);
+  const keyFor = opts.key ?? defaultLinkKey;
+  const links = Array.from(hrefs, (href) => (href ? toObservedLink(href, base, keyFor, opts.match) : null));
+  return collectUnique(links, opts.seen, opts.usedKeys);
+}
+
+/** Reconciliation of a rendered nav against a declared `expected` universe, strict in BOTH directions:
+ *  `missing` = a nav regression, `unexpected` = a route with no owner, `staleExclusions` = a rotted opt-out. */
+export type CrawlCoverageGaps = { missing: string[]; unexpected: string[]; staleExclusions: string[] };
 
 export function crawlCoverageGaps(
   discoveredKeys: Iterable<string>,
@@ -282,12 +149,7 @@ export function crawlCoverageGaps(
   return { missing, unexpected, staleExclusions };
 }
 
-/**
- * Reconcile the crawled link set against `expected` (via {@link crawlCoverageGaps}) and
- * render the failure message, or `null` when the nav reconciles. `from` names the crawl
- * root in the message. Kept pure and out of the capture test so the wording is
- * unit-testable and {@link defineCrawlCapture} just throws what this returns.
- */
+/** Render the crawl coverage failure, or `null` when the nav reconciles. `from` names the crawl root. */
 export function crawlCoverageError(
   from: string,
   discoveredKeys: Iterable<string>,
@@ -295,21 +157,23 @@ export function crawlCoverageError(
   exclude: Record<string, string> = {},
 ): string | null {
   const { missing, unexpected, staleExclusions } = crawlCoverageGaps(discoveredKeys, expected, exclude);
-  const problems: string[] = [];
-  if (missing.length)
-    problems.push(
+  const problems: [string[], string][] = [
+    [
+      missing,
       `nav regression — expected route(s) no longer linked from ${from}: ${missing.join(', ')}. ` +
         `Restore the link, or move the key to \`exclude\` with a reason.`,
-    );
-  if (unexpected.length)
-    problems.push(
+    ],
+    [
+      unexpected,
       `new route(s) with no owner — link(s) rendered at ${from} but absent from \`expected\`: ` +
         `${unexpected.join(', ')}. Add each to \`expected\`, or to \`exclude\` with a reason.`,
-    );
-  if (staleExclusions.length)
-    problems.push(
+    ],
+    [
+      staleExclusions,
       `stale \`exclude\` — key(s) in neither \`expected\` nor the rendered nav ` +
         `(renamed or removed?): ${staleExclusions.join(', ')}.`,
-    );
-  return problems.length ? `styleproof crawl coverage gap:\n${problems.join('\n')}` : null;
+    ],
+  ];
+  const lines = problems.filter(([keys]) => keys.length).map(([, message]) => message);
+  return lines.length ? `styleproof crawl coverage gap:\n${lines.join('\n')}` : null;
 }

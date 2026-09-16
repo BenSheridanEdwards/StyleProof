@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 
 export type UnsafeFilesystemEntryKind = 'symbolic-link' | 'non-regular' | 'changed-during-read' | 'oversized';
 
@@ -14,7 +15,14 @@ export class UnsafeFilesystemEntryError extends Error {
   }
 }
 
-export function sameFileIdentity(first: fs.Stats, second: fs.Stats): boolean {
+/** True when `candidate` resolves to `root` itself or somewhere beneath it. */
+export function isWithinDirectory(root: string, candidate: string): boolean {
+  const resolvedRoot = path.resolve(root);
+  const resolved = path.resolve(candidate);
+  return resolved === resolvedRoot || resolved.startsWith(`${resolvedRoot}${path.sep}`);
+}
+
+function sameFileIdentity(first: fs.Stats, second: fs.Stats): boolean {
   if (first.dev !== 0 || first.ino !== 0 || second.dev !== 0 || second.ino !== 0) {
     return first.dev === second.dev && first.ino === second.ino;
   }

@@ -135,5 +135,5 @@ test('without the env the package import leaves the process clock live', () => {
 test('styleproof-map enables the spec-process freeze for the capture run it spawns', async () => {
   const { readFileSync } = await import('node:fs');
   const mapCli = readFileSync(path.join(ROOT, 'bin', 'styleproof-map.mjs'), 'utf8');
-  assert.match(mapCli, /STYLEPROOF_FREEZE_SPEC_CLOCK: process\.env\.STYLEPROOF_FREEZE_SPEC_CLOCK \?\? '1'/);
+  assert.match(mapCli, /STYLEPROOF_FREEZE_SPEC_CLOCK: (?:process\.)?env\.STYLEPROOF_FREEZE_SPEC_CLOCK \?\? '1'/);
 });

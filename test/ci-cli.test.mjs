@@ -38,6 +38,22 @@ test('styleproof-ci --help documents --no-upload for untrusted capture', () => {
   assert.match(res.stdout, /untrusted PR jobs|write credentials/i);
 });
 
+test('styleproof-ci: an explicit --spec must stay inside the repository', () => {
+  const root = mkTmp();
+  try {
+    const git = (...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    git('init', '-q');
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', 'init');
+    const sha = git('rev-parse', 'HEAD').stdout.trim();
+    fs.writeFileSync(path.join(root, 'package.json'), '{}');
+    const res = runCi(['--spec', '../outside.spec.ts', '--base', sha, '--head', sha, '--no-store'], { CI: '1' }, root);
+    assert.equal(res.status, 2, res.stdout + res.stderr);
+    assert.match(res.stderr, /spec path must stay inside the repository/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 function runCi(args, env = {}, cwd) {
   const merged = { ...process.env, ...env };
   // The driver keys its CI guard on this exact variable.

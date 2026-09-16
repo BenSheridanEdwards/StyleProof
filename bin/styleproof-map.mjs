@@ -1,28 +1,11 @@
 #!/usr/bin/env node
-/**
- * Capture the current branch's computed-style map.
- *
- * The zero-config path is the local-first cache flow scaffolded by styleproof-init:
- *   styleproof-map
- *
- * It runs Playwright against e2e/styleproof.spec.ts with:
- *   STYLEMAP_DIR=current
- *   STYLEPROOF_BASEDIR=.styleproof/maps
- *   STYLEPROOF_SCREENSHOTS=1
- */
+// Capture this branch's computed-style map by running Playwright against the
+// StyleProof spec (or restore a published map by SHA), stamp the manifest, and
+// optionally publish the bundle to the map store branch.
 import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import {
-  cliErrorMessage,
-  isHelpArg,
-  missingSpecMessage,
-  nonLinuxUploadWarning,
-  playwrightMissingMessage,
-  showHelpAndExit,
-  unknownFlagMessage,
-} from '../dist/cli-errors.js';
+import { spawnSync } from 'node:child_process';
+import { missingSpecMessage, nonLinuxUploadWarning, playwrightMissingMessage } from '../dist/cli-errors.js';
 import {
   DEFAULT_STYLEPROOF_SPEC,
   loadStyleProofConfigWithLocationAsync,
@@ -35,274 +18,144 @@ import {
   DEFAULT_REMOTE,
   DETERMINISM_RECEIPT,
   MapStoreError,
-  MapStorePreconditionError,
   MapStoreNotFoundError,
+  MapStorePreconditionError,
   clearCaptureOutput,
   currentGitSha,
   expectedCompatibilityKey,
   isMapFile,
   publishMapBundle,
   readFatalCaptureFailure,
-  restoreMapBundle,
   readSurfaceCaptureFailures,
+  restoreMapBundle,
   workingTreeDirty,
   writeMapManifest,
 } from '../dist/map-store.js';
-// The capture selector lives beside the `test.describe` titles it must agree with.
-// Importing it keeps one source of truth instead of two string literals that drift.
 import { CAPTURE_TEST_GREP } from '../dist/runner.js';
 import { assessDeterminismOracle, determinismRunReceipt } from '../dist/determinism-oracle.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
-import { loadStyleMap } from '../dist/capture.js';
+import { captureKeysIn, loadStyleMap } from '../dist/capture.js';
+import { defineCli, errorMessage, fail, filesUnder, runBin } from './cli.mjs';
 
-/** One run's receipt: every map file in the bundle, keyed by its capture key. */
-function determinismReceiptForDir(runDir) {
-  return determinismRunReceipt(
-    fs
-      .readdirSync(runDir)
-      .filter(isMapFile)
-      .map((file) => [file.replace(/\.json(\.gz)?$/, ''), loadStyleMap(path.join(runDir, file))]),
-  );
-}
-
-/** Record the strongest basis in the ledger the runner already wrote for run 1. */
-function promoteLedgerToOracleProven(bundleDir) {
-  const ledgerPath = path.join(bundleDir, COVERAGE_LEDGER);
-  const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
-  fs.writeFileSync(ledgerPath, `${JSON.stringify({ ...ledger, determinism: 'oracle-proven' }, null, 2)}\n`);
-}
-
-/** #400 fixes the promotion oracle at exactly five runs; assessDeterminismOracle enforces it. */
-const DETERMINISM_ORACLE_RUNS = 5;
-
+const NAME = 'styleproof-map';
 const STYLEPROOF_PLAYWRIGHT_CONFIG = 'playwright.styleproof.config.ts';
-const STYLEPROOF_VARIANTS_SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'styleproof-variants.mjs');
-const HELP = `styleproof-map — capture this branch's computed-style map
+const DETERMINISM_ORACLE_RUNS = 5;
+const env = process.env;
 
-usage: styleproof-map [options] [-- <playwright args>]
+const cli = defineCli({
+  name: NAME,
+  alias: 'capture',
+  usage: [`${NAME} [options] [-- <playwright args>]`],
+  positionals: true,
+  flags: {
+    spec: { value: 'path', help: 'StyleProof spec that must exist (default: e2e/styleproof.spec.ts)' },
+    dir: { value: 'label', help: 'output label under --base-dir', default: env.STYLEMAP_DIR ?? DEFAULT_MAP_LABEL },
+    'base-dir': { value: 'path', help: 'output root directory', default: env.STYLEPROOF_BASEDIR ?? DEFAULT_MAP_DIR },
+    screenshots: {
+      help: 'keep screenshots for reports (--no-screenshots writes lean .json.gz maps only)',
+      negate: true,
+      default: env.STYLEPROOF_SCREENSHOTS !== '0',
+    },
+    'keep-har': {
+      help: 'keep recorded HAR files for advanced replay workflows',
+      default: env.STYLEPROOF_KEEP_HAR === '1',
+    },
+    sha: {
+      value: 'commit',
+      help: 'commit SHA this map belongs to (default: current HEAD)',
+      default: env.STYLEPROOF_SHA,
+    },
+    upload: {
+      help: 'require upload to the map store branch after capture (--no-upload: capture locally only; default: auto — upload outside CI)',
+      negate: true,
+    },
+    restore: { help: 'restore a map from the map store instead of capturing' },
+    'crawl-base-url': { value: 'url', help: 'run styleproof-variants before capture against this app URL' },
+    'crawl-route': { value: 'r', help: 'route path or key=path for the pre-map variant crawl.', repeat: true },
+    'crawl-out': { value: 'file', help: 'variant crawl manifest (default: styleproof.variants.generated.json)' },
+    'crawl-max-actions': { value: 'n', help: 'max attempted variant actions per route (default: 40)' },
+    'crawl-width': { value: 'px', help: 'pre-map crawl viewport width (default: 1280)' },
+    'crawl-height': { value: 'px', help: 'pre-map crawl viewport height (default: 800)' },
+    'crawl-strict': { help: 'fail if live-state fixtures or skipped candidates remain' },
+    'cache-branch': { value: 'b', help: 'map store branch (default: styleproof-maps)' },
+    remote: { value: 'name', help: 'git remote for the map store (default: origin)' },
+    'dirty-allow': {
+      value: 'path',
+      help: 'tracked file or directory whose changes never mark the capture dirty; also via STYLEPROOF_DIRTY_ALLOW (comma-separated).',
+      repeat: true,
+    },
+    'prove-determinism': {
+      help: `run the capture 5x in fresh contexts and require every canonical map hash to match; records determinism: oracle-proven and writes ${DETERMINISM_RECEIPT}`,
+    },
+    'tolerate-surface-failures': {
+      help: 'baseline-only (never on head): record per-surface capture failures and continue when at least one map succeeds (self-check failures still fail)',
+    },
+  },
+  notes: [
+    'A styleproof.config.json at the repo root supplies project defaults — "spec", "dirtyAllow",',
+    '"cacheBranch", "remote" — with flags and env overriding it, except "dirtyAllow", which',
+    'ACCUMULATES across config, STYLEPROOF_DIRTY_ALLOW, and every --dirty-allow flag.',
+    '',
+    `If ${STYLEPROOF_PLAYWRIGHT_CONFIG} exists it is passed to Playwright by default; override with`,
+    `${NAME} -- --config playwright.config.ts. STYLEPROOF_CRAWL_BASE_URL and STYLEPROOF_CRAWL_ROUTES`,
+    '(comma-separated) run the same pre-map crawl from automation.',
+  ],
+});
 
-options:
-  --spec <path>       StyleProof spec that must exist (default: e2e/styleproof.spec.ts)
-  --dir <label>       output label under --base-dir (default: ${DEFAULT_MAP_LABEL})
-  --base-dir <path>   output root directory (default: ${DEFAULT_MAP_DIR})
-  --screenshots       keep screenshots for reports (default)
-  --no-screenshots    write lean .json.gz maps only
-  --keep-har          keep recorded HAR files for advanced replay workflows
-  --sha <commit>      commit SHA this map belongs to (default: current HEAD)
-  --upload            require upload to the map store branch after capture
-  --no-upload         capture locally only (default in CI)
-  --restore           restore a map from the map store instead of capturing
-  --crawl-base-url <url>
-                      run styleproof-variants before capture against this app URL
-  --crawl-route <r>   route path or key=path for the pre-map variant crawl; repeatable
-  --crawl-out <file>  variant crawl manifest (default: styleproof.variants.generated.json)
-  --crawl-max-actions <n>
-                      max attempted variant actions per route (default: 40)
-  --crawl-width <px>  pre-map crawl viewport width (default: 1280)
-  --crawl-height <px> pre-map crawl viewport height (default: 800)
-  --crawl-strict      fail if live-state fixtures or skipped candidates remain
-  --cache-branch <b>  map store branch (default: ${DEFAULT_MAP_STORE_BRANCH})
-  --remote <name>     git remote for the map store (default: ${DEFAULT_REMOTE})
-  --dirty-allow <path>
-                      tracked file or directory whose changes never mark the capture
-                      dirty (a dev tool rewriting e.g. tsconfig.json); repeatable,
-                      also via STYLEPROOF_DIRTY_ALLOW (comma-separated)
-  --prove-determinism run the capture 5x in fresh contexts and require every
-                      canonical map hash to match (the #400 oracle). Records
-                      determinism: oracle-proven and writes
-                      ${DETERMINISM_RECEIPT}. Costs 5 capture runs.
-  --tolerate-surface-failures
-                      baseline-only (manual cold base capture): record per-surface
-                      capture failures and continue when at least one map succeeds
-                      (self-check failures still fail). StyleProof CI enables this
-                      only on the cold base capture — never on head.
-  -h, --help          show this help
-
-A styleproof.config.json at the repo root supplies project defaults — "spec",
-"dirtyAllow", "cacheBranch", "remote" — with flags and env overriding it,
-except "dirtyAllow", which ACCUMULATES: config entries, STYLEPROOF_DIRTY_ALLOW,
-and every --dirty-allow flag all apply together.
-
-If playwright.styleproof.config.ts exists, styleproof-map passes it to Playwright
-by default. Override with: styleproof-map -- --config playwright.config.ts
-
-Set STYLEPROOF_CRAWL_BASE_URL and STYLEPROOF_CRAWL_ROUTES (comma-separated) to
-run the same pre-map crawl from automation.
-
-Examples:
-  styleproof-map
-  styleproof-map --crawl-base-url http://localhost:3000 --crawl-route / --crawl-route settings=/settings
-  styleproof-map --upload
-  styleproof-map --restore --sha 0123abcd0123abcd0123abcd0123abcd0123abcd --dir head --base-dir __stylemaps__
-  styleproof-map --spec e2e/styleproof.spec.ts
-  styleproof-map --dir review --base-dir __stylemaps__ --keep-har --no-upload
-styleproof-map is a compatibility alias for the unified CLI: styleproof capture
-`;
-
-const argv = process.argv.slice(2);
-const dashdash = argv.indexOf('--');
-const ownArgs = dashdash === -1 ? argv : argv.slice(0, dashdash);
-if (ownArgs.some(isHelpArg)) showHelpAndExit(HELP);
+const { opts, args, passthrough: playwrightArgs } = cli.parse();
 let loadedConfig;
 try {
   loadedConfig = await loadStyleProofConfigWithLocationAsync();
 } catch (error) {
-  console.error(`styleproof-map: ${cliErrorMessage(error)}`);
-  process.exit(2);
+  fail(NAME, errorMessage(error));
 }
 const projectConfig = loadedConfig.config;
-let spec = projectConfig.spec ?? DEFAULT_STYLEPROOF_SPEC;
-let specFromFlag = false;
-let dir = process.env.STYLEMAP_DIR ?? DEFAULT_MAP_LABEL;
-let baseDir = process.env.STYLEPROOF_BASEDIR ?? DEFAULT_MAP_DIR;
-let screenshots = process.env.STYLEPROOF_SCREENSHOTS ?? '1';
-let keepHar = process.env.STYLEPROOF_KEEP_HAR === '1';
-let sha = process.env.STYLEPROOF_SHA ?? '';
-let restore = false;
-let cacheBranch = process.env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
-let remote = process.env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
-let uploadMode =
-  process.env.STYLEPROOF_UPLOAD === '1' ? 'required' : process.env.STYLEPROOF_UPLOAD === '0' ? 'off' : 'auto';
-let crawlBaseUrl = process.env.STYLEPROOF_CRAWL_BASE_URL ?? projectConfig.crawl?.baseUrl ?? '';
-const crawlRoutes = [
-  ...(projectConfig.crawl?.routes ?? []),
-  ...(process.env.STYLEPROOF_CRAWL_ROUTES ?? '')
+const csv = (value) =>
+  (value ?? '')
     .split(',')
-    .map((route) => route.trim())
-    .filter(Boolean),
-];
-let crawlOut =
-  process.env.STYLEPROOF_CRAWL_OUT ??
-  (projectConfig.crawl?.out
-    ? resolveStyleProofConfigPath(projectConfig.crawl.out, loadedConfig.configDir)
-    : 'styleproof.variants.generated.json');
-let crawlMaxActions =
-  process.env.STYLEPROOF_CRAWL_MAX_ACTIONS ??
-  (projectConfig.crawl?.maxActions != null ? String(projectConfig.crawl.maxActions) : '');
-let crawlWidth =
-  process.env.STYLEPROOF_CRAWL_WIDTH ?? (projectConfig.crawl?.width != null ? String(projectConfig.crawl.width) : '');
-let crawlHeight =
-  process.env.STYLEPROOF_CRAWL_HEIGHT ??
-  (projectConfig.crawl?.height != null ? String(projectConfig.crawl.height) : '');
-let crawlStrict = process.env.STYLEPROOF_CRAWL_STRICT === '1' || projectConfig.crawl?.strict === true;
-// Auth setup / boundary exclusions are NOT consumed by the spec-driven map path
-// (variants + Playwright runner ignore STYLEPROOF_SETUP). They belong on
-// styleproof-capture. Detect config/env/flag so we fail closed instead of lying.
-const configuredAuthSetup =
-  process.env.STYLEPROOF_CRAWL_SETUP || process.env.STYLEPROOF_SETUP || projectConfig.crawl?.setup || '';
-const configuredAuthExclude =
-  process.env.STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE ||
-  process.env.STYLEPROOF_AUTH_BOUNDARY_EXCLUDE ||
-  projectConfig.crawl?.authBoundaryExclude ||
-  '';
-let tolerateSurfaceFailures =
-  process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === '1' ||
-  process.env.STYLEPROOF_TOLERATE_SURFACE_FAILURES === 'true';
-let proveDeterminism = false;
-// Allow paths accumulate across layers (config + env + flags) — they are all
-// "files my tooling rewrites", never mutually exclusive alternatives.
-const dirtyAllow = [
-  ...(projectConfig.dirtyAllow ?? []),
-  ...(process.env.STYLEPROOF_DIRTY_ALLOW ?? '')
-    .split(',')
-    .map((p) => p.trim())
-    .filter(Boolean),
-];
-const playwrightArgs = [];
+    .map((s) => s.trim())
+    .filter(Boolean);
+const configNumber = (value) => (value != null ? String(value) : '');
 
-for (let i = 0; i < argv.length; i++) {
-  const a = argv[i];
-  if (isHelpArg(a)) showHelpAndExit(HELP);
-  else if (a === '--') {
-    playwrightArgs.push(...argv.slice(i + 1));
-    break;
-  } else if (a === '--spec') {
-    specFromFlag = true;
-    spec = argv[++i];
-  } else if (a.startsWith('--spec=')) {
-    specFromFlag = true;
-    spec = a.slice(7);
-  } else if (a === '--dir') dir = argv[++i];
-  else if (a.startsWith('--dir=')) dir = a.slice(6);
-  else if (a === '--base-dir') baseDir = argv[++i];
-  else if (a.startsWith('--base-dir=')) baseDir = a.slice(11);
-  else if (a === '--screenshots') screenshots = '1';
-  else if (a === '--no-screenshots') screenshots = '0';
-  else if (a === '--keep-har') keepHar = true;
-  else if (a === '--sha') sha = argv[++i];
-  else if (a.startsWith('--sha=')) sha = a.slice(6);
-  else if (a === '--upload') uploadMode = 'required';
-  else if (a === '--no-upload') uploadMode = 'off';
-  else if (a === '--restore') restore = true;
-  else if (a === '--crawl-base-url') crawlBaseUrl = argv[++i];
-  else if (a.startsWith('--crawl-base-url=')) crawlBaseUrl = a.slice(17);
-  else if (a === '--crawl-route') crawlRoutes.push(argv[++i]);
-  else if (a.startsWith('--crawl-route=')) crawlRoutes.push(a.slice(14));
-  else if (a === '--crawl-out') crawlOut = argv[++i];
-  else if (a.startsWith('--crawl-out=')) crawlOut = a.slice(12);
-  else if (a === '--crawl-max-actions') crawlMaxActions = argv[++i];
-  else if (a.startsWith('--crawl-max-actions=')) crawlMaxActions = a.slice(20);
-  else if (a === '--crawl-width') crawlWidth = argv[++i];
-  else if (a.startsWith('--crawl-width=')) crawlWidth = a.slice(14);
-  else if (a === '--crawl-height') crawlHeight = argv[++i];
-  else if (a.startsWith('--crawl-height=')) crawlHeight = a.slice(15);
-  else if (a === '--crawl-strict') crawlStrict = true;
-  else if (
-    a === '--crawl-setup' ||
-    a === '--setup' ||
-    a.startsWith('--crawl-setup=') ||
-    a.startsWith('--setup=') ||
-    a === '--crawl-auth-boundary-exclude' ||
-    a === '--auth-boundary-exclude' ||
-    a.startsWith('--crawl-auth-boundary-exclude=') ||
-    a.startsWith('--auth-boundary-exclude=')
-  ) {
-    console.error(
-      'styleproof-map: --setup / --auth-boundary-exclude are not supported on the spec-driven map path.\n' +
-        '  Auth setup and boundary exclusions apply to styleproof-capture (and styleproof.config.json crawl.* for that CLI).\n' +
-        '  Next: styleproof-capture <url> --crawl --setup <file> [--auth-boundary-exclude <file>]',
-    );
-    process.exit(2);
-  } else if (a === '--dirty-allow') dirtyAllow.push(argv[++i]);
-  else if (a.startsWith('--dirty-allow=')) dirtyAllow.push(a.slice(14));
-  else if (a === '--tolerate-surface-failures') tolerateSurfaceFailures = true;
-  else if (a === '--prove-determinism') proveDeterminism = true;
-  else if (a === '--cache-branch' || a === '--remote') {
-    const value = argv[++i];
-    if (a === '--cache-branch') cacheBranch = value;
-    else remote = value;
-  } else if (a.startsWith('--cache-branch=')) cacheBranch = a.slice(15);
-  else if (a.startsWith('--remote=')) remote = a.slice(9);
-  else if (a.startsWith('--')) {
-    console.error(unknownFlagMessage('styleproof-map', a));
-    process.exit(2);
-  } else {
-    specFromFlag = true;
-    spec = a;
-  }
-}
+const specFromFlag = opts.spec !== undefined || args.length > 0;
+let spec = opts.spec ?? args[0] ?? projectConfig.spec ?? DEFAULT_STYLEPROOF_SPEC;
+const dir = opts.dir;
+const baseDir = opts['base-dir'];
+const screenshots = opts.screenshots ? '1' : '0';
+const keepHar = Boolean(opts['keep-har']);
+let sha = opts.sha ?? '';
+const cacheBranch =
+  opts['cache-branch'] ?? env.STYLEPROOF_CACHE_BRANCH ?? projectConfig.cacheBranch ?? DEFAULT_MAP_STORE_BRANCH;
+const remote = opts.remote ?? env.STYLEPROOF_REMOTE ?? projectConfig.remote ?? DEFAULT_REMOTE;
+// Flag > env > 'auto' (upload outside CI only).
+const uploadMode =
+  { true: 'required', false: 'off' }[opts.upload] ?? { 1: 'required', 0: 'off' }[env.STYLEPROOF_UPLOAD] ?? 'auto';
+const crawl = {
+  baseUrl: opts['crawl-base-url'] ?? env.STYLEPROOF_CRAWL_BASE_URL ?? projectConfig.crawl?.baseUrl ?? '',
+  routes: [...(projectConfig.crawl?.routes ?? []), ...csv(env.STYLEPROOF_CRAWL_ROUTES), ...opts['crawl-route']],
+  out:
+    opts['crawl-out'] ??
+    env.STYLEPROOF_CRAWL_OUT ??
+    (projectConfig.crawl?.out
+      ? resolveStyleProofConfigPath(projectConfig.crawl.out, loadedConfig.configDir)
+      : 'styleproof.variants.generated.json'),
+  maxActions:
+    opts['crawl-max-actions'] ?? env.STYLEPROOF_CRAWL_MAX_ACTIONS ?? configNumber(projectConfig.crawl?.maxActions),
+  width: opts['crawl-width'] ?? env.STYLEPROOF_CRAWL_WIDTH ?? configNumber(projectConfig.crawl?.width),
+  height: opts['crawl-height'] ?? env.STYLEPROOF_CRAWL_HEIGHT ?? configNumber(projectConfig.crawl?.height),
+  strict: Boolean(opts['crawl-strict']) || env.STYLEPROOF_CRAWL_STRICT === '1' || projectConfig.crawl?.strict === true,
+};
+const tolerateSurfaceFailures =
+  Boolean(opts['tolerate-surface-failures']) || ['1', 'true'].includes(env.STYLEPROOF_TOLERATE_SURFACE_FAILURES ?? '');
+// Allow paths accumulate across layers: they are all "files my tooling rewrites".
+const dirtyAllow = [...(projectConfig.dirtyAllow ?? []), ...csv(env.STYLEPROOF_DIRTY_ALLOW), ...opts['dirty-allow']];
 
-if (!spec) {
-  console.error('--spec requires a path');
-  process.exit(2);
-}
-if (!dir) {
-  console.error('--dir requires a label');
-  process.exit(2);
-}
-if (!baseDir) {
-  console.error('--base-dir requires a path');
-  process.exit(2);
-}
-if (sha && !/^(?:[0-9a-f]{40}|uncommitted)$/.test(sha)) {
-  console.error('styleproof-map: --sha must be a full lowercase 40-hex commit SHA or uncommitted');
-  process.exit(2);
-}
-if (specFromFlag) {
-  spec = path.isAbsolute(spec) ? spec : path.resolve(process.cwd(), spec);
-} else {
-  spec = resolveStyleProofConfigPath(spec, loadedConfig.configDir);
-}
+if (!spec) fail(NAME, '--spec requires a path');
+if (!dir) fail(NAME, '--dir requires a label');
+if (!baseDir) fail(NAME, '--base-dir requires a path');
+if (sha && !/^(?:[0-9a-f]{40}|uncommitted)$/.test(sha))
+  fail(NAME, '--sha must be a full lowercase 40-hex commit SHA or uncommitted');
+spec = specFromFlag ? path.resolve(process.cwd(), spec) : resolveStyleProofConfigPath(spec, loadedConfig.configDir);
 if (!fs.existsSync(spec)) {
   console.error(
     missingSpecMessage(
@@ -314,332 +167,277 @@ if (!fs.existsSync(spec)) {
   );
   process.exit(2);
 }
-const crawlEnabled = Boolean(crawlBaseUrl || crawlRoutes.length);
-if (configuredAuthSetup || configuredAuthExclude) {
-  console.error(
-    'styleproof-map: crawl.setup / crawl.authBoundaryExclude (or STYLEPROOF_SETUP / STYLEPROOF_AUTH_BOUNDARY_EXCLUDE)\n' +
+// Auth setup / boundary exclusions belong to styleproof-capture; refusing them here is safer than ignoring them.
+const AUTH_ENV = [
+  'STYLEPROOF_CRAWL_SETUP',
+  'STYLEPROOF_SETUP',
+  'STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE',
+  'STYLEPROOF_AUTH_BOUNDARY_EXCLUDE',
+];
+if (AUTH_ENV.some((key) => env[key]) || projectConfig.crawl?.setup || projectConfig.crawl?.authBoundaryExclude) {
+  fail(
+    NAME,
+    'crawl.setup / crawl.authBoundaryExclude (or STYLEPROOF_SETUP / STYLEPROOF_AUTH_BOUNDARY_EXCLUDE)\n' +
       '  are configured, but the spec-driven map path does not run auth setup or boundary exclusions.\n' +
       '  Those apply only to styleproof-capture. Remove them from the map invocation/config for this CLI,\n' +
       '  or use: styleproof-capture <url> --crawl (config crawl.setup / crawl.authBoundaryExclude are honored there).',
   );
-  process.exit(2);
 }
-if (crawlEnabled && !crawlBaseUrl) {
-  console.error('styleproof-map: --crawl-base-url is required when --crawl-route is set');
-  process.exit(2);
-}
-if (crawlEnabled && !crawlRoutes.length) {
-  console.error('styleproof-map: at least one --crawl-route is required when --crawl-base-url is set');
-  process.exit(2);
-}
-if (restore && !sha) {
+const crawlEnabled = Boolean(crawl.baseUrl || crawl.routes.length);
+if (crawlEnabled && !crawl.baseUrl) fail(NAME, '--crawl-base-url is required when --crawl-route is set');
+if (crawlEnabled && !crawl.routes.length)
+  fail(NAME, 'at least one --crawl-route is required when --crawl-base-url is set');
+if (opts.restore && !sha) {
   try {
     sha = currentGitSha(process.cwd());
-  } catch (e) {
-    console.error(e instanceof Error ? e.message : String(e));
-    process.exit(2);
+  } catch (error) {
+    fail(NAME, errorMessage(error));
   }
 }
 
-function removeHarFiles(root) {
-  if (!fs.existsSync(root)) return;
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    const full = `${root}/${entry.name}`;
-    if (entry.isDirectory()) removeHarFiles(full);
-    else if (entry.isFile() && entry.name.endsWith('.har')) fs.rmSync(full, { force: true });
-  }
-}
+const removeTree = (target) => fs.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+const removeHarFiles = (root) => {
+  for (const file of filesUnder(root)) if (file.endsWith('.har')) fs.rmSync(file, { force: true });
+};
 
-function shouldAutoUpload() {
-  return uploadMode === 'auto' && !process.env.CI;
-}
-
-/**
- * Resolve whether the platform mismatch warning is suppressed.
- * Precedence: explicit config key > env var > default (suppressed).
- */
-function resolveSuppressPlatformWarning() {
-  if (projectConfig.suppressPlatformWarning !== undefined) {
-    return projectConfig.suppressPlatformWarning;
-  }
-  const envVar = process.env.STYLEPROOF_SUPPRESS_PLATFORM_WARNING;
-  if (envVar === '1') return true;
-  if (envVar === '0') return false;
-  return true;
+/** Precedence: explicit config key > env var > default (suppressed). */
+function suppressPlatformWarning() {
+  if (projectConfig.suppressPlatformWarning !== undefined) return projectConfig.suppressPlatformWarning;
+  return env.STYLEPROOF_SUPPRESS_PLATFORM_WARNING !== '0';
 }
 
 async function upload(dirPath) {
-  if (uploadMode === 'off') return;
-  if (!shouldAutoUpload() && uploadMode !== 'required') return;
-  const platformWarning = nonLinuxUploadWarning(process.platform, resolveSuppressPlatformWarning());
-  if (platformWarning) console.error(platformWarning);
+  if (uploadMode === 'off' || (uploadMode === 'auto' && env.CI)) return;
+  const warning = nonLinuxUploadWarning(process.platform, suppressPlatformWarning());
+  if (warning) console.error(warning);
   try {
     const res = await publishMapBundle({ dir: dirPath, branch: cacheBranch, remote });
-    console.error(`styleproof-map: uploaded ${res.sha.slice(0, 12)} (${res.compatibilityKey}) to ${res.branch}`);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    if (uploadMode === 'required') {
-      // A precondition the user must fix (dirty tree, missing manifest) keeps
-      // the usage code 2 — retrying can never succeed. Everything else is the
-      // retryable map-store/network fault class the restore side reports as 5;
-      // triage keys on this split (2 = fix the job, 5 = re-run the job).
-      console.error(`styleproof-map: upload failed\n${message}`);
-      process.exit(e instanceof MapStorePreconditionError ? 2 : 5);
-    }
-    if (e instanceof MapStoreError) {
-      console.error(`styleproof-map: map captured locally; upload skipped (${message})`);
-    } else {
-      console.error(`styleproof-map: map captured locally; upload skipped`);
-    }
+    console.error(`${NAME}: uploaded ${res.sha.slice(0, 12)} (${res.compatibilityKey}) to ${res.branch}`);
+  } catch (error) {
+    const message = errorMessage(error);
+    // A user-fixable precondition keeps the usage code 2; everything else is the retryable class (5).
+    if (uploadMode === 'required')
+      fail(NAME, `upload failed\n${message}`, error instanceof MapStorePreconditionError ? 2 : 5);
+    console.error(
+      `${NAME}: map captured locally; upload skipped${error instanceof MapStoreError ? ` (${message})` : ''}`,
+    );
   }
 }
 
-function hasPlaywrightConfigArg(args) {
-  return args.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
-}
-
-function variantCrawlArgs() {
-  const args = ['--base-url', crawlBaseUrl, '--out', crawlOut];
-  for (const route of crawlRoutes) args.push('--route', route);
-  if (crawlMaxActions) args.push('--max-actions', crawlMaxActions);
-  if (crawlWidth) args.push('--width', crawlWidth);
-  if (crawlHeight) args.push('--height', crawlHeight);
-  if (crawlStrict) args.push('--strict');
-  return args;
-}
-
-function runVariantCrawl(env) {
+function runVariantCrawl(captureEnvironment) {
   if (!crawlEnabled) return;
-  console.error('styleproof-map: crawling UI variants before capture');
+  console.error(`${NAME}: crawling UI variants before capture`);
+  const crawlArgs = [
+    '--base-url',
+    crawl.baseUrl,
+    '--out',
+    crawl.out,
+    ...crawl.routes.flatMap((route) => ['--route', route]),
+  ];
+  if (crawl.maxActions) crawlArgs.push('--max-actions', crawl.maxActions);
+  if (crawl.width) crawlArgs.push('--width', crawl.width);
+  if (crawl.height) crawlArgs.push('--height', crawl.height);
+  if (crawl.strict) crawlArgs.push('--strict');
   const command = process.platform === 'win32' ? 'styleproof-variants.cmd' : 'styleproof-variants';
-  let result = spawnSync(command, variantCrawlArgs(), { stdio: 'inherit', env });
-  if (result.error?.code === 'ENOENT') {
-    result = spawnSync(process.execPath, [STYLEPROOF_VARIANTS_SCRIPT, ...variantCrawlArgs()], {
-      stdio: 'inherit',
-      env,
-    });
-  }
-  if (result.error) {
-    console.error(`styleproof-map: could not run styleproof-variants\n${result.error.message}`);
-    process.exit(2);
-  }
-  const status = result.status ?? 1;
-  if (status !== 0) process.exit(status);
+  let result = spawnSync(command, crawlArgs, { stdio: 'inherit', env: captureEnvironment });
+  if (result.error?.code === 'ENOENT') result = runBin('styleproof-variants', crawlArgs, { env: captureEnvironment });
+  if (result.error) fail(NAME, `could not run styleproof-variants\n${result.error.message}`);
+  if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);
 }
 
-// An ABSOLUTE STYLEMAP_DIR/--dir is respected as-is; a relative one nests under
-// baseDir (.styleproof/maps by default) — mirrors the runner's resolveOutputDir.
+// An absolute --dir is respected as-is; a relative one nests under baseDir.
 const targetDir = path.isAbsolute(dir) ? dir : path.join(baseDir, dir);
-// Sample the tree state the capture is ABOUT to render, so the manifest can bind the
-// map to it. A capture runs for minutes; if the source is edited or HEAD moves in that
-// window, the map renders one state but would otherwise be stamped clean@post-HEAD and
-// published as the authoritative map for a SHA it never rendered — a stale map every
-// future diff against that SHA silently trusts as a false green.
-let dirtyBeforeCapture;
-let headBeforeCapture;
-try {
-  dirtyBeforeCapture = workingTreeDirty(process.cwd(), dirtyAllow);
-  headBeforeCapture = currentGitSha(process.cwd());
-} catch {
-  dirtyBeforeCapture = false;
-  headBeforeCapture = undefined;
-}
 
-if (restore) {
+if (opts.restore) {
   try {
-    const compatibilityKey = expectedCompatibilityKey({ spec });
     const manifest = restoreMapBundle({
       sha,
       outDir: targetDir,
       branch: cacheBranch,
       remote,
-      compatibilityKey,
+      compatibilityKey: expectedCompatibilityKey({ spec }),
     });
-    console.log(`styleproof-map: restored ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey}) to ${targetDir}`);
+    console.log(`${NAME}: restored ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey}) to ${targetDir}`);
     process.exit(0);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    // Exit code taxonomy so CI can tell a genuine cache miss from an infra fault:
-    //   4 — bundle absent (expected miss → the cold path should recapture);
-    //   5 — infrastructure fault after retries (network/clone/timeout → fail loudly,
-    //       don't silently burn a full recapture on a flaky network).
-    // A restore never exits 2: that code is reserved for usage errors above.
-    const notFound = e instanceof MapStoreNotFoundError;
-    process.exitCode = notFound ? 4 : 5;
-    console.error(
-      [
-        notFound
-          ? `styleproof-map: no cached map for ${sha} on ${cacheBranch} (cache miss)`
-          : `styleproof-map: could not reach the map store to restore ${sha} from ${cacheBranch}`,
-        message,
-        notFound
-          ? `Next: run styleproof-map at that commit to build/upload the map, or let CI recapture both sides.`
-          : `Next: retry — this is a transient map-store/network fault, not a missing bundle.`,
-      ].join('\n'),
-    );
-    process.exit(process.exitCode);
+  } catch (error) {
+    // 4 = bundle absent (expected miss → recapture); 5 = infrastructure fault after retries.
+    const [what, next, code] =
+      error instanceof MapStoreNotFoundError
+        ? [
+            `no cached map for ${sha} on ${cacheBranch} (cache miss)`,
+            `Next: run ${NAME} at that commit to build/upload the map, or let CI recapture both sides.`,
+            4,
+          ]
+        : [
+            `could not reach the map store to restore ${sha} from ${cacheBranch}`,
+            'Next: retry — this is a transient map-store/network fault, not a missing bundle.',
+            5,
+          ];
+    fail(NAME, `${what}\n${errorMessage(error)}\n${next}`, code);
   }
 }
 
-// Clear the complete reserved generated namespace before Playwright runs. The
-// default dir (.styleproof/maps/current) is reused across runs; if this run
-// captures a smaller surface set, prior maps/screenshots/sidecars would otherwise
-// remain current-looking evidence and launder removed surfaces as still present.
-// clearCaptureOutput preserves unrelated user files and fails closed on malformed
-// reserved paths. Restore mode never reaches here.
+// Sample the tree state the capture is ABOUT to render: a source edit or HEAD move
+// mid-capture must not let the map publish clean for a SHA it never rendered.
+let dirtyBeforeCapture = false;
+let headBeforeCapture;
+try {
+  dirtyBeforeCapture = workingTreeDirty(process.cwd(), dirtyAllow);
+  headBeforeCapture = currentGitSha(process.cwd());
+} catch {
+  // git unreadable — the manifest falls back to `uncommitted`
+}
+
+// Clear the reserved generated namespace so a smaller capture set cannot leave prior maps looking current.
 try {
   clearCaptureOutput(targetDir);
 } catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`styleproof-map: cannot reuse capture directory ${targetDir}\n${message}`);
-  process.exit(2);
+  fail(NAME, `cannot reuse capture directory ${targetDir}\n${errorMessage(error)}`);
 }
 
-const command = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
+const playwright = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
+const hasConfigArg = playwrightArgs.some((arg) => arg === '--config' || arg === '-c' || arg.startsWith('--config='));
 const configArgs =
-  fs.existsSync(STYLEPROOF_PLAYWRIGHT_CONFIG) && !hasPlaywrightConfigArg(playwrightArgs)
-    ? ['--config', STYLEPROOF_PLAYWRIGHT_CONFIG]
-    : [];
+  fs.existsSync(STYLEPROOF_PLAYWRIGHT_CONFIG) && !hasConfigArg ? ['--config', STYLEPROOF_PLAYWRIGHT_CONFIG] : [];
+// The spec process clock is frozen alongside the browser clock so module-level `new Date()` fixtures match across sides.
 const captureEnv = (label) => ({
-  ...process.env,
+  ...env,
   STYLEMAP_DIR: label,
   STYLEPROOF_BASEDIR: baseDir,
   STYLEPROOF_SCREENSHOTS: screenshots,
-  // Freeze the SPEC PROCESS clock alongside the browser clock (the freezeClock
-  // contract): importing styleproof under this env pins Node's Date before the
-  // spec's module-level fixture constants evaluate, so a `new Date()` stamp is
-  // identical across base and head captures instead of leaking each run's wall
-  // clock into the render. Explicit STYLEPROOF_FREEZE_SPEC_CLOCK=0 opts out.
-  STYLEPROOF_FREEZE_SPEC_CLOCK: process.env.STYLEPROOF_FREEZE_SPEC_CLOCK ?? '1',
+  STYLEPROOF_FREEZE_SPEC_CLOCK: env.STYLEPROOF_FREEZE_SPEC_CLOCK ?? '1',
   ...(tolerateSurfaceFailures ? { STYLEPROOF_TOLERATE_SURFACE_FAILURES: '1' } : {}),
 });
-const env = captureEnv(dir);
 const runCapture = (label) =>
-  spawnSync(command, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs], {
+  spawnSync(playwright, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs], {
     stdio: 'inherit',
     env: captureEnv(label),
   });
-runVariantCrawl(env);
+
+runVariantCrawl(captureEnv(dir));
 const result = runCapture(dir);
-if (result.error) {
-  console.error(playwrightMissingMessage(result.error.message));
-  process.exit(2);
-}
+if (result.error) fail(NAME, playwrightMissingMessage(result.error.message).replace(`${NAME}: `, ''));
 let status = result.status ?? 1;
-const captured = fs.existsSync(targetDir) ? fs.readdirSync(targetDir).filter(isMapFile).length : 0;
+const captured = captureKeysIn(targetDir).length;
 const toleratedFailures = readSurfaceCaptureFailures(targetDir);
 const fatalCaptureFailure = readFatalCaptureFailure(targetDir);
 if (status !== 0 && fatalCaptureFailure) {
   console.error(
-    `styleproof-map: fatal self-check failure; discarding ${captured} captured surface map(s) and refusing publication — ${fatalCaptureFailure}`,
+    `${NAME}: fatal self-check failure; discarding ${captured} captured surface map(s) and refusing publication — ${fatalCaptureFailure}`,
   );
-  fs.rmSync(targetDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  removeTree(targetDir);
   process.exit(status);
 }
-// Promote to a publishable partial baseline ONLY when the failures are actually
-// LEDGERED. Self-check/nondeterminism failures are deliberately never recorded —
-// promoting a run that failed for an unrecorded reason would publish a "partial
-// baseline (0 tolerated failures)" whose missing surfaces later read as approvable
-// greenfield-new: exactly the laundering the ledger exists to prevent.
-if (status !== 0 && tolerateSurfaceFailures && captured > 0 && toleratedFailures.length > 0) {
+// Promote to a publishable partial baseline ONLY when the failures are ledgered.
+if (status !== 0 && tolerateSurfaceFailures && captured > 0) {
+  if (toleratedFailures.length > 0) {
+    console.error(
+      `${NAME}: Playwright exited ${status} but ${captured} surface map(s) were captured — publishing partial baseline (${toleratedFailures.length} tolerated failure(s))`,
+    );
+    status = 0;
+  } else {
+    console.error(
+      `${NAME}: Playwright exited ${status} with ${captured} surface map(s) but NO ledgered surface failure — an unrecorded failure class (e.g. a self-check/nondeterminism failure) is not tolerable; failing the capture.`,
+    );
+  }
+}
+if (status !== 0) process.exit(status);
+if (!keepHar) removeHarFiles(targetDir);
+// Zero maps must not stamp a manifest: a bare dir means "no baseline yet" (first adoption).
+if (captured === 0) {
   console.error(
-    `styleproof-map: Playwright exited ${status} but ${captured} surface map(s) were captured — publishing partial baseline (${toleratedFailures.length} tolerated failure(s))`,
+    `${NAME}: 0 surfaces captured — no manifest written; if this is the base side of a first adoption, the diff will treat it as no-baseline`,
   );
-  status = 0;
-} else if (status !== 0 && tolerateSurfaceFailures && captured > 0) {
-  console.error(
-    `styleproof-map: Playwright exited ${status} with ${captured} surface map(s) but NO ledgered surface failure — ` +
-      'an unrecorded failure class (e.g. a self-check/nondeterminism failure) is not tolerable; failing the capture.',
+  process.exit(0);
+}
+if (opts['prove-determinism']) proveDeterminismOrDie();
+stampManifest();
+await upload(targetDir);
+process.exit(0);
+
+/** Capture runs 2..N into fresh dirs; returns the first non-zero exit, else 0. */
+function runOracleCaptures(extraRunDirs) {
+  for (let run = 2; run <= DETERMINISM_ORACLE_RUNS; run += 1) {
+    const label = `${dir}.oracle-run-${run}`;
+    const runDir = path.isAbsolute(label) ? label : path.join(baseDir, label);
+    clearCaptureOutput(runDir);
+    extraRunDirs.push(runDir);
+    console.error(`${NAME}: determinism oracle run ${run}/${DETERMINISM_ORACLE_RUNS}`);
+    const result = runCapture(label);
+    if (result.error) {
+      console.error(playwrightMissingMessage(result.error.message));
+      return 2;
+    }
+    if ((result.status ?? 1) !== 0) {
+      console.error(
+        `${NAME}: determinism oracle run ${run}/${DETERMINISM_ORACLE_RUNS} failed (exit ${result.status ?? 1})`,
+      );
+      return result.status ?? 1;
+    }
+  }
+  return 0;
+}
+
+function oracleReceipt(runDir) {
+  return determinismRunReceipt(
+    fs
+      .readdirSync(runDir)
+      .filter(isMapFile)
+      .map((file) => [file.replace(/\.json(\.gz)?$/, ''), loadStyleMap(path.join(runDir, file))]),
   );
 }
-if (status === 0) {
-  if (!keepHar) removeHarFiles(targetDir);
-  // A run that produced ZERO surface maps must not stamp a manifest (or upload):
-  // a manifest over an empty bundle would read as "a bundle that claims to exist
-  // yet holds nothing" and the diff would refuse it as a missing base map. A bare
-  // dir instead means "no baseline yet" — on a first adoption, capturing the base
-  // commit that predates the spec legitimately yields zero surfaces, and the diff
-  // then takes the exit-3 new-surfaces review path.
-  if (captured === 0) {
+
+/** Compare every run's receipt; on success stamp the receipt + ledger. Returns the exit code. */
+function recordOracleVerdict(runDirs) {
+  const verdict = assessDeterminismOracle(runDirs.map(oracleReceipt));
+  if (verdict.status !== 'deterministic') {
     console.error(
-      'styleproof-map: 0 surfaces captured — no manifest written; if this is the base side of a first adoption, the diff will treat it as no-baseline',
+      `${NAME}: determinism oracle FAILED (${verdict.reason}) — ${verdict.matchingRuns}/${verdict.requiredRuns} runs matched:`,
     );
-    process.exit(status);
+    for (const diagnostic of verdict.diagnostics) console.error(`  ${diagnostic}`);
+    return 1;
   }
-  // The #400 five-run oracle, opt-in. Runs BEFORE the manifest write and the upload, so a
-  // bundle that fails it is never stamped and never published — the whole point is that a
-  // flake must not become a baseline. Two captures (the always-on self-check) cannot see a
-  // nondeterminism that happens to repeat; five fresh contexts with identical canonical
-  // hashes can.
-  if (proveDeterminism) {
-    const extraRunDirs = [];
-    // Nothing here may call process.exit() directly: that skips the cleanup below and
-    // would leave four extra bundles on disk for a later capture or diff to trip over.
-    // Record the outcome, always clean up, then exit.
-    let oracleExit = 0;
-    try {
-      for (let run = 2; run <= DETERMINISM_ORACLE_RUNS && oracleExit === 0; run += 1) {
-        const label = `${dir}.oracle-run-${run}`;
-        const runDir = path.isAbsolute(label) ? label : path.join(baseDir, label);
-        clearCaptureOutput(runDir);
-        extraRunDirs.push(runDir);
-        console.error(`styleproof-map: determinism oracle run ${run}/${DETERMINISM_ORACLE_RUNS}`);
-        const runResult = runCapture(label);
-        if (runResult.error) {
-          console.error(playwrightMissingMessage(runResult.error.message));
-          oracleExit = 2;
-        } else if ((runResult.status ?? 1) !== 0) {
-          console.error(
-            `styleproof-map: determinism oracle run ${run}/${DETERMINISM_ORACLE_RUNS} failed (exit ${runResult.status ?? 1})`,
-          );
-          oracleExit = runResult.status ?? 1;
-        }
-      }
-      if (oracleExit === 0) {
-        const verdict = assessDeterminismOracle([targetDir, ...extraRunDirs].map(determinismReceiptForDir));
-        if (verdict.status === 'deterministic') {
-          fs.writeFileSync(
-            path.join(targetDir, DETERMINISM_RECEIPT),
-            `${JSON.stringify({ schemaVersion: 1, producer: 'styleproof-map', verdict }, null, 2)}\n`,
-          );
-          promoteLedgerToOracleProven(targetDir);
-          console.error(
-            `styleproof-map: determinism oracle PASSED — ${verdict.observedRuns}/${verdict.requiredRuns} runs identical across ${verdict.stateKeys.length} surface map(s)`,
-          );
-        } else {
-          console.error(
-            `styleproof-map: determinism oracle FAILED (${verdict.reason}) — ${verdict.matchingRuns}/${verdict.requiredRuns} runs matched:`,
-          );
-          for (const diagnostic of verdict.diagnostics) console.error(`  ${diagnostic}`);
-          oracleExit = 1;
-        }
-      }
-    } catch (e) {
-      console.error(`styleproof-map: determinism oracle errored\n${e instanceof Error ? e.message : String(e)}`);
-      oracleExit = 2;
-    } finally {
-      // The extra bundles exist only to be hashed; never leave one where a later capture,
-      // upload, or diff could mistake it for a real baseline.
-      for (const runDir of extraRunDirs) {
-        fs.rmSync(runDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-      }
-    }
-    if (oracleExit !== 0) {
-      console.error('styleproof-map: discarding the capture — an unproven bundle must never become a baseline');
-      fs.rmSync(targetDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-      process.exit(oracleExit);
-    }
+  fs.writeFileSync(
+    path.join(targetDir, DETERMINISM_RECEIPT),
+    `${JSON.stringify({ schemaVersion: 1, producer: NAME, verdict }, null, 2)}\n`,
+  );
+  const ledgerPath = path.join(targetDir, COVERAGE_LEDGER);
+  const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+  fs.writeFileSync(ledgerPath, `${JSON.stringify({ ...ledger, determinism: 'oracle-proven' }, null, 2)}\n`);
+  console.error(
+    `${NAME}: determinism oracle PASSED — ${verdict.observedRuns}/${verdict.requiredRuns} runs identical across ${verdict.stateKeys.length} surface map(s)`,
+  );
+  return 0;
+}
+
+/** The five-run oracle: four more captures in fresh contexts must hash identically to the
+ *  first, or the bundle is discarded — a flake must never become a baseline. */
+function proveDeterminismOrDie() {
+  const extraRunDirs = [];
+  let oracleExit;
+  try {
+    oracleExit = runOracleCaptures(extraRunDirs) || recordOracleVerdict([targetDir, ...extraRunDirs]);
+  } catch (error) {
+    console.error(`${NAME}: determinism oracle errored\n${errorMessage(error)}`);
+    oracleExit = 2;
+  } finally {
+    for (const runDir of extraRunDirs) removeTree(runDir);
   }
-  // Bind the map to the commit it actually started rendering (headBeforeCapture), not a
-  // HEAD that may have moved mid-capture. `--sha` still wins for callers that know better.
+  if (oracleExit !== 0) {
+    console.error(`${NAME}: discarding the capture — an unproven bundle must never become a baseline`);
+    removeTree(targetDir);
+    process.exit(oracleExit);
+  }
+}
+
+/** Bind the map to the commit it started rendering; a tree edited or a HEAD moved
+ *  mid-capture marks the manifest dirty so publish refuses to push a stale map. */
+function stampManifest() {
   const manifestSha = sha || headBeforeCapture || 'uncommitted';
-  // Re-check the tree AFTER capture (ignoring the maps this run just wrote): if the source
-  // was edited, or HEAD moved, during the capture window, the map↔SHA binding is a lie —
-  // mark it dirty so publishMapBundle refuses to push a stale map into the SHA-keyed store.
   let dirty = manifestSha === 'uncommitted' ? true : dirtyBeforeCapture;
   try {
     const rel = path.relative(process.cwd(), targetDir) || targetDir;
-    const headAfter = currentGitSha(process.cwd(), env);
+    const headAfter = currentGitSha(process.cwd(), captureEnv(dir));
     if (workingTreeDirty(process.cwd(), [...dirtyAllow, rel]) || (headBeforeCapture && headAfter !== headBeforeCapture))
       dirty = true;
   } catch {
@@ -653,13 +451,10 @@ if (status === 0) {
       screenshots: screenshots !== '0',
       dirty,
       dirtyAllow,
-      env,
+      env: captureEnv(dir),
     });
-    console.error(`styleproof-map: wrote ${targetDir} for ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey})`);
-  } catch (e) {
-    console.error(`styleproof-map: could not write map manifest\n${e instanceof Error ? e.message : String(e)}`);
-    process.exit(2);
+    console.error(`${NAME}: wrote ${targetDir} for ${manifest.sha.slice(0, 12)} (${manifest.compatibilityKey})`);
+  } catch (error) {
+    fail(NAME, `could not write map manifest\n${errorMessage(error)}`);
   }
-  await upload(targetDir);
 }
-process.exit(status);

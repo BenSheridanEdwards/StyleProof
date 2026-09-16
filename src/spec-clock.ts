@@ -1,29 +1,10 @@
-/**
- * The spec-process half of `freezeClock` (see `DefineOptions.freezeClock`).
- *
- * `freezeClock` has always pinned the BROWSER clock (`page.clock.setFixedTime`),
- * but capture specs routinely compute fixture values in the SPEC's Node process —
- * a module-level `const GENERATED_AT = new Date().toISOString()` runs before any
- * test executes, outside the browser freeze. Such a value differs between the
- * base and the head capture run (separate processes, minutes or days apart), so
- * any surface rendering it as text drifts in width and shows up in the diff as a
- * phantom computed-style change on an unrelated PR. The in-run self-check cannot
- * catch this class: both of its captures share one spec process and therefore
- * one value.
- *
- * `styleproof-map` sets `STYLEPROOF_FREEZE_SPEC_CLOCK=1` for the Playwright run
- * it spawns. Importing this module — a side effect of importing `styleproof`,
- * which a capture spec does before evaluating its own constants — then swaps
- * `globalThis.Date` for a frozen twin: zero-argument construction, `Date.now()`,
- * and bare `Date()` calls report `STYLEPROOF_CLOCK_TIME` (default
- * `DEFAULT_CLOCK_TIME`, matching the browser freeze), while explicit-argument
- * construction, `Date.parse`/`Date.UTC`, and every instance method behave
- * normally. StyleProof's own elapsed-time bookkeeping (settle windows, popup
- * deadlines, manifest stamps) reads `realNow()`, captured before the swap.
- *
- * Opt out with `STYLEPROOF_FREEZE_SPEC_CLOCK=0` on the capture command;
- * `freezeClock: false` in the spec also restores the real clock at define time.
- */
+// The spec-process half of `freezeClock`: a capture spec's module-level fixture
+// (`new Date().toISOString()`) runs in Node before any test, outside the browser
+// freeze, and differs between the base and head runs — a phantom diff the in-run
+// self-check cannot see. `styleproof-map` sets STYLEPROOF_FREEZE_SPEC_CLOCK=1 so that
+// importing this module (via `styleproof`) swaps `globalThis.Date` for a frozen twin
+// before the spec's own constants evaluate. StyleProof's own elapsed-time bookkeeping
+// reads `realNow()`, captured before the swap.
 
 /** The default frozen instant, shared with the browser-side freeze (`DefineOptions.clockTime`). */
 export const DEFAULT_CLOCK_TIME = '2025-01-01T00:00:00Z';
@@ -38,16 +19,13 @@ export function realNow(): number {
 let installedInstant: number | undefined;
 
 /**
- * Resolve whether (and at what instant) the spec-process clock should freeze:
  * `undefined` unless `STYLEPROOF_FREEZE_SPEC_CLOCK=1`; the instant comes from
- * `STYLEPROOF_CLOCK_TIME` (ISO string or epoch milliseconds), defaulting to
- * `DEFAULT_CLOCK_TIME`. An unparseable instant throws — a silently-ignored typo
- * would run the capture on the live clock while claiming determinism.
+ * `STYLEPROOF_CLOCK_TIME` (ISO or epoch ms), defaulting to `DEFAULT_CLOCK_TIME`.
+ * An unparseable instant throws rather than silently running on the live clock.
  */
 export function resolveSpecClockFreeze(env: NodeJS.ProcessEnv = process.env): number | undefined {
   if (env.STYLEPROOF_FREEZE_SPEC_CLOCK !== '1') return undefined;
-  // `||`, not `??`: an EMPTY value (a workflow interpolating an unset variable
-  // into `STYLEPROOF_CLOCK_TIME=`) means "default", not "crash every capture".
+  // `||`, not `??`: an EMPTY value (an unset workflow variable) means "default".
   const configured = env.STYLEPROOF_CLOCK_TIME || DEFAULT_CLOCK_TIME;
   const instant = /^-?\d+$/.test(configured) ? Number(configured) : RealDate.parse(configured);
   if (Number.isNaN(instant)) {
@@ -60,21 +38,11 @@ export function resolveSpecClockFreeze(env: NodeJS.ProcessEnv = process.env): nu
 }
 
 /**
- * Swap `globalThis.Date` for a pinned twin. A Proxy over the real constructor,
- * so `Date.parse`/`Date.UTC`, the prototype, and `instanceof` all keep working.
- *
- * Two deliberately different behaviours:
- * - **Identity values stay frozen**: zero-argument `new Date()` and bare
- *   `Date()` report exactly `fixedMilliseconds` — module-level fixture
- *   constants (`new Date().toISOString()`) are byte-identical across runs,
- *   which is the phantom-diff class this freeze exists to kill.
- * - **`Date.now()` advances monotonically from the frozen origin**
- *   (`fixedMilliseconds + elapsed real ms`). `now()` is the universal idiom for
- *   deadlines and elapsed-time budgets — in consumer `--setup` helpers and in
- *   Playwright's own bundled retry loops — and a `now()` that never moves turns
- *   every such bound into an infinite spin (a surface "timeout" the tool itself
- *   caused, or a hung capture). Values derived from `now()` are still pinned to
- *   the frozen EPOCH, so date/hour-level rendering stays stable across runs.
+ * Swap `globalThis.Date` for a pinned Proxy twin (parse/UTC/prototype/instanceof keep
+ * working). Zero-argument `new Date()` and bare `Date()` report exactly the frozen
+ * instant, while `Date.now()` advances monotonically FROM that instant — a `now()` that
+ * never moves would turn every deadline loop (consumer helpers, Playwright's own retries)
+ * into an infinite spin.
  */
 export function installFrozenSpecClock(fixedMilliseconds: number): void {
   const installedAtReal = RealDate.now();
@@ -85,7 +53,6 @@ export function installFrozenSpecClock(fixedMilliseconds: number): void {
       return Reflect.construct(target, effective, newTarget) as object;
     },
     apply() {
-      // `Date()` without `new` reports the current time as a string.
       return new RealDate(fixedMilliseconds).toString();
     },
     get(target, property, receiver) {

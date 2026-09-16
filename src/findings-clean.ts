@@ -1,4 +1,4 @@
-import { isProductStateComparabilityStatus } from './comparability-status.js';
+import { summarizeComparability, type ProductStateComparabilityStatus } from './comparability-status.js';
 import { type DiffCounts, type Finding, type PropChange } from './diff.js';
 import { trackCount } from './describe.js';
 import { isNonValue, summarizeProps } from './prop-summary.js';
@@ -6,25 +6,21 @@ import { emptyLiveTextAudit, isLiveTextGeometryPath, type LiveTextAudit } from '
 
 /**
  * Path grouping, change signatures, titles, reflow-noise cleaning, and the
- * canonical comparison-truth assessment shared by the certification differ and
- * the visual report.
+ * canonical comparison-truth assessment shared by the differ and the report.
  */
+
+type StyleFinding = Extract<Finding, { kind: 'style' }>;
+const isStyle = (f: Finding): f is StyleFinding => f.kind === 'style';
 
 /** Group findings by their element path (one group per changed element). */
 export function groupByPath(findings: Finding[]): Finding[][] {
   const byPath = new Map<string, Finding[]>();
-  for (const f of findings) {
-    const arr = byPath.get(f.path) ?? [];
-    arr.push(f);
-    byPath.set(f.path, arr);
-  }
+  for (const f of findings) byPath.set(f.path, [...(byPath.get(f.path) ?? []), f]);
   return [...byPath.values()];
 }
 
-// Grid-track longhands compute to width-dependent pixels (`282px ×2` at one width,
-// `282px 228px` at another), so the SAME responsive change would otherwise get a
-// different signature per width. Key them by track COUNT — what actually
-// identifies the change — so responsive variants group into one section.
+// Grid-track longhands compute to width-dependent pixels, so key them by track
+// COUNT: the same responsive change then shares one signature across widths.
 function sigValue(c: PropChange): string {
   if (c.prop === 'grid-template-columns' || c.prop === 'grid-template-rows') {
     return `${c.prop}=${trackCount(c.before)}t>${trackCount(c.after)}t`;
@@ -32,9 +28,7 @@ function sigValue(c: PropChange): string {
   return `${c.prop}=${c.before}>${c.after}`;
 }
 
-/** Canonical signature of a surface's findings: surfaces that changed in the
- *  same way collapse into one section + one image (the rects differ per width;
- *  the change itself does not). */
+/** Canonical signature of a surface's findings: surfaces that changed the same way share one section. */
 export function signatureOf(findings: Finding[]): string {
   return JSON.stringify(
     findings
@@ -48,74 +42,49 @@ export function signatureOf(findings: Finding[]): string {
   );
 }
 
+const plural = (c: number, w: string) => `${c} ${w}${c === 1 ? '' : 's'}`;
+
 /** A one-line heading for a change group: "1 element added", "2 elements restyled". */
 export function groupTitle(findings: Finding[]): string {
-  const added = new Set(findings.filter((f) => f.kind === 'dom' && f.change === 'added').map((f) => f.path));
-  const removed = new Set(findings.filter((f) => f.kind === 'dom' && f.change === 'removed').map((f) => f.path));
-  const retagged = new Set(findings.filter((f) => f.kind === 'dom' && f.change === 'retagged').map((f) => f.path));
+  const domPaths = (change: string) =>
+    new Set(findings.filter((f) => f.kind === 'dom' && f.change === change).map((f) => f.path));
+  const [added, removed, retagged] = ['added', 'removed', 'retagged'].map(domPaths);
   const restyled = new Set(
     findings.filter((f) => f.kind !== 'dom' && !added.has(f.path) && !removed.has(f.path)).map((f) => f.path),
   );
-  const n = (c: number, w: string) => `${c} ${w}${c === 1 ? '' : 's'}`;
-  const parts: string[] = [];
-  if (added.size) parts.push(`${n(added.size, 'element')} added`);
-  if (removed.size) parts.push(`${n(removed.size, 'element')} removed`);
-  if (retagged.size) parts.push(`${n(retagged.size, 'element')} retagged`);
-  if (restyled.size) parts.push(`${n(restyled.size, 'element')} restyled`);
-  const title = parts.join(', ') || `${n(new Set(findings.map((f) => f.path)).size, 'element')} changed`;
-  // No driving property anywhere in the group — the size/position values ARE the
-  // change. Usually rendered content grew or shrank (a timestamp, a counter),
-  // not a stylesheet edit; say so, or reviewers hunt for a CSS change that
-  // doesn't exist.
+  const parts = (
+    [
+      [added, 'added'],
+      [removed, 'removed'],
+      [retagged, 'retagged'],
+      [restyled, 'restyled'],
+    ] as const
+  )
+    .filter(([paths]) => paths.size)
+    .map(([paths, verb]) => `${plural(paths.size, 'element')} ${verb}`);
+  const title = parts.join(', ') || `${plural(new Set(findings.map((f) => f.path)).size, 'element')} changed`;
+  // No driving property: the size/position values ARE the change — usually content drift, not CSS.
   return isGeometryOnlyGroup(findings)
     ? `${title} — size/position only, no styling property changed (often content-length drift; check the rendered text before suspecting CSS)`
     : title;
 }
 
-// Computed values that follow from an element's box size or position rather than
-// its styling. On any reflow they change all the way up the ancestor chain
-// (body, main, section…), so an element whose ONLY changes are these is a reflow
-// casualty: it must not anchor a crop region (that would zoom to the whole page)
-// nor clutter the findings. The certification differ keeps them — a reflow IS a
-// change to certify — but the visual report focuses on styling intent.
-const DERIVED_PROPS = new Set([
-  'width',
-  'height',
-  'block-size',
-  'inline-size',
-  'min-width',
-  'min-height',
-  'max-width',
-  'max-height',
-  'perspective-origin',
-  'transform-origin',
-  // position offsets shift with the document on any reflow
-  'top',
-  'right',
-  'bottom',
-  'left',
-  'inset-block-start',
-  'inset-block-end',
-  'inset-inline-start',
-  'inset-inline-end',
-]);
-// Props stripped from forced :hover/:focus/:active deltas specifically. Layout
-// and grid-track values that shift when a state forces a relayout are capture
-// noise, not interaction feedback — a state finding is meant to catch a changed
-// hover/focus/active *style* (colour, outline, shadow), not a reflow.
+// Computed values that follow from box size/position rather than styling. On any
+// reflow they change all the way up the ancestor chain, so an element whose ONLY
+// changes are these is a reflow casualty: the differ keeps them, the report hides them.
+const DERIVED_PROPS = new Set(
+  `width height block-size inline-size min-width min-height max-width max-height perspective-origin transform-origin
+   top right bottom left inset-block-start inset-block-end inset-inline-start inset-inline-end`.split(/\s+/),
+);
+// Forced :hover/:focus/:active deltas also drop grid-track relayout noise.
 const STATE_STRIP = new Set([
   ...DERIVED_PROPS,
-  'grid-template-columns',
-  'grid-template-rows',
-  'grid-template-areas',
-  'grid-auto-columns',
-  'grid-auto-rows',
-  'grid-auto-flow',
+  ...'grid-template-columns grid-template-rows grid-template-areas grid-auto-columns grid-auto-rows grid-auto-flow'.split(
+    ' ',
+  ),
 ]);
 
-/** How many of a surface's summarised props are derived/box longhands — the count
- *  the CLI folds behind `(+N derived longhands)`. Counts on the RAW finding props
- *  (before cleaning) so the CLI can advertise exactly what it suppressed. */
+/** Derived/box longhands among a surface's RAW summarised props — what the CLI folds behind `(+N derived longhands)`. */
 export function derivedLonghandCount(findings: Finding[]): number {
   let n = 0;
   for (const f of findings) {
@@ -127,51 +96,44 @@ export function derivedLonghandCount(findings: Finding[]): number {
 }
 
 /**
- * Strip the noise the visual report shouldn't carry, cross-referencing each
- * element's layers so the forced-state layer stops echoing the base:
- *   - base/pseudo styles: drop size/position-derived longhands (reflow casualties);
- *   - forced states: drop derived + grid-track props, drop a delta the BASE
- *     already changed (a `:hover color` that just follows a recoloured base is an
- *     echo, not a dropped variant), and drop non-value↔non-value rows;
- *   - any finding left with no props is removed entirely.
+ * Strip the noise the visual report shouldn't carry: base/pseudo styles drop
+ * derived longhands; forced states also drop grid-track props, deltas the BASE
+ * already changed (an echo, not a dropped variant) and non-value↔non-value rows;
+ * a finding left with no props is removed entirely.
  */
 export function cleanFindings(findings: Finding[]): Finding[] {
   const out: Finding[] = [];
   for (const group of groupByPath(findings)) {
-    const base = group.find((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style' && f.pseudo === null);
+    const base = group.find((f): f is StyleFinding => f.kind === 'style' && f.pseudo === null);
     const baseChanged = new Set(base?.props.map((p) => p.prop) ?? []);
-    // For an ADDED element the base style is a full (unset)→value snapshot, not a
-    // delta — so a forced-state value is never an "echo" of a base *change*; keep
-    // every state row (suppressing them would drop a real :hover/:focus value).
+    // An ADDED element's base style is a full snapshot, not a delta, so a state
+    // value is never an "echo" of a base change: keep every state row.
     const isAdded = group.some((f) => f.kind === 'dom' && f.change === 'added');
+    const keep: Record<Finding['kind'], (p: PropChange) => boolean> = {
+      dom: () => true,
+      style: (p) => !DERIVED_PROPS.has(p.prop),
+      state: (p) =>
+        !STATE_STRIP.has(p.prop) &&
+        (isAdded || !baseChanged.has(p.prop)) &&
+        !(isNonValue(p.before) && isNonValue(p.after)),
+    };
     for (const f of group) {
       if (f.kind === 'dom') {
         out.push(f);
         continue;
       }
-      const props =
-        f.kind === 'style'
-          ? f.props.filter((p) => !DERIVED_PROPS.has(p.prop))
-          : f.props.filter(
-              (p) =>
-                !STATE_STRIP.has(p.prop) &&
-                (isAdded || !baseChanged.has(p.prop)) &&
-                !(isNonValue(p.before) && isNonValue(p.after)),
-            );
+      const props = f.props.filter(keep[f.kind]);
       if (props.length) out.push({ ...f, props });
     }
   }
   return out;
 }
 
-/** Style findings whose geometry moved WITH the element's own text length — the
- *  content itself changed, so the geometry is a real visible change, never a
- *  reflow casualty of CSS shown elsewhere. `'unknown'` (legacy maps without the
- *  text-length stamp) deliberately does NOT qualify: it falls back to the
- *  ordinary casualty/resurrection rules instead of inventing a verdict. */
-function contentDrivenGeometry(findings: Finding[]): Extract<Finding, { kind: 'style' }>[] {
+/** Style findings whose geometry moved WITH the element's own text length — a real
+ *  visible change, never a reflow casualty. `'unknown'` deliberately does not qualify. */
+function contentDrivenGeometry(findings: Finding[]): StyleFinding[] {
   return findings.filter(
-    (f): f is Extract<Finding, { kind: 'style' }> =>
+    (f): f is StyleFinding =>
       f.kind === 'style' &&
       f.contentLengthSignal === 'changed' &&
       f.props.length > 0 &&
@@ -181,79 +143,49 @@ function contentDrivenGeometry(findings: Finding[]): Extract<Finding, { kind: 's
 
 /**
  * {@link cleanFindings}, but a surface is never cleaned into silence while it
- * still gates. The derived-longhand strip assumes those props are reflow
- * CASUALTIES of a driving change shown elsewhere — when a surface's only changes
- * ARE derived longhands (a content-length drift widening a text span, or a pure
- * `width:`/`inset:` rule change), stripping them hid the entire change: the diff
- * exited 1 and the Action demanded approval while the report said "identical".
- * If cleaning leaves no findings but base/pseudo style findings existed, keep
- * those originals so the verdict and the evidence describe the same run — and so
- * `assessComparisonTruth` counts them as reviewable, keeping the raw-only
- * CERTIFICATION_FAILED backstop for shapes that truly cannot render (e.g. a
- * surface whose only raw deltas were suppressed state echoes).
+ * still gates: content-driven geometry stays in the display set, and when
+ * cleaning leaves nothing the original base/pseudo style findings are kept so
+ * the verdict and the evidence describe the same run.
  */
 export function cleanFindingsForDisplay(findings: Finding[]): Finding[] {
   const cleaned = cleanFindings(findings);
-  // Content-driven geometry (the element's OWN text length changed) is a real
-  // visible change — a copy edit is one of the most common PR shapes — so it is
-  // never treated as a casualty of CSS shown elsewhere: it stays in the display
-  // set alongside the cleaned findings, renders with the geometry-only framing,
-  // and counts as reviewable. Mapping it to an unapprovable state instead made
-  // every text-changing PR an unclearable CERTIFICATION_FAILED (4.6.2).
   const contentDriven = contentDrivenGeometry(findings);
   if (contentDriven.length > 0) {
-    const kept = new Set(contentDriven);
-    // cleanFindings rebuilds finding objects, so dedupe by element identity:
-    // a cleaned finding for the same element/pseudo already shows its change.
-    const shown = new Set(cleaned.filter((f) => f.kind === 'style').map((f) => `${f.path}|${f.pseudo ?? ''}`));
-    const extras = [...kept].filter((f) => !shown.has(`${f.path}|${f.pseudo ?? ''}`));
-    return [...cleaned, ...extras];
+    // cleanFindings rebuilds finding objects, so dedupe by element identity.
+    const shown = new Set(cleaned.filter(isStyle).map((f) => `${f.path}|${f.pseudo ?? ''}`));
+    return [...cleaned, ...contentDriven.filter((f) => !shown.has(`${f.path}|${f.pseudo ?? ''}`))];
   }
   if (cleaned.length > 0) return cleaned;
-  return findings.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style' && f.props.length > 0);
+  return findings.filter((f): f is StyleFinding => f.kind === 'style' && f.props.length > 0);
 }
 
-/** True when every shown prop across the group's findings is a size/position
- *  longhand — the "geometry only, no driving property" shape that usually means
- *  content-length drift rather than a stylesheet change. Lets renderers label
- *  it so reviewers chase the content, not a phantom CSS edit. */
+/** True when every shown prop is a size/position longhand — the "geometry only" shape that usually means content drift. */
 export function isGeometryOnlyGroup(findings: Finding[]): boolean {
-  const styleFindings = findings.filter((f): f is Extract<Finding, { kind: 'style' }> => f.kind === 'style');
-  if (styleFindings.length === 0) return false;
-  return styleFindings.every((f) => f.props.every((p) => DERIVED_PROPS.has(p.prop)));
+  const styleFindings = findings.filter(isStyle);
+  return styleFindings.length > 0 && styleFindings.every((f) => f.props.every((p) => DERIVED_PROPS.has(p.prop)));
 }
 
 // ── comparison truth (diff / report / trust coherence) ───────────────────────
 
 /** Tally DOM/style/state findings the same way the certification differ does. */
-function countFindings(findings: Finding[]): DiffCounts {
-  return findings.reduce<DiffCounts>(
-    (counts, f) => {
-      if (f.kind === 'dom') counts.dom += 1;
-      else if (f.kind === 'style') counts.style += f.props.length;
-      else counts.state += f.props.length;
-      return counts;
-    },
-    { dom: 0, style: 0, state: 0 },
-  );
+export function countFindings(findings: Finding[]): DiffCounts {
+  const counts: DiffCounts = { dom: 0, style: 0, state: 0 };
+  for (const f of findings) {
+    if (f.kind === 'dom') counts.dom += 1;
+    else counts[f.kind] += f.props.length;
+  }
+  return counts;
 }
 
-function addCounts(a: DiffCounts, b: DiffCounts): DiffCounts {
+export function addCounts(a: DiffCounts, b: DiffCounts): DiffCounts {
   return { dom: a.dom + b.dom, style: a.style + b.style, state: a.state + b.state };
 }
 
-const ZERO_COUNTS: DiffCounts = { dom: 0, style: 0, state: 0 };
-
 /**
  * Canonical comparison truth shared by styleproof-diff, generateStyleMapReport,
- * and the composite action trust verdict.
- *
- * The certification differ records every computed longhand (including reflow
- * casualties). The visual report strips derived size/position longhands so crops
- * stay on styling intent. Those two views must never independently invent a
- * trust state: STYLE_REVIEW_REQUIRED requires reviewable evidence (cleaned
- * findings, crops, or one-sided surfaces); raw-only derived noise fails closed
- * as a certification/consistency failure rather than a blind approval gate.
+ * and the Action trust verdict. STYLE_REVIEW_REQUIRED needs reviewable evidence
+ * (cleaned findings, crops, or one-sided surfaces); raw-only derived noise fails
+ * closed as a certification/consistency failure, never a blind approval gate.
  */
 export type ComparisonTruth = {
   rawCounts: DiffCounts;
@@ -264,24 +196,15 @@ export type ComparisonTruth = {
   reviewableChangedSurfaces: number;
   /** Cleaned findings, new surfaces, or removed surfaces a human can act on. */
   hasReviewableEvidence: boolean;
-  /**
-   * Raw certification deltas that cleanFindings strips entirely — the report
-   * would show no change sections/crops. Never map this to STYLE_REVIEW_REQUIRED.
-   */
+  /** Raw deltas that cleanFindings strips entirely. Never map this to STYLE_REVIEW_REQUIRED. */
   rawOnlyNoReviewable: boolean;
-  /** Geometry drift paired with a changed own-text length existed somewhere —
-   *  informational: renderers use it to point reviewers at the content change.
-   *  It is reviewable evidence (approval clears it), never a certification
-   *  failure on its own. */
+  /** Geometry drift paired with a changed own-text length exists — informational, reviewable evidence. */
   contentGeometryUncertain: boolean;
   incomparableSurfaces: number;
   unprovenSurfaces: number;
   requiredUnprovenSurfaces: number;
   globalRequiredUnprovenSurfaces: number;
-  /**
-   * A consumer declared liveText.freeze and captured age/clock text still drifted.
-   * Fail closed as CERTIFICATION_FAILED — never STYLE_REVIEW_REQUIRED, never green.
-   */
+  /** liveText.freeze declared yet captured age/clock text drifted: CERTIFICATION_FAILED, never green. */
   liveTextFreezeViolated: boolean;
 };
 
@@ -294,7 +217,7 @@ export type ComparisonSurface = {
 
 export type ComparisonComparability = {
   surface: string;
-  status: 'comparable' | 'incomparable' | 'unproven' | 'not-required';
+  status: ProductStateComparabilityStatus;
   required: boolean;
 };
 
@@ -305,93 +228,36 @@ export type ComparisonTruthOptions = {
   liveText?: LiveTextAudit;
 };
 
-function comparabilityTruth(
-  comparability: ComparisonComparability[],
-  requireStateIdentity: boolean,
-): Pick<
-  ComparisonTruth,
-  'incomparableSurfaces' | 'unprovenSurfaces' | 'requiredUnprovenSurfaces' | 'globalRequiredUnprovenSurfaces'
-> {
-  const normalized = comparability.map((entry) =>
-    isProductStateComparabilityStatus(entry.status) ? entry : { ...entry, status: 'unproven' as const, required: true },
-  );
-  return {
-    incomparableSurfaces: normalized.filter((entry) => entry.status === 'incomparable').length,
-    unprovenSurfaces: normalized.filter((entry) => entry.status === 'unproven').length,
-    requiredUnprovenSurfaces: normalized.filter((entry) => entry.status === 'unproven' && entry.required).length,
-    globalRequiredUnprovenSurfaces: requireStateIdentity
-      ? normalized.filter((entry) => entry.status === 'unproven' && !entry.required).length
-      : 0,
-  };
-}
-
 /** Drop age-driven geometry so declared live/age text is not a style finding. */
 export function dropDeclaredLiveTextGeometry(findings: Finding[], liveText: LiveTextAudit | undefined): Finding[] {
   if (!liveText?.declared || liveText.livePaths.length === 0) return findings;
-  return findings.filter((finding) => {
-    if (finding.kind !== 'style') return true;
-    if (!isLiveTextGeometryPath(finding.path, liveText.livePaths)) return true;
-    return !isGeometryOnlyGroup([finding]);
-  });
+  return findings.filter(
+    (f) => f.kind !== 'style' || !isLiveTextGeometryPath(f.path, liveText.livePaths) || !isGeometryOnlyGroup([f]),
+  );
 }
 
 function reviewableFindings(
   surface: ComparisonSurface,
-  comparisonBySurface: Map<string, ComparisonComparability>,
+  comparison: ComparisonComparability | undefined,
   requireStateIdentity: boolean,
   liveText: LiveTextAudit,
 ): Finding[] {
-  const comparison = comparisonBySurface.get(surface.surface);
-  const blocksReview =
-    (comparison !== undefined && !isProductStateComparabilityStatus(comparison.status)) ||
-    comparison?.status === 'incomparable' ||
-    (comparison?.status === 'unproven' && (comparison.required || requireStateIdentity));
-  if (blocksReview) return [];
+  // A single receipt summarised: an unknown status, incomparable, or a required unproven pair blocks review.
+  if (comparison && summarizeComparability([comparison], requireStateIdentity).blocksCertification) return [];
   return dropDeclaredLiveTextGeometry(cleanFindingsForDisplay(surface.findings), liveText);
 }
 
-function sumSurfaceCounts(surfaces: ComparisonSurface[]): DiffCounts {
-  return surfaces.reduce((total, surface) => addCounts(total, countFindings(surface.findings)), {
-    ...ZERO_COUNTS,
+const sumSurfaceCounts = (surfaces: ComparisonSurface[]): DiffCounts =>
+  surfaces.reduce((total, surface) => addCounts(total, countFindings(surface.findings)), {
+    dom: 0,
+    style: 0,
+    state: 0,
   });
-}
-
-function surfaceTruth(
-  surfaces: ComparisonSurface[],
-  rawCounts: DiffCounts | undefined,
-  comparisonBySurface: Map<string, ComparisonComparability>,
-  requireStateIdentity: boolean,
-  liveText: LiveTextAudit,
-): Pick<
-  ComparisonTruth,
-  | 'rawCounts'
-  | 'reviewableCounts'
-  | 'newSurfaces'
-  | 'removedSurfaces'
-  | 'rawChangedSurfaces'
-  | 'reviewableChangedSurfaces'
-> {
-  const paired = surfaces.filter((surface) => surface.missing === undefined);
-  const reviewableSurfaces = paired.map((surface) => ({
-    ...surface,
-    findings: reviewableFindings(surface, comparisonBySurface, requireStateIdentity, liveText),
-  }));
-  return {
-    rawCounts: rawCounts ? { ...rawCounts } : sumSurfaceCounts(paired),
-    reviewableCounts: sumSurfaceCounts(reviewableSurfaces),
-    newSurfaces: surfaces.filter((surface) => surface.missing === 'before').length,
-    removedSurfaces: surfaces.filter((surface) => surface.missing === 'after').length,
-    rawChangedSurfaces: paired.filter((surface) => surface.findings.length > 0).length,
-    reviewableChangedSurfaces: reviewableSurfaces.filter((surface) => surface.findings.length > 0).length,
-  };
-}
 
 /**
- * Assess one map-pair comparison for report/verdict coherence.
- *
- * When `rawCounts` is provided (from `diffStyleMapDirs`), it is used as-is so
- * JSON `counts` and the assessment share one tally. Otherwise counts are
- * recomputed from the surface findings.
+ * Assess one map-pair comparison for report/verdict coherence. When `rawCounts`
+ * is provided (from `diffStyleMapDirs`) it is used as-is so JSON `counts` and the
+ * assessment share one tally; otherwise counts are recomputed from the findings.
  */
 export function assessComparisonTruth(
   surfaces: ComparisonSurface[],
@@ -401,33 +267,43 @@ export function assessComparisonTruth(
 ): ComparisonTruth {
   const requireStateIdentity = options.requireStateIdentity === true;
   const liveText = options.liveText ?? emptyLiveTextAudit();
-  const surface = surfaceTruth(
-    surfaces,
-    rawCounts,
-    new Map(comparability.map((entry) => [entry.surface, entry])),
-    requireStateIdentity,
-    liveText,
-  );
-  const comparison = comparabilityTruth(comparability, requireStateIdentity);
-  const rawTotal = surface.rawCounts.dom + surface.rawCounts.style + surface.rawCounts.state;
-  const reviewableTotal =
-    surface.reviewableCounts.dom + surface.reviewableCounts.style + surface.reviewableCounts.state;
-  const hasReviewableEvidence = reviewableTotal > 0 || surface.newSurfaces > 0 || surface.removedSurfaces > 0;
-  const declaredLiveTextResidue = liveText.declared && liveText.livePaths.length > 0 && !hasReviewableEvidence;
-  const rawOnlyNoReviewable =
-    rawTotal > 0 &&
-    !hasReviewableEvidence &&
-    !declaredLiveTextResidue &&
-    comparison.incomparableSurfaces === 0 &&
-    comparison.requiredUnprovenSurfaces === 0 &&
-    comparison.globalRequiredUnprovenSurfaces === 0;
-
-  return {
+  const bySurface = new Map(comparability.map((entry) => [entry.surface, entry]));
+  const paired = surfaces.filter((surface) => surface.missing === undefined);
+  const reviewable = paired.map((surface) => ({
     ...surface,
+    findings: reviewableFindings(surface, bySurface.get(surface.surface), requireStateIdentity, liveText),
+  }));
+  const raw = rawCounts ? { ...rawCounts } : sumSurfaceCounts(paired);
+  const reviewableCounts = sumSurfaceCounts(reviewable);
+  const newSurfaces = surfaces.filter((surface) => surface.missing === 'before').length;
+  const removedSurfaces = surfaces.filter((surface) => surface.missing === 'after').length;
+  const { counts } = summarizeComparability(comparability, requireStateIdentity);
+  const hasReviewableEvidence =
+    reviewableCounts.dom + reviewableCounts.style + reviewableCounts.state > 0 ||
+    newSurfaces > 0 ||
+    removedSurfaces > 0;
+  const declaredLiveTextResidue = liveText.declared && liveText.livePaths.length > 0 && !hasReviewableEvidence;
+  return {
+    rawCounts: raw,
+    reviewableCounts,
+    newSurfaces,
+    removedSurfaces,
+    rawChangedSurfaces: paired.filter((surface) => surface.findings.length > 0).length,
+    reviewableChangedSurfaces: reviewable.filter((surface) => surface.findings.length > 0).length,
     hasReviewableEvidence,
-    rawOnlyNoReviewable,
+    rawOnlyNoReviewable:
+      raw.dom + raw.style + raw.state > 0 &&
+      !hasReviewableEvidence &&
+      !declaredLiveTextResidue &&
+      counts.incomparable === 0 &&
+      counts.requiredUnproven === 0 &&
+      counts.globalRequiredUnproven === 0,
     contentGeometryUncertain: surfaces.some((item) => contentDrivenGeometry(item.findings).length > 0),
+    // Key order is part of the report.json byte contract: the freeze flag precedes the counts.
     liveTextFreezeViolated: liveText.freeze && liveText.violations.length > 0,
-    ...comparison,
+    incomparableSurfaces: counts.incomparable,
+    unprovenSurfaces: counts.unproven,
+    requiredUnprovenSurfaces: counts.requiredUnproven,
+    globalRequiredUnprovenSurfaces: counts.globalRequiredUnproven,
   };
 }

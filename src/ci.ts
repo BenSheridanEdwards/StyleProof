@@ -1,33 +1,15 @@
-/**
- * Decision core of the `styleproof-ci` command — the packaged form of the
- * restore → capture-on-miss → HAR-replay → publish orchestration that the
- * init-generated workflow used to carry as ~80 lines of copied bash (and every
- * consumer then hand-maintained, drifting, per repo).
- *
- * The driver (bin/styleproof-ci.mjs) owns the process work: checkouts, package
- * installs, spawning styleproof-map. Everything decidable without side effects
- * lives here so it is unit-testable:
- *   - restore exit-code triage (0 = hit, 4 = genuine miss, anything else is a
- *     PERSISTENT map-store/network fault to fail loudly on — a re-run is cheap
- *     and correct; silently paying a full cold recapture on every flaky network
- *     blip is not);
- *   - the package-manager command plans (runtime lockfile detection, argv form —
- *     no shell), including the cold path's exact-release install: the base may
- *     depend on an older StyleProof, so after the base's own install the head's
- *     exact release is installed and the metadata files that temporary install
- *     dirtied are restored, keeping the capture tree clean;
- *   - the step-output lines CI consumers branch on.
- */
+// Decision core of `styleproof-ci`: restore exit triage, the package-manager command
+// plans (argv form, never a shell), and the step-output lines consumers branch on.
+// The driver (bin/styleproof-ci.mjs) owns the process work.
 import fs from 'node:fs';
 import path from 'node:path';
+import { readJsonFile } from './map-store/json.js';
 
-/** Triage of a `styleproof-map --restore` exit code (see that CLI's taxonomy). */
+/** Triage of a `styleproof-map --restore` exit code: 0 hit, 4 genuine miss, else a loud fault. */
 export type RestoreOutcome = 'hit' | 'miss' | 'fault';
 
 export function classifyRestoreExit(code: number | null | undefined): RestoreOutcome {
-  if (code === 0) return 'hit';
-  if (code === 4) return 'miss';
-  return 'fault';
+  return code === 0 ? 'hit' : code === 4 ? 'miss' : 'fault';
 }
 
 /** One package manager's commands, as argv arrays (never joined through a shell). */
@@ -35,100 +17,86 @@ export type PackageManagerPlan = {
   name: 'npm' | 'yarn' | 'yarn-berry' | 'pnpm' | 'bun';
   /** Frozen-lockfile install of the checked-out commit's dependencies. */
   install: string[];
-  /** Install the head's exact StyleProof release over the base's older one.
-   *  npm uses `runtimeRoot` as an isolated prefix so its lock-disabled install
-   *  cannot re-resolve unrelated application dependency ranges. */
+  /** Install the head's exact StyleProof release over the base's older one. npm uses
+   *  `runtimeRoot` as an isolated prefix so it cannot re-resolve application ranges. */
   installExactStyleProof: (version: string, runtimeRoot: string) => string[];
-  /** Isolated package to link over the base checkout's StyleProof installation.
-   *  Other package managers install in-place and return null. */
+  /** Isolated package to link over the base checkout's StyleProof (npm only; others null). */
   isolatedStyleProofPackage: (runtimeRoot: string) => string | null;
-  /** Tracked files that exact install may have dirtied; the driver restores each
-   *  with `git checkout --`. */
+  /** Tracked files the exact install may have dirtied; the driver restores each with `git checkout --`. */
   packageMetadataFiles: string[];
 };
 
-/** True when the checkout is a Yarn 2+ (Berry) repo: a `.yarnrc.yml`, or a
- *  `packageManager` field pinning yarn at major ≥ 2. An unreadable/unparsable
- *  package.json reads as "not Berry" — the yarn-1 fallback then fails with
- *  yarn's own message rather than this detector guessing. */
+/** Yarn 2+ (Berry): a `.yarnrc.yml`, or `packageManager` pinning yarn at major ≥ 2. */
 function isYarnBerry(root: string): boolean {
   if (fs.existsSync(path.join(root, '.yarnrc.yml'))) return true;
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
-      packageManager?: unknown;
-    };
-    const pinned = typeof pkg.packageManager === 'string' ? /^yarn@(\d+)/.exec(pkg.packageManager) : null;
-    return pinned !== null && Number(pinned[1]) >= 2;
-  } catch {
-    return false;
-  }
+  const pinned = readJsonFile<{ packageManager?: unknown }>(path.join(root, 'package.json'))?.packageManager;
+  const major = typeof pinned === 'string' ? /^yarn@(\d+)/.exec(pinned) : null;
+  return major !== null && Number(major[1]) >= 2;
 }
 
-/** Runtime twin of styleproof-init's lockfile detection: the workflow template no
- *  longer bakes package-manager commands in at scaffold time — the command reads
- *  the checked-out repo, so a later npm→pnpm migration needs no re-init. */
+type Has = (file: string) => boolean;
+type InPlacePlan = {
+  name: Exclude<PackageManagerPlan['name'], 'npm'>;
+  detect: (has: Has, root: string) => boolean;
+  install: string;
+  addExact: string;
+  metadata: (has: Has) => string[];
+};
+
+const YARN1 = 'npx -y yarn@1.22.22';
+const PNP_FILES = ['.pnp.cjs', '.pnp.loader.mjs', '.pnp.data.json'];
+
+/** Lockfile detection in priority order (bun > pnpm > yarn); npm is the fallback. Berry
+ *  refuses yarn 1 and yarn 1 cannot parse its lockfile, so corepack provisions the pinned release. */
+const IN_PLACE_PLANS: InPlacePlan[] = [
+  {
+    name: 'bun',
+    detect: (has) => has('bun.lock') || has('bun.lockb'),
+    install: 'bun install --frozen-lockfile',
+    addExact: 'bun add --dev --exact',
+    metadata: (has) => ['package.json', ...['bun.lock', 'bun.lockb'].filter(has)],
+  },
+  {
+    name: 'pnpm',
+    detect: (has) => has('pnpm-lock.yaml'),
+    install: 'pnpm install --frozen-lockfile',
+    addExact: 'pnpm add --save-dev --save-exact',
+    metadata: () => ['package.json', 'pnpm-lock.yaml'],
+  },
+  {
+    name: 'yarn-berry',
+    detect: (has, root) => has('yarn.lock') && isYarnBerry(root),
+    install: 'corepack yarn install --immutable',
+    addExact: 'corepack yarn add --dev --exact',
+    metadata: (has) => ['package.json', 'yarn.lock', ...PNP_FILES.filter(has)],
+  },
+  {
+    name: 'yarn',
+    detect: (has) => has('yarn.lock'),
+    install: `${YARN1} install --frozen-lockfile --non-interactive`,
+    addExact: `${YARN1} add --dev --exact`,
+    metadata: () => ['package.json', 'yarn.lock'],
+  },
+];
+
+/** Runtime lockfile detection: the checked-out repo decides, so a later npm→pnpm migration needs no re-init. */
 export function detectPackageManagerPlan(root: string): PackageManagerPlan {
-  const has = (file: string) => fs.existsSync(path.join(root, file));
-  if (has('bun.lock') || has('bun.lockb')) {
+  const has: Has = (file) => fs.existsSync(path.join(root, file));
+  const plan = IN_PLACE_PLANS.find((candidate) => candidate.detect(has, root));
+  if (plan) {
     return {
-      name: 'bun',
-      install: ['bun', 'install', '--frozen-lockfile'],
-      installExactStyleProof: (version) => ['bun', 'add', '--dev', '--exact', `styleproof@${version}`],
+      name: plan.name,
+      install: plan.install.split(' '),
+      installExactStyleProof: (version) => [...plan.addExact.split(' '), `styleproof@${version}`],
       isolatedStyleProofPackage: () => null,
-      packageMetadataFiles: ['package.json', ...['bun.lock', 'bun.lockb'].filter(has)],
-    };
-  }
-  if (has('pnpm-lock.yaml')) {
-    return {
-      name: 'pnpm',
-      install: ['pnpm', 'install', '--frozen-lockfile'],
-      installExactStyleProof: (version) => ['pnpm', 'add', '--save-dev', '--save-exact', `styleproof@${version}`],
-      isolatedStyleProofPackage: () => null,
-      packageMetadataFiles: ['package.json', 'pnpm-lock.yaml'],
-    };
-  }
-  if (has('yarn.lock')) {
-    // Yarn Berry (2+): pinning yarn 1 either refuses outright (the repo's
-    // `packageManager` field) or cannot parse the Berry lockfile — every
-    // base-miss run would fail. Berry repos declare themselves via .yarnrc.yml
-    // or `packageManager: "yarn@<2+>"`; drive those through corepack, which
-    // reads that same field and provisions the pinned release.
-    if (isYarnBerry(root)) {
-      return {
-        name: 'yarn-berry',
-        install: ['corepack', 'yarn', 'install', '--immutable'],
-        installExactStyleProof: (version) => ['corepack', 'yarn', 'add', '--dev', '--exact', `styleproof@${version}`],
-        isolatedStyleProofPackage: () => null,
-        packageMetadataFiles: [
-          'package.json',
-          'yarn.lock',
-          ...['.pnp.cjs', '.pnp.loader.mjs', '.pnp.data.json'].filter(has),
-        ],
-      };
-    }
-    return {
-      name: 'yarn',
-      install: ['npx', '-y', 'yarn@1.22.22', 'install', '--frozen-lockfile', '--non-interactive'],
-      installExactStyleProof: (version) => [
-        'npx',
-        '-y',
-        'yarn@1.22.22',
-        'add',
-        '--dev',
-        '--exact',
-        `styleproof@${version}`,
-      ],
-      isolatedStyleProofPackage: () => null,
-      packageMetadataFiles: ['package.json', 'yarn.lock'],
+      packageMetadataFiles: plan.metadata(has),
     };
   }
   return {
     name: 'npm',
     install: ['npm', 'ci'],
     installExactStyleProof: (version, runtimeRoot) => [
-      'npm',
-      'install',
-      '--prefix',
+      ...'npm install --prefix'.split(' '),
       runtimeRoot,
       '--no-save',
       '--package-lock=false',
@@ -139,12 +107,8 @@ export function detectPackageManagerPlan(root: string): PackageManagerPlan {
   };
 }
 
-/** The `$GITHUB_OUTPUT` lines the old workflow step emitted, verbatim, so existing
- *  consumer steps keyed on `steps.maps.outputs.*` keep working after the collapse.
- *  `baseRestoredFromAncestorSha` appends `base-restored-from-ancestor=<sha>` ONLY
- *  when the base baseline was reused from a nearest ancestor (#367) — the four
- *  original lines never change shape, and a reused base still reads `base-hit=true`
- *  (it was restored without a capture) while staying auditable in the outputs. */
+/** The `$GITHUB_OUTPUT` lines consumer steps key on. `base-restored-from-ancestor=<sha>` is
+ *  appended only on ancestor reuse; the original four lines never change shape. */
 export function ciOutputLines(
   baseHit: boolean,
   headHit: boolean,

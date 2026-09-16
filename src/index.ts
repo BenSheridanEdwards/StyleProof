@@ -3,11 +3,8 @@
 // module-level fixture constants — see src/spec-clock.ts for why.
 import './spec-clock.js';
 
-// ---------------------------------------------------------------------------
 // Spec API — what consumer-authored spec files and styleproof.config.ts import.
-// Everything else is internal: import the leaf module (src/<name>.ts /
-// dist/<name>.js) instead of the package root.
-// ---------------------------------------------------------------------------
+// Everything else is internal: import the leaf module (dist/<name>.js) instead.
 
 // Frozen-clock escape hatch for spec files that need real wall time.
 export {
@@ -98,22 +95,18 @@ export type {
 export { detectViewportWidths, mediaTextWidthBoundaries, widthsFromBoundaries } from './breakpoints.js';
 
 // Config files.
-export { defineConfig, env } from './config.js';
+export { defineConfig } from './config.js';
 export type {
   StyleProofConfig,
   AffectedConfig,
   CrawlConfig,
-  AuthConfig,
   MapStoreConfig,
   AncestorBaselineConfig,
   CoverageConfig,
   ProductStateConfig,
-  EnvRef,
 } from './config.js';
 
-// ---------------------------------------------------------------------------
 // Core functions — capture, diff, report.
-// ---------------------------------------------------------------------------
 
 export {
   captureStyleMap,

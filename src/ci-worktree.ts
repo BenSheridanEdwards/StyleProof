@@ -1,15 +1,13 @@
-/**
- * Ephemeral detached `git worktree` orchestration for `styleproof-ci`.
- *
- * Restore probes and cold base install/capture run in throwaway worktrees so the
- * consumer checkout never moves to `--base`. Head capture may still run in the
- * consumer at `--head`. Every path uses argv spawns (no shell) and scratch dirs
- * under `RUNNER_TEMP` or `os.tmpdir()`.
- */
+// Ephemeral detached `git worktree` orchestration for `styleproof-ci`: restore probes and
+// cold base capture run in throwaway worktrees so the consumer checkout never moves to
+// `--base`. Argv spawns only; scratch dirs under `RUNNER_TEMP` or `os.tmpdir()`.
+import type { SpawnSyncReturns } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { removeDirRecursive, runGit } from './node-util.js';
+import { isWithinDirectory } from './safe-filesystem.js';
+import { errorMessage } from './util.js';
 
 export class CiWorktreeError extends Error {
   readonly exitCode: number;
@@ -20,12 +18,19 @@ export class CiWorktreeError extends Error {
   }
 }
 
-function runGit(cwd: string, args: string[]) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
+/** Trimmed stderr (else stdout) of a failed git call, for error messages. */
+export function gitDetail(result: SpawnSyncReturns<string>): string {
+  return (result.stderr ?? result.stdout ?? '').trim();
 }
 
-function removeDirRecursive(dir: string): void {
-  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+/** Run git, or throw a CiWorktreeError with `failure` and git's own detail. */
+function ciGit(cwd: string, args: string[], failure: string, exitCode: 1 | 2, requireOutput = false): string {
+  const result = runGit(cwd, args);
+  const output = result.stdout?.trim() ?? '';
+  if (result.status !== 0 || (requireOutput && !output)) {
+    throw new CiWorktreeError(`styleproof-ci: ${failure}\n${gitDetail(result)}`, exitCode);
+  }
+  return output;
 }
 
 /** Parent directory for ephemeral CI worktrees (`RUNNER_TEMP` in Actions, else OS tmp). */
@@ -34,59 +39,37 @@ export function ciWorktreeScratchParent(): string {
 }
 
 export function gitRepoRoot(cwd: string): string {
-  const result = runGit(cwd, ['rev-parse', '--show-toplevel']);
-  if (result.status !== 0 || !result.stdout?.trim()) {
-    throw new CiWorktreeError(
-      `styleproof-ci: could not resolve the git repository root\n${(result.stderr ?? result.stdout ?? '').trim()}`,
-      2,
-    );
-  }
-  return path.resolve(result.stdout.trim());
+  return path.resolve(
+    ciGit(cwd, ['rev-parse', '--show-toplevel'], 'could not resolve the git repository root', 2, true),
+  );
 }
 
 /** Consumer path relative to the repository root (`.` when already at root). */
 export function consumerRelativeFromRepoRoot(repoRoot: string, consumerCwd: string): string {
-  const resolvedConsumer = path.resolve(consumerCwd);
-  const resolvedRoot = path.resolve(repoRoot);
-  if (resolvedConsumer === resolvedRoot) return '.';
-  if (!resolvedConsumer.startsWith(`${resolvedRoot}${path.sep}`)) {
+  if (!isWithinDirectory(repoRoot, consumerCwd)) {
     throw new CiWorktreeError('styleproof-ci: working directory is outside the git repository', 2);
   }
-  return path.relative(resolvedRoot, resolvedConsumer) || '.';
+  return path.relative(path.resolve(repoRoot), path.resolve(consumerCwd)) || '.';
 }
 
 export function worktreeRunCwd(worktreePath: string, consumerRel: string): string {
   return consumerRel === '.' ? worktreePath : path.join(worktreePath, consumerRel);
 }
 
+function resolveCommit(cwd: string, ref: string, label: string): string {
+  return ciGit(cwd, ['rev-parse', '--verify', `${ref}^{commit}`], `could not resolve ${label} to a commit`, 2);
+}
+
 export function assertResolvableCommit(sha: string, cwd: string): void {
-  const result = runGit(cwd, ['rev-parse', '--verify', `${sha}^{commit}`]);
-  if (result.status !== 0) {
-    throw new CiWorktreeError(
-      `styleproof-ci: could not resolve ${sha} to a commit\n${(result.stderr ?? result.stdout ?? '').trim()}`,
-      2,
-    );
-  }
+  resolveCommit(cwd, sha, sha);
 }
 
 /** Force the consumer checkout onto `--head` without ever checking out `--base`. */
 export function ensureConsumerAtHead(repoRoot: string, head: string): void {
-  const headResult = runGit(repoRoot, ['rev-parse', '--verify', `${head}^{commit}`]);
-  if (headResult.status !== 0) {
-    throw new CiWorktreeError(
-      `styleproof-ci: could not resolve --head ${head} to a commit\n${(headResult.stderr ?? headResult.stdout ?? '').trim()}`,
-      2,
-    );
-  }
+  const headSha = resolveCommit(repoRoot, head, `--head ${head}`);
   const current = runGit(repoRoot, ['rev-parse', 'HEAD']);
-  if (current.status === 0 && current.stdout.trim() === headResult.stdout.trim()) return;
-  const checkout = runGit(repoRoot, ['checkout', '--force', head]);
-  if (checkout.status !== 0) {
-    throw new CiWorktreeError(
-      `styleproof-ci: could not checkout --head ${head} in the consumer tree\n${(checkout.stderr ?? checkout.stdout ?? '').trim()}`,
-      1,
-    );
-  }
+  if (current.status === 0 && current.stdout.trim() === headSha) return;
+  ciGit(repoRoot, ['checkout', '--force', head], `could not checkout --head ${head} in the consumer tree`, 1);
 }
 
 export class CiProcessExit {
@@ -105,11 +88,8 @@ export class CiWorktreeSession {
   constructor(repoRoot: string, scratchParent?: string) {
     this.repoRoot = path.resolve(repoRoot);
     this.scratchParent = scratchParent ?? fs.mkdtempSync(path.join(ciWorktreeScratchParent(), 'styleproof-ci-wt-'));
-    // A hard kill (SIGKILL, runner teardown) skips dispose() and leaves stale
-    // `git worktree` registrations pointing at deleted scratch dirs — on
-    // persistent self-hosted workspaces they accumulate forever. Pruning at
-    // session START makes each run clean up after any predecessor's crash;
-    // a prune failure must never block the run itself.
+    // A hard kill skips dispose() and leaves stale registrations that accumulate on
+    // persistent runners; pruning at START cleans up after any predecessor's crash.
     runGit(this.repoRoot, ['worktree', 'prune']);
   }
 
@@ -125,14 +105,12 @@ export class CiWorktreeSession {
     assertResolvableCommit(sha, this.repoRoot);
     const dir = path.join(this.scratchParent, `${label}-${sha.slice(0, 12)}`);
     if (fs.existsSync(dir)) removeDirRecursive(dir);
-
-    const add = runGit(this.repoRoot, ['worktree', 'add', '--detach', dir, sha]);
-    if (add.status !== 0) {
-      throw new CiWorktreeError(
-        `styleproof-ci: could not create a detached worktree at ${sha}\n${(add.stderr ?? add.stdout ?? '').trim()}`,
-        2,
-      );
-    }
+    ciGit(
+      this.repoRoot,
+      ['worktree', 'add', '--detach', dir, sha],
+      `could not create a detached worktree at ${sha}`,
+      2,
+    );
     this.worktrees.set(label, dir);
     return dir;
   }
@@ -141,32 +119,21 @@ export class CiWorktreeSession {
     const dir = this.worktrees.get(label);
     if (!dir) return;
     this.worktrees.delete(label);
-    const remove = runGit(this.repoRoot, ['worktree', 'remove', '--force', dir]);
-    if (remove.status !== 0) {
-      throw new CiWorktreeError(
-        `styleproof-ci: could not remove worktree ${dir}\n${(remove.stderr ?? remove.stdout ?? '').trim()}`,
-        1,
-      );
-    }
+    ciGit(this.repoRoot, ['worktree', 'remove', '--force', dir], `could not remove worktree ${dir}`, 1);
     removeDirRecursive(dir);
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const label of [...this.worktrees.keys()]) {
+    const warn = (what: string, cleanup: () => void) => {
       try {
-        this.remove(label);
+        cleanup();
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        process.stderr.write(`styleproof-ci: worktree cleanup warning (${label}): ${message}\n`);
+        process.stderr.write(`styleproof-ci: ${what} cleanup warning: ${errorMessage(error)}\n`);
       }
-    }
-    try {
-      removeDirRecursive(this.scratchParent);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`styleproof-ci: scratch cleanup warning: ${message}\n`);
-    }
+    };
+    for (const label of [...this.worktrees.keys()]) warn(`worktree (${label})`, () => this.remove(label));
+    warn('scratch', () => removeDirRecursive(this.scratchParent));
   }
 }

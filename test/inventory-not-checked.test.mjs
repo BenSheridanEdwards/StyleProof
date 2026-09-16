@@ -18,7 +18,7 @@ import { COVERAGE_LEDGER } from '../dist/coverage.js';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
 const diffBin = fs.readFileSync(path.join(root, 'bin', 'styleproof-diff.mjs'), 'utf8');
-const reportSrc = fs.readFileSync(path.join(root, 'src', 'report.ts'), 'utf8');
+const reportSrc = fs.readFileSync(path.join(root, 'src', 'report', 'certification.ts'), 'utf8');
 
 const nav = (keys) => keys.map((k) => ({ key: `nav-button:${k}`, kind: 'nav-button', label: k.toUpperCase() }));
 const mapWith = (inventory) =>
@@ -116,7 +116,7 @@ test('the Action names the armed-but-empty gate a COULD-NOT-RUN, not a pass (#47
 
 test('the report and the diff CLI decide "was it captured" through one predicate (#478)', () => {
   for (const [name, source] of [
-    ['src/report.ts', reportSrc],
+    ['src/report/certification.ts', reportSrc],
     ['bin/styleproof-diff.mjs', diffBin],
   ]) {
     assert.match(source, /hasCapturedInventory/, `${name} should use the shared predicate`);

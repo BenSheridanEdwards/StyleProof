@@ -1,116 +1,63 @@
+/**
+ * One-shot capture of a single URL's computed-style map — no spec, no config, no git. Writes
+ * `<key>@<width>.json.gz` (+ `.png`) in the same shape as a surface capture, so `styleproof-diff`
+ * compares a deployed page, static export, or mockup like any other capture.
+ */
 import fs from 'node:fs';
 import type { Browser, Page } from '@playwright/test';
 import { captureStyleMap, saveStyleMap, captureSurfaceScreenshots, trackInflightRequests } from './capture.js';
 import { detectViewportWidths } from './breakpoints.js';
-import { runSetup, type SetupStep } from './crawl-surfaces.js';
+import { runSetup } from './crawl/page.js';
+import { CRAWL_DEFAULTS, type SetupStep } from './crawl/types.js';
 import { writeCaptureManifest } from './map-store.js';
 import { captureArtifactStem } from './surface-keys.js';
-
-/**
- * One-shot capture of a single URL's computed-style map — no spec, no config,
- * no git. `defineStyleMapCapture` is the right tool when the surfaces live in
- * your own app and you want the coverage guard, the map store, and record/replay.
- * This is the tool for a page you just want to point at: a deployed URL, a
- * static export, or a standalone HTML mockup. Capture it into a directory of
- * `<key>@<width>.json.gz` maps (+ `.png`) that {@link diffStyleMapDirs} — i.e.
- * `styleproof-diff <a> <b>` — compares like any other capture.
- *
- * The output is deliberately the same shape a surface capture writes, so a
- * mockup's map and your app's committed map are directly diffable: capture the
- * design once, then diff each build against it to measure how close the
- * implementation is (a diff that shrinks toward zero as it converges).
- */
+import { errorMessage } from './util.js';
 
 /** Raised for bad CLI usage so the bin can print help and exit 2. */
 export class UsageError extends Error {}
 
 export type CaptureUrlOptions = {
-  /** Page to capture. */
   url: string;
   /** Capture file name prefix (`<key>@<width>.json.gz`); default `page`. */
   key: string;
-  /**
-   * Viewport widths to sweep, one per @media band. Empty = auto-detect from the
-   * loaded CSSOM (fails loudly on a cross-origin/unreadable stylesheet — pass
-   * widths explicitly for a page whose CSS can't be read, e.g. a cross-origin
-   * font stylesheet).
-   */
+  /** Empty = auto-detect from the CSSOM (fails loudly on a cross-origin sheet — pass widths for those). */
   widths: number[];
-  /** Output directory for the maps (+ screenshots). */
   out: string;
-  /** Selectors for nondeterministic regions to skip (passed through to capture). */
   ignore: string[];
-  /** Wait for this selector to be visible before capturing (reach the intended state). */
   waitSelector?: string;
-  /** Viewport height (default 800). */
   height: number;
-  /** Also write a full-page `.png` per capture (default true). */
   screenshots: boolean;
-  /**
-   * Crawl the URL's whole interactive surface instead of capturing one state:
-   * drive every non-destructive control, recurse into what opens, capture each
-   * discovered surface under a derived key. See {@link crawlAndCapture}.
-   */
+  /** Crawl the whole interactive surface instead of capturing one state (see `crawlAndCapture`). */
   crawl: boolean;
-  /** crawl: recursion depth into opened surfaces (default 16). */
   maxDepth: number;
-  /** crawl: fresh controls driven per state (default: unbounded — try them all). */
   maxActionsPerState: number;
-  /** crawl: safety backstop on total surfaces (default: unbounded — exhaustive). */
   maxStates: number;
-  /** crawl: clear storage on each reset so replay is deterministic (default true). */
   resetStorage: boolean;
-  /** crawl: exit non-zero unless every class the page's stylesheets define was
-   *  rendered in at least one captured surface (default false — report only). */
+  /** crawl: exit non-zero unless every stylesheet class rendered in a captured surface. */
   requireFullCoverage: boolean;
-  /** crawl: stop as soon as coverage is complete (every defined class seen) or
-   *  has converged (no new class for a plateau of surfaces). Turns the crawl
-   *  into a FAST coverage check that stops once it has seen everything, instead
-   *  of enumerating every combinatorial surface. Default false (exhaustive). */
+  /** crawl: stop once coverage is complete — a fast coverage check, not an exhaustive map. */
   untilCovered: boolean;
-  /** crawl: JSON file of deterministic setup steps (login, unlock, seed input)
-   *  run after every fresh navigation. See {@link loadSetupSteps}. */
   setupFile?: string;
-  /** Loaded setup steps (set by the CLI from `setupFile`); applied after every
-   *  navigation in BOTH modes, so a gated page's single state is capturable too. */
+  /** Loaded setup steps; applied in BOTH modes, so a gated page's single state is capturable too. */
   setup?: SetupStep[];
-  /** crawl: also capture automatic `loading`/`error` data states of the entry
-   *  page (default true). */
   dataStates: boolean;
-  /** crawl: concurrent sweep workers (default 4). 1 = byte-stable key attribution. */
   workers: number;
-  /** crawl: also crawl every same-origin page the nav links to (default true).
-   *  Off = the entry page's interactive surface only. */
   followLinks: boolean;
-  /** crawl: JSON file of auth-boundary exclusions (`key → non-empty reason`). */
   authBoundaryExcludeFile?: string;
-  /** Loaded auth-boundary exclusions (set by the CLI from the file). */
   authBoundaryExclude?: Record<string, string>;
-  /** crawl: JSON file of incomplete-UI exclusions (`surface → non-empty reason`). */
   incompleteUiExcludeFile?: string;
-  /** Loaded incomplete-UI exclusions (set by the CLI from the file). */
   incompleteUiExclude?: Record<string, string>;
 };
 
 const DEFAULTS = {
+  ...CRAWL_DEFAULTS,
   key: 'page',
+  out: 'styleproof-capture',
   height: 800,
-  screenshots: true,
   crawl: false,
-  // Exhaustive by default — these are safety backstops, not budgets.
-  // maxDepth mirrors CRAWL_DEFAULTS.maxDepth (crawl-surfaces.ts): 16 is
-  // exhaustive for real UI — no human-navigable surface is 16 clicks from load.
-  // The cap exists to bound append-generator UIs (a composer that appends a
-  // fresh-identity node per click, which dedup can't terminate); a higher value
-  // would make it decorative. Raise with --max-depth for a genuinely deeper nest.
-  maxDepth: 16,
-  maxActionsPerState: 100000,
-  maxStates: 100000,
-  resetStorage: true,
   requireFullCoverage: false,
   untilCovered: false,
   dataStates: true,
-  workers: 4,
   followLinks: true,
 };
 
@@ -130,8 +77,7 @@ function parseWidths(raw: string): number[] {
   return widths;
 }
 
-// Table-driven so adding a flag is one entry, not another branch in the loop.
-// value flags mutate the accumulator with their argument; bool flags take none.
+// Table-driven: value flags mutate the accumulator with their argument; bool flags take none.
 const VALUE_FLAGS: Record<string, (o: CaptureUrlOptions, v: string) => void> = {
   '--key': (o, v) => (o.key = v),
   '--widths': (o, v) => (o.widths = parseWidths(v)),
@@ -160,14 +106,11 @@ const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
   '--no-follow-links': (o) => (o.followLinks = false),
 };
 
-// Apply one argv token to the accumulator; returns the index to resume from
-// (advanced past a consumed `--flag value` pair). Flat early-returns so the
-// parse loop stays trivial. Supports `--flag value` and `--flag=value`.
+// Apply one argv token; returns the index to resume from. Supports `--flag value` and `--flag=value`.
 function applyArg(o: CaptureUrlOptions, argv: string[], i: number, positional: string[]): number {
   const a = argv[i];
   const eq = a.startsWith('--') ? a.indexOf('=') : -1;
   const name = eq === -1 ? a : a.slice(0, eq);
-
   const bool = BOOL_FLAGS[name];
   if (bool) {
     bool(o);
@@ -185,31 +128,15 @@ function applyArg(o: CaptureUrlOptions, argv: string[], i: number, positional: s
   return i;
 }
 
-/**
- * Parse `styleproof-capture` argv into options. Pure and throwing so the CLI
- * flow (help/exit codes) and this parse are testable without a browser.
- */
+/** Parse `styleproof-capture` argv into options. Pure and throwing, so it is testable without a browser. */
 export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
   const o: CaptureUrlOptions = {
+    ...DEFAULTS,
     url: '',
-    key: DEFAULTS.key,
     widths: [],
-    out: 'styleproof-capture',
     ignore: [],
     waitSelector: undefined,
-    height: DEFAULTS.height,
-    screenshots: DEFAULTS.screenshots,
-    crawl: DEFAULTS.crawl,
-    maxDepth: DEFAULTS.maxDepth,
-    maxActionsPerState: DEFAULTS.maxActionsPerState,
-    maxStates: DEFAULTS.maxStates,
-    resetStorage: DEFAULTS.resetStorage,
-    requireFullCoverage: DEFAULTS.requireFullCoverage,
-    untilCovered: DEFAULTS.untilCovered,
     setupFile: undefined,
-    dataStates: DEFAULTS.dataStates,
-    workers: DEFAULTS.workers,
-    followLinks: DEFAULTS.followLinks,
     authBoundaryExcludeFile: undefined,
     authBoundaryExclude: undefined,
     incompleteUiExcludeFile: undefined,
@@ -217,7 +144,6 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
   };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) i = applyArg(o, argv, i, positional);
-
   if (positional.length === 0) throw new UsageError('missing <url>');
   if (positional.length > 1) throw new UsageError(`expected one <url>, got ${positional.length}`);
   o.url = positional[0];
@@ -227,50 +153,38 @@ export function parseCaptureUrlArgs(argv: string[]): CaptureUrlOptions {
 /** Written artifacts for one width. */
 export type CaptureUrlResult = { width: number; map: string; screenshot?: string };
 
-/**
- * Capture `opts.url` at each width using an already-open {@link Page}, writing
- * `<out>/<key>@<width>.json.gz` (+ `.png`). Re-navigates per width so
- * width-dependent rendering (media queries, `matchMedia`) is captured fresh, and
- * arms the in-flight request tracker before each navigation so the page's own
- * load fetches count toward the network-aware settle — same contract as a
- * surface capture. Returns the files written.
- */
+async function loadReady(page: Page, opts: CaptureUrlOptions): Promise<void> {
+  await page.goto(opts.url, { waitUntil: 'load' });
+  if (opts.waitSelector) await page.locator(opts.waitSelector).first().waitFor({ state: 'visible' });
+  if (opts.setup?.length) await runSetup(page, opts.setup);
+}
+
+/** Capture `opts.url` at each width, re-navigating per width so width-dependent rendering is
+ *  captured fresh with the in-flight tracker armed — the same contract as a surface capture. */
 export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Promise<CaptureUrlResult[]> {
   fs.mkdirSync(opts.out, { recursive: true });
-  // Before the first goto: JS animation libraries read prefers-reduced-motion at
-  // mount, and their rAF-driven inline styles are beyond FREEZE_CSS's reach.
-  // Persists on the page for every navigation below.
+  // Before the first goto: animation libraries read prefers-reduced-motion at mount, and their
+  // rAF-driven inline styles are beyond FREEZE_CSS's reach. Persists for every navigation below.
   await page.emulateMedia({ reducedMotion: 'reduce' });
-
   let widths = opts.widths;
   if (widths.length === 0) {
     await page.setViewportSize({ width: 1280, height: opts.height });
-    await page.goto(opts.url, { waitUntil: 'load' });
-    if (opts.waitSelector) await page.locator(opts.waitSelector).first().waitFor({ state: 'visible' });
-    if (opts.setup?.length) await runSetup(page, opts.setup);
+    await loadReady(page, opts);
     widths = await detectViewportWidths(page);
   }
-
   const results: CaptureUrlResult[] = [];
   for (const width of widths) {
     await page.setViewportSize({ width, height: opts.height });
     const requests = trackInflightRequests(page);
     try {
-      await page.goto(opts.url, { waitUntil: 'load' });
-      if (opts.waitSelector) await page.locator(opts.waitSelector).first().waitFor({ state: 'visible' });
-      if (opts.setup?.length) await runSetup(page, opts.setup);
-      const map = await captureStyleMap(page, {
-        ignore: opts.ignore,
-        pendingRequests: requests.pending,
-        metadata: { surfaceKey: opts.key },
-      });
+      await loadReady(page, opts);
+      const capture = { ignore: opts.ignore, pendingRequests: requests.pending, metadata: { surfaceKey: opts.key } };
+      const map = await captureStyleMap(page, capture);
       const stem = captureArtifactStem(opts.out, opts.key, width);
-      const mapPath = `${stem}.json.gz`;
-      saveStyleMap(mapPath, map);
-      const result: CaptureUrlResult = { width, map: mapPath };
+      saveStyleMap(`${stem}.json.gz`, map);
+      const result: CaptureUrlResult = { width, map: `${stem}.json.gz` };
       if (opts.screenshots) {
-        // captureStyleMap froze animations, so the shot matches the mapped state.
-        await captureSurfaceScreenshots(page, stem, { ignore: opts.ignore });
+        await captureSurfaceScreenshots(page, stem, { ignore: opts.ignore }); // animations already frozen by the map capture
         result.screenshot = `${stem}.png`;
       }
       results.push(result);
@@ -278,9 +192,8 @@ export async function captureUrlToDir(page: Page, opts: CaptureUrlOptions): Prom
       requests.dispose();
     }
   }
-  // Stamp a manifest so `styleproof-diff <thisDir> <build>` has the same-environment
-  // guard on both sides — v4 refuses to compare a manifest-less side. May run outside
-  // a git repo (a design mockup); the git fields degrade gracefully.
+  // A manifest gives `styleproof-diff <thisDir> <build>` the same-environment guard on both sides;
+  // outside a git repo (a design mockup) the git fields degrade gracefully.
   writeCaptureManifest({ dir: opts.out, screenshots: opts.screenshots });
   return results;
 }
@@ -292,28 +205,26 @@ export async function runCaptureUrl(
 ): Promise<CaptureUrlResult[]> {
   const browser = await launch();
   try {
-    const page = await browser.newPage();
-    return await captureUrlToDir(page, opts);
+    return await captureUrlToDir(await browser.newPage(), opts);
   } finally {
     await browser.close();
   }
 }
 
+function readJsonFile(file: string, flag: string): unknown {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    throw new UsageError(`${flag}: cannot read ${file}: ${errorMessage(e)}`);
+  }
+}
+
 const SETUP_ACTIONS = new Set(['goto', 'fill', 'click', 'waitFor']);
 
-/**
- * Load and validate a `--setup` steps file, interpolating `${ENV_VAR}` in every
- * `value` and `url` from the environment — so credentials for an input-gated
- * page live in env vars, never in the file, the shell history, or the maps.
- * Throws {@link UsageError} on a malformed file or a missing variable.
- */
+/** Load and validate a `--setup` steps file, interpolating `${ENV_VAR}` in every `value` and `url`
+ *  so credentials never live in the file or the maps. Throws {@link UsageError} on a bad file or missing variable. */
 export function loadSetupSteps(file: string, env: NodeJS.ProcessEnv = process.env): SetupStep[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (e) {
-    throw new UsageError(`--setup: cannot read ${file}: ${e instanceof Error ? e.message : String(e)}`);
-  }
+  const parsed = readJsonFile(file, '--setup');
   if (!Array.isArray(parsed)) throw new UsageError('--setup: the file must be a JSON array of steps');
   const interpolate = (raw: string): string =>
     raw.replace(/\$\{([A-Z0-9_]+)\}/gi, (_, name: string) => {
@@ -336,52 +247,30 @@ export function loadSetupSteps(file: string, env: NodeJS.ProcessEnv = process.en
   });
 }
 
-/**
- * Load a `--auth-boundary-exclude` JSON object (`key → reason`). Every reason
- * must be a non-empty string — empty reasons are rejected so silence cannot
- * clear a fail-closed authentication boundary.
- */
-export function loadAuthBoundaryExclude(file: string): Record<string, string> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (e) {
-    throw new UsageError(`--auth-boundary-exclude: cannot read ${file}: ${e instanceof Error ? e.message : String(e)}`);
-  }
+/** Load a `<key> → non-empty reason` JSON object. Empty reasons are rejected so silence cannot clear a fail-closed boundary. */
+function loadReasonMap(file: string, flag: string, noun: string, keyNoun: string): Record<string, string> {
+  const parsed = readJsonFile(file, flag);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new UsageError('--auth-boundary-exclude: the file must be a JSON object of key → reason');
+    throw new UsageError(`${flag}: the file must be a JSON object of ${noun} → reason`);
   }
   const out: Record<string, string> = {};
   for (const [rawKey, rawReason] of Object.entries(parsed as Record<string, unknown>)) {
-    const key = typeof rawKey === 'string' ? rawKey.trim() : '';
-    if (!key) throw new UsageError('--auth-boundary-exclude: exclusion key must be a non-empty string');
+    const key = rawKey.trim();
+    if (!key) throw new UsageError(`${flag}: ${keyNoun} must be a non-empty string`);
     if (typeof rawReason !== 'string' || !rawReason.trim()) {
-      throw new UsageError(`--auth-boundary-exclude: exclusion for "${key}" needs a non-empty reason`);
+      throw new UsageError(`${flag}: exclusion for "${key}" needs a non-empty reason`);
     }
     out[key] = rawReason.trim();
   }
   return out;
 }
 
+/** Load a `--auth-boundary-exclude` JSON object (`key → reason`). */
+export function loadAuthBoundaryExclude(file: string): Record<string, string> {
+  return loadReasonMap(file, '--auth-boundary-exclude', 'key', 'exclusion key');
+}
+
 /** Load a reasoned incomplete-UI surface exclusion map. */
 export function loadIncompleteUiExclude(file: string): Record<string, string> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (e) {
-    throw new UsageError(`--incomplete-ui-exclude: cannot read ${file}: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new UsageError('--incomplete-ui-exclude: the file must be a JSON object of surface → reason');
-  }
-  const out: Record<string, string> = {};
-  for (const [rawSurface, rawReason] of Object.entries(parsed as Record<string, unknown>)) {
-    const surface = rawSurface.trim();
-    if (!surface) throw new UsageError('--incomplete-ui-exclude: surface must be a non-empty string');
-    if (typeof rawReason !== 'string' || !rawReason.trim()) {
-      throw new UsageError(`--incomplete-ui-exclude: exclusion for "${surface}" needs a non-empty reason`);
-    }
-    out[surface] = rawReason.trim();
-  }
-  return out;
+  return loadReasonMap(file, '--incomplete-ui-exclude', 'surface', 'surface');
 }

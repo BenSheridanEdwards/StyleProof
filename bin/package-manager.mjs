@@ -1,38 +1,34 @@
+// Detect the consumer's package manager: package.json#packageManager wins, else the lockfile.
 import fs from 'node:fs';
 import path from 'node:path';
+import { errorMessage } from './cli.mjs';
 
-const SUPPORTED_PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
-
-function declaredPackageManager(value) {
-  if (typeof value !== 'string') {
-    throw new Error('package.json#packageManager must be a string');
-  }
-  const declared = value.split('@', 1)[0];
-  if (!SUPPORTED_PACKAGE_MANAGERS.has(declared)) {
-    throw new Error(`unsupported package.json#packageManager: ${value}`);
-  }
-  return declared;
-}
+const LOCKFILES = [
+  ['npm', ['package-lock.json']],
+  ['pnpm', ['pnpm-lock.yaml']],
+  ['yarn', ['yarn.lock']],
+  ['bun', ['bun.lock', 'bun.lockb']],
+];
+const SUPPORTED = new Set(LOCKFILES.map(([name]) => name));
 
 export function detectPackageManager(root, { allowMissingManifest = false } = {}) {
   let manifest;
   try {
     manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   } catch (error) {
-    if (allowMissingManifest && error && typeof error === 'object' && error.code === 'ENOENT') return 'npm';
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`could not read package.json: ${detail}`, { cause: error });
+    if (allowMissingManifest && error?.code === 'ENOENT') return 'npm';
+    throw new Error(`could not read package.json: ${errorMessage(error)}`, { cause: error });
   }
-
-  if (manifest.packageManager !== undefined) {
-    return declaredPackageManager(manifest.packageManager);
+  const declared = manifest.packageManager;
+  if (declared !== undefined) {
+    if (typeof declared !== 'string') throw new Error('package.json#packageManager must be a string');
+    const name = declared.split('@', 1)[0];
+    if (!SUPPORTED.has(name)) throw new Error(`unsupported package.json#packageManager: ${declared}`);
+    return name;
   }
-
-  const detected = [];
-  if (fs.existsSync(path.join(root, 'package-lock.json'))) detected.push('npm');
-  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) detected.push('pnpm');
-  if (fs.existsSync(path.join(root, 'yarn.lock'))) detected.push('yarn');
-  if (fs.existsSync(path.join(root, 'bun.lock')) || fs.existsSync(path.join(root, 'bun.lockb'))) detected.push('bun');
+  const detected = LOCKFILES.filter(([, files]) => files.some((f) => fs.existsSync(path.join(root, f)))).map(
+    ([name]) => name,
+  );
   if (detected.length > 1) {
     throw new Error(
       `multiple package-manager lockfiles found (${detected.join(', ')}); set package.json#packageManager explicitly`,

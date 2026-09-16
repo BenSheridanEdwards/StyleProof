@@ -739,26 +739,6 @@ test('stateRecipeGo: returns Promise<void> driver after validating recipe', asyn
   assert.throws(() => stateRecipeGo({ action: 'hover', selector: `input[value=secret-nope]` }), /privacy policy/);
 });
 
-test('package index re-exports consumer API (no stateRecipeDriver; has stateRecipeGo)', async () => {
-  const pkg = await import('../dist/index.js');
-  assert.equal(typeof pkg.isAllowedPressKey, 'function');
-  assert.ok(Array.isArray(pkg.ALLOWED_PRESS_KEYS));
-  assert.deepEqual([...pkg.ALLOWED_PRESS_KEYS], [...ALLOWED_PRESS_KEYS]);
-  assert.equal(pkg.isAllowedPressKey('Enter'), true);
-  assert.equal(pkg.isAllowedPressKey('Control+Enter'), false);
-  assert.equal(typeof pkg.parseStateRecipes, 'function');
-  assert.equal(typeof pkg.validateStateRecipe, 'function');
-  assert.equal(typeof pkg.applyStateRecipe, 'function');
-  assert.equal(typeof pkg.stateRecipeGo, 'function');
-  assert.equal(pkg.stateRecipeDriver, undefined);
-  assert.equal(typeof pkg.StateRecipeError, 'function');
-  // Type fixture module is built (go only — not setup)
-  const fixture = await import('../dist/state-recipe-go-assignability.js');
-  assert.equal(fixture.stateRecipeSurfaceVariantFixture.key, 'plan-card-hover');
-  assert.equal(typeof fixture.stateRecipeSurfaceVariantFixture.go, 'function');
-  assert.equal(fixture.stateRecipeSurfaceVariantFixture.setup, undefined);
-});
-
 // ---------------------------------------------------------------------------
 // Linear scanners — CodeQL js/polynomial-redos regression shapes
 // Semantic accept/reject + bounded completion (not timing-theater alone).

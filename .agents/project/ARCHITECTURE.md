@@ -6,34 +6,76 @@ re-exported from `src/index.ts`.
 
 ## The pipeline
 
-The tool runs one direction: **capture → store → diff → report**.
+The tool runs one direction: **capture → store → diff → report**. Each stage has
+one entry module at the top of `src/` that re-exports its public surface, and a
+folder of the same name that holds the implementation.
 
-1. **Capture** (`capture.ts`, `capture-url.ts`) — opens a surface in a real
-   browser (Playwright/CDP) and records the browser's computed styles for every
-   captured element into a `StyleMap` (JSON), per breakpoint width.
-2. **Discover / crawl** — surfaces can be listed by hand or discovered:
-   `routes.ts` (`discoverNextRoutes`), `crawl.ts` + `crawl-surfaces.ts` (link
-   crawling), `components.ts` (component catalogs), `variant-crawler.ts` (open
-   states / variants).
-3. **Store** (`map-store.ts`, `inventory.ts`) — style maps are written to a
-   directory keyed by surface and width; the inventory tracks what exists.
-4. **Diff** (`diff.ts`, `change-groups.ts`, `affected-surfaces.ts`,
-   `canonicalize.ts`) — compares a base directory against a head directory and
-   produces `Finding`s grouped into changes; `coverage.ts` enforces the coverage
-   guard (a registered-but-uncaptured surface fails).
-5. **Report** (`report.ts`, `describe.ts`, `png-util.ts`) — renders the Markdown
-   report with screenshots that a reviewer reads on the PR.
+1. **Capture** (`capture.ts` → `capture/`) — `capture/browser.ts` holds every
+   function that runs inside the page (serialized to Playwright/CDP, so it must
+   stay self-contained); `capture/forced-states.ts` drives the CDP forced-state
+   layers; `capture/map-io.ts` reads and writes `StyleMap` files;
+   `capture/network.ts` tracks in-flight requests and data residue;
+   `capture/recipe-policy.ts` is the state-recipe privacy policy;
+   `capture/url-glob.ts` and `capture/shared.ts` are small helpers.
+   `capture-url.ts` is the spec-less one-shot capture.
+2. **Spec runner** (`runner.ts` → `runner/`) — the `defineStyleMapCapture` /
+   `defineCrawlCapture` API: `runner/settings.ts` (env + option resolution),
+   `runner/variants.ts` (surface × variant expansion), `runner/self-check.ts`
+   (determinism self-check and failure tolerance), `runner/popups.ts`,
+   `runner/surface-capture.ts`, `runner/crawl-capture.ts`, and
+   `runner/browser.ts` (in-page snapshot functions). `state-recipes.ts`
+   parses and executes declarative state recipes.
+3. **Discover / crawl** (`crawl-surfaces.ts` → `crawl/`) — `crawl/browser.ts`
+   (in-page discovery), `crawl/page.ts` (navigation, setup steps, settle,
+   capture-in-place), `crawl/sweep.ts` (the breadth-first sweep and worker
+   pool), `crawl/report.ts` (pure aggregation the capture CLI prints),
+   `crawl/types.ts`. `crawl.ts` selects links, `routes.ts` discovers Next.js
+   routes, `components.ts` + `component-manifest.ts` handle component
+   catalogs, `variant-crawler.ts` harvests open states, `breakpoints.ts`
+   detects viewport widths, `auth-boundary.ts` / `incomplete-ui.ts` /
+   `crawl-confidence.ts` / `confidence-ledger.ts` classify what the crawl
+   could not reach.
+4. **Store** (`map-store.ts` → `map-store/`) — `map-store/bundle.ts` (bundle
+   file names, evidence digest, failure ledger), `map-store/manifest.ts`
+   (compatibility key, manifest build/validate), `map-store/git-transport.ts`
+   (auth headers, retries, sparse checkout), `map-store/store.ts` (publish,
+   restore, list, cached capture dirs), `map-store/source-binding.ts`,
+   `map-store/receipts.ts` (baseline-failure receipts and the Action's
+   comment/status formatters), `map-store/json.ts`. `inventory.ts`,
+   `data-residue.ts`, `legacy-pairs.ts`, `critical-obligations.ts` read the
+   acknowledgement ledgers through `ack-ledger.ts`.
+5. **Diff** (`diff.ts`, `findings-clean.ts`, `change-groups.ts`,
+   `change-chrome.ts`, `path-correspondence.ts`, `comparability-status.ts`,
+   `canonicalize.ts`, `describe.ts`, `prop-summary.ts`, `pixel-diff.ts`) —
+   compares a base directory against a head directory into `Finding`s;
+   `coverage.ts` enforces the coverage guard; `verdict.ts` turns the evidence
+   into the single certification verdict the CLI, Action, and comment share.
+6. **Report** (`report.ts` → `report/`) — `report/headline.ts`,
+   `report/certification.ts`, `report/regions.ts`, `report/crop-pair.ts`,
+   `report/png.ts`, `report/markdown.ts`, `report/content-layer.ts`,
+   `report/migration-gallery.ts`, `report/sections.ts`, `report/geometry.ts`,
+   `report/annotation-paths.ts`, `report/shared.ts`. Output must stay
+   byte-identical to `docs/demo/` (`npm run demo:report -- --check`).
 
-Supporting modules: `runner.ts` (the `defineStyleMapCapture` / `defineCrawlCapture`
-spec API), `breakpoints.ts` (viewport width detection), `action-context.ts` +
-`danger.ts` + `gitref.ts` (Action/CI glue), `cli-errors.ts` (`UsageError`).
+Configuration lives in `config.ts` → `config/` (`schema.ts` is the table-driven
+validator, `load.ts` / `load-ts.ts` discover and evaluate the file, `spec.ts`
+resolves the capture spec path). Shared helpers: `util.ts` (pure),
+`node-util.ts` (git spawn, hashing, retried removal), `github-git-data.ts`
+(the GitHub git-data client used by the branch-maintenance commands),
+`safe-filesystem.ts`, `ci.ts` / `ci-worktree.ts` / `ci-spec-ref.ts` /
+`ancestor-baseline.ts` / `gitref.ts` (CI glue), `action-context.ts` +
+`report-delivery.ts` + `comment-supersession.ts` (Action glue).
 
 ## Entrypoints
 
 - **Library:** `src/index.ts` → `dist/index.js` (`main`/`types` in package.json).
-- **CLIs** (`bin/*.mjs`): `styleproof-init`, `styleproof-map`,
-  `styleproof-capture`, `styleproof-diff`, `styleproof-report`,
-  `styleproof-variants`.
+- **CLIs** (`bin/*.mjs`): `styleproof` dispatches to the `styleproof-*`
+  commands. Every command declares its flags through `bin/cli.mjs`;
+  `styleproof-diff` and `styleproof-report` share `bin/compare.mjs`;
+  `styleproof-ci` and `styleproof-prepush` share `bin/ci-shared.mjs`;
+  `styleproof-init` keeps its generated files in `bin/init/templates.mjs`
+  and its safe writes / hook activation in `bin/init/files.mjs` and
+  `bin/init/hooks.mjs`.
 - **Action:** `action.yml` composes the CLIs into a PR gate that posts a report
   comment and can fail on diff or unacknowledged removals.
 

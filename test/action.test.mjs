@@ -16,6 +16,7 @@ const actionYml = fs.readFileSync(path.join(here, '..', 'action.yml'), 'utf8');
 const dogfoodYml = fs.readFileSync(path.join(here, '..', '.github/workflows/action-dogfood.yml'), 'utf8');
 const publishBin = fs.readFileSync(path.join(here, '..', 'bin', 'styleproof-publish-report.mjs'), 'utf8');
 const publishModule = fs.readFileSync(path.join(here, '..', 'src', 'report-publish.ts'), 'utf8');
+const gitDataModule = fs.readFileSync(path.join(here, '..', 'src', 'github-git-data.ts'), 'utf8');
 
 function extractActionStep(stepStartPattern, stepEndPattern) {
   return actionYml.match(new RegExp(`${stepStartPattern}[\\s\\S]*?(?=${stepEndPattern})`));
@@ -664,7 +665,7 @@ test('composite action publishes a durable no-change report on a clean first run
   assert.match(publishStep[0], /styleproof-publish-report\.mjs/);
   assert.match(
     publishBin,
-    /styleproof-receipt head-sha:\$\{options\['head-sha'\]\} run-id:\$\{options\['run-id'\]\} run-attempt:\$\{options\['run-attempt'\]\}/,
+    /styleproof-receipt head-sha:\$\{opts\['head-sha'\]\} run-id:\$\{opts\['run-id'\]\} run-attempt:\$\{opts\['run-attempt'\]\}/,
   );
   assert.match(commentStep[0], /const url =/);
   assert.doesNotMatch(commentStep[0], /if \(!report\)/);
@@ -708,8 +709,8 @@ test('composite action never clones the report branch to publish', () => {
   assert.doesNotMatch(publishStep[0], /git push/);
   // Transient API failures and the fast-forward race stay inside a bounded
   // retry loop in the publisher module.
-  assert.match(publishModule, /maximumAttempts \?\? 5/);
-  assert.match(publishModule, /force: false/);
+  assert.match(gitDataModule, /maximumAttempts \?\? 5/);
+  assert.match(gitDataModule, /force: false/);
 });
 
 test('certify mode fails only when the difference verdict changed', () => {
@@ -734,7 +735,7 @@ test('composite action publishes every generated report crop', () => {
   assert.ok(publishStep, 'action.yml should include a report publish step');
   // collectReportFiles takes every crops/*.png, not a hardcoded suffix list.
   assert.match(publishBin, /collectReportFiles/);
-  assert.match(publishModule, /cropFileName\.endsWith\('\.png'\)/);
+  assert.match(publishModule, /name\.endsWith\('\.png'\)/);
   assert.doesNotMatch(publishModule, /-composite\.png|-annotated\.png|-new\.png/);
 });
 
@@ -745,9 +746,9 @@ test('composite action binds report commits and links to the exact report revisi
   assert.match(publishStep[0], /REPORT_SHA='\$\{\{ steps\.context\.outputs\.head-sha \}\}'/);
   // The commit message binds the folder to the exact head SHA, and the
   // advertised links pin the exact published commit.
-  assert.match(publishBin, /StyleProof report \$\{options\['report-path'\]\} @ \$\{options\['head-sha'\]\}/);
-  assert.match(publishBin, /blob\/\$\{commitSha\}\/\$\{options\['report-path'\]\}\/report\.md/);
-  assert.match(publishBin, /raw\.githubusercontent\.com\/\$\{options\.repository\}\/\$\{commitSha\}/);
+  assert.match(publishBin, /StyleProof report \$\{reportPath\} @ \$\{opts\['head-sha'\]\}/);
+  assert.match(publishBin, /blob\/\$\{commitSha\}\/\$\{reportPath\}\/report\.md/);
+  assert.match(publishBin, /raw\.githubusercontent\.com\/\$\{opts\.repository\}\/\$\{commitSha\}/);
 });
 
 test('composite action marks certify-mode comments with their source head SHA', () => {
@@ -807,9 +808,6 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
       residue: 'DATA_RESIDUE_UNACKNOWLEDGED',
       removed: 'INVENTORY_REMOVAL_UNACKNOWLEDGED',
       certfail: 'CERTIFICATION_FAILED',
-      'integrity-repair-connector': 'CERTIFICATION_FAILED',
-      'integrity-repair-duplicate': 'CERTIFICATION_FAILED',
-      'integrity-repair-mismatch': 'CERTIFICATION_FAILED',
     };
     for (const [fixture, expectedState] of Object.entries(expectedStates)) {
       const caseRoot = path.join(root, `${fixture}-case`);
@@ -911,7 +909,7 @@ test('dogfood workflow runs the local composite action against every trust-state
     /node scripts\/action-dogfood-fixtures\.mjs action-dogfood '\$\{\{ github\.event\.pull_request\.base\.sha \}\}' '\$\{\{ github\.event\.pull_request\.head\.sha \}\}'/,
   );
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 15);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 12);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
@@ -938,12 +936,6 @@ test('dogfood workflow runs the local composite action against every trust-state
   // Unproven provenance is dogfooded end-to-end as CERTIFICATION_FAILED — the
   // state 4.6.2's content-geometry bug hid in, undetected because it was never
   // exercised here.
-  assert.match(dogfoodYml, /action-dogfood\/integrity-repair-connector-base/);
-  assert.match(dogfoodYml, /steps\.integrity-repair-connector\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
-  assert.match(dogfoodYml, /action-dogfood\/integrity-repair-duplicate-base/);
-  assert.match(dogfoodYml, /steps\.integrity-repair-duplicate\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
-  assert.match(dogfoodYml, /action-dogfood\/integrity-repair-mismatch-base/);
-  assert.match(dogfoodYml, /steps\.integrity-repair-mismatch\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /action-dogfood\/certfail-base/);
   assert.match(dogfoodYml, /steps\.certfail\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /steps\.certfail\.outcome }}' = 'failure'/);
@@ -1345,13 +1337,13 @@ test('composite action self-verifies the published receipt before advertising th
   // The read-back: fetch the report at the EXACT commit being advertised and
   // require the receipt embedded for this run (head SHA + run id + attempt).
   assert.match(publishModule, /application\/vnd\.github\.raw/);
-  assert.match(publishModule, /readPublishedBytes\(options, fetchImplementation, 'report\.md'\)/);
-  assert.match(publishModule, /readPublishedBytes\(options, fetchImplementation, 'report\.json'\)/);
+  assert.match(publishModule, /readPublishedBytes\(options, 'report\.md'\)/);
+  assert.match(publishModule, /readPublishedBytes\(options, 'report\.json'\)/);
   // #475: the receipt marker itself names head SHA + run id + attempt, so the
   // read-back still proves the published report belongs to THIS run without the
   // deleted release-confidence sidecar. report.json must still parse cleanly.
   assert.doesNotMatch(publishModule, /release-confidence|manifestDigest/);
-  assert.match(publishModule, /markdown\.includes\(options\.expectedReceipt\)/);
+  assert.match(publishModule, /decoder\.decode\(markdown\)\.includes\(expectedReceipt\)/);
   assert.match(publishModule, /hasDuplicateJsonKeys\(reportSource\)/);
   // Fail CLOSED on a dead or mismatched report — never a green run with a bad URL.
   assert.match(publishModule, /do not trust this run's report/);
@@ -1472,7 +1464,8 @@ test('composite action makes required product-state identity a closed-set certif
 
 test('report CLI exposes strict product-state identity mode and passes it to report generation', () => {
   const reportCli = fs.readFileSync(path.join(here, '..', 'bin', 'styleproof-report.mjs'), 'utf8');
-  assert.match(reportCli, /--require-state-identity/);
+  const compareCli = fs.readFileSync(path.join(here, '..', 'bin', 'compare.mjs'), 'utf8');
+  assert.match(compareCli, /'require-state-identity'/);
   assert.match(reportCli, /requireStateIdentity/);
   assert.match(reportCli, /generateStyleMapReport\([\s\S]*?requireStateIdentity/);
 });

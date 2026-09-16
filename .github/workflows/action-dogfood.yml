@@ -177,62 +177,6 @@ jobs:
           test '${{ steps.removed.outputs.changed }}' = 'true'
           test '${{ steps.removed.outputs.trust-state }}' = 'INVENTORY_REMOVAL_UNACKNOWLEDGED'
 
-      - id: integrity-repair-connector
-        continue-on-error: true
-        uses: ./
-        with:
-          baseline-dir: action-dogfood/integrity-repair-connector-base
-          fresh-dir: action-dogfood/integrity-repair-connector-head
-          report-storage: branch
-          report-branch: styleproof-action-dogfood
-          fail-on-diff: 'false'
-
-      - name: Assert connector-partial stays unapprovable and names the repair path
-        run: |
-          test '${{ steps.integrity-repair-connector.outcome }}' = 'failure'
-          test '${{ steps.integrity-repair-connector.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
-          grep -F 'connector-partial' styleproof-report/report.md
-          grep -F 'What broke' styleproof-report/report.md
-          grep -F 'What to fix' styleproof-report/report.md
-          grep -F 'How to verify' styleproof-report/report.md
-          grep -F 'connector-partial' styleproof-audit.json
-
-      - id: integrity-repair-duplicate
-        continue-on-error: true
-        uses: ./
-        with:
-          baseline-dir: action-dogfood/integrity-repair-duplicate-base
-          fresh-dir: action-dogfood/integrity-repair-duplicate-head
-          report-storage: branch
-          report-branch: styleproof-action-dogfood
-          fail-on-diff: 'false'
-
-      - name: Assert duplicate-id stays unapprovable and names the repair path
-        run: |
-          test '${{ steps.integrity-repair-duplicate.outcome }}' = 'failure'
-          test '${{ steps.integrity-repair-duplicate.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
-          grep -F 'duplicate-id' styleproof-report/report.md
-          grep -F 'What broke' styleproof-report/report.md
-          grep -F 'duplicate-id' styleproof-audit.json
-
-      - id: integrity-repair-mismatch
-        continue-on-error: true
-        uses: ./
-        with:
-          baseline-dir: action-dogfood/integrity-repair-mismatch-base
-          fresh-dir: action-dogfood/integrity-repair-mismatch-head
-          report-storage: branch
-          report-branch: styleproof-action-dogfood
-          fail-on-diff: 'false'
-
-      - name: Assert integrity-mismatch stays unapprovable and names the repair path
-        run: |
-          test '${{ steps.integrity-repair-mismatch.outcome }}' = 'failure'
-          test '${{ steps.integrity-repair-mismatch.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
-          grep -F 'integrity-mismatch' styleproof-report/report.md
-          grep -F 'What broke' styleproof-report/report.md
-          grep -F 'integrity-mismatch' styleproof-audit.json
-
       - id: legacy-identity
         uses: ./
         with:
@@ -286,7 +230,6 @@ jobs:
           test '${{ steps.legacy-undeclared.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
           grep -E 'undeclared legacy pair' styleproof-report/report.md
           grep -F 'cannot certify' styleproof-report/report.md
-
 
       - id: certfail
         continue-on-error: true

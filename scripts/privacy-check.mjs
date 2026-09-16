@@ -26,11 +26,15 @@ function lineOf(text, index) {
   return text.slice(0, index).split('\n').length;
 }
 
-function addRegexFindings(out, file, text, rule, regex) {
-  for (const match of text.matchAll(regex)) {
-    out.push({ file, line: lineOf(text, match.index ?? 0), rule, match: match[0].trim() });
-  }
-}
+const RULES = [
+  [
+    'absolute local path',
+    /(?:^|[\s"'(=])(?:\/Users\/|\/private\/|\/home\/[^/\s]+\/|\/var\/folders\/|[A-Za-z]:\\Users\\)[^\s)"'<>]*/g,
+  ],
+  ['file url', /\bfile:\/\/[^\s)"'<>]+/g],
+  ['private network url', /\bhttps?:\/\/(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)[^\s)"'<>]*/g],
+  ['internal hostname', /\bhttps?:\/\/[A-Za-z0-9.-]+\.(?:corp|internal|lan|private)(?::\d+)?(?:\/[^\s)"'<>]*)?/gi],
+];
 
 function githubUrlFindings(out, file, text) {
   const urlRe = /https?:\/\/(?:github\.com|raw\.githubusercontent\.com)\/[^\s)"'<>]+/gi;
@@ -49,28 +53,11 @@ function githubUrlFindings(out, file, text) {
 export function findPrivacyFindings(entries, denylist = []) {
   const out = [];
   for (const { file, text } of entries) {
-    addRegexFindings(
-      out,
-      file,
-      text,
-      'absolute local path',
-      /(?:^|[\s"'(=])(?:\/Users\/|\/private\/|\/home\/[^/\s]+\/|\/var\/folders\/|[A-Za-z]:\\Users\\)[^\s)"'<>]*/g,
-    );
-    addRegexFindings(out, file, text, 'file url', /\bfile:\/\/[^\s)"'<>]+/g);
-    addRegexFindings(
-      out,
-      file,
-      text,
-      'private network url',
-      /\bhttps?:\/\/(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)[^\s)"'<>]*/g,
-    );
-    addRegexFindings(
-      out,
-      file,
-      text,
-      'internal hostname',
-      /\bhttps?:\/\/[A-Za-z0-9.-]+\.(?:corp|internal|lan|private)(?::\d+)?(?:\/[^\s)"'<>]*)?/gi,
-    );
+    for (const [rule, regex] of RULES) {
+      for (const match of text.matchAll(regex)) {
+        out.push({ file, line: lineOf(text, match.index ?? 0), rule, match: match[0].trim() });
+      }
+    }
     githubUrlFindings(out, file, text);
 
     for (const token of denylist) {
@@ -87,13 +74,10 @@ function textFile(file) {
 
 function walk(dir) {
   if (!fs.existsSync(dir)) return [];
-  const out = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walk(file));
-    else out.push(file);
-  }
-  return out;
+    return entry.isDirectory() ? walk(file) : [file];
+  });
 }
 
 function npmPackFiles(root) {

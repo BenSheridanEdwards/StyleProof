@@ -9,34 +9,16 @@ The long-form contract behind the README: gate states, coverage ownership, surfa
 A StyleProof pull-request comment is a trust state, not a score. Reviewer
 approval can clear only `STYLE_REVIEW_REQUIRED`. Each state appears once.
 
-| State                              | What the comment means                                                                                         | Approval box                               |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `NO_REVIEWABLE_STYLE_CHANGES`      | Captured computed styles match. Content/structure may still be advisory.                                       | Hidden. Check is green.                    |
-| `STYLE_REVIEW_REQUIRED`            | Reviewable style or new-surface evidence exists.                                                               | Shown. One tick signs off this commit.     |
-| `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                                               | Hidden. Approval cannot clear it.          |
-| `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified.                             | Hidden. Approval cannot clear it.          |
-| `CERTIFICATION_FAILED`             | Coverage, determinism, report/diff consistency, or integrity evidence is incomplete (not a recapture failure). | Hidden. Approval cannot clear it.          |
-| `PARTIAL_BASELINE`                 | Named surface+SHA failed on the base bundle (Action copy interpolates the receipt). Not a recapture failure.   | Hidden. Repair those surfaces on that SHA. |
-| `DEGRADED_BASELINE`                | `base-capture-failed=true`: the base capture failed. This is a head-only receipt.                              | Hidden. Not a comparison.                  |
-| `REPORT_PUBLICATION_FAILED`        | The report artifact upload, report-branch publish, comment, or status delivery failed.                          | Hidden. Delivery failed.                   |
-
-#### Integrity repair (`connector-partial` / `duplicate-id` / `integrity-mismatch`)
-
-These three reasons keep the run at `CERTIFICATION_FAILED`. They are not style
-deltas and not a base recapture failure. Reviewer approval cannot clear them.
-The report, `styleproof-audit.json`, and the pull-request comment each name
-**what broke**, **what to fix**, and **how to verify**.
-
-| Reason               | What broke                                                                | What to fix                                                                                          | How to verify                                                                          |
-| -------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `connector-partial`  | The map-store or evidence connector restored only some expected surfaces. | Restore or recapture the missing surfaces and republish the bundle.                                  | Re-run `styleproof-diff` or the Action. The connector receipt must read `complete`.    |
-| `duplicate-id`       | A style map has a duplicate JSON key or a duplicate inventory identity.   | Give each element or affordance a unique key, then recapture.                                        | Re-run `styleproof-diff` or the Action. The report must no longer name `duplicate-id`. |
-| `integrity-mismatch` | A claimed source SHA or content digest does not match the bytes on disk.  | Restore or recapture from the exact claimed SHA. Do not reuse a map that failed digest verification. | Re-run `styleproof-diff` or the Action. Claimed and actual digests must match.         |
-
-Connectors can write `styleproof-connector.json` (`status: "partial"`) or
-`styleproof-integrity.json` (`claimedDigest` / `actualDigest`) next to the maps.
-StyleProof also flags duplicate JSON keys inside a style map and a sibling
-`.sha256` digest that does not match the file bytes.
+| State                              | What the comment means                                                                                       | Approval box                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `NO_REVIEWABLE_STYLE_CHANGES`      | Captured computed styles match. Content/structure may still be advisory.                                     | Hidden. Check is green.                    |
+| `STYLE_REVIEW_REQUIRED`            | Reviewable style or new-surface evidence exists.                                                             | Shown. One tick signs off this commit.     |
+| `INVENTORY_REMOVAL_UNACKNOWLEDGED` | A navigable affordance disappeared without a reasoned exclusion.                                             | Hidden. Approval cannot clear it.          |
+| `DATA_RESIDUE_UNACKNOWLEDGED`      | A data-boundary request failed during capture, so a fallback branch was certified.                           | Hidden. Approval cannot clear it.          |
+| `CERTIFICATION_FAILED`             | Coverage, determinism, or report/diff consistency evidence is incomplete (not a recapture failure).          | Hidden. Approval cannot clear it.          |
+| `PARTIAL_BASELINE`                 | Named surface+SHA failed on the base bundle (Action copy interpolates the receipt). Not a recapture failure. | Hidden. Repair those surfaces on that SHA. |
+| `DEGRADED_BASELINE`                | `base-capture-failed=true`: the base capture failed. This is a head-only receipt.                            | Hidden. Not a comparison.                  |
+| `REPORT_PUBLICATION_FAILED`        | The report artifact upload, report-branch publish, comment, or status delivery failed.                       | Hidden. Delivery failed.                   |
 
 #### Who may tick the box
 
@@ -95,7 +77,6 @@ it or acknowledge it in policy. The approval box cannot clear it.
 - **Adopt without a rewrite.** Start with discovered routes or rendered links,
   then add high-value states such as open dialogs, tabs, loading views, and
   responsive breakpoints.
-
 
 ## Map transport and the never-commit guards
 
@@ -184,7 +165,6 @@ on:
       - '.github/ISSUE_TEMPLATE/**'
 ```
 
-
 ## What the PR gets
 
 On every PR, StyleProof posts a small summary comment that links to the committed
@@ -245,7 +225,6 @@ _home @ 900_
    | Property         | Before  | After   |
    | background-color | #2563eb | #dc2626 |
 ```
-
 
 ## Coverage: what you own, what's discovered
 
@@ -373,7 +352,6 @@ which names the _failing_ half of the same blind spot: a data request that
 errors during capture is flagged as residue. An endpoint that **succeeds** with
 healthy data — so the fault branch simply never renders — is this gap, and only
 a fixture-driven surface closes it.
-
 
 ## Declaring surfaces
 
@@ -826,7 +804,6 @@ defineStyleMapCapture({
 });
 ```
 
-
 ## Deterministic by default
 
 A style diff only means something if both sides saw the same inputs; otherwise live-data drift (a backend blip, a `5m ago` timestamp, a status chip that flips) reads as a style change on a PR that touched no CSS. StyleProof handles this for you — **no fixtures required**:
@@ -914,7 +891,6 @@ defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, dataR
 StyleProof reads the browser's **computed styles** — the values it actually resolves — never your source CSS. Tailwind, CSS Modules, styled-components, Sass, vanilla CSS, inline styles: all produce the same computed output, and that's what it diffs. Elements are keyed by **DOM structure, not class name**, so a refactor that rewrites every `class` still lines up element-for-element.
 
 Breakpoints are detected the same way: omit `widths` on a surface and StyleProof reads your app's real `@media` breakpoints from the **loaded CSSOM** at capture time and sweeps one viewport per band — no config. It's framework-agnostic for the same reason the diff is: it reads the rules the browser actually parsed, not your source, so Tailwind / CSS Modules / Sass / vanilla all resolve to the same `@media` boundaries. And it's authoritative **or it fails** — an unreadable cross-origin stylesheet throws rather than silently miss a band; it never guesses. Pin `widths` explicitly when you want a fixed sweep, or to cover a JS-only (`matchMedia`) breakpoint that has no CSS rule.
-
 
 ## Match a design pixel-for-pixel
 
@@ -1025,7 +1001,6 @@ Reasoned exclusions become `excluded-with-reason`: the capture may continue, but
 
 The rule of thumb: **a rendered state is a function of props, data, and input.** Control all three — mock the data, script the input, mount the component — and every state a component can render is a capturable surface. The verifier tells you, by name, which ones you haven't controlled yet.
 
-
 ## Forks and Dependabot
 
 If you **always capture in CI** rather than restoring maps from `styleproof-maps` (a better fit when many outside contributors push from different machines), the simplest setup runs the whole gate in one `pull_request` job that captures base + head and diffs them. That job needs a **write** token to push the report branch, post the comment, and set the `StyleProof` status. That's fine for same-repo PRs, but **fork and Dependabot PRs run with a read-only `GITHUB_TOKEN`** (GitHub's security default for untrusted PRs). So the job can't post the status — and a required `StyleProof` check then sits `pending` forever, blocking the PR even though a dependency or fork change usually touches no UI at all.
@@ -1040,7 +1015,6 @@ That last point is why this works where `pull_request_target` does not: StylePro
 **Where the PR identity comes from.** The report stage comments on the PR and sets the `StyleProof` status against a specific PR number and head commit, so those values have to be trustworthy. It takes them from the trusted `workflow_run` event — `head_sha`, then the event's `pull_requests`, with a commit→PR lookup against that **same trusted head SHA** for fork PRs (whose association the event doesn't carry directly) — and **never** from the downloaded artifact. The artifact is produced by the untrusted capture job, so treating anything in it as identity would let a malicious PR point the privileged comment and status at a victim PR or an arbitrary commit (a confused-deputy attack). The artifact therefore carries only the style-map captures, consumed purely as diff input.
 
 Copy both `capture` and `report` files to `.github/workflows/` (the `report` one must be on your default branch, like `styleproof-approve.yml`), then require the `StyleProof` status in branch protection. A single combined `pull_request` job that captures base + head and diffs them is fine for repos that never see fork or bot PRs; this split is only needed for untrusted PRs.
-
 
 ## Platform Integration
 
@@ -1077,7 +1051,6 @@ guard: `.gitignore` already excludes these patterns, but a misconfigured ignore 
 `git add -f` can still land them. The guard is scaffolded automatically; no manual
 copy required.
 
-
 ## Optional: pixel gate
 
 Computed styles are the cause; pixels are the effect. The computed-style gate
@@ -1100,7 +1073,6 @@ and a connected region smaller than 4 pixels is dropped. A screenshot layer that
 exists on one side only cannot be certified and fails the gate closed. Pixel
 results never enter the computed-style counts; the two verdicts are reported
 side by side.
-
 
 ## Optional: content layer (advisory)
 
@@ -1157,7 +1129,6 @@ identity boundary and compare two different semantic roles as a restyle.
 
 Notes: only an element's _own_ text is recorded (so a parent and child never double-report the same string); text churn in a live region is auto-excluded by the same settle pass that guards styles; live/age/clock copy (`open 102.1d`) is labeled in this section so it cannot be mistaken for a stylesheet edit; declare `liveText` when that drift must also stay off the style gate (or `liveText: { freeze: true }` to fail closed if a declared freeze did not pin it); and the certification CLI (`styleproof-diff`) is deliberately left content-blind except for that declared freeze check.
 
-
 ## Typed component manifests and catalog coverage
 
 Capture isolated component states without putting a framework adapter in
@@ -1195,7 +1166,6 @@ unless a consumer explicitly imports it. See the packaged
 [component manifest guide](component-manifest.md) for the full contract and
 reference fixture.
 
-
 ## Optional: React component layer (advisory)
 
 For a React app, knowing _which component_ rendered an element is often the fastest way to read a change. Off by default, opt in with `captureComponent`:
@@ -1208,7 +1178,6 @@ defineStyleMapCapture({ surfaces: SURFACES, dir: process.env.STYLEMAP_DIR, captu
 Capture reads the React fiber in-page (`__reactFiber$*`/`__reactProps$*` on React 17+, `__reactInternalInstance$*` on ≤16) and records the component display name plus a **sanitized** subset of its props (primitives only — `children`, handlers, and objects are dropped) on `ElementEntry.component`. The report then names the element — **`React component: Button (variant=primary, size=sm)`** — instead of showing a bare `<button>`.
 
 Like the content layer it is **advisory**: never fed to the certification diff or the gate, so captures stay deterministic. Component names are mangled in minified production builds, so it's most useful against a dev / non-minified target; on a non-React page the fiber keys are absent and the field is simply omitted.
-
 
 ## Optional: selective remap (advisory)
 
@@ -1289,7 +1258,6 @@ fi
 
 The capture-the-subset step stays yours (it depends on your map layout), but the graph mapping, diffing, verdict, and skip-list printing no longer are. `main` re-captures everything, so a PR-time miss is still caught at merge. The programmatic `affectedSurfaces` API above remains for custom pipelines.
 
-
 ## Forced-state capture resource limits
 
 Forced hover, focus and active capture reads the whole unignored document for
@@ -1330,23 +1298,22 @@ large pages. Raising `maxInteractive` alone does not change either scan limit.
 These options do not disable states, sample controls, or certify truncated maps.
 CLI URL/crawl commands do not expose these options.
 
-
 ## Reference
 
 **Action `BenSheridanEdwards/StyleProof@v6`** — key inputs:
 
-| Input                 | Default                      | Purpose                                                                                                        |
-| --------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `fresh-dir`           | _required_                   | PR-head captures restored from `styleproof-maps` or freshly captured in CI.                                    |
-| `baseline-dir`        | _required_                   | Base-branch captures dir restored from `styleproof-maps` or freshly captured in CI.                            |
-| `base-capture-failed` | `false`                      | Mark a bare baseline caused by a capture failure; publishes head-only evidence but hard-fails as degraded.     |
-| `include-content`     | `false`                      | Render advisory content and DOM-structure evidence in the durable report; never changes the style verdict.     |
-| `require-approval`    | `false`                      | Review-gate mode: set the `StyleProof` status instead of failing.                                              |
-| `fail-on-diff`        | `true`                       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                                       |
-| `status-context`      | `StyleProof`                 | Commit-status name. Must match the approve workflow and branch protection.                                     |
-| `comment-marker`      | `<!-- styleproof-report -->` | HTML comment used to upsert the PR report. Set a distinct value when more than one Action runs on the same PR. |
-| `report-storage`      | `artifact`                   | Report delivery: `artifact` uploads the report as a bounded-retention workflow artifact — nothing enters git history; `branch` publishes it to the `report-branch` orphan branch for an in-browser rendered report. |
-| `report-retention-days` | `30`                       | Days the report artifact is kept when `report-storage` is `artifact` (GitHub bounds 1–90).                    |
+| Input                   | Default                      | Purpose                                                                                                                                                                                                             |
+| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fresh-dir`             | _required_                   | PR-head captures restored from `styleproof-maps` or freshly captured in CI.                                                                                                                                         |
+| `baseline-dir`          | _required_                   | Base-branch captures dir restored from `styleproof-maps` or freshly captured in CI.                                                                                                                                 |
+| `base-capture-failed`   | `false`                      | Mark a bare baseline caused by a capture failure; publishes head-only evidence but hard-fails as degraded.                                                                                                          |
+| `include-content`       | `false`                      | Render advisory content and DOM-structure evidence in the durable report; never changes the style verdict.                                                                                                          |
+| `require-approval`      | `false`                      | Review-gate mode: set the `StyleProof` status instead of failing.                                                                                                                                                   |
+| `fail-on-diff`          | `true`                       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                                                                                                                                            |
+| `status-context`        | `StyleProof`                 | Commit-status name. Must match the approve workflow and branch protection.                                                                                                                                          |
+| `comment-marker`        | `<!-- styleproof-report -->` | HTML comment used to upsert the PR report. Set a distinct value when more than one Action runs on the same PR.                                                                                                      |
+| `report-storage`        | `artifact`                   | Report delivery: `artifact` uploads the report as a bounded-retention workflow artifact — nothing enters git history; `branch` publishes it to the `report-branch` orphan branch for an in-browser rendered report. |
+| `report-retention-days` | `30`                         | Days the report artifact is kept when `report-storage` is `artifact` (GitHub bounds 1–90).                                                                                                                          |
 
 Outputs include `changed`, `content-changes`, `report-url`, `trust-state`, and `data-residue-keys`. `trust-state` distinguishes a clean style comparison (`NO_REVIEWABLE_STYLE_CHANGES`), style review (`STYLE_REVIEW_REQUIRED`), unapprovable evidence failures, `PARTIAL_BASELINE` (named surface+SHA failed on the base bundle — not a recapture failure; approval cannot clear), `DEGRADED_BASELINE` (the base capture failed with zero maps, so the receipt is head-only evidence rather than a comparison), and publication failure. `content-changes` is the advisory count rendered when `include-content` is enabled; it never changes `changed` or the gate status. `styleproof-diff --json` carries `explainedMissingBaselineSurfaces` and `partialBaseline` so consumers need not reimplement `@auto` width matching. The action **self-verifies** the publish before exposing `report-url`: under `report-storage: branch` it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Under `report-storage: artifact` the report is the run's own immutable upload and `report-url` is its artifact entry, so the approval workflow reads the same evidence back out of the artifact before a tick can turn the gate green. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
 
@@ -1369,7 +1336,7 @@ export default defineConfig({
 | Key                       | Default                  | Purpose                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `blocking`                | `true`                   | Review-gate mode only: on **unapproved** visual changes, also **fail the job** (red ✗), so the check blocks even without a branch-protection rule requiring the status. On by default; set `false` for advisory-only (status red, job green). See below.                                                                                                                                                         |
-| `gateInventoryRemovals`   | `true`                   | Fail the Action on an **unacknowledged navigable removal** (see [What a green certifies](../README.md#what-a-green-certifies)). Set `false` to make inventory advisory.                                                                                                                                                                                                                                                      |
+| `gateInventoryRemovals`   | `true`                   | Fail the Action on an **unacknowledged navigable removal** (see [What a green certifies](../README.md#what-a-green-certifies)). Set `false` to make inventory advisory.                                                                                                                                                                                                                                          |
 | `spec`                    | `e2e/styleproof.spec.ts` | Capture spec path, used by `styleproof-map`/`-prepush`/`-ci` when no `--spec` is passed. Resolved from the config file's directory, so a repo-root value like `hud/tests/e2e/styleproof.spec.ts` stays valid when the CLI runs from `hud`.                                                                                                                                                                       |
 | `dirtyAllow`              | `[]`                     | Tracked files/dirs a dev tool rewrites on every run (e.g. a regenerated `tsconfig.json`) that must never mark a capture dirty. Accumulates with `--dirty-allow` flags and `STYLEPROOF_DIRTY_ALLOW`.                                                                                                                                                                                                              |
 | `cacheBranch`             | `styleproof-maps`        | Map store branch.                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -1421,7 +1388,7 @@ It's **asynchronous by design**: approval is a checkbox tick handled by a separa
 | `dir`              | `STYLEMAP_DIR`              | Output label (`base`/`head`); the spec is **inert until set**, so it sits safely beside your other specs.                                                                                                                                                                                                                                                                                                                                                              |
 | `replayFrom`       | `STYLEPROOF_REPLAY_FROM`    | Baseline dir whose recorded responses to replay. Unset → this run **records** its HAR for the comparison to use.                                                                                                                                                                                                                                                                                                                                                       |
 | `replayUrl`        | `**/api/**` (`…REPLAY_URL`) | URL glob for the data boundary to record/replay; everything else (JS/CSS/fonts) loads live so the code runs.                                                                                                                                                                                                                                                                                                                                                           |
-| `dataResidue`      | `'gate'`                    | Name data-boundary (`replayUrl`) requests that **fail** during capture (network error / 4xx/5xx — the fallback branch got captured). Always warned + recorded; `'gate'` (the default) also blocks the diff on an unacknowledged one, `'warn'` is the opt-out that records + warns without gating. See [Data residue](#failed-data-request-a-failed-api-call-is-named-not-swallowed).                                                                                      |
+| `dataResidue`      | `'gate'`                    | Name data-boundary (`replayUrl`) requests that **fail** during capture (network error / 4xx/5xx — the fallback branch got captured). Always warned + recorded; `'gate'` (the default) also blocks the diff on an unacknowledged one, `'warn'` is the opt-out that records + warns without gating. See [Data residue](#failed-data-request-a-failed-api-call-is-named-not-swallowed).                                                                                   |
 | `freezeClock`      | `true`                      | Pin `Date.now()`/`new Date()` so time-derived styling can't drift; timers keep running so settling still works. Covers the browser clock and (via `STYLEPROOF_FREEZE_SPEC_CLOCK=1`, set by `styleproof-map`) the spec process's own clock, so module-level fixture stamps are identical across runs. `false` also restores the real spec-process clock.                                                                                                                |
 | `liveText`         | _off_                       | Declare live/age/clock text (`true` or `{ freeze?, selectors? }`). Age-only drift stays advisory and is not `STYLE_REVIEW_REQUIRED`. `{ freeze: true }` fail-closes if captured ages still change. Requires `captureText: true`. See [Deterministic by default](#deterministic-by-default).                                                                                                                                                                            |
 | `clockTime`        | `2025-01-01T00:00:00Z`      | The frozen instant. Set `STYLEPROOF_CLOCK_TIME` to the same value on the capture command so spec-process fixture stamps (frozen at import time, before options are read) agree with it.                                                                                                                                                                                                                                                                                |

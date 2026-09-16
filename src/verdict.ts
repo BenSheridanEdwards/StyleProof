@@ -1,6 +1,4 @@
-/** Shared certification and Action trust policy. Keep CLI and Action consumers on this one closed-set decision. */
-
-import { parseIntegrityFailures } from './integrity-repair.js';
+/** Shared certification and Action trust policy: one closed-set decision for CLI and Action consumers. */
 
 export type StyleProofTrustState =
   | 'NO_REVIEWABLE_STYLE_CHANGES'
@@ -22,27 +20,13 @@ export type CertificationEvidenceReceipt = {
   partialBaseline?: unknown;
   explainedMissingBaselineSurfaces?: unknown;
   liveTextFreeze?: { violated?: unknown } | null;
-  /** Closed integrity reasons (`connector-partial` / `duplicate-id` / `integrity-mismatch`). */
-  integrityFailures?: unknown;
   /** Legacy product-state pair ledger. Armed + undeclared/stale fails closed. */
-  legacyPairs?: {
-    armed?: unknown;
-    undeclared?: unknown;
-    staleAcknowledgements?: unknown;
-  } | null;
+  legacyPairs?: { armed?: unknown; undeclared?: unknown; staleAcknowledgements?: unknown } | null;
   /** Critical state obligations. Armed + failing/unresolved/contradictory fails closed. */
-  criticalStates?: {
-    armed?: unknown;
-    failing?: unknown;
-    unresolved?: unknown;
-    contradictory?: unknown;
-  } | null;
+  criticalStates?: { armed?: unknown; failing?: unknown; unresolved?: unknown; contradictory?: unknown } | null;
 };
 
-export type CertificationEvidenceDecision = {
-  certifies: boolean;
-  interactionStatesComplete: boolean;
-};
+export type CertificationEvidenceDecision = { certifies: boolean; interactionStatesComplete: boolean };
 
 function finiteCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -52,70 +36,51 @@ function entryCount(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
 }
 
-/** Armed undeclared or stale legacy pairs cannot certify, even if comparison looks clean. */
-function legacyPairsBlockCertification(receipt: CertificationEvidenceReceipt): boolean {
-  const pairs = receipt.legacyPairs;
-  if (!pairs || typeof pairs !== 'object' || pairs.armed !== true) return false;
-  return entryCount(pairs.undeclared) > 0 || entryCount(pairs.staleAcknowledgements) > 0;
+/** An armed ledger with entries in any of the blocking lists cannot certify. */
+function armedLedgerBlocks(ledger: { armed?: unknown } | null | undefined, lists: unknown[]): boolean {
+  if (!ledger || typeof ledger !== 'object' || ledger.armed !== true) return false;
+  return lists.some((list) => entryCount(list) > 0);
 }
 
-/** Armed failing, unresolved, or contradictory critical obligations cannot certify. */
-function criticalStatesBlockCertification(receipt: CertificationEvidenceReceipt): boolean {
-  const obligations = receipt.criticalStates;
-  if (!obligations || typeof obligations !== 'object' || obligations.armed !== true) return false;
-  return (
-    entryCount(obligations.failing) > 0 ||
-    entryCount(obligations.unresolved) > 0 ||
-    entryCount(obligations.contradictory) > 0
-  );
-}
+/** Each evidence check that, when true, cannot be cleared by visual approval. */
+const CERTIFICATION_BLOCKERS: ((r: CertificationEvidenceReceipt) => boolean)[] = [
+  (r) => r.sourceBinding?.status !== 'bound',
+  (r) => r.coverage?.basis !== 'complete',
+  (r) => r.determinism?.status !== 'proven',
+  (r) => finiteCount(r.confidence?.counts?.inaccessible) !== 0,
+  (r) => r.comparison?.blocksCertification === true,
+  (r) => r.reportConsistency?.ok === false,
+  (r) => r.reportConsistency?.reason === 'raw_only_no_reviewable',
+  (r) => r.liveTextFreeze?.violated === true,
+  (r) => r.statesUncertified !== 0,
+  (r) => armedLedgerBlocks(r.legacyPairs, [r.legacyPairs?.undeclared, r.legacyPairs?.staleAcknowledgements]),
+  (r) =>
+    armedLedgerBlocks(r.criticalStates, [
+      r.criticalStates?.failing,
+      r.criticalStates?.unresolved,
+      r.criticalStates?.contradictory,
+    ]),
+];
 
 /** Assess the closed set of evidence that cannot be cleared by visual approval. */
 export function assessCertificationEvidence(receipt: CertificationEvidenceReceipt): CertificationEvidenceDecision {
-  const interactionStatesComplete = receipt.statesUncertified === 0;
-  const rawOnlyNoReviewable =
-    receipt.reportConsistency?.ok === false || receipt.reportConsistency?.reason === 'raw_only_no_reviewable';
-  const certifies =
-    receipt.sourceBinding?.status === 'bound' &&
-    receipt.coverage?.basis === 'complete' &&
-    receipt.determinism?.status === 'proven' &&
-    finiteCount(receipt.confidence?.counts?.inaccessible) === 0 &&
-    receipt.comparison?.blocksCertification !== true &&
-    !rawOnlyNoReviewable &&
-    receipt.liveTextFreeze?.violated !== true &&
-    interactionStatesComplete &&
-    parseIntegrityFailures(receipt.integrityFailures).length === 0 &&
-    !legacyPairsBlockCertification(receipt) &&
-    !criticalStatesBlockCertification(receipt);
-  return { certifies, interactionStatesComplete };
+  return {
+    certifies: !CERTIFICATION_BLOCKERS.some((blocks) => blocks(receipt)),
+    interactionStatesComplete: receipt.statesUncertified === 0,
+  };
 }
 
 export type StyleProofVerdictReceipt = CertificationEvidenceReceipt & {
   reviewableCounts?: { dom?: unknown; style?: unknown; state?: unknown } | null;
   surfaces?: unknown;
-  inventory?: {
-    added?: unknown;
-    removed?: unknown;
-    unacknowledged?: unknown;
-    staleAcknowledgements?: unknown;
-  } | null;
+  inventory?: { added?: unknown; removed?: unknown; unacknowledged?: unknown; staleAcknowledgements?: unknown } | null;
   dataResidue?: { blocking?: unknown; unacknowledged?: unknown } | null;
   liveTextFreeze?: { violated?: unknown } | null;
 };
 
-export type StyleProofVerdictOptions = {
-  gateInventoryRemovals: boolean;
-  baseCaptureFailed: boolean;
-  changed: boolean;
-  /** Migration mode (#567): elevate structure changes to reviewable, gating exit. */
-  migration?: boolean;
-};
+export type StyleProofVerdictOptions = { gateInventoryRemovals: boolean; baseCaptureFailed: boolean; changed: boolean };
 
-export type StyleProofVerdict = {
-  state: StyleProofTrustState;
-  reviewableChanged: boolean;
-  dataResidueKeys: string[];
-};
+export type StyleProofVerdict = { state: StyleProofTrustState; reviewableChanged: boolean; dataResidueKeys: string[] };
 
 function reviewableCount(receipt: StyleProofVerdictReceipt): number {
   return (['dom', 'style', 'state'] as const).reduce(
@@ -128,10 +93,18 @@ function residueKeys(receipt: StyleProofVerdictReceipt): string[] {
   if (!Array.isArray(receipt.dataResidue?.unacknowledged)) return [];
   return receipt.dataResidue.unacknowledged.flatMap((entry) => {
     if (typeof entry === 'string') return [entry];
-    if (entry && typeof entry === 'object' && typeof (entry as { key?: unknown }).key === 'string') {
-      return [(entry as { key: string }).key];
-    }
-    return [];
+    const key = entry && typeof entry === 'object' ? (entry as { key?: unknown }).key : undefined;
+    return typeof key === 'string' ? [key] : [];
+  });
+}
+
+/** A removed surface, or a new one not explained by a baseline capture failure, is reviewable. */
+function hasReviewableSurface(surfaces: unknown, explained: Set<unknown>): boolean {
+  if (!Array.isArray(surfaces)) return false;
+  return surfaces.some((surface) => {
+    if (!surface || typeof surface !== 'object') return false;
+    const { missing, surface: key } = surface as { missing?: unknown; surface?: unknown };
+    return missing === 'after' || (missing === 'before' && !explained.has(key));
   });
 }
 
@@ -140,35 +113,26 @@ export function classifyStyleProofVerdict(
   receipt: StyleProofVerdictReceipt,
   options: StyleProofVerdictOptions,
 ): StyleProofVerdict {
-  const explained = new Set(
-    Array.isArray(receipt.explainedMissingBaselineSurfaces) ? receipt.explainedMissingBaselineSurfaces : [],
-  );
+  const explainedMissing = receipt.explainedMissingBaselineSurfaces;
+  const explained = new Set(Array.isArray(explainedMissing) ? explainedMissing : []);
   const reviewableChanged =
     reviewableCount(receipt) > 0 ||
-    (Array.isArray(receipt.surfaces) &&
-      receipt.surfaces.some(
-        (surface) =>
-          surface &&
-          typeof surface === 'object' &&
-          ((surface as { missing?: unknown }).missing === 'after' ||
-            ((surface as { missing?: unknown }).missing === 'before' &&
-              !explained.has((surface as { surface?: unknown }).surface))),
-      )) ||
+    hasReviewableSurface(receipt.surfaces, explained) ||
     entryCount(receipt.inventory?.added) > 0 ||
     entryCount(receipt.inventory?.removed) > 0;
   const inventoryFailures = options.gateInventoryRemovals
     ? entryCount(receipt.inventory?.unacknowledged) + entryCount(receipt.inventory?.staleAcknowledgements)
     : 0;
-  const certification = assessCertificationEvidence(receipt);
-  const partialBaseline = receipt.partialBaseline === true || entryCount(receipt.explainedMissingBaselineSurfaces) > 0;
-
-  let state: StyleProofTrustState = 'NO_REVIEWABLE_STYLE_CHANGES';
-  if (finiteCount(receipt.dataResidue?.blocking) > 0) state = 'DATA_RESIDUE_UNACKNOWLEDGED';
-  else if (inventoryFailures > 0) state = 'INVENTORY_REMOVAL_UNACKNOWLEDGED';
-  else if (options.baseCaptureFailed) state = 'DEGRADED_BASELINE';
-  else if (!certification.certifies) state = 'CERTIFICATION_FAILED';
-  else if (partialBaseline) state = 'PARTIAL_BASELINE';
-  else if (options.changed) state = 'STYLE_REVIEW_REQUIRED';
-
+  const partialBaseline = receipt.partialBaseline === true || entryCount(explainedMissing) > 0;
+  // First matching rule wins; precedence mirrors the composite Action.
+  const rules: [boolean, StyleProofTrustState][] = [
+    [finiteCount(receipt.dataResidue?.blocking) > 0, 'DATA_RESIDUE_UNACKNOWLEDGED'],
+    [inventoryFailures > 0, 'INVENTORY_REMOVAL_UNACKNOWLEDGED'],
+    [options.baseCaptureFailed, 'DEGRADED_BASELINE'],
+    [!assessCertificationEvidence(receipt).certifies, 'CERTIFICATION_FAILED'],
+    [partialBaseline, 'PARTIAL_BASELINE'],
+    [options.changed, 'STYLE_REVIEW_REQUIRED'],
+  ];
+  const state = rules.find(([hit]) => hit)?.[1] ?? 'NO_REVIEWABLE_STYLE_CHANGES';
   return { state, reviewableChanged, dataResidueKeys: residueKeys(receipt) };
 }

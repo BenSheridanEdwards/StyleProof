@@ -1,43 +1,26 @@
 import type { Page } from '@playwright/test';
 
 /**
- * Authoritative viewport-breakpoint detection — reads the breakpoints the browser
- * ACTUALLY applied, not a guess and not your source config.
- *
- * StyleProof already reads computed styles from the live page rather than your
- * source CSS; breakpoints are detected the same way. At capture time we walk the
- * loaded CSSOM (`document.styleSheets`) and read every `@media` width condition the
- * browser parsed — so it works for any style system that ends up as CSS (Tailwind,
- * CSS Modules, styled-components, Sass, vanilla) with no per-framework code and
- * nothing to configure.
- *
- * It is 100% accurate or it FAILS: if a stylesheet is unreadable (a cross-origin
- * `<link>` with no CORS), we can't see its `@media` rules, so detection throws
- * rather than silently miss a band. The only thing CSSOM can't see is a breakpoint
- * with no CSS rule (a layout swapped purely in JS via `matchMedia`); set explicit
- * `widths` to cover that.
+ * Authoritative viewport-breakpoint detection: read every `@media` width condition the browser
+ * ACTUALLY parsed (the loaded CSSOM). It is 100% accurate or it FAILS — an unreadable cross-origin
+ * sheet throws rather than silently missing a band. A pure `matchMedia` breakpoint needs explicit `widths`.
  */
 
-/** Collected in the browser; cannot reference module-scope helpers (it is serialized). */
-type MediaCollection = { mediaTexts: string[]; unreadable: string[]; rootFontPx: number };
-
 /** Serialized into the browser by page.evaluate; cannot call module helpers. */
-function collectMediaTexts(): MediaCollection {
+function collectMediaTexts(): { mediaTexts: string[]; unreadable: string[]; rootFontPx: number } {
   const mediaTexts: string[] = [];
   const unreadable: string[] = [];
   const walk = (rules: CSSRuleList): void => {
     for (const rule of Array.from(rules)) {
-      // CSSMediaRule has `.media`; a CSSContainerRule does not, so container
-      // queries (container-relative, not viewport) are correctly skipped here.
+      // CSSMediaRule has `.media`; a CSSContainerRule does not, so container queries are skipped.
       const media = (rule as CSSMediaRule).media;
       if (media && typeof media.mediaText === 'string') mediaTexts.push(media.mediaText);
-      // Descend into @supports / @layer / nested @media groups.
-      const nested = (rule as CSSGroupingRule).cssRules;
+      const nested = (rule as CSSGroupingRule).cssRules; // @supports / @layer / nested @media
       if (nested) {
         try {
           walk(nested);
         } catch {
-          /* a nested rule list we can't read — ignore, top-level catch reports sheets */
+          /* unreadable nested list — the top-level catch reports sheets */
         }
       }
     }
@@ -54,115 +37,45 @@ function collectMediaTexts(): MediaCollection {
   return { mediaTexts, unreadable, rootFontPx };
 }
 
-type MirroredWidth = { value: number; unit: string; operator: string };
+/** Offset at which a range condition's next band opens: `>= V` / `< V` at V, `> V` / `<= V` at V+1. */
+const OPENS_AT: Record<string, number> = { '>=': 0, '>': 1, '<=': 1, '<': 0 };
+const FLIP: Record<string, string> = { '<=': '>=', '<': '>', '>=': '<=', '>': '<' };
+const RE_MIN_MAX = /\((min|max)-width\s*:\s*([\d.]+)(px|r?em)\)/g;
+const RE_RIGHT = /width\s*(<=|>=|<|>)\s*([\d.]+)(px|r?em)/g;
+// Mirrored `V <op> width`. The lookbehind pins the number's start, so a dot- or digit-heavy
+// malformed prelude scans linearly instead of backtracking quadratically.
+const RE_MIRRORED = /(?<![\d.])(\d+(?:\.\d*)?|\.\d+)(px|r?em)\s*(<=|>=|<|>)\s*width\b/g;
 
-function previousNonWhitespace(text: string, from: number): number {
-  let i = from;
-  while (i >= 0 && /\s/.test(text[i])) i--;
-  return i;
-}
-
-function numberBefore(text: string, end: number): number | null {
-  let i = end - 1;
-  let dots = 0;
-  let digits = 0;
-  while (i >= 0 && ((text[i] >= '0' && text[i] <= '9') || text[i] === '.')) {
-    if (text[i] === '.') dots++;
-    else digits++;
-    i--;
-  }
-  if (digits === 0 || dots > 1) return null;
-  const value = Number(text.slice(i + 1, end));
-  return Number.isFinite(value) ? value : null;
-}
-
-function mirroredWidthBefore(text: string, widthIndex: number): MirroredWidth | null {
-  let i = previousNonWhitespace(text, widthIndex - 1);
-  let operator = text[i];
-  if (text[i] === '=' && (text[i - 1] === '<' || text[i - 1] === '>')) {
-    operator = text[i - 1] + '=';
-    i -= 2;
-  } else if (text[i] === '<' || text[i] === '>') {
-    i--;
-  } else {
-    return null;
-  }
-
-  i = previousNonWhitespace(text, i);
-  const unit = text.slice(Math.max(0, i - 2), i + 1) === 'rem' ? 'rem' : text.slice(Math.max(0, i - 1), i + 1);
-  if (unit !== 'px' && unit !== 'em' && unit !== 'rem') return null;
-  const value = numberBefore(text, i - unit.length + 1);
-  return value === null ? null : { value, unit, operator };
-}
-
-/**
- * Parse the px width BOUNDARIES a single `@media` condition introduces — the widths
- * at which its match flips. A `min-width: V` opens a band at `V`; a `max-width: V`
- * keeps the band below active through `V`, so the next band opens at `V + 1`. Range
- * syntax (`width >= V`, `V <= width`, `width < V`, …) is normalised the same way.
- * `em`/`rem` are resolved against `rootFontPx`. Non-width conditions yield nothing.
- */
+/** The px width BOUNDARIES one `@media` condition introduces — where its match flips: `min-width: V`
+ *  opens a band at `V`, `max-width: V` at `V + 1`; range syntax is normalised the same way and
+ *  `em`/`rem` resolve against `rootFontPx`. Non-width conditions yield nothing. */
 export function mediaTextWidthBoundaries(mediaText: string, rootFontPx = 16): number[] {
   const t = mediaText.toLowerCase();
   const out = new Set<number>();
-  const px = (v: number, unit: string): number => (unit === 'px' ? v : v * rootFontPx);
-  const add = (v: number): void => {
-    const n = Math.round(v);
+  const add = (raw: string, unit: string, offset: number): void => {
+    const n = Math.round(parseFloat(raw) * (unit === 'px' ? 1 : rootFontPx)) + offset;
     if (n > 0) out.add(n);
   };
-  let m: RegExpExecArray | null;
-
-  const reMinMax = /\((min|max)-width\s*:\s*([\d.]+)(px|r?em)\)/g;
-  while ((m = reMinMax.exec(t)) !== null) {
-    const v = px(parseFloat(m[2]), m[3]);
-    if (m[1] === 'min') add(v);
-    else add(v + 1); // max-width: V → next band opens at V+1
-  }
-
-  // Range syntax: `width <op> Vpx` and the mirrored `Vpx <op> width`.
-  const flip = (op: string): string => (op === '<=' ? '>=' : op === '<' ? '>' : op === '>=' ? '<=' : '<');
-  const addCmp = (v: number, op: string): void => {
-    if (op === '>=') add(v);
-    else if (op === '>') add(v + 1);
-    else if (op === '<=') add(v + 1);
-    else if (op === '<') add(v);
-  };
-  const reRight = /width\s*(<=|>=|<|>)\s*([\d.]+)(px|r?em)/g;
-  while ((m = reRight.exec(t)) !== null) addCmp(px(parseFloat(m[2]), m[3]), m[1]);
-  const reWidth = /\bwidth\b/g;
-  while ((m = reWidth.exec(t)) !== null) {
-    const mirrored = mirroredWidthBefore(t, m.index);
-    if (mirrored) addCmp(px(mirrored.value, mirrored.unit), flip(mirrored.operator));
-  }
-
+  for (const m of t.matchAll(RE_MIN_MAX)) add(m[2], m[3], m[1] === 'min' ? 0 : 1);
+  for (const m of t.matchAll(RE_RIGHT)) add(m[2], m[3], OPENS_AT[m[1]]);
+  for (const m of t.matchAll(RE_MIRRORED)) add(m[1], m[2], OPENS_AT[FLIP[m[3]]]);
   return [...out].sort((a, b) => a - b);
 }
 
-/**
- * Turn breakpoint boundaries into one representative viewport width per band: the
- * base band below the first boundary uses `baseWidth` (clamped strictly inside it),
- * every other band its lower boundary. With no boundaries (no width `@media` rules)
- * the layout is band-invariant, so a single `noQueryWidth` covers it. Ascending,
- * de-duplicated.
- */
+/** One representative width per band: `baseWidth` (clamped strictly inside the base band), then each
+ *  lower boundary. No boundaries → a single `noQueryWidth`. Ascending, de-duplicated. */
 export function widthsFromBoundaries(
   boundaries: number[],
   opts: { baseWidth?: number; noQueryWidth?: number } = {},
 ): number[] {
-  const baseWidth = opts.baseWidth ?? 360;
-  const noQueryWidth = opts.noQueryWidth ?? 1280;
   const bps = [...new Set(boundaries.map((n) => Math.round(n)))].filter((n) => n > 0).sort((a, b) => a - b);
-  if (bps.length === 0) return [noQueryWidth];
-  const base = Math.min(baseWidth, bps[0] - 1);
+  if (bps.length === 0) return [opts.noQueryWidth ?? 1280];
+  const base = Math.min(opts.baseWidth ?? 360, bps[0] - 1);
   return [...new Set([base, ...bps])].filter((n) => n > 0).sort((a, b) => a - b);
 }
 
-/**
- * Detect the viewport widths to sweep for the currently-loaded page: read every
- * `@media` width breakpoint from the live CSSOM and return one width per band.
- * Throws if any stylesheet is unreadable (cross-origin) — detection is authoritative
- * or it fails; it never guesses. Call after the page has loaded its styles.
- */
+/** Detect the widths to sweep for the loaded page — one per `@media` band. Throws if any
+ *  stylesheet is unreadable: detection is authoritative or it fails; it never guesses. */
 export async function detectViewportWidths(
   page: Page,
   opts: { baseWidth?: number; noQueryWidth?: number } = {},
@@ -176,6 +89,8 @@ export async function detectViewportWidths(
         `\`widths\` on the surface to skip detection.`,
     );
   }
-  const boundaries = mediaTexts.flatMap((t) => mediaTextWidthBoundaries(t, rootFontPx));
-  return widthsFromBoundaries(boundaries, opts);
+  return widthsFromBoundaries(
+    mediaTexts.flatMap((t) => mediaTextWidthBoundaries(t, rootFontPx)),
+    opts,
+  );
 }
