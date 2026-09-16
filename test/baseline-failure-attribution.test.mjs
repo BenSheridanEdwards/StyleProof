@@ -25,9 +25,7 @@ import {
   parseBaselineFailureReceipts,
 } from '../dist/map-store.js';
 import { classifyStyleProofVerdict } from '../dist/verdict.js';
-import { formatIntegrityRepairComment, formatIntegrityStatusDescription } from '../dist/integrity-repair.js';
 import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
-import { createAudit, formatAuditSummary } from '../dist/audit.js';
 import { mkTmp, rmTmp, makeMap, solidPng, fixtureCompatibilityKey, fixtureCommitSha } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -180,46 +178,6 @@ test('diff CLI: partial baseline with base-capture-failed=false names surface+SH
   }
 });
 
-test('audit trail names the baseline surface+SHA and does not claim recapture', () => {
-  const receipts = baselineFailureReceipts([{ key: FAILED_SURFACE, reason: 'timeout' }], BASE_SHA);
-  const attribution = honestBaselineCompareAttribution({
-    baseCaptureFailed: false,
-    receipts,
-  });
-  const audit = createAudit({
-    runId: 'test-honest-attribution',
-    headSha: HEAD_SHA,
-    baseSha: BASE_SHA,
-    comparison: {
-      baselineSource: 'exact-restore',
-      baselineSha: BASE_SHA,
-      surfacesCompared: 1,
-      surfacesNew: 0,
-      surfacesRemoved: 0,
-      changesFound: 0,
-      contentChanges: 0,
-    },
-    trustDecision: {
-      finalState: 'PARTIAL_BASELINE',
-      gateMode: 'certify',
-      reasons: [
-        {
-          check: 'baseline-surface-capture',
-          result: 'failed',
-          detail: attribution.summary,
-        },
-      ],
-      exitCode: 1,
-      exitReason: attribution.summary,
-    },
-  });
-  const rendered = formatAuditSummary(audit);
-  assert.match(rendered, new RegExp(FAILED_SURFACE));
-  assert.match(rendered, new RegExp(BASE_SHA));
-  assert.match(rendered, /not a base recapture failure/i);
-  assert.doesNotMatch(rendered, /base recapture failed/i);
-});
-
 test('published Action-copy proof stays in lockstep with the formatters', () => {
   const fixture = JSON.parse(
     fs.readFileSync(path.join(here, '../docs/proof/honest-baseline-attribution/baseline-failures.json'), 'utf8'),
@@ -308,16 +266,15 @@ test('Action DEGRADED_BASELINE / head-only copy claims recapture only when the f
 
 test('Action PARTIAL_BASELINE and CERTIFICATION_FAILED copy do not claim recapture', () => {
   const actionYml = fs.readFileSync(ACTION_YML, 'utf8');
-  assert.match(actionYml, /formatIntegrityRepairComment/);
   assert.match(actionYml, /formatPartialBaselineComment/);
   assert.match(actionYml, /formatDegradedBaselineComment/);
 
-  const genericCert = formatIntegrityRepairComment([]);
-  const genericStatus = formatIntegrityStatusDescription([]);
-  assert.match(genericCert, /not a base recapture failure/i);
-  assert.match(genericStatus, /not a base recapture failure/i);
-  assert.doesNotMatch(genericCert, FALSE_RECAPTURE_CLAIM);
-  assert.doesNotMatch(genericStatus, FALSE_RECAPTURE_CLAIM);
+  const certificationCopy = actionYml.match(/CERTIFICATION_FAILED: '([^']+)'/g) ?? [];
+  assert.equal(certificationCopy.length, 2);
+  for (const copy of certificationCopy) {
+    assert.match(copy, /not a base recapture failure/i);
+    assert.doesNotMatch(copy, FALSE_RECAPTURE_CLAIM);
+  }
 
   const receipts = parseBaselineFailureReceipts(
     baselineFailureReceipts([{ key: FAILED_SURFACE, reason: 'timeout' }], BASE_SHA),

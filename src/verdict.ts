@@ -1,7 +1,5 @@
 /** Shared certification and Action trust policy. Keep CLI and Action consumers on this one closed-set decision. */
 
-import { parseIntegrityFailures } from './integrity-repair.js';
-
 export type StyleProofTrustState =
   | 'NO_REVIEWABLE_STYLE_CHANGES'
   | 'STYLE_REVIEW_REQUIRED'
@@ -22,8 +20,6 @@ export type CertificationEvidenceReceipt = {
   partialBaseline?: unknown;
   explainedMissingBaselineSurfaces?: unknown;
   liveTextFreeze?: { violated?: unknown } | null;
-  /** Closed integrity reasons (`connector-partial` / `duplicate-id` / `integrity-mismatch`). */
-  integrityFailures?: unknown;
   /** Legacy product-state pair ledger. Armed + undeclared/stale fails closed. */
   legacyPairs?: {
     armed?: unknown;
@@ -84,7 +80,6 @@ export function assessCertificationEvidence(receipt: CertificationEvidenceReceip
     !rawOnlyNoReviewable &&
     receipt.liveTextFreeze?.violated !== true &&
     interactionStatesComplete &&
-    parseIntegrityFailures(receipt.integrityFailures).length === 0 &&
     !legacyPairsBlockCertification(receipt) &&
     !criticalStatesBlockCertification(receipt);
   return { certifies, interactionStatesComplete };
@@ -107,8 +102,6 @@ export type StyleProofVerdictOptions = {
   gateInventoryRemovals: boolean;
   baseCaptureFailed: boolean;
   changed: boolean;
-  /** Migration mode (#567): elevate structure changes to reviewable, gating exit. */
-  migration?: boolean;
 };
 
 export type StyleProofVerdict = {

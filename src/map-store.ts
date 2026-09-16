@@ -5,7 +5,6 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { CiWorktreeSession, consumerRelativeFromRepoRoot, gitRepoRoot, worktreeRunCwd } from './ci-worktree.js';
-import { materializeEvidenceCapture, readEvidenceRef, writeEvidenceRef } from './evidence-store.js';
 import { inferBaseRef } from './gitref.js';
 import { realNow } from './spec-clock.js';
 import { COVERAGE_LEDGER } from './coverage.js';
@@ -15,8 +14,6 @@ export const DEFAULT_MAP_DIR = '.styleproof/maps';
 export const DEFAULT_MAP_LABEL = 'current';
 export const DEFAULT_MAP_STORE_BRANCH = 'styleproof-maps';
 export const DEFAULT_REMOTE = 'origin';
-/** Local v2 evidence store root, alongside the maps directory. */
-export const DEFAULT_EVIDENCE_STORE_ROOT = '.styleproof/evidence';
 export const MAP_MANIFEST = 'styleproof-manifest.json';
 /** Per-surface capture failures recorded when baseline-only tolerate mode is on. */
 export const SURFACE_CAPTURE_FAILURES_DIR = 'styleproof-surface-capture-failures';
@@ -263,12 +260,6 @@ export const CONFIDENCE_LEDGER = 'styleproof-confidence.json';
  *  import cycle. Must be preserved during v2 import as owned metadata. */
 export const DETERMINISM_RECEIPT = 'styleproof-determinism.json';
 
-/** Integrity connector / digest receipts (#650). Defined here so
- *  {@link RESERVED_BUNDLE_FILES} needs no import cycle with integrity-repair. */
-export const CONNECTOR_RECEIPT = 'styleproof-connector.json';
-export const INTEGRITY_RECEIPT = 'styleproof-integrity.json';
-export const SOURCE_BINDING_RECEIPT = 'styleproof-source-binding.json';
-
 /** Bundle files that sit alongside the maps but are NOT surfaces (manifest, coverage
  *  ledger, and any future sidecar). Every place that enumerates surface maps must skip
  *  these, or a sidecar reads as a phantom "new surface". */
@@ -279,9 +270,6 @@ export const RESERVED_BUNDLE_FILES: ReadonlySet<string> = new Set([
   BASELINE_PROVENANCE_FILE,
   CONFIDENCE_LEDGER,
   DETERMINISM_RECEIPT,
-  CONNECTOR_RECEIPT,
-  INTEGRITY_RECEIPT,
-  SOURCE_BINDING_RECEIPT,
 ]);
 
 /** True for a captured surface map (`<key>@<width>.json[.gz]`), false for metadata. */
@@ -1773,28 +1761,6 @@ export async function publishMapBundle(options: {
   }
   if (!ok) throw new MapStoreError(lastError || `could not push ${branch}`);
 
-  // Dual-write to v2 evidence store (fail-soft: warning on failure, not an error).
-  // Dynamic import avoids circular dependency: map-store → evidence-import → confidence-ledger → map-store.
-  try {
-    const evidenceStoreRoot = path.join(cwd, DEFAULT_EVIDENCE_STORE_ROOT);
-    // fallow-ignore-next-line circular-dependency
-    const { importMapBundleToEvidenceStore } = await import('./evidence-import.js');
-    const imported = importMapBundleToEvidenceStore({
-      bundleDirectory: options.dir,
-      storeRoot: evidenceStoreRoot,
-      includeHar: options.includeHar,
-    });
-    const refKey = `commits/${sha}/${compatibilityKey}`;
-    const existingRef = readEvidenceRef(evidenceStoreRoot, refKey);
-    writeEvidenceRef(evidenceStoreRoot, refKey, imported.capture, existingRef);
-  } catch (error) {
-    process.stderr.write(
-      `styleproof: v2 evidence dual-write failed (v1 Git-branch publication succeeded): ${
-        error instanceof Error ? error.message : String(error)
-      }\n`,
-    );
-  }
-
   return { sha, compatibilityKey, branch };
 }
 
@@ -1860,57 +1826,6 @@ function restoreMapStoreAttempt(options: {
   }
 }
 
-/** Provenance source for a restored map bundle: v2 local evidence store or v1 Git-branch. */
-export type RestoreSource = 'v2-local' | 'v1-git-branch';
-
-/** Result of a successful {@link restoreMapBundle}, including provenance source. */
-export type RestoreMapBundleResult = MapManifest & {
-  /** Where the bundle was restored from: v2 local evidence store or v1 Git-branch. */
-  restoreSource: RestoreSource;
-};
-
-/** Try to restore from v2 local evidence store first (#554).
- *  Returns the manifest on hit, or null on miss/error (fall through to v1). */
-function tryRestoreFromV2EvidenceStore(options: {
-  cwd: string;
-  sha: string;
-  compatibilityKey: string | undefined;
-  outDir: string;
-}): MapManifest | null {
-  const { cwd, sha, compatibilityKey, outDir } = options;
-  if (!compatibilityKey) return null;
-
-  const evidenceStoreRoot = path.join(cwd, DEFAULT_EVIDENCE_STORE_ROOT);
-  const refKey = `commits/${sha}/${compatibilityKey}`;
-
-  try {
-    const captureRef = readEvidenceRef(evidenceStoreRoot, refKey);
-    if (!captureRef) return null;
-
-    // v2 hit: materialize the capture to the output directory
-    materializeEvidenceCapture(evidenceStoreRoot, captureRef, outDir);
-
-    // Read the v1 manifest from the materialized directory for compatibility
-    const manifest = readMapManifest(outDir);
-    if (!manifest) {
-      // This shouldn't happen if the v2 store is consistent, but fail gracefully
-      removeDirRecursive(outDir);
-      return null;
-    }
-
-    return manifest;
-  } catch {
-    // Any v2 error falls through to v1 restore — fail-soft
-    // Clean up partial materialization if any
-    try {
-      if (fs.existsSync(outDir)) removeDirRecursive(outDir);
-    } catch {
-      // Ignore cleanup errors
-    }
-    return null;
-  }
-}
-
 export function restoreMapBundle(options: {
   sha: string;
   outDir: string;
@@ -1918,7 +1833,7 @@ export function restoreMapBundle(options: {
   remote?: string;
   cwd?: string;
   compatibilityKey?: string;
-}): RestoreMapBundleResult {
+}): MapManifest {
   const cwd = options.cwd ?? process.cwd();
   const branch = options.branch ?? DEFAULT_MAP_STORE_BRANCH;
   const remote = options.remote ?? DEFAULT_REMOTE;
@@ -1927,20 +1842,13 @@ export function restoreMapBundle(options: {
     ? safeSegment(options.compatibilityKey, 'compatibility key')
     : undefined;
 
-  // Try v2 local evidence store first (#554)
-  const v2Manifest = tryRestoreFromV2EvidenceStore({ cwd, sha, compatibilityKey, outDir: options.outDir });
-  if (v2Manifest) {
-    return { ...v2Manifest, restoreSource: 'v2-local' };
-  }
-
-  // Fall back to v1 Git-branch restore
   if (!remoteExists(remote, cwd)) throw new MapStoreError(`git remote ${remote} was not found`);
 
   const attempts = mapStoreRestoreAttempts();
   let lastInfraError = '';
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const result = restoreMapStoreAttempt({ cwd, remote, branch, sha, compatibilityKey, outDir: options.outDir });
-    if (result.status === 'hit') return { ...result.manifest, restoreSource: 'v1-git-branch' };
+    if (result.status === 'hit') return result.manifest;
     // A genuine miss is terminal — the cold path recaptures. Only infra faults retry.
     if (result.status === 'miss') throw new MapStoreNotFoundError(result.message);
     lastInfraError = result.message;

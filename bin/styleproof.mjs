@@ -29,7 +29,6 @@ automation:
   publish-report   publish a generated report for PR review
 
 maintenance:
-  store            import and manage content-addressed evidence
   prune-reports    remove expired published reports
   prune-maps       compact the legacy Git-backed map cache
 
@@ -54,7 +53,6 @@ const commands = new Map([
   ['affected', 'styleproof-affected.mjs'],
   ['ci', 'styleproof-ci.mjs'],
   ['prepush', 'styleproof-prepush.mjs'],
-  ['store', 'styleproof-store.mjs'],
   ['publish-report', 'styleproof-publish-report.mjs'],
   ['prune-reports', 'styleproof-prune-reports.mjs'],
   ['prune-maps', 'styleproof-prune-maps.mjs'],

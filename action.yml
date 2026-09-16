@@ -601,8 +601,6 @@ runs:
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const { buildReportDelivery, buildArtifactReportDelivery } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
-          const { formatIntegrityRepairComment, parseIntegrityFailures } =
-            await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
           const {
             formatPartialBaselineComment,
             formatDegradedBaselineComment,
@@ -697,13 +695,12 @@ runs:
           const reportJson = fs.existsSync('styleproof-report/report.json')
             ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
             : {};
-          const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
           const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
           const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
           const trustGuidance = {
             DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-            CERTIFICATION_FAILED: formatIntegrityRepairComment(integrityFailures),
+            CERTIFICATION_FAILED: '_Coverage, determinism, or report/diff consistency evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report; reviewer approval cannot clear this failure._',
             PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
             DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
           }[trustState];
@@ -778,8 +775,6 @@ runs:
             advisoryMode ||
             trustState === 'NO_REVIEWABLE_STYLE_CHANGES' ||
             (trustState === 'STYLE_REVIEW_REQUIRED' && approved);
-          const { formatIntegrityStatusDescription, parseIntegrityFailures } =
-            await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
           const {
             formatPartialBaselineStatusDescription,
             formatDegradedBaselineStatusDescription,
@@ -788,7 +783,6 @@ runs:
           const reportJson = fs.existsSync('styleproof-report/report.json')
             ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
             : {};
-          const integrityFailures = parseIntegrityFailures(reportJson.integrityFailures);
           const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
           const baseCaptureFailed = '${{ inputs.base-capture-failed }}'.toLowerCase() === 'true';
           const descriptions = {
@@ -798,7 +792,7 @@ runs:
               : 'StyleProof changes need sign-off — tick the box in the report comment',
             DATA_RESIDUE_UNACKNOWLEDGED: 'Data residue must be fixed or acknowledged — approval cannot clear it',
             INVENTORY_REMOVAL_UNACKNOWLEDGED: 'Navigable removal must be fixed or acknowledged',
-            CERTIFICATION_FAILED: formatIntegrityStatusDescription(integrityFailures),
+            CERTIFICATION_FAILED: 'Evidence incomplete on named surface+SHA — not a base recapture failure',
             PARTIAL_BASELINE: formatPartialBaselineStatusDescription(baselineFailures),
             DEGRADED_BASELINE: formatDegradedBaselineStatusDescription(baseCaptureFailed),
           };

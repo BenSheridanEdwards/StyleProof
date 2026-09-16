@@ -56,7 +56,6 @@
     "bin",
     "example/styleproof-approve.yml",
     "docs/demo-composite.png",
-    "docs/evidence-store-v2.md",
     "docs/component-manifest.md",
     "docs/product-state-comparability.md",
     "docs/forced-state-capture.md",
@@ -88,8 +87,7 @@
     "demo:check": "npm run build && node scripts/demo-report.mjs --check",
     "init": "node ./bin/styleproof-init.mjs",
     "prepare": "npm run build && node .husky/install.mjs",
-    "prepublishOnly": "npm run clean && npm run build && npm run typecheck && npm run lint && npm run format:check && npm run privacy:check && npm test && npm run test:e2e",
-    "bench:detection": "node bench/detection-rate.mjs"
+    "prepublishOnly": "npm run clean && npm run build && npm run typecheck && npm run lint && npm run format:check && npm run privacy:check && npm test && npm run test:e2e"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40"

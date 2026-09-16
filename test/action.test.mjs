@@ -807,9 +807,6 @@ test('action dogfood fixtures are asserted and deterministic unless the scenario
       residue: 'DATA_RESIDUE_UNACKNOWLEDGED',
       removed: 'INVENTORY_REMOVAL_UNACKNOWLEDGED',
       certfail: 'CERTIFICATION_FAILED',
-      'integrity-repair-connector': 'CERTIFICATION_FAILED',
-      'integrity-repair-duplicate': 'CERTIFICATION_FAILED',
-      'integrity-repair-mismatch': 'CERTIFICATION_FAILED',
     };
     for (const [fixture, expectedState] of Object.entries(expectedStates)) {
       const caseRoot = path.join(root, `${fixture}-case`);
@@ -911,7 +908,7 @@ test('dogfood workflow runs the local composite action against every trust-state
     /node scripts\/action-dogfood-fixtures\.mjs action-dogfood '\$\{\{ github\.event\.pull_request\.base\.sha \}\}' '\$\{\{ github\.event\.pull_request\.head\.sha \}\}'/,
   );
   assert.match(dogfoodYml, /uses: \.\/\n/g);
-  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 15);
+  assert.equal(dogfoodYml.match(/uses: \.\//g)?.length, 12);
   assert.match(dogfoodYml, /action-dogfood\/clean-base/);
   assert.match(dogfoodYml, /action-dogfood\/changed-base/);
   assert.match(dogfoodYml, /action-dogfood\/new-base/);
@@ -938,12 +935,6 @@ test('dogfood workflow runs the local composite action against every trust-state
   // Unproven provenance is dogfooded end-to-end as CERTIFICATION_FAILED — the
   // state 4.6.2's content-geometry bug hid in, undetected because it was never
   // exercised here.
-  assert.match(dogfoodYml, /action-dogfood\/integrity-repair-connector-base/);
-  assert.match(dogfoodYml, /steps\.integrity-repair-connector\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
-  assert.match(dogfoodYml, /action-dogfood\/integrity-repair-duplicate-base/);
-  assert.match(dogfoodYml, /steps\.integrity-repair-duplicate\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
-  assert.match(dogfoodYml, /action-dogfood\/integrity-repair-mismatch-base/);
-  assert.match(dogfoodYml, /steps\.integrity-repair-mismatch\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /action-dogfood\/certfail-base/);
   assert.match(dogfoodYml, /steps\.certfail\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /steps\.certfail\.outcome }}' = 'failure'/);
