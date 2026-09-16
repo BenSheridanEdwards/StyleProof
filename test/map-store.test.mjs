@@ -1783,7 +1783,7 @@ test('publishMapBundle dual-write is fail-soft: v2 failure logs warning but does
   const repo = path.join(root, 'consumer');
   const capture = path.join(repo, '.styleproof/maps/current');
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim();
-  const originalConsoleWarn = console.warn;
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
   const warnings = [];
   try {
     fs.mkdirSync(repo);
@@ -1813,8 +1813,11 @@ test('publishMapBundle dual-write is fail-soft: v2 failure logs warning but does
     fs.mkdirSync(evidenceRoot, { recursive: true });
     fs.chmodSync(evidenceRoot, 0o000);
 
-    // Capture warnings
-    console.warn = (...args) => warnings.push(args.join(' '));
+    // Capture fail-soft warnings on stderr
+    process.stderr.write = (chunk, ...args) => {
+      warnings.push(String(chunk));
+      return originalStderrWrite(chunk, ...args);
+    };
 
     // Publish should succeed despite v2 failure
     const result = await publishMapBundle({ dir: capture, cwd: repo });
@@ -1828,7 +1831,7 @@ test('publishMapBundle dual-write is fail-soft: v2 failure logs warning but does
       'warning should mention v2 evidence or dual-write',
     );
   } finally {
-    console.warn = originalConsoleWarn;
+    process.stderr.write = originalStderrWrite;
     // Restore permissions for cleanup
     const evidenceRoot = path.join(repo, DEFAULT_EVIDENCE_STORE_ROOT);
     if (fs.existsSync(evidenceRoot)) fs.chmodSync(evidenceRoot, 0o755);
