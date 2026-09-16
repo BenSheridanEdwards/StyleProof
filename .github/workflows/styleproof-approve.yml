@@ -9,6 +9,16 @@ on:
   issue_comment:
     types: [edited]
 
+# statuses:write flips the gate; pull-requests:read resolves the PR head and
+# author; issues:write posts refusal replies; contents:read verifies
+# branch-published reports; actions:read verifies artifact-published reports.
+permissions:
+  statuses: write
+  pull-requests: read
+  issues: write
+  contents: read
+  actions: read
+
 jobs:
   approve:
     uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@main

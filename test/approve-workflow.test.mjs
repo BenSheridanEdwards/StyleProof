@@ -384,12 +384,15 @@ test('dogfood approve stub is a thin caller of the reusable at main (#644)', () 
     return trimmed && !trimmed.startsWith('#');
   });
   assert.ok(
-    executableLines.length >= 5 && executableLines.length <= 15,
-    `expected 5–15 non-comment lines, got ${executableLines.length}`,
+    executableLines.length >= 5 && executableLines.length <= 20,
+    `expected 5–20 non-comment lines, got ${executableLines.length}`,
   );
   assert.match(stub, /^name: StyleProof approve$/m);
   assert.match(stub, /issue_comment:/);
   assert.match(stub, /types: \[edited\]/);
+  assert.match(stub, /statuses: write/);
+  assert.match(stub, /actions: read/, 'artifact-published reports need actions:read readback (#587)');
+  assert.match(stub, /contents: read/, 'branch-published reports need contents:read readback');
   assert.match(
     stub,
     /uses: BenSheridanEdwards\/StyleProof\/\.github\/workflows\/styleproof-approve-reusable\.yml@main/,

@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as publicApi from '../dist/index.js';
-import { buildReportDelivery } from '../dist/report-delivery.js';
+import { buildReportDelivery, buildArtifactReportDelivery } from '../dist/report-delivery.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
@@ -16,19 +16,21 @@ const nativeRequire = createRequire(import.meta.url);
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
 const repository = 'BenSheridanEdwards/StyleProof';
+const foreignRepository = 'attacker/repo';
 const publicationSha = 'a'.repeat(40);
 const prNumber = 42;
 const reportUrl = `https://github.com/${repository}/blob/${publicationSha}/pr-42/report.md`;
 
-function actionCommentScript({ url = reportUrl, sha = publicationSha } = {}) {
+function actionCommentScript({ url = reportUrl, sha = publicationSha, reportStorage = 'branch' } = {}) {
   const match = actionYml.match(/- name: Upsert PR comment[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- name:)/);
   assert.ok(match, 'action.yml should contain the PR comment github-script program');
   const replacements = new Map([
     ['steps.context.outputs.pr-number', '42'],
     ['github.run_id', '9001'],
     ['github.run_attempt', '2'],
-    ['steps.publish.outputs.url', url],
+    ['steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url', url],
     ['steps.publish.outputs.sha', sha],
+    ['inputs.report-storage', reportStorage],
     ['steps.diff.outputs.changed', 'true'],
     ['inputs.require-approval', 'true'],
     ['inputs.mode', 'certify'],
@@ -54,7 +56,7 @@ function actionCommentScript({ url = reportUrl, sha = publicationSha } = {}) {
   return new AsyncFunction('require', 'github', 'context', 'core', script);
 }
 
-async function executeActionComment({ repositoryPrivate, url, sha, created = [] } = {}) {
+async function executeActionComment({ repositoryPrivate, url, sha, reportStorage, created = [] } = {}) {
   const outputs = new Map();
   const github = {
     rest: {
@@ -84,7 +86,7 @@ async function executeActionComment({ repositoryPrivate, url, sha, created = [] 
   const previousActionPath = process.env.GITHUB_ACTION_PATH;
   process.env.GITHUB_ACTION_PATH = root;
   try {
-    await actionCommentScript({ url, sha })(requireForScript, github, context, core);
+    await actionCommentScript({ url, sha, reportStorage })(requireForScript, github, context, core);
   } finally {
     if (previousActionPath === undefined) delete process.env.GITHUB_ACTION_PATH;
     else process.env.GITHUB_ACTION_PATH = previousActionPath;
@@ -120,6 +122,7 @@ test('public and private reports use one commit-bound linked-delivery contract',
 
 test('report delivery formatter remains Action-internal rather than a public package promise', () => {
   assert.equal(Object.hasOwn(publicApi, 'buildReportDelivery'), false);
+  assert.equal(Object.hasOwn(publicApi, 'buildArtifactReportDelivery'), false);
 });
 
 test('literal Action comment uses the same one-link body for public and private repositories', async () => {
@@ -150,6 +153,66 @@ test('literal Action comment makes no GitHub write without exact delivery identi
     const created = [];
     await assert.rejects(executeActionComment({ repositoryPrivate, created }), /repository visibility/i);
     assert.deepEqual(created, []);
+  }
+});
+
+test('literal Action comment links the workflow artifact in artifact storage mode (#587)', async () => {
+  const artifactUrl = `https://github.com/${repository}/actions/runs/9001/artifacts/4451`;
+  const run = await executeActionComment({ url: artifactUrl, reportStorage: 'artifact' });
+  assert.equal(run.created.length, 1);
+  const body = run.created[0].body;
+  assert.equal(body.split(artifactUrl).length - 1, 1);
+  assert.match(body, /\*\*Download the visual report artifact →\*\*/);
+  assert.doesNotMatch(body, /View the side-by-side/);
+});
+
+test('literal Action comment makes no GitHub write for a foreign artifact link (#587)', async () => {
+  const created = [];
+  await assert.rejects(
+    executeActionComment({
+      url: `https://github.com/${foreignRepository}/actions/runs/1/artifacts/1`,
+      reportStorage: 'artifact',
+      created,
+    }),
+    /report delivery/i,
+  );
+  assert.deepEqual(created, []);
+});
+
+test('artifact report delivery pins the link inside this repository run and fails closed otherwise (#587)', () => {
+  const artifactUrl = `https://github.com/${repository}/actions/runs/9001/artifacts/4451`;
+  const delivery = buildArtifactReportDelivery({ repository, reportUrl: artifactUrl });
+  assert.equal(delivery.mode, 'workflow-artifact');
+  assert.equal(delivery.cropDelivery, 'inside-workflow-artifact');
+  assert.equal(delivery.access, 'authenticated-artifact-download');
+  assert.equal(delivery.url, artifactUrl);
+  assert.equal(delivery.markdown, `### 📊 [**Download the visual report artifact →**](${artifactUrl})`);
+
+  const runPage = buildArtifactReportDelivery({
+    repository,
+    reportUrl: `https://github.com/${repository}/actions/runs/9001`,
+  });
+  assert.equal(runPage.url, `https://github.com/${repository}/actions/runs/9001`);
+
+  for (const candidate of [
+    '',
+    'not a URL',
+    ` ${artifactUrl}`,
+    `${artifactUrl} `,
+    `${artifactUrl}?x=1`,
+    `${artifactUrl}#`,
+    `https://github.com/${repository}/actions/runs/abc`,
+    `https://github.com/${repository}/actions/runs/9001/artifacts/abc`,
+    `https://github.com/${repository}/actions/runs/9001/artifacts/`,
+    `https://github.com/${foreignRepository}/actions/runs/9001/artifacts/4451`,
+    `https://github.com/${repository}/blob/${publicationSha}/pr-42/report.md`,
+    `https://raw.githubusercontent.com/${repository}/runs/9001/artifacts/4451`,
+  ]) {
+    assert.throws(
+      () => buildArtifactReportDelivery({ repository, reportUrl: candidate }),
+      /report delivery/i,
+      candidate,
+    );
   }
 });
 
@@ -241,8 +304,9 @@ test('report delivery rejects malformed contract identity instead of guessing', 
 
 test('Action metadata, generated comment, and README expose one linked-delivery contract', () => {
   assert.doesNotMatch(actionYml, /inline images for public repos/);
-  assert.match(actionYml, /summary and one commit-bound report link/);
+  assert.match(actionYml, /report-storage/);
   assert.match(actionYml, /buildReportDelivery/);
+  assert.match(actionYml, /buildArtifactReportDelivery/);
   assert.match(actionYml, /const publicationSha = '\$\{\{ steps\.publish\.outputs\.sha \}\}';/);
   assert.match(actionYml, /prNumber,\n\s+publicationSha,\n\s+reportUrl: url,/);
   assert.match(actionYml, /if: success\(\) && steps\.context\.outputs\.pr-number != ''/);
@@ -266,7 +330,7 @@ test('Action metadata, generated comment, and README expose one linked-delivery 
 test('report delivery contract documents artifacts, access, permissions, outputs, and failure', () => {
   assert.equal(fs.existsSync(deliveryContractPath), true);
   const contract = fs.readFileSync(deliveryContractPath, 'utf8');
-  assert.match(contract, /## Committed artifacts/);
+  assert.match(contract, /## Report storage/);
   assert.match(contract, /## Pull-request comment/);
   assert.match(contract, /## Public and private access/);
   assert.match(contract, /## Required permissions/);

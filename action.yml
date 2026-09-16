@@ -1,9 +1,10 @@
 name: 'styleproof report'
 description: >-
   Diff two StyleProof capture directories, publish a compact side-by-side report
-  to an orphan branch, and post a compact summary and one commit-bound report link
-  to the PR. Crops remain relative files in the committed report for both public
-  and private repositories.
+  (a bounded-retention workflow artifact by default, or an orphan branch when
+  report-storage is 'branch'), and post a compact summary and report link to the
+  PR. Branch-stored crops remain relative files in the committed report for both
+  public and private repositories.
 branding:
   icon: 'layers'
   color: 'blue'
@@ -24,8 +25,20 @@ inputs:
   base-capture-failed:
     description: 'Set true when the baseline capture failed with zero maps and baseline-dir is intentionally bare. Partial baselines with tolerated per-surface failures keep this false. Produces DEGRADED_BASELINE when true.'
     default: 'false'
+  report-storage:
+    description: >-
+      Where the rendered report is stored: 'artifact' (default) uploads it as a
+      workflow artifact on this run — nothing is written to the repository's git
+      history and GitHub expires it after report-retention-days; 'branch'
+      publishes it to the report-branch orphan branch so the PR comment links a
+      rendered in-browser report (durable, but the report lives in git history
+      until pruned).
+    default: 'artifact'
+  report-retention-days:
+    description: 'Days the report artifact is kept when report-storage is artifact (bounded 1-90 by GitHub).'
+    default: '30'
   report-branch:
-    description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close.'
+    description: 'Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close. Used only when report-storage is ''branch''.'
     default: 'styleproof-reports'
   github-token:
     description: 'Token used to push the report branch and post the PR comment.'
@@ -69,8 +82,11 @@ outputs:
       removed and must be reviewed before changing the baseline.
     value: ${{ steps.verdict.outputs.reviewable-changed }}
   report-url:
-    description: 'Blob URL of the durable report receipt for this run.'
-    value: ${{ steps.publish.outputs.url }}
+    description: >-
+      Report receipt for this run: the verified blob URL when report-storage is
+      branch, the artifact entry when artifact. Empty when publication produced
+      no receipt — no publication receipt, no delivery claim.
+    value: ${{ steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url }}
   trust-state:
     description: >-
       Machine-readable terminal classification: NO_REVIEWABLE_STYLE_CHANGES,
@@ -521,7 +537,18 @@ runs:
     # Report images use RELATIVE paths so they render from the committed file (do
     # NOT pass --image-base-url — a raw.githubusercontent URL is fetched anonymously
     # by GitHub's Camo proxy and 404s on private repos).
+    - name: Validate report-storage
+      shell: bash
+      env:
+        REPORT_STORAGE: ${{ inputs.report-storage }}
+      run: |
+        case "$REPORT_STORAGE" in
+          artifact|branch) ;;
+          *) echo "report-storage must be artifact or branch" >&2; exit 2 ;;
+        esac
+
     - id: publish
+      if: inputs.report-storage == 'branch'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -548,6 +575,19 @@ runs:
           --run-id '${{ github.run_id }}' \
           --run-attempt '${{ github.run_attempt }}'
 
+    # Artifact storage (#587): the report lives and dies with this workflow run —
+    # no evidence is written to the adopter's git history, and retention is the
+    # bounded artifact lifetime instead of a forever-growing orphan branch. The
+    # PR comment links the artifact entry on this run.
+    - id: report-artifact
+      if: inputs.report-storage == 'artifact'
+      uses: actions/upload-artifact@v6
+      with:
+        name: styleproof-report-pr-${{ steps.context.outputs.pr-number || github.run_id }}
+        path: styleproof-report
+        retention-days: ${{ inputs.report-retention-days }}
+        if-no-files-found: error
+
     - name: Upsert PR comment
       id: comment
       if: success() && steps.context.outputs.pr-number != ''
@@ -559,7 +599,7 @@ runs:
           const fs = require('fs');
           const { shouldSupersedeExistingComment, formatRunAttemptReceiptMarker } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
-          const { buildReportDelivery } =
+          const { buildReportDelivery, buildArtifactReportDelivery } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
           const { formatIntegrityRepairComment, parseIntegrityFailures } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/integrity-repair.js`);
@@ -598,19 +638,29 @@ runs:
             ? github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
             : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
 
-          const url = '${{ steps.publish.outputs.url }}';
-          const publicationSha = '${{ steps.publish.outputs.sha }}';
-          const repositoryPrivate = context.payload.repository?.private;
-          if (typeof repositoryPrivate !== 'boolean') {
-            throw new Error('StyleProof report delivery: repository visibility is unknown');
-          }
-          const delivery = buildReportDelivery({
-            repository: `${context.repo.owner}/${context.repo.repo}`,
-            prNumber,
-            publicationSha,
-            reportUrl: url,
-            repositoryVisibility: repositoryPrivate ? 'private' : 'public',
-          });
+          const reportStorage = '${{ inputs.report-storage }}';
+          const repository = `${context.repo.owner}/${context.repo.repo}`;
+          // Branch storage: the commit-bound blob URL. Artifact storage (#587):
+          // the uploaded artifact entry, falling back to the run page that lists
+          // it — both resolve inside this repository's own run.
+          const url = '${{ steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url }}' ||
+            `https://github.com/${repository}/actions/runs/${runId}`;
+          const delivery = reportStorage === 'branch'
+            ? (() => {
+                const publicationSha = '${{ steps.publish.outputs.sha }}';
+                const repositoryPrivate = context.payload.repository?.private;
+                if (typeof repositoryPrivate !== 'boolean') {
+                  throw new Error('StyleProof report delivery: repository visibility is unknown');
+                }
+                return buildReportDelivery({
+                  repository,
+                  prNumber,
+                  publicationSha,
+                  reportUrl: url,
+                  repositoryVisibility: repositoryPrivate ? 'private' : 'public',
+                });
+              })()
+            : buildArtifactReportDelivery({ repository, reportUrl: url });
 
           // The committed report is the COMPLETE source of truth — side-by-side crops
           // plus per-element property tables. The comment stays lean: the summary, one
@@ -714,7 +764,10 @@ runs:
           const approved = '${{ steps.gate.outputs.approved }}' === 'true';
           const trustState = '${{ steps.verdict.outputs.state }}';
           const sha = '${{ steps.context.outputs.head-sha }}';
-          const url = '${{ steps.publish.outputs.url }}';
+          // Same report target as the comment: branch blob URL, artifact entry,
+          // or this run's page — the status's target_url must never dangle.
+          const url = '${{ steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url }}' ||
+            `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
           const mode = '${{ inputs.mode }}';
           const blocking = '${{ steps.config.outputs.blocking }}';
           const advisoryMode = mode === 'advisory' || blocking === 'advisory';
@@ -889,7 +942,11 @@ runs:
           //   comment/status delivery failed after a successful publish → the consumer-
           //     visible half of publication never landed → REPORT_PUBLICATION_FAILED,
           //     never a green classification from a run that delivered nothing.
-          const publishOutcome = '${{ steps.publish.outcome }}';
+          // The publish step is whichever one the storage mode ran: the branch
+          // graft or the artifact upload (#587).
+          const publishOutcome = '${{ inputs.report-storage }}' === 'branch'
+            ? '${{ steps.publish.outcome }}'
+            : '${{ steps.report-artifact.outcome }}';
           const diffState = '${{ steps.verdict.outputs.state }}';
           const deliveryFailed =
             '${{ steps.comment.outcome }}' === 'failure' || '${{ steps.status.outcome }}' === 'failure';

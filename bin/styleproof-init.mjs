@@ -653,9 +653,32 @@ const CI_STORAGE_SUFFIX = CI_STORAGE_FLAGS ? ` ${CI_STORAGE_FLAGS}` : '';
 // certify select a mode.
 const GATE_INPUT = scaffold.gate === 'review-gate' ? 'require-approval: true' : `mode: ${scaffold.gate}`;
 
-// Shared tail jobs: both workflow layouts prune this PR's report folder on close
-// and sweep the report branch on a schedule. The map-store prune step exists only
-// when the scaffold opted into the styleproof-maps branch (--storage branch).
+// The Action report-storage input follows the same storage axis as maps
+// (#587): artifact keeps the rendered report out of the adopter's git history
+// entirely (bounded workflow-artifact retention); branch publishes it to the
+// styleproof-reports orphan branch so the comment links an in-browser report.
+const REPORT_STORAGE_INPUT = `report-storage: ${scaffold.storage}`;
+
+// Branch storage keeps evidence on the styleproof-reports / styleproof-maps
+// branches, which need close-pruning and a scheduled size-budget sweep — the
+// closed/schedule triggers and contents: write exist only for those jobs.
+// Artifact storage leaves nothing in git history, so the jobs, the triggers,
+// and the write permission all drop.
+const STORAGE_TRIGGERS =
+  scaffold.storage === 'branch'
+    ? `    types: [opened, synchronize, reopened, closed]
+  schedule:
+    # Daily report-branch sweep: retention window plus a hard size budget.
+    - cron: '47 4 * * *'`
+    : `    types: [opened, synchronize, reopened]`;
+const REPORT_PERMISSION =
+  scaffold.storage === 'branch'
+    ? 'contents: write # publish report files to the styleproof-reports branch'
+    : 'contents: read # report uploads as a workflow artifact — nothing is written to git';
+
+// Shared tail jobs for --storage branch only: prune this PR's report folder on
+// close and sweep the report branch on a schedule, plus the map-store head-SHA
+// prune. Artifact storage emits none of this — nothing reaches git history.
 const PRUNE_AND_SWEEP_JOBS = `  prune:
     # PR closed: drop its pr-<n>/ folder from the report branch so the branch
     # never grows without bound. Runs only default-branch package bytes — never
@@ -678,9 +701,7 @@ ${PM.setup}
           node node_modules/styleproof/bin/styleproof-prune-reports.mjs \\
             --repository '\${{ github.repository }}' \\
             --branch styleproof-reports \\
-            --pull-request '\${{ github.event.pull_request.number }}'${
-              scaffold.storage === 'branch'
-                ? `
+            --pull-request '\${{ github.event.pull_request.number }}'
       - name: Prune this PR's head map from the map store
         shell: bash
         env:
@@ -720,9 +741,7 @@ ${PM.setup}
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -r --quiet "$HEAD_SHA"
           git commit -m "chore(styleproof): prune map for closed PR #\${{ github.event.pull_request.number }} ($HEAD_SHA)"
-          git push origin "$BRANCH"`
-                : ''
-            }
+          git push origin "$BRANCH"
 
   report-sweep:
     # Daily backstop for the report branch. Close-triggered pruning alone
@@ -753,6 +772,10 @@ ${PM.setup}
             --budget-bytes 1500000000
 `;
 
+// The prune/sweep jobs exist only for branch storage — artifact storage writes
+// nothing to git history, so there is nothing to reclaim.
+const PRUNE_JOBS = scaffold.storage === 'branch' ? `\n${PRUNE_AND_SWEEP_JOBS}` : '';
+
 // --workflow split: the fork-safe two-stage architecture. The pull_request job
 // is untrusted (read-only, PR-controlled code) and uploads maps as an artifact;
 // a trusted workflow_run job on the default branch reports and publishes.
@@ -768,14 +791,11 @@ ${SCAFFOLD_MARKER_LINE}
 # Trusted publication lives in styleproof-report.yml (workflow_run on the default branch).
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
-  schedule:
-    # Daily report-branch sweep: retention window plus a hard size budget.
-    - cron: '47 4 * * *'
+${STORAGE_TRIGGERS}
 
 jobs:
   capture:
-    # Capture on open/update only. Closed and scheduled events are handled below.
+    # Capture on open/update only.${scaffold.storage === 'branch' ? ' Closed and scheduled events are handled below.' : ''}
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
@@ -814,8 +834,7 @@ ${PM.setup}
           path: \${{ runner.temp }}/styleproof-maps
           retention-days: 3
           if-no-files-found: error
-
-${PRUNE_AND_SWEEP_JOBS}`;
+${PRUNE_JOBS}`;
 
 // --workflow single (default): one job captures the base and head maps, diffs
 // them, and publishes the report — no second workflow and no map-store branch.
@@ -833,19 +852,15 @@ ${SCAFFOLD_MARKER_LINE}
 # --workflow split (untrusted capture stage + trusted workflow_run report stage).
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
-  schedule:
-    # Daily report-branch sweep: retention window plus a hard size budget.
-    - cron: '47 4 * * *'
+${STORAGE_TRIGGERS}
 
 jobs:
   styleproof:
-    # Capture, diff, and report on open/update only. Closed and scheduled events
-    # are handled by the jobs below.
+    # Capture, diff, and report on open/update only.${scaffold.storage === 'branch' ? ' Closed and scheduled events are handled by the jobs below.' : ''}
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # publish report files to the styleproof-reports branch
+      ${REPORT_PERMISSION}
       pull-requests: write # upsert the report comment
       statuses: write # commit status in review-gate mode
       actions: read
@@ -875,9 +890,9 @@ ${PM.setup}
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
           base-capture-failed: \${{ steps.maps.outputs.base-capture-failed }}
+          ${REPORT_STORAGE_INPUT}
           ${GATE_INPUT}
-
-${PRUNE_AND_SWEEP_JOBS}`;
+${PRUNE_JOBS}`;
 
 const CI_WORKFLOW = scaffold.workflow === 'split' ? SPLIT_WORKFLOW : SINGLE_WORKFLOW;
 
@@ -887,7 +902,7 @@ const REPORT_WORKFLOW = `name: StyleProof report
 ${SCAFFOLD_MARKER_LINE}
 # Trusted default-branch stage:
 # - runs only after the untrusted capture workflow completes;
-# - holds write permissions for report/comment/status publication;
+# - holds write permissions for comment/status publication${scaffold.storage === 'branch' ? ' and the report branch' : ''};
 # - NEVER checks out or installs PR-controlled code;
 # - resolves PR identity only from the trusted workflow_run event / GitHub API.
 on:
@@ -896,7 +911,7 @@ on:
     types: [completed]
 
 permissions:
-  contents: write
+  contents: ${scaffold.storage === 'branch' ? 'write' : 'read'}
   pull-requests: write
   statuses: write
   actions: read
@@ -932,6 +947,7 @@ jobs:
           baseline-dir: \${{ runner.temp }}/styleproof-maps/base
           fresh-dir: \${{ runner.temp }}/styleproof-maps/head
           base-capture-failed: \${{ steps.capture-meta.outputs.base-capture-failed }}
+          ${REPORT_STORAGE_INPUT}
           ${GATE_INPUT}
 `;
 
@@ -1323,6 +1339,16 @@ on:
   issue_comment:
     types: [edited]
 
+# statuses:write flips the gate; pull-requests:read resolves the PR head and
+# author; issues:write posts refusal replies; contents:read verifies
+# branch-published reports; actions:read verifies artifact-published reports.
+permissions:
+  statuses: write
+  pull-requests: read
+  issues: write
+  contents: read
+  actions: read
+
 jobs:
   approve:
     uses: BenSheridanEdwards/StyleProof/.github/workflows/styleproof-approve-reusable.yml@v7
@@ -1669,6 +1695,9 @@ if (scaffold.workflow === 'split') {
 if (scaffold.storage === 'branch') {
   console.log('  The pre-push hook can still restore or publish exact-SHA maps to styleproof-maps.');
   console.log('  Skip a push that cannot affect render: STYLEPROOF_SKIP_CAPTURE=1 git push');
+  console.log('  Reports publish to the styleproof-reports branch — the comment links a rendered report.');
+} else {
+  console.log('  Reports upload as bounded-retention workflow artifacts — nothing enters git history.');
 }
 console.log(
   `  Gate mode: ${scaffold.gate} — ${scaffold.gate === 'advisory' ? 'reports but never blocks. When the signal proves out, re-scaffold with --mode certify or --mode review-gate.' : scaffold.gate === 'certify' ? 'fails the job on any style diff.' : 'sets a red status until a reviewer ticks "Approve all changes".'}`,
