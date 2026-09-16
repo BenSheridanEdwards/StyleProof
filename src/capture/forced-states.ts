@@ -10,6 +10,7 @@ import {
   type StateScopeArgs,
   type StateScopeResult,
 } from './browser.js';
+import { codeLiteral } from '../util.js';
 import { isUnder, skipSelector, warn } from './shared.js';
 import type { ForcedStateLimits, StyleMap } from './types.js';
 
@@ -135,7 +136,7 @@ async function forcePseudoState(
 
 async function settleForcedState(client: CDPSession, selector: string): Promise<boolean> {
   const { result } = await client.send('Runtime.evaluate', {
-    expression: `(() => { const element = document.querySelector(${JSON.stringify(selector)}); if (!element) return false; getComputedStyle(element).display; return true; })()`,
+    expression: `(() => { const element = document.querySelector(${codeLiteral(selector)}); if (!element) return false; getComputedStyle(element).display; return true; })()`,
     returnByValue: true,
   });
   return result.value === true;
@@ -143,7 +144,7 @@ async function settleForcedState(client: CDPSession, selector: string): Promise<
 
 async function snapStateScopeInSession(client: CDPSession, args: StateScopeArgs): Promise<StateScopeResult> {
   const { result, exceptionDetails } = await client.send('Runtime.evaluate', {
-    expression: `(${snapSubtree.toString()})(${JSON.stringify(args)})`,
+    expression: `(${snapSubtree.toString()})(${codeLiteral(args)})`,
     returnByValue: true,
   });
   if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);

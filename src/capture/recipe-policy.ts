@@ -2,6 +2,8 @@
 // labels/keys are bounded and credential-free, and errors name the POLICY, never the
 // value. Every input is length-capped before the pattern checks run.
 
+import { trimHyphens } from '../util.js';
+
 export class StateRecipeError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -52,18 +54,13 @@ export function policyReject(field: 'selector' | 'label' | 'stateKey' | 'URL pat
 export function slugFragment(value: string, maxLen = 48): string | null {
   if (maxLen <= 0) return null;
   // Non-ASCII is replaced BEFORE lowercasing so only ASCII letters ever survive.
-  const out = value
-    .replace(/[^A-Za-z0-9]+/g, '-')
-    .toLowerCase()
-    .replace(/^-+|-+$/g, '')
-    .slice(0, maxLen)
-    .replace(/-+$/, '');
+  const out = trimHyphens(trimHyphens(value.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()).slice(0, maxLen));
   return out || null;
 }
 
 /** Collapse consecutive hyphens in already-slugged key parts and bound the result. */
 export function collapseHyphens(value: string, maxLen: number): string {
-  return value.replace(/-+/g, '-').replace(/^-/, '').slice(0, maxLen).replace(/-$/, '');
+  return trimHyphens(trimHyphens(value.replace(/-+/g, '-')).slice(0, maxLen));
 }
 
 /** Format unknown field names for errors — never echo hostile/secret-bearing keys. */
