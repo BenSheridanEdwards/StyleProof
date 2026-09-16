@@ -31,7 +31,7 @@ function map(color = 'rgb(0, 0, 0)', productState = PRODUCT_STATE) {
     metadata: productState ? { productState } : {},
   };
 }
-const mapWithoutProductState = () => map(undefined, undefined);
+const mapWithoutProductState = () => map(undefined, null);
 
 function mapWithAdditionalElement() {
   const styleMap = map();
