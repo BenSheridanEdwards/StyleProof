@@ -33,11 +33,11 @@
     "hasReviewableEvidence": false,
     "rawOnlyNoReviewable": false,
     "contentGeometryUncertain": false,
+    "liveTextFreezeViolated": false,
     "incomparableSurfaces": 0,
     "unprovenSurfaces": 0,
     "requiredUnprovenSurfaces": 0,
     "globalRequiredUnprovenSurfaces": 0,
-    "liveTextFreezeViolated": false,
     "status": "comparable",
     "requireStateIdentity": false,
     "blocksCertification": false,
@@ -73,12 +73,12 @@
   "confidence": {
     "counts": {
       "inaccessible": 0,
-      "unproven-determinism": 1,
+      "unproven-determinism": 0,
       "excluded-with-reason": 0,
       "unknown": 0,
-      "captured": 0
+      "captured": 1
     },
-    "completeness": "limited"
+    "completeness": "complete"
   },
   "legacyPairs": {
     "armed": true,
@@ -91,13 +91,13 @@
     "status": "bound",
     "compatibility": "matched",
     "before": {
-      "expected": "48cdf37a14eb7cebb3f2753f34ccb7758ce70492",
-      "observed": "48cdf37a14eb7cebb3f2753f34ccb7758ce70492",
+      "expected": "1e27b46aa3776875302ee62bf8f22a5dc32501bb",
+      "observed": "1e27b46aa3776875302ee62bf8f22a5dc32501bb",
       "result": "matched"
     },
     "after": {
-      "expected": "aded7263fcb57fa52479e157736d22ff4c51f503",
-      "observed": "aded7263fcb57fa52479e157736d22ff4c51f503",
+      "expected": "252f5b8f479edcc8b2ac8221d3d2a08f3eac42e2",
+      "observed": "252f5b8f479edcc8b2ac8221d3d2a08f3eac42e2",
       "result": "matched"
     }
   },
@@ -105,18 +105,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "0975651b8043438429c68cf1f703142cf88728b69709309c42d6d739284b5d1c",
+      "digest": "8ea84d8f7c71421b109f5c95f3590978ee1e124122ed3e012a491b00107eef6e",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "bfaa6ee8cbc9e914184bcb66294f3e22358dc2ddf5f6f0b3c64f076bdec6a22c",
+      "digest": "dfae75eee52b4b63ee89716f460afbc322ddfffbd0501facd18675844fb9b3d1",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1638
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "CERTIFICATION_FAILED"
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
 }
