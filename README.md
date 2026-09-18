@@ -20,7 +20,7 @@ The README can carry the crops directly. The block below is a real run, not a mo
 `scripts/live-readme-report.mjs` captures `example/demo/index.html` in Chromium twice, injecting a
 fixed CSS change between the captures, then renders the report and the PR comment it would post. The
 block is that comment, with three edits for this page: crop links repointed at
-docs/readme/live-report/crops/`, element-level sections reordered so Save at rest comes before the
+`docs/readme/live-report/crops/`, element-level sections reordered so Save at rest comes before the
 Docs hover, focus, and active states, and `report.json` left out of the committed bundle. Every
 finding, value, and crop is what the run produced. Both sides of each interaction-state crop are in
 that state.
@@ -137,7 +137,7 @@ Interactive-state changes:
 _Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._
 
 **[Quickstart](#quickstart)** ·
-**[Read the catch contract](docs/what-it-catches.md)**
+**[Read the catch contract](docs/what-it-catches.md)
 
 ## Why
 
@@ -212,7 +212,7 @@ npx styleproof setup
 That one command detects npm, pnpm, Yarn, or Bun; installs StyleProof and
 Playwright; installs Chromium; scaffolds the capture spec, a dedicated
 production-build Playwright config, and **one GitHub workflow**; then verifies
-all machine-owned file against the installed release. The default scaffold is
+every machine-owned file against the installed release. The default scaffold is
 the smallest honest gate: one `pull_request` job captures base and head in the
 same run and diffs them — maps live as workflow artifacts, no map-store branch,
 no pre-push hook — and the gate runs **advisory**: it reports evidence on every
