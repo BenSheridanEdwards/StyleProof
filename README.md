@@ -356,7 +356,7 @@ never captured), or `unproven-determinism` — and renders a completeness badge
 visual verdict**: a visual PASS and a complete capture are two claims, never one
 green. Crawl captures persist the ledger themselves (auth walls travel with the
 bundle); spec captures derive it from the coverage ledger; bundles from before
- the ledger existed read `⚠ unknown` and are never blocked retroactively. No
+the ledger existed read `⚠ unknown` and are never blocked retroactively. No
 coverage percentage is ever invented for surfaces that cannot be enumerated.
 The same summary lands machine-readably in `report.json` (`confidence`).
 
