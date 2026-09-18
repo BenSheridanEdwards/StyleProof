@@ -61,6 +61,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Self-contained `report.html` in every report package (#698).** Under the
+  default artifact storage, reviewers downloaded a ZIP and read raw Markdown;
+  the report directory now carries a rendered `report.html` sibling to
+  `report.md`/`report.json` — the in-browser review surface for artifact
+  storage and local output. Crop references stay relative so the page renders
+  wherever the package lands; branch publications are unchanged since the blob
+  view already renders `report.md`.
 - **Report artifact names follow `comment-marker` (#694).** Two StyleProof
   Action instances on one PR previously collided on the immutable artifact name
   `styleproof-report-pr-<n>` — the marker disambiguated comments but not the

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StyleProof report</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; color: #1f2328; background: #fff;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+  h2 { border-bottom: 1px solid #d1d9e0; padding-bottom: 6px; }
+  h3 { margin-top: 28px; }
+  img { max-width: 100%; height: auto; border: 1px solid #d1d9e0; border-radius: 6px; }
+  table { border-collapse: collapse; margin: 8px 0 16px; }
+  th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  code { background: #eff1f3; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  details { margin: 8px 0; }
+  summary { cursor: pointer; color: #0969da; }
+  sub { color: #59636e; }
+  blockquote { border-left: 3px solid #d1d9e0; margin: 8px 0; padding: 0 12px; color: #59636e; }
+  hr { border: 0; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+</style>
+</head>
+<body>
+<main>
+<h2>🗺️ StyleProof report</h2>
+<p>⚠️ <strong>Product-state comparison</strong> — unproven on 3 undeclared legacy pair(s). Legacy compatibility preserves the existing visual-review path, but this is not proof that both captures reached the same product state.</p>
+<p>🆕 <strong>1 new surface(s)</strong> captured with no baseline to compare: <code>pricing @ 900</code>. These are reviewable first-adoption surfaces; approve them before they become the baseline.</p>
+<p><strong>3 computed-style difference(s)</strong> across 1 distinct change(s) in 1 changed surface base with an existing baseline. <em><strong>Surface base</strong> = one product UI state; capture keys with <code>@width</code> or live-state/popup variants are width or state captures of that base.</em></p>
+<p>📝 <em>3 advisory content change(s) below — they don't affect the check.</em></p>
+<h2>One-sided pages, states, or surfaces — review first</h2>
+<h3><code>pricing@900</code> · new surface <!-- styleproof-new --></h3>
+<p><em>pricing @ 900</em></p>
+<p class="shot"><img src="crops/pricing-900-1-new.png" alt="new surface — after" loading="lazy"></p>
+<sub>after · pricing @ 900</sub>
+<p><em>No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline.</em></p>
+<h2>Element-level changes</h2>
+<h3><code>span.caret</code> · 1 element restyled</h3>
+<p><em>home @ 900</em></p>
+<p><code>color</code> <code>#9ca3af</code> → <code>#2563eb</code></p>
+<p class="shot"><img src="crops/home-900-2-composite.png" alt="before ◀ │ ▶ after" loading="lazy"></p>
+<sub>◀ before  ·  after ▶ — home @ 900</sub>
+<p class="shot"><img src="crops/home-900-2-annotated.png" alt="highlighted before ◀ │ ▶ after" loading="lazy"></p>
+<sub>🔍 magenta boxes mark each change — changed: `span.caret`</sub>
+<p class="shot"><img src="crops/home-900-2-zoom.png" alt="zoomed before ◀ │ ▶ after" loading="lazy"></p>
+<sub>🔬 magnified 5× — change too small to see at 1:1 — changed: `span.caret`</sub>
+<ul><li><strong><code>span.caret</code></strong> — text gray (<code>#9ca3af</code>) → blue (<code>#2563eb</code>)</li></ul>
+<details>
+<summary>Show the property change</summary>
+<p><strong><code>span.caret</code></strong></p>
+<p>Style:</p>
+<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead>
+<tbody><tr><td><code>color</code></td><td><code>#9ca3af</code></td><td><code>#2563eb</code></td></tr></tbody>
+</table>
+</details>
+<h3><code>button.cta</code> · 1 element restyled</h3>
+<p><em>home @ 900</em></p>
+<p><code>background-color</code> <code>#2563eb</code> → <code>#dc2626</code></p>
+<p class="shot"><img src="crops/home-900-3-composite.png" alt="before ◀ │ ▶ after" loading="lazy"></p>
+<sub>◀ before  ·  after ▶ — home @ 900</sub>
+<p class="shot"><img src="crops/home-900-3-annotated.png" alt="highlighted before ◀ │ ▶ after" loading="lazy"></p>
+<sub>🔍 magenta boxes mark each change — changed: `button.cta`</sub>
+<ul><li><strong><code>button.cta</code></strong> — background blue (<code>#2563eb</code>) → red (<code>#dc2626</code>)</li></ul>
+<details>
+<summary>Show the property change</summary>
+<p><strong><code>button.cta</code></strong></p>
+<p>Style:</p>
+<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead>
+<tbody><tr><td><code>background-color</code></td><td><code>#2563eb</code></td><td><code>#dc2626</code></td></tr></tbody>
+</table>
+</details>
+<h3><code>aside.off-canvas-status</code> · 1 element restyled</h3>
+<p><em>home @ 900</em></p>
+<p><code>opacity</code> <code>0.85</code> → <code>1</code></p>
+<p><em>The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading.</em></p>
+<ul><li><strong><code>aside.off-canvas-status</code></strong> — opacity 0.85 → 1</li></ul>
+<details>
+<summary>Show the property change</summary>
+<p><strong><code>aside.off-canvas-status</code></strong></p>
+<p>Style:</p>
+<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead>
+<tbody><tr><td><code>opacity</code></td><td><code>0.85</code></td><td><code>1</code></td></tr></tbody>
+</table>
+</details>
+<hr>
+<h2>📝 Content and structure changes (advisory)</h2>
+<p><em>3 content/structure change(s). <strong>Advisory only</strong> — content and DOM structure are not part of the computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below so it cannot be mistaken for a product style regression.</em></p>
+<h3><code>duplicate-insertion@900</code> · 1 content/structure change(s)</h3>
+<p><strong><code>button.duplicate-control</code></strong></p>
+<ul><li>element added</li></ul>
+<p class="shot"><img src="crops/duplicate-insertion-900-content-1-composite.png" alt="before ◀ │ ▶ after" loading="lazy"></p>
+<sub>◀ before  ·  after ▶ — duplicate-insertion@900</sub>
+<p class="shot"><img src="crops/duplicate-insertion-900-content-1-annotated.png" alt="highlighted before ◀ │ ▶ after" loading="lazy"></p>
+<sub>🔍 magenta boxes mark the changed content</sub>
+<h3><code>home@900</code> · 1 content/structure change(s)</h3>
+<p><strong><code>span.content-label</code></strong></p>
+<ul><li>before: <code>Old</code></li><li>after: <code>New</code></li></ul>
+<p class="shot"><img src="crops/home-900-content-2-composite.png" alt="before ◀ │ ▶ after" loading="lazy"></p>
+<sub>◀ before  ·  after ▶ — home@900</sub>
+<p class="shot"><img src="crops/home-900-content-2-annotated.png" alt="highlighted before ◀ │ ▶ after" loading="lazy"></p>
+<sub>🔍 magenta boxes mark the changed content</sub>
+<p class="shot"><img src="crops/home-900-content-2-zoom.png" alt="zoomed before ◀ │ ▶ after" loading="lazy"></p>
+<sub>🔬 magnified 2×: content change too small to read at 1:1</sub>
+<h3><code>sibling-insertion@900</code> · 1 content/structure change(s)</h3>
+<p><strong><code>div.scope-switch</code></strong></p>
+<ul><li>element added</li></ul>
+<p class="shot"><img src="crops/sibling-insertion-900-content-3-composite.png" alt="before ◀ │ ▶ after" loading="lazy"></p>
+<sub>◀ before  ·  after ▶ — sibling-insertion@900</sub>
+<p class="shot"><img src="crops/sibling-insertion-900-content-3-annotated.png" alt="highlighted before ◀ │ ▶ after" loading="lazy"></p>
+<sub>🔍 magenta boxes mark the changed content</sub>
+</main>
+</body>
+</html>
