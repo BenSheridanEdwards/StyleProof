@@ -5,7 +5,6 @@ on:
   workflow_dispatch:
 jobs:
   restore:
-    if: hashFiles('package-lock.json') == ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -18,6 +17,18 @@ jobs:
       - name: Restore package-lock.json from main at 7.0.1
         run: |
           set -euo pipefail
+          if [[ -f package-lock.json ]]; then
+            echo "package-lock.json already present; removing temp workflow only if still here"
+            if [[ -f .github/workflows/tmp-restore-package-lock.yml ]]; then
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              rm -f .github/workflows/tmp-restore-package-lock.yml
+              git add -u .github/workflows/tmp-restore-package-lock.yml
+              git commit -m "ci: remove temporary package-lock restore workflow" || exit 0
+              git push origin HEAD:chore/prepare-7.0.1 || exit 0
+            fi
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
