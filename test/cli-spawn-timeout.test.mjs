@@ -5,11 +5,10 @@ import { CLI_SPAWN_TIMEOUT_MS, spawnSyncBounded } from './helpers.mjs';
 test('spawnSyncBounded kills a hung child within the timeout bound', () => {
   const boundMs = 400;
   const started = Date.now();
-  const result = spawnSyncBounded(
-    process.execPath,
-    ['-e', 'setInterval(() => {}, 1_000)'],
-    { timeout: boundMs, encoding: 'utf8' },
-  );
+  const result = spawnSyncBounded(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
+    timeout: boundMs,
+    encoding: 'utf8',
+  });
   const elapsed = Date.now() - started;
 
   assert.equal(result.error?.code, 'ETIMEDOUT', result.error?.message ?? 'missing ETIMEDOUT');
@@ -29,11 +28,10 @@ test('spawnSyncBounded default timeout is the shared CLI harness bound', () => {
 });
 
 test('spawnSyncBounded preserves an explicit shorter timeout override', () => {
-  const result = spawnSyncBounded(
-    process.execPath,
-    ['-e', 'setInterval(() => {}, 1_000)'],
-    { timeout: 200, encoding: 'utf8' },
-  );
+  const result = spawnSyncBounded(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
+    timeout: 200,
+    encoding: 'utf8',
+  });
   assert.equal(result.error?.code, 'ETIMEDOUT');
   assert.equal(result.signal, 'SIGTERM');
 });

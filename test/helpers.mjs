@@ -7,8 +7,6 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
-
-
 /** Default bound for CLI-test children so a leaked handle cannot hang the suite forever. */
 export const CLI_SPAWN_TIMEOUT_MS = 60_000;
 
