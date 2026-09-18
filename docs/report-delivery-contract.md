@@ -6,7 +6,7 @@ StyleProof delivers one reviewable evidence package, not two independently rende
 
 `report-storage` selects where the rendered report lives:
 
-- `artifact` (default) — the Action uploads the report directory as a workflow artifact on the run that produced it. Nothing is written to the adopter's git history; retention is bounded by `report-retention-days` (GitHub bounds it to 1–90 days) and the artifact cannot be replaced once uploaded. The advertised URL is the artifact entry `https://github.com/<owner>/<repo>/actions/runs/<run-id>/artifacts/<artifact-id>`, or the run page that lists it.
+- `artifact` (default) — the Action uploads the report directory as a workflow artifact on the run that produced it. Nothing is written to the adopter's git history; retention is bounded by `report-retention-days` (a required positive integer — `0` is rejected because it selects the repository default; GitHub bounds it to 90 days unless repository settings allow more) and the artifact cannot be replaced once uploaded. The advertised URL is the artifact entry `https://github.com/<owner>/<repo>/actions/runs/<run-id>/artifacts/<artifact-id>`, or the run page that lists it.
 - `branch` — the Action publishes one `pr-<number>/` directory to the configured orphan report branch through the GitHub git-data API. The advertised URL pins the resulting report-branch commit SHA rather than the moving branch name: `https://github.com/<owner>/<repo>/blob/<publication-sha>/pr-<number>/report.md`. Branch storage keeps the report rendered in-browser, including crop images, at the cost of evidence living in repository history until the generated prune jobs remove it.
 
 A complete publication contains:
@@ -16,6 +16,8 @@ A complete publication contains:
 - crop and annotation images referenced by relative paths from `report.md`.
 
 Branch publication succeeds only after the publisher reads the advertised commit back and verifies the run receipt embedded in `report.md`, which names the source head SHA, run ID and run attempt, and confirms `report.json` parses with no duplicate keys. Artifact publication succeeds only after the upload step completes; `if-no-files-found: error` makes an empty report directory a publication failure rather than a silent no-op. The Markdown, JSON, and crop paths remain one published evidence package in either mode.
+
+Artifact names are immutable per workflow run, so the upload sets `overwrite: true`: re-running the job in the same run replaces the earlier report artifact instead of failing on the name, and the comment and status always link the newest artifact.
 
 ## Pull-request comment
 

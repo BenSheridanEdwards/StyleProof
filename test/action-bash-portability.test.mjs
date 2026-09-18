@@ -97,3 +97,33 @@ for (const [stepName, uniqueLine] of [
     );
   });
 }
+
+// #690: report-retention-days must be a positive integer in artifact mode —
+// 0 selects the repository default, unbounded by the bounded-retention
+// contract. The validate step is executed for real, not pattern-matched.
+for (const [storage, days, expectedExit] of [
+  ['artifact', '30', 0],
+  ['artifact', '365', 0], // legal where repository settings allow more than 90
+  ['artifact', '0', 2],
+  ['artifact', '00', 2],
+  ['artifact', '-1', 2],
+  ['artifact', 'abc', 2],
+  ['artifact', '', 2],
+  ['branch', '0', 0], // retention is unused in branch mode
+  ['branch', 'abc', 0],
+  ['bogus', '30', 2],
+]) {
+  test(`report-storage=${storage} report-retention-days='${days}' exits ${expectedExit} (#690)`, () => {
+    const script = runBlockContaining('report-storage must be artifact or branch');
+    const result = spawnSync('bash', ['-u', '-c', script], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        REPORT_STORAGE: storage,
+        REPORT_RETENTION_DAYS: days,
+      },
+      cwd: fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-validate-')),
+    });
+    assert.equal(result.status, expectedExit, `validate step output: ${result.stderr}`);
+  });
+}

@@ -68,6 +68,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Playwright e2e proof lives in `test/phase1-structure-harness.e2e.spec.ts` with TDD
   evidence under `docs/proof/phase1-structure-harness/`.
 
+### Fixed
+
+- **`report-retention-days` is validated in artifact mode (#690).** The input
+  was passed straight to `upload-artifact`, so `0` silently selected the
+  repository default retention — unbounded by the 1–90-day contract — and
+  non-numeric values failed at the upload step instead of at input validation.
+  The Action now requires a positive integer when `report-storage` is
+  `artifact` (`0` rejected explicitly); values above 90 stay legal where
+  repository settings allow them, and branch mode never validates the unused
+  input.
+- **Same-run job re-runs republish the report artifact instead of failing
+  (#688).** Artifact names are immutable per workflow run, so a job re-run after
+  any post-upload failure collided on `styleproof-report-pr-<n>` and surfaced as
+  `REPORT_PUBLICATION_FAILED`. The upload step now sets `overwrite: true`: the
+  replacement gets a fresh artifact ID, the comment and status always link the
+  newest `artifact-url`, and the run-attempt receipt binding is unchanged.
+
 ## [7.0.0] - 2026-09-14
 
 > **StyleProof 7.0.0: Trustworthy adoption**
