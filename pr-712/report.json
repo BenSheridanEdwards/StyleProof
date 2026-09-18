@@ -36,17 +36,17 @@
     "liveTextFreezeViolated": false,
     "incomparableSurfaces": 0,
     "unprovenSurfaces": 1,
-    "requiredUnprovenSurfaces": 0,
+    "requiredUnprovenSurfaces": 1,
     "globalRequiredUnprovenSurfaces": 0,
     "status": "unproven",
     "requireStateIdentity": false,
-    "blocksCertification": false,
+    "blocksCertification": true,
     "counts": {
       "comparable": 0,
       "incomparable": 0,
       "unproven": 1,
       "notRequired": 0,
-      "requiredUnproven": 0,
+      "requiredUnproven": 1,
       "globalRequiredUnproven": 0
     }
   },
@@ -54,7 +54,7 @@
     {
       "surface": "home@320",
       "status": "unproven",
-      "required": false,
+      "required": true,
       "reason": "state-identity-missing"
     }
   ],
@@ -85,10 +85,10 @@
     "legacyPairs": [
       "home@320"
     ],
-    "declared": [
+    "declared": [],
+    "undeclared": [
       "home@320"
     ],
-    "undeclared": [],
     "staleAcknowledgements": []
   },
   "sourceBinding": {
@@ -122,5 +122,5 @@
       "byteCount": 1482
     }
   },
-  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
+  "actionTrustState": "CERTIFICATION_FAILED"
 }
