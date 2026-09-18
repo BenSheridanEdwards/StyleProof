@@ -1,0 +1,95 @@
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -61,35 +61,6 @@
+ 
+ ### Added
+ 
+-- **Artifact-mode storage is disclosed on the run and the comment (#709).**
+-  Artifact-mode runs emit a `::notice` annotation naming the mode, the
+-  `report-retention-days` expiry bound, and the `report-storage: branch`
+-  remediation, and the report comment carries a one-line expiry disclosure —
+-  an adopter who upgrades the Action major without an explicit `report-storage`
+-  input learns the mode flipped instead of discovering it through a changed
+-  comment link or a 404 artifact.
+-- **Action pin skew removed from scaffold and examples (#706).** The
+-  `styleproof-init` templates and the `example/` workflows now emit the same
+-  action majors the repository runs — `checkout@v7`, `upload-artifact@v6`,
+-  `download-artifact@v6`, `github-script@v9` — instead of `@v4`/`@v7`
+-  leftovers. The approve example's permissions comment now notes single-mode
+-  adopters can drop the read grant they do not use, and REFERENCE documents
+-  deleting a `styleproof-reports` branch after moving to artifact storage.
+-- **Expired-artifact approvals refuse with a remediation (#704).** Ticking
+-  **Approve all changes** on a report whose artifact expired or was deleted no
+-  longer dead-ends silently: the approval workflow unticks the box and leaves
+-  one bounded reply per reviewed commit naming the fix — re-run the StyleProof
+-  workflow, then tick again. Ambiguous or tampered evidence stays silent
+-  fail-closed, and non-expiry download failures still report the
+-  `actions: read` permission requirement.
+-- **Artifact-mode approval binds the uploaded bytes (#702).** The Action writes
+-  `upload-artifact`'s `artifact-digest` into the report comment as a
+-  `styleproof-artifact-digest` marker, and the approval readback now recomputes
+-  the downloaded zip's SHA-256 against it — a missing, malformed, duplicated,
+-  or mismatched digest fails closed instead of approving bytes that are not
+-  the upload. Branch mode is unchanged: the publication-commit read already
+-  pins bytes. The hosted dogfood leg verifies digest → downloaded bytes
+-  against a real artifact.
+ - **Report mirrored onto the Actions run page (#700).** The Action now appends
+   `report.md` to the GitHub job summary, so the verdict and summary tables are
+   readable on the run page without downloading the artifact — in both storage
+@@ -149,6 +120,56 @@
+   `REPORT_PUBLICATION_FAILED`. The upload step now sets `overwrite: true`: the
+   replacement gets a fresh artifact ID, the comment and status always link the
+   newest `artifact-url`, and the run-attempt receipt binding is unchanged.
++
++## [7.0.2] - 2026-09-18
++
++> **Prepare-only.** Package metadata and changelog for tip since `v7.0.1` /
++> `c8d5e808`. Does not publish npm or move `@v7` — operators run `release.yml`
++> after MERGE-READY.
++
++### Added
++
++- **CLI suite cannot hang forever on a leaked-handle child (#711).**
++  `spawnSyncBounded` in the test harness applies a 60s wall-clock timeout to
++  CLI `spawnSync` children, and `scripts/run-node-test.mjs` adds
++  `--test-timeout=300000` on Node 20+ (omitted on Node 18, which rejects the
++  flag). A hung child becomes a bounded `ETIMEDOUT` failure instead of stalling
++  `npm test` / pre-push indefinitely.
++- **Artifact-mode storage is disclosed on the run and the comment (#709).**
++  Artifact-mode runs emit a `::notice` annotation naming the mode, the
++  `report-retention-days` expiry bound, and the `report-storage: branch`
++  remediation, and the report comment carries a one-line expiry disclosure —
++  an adopter who upgrades the Action major without an explicit `report-storage`
++  input learns the mode flipped instead of discovering it through a changed
++  comment link or a 404 artifact.
++- **Action pin skew removed from scaffold and examples (#706).** The
++  `styleproof-init` templates and the `example/` workflows now emit the same
++  action majors the repository runs — `checkout@v7`, `upload-artifact@v6`,
++  `download-artifact@v6`, `github-script@v9` — instead of `@v4`/`@v7`
++  leftovers. The approve example's permissions comment now notes single-mode
++  adopters can drop the read grant they do not use, and REFERENCE documents
++  deleting a `styleproof-reports` branch after moving to artifact storage.
++- **Expired-artifact approvals refuse with a remediation (#704).** Ticking
++  **Approve all changes** on a report whose artifact expired or was deleted no
++  longer dead-ends silently: the approval workflow unticks the box and leaves
++  one bounded reply per reviewed commit naming the fix — re-run the StyleProof
++  workflow, then tick again. Ambiguous or tampered evidence stays silent
++  fail-closed, and non-expiry download failures still report the
++  `actions: read` permission requirement.
++- **Artifact-mode approval binds the uploaded bytes (#703).** The Action writes
++  `upload-artifact`'s `artifact-digest` into the report comment as a
++  `styleproof-artifact-digest` marker, and the approval readback now recomputes
++  the downloaded zip's SHA-256 against it — a missing, malformed, duplicated,
++  or mismatched digest fails closed instead of approving bytes that are not
++  the upload. Branch mode is unchanged: the publication-commit read already
++  pins bytes. The hosted dogfood leg verifies digest → downloaded bytes
++  against a real artifact.
++
++### Changed
++
++- **ADR: keep commit statuses over the Checks API (#707).** Design note that
++  StyleProof continues to publish commit statuses rather than Checks API
++  check-runs for gate signalling.
+ 
+ ## [7.0.0] - 2026-09-14
+ 
