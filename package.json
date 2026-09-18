@@ -40,7 +40,7 @@
     "styleproof-init": "./bin/styleproof-init.mjs",
     "styleproof-map": "./bin/styleproof-map.mjs",
     "styleproof-capture": "./bin/styleproof-capture.mjs",
-    "styleproof-diff": "./bin/styleproof.mjs",
+    "styleproof-diff": "./bin/styleproof-diff.mjs",
     "styleproof-report": "./bin/styleproof-report.mjs",
     "styleproof-components": "./bin/styleproof-components.mjs",
     "styleproof-variants": "./bin/styleproof-variants.mjs",
@@ -111,7 +111,7 @@
     "husky": "^9.1.7",
     "prettier": "^3.9.6",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react-dom": "^19.2.5",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.67.0"
   }
