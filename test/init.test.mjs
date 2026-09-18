@@ -192,6 +192,11 @@ for (const manager of [
       for (const pattern of manager.workflowAbsent ?? []) assert.doesNotMatch(workflow, pattern);
       assert.match(reportWorkflow, /BenSheridanEdwards\/StyleProof@v7/);
       assert.match(reportWorkflow, /workflow_run:/);
+      // #706: the scaffold must not emit action pins behind the majors the
+      // repository itself runs (checkout@v7, artifacts@v6, github-script@v9).
+      for (const emitted of [workflow, reportWorkflow]) {
+        assert.doesNotMatch(emitted, /actions\/[a-z-]+@v[0-5]\b/, 'emitted workflow carries a stale actions/* pin');
+      }
       const scaffoldCheck = 'node node_modules/styleproof/bin/styleproof-init.mjs --check';
       assert.match(workflow, /- name: Verify StyleProof scaffold matches the installed release/);
       assert.ok(workflow.includes(scaffoldCheck));

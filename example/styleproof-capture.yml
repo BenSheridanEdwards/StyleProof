@@ -25,7 +25,7 @@ jobs:
   capture:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # need the base branch too
 
@@ -44,7 +44,7 @@ jobs:
       # Upload ONLY the captured style maps. The report stage resolves the PR and
       # head SHA from the trusted workflow_run event — never from this artifact —
       # so nothing this untrusted job writes can redirect the privileged status.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: styleproof-stylemaps
           path: __stylemaps__

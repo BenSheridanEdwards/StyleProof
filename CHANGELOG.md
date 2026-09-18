@@ -61,6 +61,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Action pin skew removed from scaffold and examples (#706).** The
+  `styleproof-init` templates and the `example/` workflows now emit the same
+  action majors the repository runs — `checkout@v7`, `upload-artifact@v6`,
+  `download-artifact@v6`, `github-script@v9` — instead of `@v4`/`@v7`
+  leftovers. The approve example's permissions comment now notes single-mode
+  adopters can drop the read grant they do not use, and REFERENCE documents
+  deleting a `styleproof-reports` branch after moving to artifact storage.
 - **Expired-artifact approvals refuse with a remediation (#704).** Ticking
   **Approve all changes** on a report whose artifact expired or was deleted no
   longer dead-ends silently: the approval workflow unticks the box and leaves
