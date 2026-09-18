@@ -7,6 +7,69 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [7.0.2] - 2026-09-18
+
+### Added
+
+- **Artifact-mode storage is disclosed on the run and the comment (#709).**
+  Artifact-mode runs emit a `::notice` annotation naming the mode, the
+  `report-retention-days` expiry bound, and the `report-storage: branch`
+  remediation, and the report comment carries a one-line expiry disclosure —
+  an adopter who upgrades the Action major without an explicit `report-storage`
+  input learns the mode flipped instead of discovering it through a changed
+  comment link or a 404 artifact.
+- **Action pin skew removed from scaffold and examples (#706).** The
+  `styleproof-init` templates and the `example/` workflows now emit the same
+  action majors the repository runs — `checkout@v7`, `upload-artifact@v6`,
+  `download-artifact@v6`, `github-script@v9` — instead of `@v4`/`@v7`
+  leftovers. The approve example's permissions comment now notes single-mode
+  adopters can drop the read grant they do not use, and REFERENCE documents
+  deleting a `styleproof-reports` branch after moving to artifact storage.
+- **Expired-artifact approvals refuse with a remediation (#704).** Ticking
+  **Approve all changes** on a report whose artifact expired or was deleted no
+  longer dead-ends silently: the approval workflow unticks the box and leaves
+  one bounded reply per reviewed commit naming the fix — re-run the StyleProof
+  workflow, then tick again. Ambiguous or tampered evidence stays silent
+  fail-closed, and non-expiry download failures still report the
+  `actions: read` permission requirement.
+- **Artifact-mode approval binds the uploaded bytes (#702).** The Action writes
+  `upload-artifact`'s `artifact-digest` into the report comment as a
+  `styleproof-artifact-digest` marker, and the approval readback now recomputes
+  the downloaded zip's SHA-256 against it — a missing, malformed, duplicated,
+  or mismatched digest fails closed instead of approving bytes that are not
+  the upload. Branch mode is unchanged: the publication-commit read already
+  pins bytes. The hosted dogfood leg verifies digest → downloaded bytes
+  against a real artifact.
+
+### Fixed
+
+- **Blocking test children can no longer hang the suite forever (#711).**
+  Test infrastructure only — no product runtime change. On this repo's
+  Node 26.7.0/macOS runs a spawned CLI child could intermittently deadlock
+  inside V8 job-worker teardown — finished work, never exited — and
+  `spawnSync` waited indefinitely, stalling the whole suite. CLI-test
+  spawns now go through `spawnSyncBounded` in `test/helpers.mjs`, which
+  applies a bounded default timeout (`CLI_SPAWN_TIMEOUT_MS`, 60 s; a
+  caller-supplied `timeout` still wins), and unit tests run through
+  `scripts/run-node-test.mjs`, which adds `--test-timeout` (300 s) on
+  Node ≥ 20 — Node 18 omits the flag and keeps the spawn bound as the
+  guard. A deadlocked child now dies with `SIGTERM` and fails its named
+  test instead of stalling the whole run.
+
+### Docs
+
+- **Review gate stays on commit statuses (#707, ADR 0005).** The Checks
+  API migration was evaluated and rejected in
+  `.agents/decisions/0005-commit-statuses-over-checks-api.md`: check-run
+  writes are GitHub-App-only, so PAT-based approve callers would break;
+  dual-writing a check and a status with the same required name can
+  require both to pass; and computed-style findings have no honest
+  source-file line to annotate. Revisit only if commit statuses are
+  deprecated, source-line mapping becomes real, or demand for an opt-in
+  Checks surface appears.
+
+## [7.0.1] - 2026-09-18
+
 ### Removed
 
 - **Detection benchmark.** `npm run bench:detection`, `src/detection-benchmark.ts`,
@@ -61,35 +124,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- **Artifact-mode storage is disclosed on the run and the comment (#709).**
-  Artifact-mode runs emit a `::notice` annotation naming the mode, the
-  `report-retention-days` expiry bound, and the `report-storage: branch`
-  remediation, and the report comment carries a one-line expiry disclosure —
-  an adopter who upgrades the Action major without an explicit `report-storage`
-  input learns the mode flipped instead of discovering it through a changed
-  comment link or a 404 artifact.
-- **Action pin skew removed from scaffold and examples (#706).** The
-  `styleproof-init` templates and the `example/` workflows now emit the same
-  action majors the repository runs — `checkout@v7`, `upload-artifact@v6`,
-  `download-artifact@v6`, `github-script@v9` — instead of `@v4`/`@v7`
-  leftovers. The approve example's permissions comment now notes single-mode
-  adopters can drop the read grant they do not use, and REFERENCE documents
-  deleting a `styleproof-reports` branch after moving to artifact storage.
-- **Expired-artifact approvals refuse with a remediation (#704).** Ticking
-  **Approve all changes** on a report whose artifact expired or was deleted no
-  longer dead-ends silently: the approval workflow unticks the box and leaves
-  one bounded reply per reviewed commit naming the fix — re-run the StyleProof
-  workflow, then tick again. Ambiguous or tampered evidence stays silent
-  fail-closed, and non-expiry download failures still report the
-  `actions: read` permission requirement.
-- **Artifact-mode approval binds the uploaded bytes (#702).** The Action writes
-  `upload-artifact`'s `artifact-digest` into the report comment as a
-  `styleproof-artifact-digest` marker, and the approval readback now recomputes
-  the downloaded zip's SHA-256 against it — a missing, malformed, duplicated,
-  or mismatched digest fails closed instead of approving bytes that are not
-  the upload. Branch mode is unchanged: the publication-commit read already
-  pins bytes. The hosted dogfood leg verifies digest → downloaded bytes
-  against a real artifact.
 - **Report mirrored onto the Actions run page (#700).** The Action now appends
   `report.md` to the GitHub job summary, so the verdict and summary tables are
   readable on the run page without downloading the artifact — in both storage
