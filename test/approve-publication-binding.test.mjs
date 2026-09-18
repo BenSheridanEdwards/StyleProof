@@ -145,6 +145,7 @@ async function runApproval({
   fetchOk = true,
   failApi,
   digest,
+  downloadStatus,
 } = {}) {
   const statuses = [];
   const updates = [];
@@ -191,6 +192,9 @@ async function runApproval({
         downloadArtifact: async ({ artifact_id }) =>
           api('downloadArtifact', () => {
             assert.equal(String(artifact_id), artifactId);
+            if (downloadStatus) {
+              throw Object.assign(new Error(`artifact download failed: ${downloadStatus}`), { status: downloadStatus });
+            }
             return { url: 'https://download.test/report-artifact.zip' };
           }),
       },
@@ -519,6 +523,93 @@ test('artifact readback failures fail closed without a status write (#587)', asy
   }
   await assert.rejects(
     runApproval({ body: artifactBody, status: artifactStatus, failApi: 'downloadArtifact' }),
+    /requires actions: read/,
+  );
+});
+
+test('an expired or deleted report artifact refuses with a re-run remediation (#704)', async () => {
+  const artifactStatus = (url) => ({
+    state: 'failure',
+    description: PENDING_DESCRIPTION,
+    target_url: url,
+    context: 'StyleProof',
+  });
+  const assertRemediationRefusal = (result) => {
+    // No approval and no status churn — the pending red stays correct.
+    assert.deepEqual(result.statuses, []);
+    // The box is unticked so its state matches the refusal it left behind.
+    assert.equal(result.updates.length, 1);
+    assert.match(
+      result.updates[0].body,
+      /\[ \] \*\*Approve all changes\*\* — _report artifact expired or was deleted_/,
+    );
+    // One bounded reply names the remediation instead of silent dead-ending.
+    assert.equal(result.created.length, 1);
+    assert.match(result.created[0].body, /@reviewer — the report artifact/);
+    assert.match(result.created[0].body, /expired or been deleted/);
+    assert.match(result.created[0].body, /Re-run the StyleProof workflow/);
+    assert.match(result.created[0].body, new RegExp(`styleproof-approve:expired-artifact:${HEAD_SHA}`));
+  };
+  // An artifact-ID link: the download API reports the artifact gone.
+  for (const downloadStatus of [404, 410]) {
+    assertRemediationRefusal(
+      await runApproval({
+        body: reportComment({ link: ARTIFACT_URL }),
+        status: artifactStatus(ARTIFACT_URL),
+        downloadStatus,
+      }),
+    );
+  }
+  // A run-page link: the report artifact name resolves zero artifacts.
+  assertRemediationRefusal(
+    await runApproval({
+      body: reportComment({ link: RUN_PAGE_URL }),
+      status: artifactStatus(RUN_PAGE_URL),
+      artifacts: [],
+    }),
+  );
+  // The signed download URL itself no longer responds.
+  assertRemediationRefusal(
+    await runApproval({
+      body: reportComment({ link: ARTIFACT_URL }),
+      status: artifactStatus(ARTIFACT_URL),
+      fetchOk: false,
+    }),
+  );
+});
+
+test('unavailable-but-ambiguous or non-gone download failures stay on existing paths (#704)', async () => {
+  // Two same-named artifacts are an ambiguous publication, not an absent one —
+  // integrity failures stay silent with no reviewer-facing remediation.
+  const ambiguous = await runApproval({
+    body: reportComment({ link: RUN_PAGE_URL }),
+    status: {
+      state: 'failure',
+      description: PENDING_DESCRIPTION,
+      target_url: RUN_PAGE_URL,
+      context: 'StyleProof',
+    },
+    artifacts: [
+      { id: 1, name: 'styleproof-report-pr-7' },
+      { id: 2, name: 'styleproof-report-pr-7' },
+    ],
+  });
+  assert.deepEqual(ambiguous.statuses, []);
+  assert.deepEqual(ambiguous.updates, []);
+  assert.deepEqual(ambiguous.created, []);
+  // A download failure that is not 404/410 is a permissions class, not expiry —
+  // it still throws the actions: read diagnostic.
+  await assert.rejects(
+    runApproval({
+      body: reportComment({ link: ARTIFACT_URL }),
+      status: {
+        state: 'failure',
+        description: PENDING_DESCRIPTION,
+        target_url: ARTIFACT_URL,
+        context: 'StyleProof',
+      },
+      downloadStatus: 403,
+    }),
     /requires actions: read/,
   );
 });

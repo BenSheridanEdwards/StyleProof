@@ -61,6 +61,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Expired-artifact approvals refuse with a remediation (#704).** Ticking
+  **Approve all changes** on a report whose artifact expired or was deleted no
+  longer dead-ends silently: the approval workflow unticks the box and leaves
+  one bounded reply per reviewed commit naming the fix — re-run the StyleProof
+  workflow, then tick again. Ambiguous or tampered evidence stays silent
+  fail-closed, and non-expiry download failures still report the
+  `actions: read` permission requirement.
 - **Artifact-mode approval binds the uploaded bytes (#702).** The Action writes
   `upload-artifact`'s `artifact-digest` into the report comment as a
   `styleproof-artifact-digest` marker, and the approval readback now recomputes

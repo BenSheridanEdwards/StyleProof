@@ -307,6 +307,11 @@ jobs:
                 if (digestMarkers.length !== 1 || digestMatches.length !== 1) return;
                 expectedDigest = digestMatches[0][1];
               }
+              // Availability failures are a distinct class from integrity
+              // failures: an expired or deleted artifact is remediable by a
+              // re-run, so the refusal names that instead of failing silently
+              // (#704). Digest/entry mismatches stay silent fail-closed.
+              let artifactGone = false;
               let artifactZipPromise = null;
               const readArtifactEntry = async (name) => {
                 if (!artifactZipPromise) {
@@ -322,6 +327,12 @@ jobs:
                       const matches = (listed || []).filter(
                         (artifact) => artifact && artifact.name === `styleproof-report-pr-${context.payload.issue.number}`,
                       );
+                      if (matches.length === 0) {
+                        artifactGone = true;
+                        return null;
+                      }
+                      // Zero matches is expiry; two or more is an ambiguous
+                      // publication — integrity stays silent fail-closed.
                       if (matches.length !== 1) return null;
                       artifactId = String(matches[0].id);
                     }
@@ -333,13 +344,20 @@ jobs:
                         archive_format: 'zip',
                       });
                     } catch (error) {
+                      if (error && (error.status === 404 || error.status === 410)) {
+                        artifactGone = true;
+                        return null;
+                      }
                       throw new Error(
                         'StyleProof approval verification could not read the immutable publication; the approval workflow requires actions: read',
                         { cause: error },
                       );
                     }
                     const response = await fetch(download.url);
-                    if (!response || !response.ok) return null;
+                    if (!response || !response.ok) {
+                      artifactGone = true;
+                      return null;
+                    }
                     const zip = Buffer.from(await response.arrayBuffer());
                     const { createHash } = await import('node:crypto');
                     if (createHash('sha256').update(zip).digest('hex') !== expectedDigest) return null;
@@ -375,7 +393,19 @@ jobs:
                 readPublishedFile('report.md'),
                 readPublishedFile('report.json'),
               ]);
-              if (!publishedMarkdown || !publishedJson) return;
+              if (!publishedMarkdown || !publishedJson) {
+                // An expired or deleted report artifact leaves the reviewer at
+                // a dead-end they cannot diagnose from silence — untick and
+                // name the remediation (#704). Integrity failures stay silent.
+                if (artifactGone) {
+                  await renderBox(false, ' — _report artifact expired or was deleted_');
+                  await replyOnce(
+                    'expired-artifact',
+                    `@${actor} — the report artifact this comment links has expired or been deleted; artifacts only live for the configured retention. Re-run the StyleProof workflow on this pull request to publish a fresh report, then tick the box again.`,
+                  );
+                }
+                return;
+              }
               const receiptMarkers = publishedMarkdown.match(/<!-- styleproof-receipt/g) || [];
               const receipts = [...publishedMarkdown.matchAll(
                 /<!-- styleproof-receipt head-sha:([0-9a-f]{40}) run-id:(\d+) run-attempt:(\d+) -->/g,
