@@ -137,7 +137,7 @@ Interactive-state changes:
 _Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._
 
 **[Quickstart](#quickstart)** ·
-**[Read the catch contract](docs/what-it-catches.md)
+**[Read the catch contract](docs/what-it-catches.md)**
 
 ## Why
 
@@ -248,9 +248,9 @@ that mode's file set instead of rewriting it.
 
 ```bash
 styleproof capture          # capture this commit from the generated spec
-styleproof crawl <url>      # direct URL or rendered-nav crawl
-styleproof compare [base]   # fail-closed base/head comparison
-styleproof report [base]    # generate the review report on command
+styleproof crawl <url>       # direct URL or rendered-nav crawl
+styleproof compare [base]    # fail-closed base/head comparison
+styleproof report [base]     # generate the review report on command
 styleproof variants          # inspect surface/state variants
 styleproof affected          # resolve surfaces affected by source changes
 styleproof ci                # CI orchestration: restore probes, cold capture
@@ -356,7 +356,7 @@ never captured), or `unproven-determinism` — and renders a completeness badge
 visual verdict**: a visual PASS and a complete capture are two claims, never one
 green. Crawl captures persist the ledger themselves (auth walls travel with the
 bundle); spec captures derive it from the coverage ledger; bundles from before
-the ledger existed read `⚠ unknown` and are never blocked retroactively. No
+ the ledger existed read `⚠ unknown` and are never blocked retroactively. No
 coverage percentage is ever invented for surfaces that cannot be enumerated.
 The same summary lands machine-readably in `report.json` (`confidence`).
 
