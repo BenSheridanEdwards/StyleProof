@@ -585,6 +585,10 @@ runs:
             exit 2
           fi
           echo "artifact-name=${ARTIFACT_SLUG}-pr-${PR_OR_RUN}" >> "$GITHUB_OUTPUT"
+          # Disclose the mode where the change would otherwise be silent (#709):
+          # an adopter who pinned the Action major without report-storage flips
+          # from durable branch reports to expiring artifacts on upgrade.
+          echo "::notice title=StyleProof report storage::report-storage is 'artifact' — the report uploads as a workflow artifact that expires after ${REPORT_RETENTION_DAYS} days. Set report-storage: branch for a durable in-browser report."
         fi
 
     - id: publish
@@ -794,6 +798,9 @@ runs:
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
             formatRunAttemptReceiptMarker({ runId, runAttempt }),
             ...(reportStorage === 'artifact' ? [`<!-- styleproof-artifact-digest:sha256:${artifactDigest} -->`] : []),
+            // Reviewer-visible expiry disclosure (#709): the artifact link is
+            // bounded — name the bound where the download link lands.
+            ...(reportStorage === 'artifact' ? [`_The report artifact expires ${{ inputs.report-retention-days }} days after upload._`] : []),
           ];
 
           const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');

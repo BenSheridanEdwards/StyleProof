@@ -61,6 +61,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Artifact-mode storage is disclosed on the run and the comment (#709).**
+  Artifact-mode runs emit a `::notice` annotation naming the mode, the
+  `report-retention-days` expiry bound, and the `report-storage: branch`
+  remediation, and the report comment carries a one-line expiry disclosure —
+  an adopter who upgrades the Action major without an explicit `report-storage`
+  input learns the mode flipped instead of discovering it through a changed
+  comment link or a 404 artifact.
 - **Action pin skew removed from scaffold and examples (#706).** The
   `styleproof-init` templates and the `example/` workflows now emit the same
   action majors the repository runs — `checkout@v7`, `upload-artifact@v6`,
