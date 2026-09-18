@@ -56,7 +56,7 @@ Style:
 | Property           | Before      | After       |
 | ------------------ | ----------- | ----------- |
 | `padding`          | `14px 28px` | `18px 32px` |
-| `background-color` | `#14b8a6`   | `#dc2626`   |
+| `background-color` | `#14b8a6`   | `#dc2626` |
 
 ### `a.link` · 1 element restyled `:hover`
 
@@ -213,6 +213,7 @@ That one command detects npm, pnpm, Yarn, or Bun; installs StyleProof and
 Playwright; installs Chromium; scaffolds the capture spec, a dedicated
 production-build Playwright config, and **one GitHub workflow**; then verifies
 every machine-owned file against the installed release. The default scaffold is
+
 the smallest honest gate: one `pull_request` job captures base and head in the
 same run and diffs them — maps live as workflow artifacts, no map-store branch,
 no pre-push hook — and the gate runs **advisory**: it reports evidence on every
@@ -248,7 +249,7 @@ that mode's file set instead of rewriting it.
 
 ```bash
 styleproof capture          # capture this commit from the generated spec
-styleproof crawl <url>       # direct URL or rendered-nav crawl
+styleproof crawl <url>      # direct URL or rendered-nav crawl
 styleproof compare [base]    # fail-closed base/head comparison
 styleproof report [base]     # generate the review report on command
 styleproof variants          # inspect surface/state variants
@@ -284,8 +285,9 @@ without blocking. These are the two gate modes you opt into:
 
 **Review-gate mode** (`require-approval: true`) is for normal feature work:
 every visual change is reported with evidence, the `StyleProof` status stays red
-until a reviewer ticks **Approve all changes**, and approved changes become the
-new baseline on merge. A surface that exists only on the PR head is still
+until a reviewer ticks **Approve all changes**, and approved changes become
+
+the new baseline on merge. A surface that exists only on the PR head is still
 reviewable: it holds the status red until approved, then becomes part of the
 baseline once merged.
 
@@ -321,7 +323,7 @@ report leads with their verdicts:
   items, keyed by stable identity, not label text). A removal that makes a
   feature unreachable **gates** — in the `styleproof-diff` CLI and in the
   Action, both modes — until acknowledged in `styleproof.inventory.json`
-  (`{"<key>": "<why>"}`); a stale acknowledgement is flagged so the ledger
+  (`{"<key>": "<why>"}`). A stale acknowledgement is flagged so the ledger
   can't rot. Details and the keying rules:
   [docs/inventory-guard.md](docs/inventory-guard.md). Make it advisory in the
   Action with `"gateInventoryRemovals": false` in `styleproof.config.json`.
@@ -350,14 +352,8 @@ report leads with their verdicts:
 Those verdicts roll up into one more line the report always states: the
 **confidence ledger** (`styleproof-confidence.json`, bundled next to the maps).
 It assigns every surface one status — `captured`, `excluded-with-reason`,
-`inaccessible` (an auth wall or blocked continuation), `unknown` (declared but
-never captured), or `unproven-determinism` — and renders a completeness badge
-(`✓ complete`, `⚠ limited`, `⚠ unasserted`, `⚠ unknown`) **separate from the
-visual verdict**: a visual PASS and a complete capture are two claims, never one
-green. Crawl captures persist the ledger themselves (auth walls travel with the
-bundle); spec captures derive it from the coverage ledger; bundles from before
-the ledger existed read `⚠ unknown` and are never blocked retroactively. No
-coverage percentage is ever invented for surfaces that cannot be enumerated.
+  `inaccessible` (an auth wall or blocked continuation), `unknown` (declared but never captured), or
+  `unproven-determinism` — and renders a completeness badge (`✓ complete`, `⚠ limited`, `⚠ unasserted`, `⚠ unknown`) **separate from the visual verdict**: a visual PASS and a complete capture are two claims, never one green. Crawl captures persist the ledger themselves (auth walls travel with the bundle); spec captures derive it from the coverage ledger; bundles from before the ledger existed read `⚠ unknown` and are never blocked retroactively. No coverage percentage is ever invented for surfaces that cannot be enumerated.
 The same summary lands machine-readably in `report.json` (`confidence`).
 
 ## The boundary
@@ -366,8 +362,8 @@ StyleProof certifies only what it captured: a surface that was never captured
 has no base and no head map, so its change can never appear in a diff and the
 gate stays green having never looked at it. The coverage guard
 (`expected`/`exclude`), the confidence ledger, the inventory guard, the
-data-residue gate, and product-state identity exist to make every one of those
-gaps loud instead of silent — full rules in
+ data-residue gate, and product-state identity exist to make every one of those
+ gaps loud instead of silent — full rules in
 [docs/REFERENCE.md](docs/REFERENCE.md).
 
 The sharpest form of the boundary: maps prove only the states the spec
@@ -388,7 +384,8 @@ contracts: [what it catches](docs/what-it-catches.md) ·
 [product-state comparability](docs/product-state-comparability.md) ·
 [report delivery](docs/report-delivery-contract.md) ·
 [setup server contract](docs/setup.md) ·
-[forced-state limits](docs/forced-state-capture.md).
+[forced-state limits](docs/forced-state-capture.md) ·
+[consumer pin bump](docs/consumer-pin-bump.md).
 
 ## Contributing
 
