@@ -61,6 +61,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Artifact-mode approval binds the uploaded bytes (#702).** The Action writes
+  `upload-artifact`'s `artifact-digest` into the report comment as a
+  `styleproof-artifact-digest` marker, and the approval readback now recomputes
+  the downloaded zip's SHA-256 against it — a missing, malformed, duplicated,
+  or mismatched digest fails closed instead of approving bytes that are not
+  the upload. Branch mode is unchanged: the publication-commit read already
+  pins bytes. The hosted dogfood leg verifies digest → downloaded bytes
+  against a real artifact.
 - **Report mirrored onto the Actions run page (#700).** The Action now appends
   `report.md` to the GitHub job summary, so the verdict and summary tables are
   readable on the run page without downloading the artifact — in both storage

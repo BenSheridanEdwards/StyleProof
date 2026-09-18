@@ -204,6 +204,25 @@ jobs:
               }
               return null;
             };
+            // The approval readback also pins the uploaded bytes (#702): the
+            // report comment carries the upload's SHA-256 digest exactly once,
+            // and the downloaded zip must hash to it.
+            const marker = '<!-- styleproof-dogfood-report -->';
+            const threadComments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo, issue_number: Number(process.env.PR_NUMBER), per_page: 100,
+            });
+            const dogfoodComments = threadComments.filter((c) => (c.body || '').includes(marker));
+            if (dogfoodComments.length !== 1) {
+              throw new Error(`expected exactly one ${marker} comment, found ${dogfoodComments.length}`);
+            }
+            const digestMarkers = dogfoodComments[0].body.match(/<!-- styleproof-artifact-digest:/g) || [];
+            const digestMatches = [...dogfoodComments[0].body.matchAll(
+              /<!-- styleproof-artifact-digest:sha256:([0-9a-f]{64}) -->/g,
+            )];
+            if (digestMarkers.length !== 1 || digestMatches.length !== 1) {
+              throw new Error('the report comment does not carry exactly one well-formed artifact digest');
+            }
+            const expectedDigest = digestMatches[0][1];
             const artifactName = `styleproof-dogfood-report-pr-${process.env.PR_NUMBER}`;
             const listed = await github.paginate(
               github.rest.actions.listWorkflowRunArtifacts,
@@ -221,6 +240,10 @@ jobs:
             const response = await fetch(download.url);
             if (!response || !response.ok) throw new Error('report artifact download did not succeed');
             const zip = Buffer.from(await response.arrayBuffer());
+            const { createHash } = await import('node:crypto');
+            if (createHash('sha256').update(zip).digest('hex') !== expectedDigest) {
+              throw new Error('downloaded artifact does not hash to the comment digest');
+            }
             const [publishedMarkdown, publishedJson] = await Promise.all([
               readZipEntry(zip, 'report.md'),
               readZipEntry(zip, 'report.json'),

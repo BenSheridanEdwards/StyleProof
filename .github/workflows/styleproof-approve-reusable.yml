@@ -272,6 +272,18 @@ jobs:
               // publications (#587) are entries in the run's report-artifact zip.
               // Uploaded artifacts cannot be replaced, so either substrate pins the
               // same evidence to the same run.
+              // Artifact publications also pin the uploaded bytes: the comment
+              // carries the upload's SHA-256 digest exactly once, and the
+              // downloaded zip must hash to it (#702).
+              let expectedDigest = null;
+              if (publication.kind === 'artifact') {
+                const digestMarkers = body.match(/<!-- styleproof-artifact-digest:/g) || [];
+                const digestMatches = [...body.matchAll(
+                  /<!-- styleproof-artifact-digest:sha256:([0-9a-f]{64}) -->/g,
+                )];
+                if (digestMarkers.length !== 1 || digestMatches.length !== 1) return;
+                expectedDigest = digestMatches[0][1];
+              }
               let artifactZipPromise = null;
               const readArtifactEntry = async (name) => {
                 if (!artifactZipPromise) {
@@ -305,7 +317,10 @@ jobs:
                     }
                     const response = await fetch(download.url);
                     if (!response || !response.ok) return null;
-                    return Buffer.from(await response.arrayBuffer());
+                    const zip = Buffer.from(await response.arrayBuffer());
+                    const { createHash } = await import('node:crypto');
+                    if (createHash('sha256').update(zip).digest('hex') !== expectedDigest) return null;
+                    return zip;
                   })();
                 }
                 const zip = await artifactZipPromise;

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -143,6 +144,7 @@ async function runApproval({
   artifactZip,
   fetchOk = true,
   failApi,
+  digest,
 } = {}) {
   const statuses = [];
   const updates = [];
@@ -154,13 +156,20 @@ async function runApproval({
     if (failApi === name) throw new Error(`${name} failed`);
     return implementation();
   };
+  const resolvedZip =
+    artifactZip === undefined ? makeZip({ 'report.md': markdown, 'report.json': reportJson }) : artifactZip;
+  // #702: an artifact-mode comment pins the uploaded bytes through the digest
+  // marker. Default to the digest of the zip under test; `digest: null` omits
+  // the marker and any other value is written verbatim (malformed or wrong).
+  if (body.includes('/actions/runs/') && digest !== null) {
+    const hex = digest === undefined ? createHash('sha256').update(resolvedZip).digest('hex') : digest;
+    body += `\n<!-- styleproof-artifact-digest:sha256:${hex} -->`;
+  }
   const comments = [{ id: canonicalCommentId, body, user: freshAuthor }];
   const canonicalStatus = {
     creator: { login: 'github-actions[bot]', type: 'Bot' },
     ...status,
   };
-  const resolvedZip =
-    artifactZip === undefined ? makeZip({ 'report.md': markdown, 'report.json': reportJson }) : artifactZip;
   const github = {
     paginate: async (route, params) => {
       if (route === github.rest.actions.listWorkflowRunArtifacts) {
@@ -512,6 +521,55 @@ test('artifact readback failures fail closed without a status write (#587)', asy
     runApproval({ body: artifactBody, status: artifactStatus, failApi: 'downloadArtifact' }),
     /requires actions: read/,
   );
+});
+
+test('the artifact digest marker binds the downloaded bytes (#702)', async () => {
+  const artifactStatus = {
+    state: 'failure',
+    description: PENDING_DESCRIPTION,
+    target_url: ARTIFACT_URL,
+    context: 'StyleProof',
+  };
+  const marker = (hex) => `<!-- styleproof-artifact-digest:sha256:${hex} -->`;
+
+  // The uploaded bytes must hash to the comment's single well-formed digest —
+  // missing, malformed, duplicated, and mismatched markers all fail closed.
+  for (const [label, fixture] of [
+    ['no marker', { digest: null }],
+    ['a malformed digest', { digest: 'deadbeef' }],
+    ['a digest of different bytes', { digest: 'f'.repeat(64) }],
+    [
+      'bytes swapped after publication',
+      {
+        digest: createHash('sha256')
+          .update(
+            makeZip({
+              'report.md': publishedMarkdown(),
+              'report.json': '{"surfaces":[],"actionTrustState":"STYLE_REVIEW_REQUIRED"}',
+            }),
+          )
+          .digest('hex'),
+        artifactZip: makeZip({
+          'report.md': publishedMarkdown(),
+          'report.json': '{"actionTrustState":"STYLE_REVIEW_REQUIRED","tampered":true}',
+        }),
+      },
+    ],
+  ]) {
+    const result = await runApproval({
+      body: reportComment({ link: ARTIFACT_URL }),
+      status: artifactStatus,
+      ...fixture,
+    });
+    assert.deepEqual(result.statuses, [], `${label} must not approve`);
+  }
+
+  // A second digest marker makes the identity ambiguous even when one matches.
+  const duplicated = await runApproval({
+    body: reportComment({ link: ARTIFACT_URL, extra: [marker('a'.repeat(64))] }),
+    status: artifactStatus,
+  });
+  assert.deepEqual(duplicated.statuses, [], 'two digest markers must not approve');
 });
 
 test('unticking remains fail-safe and does not require publication read access', async () => {
