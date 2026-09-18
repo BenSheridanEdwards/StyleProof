@@ -322,7 +322,7 @@ test('Action metadata, generated comment, and README expose one linked-delivery 
   );
 
   assert.match(readme, /PR comment is the same linked summary for public and private repositories/);
-  assert.match(readme, /Private-repository viewers need repository access and an authenticated GitHub session/);
+  assert.match(readme, /Every report viewer needs an authenticated GitHub session/);
   assert.match(readme, /If publication or receipt verification fails, StyleProof posts no delivery claim/);
   assert.match(changelog, /Action report delivery now uses one commit-bound GitHub blob link/);
 });
