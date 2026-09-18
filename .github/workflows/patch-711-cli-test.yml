@@ -1,0 +1,48 @@
+name: patch-711-cli-test
+on:
+  push:
+    branches: [fix/cli-spawn-timeout-711]
+    paths:
+      - .github/workflows/patch-711-cli-test.yml
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/cli-spawn-timeout-711
+      - name: Patch cli.test.mjs imports and self-remove
+        run: |
+          set -euo pipefail
+          python3 <<'PY2'
+          from pathlib import Path
+          p = Path("test/cli.test.mjs")
+          text = p.read_text()
+          old_spawn = "import { spawnSync } from 'node:child_process';\n"
+          if old_spawn in text:
+              text = text.replace(old_spawn, "", 1)
+          old_imp = "import { fixtureCommitSha, fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';"
+          new_imp = """import {
+  fixtureCommitSha,
+  fixtureCompatibilityKey,
+  makeMap,
+  mkTmp,
+  rmTmp,
+  spawnSyncBounded as spawnSync,
+  writeCapture,
+} from './helpers.mjs';"""
+          if old_imp not in text:
+              raise SystemExit("expected helpers import not found")
+          text = text.replace(old_imp, new_imp, 1)
+          if "spawnSyncBounded as spawnSync" not in text:
+              raise SystemExit("patch failed")
+          p.write_text(text)
+          Path(".github/workflows/patch-711-cli-test.yml").unlink(missing_ok=True)
+          PY2
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "test: wire cli.test.mjs to spawnSyncBounded (#711)"
+          git push origin HEAD:fix/cli-spawn-timeout-711
