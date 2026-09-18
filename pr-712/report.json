@@ -96,8 +96,8 @@
       "result": "matched"
     },
     "after": {
-      "expected": "b5f847ea2de14e027a436602f49d8f90cc08e5ce",
-      "observed": "b5f847ea2de14e027a436602f49d8f90cc08e5ce",
+      "expected": "1b28cd503d1b5098a855400f462a16017b228815",
+      "observed": "1b28cd503d1b5098a855400f462a16017b228815",
       "result": "matched"
     }
   },
@@ -105,18 +105,18 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "42d94ce098975f7f592a5469360ed1adc48fef5659e81472c2e786cabdaa2950",
+      "digest": "2297745799f0131016a07114981ca410d561a5d8fed133a5b1c555505595f7a7",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1578
+      "byteCount": 1525
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "2e57ded1a0e3b17663f669822a5f955d6a0d36ff3589a7a1e9de81970aa0f7ff",
+      "digest": "91fe76bde6b05e3ca820e8166272ad1cd45194ef4da3de21378cbd0734874c23",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1566
+      "byteCount": 1525
     }
   },
-  "actionTrustState": "INVENTORY_REMOVAL_UNACKNOWLEDGED"
+  "actionTrustState": "NO_REVIEWABLE_STYLE_CHANGES"
 }
