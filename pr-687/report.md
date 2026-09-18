@@ -2,12 +2,12 @@
 
 **Certification**
 - **Coverage** — ✓ complete (all 1 registered surface(s) captured)
-- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
+- **Determinism** — ✓ proven (base self-checked, head self-checked)
 - **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
-- **Confidence** — ⚠ limited (0 captured, 1 unproven-determinism)
+- **Confidence** — ✓ complete (1 captured)
 
 **Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
 ✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
-<!-- styleproof-receipt head-sha:b9f4ea0792e759ef9fbd5d49a8895df8a3ef2631 run-id:35340387199 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:c7fab160a5c460f6d8e8ae90c0c3ac60c48a44e7 run-id:35356728672 run-attempt:1 -->
