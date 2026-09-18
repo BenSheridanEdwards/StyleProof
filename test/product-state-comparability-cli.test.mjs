@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
-import { makeMap, mkTmp, rmTmp, writeCapture, spawnSyncBounded as spawnSync } from './helpers.mjs';
+import { makeMap, mkTmp, rmTmp, spawnSyncBounded as spawnSync, writeCapture } from './helpers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIFF = path.join(ROOT, 'bin/styleproof-diff.mjs');

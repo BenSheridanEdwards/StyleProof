@@ -16,31 +16,7 @@ jobs:
       - name: Patch cli.test.mjs imports and self-remove
         run: |
           set -euo pipefail
-          python3 <<'PY2'
-          from pathlib import Path
-          p = Path("test/cli.test.mjs")
-          text = p.read_text()
-          old_spawn = "import { spawnSync } from 'node:child_process';\n"
-          if old_spawn in text:
-              text = text.replace(old_spawn, "", 1)
-          old_imp = "import { fixtureCommitSha, fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';"
-          new_imp = """import {
-  fixtureCommitSha,
-  fixtureCompatibilityKey,
-  makeMap,
-  mkTmp,
-  rmTmp,
-  spawnSyncBounded as spawnSync,
-  writeCapture,
-} from './helpers.mjs';"""
-          if old_imp not in text:
-              raise SystemExit("expected helpers import not found")
-          text = text.replace(old_imp, new_imp, 1)
-          if "spawnSyncBounded as spawnSync" not in text:
-              raise SystemExit("patch failed")
-          p.write_text(text)
-          Path(".github/workflows/patch-711-cli-test.yml").unlink(missing_ok=True)
-          PY2
+          python3 -c "from pathlib import Path; p=Path('test/cli.test.mjs'); t=p.read_text(); t=t.replace(\"import { spawnSync } from 'node:child_process';\\n\", '', 1); old=\"import { fixtureCommitSha, fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';\"; new=\"import {\\n  fixtureCommitSha,\\n  fixtureCompatibilityKey,\\n  makeMap,\\n  mkTmp,\\n  rmTmp,\\n  spawnSyncBounded as spawnSync,\\n  writeCapture,\\n} from './helpers.mjs';\"; assert old in t, 'helpers import missing'; t=t.replace(old, new, 1); assert 'spawnSyncBounded as spawnSync' in t; p.write_text(t); Path('.github/workflows/patch-711-cli-test.yml').unlink()"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
