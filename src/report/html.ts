@@ -29,7 +29,7 @@ function inline(text: string): string {
     return `\uE000${staged.length - 1}\uE000`;
   };
   const protectedText = text
-    .replace(/<!--.*?-->/g, (comment) => stage(comment))
+    .replace(/<!--[\s\S]*?-->/g, (comment) => stage(comment))
     .replace(/`([^`\n]+)`/g, (_m, code) => stage(`<code>${escapeHtml(code)}</code>`));
   const html = escapeHtml(protectedText)
     .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1" loading="lazy">')
