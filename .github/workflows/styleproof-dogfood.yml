@@ -127,14 +127,15 @@ jobs:
         run: |
           set -euo pipefail
           # report-storage: artifact (the default) — the comment links the report
-          # artifact on this run, and nothing lands on a report branch.
+          # artifact on this run, and nothing lands on a report branch. The
+          # artifact name follows comment-marker: styleproof-dogfood-report.
           body="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq 'map(select(.body | contains("<!-- styleproof-dogfood-report -->"))) | last | .body // ""')"
           printf '%s\n' "$body" | grep -F '<!-- styleproof-dogfood-report -->'
           printf '%s\n' "$body" | grep -Eq "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
           for i in 1 2 3 4 5; do
             gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
-              --jq '.artifacts[].name' | grep -Fx "styleproof-report-pr-${PR_NUMBER}" && break
+              --jq '.artifacts[].name' | grep -Fx "styleproof-dogfood-report-pr-${PR_NUMBER}" && break
             if [ "$i" -eq 5 ]; then
               echo "StyleProof report artifact missing on run ${GITHUB_RUN_ID}" >&2
               exit 1

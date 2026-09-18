@@ -121,9 +121,47 @@ for (const [storage, days, expectedExit] of [
         ...process.env,
         REPORT_STORAGE: storage,
         REPORT_RETENTION_DAYS: days,
+        COMMENT_MARKER: '<!-- styleproof-report -->',
+        PR_OR_RUN: '42',
+        GITHUB_OUTPUT: '/dev/null',
       },
       cwd: fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-validate-')),
     });
     assert.equal(result.status, expectedExit, `validate step output: ${result.stderr}`);
+  });
+}
+
+// Artifact names follow comment-marker (#692-followup): the default marker must
+// yield exactly styleproof-report-pr-<n> — the name the approval workflow
+// resolves — while a distinct marker gets a distinct name, so two Action
+// instances on one PR cannot collide on the immutable artifact name.
+for (const [marker, expected] of [
+  ['<!-- styleproof-report -->', 'styleproof-report-pr-42'],
+  ['<!-- styleproof-dogfood-report -->', 'styleproof-dogfood-report-pr-42'],
+  ['<!-- ci: secondary sweep -->', 'ci-secondary-sweep-pr-42'],
+  ['<!-- !!! -->', null],
+]) {
+  test(`comment-marker '${marker}' produces artifact name '${expected}'`, () => {
+    const script = runBlockContaining('report-storage must be artifact or branch');
+    const dir = fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-validate-'));
+    const outputFile = path.join(dir, 'github-output');
+    const result = spawnSync('bash', ['-u', '-c', script], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        REPORT_STORAGE: 'artifact',
+        REPORT_RETENTION_DAYS: '30',
+        COMMENT_MARKER: marker,
+        PR_OR_RUN: '42',
+        GITHUB_OUTPUT: outputFile,
+      },
+      cwd: dir,
+    });
+    if (expected === null) {
+      assert.equal(result.status, 2, `expected validation failure: ${result.stderr}`);
+      return;
+    }
+    assert.equal(result.status, 0, `validate step output: ${result.stderr}`);
+    assert.match(fs.readFileSync(outputFile, 'utf8'), new RegExp(`^artifact-name=${expected}$`, 'm'));
   });
 }

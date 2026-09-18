@@ -61,7 +61,9 @@ inputs:
     description: >-
       HTML comment marker used to find and upsert the PR report comment.
       Change this when more than one StyleProof Action runs on the same pull request
-      so the comments do not overwrite each other.
+      so the comments do not overwrite each other. In artifact mode the marker also
+      names the report artifact, so distinct markers cannot collide on the immutable
+      artifact name.
     default: '<!-- styleproof-report -->'
   mode:
     description: >-
@@ -534,10 +536,13 @@ runs:
     # NOT pass --image-base-url — a raw.githubusercontent URL is fetched anonymously
     # by GitHub's Camo proxy and 404s on private repos).
     - name: Validate report-storage
+      id: validate
       shell: bash
       env:
         REPORT_STORAGE: ${{ inputs.report-storage }}
         REPORT_RETENTION_DAYS: ${{ inputs.report-retention-days }}
+        COMMENT_MARKER: ${{ inputs.comment-marker }}
+        PR_OR_RUN: ${{ steps.context.outputs.pr-number || github.run_id }}
       run: |
         case "$REPORT_STORAGE" in
           artifact|branch) ;;
@@ -556,6 +561,18 @@ runs:
             echo "report-retention-days must be at least 1 day (0 selects the repository default, unbounded by this contract)" >&2
             exit 2
           fi
+          # The artifact name follows comment-marker (#692-followup): the
+          # default marker yields styleproof-report-pr-<n> — the exact name the
+          # approval workflow resolves — while a distinct marker gets a
+          # distinct artifact so two Action instances on one PR cannot collide
+          # on the immutable name. Unsafe characters fold to '-'.
+          MARKER_INNER="$(printf '%s' "$COMMENT_MARKER" | sed -E -e 's/^<!--[[:space:]]*//' -e 's/[[:space:]]*-->[[:space:]]*$//')"
+          ARTIFACT_SLUG="$(printf '%s' "$MARKER_INNER" | sed -E -e 's/[^A-Za-z0-9._-]+/-/g' -e 's/^-+//' -e 's/-+$//' | cut -c1-80)"
+          if [ -z "$ARTIFACT_SLUG" ]; then
+            echo "comment-marker produces an empty report artifact name" >&2
+            exit 2
+          fi
+          echo "artifact-name=${ARTIFACT_SLUG}-pr-${PR_OR_RUN}" >> "$GITHUB_OUTPUT"
         fi
 
     - id: publish
@@ -599,7 +616,7 @@ runs:
       if: inputs.report-storage == 'artifact'
       uses: actions/upload-artifact@v6
       with:
-        name: styleproof-report-pr-${{ steps.context.outputs.pr-number || github.run_id }}
+        name: ${{ steps.validate.outputs.artifact-name }}
         path: styleproof-report
         retention-days: ${{ inputs.report-retention-days }}
         if-no-files-found: error
