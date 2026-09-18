@@ -3,10 +3,24 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { PNG } from 'pngjs';
+
+
+/** Default bound for CLI-test children so a leaked handle cannot hang the suite forever. */
+export const CLI_SPAWN_TIMEOUT_MS = 60_000;
+
+/**
+ * spawnSync with a hard wall-clock timeout. On expiry Node kills the child
+ * (SIGTERM by default) and returns status=null with error.code === 'ETIMEDOUT'.
+ * Call sites may override `timeout`; omitting it applies CLI_SPAWN_TIMEOUT_MS.
+ */
+export function spawnSyncBounded(command, args = [], options = {}) {
+  const timeout = options.timeout ?? CLI_SPAWN_TIMEOUT_MS;
+  return spawnSync(command, args, { ...options, timeout });
+}
 
 /** Make a unique temp dir; returns its path. Caller removes via rmTmp. */
 export function mkTmp(prefix = 'styleproof-test-') {
