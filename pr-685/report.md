@@ -1,25 +1,13 @@
 ## 🗺️ StyleProof report
 
 **Certification**
-- **Coverage** — ✓ complete (all 2 registered surface(s) captured)
+- **Coverage** — ✓ complete (all 1 registered surface(s) captured)
 - **Determinism** — ✓ proven (base self-checked, head self-checked)
 - **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
-- **Confidence** — ✓ complete (2 captured)
+- **Confidence** — ✓ complete (1 captured)
 
 **Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
-🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 320`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
+✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
-## One-sided pages, states, or surfaces — review first
-
-### `pricing@320` · new surface <!-- styleproof-new -->
-
-_pricing @ 320_
-
-![new surface — after](crops/pricing-320-1-new.png)
-
-<sub>after · pricing @ 320</sub>
-
-_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
-
-<!-- styleproof-receipt head-sha:4a1f9099747316d76a5036b28fe8a41f6a30c0f6 run-id:35338943811 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:a7d0179d38800ba56eec80752b97d2179d658fe3 run-id:35339008324 run-attempt:1 -->
