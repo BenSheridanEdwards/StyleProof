@@ -37,6 +37,7 @@ function actionCommentScript({
     ['steps.report-artifact.outputs.artifact-digest', artifactDigest],
     ['steps.publish.outputs.sha', sha],
     ['inputs.report-storage', reportStorage],
+    ['inputs.report-retention-days', '30'],
     ['steps.diff.outputs.changed', 'true'],
     ['inputs.require-approval', 'true'],
     ['inputs.mode', 'certify'],
@@ -172,6 +173,14 @@ test('literal Action comment links the workflow artifact in artifact storage mod
   assert.doesNotMatch(body, /View the side-by-side/);
   // #702: the digest marker binds the comment to the uploaded bytes.
   assert.match(body, new RegExp(`<!-- styleproof-artifact-digest:sha256:${'d'.repeat(64)} -->`));
+  // #709: the reviewer-visible expiry disclosure rides the footer.
+  assert.match(body, /_The report artifact expires 30 days after upload\._/);
+});
+
+test('branch-mode comments carry no artifact expiry disclosure (#709)', async () => {
+  const run = await executeActionComment({ reportStorage: 'branch', repositoryPrivate: false });
+  assert.equal(run.created.length, 1);
+  assert.doesNotMatch(run.created[0].body, /report artifact expires/);
 });
 
 test('a malformed upload-artifact digest fails the comment before any write (#702)', async () => {

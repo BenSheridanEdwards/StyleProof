@@ -131,6 +131,40 @@ for (const [storage, days, expectedExit] of [
   });
 }
 
+// #709: artifact mode discloses the storage flip where it would otherwise be
+// silent — a ::notice annotation names the mode, the expiry bound, and the
+// branch-mode remediation. Branch mode has no surprise to disclose.
+for (const [storage, expectNotice] of [
+  ['artifact', true],
+  ['branch', false],
+]) {
+  test(`report-storage=${storage} ${expectNotice ? 'emits' : 'omits'} the storage notice (#709)`, () => {
+    const script = runBlockContaining('report-storage must be artifact or branch');
+    const result = spawnSync('bash', ['-u', '-c', script], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        REPORT_STORAGE: storage,
+        REPORT_RETENTION_DAYS: '45',
+        COMMENT_MARKER: '<!-- styleproof-report -->',
+        PR_OR_RUN: '42',
+        GITHUB_OUTPUT: '/dev/null',
+      },
+      cwd: fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-validate-')),
+    });
+    assert.equal(result.status, 0, `validate step output: ${result.stderr}`);
+    const notice = result.stdout.match(/^::notice title=StyleProof report storage::(.*)$/m);
+    if (!expectNotice) {
+      assert.equal(notice, null, `branch mode must stay silent: ${result.stdout}`);
+      return;
+    }
+    assert.ok(notice, `expected a ::notice annotation: ${result.stdout}`);
+    assert.match(notice[1], /report-storage is 'artifact'/);
+    assert.match(notice[1], /expires after 45 days/);
+    assert.match(notice[1], /report-storage: branch/);
+  });
+}
+
 // Artifact names follow comment-marker (#692-followup): the default marker must
 // yield exactly styleproof-report-pr-<n> — the name the approval workflow
 // resolves — while a distinct marker gets a distinct name, so two Action

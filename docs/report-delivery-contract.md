@@ -29,7 +29,10 @@ The Action upserts one comment identified by `<!-- styleproof-report -->`. It co
 - the bounded report summary;
 - the approval checkbox when review-gate mode requires one;
 - one canonical link — the commit-bound blob URL in branch mode, the run/artifact URL in artifact mode;
+- in artifact mode, a disclosure that the report artifact expires `report-retention-days` days after upload;
 - the exact source-head and run-attempt receipt markers.
+
+Artifact mode also emits a `::notice` annotation on the run naming the storage mode, the expiry bound, and the `report-storage: branch` remediation, so an adopter whose effective mode flipped on an Action upgrade learns it from the run rather than from a changed comment link.
 
 The comment does not duplicate crops or per-element tables. This prevents a separately rendered comment from drifting away from the published report.
 
