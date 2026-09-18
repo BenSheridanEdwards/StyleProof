@@ -165,3 +165,39 @@ for (const [marker, expected] of [
     assert.match(fs.readFileSync(outputFile, 'utf8'), new RegExp(`^artifact-name=${expected}$`, 'm'));
   });
 }
+
+// #696: artifact-mode report.md must carry the same run receipt the branch
+// publisher appends — the approval readback fails closed without it. The real
+// step body is executed, not pattern-matched.
+const RECEIPT_HEAD_SHA = 'b'.repeat(40);
+const RECEIPT_FALLBACK_SHA = 'c'.repeat(40);
+for (const [headSha, expectedSha, label] of [
+  [RECEIPT_HEAD_SHA, RECEIPT_HEAD_SHA, 'context head-sha'],
+  ['', RECEIPT_FALLBACK_SHA, 'github.sha fallback'],
+]) {
+  test(`the receipt step binds ${label} into artifact-mode report.md (#696)`, () => {
+    const dir = fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-receipt-'));
+    fs.mkdirSync(path.join(dir, 'styleproof-report'));
+    fs.writeFileSync(path.join(dir, 'styleproof-report/report.md'), '# report\n');
+    const script = runBlockContaining('styleproof-receipt head-sha:%s')
+      .replace(/\$\{\{ steps\.context\.outputs\.head-sha \}\}/g, headSha)
+      .replace(/\$\{\{ github\.sha \}\}/g, RECEIPT_FALLBACK_SHA)
+      .replace(/\$\{\{ github\.run_id \}\}/g, '4242')
+      .replace(/\$\{\{ github\.run_attempt \}\}/g, '3');
+    const result = spawnSync('bash', ['-u', '-c', script], { encoding: 'utf8', cwd: dir });
+    assert.equal(result.status, 0, `receipt step output: ${result.stderr}`);
+    const report = fs.readFileSync(path.join(dir, 'styleproof-report/report.md'), 'utf8');
+    assert.equal(
+      report,
+      `# report\n\n<!-- styleproof-receipt head-sha:${expectedSha} run-id:4242 run-attempt:3 -->\n`,
+      'receipt must match the branch publisher marker byte-for-byte',
+    );
+  });
+}
+
+test('the receipt step fails closed when report.md is missing (#696)', () => {
+  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-receipt-'));
+  const script = runBlockContaining('styleproof-receipt head-sha:%s').replace(/\$\{\{[^}]*\}\}/g, 'x');
+  const result = spawnSync('bash', ['-u', '-c', script], { encoding: 'utf8', cwd: dir });
+  assert.notEqual(result.status, 0, 'a missing report.md must not produce a receipt-only artifact');
+});

@@ -101,3 +101,40 @@ test('hosted required CI does not gate the advisory dogfood path', () => {
   assert.doesNotMatch(required, /dogfood/);
   assert.match(workflow, /NOT part of the hosted `required` check/);
 });
+
+test('live dogfood reads the real report artifact back like the approval workflow (#696)', () => {
+  assert.match(workflow, /Read the report artifact back like the approval workflow/);
+  assert.match(workflow, /listWorkflowRunArtifacts/, 'must list the run artifacts like the approval path');
+  assert.match(workflow, /downloadArtifact\(\{[\s\S]*?archive_format: 'zip'/, 'must download the artifact zip');
+  assert.match(workflow, /fetch\(download\.url\)/, 'must fetch the archive download URL');
+  assert.match(workflow, /readZipEntry\(zip, 'report\.md'\)/, 'must read report.md out of the zip');
+  assert.match(workflow, /readZipEntry\(zip, 'report\.json'\)/, 'must read report.json out of the zip');
+  assert.match(
+    workflow,
+    /styleproof-receipt head-sha:\(\[0-9a-f\]\{40\}\) run-id:\(\\d\+\) run-attempt:\(\\d\+\)/,
+    'must verify the run receipt the approval workflow requires',
+  );
+  assert.match(workflow, /GITHUB_RUN_ATTEMPT/, 'receipt check must bind the run attempt');
+  assert.match(
+    workflow,
+    /readZipEntry\(zip, 'no-such-entry\.txt'\)\) !== null/,
+    'must probe fail-closed behavior on a missing entry',
+  );
+});
+
+test('the dogfood zip reader is byte-identical to the approval workflow reader (#696)', () => {
+  const extract = (source, file) => {
+    const match = source.match(/ {12}const readZipEntry = async \(zip, name\) => \{[\s\S]*?\n {12}\};/);
+    assert.ok(match, `${file} must contain the readZipEntry helper at script indent`);
+    return match[0];
+  };
+  const dogfood = extract(workflow, 'styleproof-dogfood.yml');
+  for (const file of ['.github/workflows/styleproof-approve-reusable.yml', 'example/styleproof-approve.yml']) {
+    const source = fs.readFileSync(path.join(here, '..', file), 'utf8');
+    assert.equal(
+      extract(source, file),
+      dogfood,
+      `readZipEntry in ${file} drifted from the dogfood copy — update all three together`,
+    );
+  }
+});
