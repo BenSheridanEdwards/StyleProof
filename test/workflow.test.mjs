@@ -17,7 +17,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*?(?=\n {2}required:)/)?.[0] ?? '';
   const required = ci.match(/ {2}required:[\s\S]*$/)?.[0] ?? '';
 
-  assert.equal(packageJson.scripts['test:unit'], 'node --test test/*.test.mjs');
+  assert.equal(packageJson.scripts['test:unit'], 'node --test --test-timeout=300000 test/*.test.mjs');
   assert.match(buildJob, /matrix:\n[\s\S]*node: \['18', '20', '22'\]/);
   assert.match(buildJob, /npm run build/);
   assert.match(buildJob, /npm run test:unit/);
