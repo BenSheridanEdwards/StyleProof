@@ -14,7 +14,7 @@ Intentional changes get approved. Unexpected changes block.
 On a pull request, the PR comment is the same linked summary for public and private repositories.
 Reports publish as workflow artifacts by default — the comment links the artifact on the run, and nothing is written to repository git history. `report-storage: branch` opts back into the `styleproof-reports` orphan branch for an in-browser rendered report.
 Crops travel inside the published report package instead of being duplicated into the comment.
-Private-repository viewers need repository access and an authenticated GitHub session.
+Every report viewer needs an authenticated GitHub session — artifact downloads are never anonymous, public or private. `report-storage: branch` restores anonymous blob access on public repositories only.
 If publication or receipt verification fails, StyleProof posts no delivery claim for that run.
 The README can carry the crops directly. The block below is a real run, not a mockup:
 `scripts/live-readme-report.mjs` captures `example/demo/index.html` in Chromium twice, injecting a
