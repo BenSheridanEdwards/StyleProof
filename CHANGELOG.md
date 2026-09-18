@@ -70,6 +70,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`report-retention-days` is validated in artifact mode (#690).** The input
+  was passed straight to `upload-artifact`, so `0` silently selected the
+  repository default retention — unbounded by the 1–90-day contract — and
+  non-numeric values failed at the upload step instead of at input validation.
+  The Action now requires a positive integer when `report-storage` is
+  `artifact` (`0` rejected explicitly); values above 90 stay legal where
+  repository settings allow them, and branch mode never validates the unused
+  input.
 - **Same-run job re-runs republish the report artifact instead of failing
   (#688).** Artifact names are immutable per workflow run, so a job re-run after
   any post-upload failure collided on `styleproof-report-pr-<n>` and surfaced as
