@@ -20,6 +20,8 @@ Branch publication succeeds only after the publisher reads the advertised commit
 
 Artifact names are immutable per workflow run, so the upload sets `overwrite: true`: re-running the job in the same run replaces the earlier report artifact instead of failing on the name, and the comment and status always link the newest artifact.
 
+Regardless of storage mode, the Action also appends `report.md` to the GitHub job summary, so the run page itself shows the verdict and summary tables without a download. Crop paths are relative to the report directory and cannot resolve on the run page, so image-only lines are omitted from the summary copy; the `<sub>` captions remain.
+
 ## Pull-request comment
 
 The Action upserts one comment identified by `<!-- styleproof-report -->`. It contains:

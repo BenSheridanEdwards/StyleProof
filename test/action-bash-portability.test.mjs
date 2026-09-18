@@ -201,3 +201,41 @@ test('the receipt step fails closed when report.md is missing (#696)', () => {
   const result = spawnSync('bash', ['-u', '-c', script], { encoding: 'utf8', cwd: dir });
   assert.notEqual(result.status, 0, 'a missing report.md must not produce a receipt-only artifact');
 });
+
+// #700: the job summary mirrors report.md so the verdict is readable on the run
+// page. Crop paths are relative to the report directory and cannot resolve
+// there, so image-only lines are dropped; <sub> captions still render.
+test('the summary step mirrors report.md minus image-only lines (#700)', () => {
+  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-summary-'));
+  const summaryFile = path.join(dir, 'github-step-summary');
+  fs.mkdirSync(path.join(dir, 'styleproof-report'));
+  fs.writeFileSync(
+    path.join(dir, 'styleproof-report/report.md'),
+    '## StyleProof report\n\nverdict row\n\n![crop](crops/a.png)\n\n<sub>caption</sub>\n',
+  );
+  const script = runBlockContaining('grep -v');
+  const result = spawnSync('bash', ['-u', '-c', script], {
+    encoding: 'utf8',
+    env: { ...process.env, GITHUB_STEP_SUMMARY: summaryFile },
+    cwd: dir,
+  });
+  assert.equal(result.status, 0, `summary step output: ${result.stderr}`);
+  assert.equal(
+    fs.readFileSync(summaryFile, 'utf8'),
+    '## StyleProof report\n\nverdict row\n\n\n<sub>caption</sub>\n',
+    'the summary must carry every line except relative-path images',
+  );
+});
+
+test('the summary step fails safe when report.md is missing (#700)', () => {
+  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'styleproof-summary-'));
+  const summaryFile = path.join(dir, 'github-step-summary');
+  const script = runBlockContaining('grep -v');
+  const result = spawnSync('bash', ['-u', '-c', script], {
+    encoding: 'utf8',
+    env: { ...process.env, GITHUB_STEP_SUMMARY: summaryFile },
+    cwd: dir,
+  });
+  assert.equal(result.status, 0, `summary step output: ${result.stderr}`);
+  assert.equal(fs.existsSync(summaryFile), false, 'no report must mean no summary write');
+});

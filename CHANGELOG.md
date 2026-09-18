@@ -61,6 +61,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Report mirrored onto the Actions run page (#700).** The Action now appends
+  `report.md` to the GitHub job summary, so the verdict and summary tables are
+  readable on the run page without downloading the artifact — in both storage
+  modes. Image-only lines are omitted from the summary copy because crop paths
+  are relative to the report directory and cannot resolve on the run page; the
+  `<sub>` captions remain. A missing report fails safe instead of failing the
+  step.
 - **Self-contained `report.html` in every report package (#698).** Under the
   default artifact storage, reviewers downloaded a ZIP and read raw Markdown;
   the report directory now carries a rendered `report.html` sibling to
