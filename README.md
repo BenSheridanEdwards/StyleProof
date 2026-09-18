@@ -388,7 +388,8 @@ contracts: [what it catches](docs/what-it-catches.md) ·
 [product-state comparability](docs/product-state-comparability.md) ·
 [report delivery](docs/report-delivery-contract.md) ·
 [setup server contract](docs/setup.md) ·
-[forced-state limits](docs/forced-state-capture.md).
+[forced-state limits](docs/forced-state-capture.md) ·
+[consumer pin bump](docs/consumer-pin-bump.md).
 
 ## Contributing
 
