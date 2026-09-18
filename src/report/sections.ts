@@ -7,6 +7,7 @@ import type { ReportOptions, ReportResult } from '../report.js';
 import { safeKey, surfaceBase } from '../change-groups.js';
 import { cropPng, cropStem, readPng, writePng } from './png.js';
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
+import { renderReportHtml } from './html.js';
 import { renderChangeGroup } from './regions.js';
 import { formatSurfaceWithContext, type ChangeGroup, type PreparedSurface, type RenderCtx } from './shared.js';
 
@@ -270,11 +271,19 @@ export type ReportArtifacts = Pick<
   liveTextFreeze: { violated: boolean; reason?: string } | null;
 };
 
-/** Write report.md and report.json. The JSON key order is a byte-stable contract. */
-export function writeReportArtifacts(a: ReportArtifacts): { reportMdPath: string; reportJsonPath: string } {
+/** Write report.md, report.json, and report.html. The JSON key order is a byte-stable contract. */
+export function writeReportArtifacts(a: ReportArtifacts): {
+  reportMdPath: string;
+  reportJsonPath: string;
+  reportHtmlPath: string;
+} {
   const reportMdPath = path.join(a.outDir, 'report.md');
   const reportJsonPath = path.join(a.outDir, 'report.json');
+  const reportHtmlPath = path.join(a.outDir, 'report.html');
   fs.writeFileSync(reportMdPath, a.md.length > 0 ? `${a.md.join('\n')}\n` : '');
+  // The rendered sibling of report.md: artifact storage and local output ship
+  // no rendered view, so the review surface travels inside the package (#698).
+  fs.writeFileSync(reportHtmlPath, renderReportHtml(a.md.join('\n')));
   const json = {
     gateMode: a.gateMode,
     counts: a.counts,
@@ -296,5 +305,5 @@ export function writeReportArtifacts(a: ReportArtifacts): { reportMdPath: string
     ...(a.criticalStates ? { criticalStates: a.criticalStates } : {}),
   };
   fs.writeFileSync(reportJsonPath, JSON.stringify(json, null, 2));
-  return { reportMdPath, reportJsonPath };
+  return { reportMdPath, reportJsonPath, reportHtmlPath };
 }
