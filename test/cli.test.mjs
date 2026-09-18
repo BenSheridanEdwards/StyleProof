@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,7 +7,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { saveStyleMap } from '../dist/capture.js';
 import { DEFAULT_MAP_STORE_BRANCH, MAP_MANIFEST, expectedCompatibilityKey } from '../dist/map-store.js';
-import { fixtureCommitSha, fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+import {
+  fixtureCommitSha,
+  fixtureCompatibilityKey,
+  makeMap,
+  mkTmp,
+  rmTmp,
+  spawnSyncBounded as spawnSync,
+  writeCapture,
+} from './helpers.mjs';
 import { writeConfidenceLedger, buildConfidenceLedger } from '../dist/confidence-ledger.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
