@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download captured style maps
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: styleproof-stylemaps
           path: __stylemaps__

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { binDir } from '../cli.mjs';
 import { SPEC_PATH_ENV } from '../spec-path-env.mjs';
 
-const setupNode = (extra = '') => `      - uses: actions/setup-node@v4
+const setupNode = (extra = '') => `      - uses: actions/setup-node@v7
         with:
           node-version: '20'${extra}`;
 
@@ -308,7 +308,7 @@ const pruneAndSweepJobs = ({ PM, scaffold }) => `  prune:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: \${{ github.event.repository.default_branch }}
 ${PM.setup}
@@ -337,7 +337,7 @@ ${PM.setup}
       contents: write
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 ${PM.setup}
       - run: ${PM.install}
       - name: Sweep the report branch by retention and size budget
@@ -429,7 +429,7 @@ jobs:
       actions: read
 ${jobEnv(ctx)}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # need base/head commits for cache fallback capture
           persist-credentials: false
@@ -446,7 +446,7 @@ ${VERIFY_STEP}
           # hold write credentials). Publication/report happens in the trusted
           # workflow_run stage.
 ${captureStep(ctx)}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: styleproof-stylemaps
           path: \${{ runner.temp }}/styleproof-maps
@@ -478,7 +478,7 @@ jobs:
       actions: read
 ${jobEnv(ctx)}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # need base/head commits for the in-job base capture
 ${ctx.PM.setup}
@@ -522,7 +522,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download captured style maps
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: styleproof-stylemaps
           path: \${{ runner.temp }}/styleproof-maps

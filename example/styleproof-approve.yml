@@ -73,7 +73,7 @@ jobs:
       # string 'true' refuses, so a typo here fails closed.
       STYLEPROOF_ALLOW_SELF_APPROVAL: 'false'
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             const STATUS = 'StyleProof'; // must match the Action's status-context input

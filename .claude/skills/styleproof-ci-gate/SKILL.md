@@ -13,7 +13,7 @@ skill is the model for tuning it or wiring it by hand.
 
 ```yaml
 # .github/workflows/styleproof.yml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
 - run: npx styleproof-map --restore --sha "${{ github.event.pull_request.base.sha }}" --dir base --base-dir __stylemaps__
 - run: npx styleproof-map --restore --sha "${{ github.event.pull_request.head.sha }}" --dir head --base-dir __stylemaps__
 - uses: BenSheridanEdwards/StyleProof@v7

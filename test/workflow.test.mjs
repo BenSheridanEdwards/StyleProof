@@ -112,3 +112,15 @@ test('release repair preserves an existing version tag and names the GitHub Rele
   assert.match(release, /name: \$\{\{ steps\.notes\.outputs\.release_name \}\}/);
   assert.match(release, /git tag -f "\$MAJOR" "v\$\{\{ steps\.check\.outputs\.version \}\}"/);
 });
+
+test('shipped and generated workflows carry no stale actions/* pins (#706)', () => {
+  const stalePin = /actions\/[a-z-]+@v[0-5]\b/;
+  const dirs = ['.github/workflows', 'example'];
+  for (const dir of dirs) {
+    for (const file of fs.readdirSync(path.join(here, '..', dir))) {
+      if (!file.endsWith('.yml') && !file.endsWith('.yaml')) continue;
+      const text = fs.readFileSync(path.join(here, '..', dir, file), 'utf8');
+      assert.doesNotMatch(text, stalePin, `${dir}/${file} carries a stale actions/* pin`);
+    }
+  }
+});
