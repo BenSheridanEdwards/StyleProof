@@ -35,7 +35,7 @@ inputs:
       until pruned).
     default: 'artifact'
   report-retention-days:
-    description: 'Days the report artifact is kept when report-storage is artifact (bounded 1-90 by GitHub).'
+    description: 'Days the report artifact is kept when report-storage is artifact. Must be a positive integer; 0 is rejected (it selects the repository default, unbounded by this contract). GitHub bounds retention to 90 days unless repository settings allow more.'
     default: '30'
   report-branch:
     description: "Orphan branch that stores reports (created on first run). One pr-<n>/ folder per PR; the styleproof-init workflow prunes each on PR close. Used only when report-storage is 'branch'."
@@ -537,11 +537,26 @@ runs:
       shell: bash
       env:
         REPORT_STORAGE: ${{ inputs.report-storage }}
+        REPORT_RETENTION_DAYS: ${{ inputs.report-retention-days }}
       run: |
         case "$REPORT_STORAGE" in
           artifact|branch) ;;
           *) echo "report-storage must be artifact or branch" >&2; exit 2 ;;
         esac
+        # Retention only applies in artifact mode (#690): 0 selects the
+        # repository default, which this contract does not bound. Values above
+        # 90 stay legal where repository settings allow them.
+        if [ "$REPORT_STORAGE" = 'artifact' ]; then
+          case "$REPORT_RETENTION_DAYS" in
+            ''|*[!0-9]*)
+              echo "report-retention-days must be a positive integer of days" >&2
+              exit 2 ;;
+          esac
+          if [ "$REPORT_RETENTION_DAYS" -eq 0 ]; then
+            echo "report-retention-days must be at least 1 day (0 selects the repository default, unbounded by this contract)" >&2
+            exit 2
+          fi
+        fi
 
     - id: publish
       if: inputs.report-storage == 'branch'
