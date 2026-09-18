@@ -758,6 +758,22 @@ test('composite action marks certify-mode comments with their source head SHA', 
   assert.match(commentStep[0], /\.\.\.\(headSha \? \[`<!-- styleproof-sha:\$\{headSha\} -->`\] : \[\]\)/);
 });
 
+test('composite action binds the uploaded artifact digest into the comment (#702)', () => {
+  const commentStep = extractActionStep('- name: Upsert PR comment', '\\n\\s{4}#|\\n\\s{4}- name:');
+
+  assert.ok(commentStep, 'action.yml should include a PR comment step');
+  assert.match(
+    commentStep[0],
+    /\.\.\.\(reportStorage === 'artifact' \? \[`<!-- styleproof-artifact-digest:\$\{artifactDigest\} -->`\] : \[\]\)/,
+    'artifact mode must emit the upload digest as a comment marker; branch mode must not',
+  );
+  assert.match(
+    commentStep[0],
+    /!\/\^sha256:\[0-9a-f\]\{64\}\$\/\.test\(artifactDigest\)/,
+    'a malformed upload-artifact digest must fail the comment, not ship an unverifiable marker',
+  );
+});
+
 test('action dogfood fixtures are asserted and deterministic unless the scenario overrides trust', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-action-dogfood-'));
   const baseSha = 'a'.repeat(40);

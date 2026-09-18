@@ -21,7 +21,12 @@ const publicationSha = 'a'.repeat(40);
 const prNumber = 42;
 const reportUrl = `https://github.com/${repository}/blob/${publicationSha}/pr-42/report.md`;
 
-function actionCommentScript({ url = reportUrl, sha = publicationSha, reportStorage = 'branch' } = {}) {
+function actionCommentScript({
+  url = reportUrl,
+  sha = publicationSha,
+  reportStorage = 'branch',
+  artifactDigest = `sha256:${'d'.repeat(64)}`,
+} = {}) {
   const match = actionYml.match(/- name: Upsert PR comment[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- name:)/);
   assert.ok(match, 'action.yml should contain the PR comment github-script program');
   const replacements = new Map([
@@ -29,6 +34,7 @@ function actionCommentScript({ url = reportUrl, sha = publicationSha, reportStor
     ['github.run_id', '9001'],
     ['github.run_attempt', '2'],
     ['steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url', url],
+    ['steps.report-artifact.outputs.artifact-digest', artifactDigest],
     ['steps.publish.outputs.sha', sha],
     ['inputs.report-storage', reportStorage],
     ['steps.diff.outputs.changed', 'true'],
@@ -56,7 +62,7 @@ function actionCommentScript({ url = reportUrl, sha = publicationSha, reportStor
   return new AsyncFunction('require', 'github', 'context', 'core', script);
 }
 
-async function executeActionComment({ repositoryPrivate, url, sha, reportStorage, created = [] } = {}) {
+async function executeActionComment({ repositoryPrivate, url, sha, reportStorage, artifactDigest, created = [] } = {}) {
   const outputs = new Map();
   const github = {
     rest: {
@@ -86,7 +92,7 @@ async function executeActionComment({ repositoryPrivate, url, sha, reportStorage
   const previousActionPath = process.env.GITHUB_ACTION_PATH;
   process.env.GITHUB_ACTION_PATH = root;
   try {
-    await actionCommentScript({ url, sha, reportStorage })(requireForScript, github, context, core);
+    await actionCommentScript({ url, sha, reportStorage, artifactDigest })(requireForScript, github, context, core);
   } finally {
     if (previousActionPath === undefined) delete process.env.GITHUB_ACTION_PATH;
     else process.env.GITHUB_ACTION_PATH = previousActionPath;
@@ -164,6 +170,24 @@ test('literal Action comment links the workflow artifact in artifact storage mod
   assert.equal(body.split(artifactUrl).length - 1, 1);
   assert.match(body, /\*\*Download the visual report artifact →\*\*/);
   assert.doesNotMatch(body, /View the side-by-side/);
+  // #702: the digest marker binds the comment to the uploaded bytes.
+  assert.match(body, new RegExp(`<!-- styleproof-artifact-digest:sha256:${'d'.repeat(64)} -->`));
+});
+
+test('a malformed upload-artifact digest fails the comment before any write (#702)', async () => {
+  const created = [];
+  for (const artifactDigest of ['', 'sha256:not-hex', 'deadbeef', `sha256:${'d'.repeat(63)}`]) {
+    await assert.rejects(
+      executeActionComment({
+        url: `https://github.com/${repository}/actions/runs/9001/artifacts/4451`,
+        reportStorage: 'artifact',
+        artifactDigest,
+        created,
+      }),
+      /artifact-digest/,
+    );
+  }
+  assert.deepEqual(created, []);
 });
 
 test('literal Action comment makes no GitHub write for a foreign artifact link (#587)', async () => {
