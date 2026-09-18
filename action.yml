@@ -607,6 +607,21 @@ runs:
     # no evidence is written to the adopter's git history, and retention is the
     # bounded artifact lifetime instead of a forever-growing orphan branch. The
     # PR comment links the artifact entry on this run.
+    # The approval readback requires the same run receipt the branch publisher
+    # appends to report.md; bind it BEFORE the upload so the artifact carries it
+    # (#696). Identical marker text to bin/styleproof-publish-report.mjs.
+    - name: Bind the run receipt into the report
+      if: inputs.report-storage == 'artifact'
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -f styleproof-report/report.md
+        REPORT_SHA='${{ steps.context.outputs.head-sha }}'
+        [ -n "$REPORT_SHA" ] || REPORT_SHA='${{ github.sha }}'
+        printf '\n<!-- styleproof-receipt head-sha:%s run-id:%s run-attempt:%s -->\n' \
+          "$REPORT_SHA" '${{ github.run_id }}' '${{ github.run_attempt }}' \
+          >> styleproof-report/report.md
+
     # overwrite: artifact names are immutable per run, so re-running this job in
     # the same run (after any post-upload failure) collides on the name without
     # it. The replacement gets a fresh artifact ID; the comment and status always

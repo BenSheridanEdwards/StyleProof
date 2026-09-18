@@ -77,6 +77,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Artifact reports now carry the run receipt the approval readback requires
+  (#696).** The `styleproof-receipt` marker — source head SHA, run ID, and run
+  attempt — was appended only by the branch-mode publisher, so every approval
+  attempt against a default artifact-mode publication failed closed at the
+  receipt check. The Action now binds the identical marker into `report.md`
+  before `upload-artifact` runs, and the product dogfood proves the whole
+  approval readback — artifact list, ZIP download, entry extraction, receipt
+  verification, and fail-closed handling of a missing entry — against the real
+  artifact on the real run.
 - **README report-access wording corrected (#692).** The access bullet implied
   only private-repository viewers need a GitHub session — true under branch
   storage, false under the artifact default, where GitHub authenticates every

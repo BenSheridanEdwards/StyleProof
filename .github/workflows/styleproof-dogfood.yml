@@ -158,6 +158,97 @@ jobs:
           echo "StyleProof map bundle missing at ${MAP_BRANCH}/${HEAD_SHA}/<compatibilityKey>/styleproof-manifest.json" >&2
           exit 1
 
+      - name: Read the report artifact back like the approval workflow
+        uses: actions/github-script@v9
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          github-token: ${{ github.token }}
+          retries: 3
+          script: |
+            // Hosted proof of the approval readback path (#696): the same
+            // list → download → zip-read → receipt sequence the reusable
+            // approval workflow runs, executed against a real artifact on a
+            // real run. readZipEntry must stay byte-identical to the copies in
+            // styleproof-approve-reusable.yml and example/styleproof-approve.yml
+            // — test/styleproof-dogfood.test.mjs pins all three.
+            const readZipEntry = async (zip, name) => {
+              const { inflateRawSync } = await import('node:zlib');
+              if (!Buffer.isBuffer(zip) || zip.length < 22) return null;
+              let eocd = -1;
+              for (let i = zip.length - 22; i >= 0 && i >= zip.length - 65558; i--) {
+                if (zip.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+              }
+              if (eocd < 0) return null;
+              const entries = zip.readUInt16LE(eocd + 10);
+              let offset = zip.readUInt32LE(eocd + 16);
+              for (let i = 0; i < entries; i++) {
+                if (offset + 46 > zip.length || zip.readUInt32LE(offset) !== 0x02014b50) return null;
+                const method = zip.readUInt16LE(offset + 10);
+                const compressedSize = zip.readUInt32LE(offset + 20);
+                const nameLength = zip.readUInt16LE(offset + 28);
+                const extraLength = zip.readUInt16LE(offset + 30);
+                const commentLength = zip.readUInt16LE(offset + 32);
+                const localOffset = zip.readUInt32LE(offset + 42);
+                if (zip.toString('utf8', offset + 46, offset + 46 + nameLength) === name) {
+                  if (localOffset + 30 > zip.length || zip.readUInt32LE(localOffset) !== 0x04034b50) return null;
+                  const dataStart = localOffset + 30 + zip.readUInt16LE(localOffset + 26) + zip.readUInt16LE(localOffset + 28);
+                  if (dataStart + compressedSize > zip.length) return null;
+                  const data = zip.subarray(dataStart, dataStart + compressedSize);
+                  if (method === 8) return inflateRawSync(data, { maxOutputLength: 64 * 1024 * 1024 }).toString('utf8');
+                  if (method === 0) return data.toString('utf8');
+                  return null;
+                }
+                offset += 46 + nameLength + extraLength + commentLength;
+              }
+              return null;
+            };
+            const artifactName = `styleproof-dogfood-report-pr-${process.env.PR_NUMBER}`;
+            const listed = await github.paginate(
+              github.rest.actions.listWorkflowRunArtifacts,
+              { ...context.repo, run_id: Number(process.env.GITHUB_RUN_ID), per_page: 100 },
+            );
+            const matches = (listed || []).filter((artifact) => artifact && artifact.name === artifactName);
+            if (matches.length !== 1) {
+              throw new Error(`expected exactly one ${artifactName} artifact on this run, found ${matches.length}`);
+            }
+            const download = await github.rest.actions.downloadArtifact({
+              ...context.repo,
+              artifact_id: matches[0].id,
+              archive_format: 'zip',
+            });
+            const response = await fetch(download.url);
+            if (!response || !response.ok) throw new Error('report artifact download did not succeed');
+            const zip = Buffer.from(await response.arrayBuffer());
+            const [publishedMarkdown, publishedJson] = await Promise.all([
+              readZipEntry(zip, 'report.md'),
+              readZipEntry(zip, 'report.json'),
+            ]);
+            if (!publishedMarkdown || !publishedJson) {
+              throw new Error('report artifact does not contain report.md and report.json');
+            }
+            const receipts = [...publishedMarkdown.matchAll(
+              /<!-- styleproof-receipt head-sha:([0-9a-f]{40}) run-id:(\d+) run-attempt:(\d+) -->/g,
+            )];
+            if (
+              receipts.length !== 1 ||
+              receipts[0][1] !== process.env.HEAD_SHA ||
+              receipts[0][2] !== process.env.GITHUB_RUN_ID ||
+              receipts[0][3] !== process.env.GITHUB_RUN_ATTEMPT
+            ) {
+              throw new Error('report.md receipt does not bind this head SHA, run, and attempt');
+            }
+            const parsed = JSON.parse(publishedJson);
+            if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+              throw new Error('report.json is not a JSON object');
+            }
+            // Fail-closed probe: an absent entry must read null — never throw,
+            // fabricate, or substitute content.
+            if ((await readZipEntry(zip, 'no-such-entry.txt')) !== null) {
+              throw new Error('zip reader did not fail closed on a missing entry');
+            }
+
       - name: Label published report as live advisory dogfood
         uses: actions/github-script@v9
         with:
