@@ -17,7 +17,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*?(?=\n {2}required:)/)?.[0] ?? '';
   const required = ci.match(/ {2}required:[\s\S]*$/)?.[0] ?? '';
 
-  assert.equal(packageJson.scripts['test:unit'], 'node --test test/*.test.mjs');
+  assert.equal(packageJson.scripts['test:unit'], 'node --require ./test/spawn-timeout.cjs --test test/*.test.mjs');
   assert.match(buildJob, /matrix:\n[\s\S]*node: \['18', '20', '22'\]/);
   assert.match(buildJob, /npm run build/);
   assert.match(buildJob, /npm run test:unit/);
@@ -60,7 +60,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.match(playwrightConfig, /Desktop Firefox/);
 
   assert.match(cliSmoke, /npm run build/);
-  assert.match(cliSmoke, /node --test test\/package-smoke\.test\.mjs/);
+  assert.match(cliSmoke, /node --require \.\/test\/spawn-timeout\.cjs --test test\/package-smoke\.test\.mjs/);
   assert.doesNotMatch(cliSmoke, /npm run typecheck|playwright/);
 
   assert.match(required, /name: required/);
@@ -82,7 +82,7 @@ test('CI runs a small non-Linux CLI smoke without the browser suite', () => {
   assert.match(ci, /cli-smoke:/);
   assert.match(ci, /os: \[macos-latest, windows-latest\]/);
   assert.match(ci, /node-version: '22'/);
-  assert.match(ci, /node --test test\/package-smoke\.test\.mjs/);
+  assert.match(ci, /node --require \.\/test\/spawn-timeout\.cjs --test test\/package-smoke\.test\.mjs/);
   assert.doesNotMatch(ci.match(/cli-smoke:[\s\S]*$/)?.[0] ?? '', /npm run test:e2e/);
 });
 

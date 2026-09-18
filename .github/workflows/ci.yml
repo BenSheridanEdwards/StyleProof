@@ -182,7 +182,7 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-      - run: node --test test/package-smoke.test.mjs
+      - run: node --require ./test/spawn-timeout.cjs --test test/package-smoke.test.mjs
 
   # Stable branch-protection context. Internal jobs may evolve, but this check
   # fails unless every required CI evidence lane completed successfully.

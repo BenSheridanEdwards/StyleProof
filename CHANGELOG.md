@@ -120,6 +120,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Blocking test children can no longer hang the suite forever (#711).** The
+  unit-test scripts now preload `test/spawn-timeout.cjs`, which gives every
+  `spawnSync`/`execFileSync` a bounded default timeout (120s,
+  `STYLEPROOF_TEST_SPAWN_TIMEOUT_MS` to override; a caller-supplied `timeout`
+  still wins). On this repo's Node 26.7.0/macOS runs a spawned CLI child could
+  intermittently deadlock inside V8 job-worker teardown — finished work, never
+  exited — and `spawnSync` waited indefinitely. A deadlocked child now dies
+  with `SIGTERM` and fails its named test instead of stalling the whole run.
 - **Artifact reports now carry the run receipt the approval readback requires
   (#696).** The `styleproof-receipt` marker — source head SHA, run ID, and run
   attempt — was appended only by the branch-mode publisher, so every approval
