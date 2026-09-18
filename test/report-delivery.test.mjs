@@ -25,7 +25,7 @@ function actionCommentScript({
   url = reportUrl,
   sha = publicationSha,
   reportStorage = 'branch',
-  artifactDigest = `sha256:${'d'.repeat(64)}`,
+  artifactDigest = 'd'.repeat(64),
 } = {}) {
   const match = actionYml.match(/- name: Upsert PR comment[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- name:)/);
   assert.ok(match, 'action.yml should contain the PR comment github-script program');
@@ -188,6 +188,17 @@ test('a malformed upload-artifact digest fails the comment before any write (#70
     );
   }
   assert.deepEqual(created, []);
+});
+
+test('a sha256:-prefixed upload-artifact digest is normalised into the marker (#702)', async () => {
+  const created = [];
+  const run = await executeActionComment({
+    url: `https://github.com/${repository}/actions/runs/9001/artifacts/4451`,
+    reportStorage: 'artifact',
+    artifactDigest: `sha256:${'e'.repeat(64)}`,
+    created,
+  });
+  assert.match(run.created[0].body, new RegExp(`<!-- styleproof-artifact-digest:sha256:${'e'.repeat(64)} -->`));
 });
 
 test('literal Action comment makes no GitHub write for a foreign artifact link (#587)', async () => {

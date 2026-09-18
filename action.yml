@@ -695,11 +695,12 @@ runs:
             : github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
 
           const reportStorage = '${{ inputs.report-storage }}';
-          // upload-artifact emits artifact-digest as sha256:<64-hex> — the approval
+          // upload-artifact emits artifact-digest as bare 64-hex (sha256:-prefixed
+          // in some API surfaces — accept either, normalize to bare) — the approval
           // readback recomputes it over the downloaded zip, so anything malformed
           // here must fail the comment instead of shipping an unverifiable marker.
-          const artifactDigest = '${{ steps.report-artifact.outputs.artifact-digest }}';
-          if (reportStorage === 'artifact' && !/^sha256:[0-9a-f]{64}$/.test(artifactDigest)) {
+          const artifactDigest = '${{ steps.report-artifact.outputs.artifact-digest }}'.replace(/^sha256:/, '');
+          if (reportStorage === 'artifact' && !/^[0-9a-f]{64}$/.test(artifactDigest)) {
             throw new Error('upload-artifact produced no well-formed artifact-digest — refusing to publish an unverifiable report link');
           }
           const repository = `${context.repo.owner}/${context.repo.repo}`;
@@ -792,7 +793,7 @@ runs:
                 : advisoryGuidance),
             ...(headSha ? [`<!-- styleproof-sha:${headSha} -->`] : []),
             formatRunAttemptReceiptMarker({ runId, runAttempt }),
-            ...(reportStorage === 'artifact' ? [`<!-- styleproof-artifact-digest:${artifactDigest} -->`] : []),
+            ...(reportStorage === 'artifact' ? [`<!-- styleproof-artifact-digest:sha256:${artifactDigest} -->`] : []),
           ];
 
           const body = [marker, summary, ...box, '', link, '', ...footer].join('\n');

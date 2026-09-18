@@ -764,12 +764,12 @@ test('composite action binds the uploaded artifact digest into the comment (#702
   assert.ok(commentStep, 'action.yml should include a PR comment step');
   assert.match(
     commentStep[0],
-    /\.\.\.\(reportStorage === 'artifact' \? \[`<!-- styleproof-artifact-digest:\$\{artifactDigest\} -->`\] : \[\]\)/,
+    /\.\.\.\(reportStorage === 'artifact' \? \[`<!-- styleproof-artifact-digest:sha256:\$\{artifactDigest\} -->`\] : \[\]\)/,
     'artifact mode must emit the upload digest as a comment marker; branch mode must not',
   );
   assert.match(
     commentStep[0],
-    /!\/\^sha256:\[0-9a-f\]\{64\}\$\/\.test\(artifactDigest\)/,
+    /!\/\^\[0-9a-f\]\{64\}\$\/\.test\(artifactDigest\)/,
     'a malformed upload-artifact digest must fail the comment, not ship an unverifiable marker',
   );
 });
