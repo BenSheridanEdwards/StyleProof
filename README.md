@@ -20,7 +20,7 @@ The README can carry the crops directly. The block below is a real run, not a mo
 `scripts/live-readme-report.mjs` captures `example/demo/index.html` in Chromium twice, injecting a
 fixed CSS change between the captures, then renders the report and the PR comment it would post. The
 block is that comment, with three edits for this page: crop links repointed at
-`docs/readme/live-report/crops/`, element-level sections reordered so Save at rest comes before the
+docs/readme/live-report/crops/`, element-level sections reordered so Save at rest comes before the
 Docs hover, focus, and active states, and `report.json` left out of the committed bundle. Every
 finding, value, and crop is what the run produced. Both sides of each interaction-state crop are in
 that state.
@@ -212,7 +212,7 @@ npx styleproof setup
 That one command detects npm, pnpm, Yarn, or Bun; installs StyleProof and
 Playwright; installs Chromium; scaffolds the capture spec, a dedicated
 production-build Playwright config, and **one GitHub workflow**; then verifies
-every machine-owned file against the installed release. The default scaffold is
+all machine-owned file against the installed release. The default scaffold is
 the smallest honest gate: one `pull_request` job captures base and head in the
 same run and diffs them — maps live as workflow artifacts, no map-store branch,
 no pre-push hook — and the gate runs **advisory**: it reports evidence on every
@@ -249,8 +249,8 @@ that mode's file set instead of rewriting it.
 ```bash
 styleproof capture          # capture this commit from the generated spec
 styleproof crawl <url>      # direct URL or rendered-nav crawl
-styleproof compare [base]    # fail-closed base/head comparison
-styleproof report [base]     # generate the review report on command
+styleproof compare [base]   # fail-closed base/head comparison
+styleproof report [base]    # generate the review report on command
 styleproof variants          # inspect surface/state variants
 styleproof affected          # resolve surfaces affected by source changes
 styleproof ci                # CI orchestration: restore probes, cold capture
@@ -356,7 +356,7 @@ never captured), or `unproven-determinism` — and renders a completeness badge
 visual verdict**: a visual PASS and a complete capture are two claims, never one
 green. Crawl captures persist the ledger themselves (auth walls travel with the
 bundle); spec captures derive it from the coverage ledger; bundles from before
- the ledger existed read `⚠ unknown` and are never blocked retroactively. No
+the ledger existed read `⚠ unknown` and are never blocked retroactively. No
 coverage percentage is ever invented for surfaces that cannot be enumerated.
 The same summary lands machine-readably in `report.json` (`confidence`).
 
@@ -364,15 +364,15 @@ The same summary lands machine-readably in `report.json` (`confidence`).
 
 StyleProof certifies only what it captured: a surface that was never captured
 has no base and no head map, so its change can never appear in a diff and the
- gate stays green having never looked at it. The coverage guard
+gate stays green having never looked at it. The coverage guard
 (`expected`/`exclude`), the confidence ledger, the inventory guard, the
- data-residue gate, and product-state identity exist to make every one of those
- gaps loud instead of silent — full rules in
+data-residue gate, and product-state identity exist to make every one of those
+gaps loud instead of silent — full rules in
 [docs/REFERENCE.md](docs/REFERENCE.md).
 
 The sharpest form of the boundary: maps prove only the states the spec
 exercises. A restyle confined to a conditional render branch the fixture never
- drove — a fault overlay, an empty state — produces byte-identical honest
+drove — a fault overlay, an empty state — produces byte-identical honest
 captures on both sides. Every conditional branch whose styling matters needs a
 surface that exercises it; see
 [the un-exercised-state gap](docs/REFERENCE.md#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle)
