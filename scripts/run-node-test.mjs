@@ -6,11 +6,7 @@ import { fileURLToPath } from 'node:url';
 /** Per-test runner timeout. Node 18 rejects `--test-timeout`; Node 20+ accepts it. */
 export const NODE_TEST_TIMEOUT_MS = 300_000;
 
-export function nodeTestArgs({
-  nodeMajor = Number(process.versions.node.split('.')[0]),
-  watch = false,
-  files,
-} = {}) {
+export function nodeTestArgs({ nodeMajor = Number(process.versions.node.split('.')[0]), watch = false, files } = {}) {
   const args = ['--test'];
   if (watch) args.push('--watch');
   if (nodeMajor >= 20) args.push(`--test-timeout=${NODE_TEST_TIMEOUT_MS}`);
