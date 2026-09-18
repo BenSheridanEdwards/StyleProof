@@ -50,6 +50,7 @@ test('live dogfood stays same-repo, writes maps/reports, and publishes a distinc
   assert.match(workflow, /STYLEPROOF_CACHE_BRANCH|styleproof-maps|--upload/);
   assert.match(workflow, /Assert PR report was published as a workflow artifact/);
   assert.match(workflow, /actions\/runs\/\$\{GITHUB_RUN_ID\}\/artifacts/);
+  assert.match(workflow, /styleproof-dogfood-report-pr-\$\{PR_NUMBER\}/);
   assert.match(workflow, /compatibilityKey/);
   assert.match(workflow, /\$\{HEAD_SHA\}\/\$\{compat\}\/styleproof-manifest\.json/);
   assert.doesNotMatch(

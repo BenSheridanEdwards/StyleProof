@@ -61,6 +61,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Report artifact names follow `comment-marker` (#694).** Two StyleProof
+  Action instances on one PR previously collided on the immutable artifact name
+  `styleproof-report-pr-<n>` — the marker disambiguated comments but not the
+  artifact. The artifact is now named from the marker's sanitized inner text
+  (`<marker-slug>-pr-<n>`), so distinct markers coexist. The default marker
+  yields exactly `styleproof-report-pr-<n>`, leaving the approval workflow's
+  canonical lookup unchanged; approval remains canonical-marker only.
 - **Phase 1 structure harness (#670).** A controlled, known-a-priori DOM addition on
   the StyleProof demo (`?structure=head` injects `p.structure-callout`) now maps
   through the real capture → `diffContentMaps` → migration report path and the
@@ -70,6 +77,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **README report-access wording corrected (#692).** The access bullet implied
+  only private-repository viewers need a GitHub session — true under branch
+  storage, false under the artifact default, where GitHub authenticates every
+  download. The README now states that every report viewer needs an
+  authenticated session, and that `report-storage: branch` restores anonymous
+  blob access on public repositories only.
 - **`report-retention-days` is validated in artifact mode (#690).** The input
   was passed straight to `upload-artifact`, so `0` silently selected the
   repository default retention — unbounded by the 1–90-day contract — and
