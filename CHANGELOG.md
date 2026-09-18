@@ -68,6 +68,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Playwright e2e proof lives in `test/phase1-structure-harness.e2e.spec.ts` with TDD
   evidence under `docs/proof/phase1-structure-harness/`.
 
+### Fixed
+
+- **Same-run job re-runs republish the report artifact instead of failing
+  (#688).** Artifact names are immutable per workflow run, so a job re-run after
+  any post-upload failure collided on `styleproof-report-pr-<n>` and surfaced as
+  `REPORT_PUBLICATION_FAILED`. The upload step now sets `overwrite: true`: the
+  replacement gets a fresh artifact ID, the comment and status always link the
+  newest `artifact-url`, and the run-attempt receipt binding is unchanged.
+
 ## [7.0.0] - 2026-09-14
 
 > **StyleProof 7.0.0: Trustworthy adoption**

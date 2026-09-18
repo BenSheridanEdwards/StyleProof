@@ -343,3 +343,10 @@ test('report delivery contract documents artifacts, access, permissions, outputs
   assert.match(contract, /current pull request/);
   assert.match(contract, /No publication receipt means no new delivery claim/);
 });
+
+test('artifact report upload is overwrite-safe so same-run job re-runs republish (#688)', () => {
+  const step = actionYml.match(/- id: report-artifact[\s\S]*?(?=\n {4}- name:|\n {4}- id:)/);
+  assert.ok(step, 'action.yml should contain the report-artifact upload step');
+  assert.match(step[0], /uses: actions\/upload-artifact@/);
+  assert.match(step[0], /overwrite: true/);
+});
