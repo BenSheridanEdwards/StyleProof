@@ -575,6 +575,11 @@ runs:
     # no evidence is written to the adopter's git history, and retention is the
     # bounded artifact lifetime instead of a forever-growing orphan branch. The
     # PR comment links the artifact entry on this run.
+    # overwrite: artifact names are immutable per run, so re-running this job in
+    # the same run (after any post-upload failure) collides on the name without
+    # it. The replacement gets a fresh artifact ID; the comment and status always
+    # link the newest artifact-url, and the receipt inside report.md still binds
+    # the delivery to this run attempt (#688).
     - id: report-artifact
       if: inputs.report-storage == 'artifact'
       uses: actions/upload-artifact@v6
@@ -583,6 +588,7 @@ runs:
         path: styleproof-report
         retention-days: ${{ inputs.report-retention-days }}
         if-no-files-found: error
+        overwrite: true
 
     - name: Upsert PR comment
       id: comment

@@ -17,6 +17,8 @@ A complete publication contains:
 
 Branch publication succeeds only after the publisher reads the advertised commit back and verifies the run receipt embedded in `report.md`, which names the source head SHA, run ID and run attempt, and confirms `report.json` parses with no duplicate keys. Artifact publication succeeds only after the upload step completes; `if-no-files-found: error` makes an empty report directory a publication failure rather than a silent no-op. The Markdown, JSON, and crop paths remain one published evidence package in either mode.
 
+Artifact names are immutable per workflow run, so the upload sets `overwrite: true`: re-running the job in the same run replaces the earlier report artifact instead of failing on the name, and the comment and status always link the newest artifact.
+
 ## Pull-request comment
 
 The Action upserts one comment identified by `<!-- styleproof-report -->`. It contains:
