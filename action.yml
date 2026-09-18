@@ -479,6 +479,18 @@ runs:
         fs.appendFileSync(process.env.GITHUB_OUTPUT, `audit-json=${path.resolve('styleproof-audit.json')}\n`);
         NODE
 
+    # Mirror the report onto the run page so the verdict and summary tables are
+    # readable without downloading the artifact. Crop paths are relative to the
+    # report directory and cannot resolve there, so image-only lines are dropped;
+    # their <sub> captions still render. A missing report fails safe.
+    - name: Publish the report to the job summary
+      if: always()
+      shell: bash
+      run: |
+        if [ -f styleproof-report/report.md ]; then
+          grep -v '^!\[' styleproof-report/report.md >> "$GITHUB_STEP_SUMMARY" || true
+        fi
+
     # One machine-readable verdict for every defined diff. Consumers should not
     # re-parse styleproof-diff.json or guess whether approval can clear the run.
     - id: verdict
