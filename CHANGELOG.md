@@ -18,9 +18,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `NODE_OPTIONS=--require test/no-concurrent-jobs.cjs` into the runner env,
   which reaches `--test` workers and every spawned Node child by inheritance:
   the preload disables the V8 concurrent job tiers whose parked workers are the
-  deadlock's other half, so the stall class cannot form. A Node version that
-  does not know one flag still gets the rest, and a checkout path containing
-  spaces skips the injection rather than breaking NODE_OPTIONS.
+  deadlock's other half, so the stall class cannot form. The Maglev flags are applied only
+  on Node ≥ 21 where they exist — older versions would print `unrecognized
+flag` to stderr and pollute every spawned child's output — and a checkout
+  path containing spaces skips the injection rather than breaking
+  NODE_OPTIONS.
 
 ## [7.0.2] - 2026-09-18
 

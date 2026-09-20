@@ -34,6 +34,9 @@ test('a spawned Node child loads the preload (#718)', () => {
     ['-e', 'process.stdout.write(process.env.STYLEPROOF_NO_CONCURRENT_JOBS ?? "")'],
     { env: nodeTestEnv({ PATH: process.env.PATH }), encoding: 'utf8' },
   );
-  assert.equal(r.status, 0, r.stderr);
+  // Unrecognized V8 flags print to stderr before throwing — on Node versions
+  // without Maglev that noise would break every output-asserting CLI test.
+  assert.equal(r.stderr, '');
+  assert.equal(r.status, 0);
   assert.equal(r.stdout, '1');
 });

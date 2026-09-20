@@ -5,10 +5,10 @@
 // the main thread joins the worker pool while a V8 job worker stays parked in a
 // concurrent-compile dispatcher, so a finished child never exits (#711/#718).
 // Disabling the concurrent job tiers removes the workers the deadlock needs.
-// Each flag is applied independently so a Node/V8 version that does not know
-// one flag still gets the rest.
 const { setFlagsFromString } = require('node:v8');
-for (const flag of [
+
+// Long-lived flags present on every supported Node (18/20/22/26).
+const flags = [
   '--no-concurrent-sparkplug',
   '--no-baseline-batch-compilation',
   '--no-concurrent-recompilation',
@@ -17,14 +17,22 @@ for (const flag of [
   '--no-concurrent-sweeping',
   '--no-concurrent-array-buffer-sweeping',
   '--no-concurrent-cache-deserialization',
-  '--no-maglev-deopt-data-on-background',
-  '--no-maglev-build-code-on-background',
-  '--no-maglev-destroy-on-background',
-]) {
+];
+// Maglev landed in Node 21 (V8 11.8). On older versions setFlagsFromString
+// prints "unrecognized flag" to stderr before throwing — polluting every
+// spawned child's output — so these are gated, not probed.
+if (Number(process.versions.node.split('.')[0]) >= 21) {
+  flags.push(
+    '--no-maglev-deopt-data-on-background',
+    '--no-maglev-build-code-on-background',
+    '--no-maglev-destroy-on-background',
+  );
+}
+for (const flag of flags) {
   try {
     setFlagsFromString(flag);
   } catch {
-    // Unknown on this Node/V8 version — keep the rest.
+    // Unknown on this V8 build — keep the rest.
   }
 }
 // Marker the contract test reads back out of a spawned child to prove the
