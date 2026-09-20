@@ -2,12 +2,12 @@
 
 **Certification**
 - **Coverage** — ✓ complete (all 1 registered surface(s) captured)
-- **Determinism** — ✓ proven (base self-checked, head self-checked)
+- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
 - **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
-- **Confidence** — ✓ complete (1 captured)
+- **Confidence** — ⚠ limited (0 captured, 1 unproven-determinism)
 
-⛔ **Product-state comparison** — 1 undeclared legacy pair(s). Declare each as productState {id, revision} or record it in styleproof.product-state.json; unknown pairs cannot certify.
+**Product-state comparison** — ✓ comparable on 1 paired capture(s) using explicit consumer-owned identity.
 
-Computed-style scope only: No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
+✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
 
 <!-- styleproof-receipt head-sha:679ef09746cd7a957c283f1ae56d4d01911ce50f run-id:35498907969 run-attempt:1 -->
