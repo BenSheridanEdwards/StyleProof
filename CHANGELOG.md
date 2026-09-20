@@ -7,6 +7,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every spawned Node child in the suite gets the deadlock guard (#718).**
+  Test infrastructure only — no product runtime change. #712 bounded the CLI
+  spawns it wired, but ~26 test files still spawn `process.execPath` children
+  through raw `spawnSync`, and `--test-timeout` cannot fire while a worker is
+  blocked inside a synchronous spawn — a deadlocked child still stalled the
+  suite until killed by hand. `scripts/run-node-test.mjs` now injects
+  `NODE_OPTIONS=--require test/no-concurrent-jobs.cjs` into the runner env,
+  which reaches `--test` workers and every spawned Node child by inheritance:
+  the preload disables the V8 concurrent job tiers whose parked workers are the
+  deadlock's other half, so the stall class cannot form. The Maglev flags are applied only
+  on Node ≥ 21 where they exist — older versions would print `unrecognized
+flag` to stderr and pollute every spawned child's output — and a checkout
+  path containing spaces skips the injection rather than breaking
+  NODE_OPTIONS.
+
 ## [7.0.2] - 2026-09-18
 
 ### Added
