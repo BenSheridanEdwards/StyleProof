@@ -122,7 +122,7 @@ against the map-store branch, then use the Action on those dirs:
 # One command: capture base and head in this job — no store, no upload.
 - id: maps
   run: npx styleproof-ci --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --base-dir __stylemaps__ --no-store
-- uses: BenSheridanEdwards/StyleProof@v6
+- uses: BenSheridanEdwards/StyleProof@v7
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
@@ -1102,7 +1102,7 @@ styleproof-report before after --out report --include-content
 For the GitHub Action, set the equivalent explicit input:
 
 ```yaml
-- uses: BenSheridanEdwards/StyleProof@v6
+- uses: BenSheridanEdwards/StyleProof@v7
   with:
     baseline-dir: __stylemaps__/base
     fresh-dir: __stylemaps__/head
@@ -1301,22 +1301,33 @@ CLI URL/crawl commands do not expose these options.
 
 ## Reference
 
-**Action `BenSheridanEdwards/StyleProof@v6`** — key inputs:
+**Action `BenSheridanEdwards/StyleProof@v7`** — inputs (every input declared in [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml)):
 
-| Input                   | Default                      | Purpose                                                                                                                                                                                                             |
-| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fresh-dir`             | _required_                   | PR-head captures restored from `styleproof-maps` or freshly captured in CI.                                                                                                                                         |
-| `baseline-dir`          | _required_                   | Base-branch captures dir restored from `styleproof-maps` or freshly captured in CI.                                                                                                                                 |
-| `base-capture-failed`   | `false`                      | Mark a bare baseline caused by a capture failure; publishes head-only evidence but hard-fails as degraded.                                                                                                          |
-| `include-content`       | `false`                      | Render advisory content and DOM-structure evidence in the durable report; never changes the style verdict.                                                                                                          |
-| `require-approval`      | `false`                      | Review-gate mode: set the `StyleProof` status instead of failing.                                                                                                                                                   |
-| `fail-on-diff`          | `true`                       | Certify mode: fail on any diff. Ignored when `require-approval` is true.                                                                                                                                            |
-| `status-context`        | `StyleProof`                 | Commit-status name. Must match the approve workflow and branch protection.                                                                                                                                          |
-| `comment-marker`        | `<!-- styleproof-report -->` | HTML comment used to upsert the PR report. Set a distinct value when more than one Action runs on the same PR; in artifact mode the marker also names the report artifact so instances cannot collide. Only the canonical marker is approvable.                                                                                                      |
-| `report-storage`        | `artifact`                   | Report delivery: `artifact` uploads the report as a bounded-retention workflow artifact — nothing enters git history; `branch` publishes it to the `report-branch` orphan branch for an in-browser rendered report. |
-| `report-retention-days` | `30`                         | Days the report artifact is kept when `report-storage` is `artifact` (GitHub bounds 1–90).                                                                                                                          |
+| Input                    | Default                      | Purpose |
+| ------------------------ | ---------------------------- | ------- |
+| `baseline-dir`           | _required_                   | Base-branch captures dir (`.json.gz` + `.png`) restored from `styleproof-maps` or freshly captured in CI. |
+| `fresh-dir`              | _required_                   | PR-head captures restored from `styleproof-maps` or freshly captured in CI. |
+| `mode`                   | `certify`                    | `certify`, `review-gate`, `migration`, or `advisory`; any other value fails the run (exit 2). `certify` fails the job on any reviewable diff (subject to `fail-on-diff`). `review-gate` sets the `status-context` commit status instead of failing and shows the approval box. `migration` uses review-gate semantics and passes `--migration` to `styleproof-diff` and `styleproof-report`, so added/removed elements are reviewable alongside style changes and the report shows Changed styles, New surfaces, and New/removed elements. `advisory` posts the comment and report, sets an always-green status, shows no approval box, and never fails the job on style changes. See the mode notes below. |
+| `fail-on-diff`           | `true`                       | Certify mode: fail the job when `changed` is true. Read only when `mode` is `certify` and `require-approval` is not `true`. |
+| `require-approval`       | `false`                      | Review-gate switch: with `mode: certify`, `true` behaves like `mode: review-gate` (commit status instead of failure; `fail-on-diff` is ignored). No effect in `advisory` mode, which stays non-blocking. |
+| `status-context`         | `StyleProof`                 | Commit-status name set in review-gate, migration, and advisory modes. Must match the approve workflow and branch protection. |
+| `require-state-identity` | `false`                      | Require explicit, matching product-state identity on every paired capture (passes `--require-state-identity` to diff and report). Missing, malformed, or mismatched identity is non-certifying and cannot be approved. Must be `true` or `false`. |
+| `base-capture-failed`    | `false`                      | Mark a bare baseline caused by a capture failure with zero maps; publishes head-only evidence but hard-fails as `DEGRADED_BASELINE`. Keep `false` for partial baselines with tolerated per-surface failures. |
+| `include-content`        | `false`                      | Render advisory content and DOM-structure evidence in the durable report; never changes the style verdict. |
+| `comment-marker`         | `<!-- styleproof-report -->` | HTML comment used to upsert the PR report. Set a distinct value when more than one Action runs on the same PR; in artifact mode the marker also names the report artifact so instances cannot collide. Only the canonical marker is approvable. |
+| `report-storage`         | `artifact`                   | Report delivery: `artifact` uploads the report as a bounded-retention workflow artifact — nothing enters git history; `branch` publishes it to the `report-branch` orphan branch for an in-browser rendered report. Any other value fails. |
+| `report-retention-days`  | `30`                         | Days the report artifact is kept when `report-storage` is `artifact`. Must be a positive integer; `0` is rejected. GitHub caps retention at 90 days unless repository settings allow more. |
+| `report-branch`          | `styleproof-reports`         | Orphan branch that stores reports (created on first run), one `pr-<n>/` folder per PR. Used only when `report-storage` is `branch`. |
+| `github-token`           | `${{ github.token }}`        | Token used to push the report branch, post the PR comment, and set the commit status. |
 
-Outputs include `changed`, `content-changes`, `report-url`, `trust-state`, and `data-residue-keys`. `trust-state` distinguishes a clean style comparison (`NO_REVIEWABLE_STYLE_CHANGES`), style review (`STYLE_REVIEW_REQUIRED`), unapprovable evidence failures, `PARTIAL_BASELINE` (named surface+SHA failed on the base bundle — not a recapture failure; approval cannot clear), `DEGRADED_BASELINE` (the base capture failed with zero maps, so the receipt is head-only evidence rather than a comparison), and publication failure. `content-changes` is the advisory count rendered when `include-content` is enabled; it never changes `changed` or the gate status. `styleproof-diff --json` carries `explainedMissingBaselineSurfaces` and `partialBaseline` so consumers need not reimplement `@auto` width matching. The action **self-verifies** the publish before exposing `report-url`: under `report-storage: branch` it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Under `report-storage: artifact` the report is the run's own immutable upload and `report-url` is its artifact entry, so the approval workflow reads the same evidence back out of the artifact before a tick can turn the gate green. Other inputs (`report-branch`, `github-token`) have sensible defaults — see [`action.yml`](https://github.com/BenSheridanEdwards/StyleProof/blob/main/action.yml).
+Mode notes, from the step conditions in `action.yml`:
+
+- The fail-on-diff step runs only when `mode` is `certify`, `fail-on-diff` is `true`, and `require-approval` is not `true`. No other mode reads `fail-on-diff`.
+- The commit status is set when `require-approval` is `true` or `mode` is `review-gate`, `migration`, or `advisory`. In advisory mode (or when the config sets `blocking: 'advisory'`) the status is always `success`.
+- The block-on-unapproved-changes step runs only with review-gate semantics (`require-approval: true`, `mode: review-gate`, or `mode: migration`), never in advisory mode, and only while config `blocking` is `true` (the default).
+- Advisory mode never fails the job on style changes, but the evidence hard gates still run in every mode: `base-capture-failed: true`, `PARTIAL_BASELINE`, unacknowledged navigable removals (unless `gateInventoryRemovals: false`), and `CERTIFICATION_FAILED` / `DATA_RESIDUE_UNACKNOWLEDGED` each fail the job.
+
+Outputs are `changed`, `content-changes`, `report-url`, `trust-state`, `data-residue-keys` (JSON array of unacknowledged `<surface>·<endpoint>` residue keys), and `audit-json` (absolute path to the durable audit-trail file `styleproof-audit.json`). `trust-state` distinguishes a clean style comparison (`NO_REVIEWABLE_STYLE_CHANGES`), style review (`STYLE_REVIEW_REQUIRED`), unapprovable evidence failures, `PARTIAL_BASELINE` (named surface+SHA failed on the base bundle — not a recapture failure; approval cannot clear), `DEGRADED_BASELINE` (the base capture failed with zero maps, so the receipt is head-only evidence rather than a comparison), and publication failure. `content-changes` is the advisory count rendered when `include-content` is enabled; it never changes `changed` or the gate status. `styleproof-diff --json` carries `explainedMissingBaselineSurfaces` and `partialBaseline` so consumers need not reimplement `@auto` width matching. The action **self-verifies** the publish before exposing `report-url`: under `report-storage: branch` it reads the report back at the exact commit it advertises and requires the embedded receipt to name this run's head SHA, run id, and attempt — a dead or mismatched report fails the action rather than shipping a green run with an untrustworthy URL, so consumers don't need their own read-back check. Under `report-storage: artifact` the report is the run's own immutable upload and `report-url` is its artifact entry, so the approval workflow reads the same evidence back out of the artifact before a tick can turn the gate green.
 
 **Config file `styleproof.config.ts`** (optional, at the repo root) — the one place a project declares its facts. CLIs discover it by walking upward from the current working directory to the git root (`styleproof.config.ts` / `.mjs` / `.js` / `.json`), so a package-subdirectory cwd (for example `working-directory: hud`) still finds the repo-root file. Relative file-path fields (`spec`, `crawl.setup`, `crawl.authBoundaryExclude`, `crawl.incompleteUiExclude`, `crawl.out`, `coverage.manifest`, `affected.graph`) resolve from the config file's directory, not from `process.cwd()`. When a discovered `.ts` is evaluated, `styleproof` and peer packages resolve from that file's directory and the nearest package root walking up from it — not only `process.cwd()`. Linked git worktrees (`styleproof-ci` probes without their own `node_modules`) also search the main working tree's matching package roots so a host install stays visible. If the package still cannot be resolved, StyleProof fails closed and names those searched roots. A missing spec after that walk fails closed and lists every config path that was searched — there is no silent fallback to `e2e/styleproof.spec.ts` when a parent config exists. The Action reads the gate-policy keys; every CLI reads the project-default keys as its lowest-precedence layer (explicit flag > environment variable > this file > built-in default). A malformed file or wrongly-typed key fails loudly — config you wrote is never silently dropped:
 
@@ -1433,9 +1444,221 @@ Non-visual and framework-injected elements (`<meta>`/`<title>`/`<script>`/`<styl
 - `styleproof-capture` — one-shot capture of any URL (no spec): `styleproof-capture <url> --key <name> --out <dir>`, with `--widths` (omit to auto-detect `@media` bands), `--wait <selector>`, `--ignore <selector>`, `--no-screenshots`, and the crawler flags (`--crawl`, `--setup <file>`, `--require-full-coverage` → exit 4 on residue, `--until-covered`, `--workers <n>`, `--no-data-states`) described in [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel).
 - `styleproof-variants` — crawl a running app for one-step state variants and write `styleproof.variants.generated.json`. Pass `--base-url`, repeat `--route`, and use `--strict` when unresolved skipped/live candidates should fail automation.
 - `styleproof-prepush` — the canonical pre-push flow, packaged: reads git's refspecs from stdin, captures the pushed commit only when its tip is the checked-out tree, skips docs-only pushes, restores an already-published exact-SHA map or captures and publishes once, then runs the advisory diff. The hook `styleproof-init` writes is a two-line shim that execs the installed local binary directly, so the rules update with each release instead of drifting in a copied hook file and a missing install fails instead of falling through to a package-registry download — refresh an old hook with `styleproof-init --hook`.
-- `styleproof-ci`: the whole cache-first CI flow as one command: `--base <sha> --head <sha>` restores both exact-SHA bundles from `styleproof-maps` (failing loudly on a map-store/network fault, exit codes 0 hit / 4 miss / other fault come from `styleproof-map --restore`), or with `--no-store` — the flag the default single-workflow scaffold emits — skips every restore probe and ancestor-baseline reuse, captures base and head in the same job, and implies `--no-upload` (no map-store branch exists or is touched); restore probes and cold base capture run in detached ephemeral worktrees so the consumer checkout never visits `--base`; on a head-only miss captures just the head in the consumer (replaying the base's recorded data when HAR files are present); on a base miss rebuilds the pair under the head's exact StyleProof release, detecting the package manager independently at each checkout. For npm adopters, that exact StyleProof runtime is installed under the ephemeral session directory and linked into the base worktree without altering the dependency tree produced by `npm ci`. Pass `--spec-ref <ref>` to source the spec and its colocated harness from that ref for both base and head; when the checkout lacks `playwright.styleproof.config.ts`, the overlay sources that dedicated config from the ref as well. The product commits do not need to track the harness; each overlay is removed after the restore probe or capture while app code and lockfiles remain pinned to `--base` or `--head`. If base capture fails it replaces partial output with a bare baseline, captures the head, and emits `base-capture-failed=true`; head capture remains fail-closed. Writes `base-hit`/`head-hit`/`capture-needed`/`base-capture-failed` to `$GITHUB_OUTPUT`. Before each capture it verifies the pinned Playwright browser build exists on the host (resolving the executable through the consumer's own Playwright — webkit too when the capture config mentions it): a healthy host logs one `verified` line per browser and skips the install; a missing build (e.g. a re-provisioned runner with an empty ms-playwright cache) self-heals with one `playwright install`, and if that fails or leaves the executable missing the run exits non-zero immediately, naming the missing revision and the exact `npx playwright install …` remedy instead of dying minutes later at `browserType.launch`; `STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1` skips the verification. It may `git checkout --force` the consumer to `--head` only; it refuses to run without `CI=1` unless `--force` is passed. The init-generated workflow step is a single invocation of this command and passes the degraded signal into the Action. **Nearest-ancestor baseline reuse** (default-on; disable with `STYLEPROOF_ANCESTOR_BASELINE=0` or `ancestorBaseline.enabled: false`): on a base miss it walks up to 50 first-parent ancestors of `--base` for the nearest commit with a stored bundle and, only when **no** path changed since it is capture-relevant (the capture spec's directory, the Playwright capture config, `styleproof.config.json`, package manifests/lockfiles, or a declared `STYLEPROOF_ANCESTOR_BASELINE_ROOTS` app source root — with no roots declared every changed path counts as relevant), restores that bundle **byte-for-byte** as the baseline; its manifest keeps naming the ancestor it was verified at, so reuse never relabels a map to a SHA it never rendered. Any error or doubt falls back to the ordinary capture path. Reuse is never silent: the run appends `base-restored-from-ancestor=<sha>` to `$GITHUB_OUTPUT`, records a `styleproof-baseline-provenance.json` sidecar, and the report and `styleproof-diff --json` state whether the baseline was restored from the exact SHA, reused from an ancestor (with the changed-path-count proof), or captured fresh.
+- `styleproof-ci`: the whole cache-first CI flow as one command: `--base <sha> --head <sha>` restores both exact-SHA bundles from `styleproof-maps` (failing loudly on a map-store/network fault, exit codes 0 hit / 4 miss / other fault come from `styleproof-map --restore`), or with `--no-store` — the flag the default single-workflow scaffold emits — skips every restore probe and ancestor-baseline reuse, captures base and head in the same job, and implies `--no-upload` (no map-store branch exists or is touched); restore probes and cold base capture run in detached ephemeral worktrees so the consumer checkout never visits `--base`; on a head-only miss captures just the head in the consumer (replaying the base's recorded data when HAR files are present); on a base miss rebuilds the pair under the head's exact StyleProof release, detecting the package manager independently at each checkout. For npm adopters, that exact StyleProof runtime is installed under the ephemeral session directory and linked into the base worktree without altering the dependency tree produced by `npm ci`. Pass `--spec-ref <ref>` to source the spec and its colocated harness from that ref for both base and head; when the checkout lacks `playwright.styleproof.config.ts`, the overlay sources that dedicated config from the ref as well. The product commits do not need to track the harness; each overlay is removed after the restore probe or capture while app code and lockfiles remain pinned to `--base` or `--head`. If base capture fails it replaces partial output with a bare baseline, captures the head, and emits `base-capture-failed=true`; head capture remains fail-closed. Writes `base-hit`/`head-hit`/`capture-needed`/`base-capture-failed` to `$GITHUB_OUTPUT`. Before each capture it verifies the pinned Playwright browser build exists on the host (resolving the executable through the consumer's own Playwright — webkit too when the capture config mentions it): a healthy host logs one `verified` line per browser and skips the install; a missing build (e.g. a re-provisioned runner with an empty ms-playwright cache) self-heals with one `playwright install`, and if that fails or leaves the executable missing the run exits non-zero immediately, naming the missing revision and the exact `npx playwright install …` remedy instead of dying minutes later at `browserType.launch`; `STYLEPROOF_SKIP_BROWSER_PREFLIGHT=1` skips the verification and always runs `playwright install`. It may `git checkout --force` the consumer to `--head` only; it refuses to run without `CI=1` unless `--force` is passed. The init-generated workflow step is a single invocation of this command and passes the degraded signal into the Action. **Nearest-ancestor baseline reuse** (default-on; disable with `STYLEPROOF_ANCESTOR_BASELINE=0` or `ancestorBaseline.enabled: false`): on a base miss it walks up to 50 first-parent ancestors of `--base` for the nearest commit with a stored bundle and, only when **no** path changed since it is capture-relevant (the capture spec's directory, the Playwright capture config, `styleproof.config.json`, package manifests/lockfiles, or a declared `STYLEPROOF_ANCESTOR_BASELINE_ROOTS` app source root — with no roots declared every changed path counts as relevant), restores that bundle **byte-for-byte** as the baseline; its manifest keeps naming the ancestor it was verified at, so reuse never relabels a map to a SHA it never rendered. Any error or doubt falls back to the ordinary capture path. Reuse is never silent: the run appends `base-restored-from-ancestor=<sha>` to `$GITHUB_OUTPUT`, records a `styleproof-baseline-provenance.json` sidecar, and the report and `styleproof-diff --json` state whether the baseline was restored from the exact SHA, reused from an ancestor (with the changed-path-count proof), or captured fresh.
 - `styleproof-affected` — the selective-remap verdict as a command: `--graph dc.json --surfaces styleproof.surfaces.json --base origin/main` answers "which declared surfaces could this change have restyled?" from a dependency-cruiser graph and the git diff, printing the reviewer-checkable skip list and (with `--json`) a machine verdict of `recapture` vs `reuse` keys. Exit `0` = scoped, `3` = unbounded (`'all'` — re-capture everything), `2` = usage error. Advisory: it never captures or gates by itself (see **Optional: selective remap**).
 - `styleproof-prune-maps` — bound the sha-keyed map store branch: prune bundles older than `--retention-days` (default 14) and beyond a `--max-bundles` cap (default 40), then squash the branch to a **single orphan commit** holding only the retained bundle trees. The map store is a cache — bundles for commits the base branch moved past can never be restored again, and nothing links into the branch's history — so unlike `styleproof-prune-reports` (fast-forward only, history preserved for pinned report links) the rewrite is total. Git-data APIs only, never a clone; retained bundles keep their existing tree SHAs so nothing re-uploads. The final GraphQL `updateRefs` mutation atomically requires the exact tip used for retention selection. A concurrent publication triggers a bounded retry from its new tip; errors never fall back to an unconditional force update. Bundle ages come from the publish commit log merged over a `styleproof-map-store-prune.json` sidecar that carries dates across squashes; undated legacy bundles prune first. A quiet, already-compact branch (`--history-limit`, default 30 commits) is left untouched. Requires `GH_TOKEN` with `contents: write`; run it on a schedule next to the report prune.
 - `styleproof-prune-reports` — only relevant when `report-storage` is `branch` (artifact reports expire on their own `report-retention-days`); delete `pr-<n>/` report folders from the report branch through the git-data API (never a clone): `--pull-request <n>` on PR close, or a scheduled sweep with `--retention-days` and `--budget-bytes` (oldest-closed first; open PRs never touched). Adopters who have since moved to `report-storage: artifact` can retire the branch entirely — nothing reads `styleproof-reports` in artifact mode, so after the last artifact-mode PR supersedes the branch-published comments you can delete it with `git push origin --delete styleproof-reports` (and drop the prune/sweep jobs from your workflow if it still has them).
+
+**Flag reference.** Every flag each command accepts, taken from its `--help`. Each `styleproof-*` bin is also a subcommand of the unified `styleproof` CLI (`styleproof capture` = `styleproof-map`, `styleproof crawl` = `styleproof-capture`, `styleproof compare` = `styleproof-diff`; the rest keep their names, e.g. `styleproof report`, `styleproof ci`). `styleproof setup` exists only as a subcommand; there is no `styleproof-setup` bin. Every command also accepts `-h` / `--help`.
+
+`styleproof setup` — detect the package manager, install `styleproof` and `@playwright/test`, install Chromium, run `styleproof-init`, then run `styleproof-init --check`. It first runs `styleproof-init --validate-server` with the server flags, even under `--dry-run`, and stops if that fails.
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--project-dir <path>` | `.` | Consumer project root; must contain `package.json`. |
+| `--dir <path>` | `e2e/styleproof.spec.ts` | Capture spec path inside the project. |
+| `--base-url <url>` | `http://localhost:3000` | Application URL. |
+| `--server-command <command>` | inferred | Explicit production build/serve command. |
+| `--external-server` | off | Do not manage a server; `BASE_URL` must already be available. |
+| `--force` | off | Overwrite the existing capture spec. |
+| `--workflow single\|split` | `single` | One in-job workflow, or the fork-safe two-stage layout. |
+| `--storage artifact\|branch` | `artifact` | No map-store branch, or the `styleproof-maps` cache with a pre-push hook. |
+| `--mode advisory\|certify\|review-gate` | `advisory` | Gate mode for the scaffold. |
+| `--skip-install` | off | Skip adding `styleproof` and `@playwright/test` to the project. |
+| `--skip-browser` | off | Skip `playwright install chromium`. |
+| `--dry-run` | off | Print the exact plan without running commands or writing files. |
+
+`styleproof-init`
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--dir <path>` | `e2e/styleproof.spec.ts` | Spec output path. Pass the same value to `--check` / `--upgrade` when the spec is not at the default. |
+| `--base-url <url>` | `http://localhost:3000` | Application URL. |
+| `--server-command <command>` | inferred | Explicit production build/serve command. |
+| `--external-server` | off | Do not manage a server; `BASE_URL` must already be available. |
+| `--validate-server` | off | Only validate the server contract, then exit `0` without writing files. It fails (exit `2`) when no production server command can be inferred from Next.js, Vite, or `package.json` `start`/`preview` scripts and neither `--server-command` nor `--external-server` is given. |
+| `--manifest <path>` | none | Write a typed starter component manifest. |
+| `--component-roots <dirs>` | none | Comma-separated component roots for `--manifest`. Repeatable. |
+| `--force` | off | Overwrite the spec if it already exists. |
+| `--workflow single\|split` | `single` | See the `styleproof-init` bullet above. |
+| `--storage artifact\|branch` | `artifact` | See the `styleproof-init` bullet above. |
+| `--mode advisory\|certify\|review-gate` | `advisory` | See the `styleproof-init` bullet above. |
+| `--hook` | off | Rewrite only the pre-push hook, overwriting an existing one. |
+| `--upgrade` | off | Refresh every machine-owned generated file; never touches the spec or Playwright config. |
+| `--check` | off | Report drift between machine-owned files and this release; exit `1` if any differ. |
+
+`styleproof-map` (`styleproof capture`) — flags after `--` pass through to Playwright. When `playwright.styleproof.config.ts` exists it is passed to Playwright by default; override with `styleproof-map -- --config playwright.config.ts`.
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--spec <path>` | `e2e/styleproof.spec.ts` | StyleProof spec that must exist. |
+| `--dir <label>` | `current` | Output label under `--base-dir`. |
+| `--base-dir <path>` | `.styleproof/maps` | Output root directory. |
+| `--screenshots` / `--no-screenshots` | on | Keep screenshots for reports; `--no-screenshots` writes lean `.json.gz` maps only. |
+| `--keep-har` | off | Keep the recorded HAR files for advanced replay workflows. By default they are removed after a successful capture. |
+| `--sha <commit>` | current `HEAD` | Commit this map belongs to: a full lowercase 40-hex SHA or `uncommitted`. |
+| `--upload` / `--no-upload` | auto | `--upload` requires upload to the map store after capture; `--no-upload` captures locally only. Auto uploads outside CI. |
+| `--restore` | off | Restore a map from the map store instead of capturing. |
+| `--cache-branch <b>` | `styleproof-maps` | Map store branch. Config key `cacheBranch`. |
+| `--remote <name>` | `origin` | Git remote for the map store. Config key `remote`. |
+| `--dirty-allow <path>` | none | Tracked path whose changes never mark the capture dirty. Repeatable; accumulates with config `dirtyAllow` and `STYLEPROOF_DIRTY_ALLOW`. |
+| `--prove-determinism` | off | Run the capture 5 times in fresh contexts and require every canonical map hash to match; records `determinism: oracle-proven` and writes `styleproof-determinism.json`. |
+| `--tolerate-surface-failures` | off | Baseline captures only, never the head. Record per-surface capture failures and continue when at least one map succeeded; the partial baseline is published only when every failure is ledgered, and self-check failures still fail. Also `STYLEPROOF_TOLERATE_SURFACE_FAILURES=1`. |
+| `--crawl-base-url <url>` | none | Run `styleproof-variants` against this app URL before capture. Also `STYLEPROOF_CRAWL_BASE_URL`. |
+| `--crawl-route <r>` | none | Route path or `key=path` for the pre-map crawl. Repeatable. Also `STYLEPROOF_CRAWL_ROUTES` (comma-separated). |
+| `--crawl-out <file>` | `styleproof.variants.generated.json` | Variant crawl manifest. Config `crawl.out`. |
+| `--crawl-max-actions <n>` | `40` | Max attempted variant actions per route. Also `STYLEPROOF_CRAWL_MAX_ACTIONS`, config `crawl.maxActions`. |
+| `--crawl-width <px>` | `1280` | Pre-map crawl viewport width. Also `STYLEPROOF_CRAWL_WIDTH`, config `crawl.width`. |
+| `--crawl-height <px>` | `800` | Pre-map crawl viewport height. Also `STYLEPROOF_CRAWL_HEIGHT`, config `crawl.height`. |
+| `--crawl-strict` | off | Fail if live-state fixtures or skipped candidates remain after the pre-map crawl. Also `STYLEPROOF_CRAWL_STRICT=1`, config `crawl.strict`. |
+
+`styleproof-diff` (`styleproof compare`) and `styleproof-report` share the first block of flags below.
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--spec <path>` | `e2e/styleproof.spec.ts` | Spec used to select compatible cached maps. |
+| `--cache-branch <b>` | `styleproof-maps` | Map store branch for cached-map mode. |
+| `--remote <name>` | `origin` | Git remote for the map store. |
+| `--require-state-identity` | off | Require explicit, matching `productState {id, revision}` on every paired capture; undeclared pairs are non-certifying. |
+| `--legacy-pairs <file>` | none | Declare known-legacy product-state pairs (`{"<surface>":"<why>"}`); undeclared unproven pairs fail closed, declared pairs stay advisory. The flag and `STYLEPROOF_PRODUCT_STATE` override config; an empty env value unarms it. |
+| `--critical-states <file>` | none | Declare obligations that must produce certifying evidence (`{"<surface>":{"owner":"...","reason":"..."}}`); unproven, unresolved, or coverage-excluded obligations fail closed. The flag and `STYLEPROOF_CRITICAL_STATES` override config; an empty env value unarms it. |
+| `--expected-before-sha <sha>` | none | Trusted full base commit SHA; pair with `--expected-after-sha`. |
+| `--expected-after-sha <sha>` | none | Trusted full head commit SHA; pair with `--expected-before-sha`. |
+| `--migration` | off | Structure changes (added/removed elements) become reviewable instead of advisory. |
+
+`styleproof-diff` only:
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--max <n>` | `40` | Max lines printed per surface before truncating. |
+| `--json <file>` | none | Also write the full structured diff to `<file>`. |
+| `--audit-json <file>` | next to `--json`, else `./styleproof-audit.json` | Write the durable audit-trail JSON to `<file>`. Without the flag the trail goes beside the `--json` file when one is given, otherwise to `styleproof-audit.json` in the working directory. |
+| `--allow-unasserted` | off | Diagnostic mode: unasserted completeness or unknown determinism does not exit `1`; the JSON marks `certifiesFully: false`. |
+| `--pixels` | off | Arm the pixel gate (see [Optional: pixel gate](#optional-pixel-gate)). |
+
+`styleproof-report` only:
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--out <dir>` | `styleproof-report` | Output directory. |
+| `--image-base-url <url>` | relative | Prefix for image URLs in `report.md`. |
+| `--pad <px>` | `12` | Padding around changed rects when cropping. |
+| `--max-crops <n>` | `8` | Max crop regions per surface before collapsing. |
+| `--fold-details-at <n>` | `0` | Row count at which a crop's property tables fold under a `<details>` toggle; `0` always folds, `Infinity` never folds. |
+| `--min-width <px>` | `320` | Minimum crop width, for context. |
+| `--min-height <px>` | `180` | Minimum crop height, for context. |
+| `--include-layout-noise` | off | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`, …) that a reflow changes up the whole ancestor chain. |
+| `--include-content` | off | Render the advisory content layer; needs captures taken with `captureText: true`; never affects the check. |
+
+`styleproof-report` exits `0` when there are no changes, `1` when a report was generated, and `2` on a usage error.
+
+`styleproof-capture` (`styleproof crawl`) — see the bullet above and [Match a design pixel-for-pixel](#match-a-design-pixel-for-pixel).
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--key <name>` | `page` | Capture file prefix (`<key>@<width>.json.gz`). |
+| `--wait <selector>` | none | Wait for this selector to be visible before capturing. |
+| `--widths <csv>` | auto-detect | Viewport widths, e.g. `1440,1024,768`. Omit to detect the page's `@media` breakpoints. |
+| `--out <dir>` | `styleproof-capture` | Output directory. |
+| `--ignore <sel>` | none | Skip a nondeterministic region. Repeatable. |
+| `--height <px>` | `800` | Viewport height. |
+| `--screenshots` / `--no-screenshots` | on | `--no-screenshots` writes lean `.json.gz` maps only. |
+| `--crawl` | off | Exhaustive crawl of every non-destructive control. |
+| `--require-full-coverage` | off | Exit `4` unless every stylesheet class was rendered in a captured surface. |
+| `--until-covered` | off | Stop the crawl as soon as every stylesheet class has rendered. |
+| `--setup <file>` | none | JSON steps run after every fresh navigation. Also `STYLEPROOF_SETUP` / `STYLEPROOF_CRAWL_SETUP`, config `crawl.setup`. |
+| `--auth-boundary-exclude <file>` | none | Acknowledge auth walls outside certification scope. Also `STYLEPROOF_AUTH_BOUNDARY_EXCLUDE` / `STYLEPROOF_CRAWL_AUTH_BOUNDARY_EXCLUDE`, config `crawl.authBoundaryExclude`. |
+| `--incomplete-ui-exclude <file>` | none | Acknowledge blocked continuations outside certification scope. Also `STYLEPROOF_INCOMPLETE_UI_EXCLUDE` / `STYLEPROOF_CRAWL_INCOMPLETE_UI_EXCLUDE`, config `crawl.incompleteUiExclude`. |
+| `--data-states` / `--no-data-states` | on | Capture the entry page's automatic loading (stalled requests) and error (500 responses) states. `--no-data-states` skips them. |
+| `--follow-links` / `--no-follow-links` | on | Also crawl every same-origin page the entry page links to, keyed by route. `--no-follow-links` crawls the entry page only. |
+| `--no-reset-storage` | storage is reset | Keep `localStorage` between crawl steps instead of clearing it. |
+| `--workers <n>` | `4` | Concurrent sweep workers; pass `1` for byte-stable key attribution. |
+| `--max-depth <n>` | `16` | Recursion depth limit. |
+| `--max-actions <n>` | unbounded | Controls tried per state. |
+| `--max-states <n>` | unbounded | Total surfaces. |
+
+`styleproof-ci`
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--base <sha>` | _required_ | Base commit. |
+| `--head <sha>` | _required_ | Head commit. |
+| `--spec <path>` | `e2e/styleproof.spec.ts` | StyleProof spec. |
+| `--spec-ref <ref>` | none | Source the spec and its colocated harness from `<ref>` for both base and head. |
+| `--spec-ref-if-missing <ref>` | none | First adoption: source the harness from `<ref>` only when the base commit lacks the selected spec or `playwright.styleproof.config.ts`; otherwise behave as if no ref was given. Needs a non-empty ref and cannot be combined with `--spec-ref`. |
+| `--base-dir <path>` | `$RUNNER_TEMP/styleproof-maps`, else `.styleproof/ci-maps` | Map root; `base/` and `head/` land under it. |
+| `--upload` / `--no-upload` | on | `--no-upload` captures without publishing to the map store (required for untrusted PR jobs). |
+| `--store` / `--no-store` | on | `--no-store` skips every restore probe, captures both sides in the job, and implies `--no-upload`. |
+| `--force` | off | Run outside CI. |
+
+`styleproof-variants`
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--base-url <url>` | none | Running app origin. |
+| `--route <route>` | none | Route path, absolute URL, or `key=path`. Repeatable. |
+| `--out <file>` | `styleproof.variants.generated.json` | Manifest output. |
+| `--max-actions <n>` | `40` | Max attempted actions per route. |
+| `--max-state-actions <n>` | `40` | Max attempted hover/focus candidates per route. |
+| `--width <px>` | `1280` | Viewport width. |
+| `--height <px>` | `800` | Viewport height. |
+| `--strict` | off | Exit `1` if live-state fixtures or skipped candidates remain. |
+
+`styleproof-components`
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--manifest <file>` | _required_ | Component manifest JSON. |
+| `--component-root <dir>` | _required_ | Component root to scan. Repeatable. |
+| `--uncovered-ok` | off | Exit `0` while keeping uncovered files in the JSON output. |
+
+`styleproof-prepush`
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--spec <path>` | config `spec`, else `e2e/styleproof.spec.ts` | StyleProof spec. |
+| `--dir <label>` | `current` | Restore label under `--base-dir`. |
+| `--base-dir <path>` | `.styleproof/maps` | Map root directory. |
+| `--dirty-allow <path>` | none | Forwarded to `styleproof-map`. Repeatable. |
+| `--diff` / `--no-diff` | on | Run the advisory `styleproof-diff` after restore/capture. |
+
+`styleproof-affected` — each input falls back to the `affected` block of the config.
+
+| Flag | Default | Purpose |
+| ---- | ------- | ------- |
+| `--graph <json>` | config `affected.graph` | dependency-cruiser JSON for the source tree. |
+| `--surfaces <json>` | config `affected.surfaces` | File mapping capture key to surface entry module. |
+| `--surface <k=path>` | none | One mapping entry inline; merges over the rest. Repeatable. |
+| `--base <ref>` | config `affected.base` | Derive changed files from `git diff --name-only <ref>...HEAD`. |
+| `--changed <path>` | none | A changed file, repo-relative as in the graph; replaces the git derivation. Repeatable. |
+| `--root <dir>` | current directory | Package the verdict is about; inputs resolve against it. |
+| `--json` | off | Print the machine verdict to stdout. |
+
+`styleproof-publish-report` — publishes a generated report folder to the report branch through the git-data API (requires `GH_TOKEN`), verifies the receipt at the published commit, and writes `sha`, `url`, and `raw-base` to `$GITHUB_OUTPUT` (printed when unset). The Action runs it when `report-storage` is `branch`. All flags are required.
+
+| Flag | Purpose |
+| ---- | ------- |
+| `--repository <owner/repo>` | GitHub repository. |
+| `--branch <name>` | Report branch. |
+| `--report-path <path>` | Destination folder on the report branch. |
+| `--report-dir <dir>` | Generated report directory. |
+| `--head-sha <sha>` | Pull request head commit; embedded in the receipt. |
+| `--run-id <id>` | GitHub Actions run id; embedded in the receipt. |
+| `--run-attempt <n>` | GitHub Actions run attempt; embedded in the receipt. |
+
+`styleproof-prune-maps` / `styleproof-prune-reports`
+
+| Command | Flag | Default | Purpose |
+| ------- | ---- | ------- | ------- |
+| both | `--repository <owner/repo>` | _required_ | GitHub repository. |
+| prune-maps | `--branch <name>` | `styleproof-maps` | Map store branch. |
+| prune-maps | `--retention-days <days>` | `mapStore.pruneRetentionDays` or `14` | Bundles newer than this survive. |
+| prune-maps | `--max-bundles <count>` | `40` | At most this many bundles survive. |
+| prune-maps | `--budget-bytes <bytes>` | `mapStore.pruneBudgetBytes` or 1.5GB | Prune oldest bundles over this size budget. |
+| prune-maps | `--history-limit <count>` | `30` | Skip the rewrite when nothing is prunable and the branch has no more commits than this. |
+| prune-reports | `--pull-request <n>` | none | Delete this pull request's report folder. |
+| prune-reports | `--retention-days <days>` | `reportStore.pruneRetentionDays` or `30` | Sweep: reports closed longer ago than this. |
+| prune-reports | `--budget-bytes <bytes>` | `reportStore.pruneBudgetBytes` or 2GB | Sweep: branch size budget. |
+| prune-reports | `--branch <name>` | `styleproof-reports` | Report branch. |
 
 A programmatic API is also exported — `captureStyleMap`, `diffStyleMaps`, `generateStyleMapReport`, and the breakpoint helpers `detectViewportWidths` / `widthsFromBoundaries`, among others. For the capture internals, the approve-workflow trust model, and how to contribute, see [CONTRIBUTING](https://github.com/BenSheridanEdwards/StyleProof/blob/main/CONTRIBUTING.md) and the [`example/`](https://github.com/BenSheridanEdwards/StyleProof/tree/main/example) workflows.
