@@ -334,7 +334,13 @@ if (result.error) fail(NAME, playwrightMissingMessage(result.error.message).repl
 let status = result.status ?? 1;
 const captured = captureKeysIn(targetDir).length;
 const toleratedFailures = readSurfaceCaptureFailures(targetDir);
-const fatalCaptureFailure = readFatalCaptureFailure(targetDir);
+let fatalCaptureFailure;
+try {
+  fatalCaptureFailure = readFatalCaptureFailure(targetDir);
+} catch (error) {
+  // A marker that exists but cannot be read is still a fatal marker: fail closed.
+  fatalCaptureFailure = errorMessage(error);
+}
 if (status !== 0 && fatalCaptureFailure) {
   console.error(
     `${NAME}: fatal self-check failure; discarding ${captured} captured surface map(s) and refusing publication — ${fatalCaptureFailure}`,

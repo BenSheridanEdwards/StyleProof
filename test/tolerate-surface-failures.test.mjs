@@ -387,6 +387,46 @@ exit 1
   }
 });
 
+test('styleproof-map: an unreadable fatal marker is still fatal, never "no failure"', () => {
+  const root = mkTmp();
+  try {
+    const spec = path.join(root, 'e2e/styleproof.spec.ts');
+    fs.mkdirSync(path.dirname(spec), { recursive: true });
+    fs.writeFileSync(spec, '// fake spec');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    const binDir = path.join(root, 'fake-bin');
+    fs.mkdirSync(binDir);
+    const fakePlaywright = path.join(binDir, 'playwright');
+    // The marker exists but is not a readable regular file; every other signal says "tolerable".
+    fs.writeFileSync(
+      fakePlaywright,
+      `#!/bin/sh
+mkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures"
+touch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@900.json"
+printf '%s\\n' '{"key":"about@900","reason":"boom","kind":"capture"}' > "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-surface-capture-failures/about@900.json"
+printf '%s\\n' '{"title":"about @ 900","status":"failed"}' > "$STYLEPROOF_CAPTURE_OUTCOMES_DIR/about.json"
+mkdir "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/styleproof-fatal-capture.flag"
+exit 1
+`,
+    );
+    fs.chmodSync(fakePlaywright, 0o755);
+    const maps = path.join(root, 'maps');
+    const targetDir = path.join(maps, 'base');
+    const r = run(
+      MAP,
+      ['--spec', spec, '--dir', 'base', '--base-dir', maps, '--tolerate-surface-failures', '--no-upload'],
+      { PATH: `${binDir}${path.delimiter}${process.env.PATH}` },
+      root,
+    );
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.doesNotMatch(r.stderr, /publishing partial baseline/);
+    assert.match(r.stderr, /fatal self-check failure.*unreadable fatal capture marker/i);
+    assert.equal(fs.existsSync(targetDir), false, 'fatal capture output must be discarded');
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-map: tolerate off keeps non-zero exit when Playwright fails', () => {
   const root = mkTmp();
   try {

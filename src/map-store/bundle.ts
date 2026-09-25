@@ -211,14 +211,20 @@ export function markFatalCaptureFailure(dir: string, reason: string): void {
   fs.writeFileSync(path.join(dir, FATAL_CAPTURE_MARKER), reason);
 }
 
-/** Read the fatal marker written by a capture worker, if one exists. */
+/** Read the fatal marker written by a capture worker: `undefined` ONLY when it is absent. A marker
+ *  that exists but cannot be read safely (symlink, non-regular, I/O error) throws — reading it as
+ *  "no fatal failure" would let a self-check failure publish. */
 export function readFatalCaptureFailure(dir: string): string | undefined {
+  let bytes: Buffer;
   try {
-    const marker = readRegularFileNoFollow(path.join(dir, FATAL_CAPTURE_MARKER)).toString('utf8').trim();
-    return marker || 'unknown fatal capture failure';
-  } catch {
-    return undefined;
+    bytes = readRegularFileNoFollow(path.join(dir, FATAL_CAPTURE_MARKER));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw new MapStoreError(
+      `unreadable fatal capture marker ${path.join(dir, FATAL_CAPTURE_MARKER)}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
+  return bytes.toString('utf8').trim() || 'unknown fatal capture failure';
 }
 
 /** Write-or-CLEAR: an undefined version removes a stale sidecar so a reused capture dir can

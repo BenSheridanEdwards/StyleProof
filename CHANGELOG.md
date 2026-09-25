@@ -35,6 +35,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `STYLEPROOF_CAPTURE_OUTCOMES_DIR`, set only by `styleproof-map`), and the
   exit is reset only when every failed or unfinished test is a ledgered
   surface failure; otherwise the capture fails, naming the unexplained test.
+- **An unreadable fatal-capture marker is fatal, not "no failure".**
+  `readFatalCaptureFailure` returned `undefined` on any read error, so a marker
+  that existed but could not be read safely (symlink, non-regular file, I/O
+  error) let a self-check failure be tolerated and published. It now returns
+  `undefined` only when the marker is absent and throws otherwise;
+  `styleproof-map` treats that as a fatal failure and discards the capture.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
