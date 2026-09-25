@@ -93,33 +93,43 @@ const VALUE_FLAGS: Record<string, (o: CaptureUrlOptions, v: string) => void> = {
   '--auth-boundary-exclude': (o, v) => (o.authBoundaryExcludeFile = v),
   '--incomplete-ui-exclude': (o, v) => (o.incompleteUiExcludeFile = v),
 };
-const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions) => void> = {
-  '--screenshots': (o) => (o.screenshots = true),
-  '--no-screenshots': (o) => (o.screenshots = false),
-  '--crawl': (o) => (o.crawl = true),
-  '--no-reset-storage': (o) => (o.resetStorage = false),
-  '--require-full-coverage': (o) => (o.requireFullCoverage = true),
-  '--until-covered': (o) => (o.untilCovered = true),
-  '--data-states': (o) => (o.dataStates = true),
-  '--no-data-states': (o) => (o.dataStates = false),
-  '--follow-links': (o) => (o.followLinks = true),
-  '--no-follow-links': (o) => (o.followLinks = false),
+// Bool flags take no argument, or an inline `=true|false|1|0` (`--no-x=false` means `--x`).
+const BOOL_FLAGS: Record<string, (o: CaptureUrlOptions, on: boolean) => void> = {
+  '--screenshots': (o, on) => (o.screenshots = on),
+  '--no-screenshots': (o, on) => (o.screenshots = !on),
+  '--crawl': (o, on) => (o.crawl = on),
+  '--no-reset-storage': (o, on) => (o.resetStorage = !on),
+  '--require-full-coverage': (o, on) => (o.requireFullCoverage = on),
+  '--until-covered': (o, on) => (o.untilCovered = on),
+  '--data-states': (o, on) => (o.dataStates = on),
+  '--no-data-states': (o, on) => (o.dataStates = !on),
+  '--follow-links': (o, on) => (o.followLinks = on),
+  '--no-follow-links': (o, on) => (o.followLinks = !on),
 };
+
+function booleanValue(name: string, inline: string | undefined): boolean {
+  const lower = inline?.toLowerCase();
+  if (lower === undefined || lower === 'true' || lower === '1') return true;
+  if (lower === 'false' || lower === '0') return false;
+  throw new UsageError(`${name}: expects true or false, got "${inline}"`);
+}
 
 // Apply one argv token; returns the index to resume from. Supports `--flag value` and `--flag=value`.
 function applyArg(o: CaptureUrlOptions, argv: string[], i: number, positional: string[]): number {
   const a = argv[i];
   const eq = a.startsWith('--') ? a.indexOf('=') : -1;
   const name = eq === -1 ? a : a.slice(0, eq);
+  const inline = eq === -1 ? undefined : a.slice(eq + 1);
   const bool = BOOL_FLAGS[name];
   if (bool) {
-    bool(o);
+    bool(o, booleanValue(name, inline));
     return i;
   }
   const apply = VALUE_FLAGS[name];
   if (apply) {
-    const v = eq === -1 ? argv[i + 1] : a.slice(eq + 1);
-    if (v === undefined) throw new UsageError(`${name}: missing value`);
+    // A following flag is never a value (`--key --widths 768` must not name the capture "--widths").
+    const v = inline ?? argv[i + 1];
+    if (v === undefined || (inline === undefined && v.startsWith('--'))) throw new UsageError(`${name}: missing value`);
     apply(o, v);
     return eq === -1 ? i + 1 : i;
   }

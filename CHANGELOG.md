@@ -14,6 +14,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   parser set a boolean flag to true whatever followed the `=`. Inline `true`/`false`/`1`/`0` (case-insensitive)
   now set the flag accordingly (`--no-x=false` means `--x`); any other inline
   value is a usage error (exit 2).
+- **`styleproof-capture` flag parsing matches the other commands.**
+  `--require-full-coverage=false` (and every other boolean flag given an
+  inline value) turned the option on; it now follows the same
+  `true`/`false`/`1`/`0` rule. A value flag followed by another flag
+  (`--key --widths 768`) is now a "missing value" usage error instead of
+  silently taking `--widths` as the key.
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
   spawns it wired, but ~26 test files still spawn `process.execPath` children
