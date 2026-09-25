@@ -16,6 +16,7 @@ import {
 } from './runner/surface-capture.js';
 import type { DefineOptions, HeartbeatOrdinal } from './runner/types.js';
 import { assertUniqueExpandedKeys, expandSurfaceVariants } from './runner/variants.js';
+import { parseOnlySurfacesEnv, surfaceMatchesOnlySet } from './selective-remap.js';
 
 export type {
   CrawlOptions,
@@ -59,6 +60,11 @@ export function defineStyleMapCapture(options: DefineOptions): void {
   const { surfaces, expected: programmaticExpected, exclude: programmaticExclude = {}, dir } = options;
   const captureSurfaces = surfaces.flatMap(expandSurfaceVariants);
   assertUniqueExpandedKeys(captureSurfaces);
+  // Opt-in selective remap: STYLEPROOF_ONLY_SURFACES limits which surfaces get capture tests.
+  // Coverage ledger still sees the full declared set so the gate's completeness basis is honest.
+  const onlySurfaces = parseOnlySurfacesEnv(process.env.STYLEPROOF_ONLY_SURFACES);
+  const surfacesToCapture =
+    onlySurfaces == null ? captureSurfaces : captureSurfaces.filter((s) => surfaceMatchesOnlySet(s.key, onlySurfaces));
 
   // Union semantics: config manifest + programmatic expected; config exclude wins per key.
   const loaded = loadStyleProofConfigWithLocation();
@@ -114,9 +120,9 @@ export function defineStyleMapCapture(options: DefineOptions): void {
     writeBrowserBuildTest(settings);
     // Ordinals are assigned at define time (stable across workers); test budgets derive from
     // the per-surface ceiling so the NAMED timeout always fires before the anonymous one.
-    const total = heartbeatUnitCount(captureSurfaces);
+    const total = heartbeatUnitCount(surfacesToCapture);
     let unit = 0;
-    for (const surface of captureSurfaces) {
+    for (const surface of surfacesToCapture) {
       const capture = (page: Page, width: number, ordinal: HeartbeatOrdinal): Promise<void> =>
         withSurfaceFailureTolerance(settings, `${surface.key}@${width}`, () =>
           captureSurface(page, surface, width, settings, ordinal),

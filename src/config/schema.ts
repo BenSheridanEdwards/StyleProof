@@ -13,6 +13,11 @@ export type AffectedConfig = {
   graph?: string;
   /** Default git base ref for changed-file derivation (e.g. "origin/main"). */
   base?: string;
+  /**
+   * Opt into CI selective remap when a usable base map set is present (default false).
+   * Env `STYLEPROOF_SELECTIVE_REMAP` overrides. Fail-closed to full remap on any doubt.
+   */
+  selectiveRemap?: boolean;
 };
 
 /** Pre-map / crawl adoption knobs: app origin, routes, JSON setup steps (env-interpolated — never
@@ -174,7 +179,10 @@ const SCHEMA: Fields = {
   cacheBranch: string,
   remote: string,
   roots: stringArray,
-  affected: block({ surfaces: stringMap('an entry module path'), graph: string, base: string }, true),
+  affected: block(
+    { surfaces: stringMap('an entry module path'), graph: string, base: string, selectiveRemap: boolean },
+    true,
+  ),
   crawl: block(
     {
       baseUrl: string,
