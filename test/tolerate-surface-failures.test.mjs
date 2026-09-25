@@ -361,7 +361,6 @@ test('styleproof-map: tolerate off keeps non-zero exit when Playwright fails', (
   }
 });
 
-
 test('styleproof-map: head/default publishes partial then exits non-zero (Soft-pass HOLD)', () => {
   const root = mkTmp();
   try {
