@@ -228,12 +228,36 @@ export type ComparisonTruthOptions = {
   liveText?: LiveTextAudit;
 };
 
-/** Drop age-driven geometry so declared live/age text is not a style finding. */
+// What a live text change can plausibly move: its own box size and the sizes of
+// the boxes that wrap it, plus the origins that compute from those sizes. Offsets
+// (top/left/inset-*, …) and transforms are never a text reflow, so a live path
+// can never launder them.
+const LIVE_TEXT_REFLOW_PROPS = new Set(
+  `width height block-size inline-size min-width min-height max-width max-height min-block-size max-block-size
+   min-inline-size max-inline-size perspective-origin transform-origin`.split(/\s+/),
+);
+
+/**
+ * Drop age-driven geometry so declared live/age text is not a style finding.
+ * The rule: a base-layer style finding on a live path or one of its ancestors
+ * is dropped only when EVERY changed prop is a size-type longhand in
+ * {@link LIVE_TEXT_REFLOW_PROPS}. Anything else — an offset, a colour, a state
+ * delta, a pseudo layer — stays, because text length cannot explain it.
+ */
 export function dropDeclaredLiveTextGeometry(findings: Finding[], liveText: LiveTextAudit | undefined): Finding[] {
   if (!liveText?.declared || liveText.livePaths.length === 0) return findings;
   return findings.filter(
-    (f) => f.kind !== 'style' || !isLiveTextGeometryPath(f.path, liveText.livePaths) || !isGeometryOnlyGroup([f]),
+    (f) =>
+      f.kind !== 'style' ||
+      f.pseudo !== null ||
+      !isLiveTextGeometryPath(f.path, liveText.livePaths) ||
+      !f.props.every((p) => LIVE_TEXT_REFLOW_PROPS.has(p.prop)),
   );
+}
+
+/** True when declared live text explains every RAW finding: nothing else changed on any paired surface. */
+export function rawFindingsExplainedByLiveText(surfaces: ComparisonSurface[], liveText: LiveTextAudit): boolean {
+  return surfaces.every((surface) => dropDeclaredLiveTextGeometry(surface.findings, liveText).length === 0);
 }
 
 function reviewableFindings(
@@ -282,7 +306,13 @@ export function assessComparisonTruth(
     reviewableCounts.dom + reviewableCounts.style + reviewableCounts.state > 0 ||
     newSurfaces > 0 ||
     removedSurfaces > 0;
-  const declaredLiveTextResidue = liveText.declared && liveText.livePaths.length > 0 && !hasReviewableEvidence;
+  // Only residue live text fully explains is exempt; any other raw delta the report
+  // strips (a cleaned :hover width) still fails closed as raw-only.
+  const declaredLiveTextResidue =
+    liveText.declared &&
+    liveText.livePaths.length > 0 &&
+    !hasReviewableEvidence &&
+    rawFindingsExplainedByLiveText(paired, liveText);
   return {
     rawCounts: raw,
     reviewableCounts,

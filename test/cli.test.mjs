@@ -17,6 +17,7 @@ import {
   writeCapture,
 } from './helpers.mjs';
 import { writeConfidenceLedger, buildConfidenceLedger } from '../dist/confidence-ledger.js';
+import { classifyStyleProofVerdict } from '../dist/verdict.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');
@@ -1605,6 +1606,200 @@ test('diff CLI surfaces the excluded-volatile count in output and --json', () =>
   assert.match(r.stdout, /NOT certified/);
   const j = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
   assert.equal(j.volatileExcluded, 1);
+  rmTmp(root);
+});
+
+// Maintainer decision: NEW volatility blocks. A PR that adds an interval toggling a
+// class on a container makes that subtree volatile only on the head; the union skip
+// used to hide the change and a source-bound run exited 0 with certifiesFully: true.
+function headVolatilityPair({ baseVolatile }) {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const card = 'body > div:nth-child(1)';
+  const baseMap = makeMap({
+    elements: { body: { tag: 'body' }, [card]: { tag: 'div', cls: 'card', style: { color: 'rgb(0, 0, 0)' } } },
+  });
+  if (baseVolatile) {
+    delete baseMap.elements[card];
+    baseMap.volatile = [card];
+  }
+  const headMap = makeMap({ elements: { body: { tag: 'body' } } });
+  headMap.volatile = [card];
+  writeCapture(A, 'home@1280', baseMap, null);
+  writeCapture(B, 'home@1280', headMap, null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  return { root, A, B, card };
+}
+
+function runBoundDiff(A, B, jsonOut) {
+  return run(DIFF, [
+    A,
+    B,
+    '--json',
+    jsonOut,
+    '--expected-before-sha',
+    'a'.repeat(40),
+    '--expected-after-sha',
+    'b'.repeat(40),
+  ]);
+}
+
+test('source-bound diff CLI blocks a subtree that became volatile only on the head', () => {
+  const { root, A, B, card } = headVolatilityPair({ baseVolatile: false });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /1 subtree\(s\) newly volatile on head/);
+  assert.ok(r.stdout.includes(`home@1280: ${card}`), r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.deepEqual(receipt.volatility.headOnly, [{ surface: 'home@1280', path: card }]);
+  assert.equal(
+    classifyStyleProofVerdict(receipt, { gateInventoryRemovals: true, baseCaptureFailed: false, changed: true }).state,
+    'CERTIFICATION_FAILED',
+  );
+  rmTmp(root);
+});
+
+test('source-bound diff CLI keeps certifying when the same subtree is volatile on both sides', () => {
+  const { root, A, B } = headVolatilityPair({ baseVolatile: true });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.stdout, /volatile subtree\(s\) excluded/);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, true);
+  assert.deepEqual(receipt.volatility.headOnly, []);
+  rmTmp(root);
+});
+
+test('source-bound report CLI refuses a clean verdict when a subtree became volatile only on the head', () => {
+  const { root, A, B, card } = headVolatilityPair({ baseVolatile: false });
+  const out = path.join(root, 'report');
+  const r = run(REPORT, [
+    A,
+    B,
+    '--out',
+    out,
+    '--expected-before-sha',
+    'a'.repeat(40),
+    '--expected-after-sha',
+    'b'.repeat(40),
+  ]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /not certified — 1 subtree\(s\) newly volatile on head/);
+  const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
+  assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
+  assert.ok(md.includes(`\`home@1280\` · \`${card}\``), md);
+  const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
+  assert.deepEqual(json.volatility.headOnly, [{ surface: 'home@1280', path: card }]);
+  rmTmp(root);
+});
+
+// Declared live text must explain only what a text reflow can move. It used to zero
+// the whole run's tally as soon as any declared live text drifted and nothing
+// reviewable remained — laundering unrelated offsets and cleaned state deltas.
+const CARD = 'body > div:nth-child(1)';
+const AGE = `${CARD} > span:nth-child(1)`;
+const BUTTON = 'body > button:nth-child(2)';
+
+function liveTextPair({ cardTop, hoverWidth }) {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const side = (text, ageWidth, top, width) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body' },
+        [CARD]: { tag: 'div', cls: 'card', style: { position: 'absolute', top } },
+        [AGE]: {
+          tag: 'span',
+          cls: 'age',
+          style: { width: ageWidth },
+          ownTextLength: text.length,
+          text,
+        },
+        [BUTTON]: { tag: 'button', cls: 'cta', style: { color: 'rgb(0, 0, 0)' } },
+      },
+      states: { [BUTTON]: { hover: { [BUTTON]: { width } } } },
+    }),
+    metadata: { liveText: { freeze: false, selectors: ['.age'] } },
+  });
+  writeCapture(A, 'home@1280', side('open 102.1d', '96px', '10px', '100px'), null);
+  writeCapture(B, 'home@1280', side('open 103.1d', '104px', cardTop, hoverWidth), null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  return { root, A, B };
+}
+
+test('source-bound diff CLI still certifies declared live-text drift on its own', () => {
+  const { root, A, B } = liveTextPair({ cardTop: '10px', hoverWidth: '100px' });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(JSON.parse(fs.readFileSync(jsonOut, 'utf8')).certifiesFully, true);
+  rmTmp(root);
+});
+
+test('source-bound diff CLI does not let a drifting declared timestamp hide a positioned card moving', () => {
+  const { root, A, B } = liveTextPair({ cardTop: '20px', hoverWidth: '100px' });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.equal(receipt.reviewableCounts.style, 1, 'the card offset stays reviewable');
+  rmTmp(root);
+});
+
+test('source-bound diff CLI fails closed on a cleaned :hover width delta next to declared live-text drift', () => {
+  const { root, A, B } = liveTextPair({ cardTop: '10px', hoverWidth: '120px' });
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /report consistency/);
+  const receipt = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
+  assert.equal(receipt.certifiesFully, false);
+  assert.equal(receipt.reportConsistency.reason, 'raw_only_no_reviewable');
+  const verdict = classifyStyleProofVerdict(receipt, {
+    gateInventoryRemovals: true,
+    baseCaptureFailed: false,
+    changed: true,
+  });
+  assert.equal(verdict.state, 'CERTIFICATION_FAILED');
+  rmTmp(root);
+});
+
+test('source-bound diff CLI does not treat an element as live because its class is a substring of the selector', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const TOTAL = 'body > span:nth-child(1)';
+  const side = (text, width) => ({
+    ...makeMap({
+      elements: {
+        body: { tag: 'body' },
+        [TOTAL]: {
+          tag: 'span',
+          cls: 'c lock',
+          style: { width },
+          ownTextLength: text.length,
+          text,
+        },
+      },
+    }),
+    metadata: { liveText: { freeze: false, selectors: ['#clock'] } },
+  });
+  writeCapture(A, 'home@1280', side('Total 12', '60px'), null);
+  writeCapture(B, 'home@1280', side('Total 40', '64px'), null);
+  writeManifest(A, 'a'.repeat(40), 'same-env-key');
+  writeManifest(B, 'b'.repeat(40), 'same-env-key');
+  const jsonOut = path.join(root, 'out.json');
+  const r = runBoundDiff(A, B, jsonOut);
+  assert.equal(r.status, 1, r.stdout);
+  assert.equal(JSON.parse(fs.readFileSync(jsonOut, 'utf8')).certifiesFully, false);
   rmTmp(root);
 });
 

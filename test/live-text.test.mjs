@@ -15,6 +15,7 @@ import {
 } from '../dist/live-text.js';
 import { diffContentMaps, diffStyleMaps } from '../dist/diff.js';
 import { assessComparisonTruth, isGeometryOnlyGroup } from '../dist/change-groups.js';
+import { dropDeclaredLiveTextGeometry } from '../dist/findings-clean.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { assessCertificationEvidence, classifyStyleProofVerdict } from '../dist/verdict.js';
 import { makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
@@ -113,6 +114,29 @@ test('isLiveTextChange: declared selector treats any text on that element as liv
   assert.equal(isLiveTextChange(change, undefined), false);
   assert.equal(isLiveTextChange(change, { freeze: false, selectors: ['.age'] }, 'span'), true);
   assert.equal(isLiveTextChange(change, { freeze: false, selectors: ['.other'] }, 'span'), false);
+});
+
+test('isLiveTextChange: a selector matches whole class tokens and path-encoded ids, never substrings', () => {
+  const text = (p, cls) => ({ kind: 'text', path: p, cls, before: 'Total 12', after: 'Total 40' });
+  const declared = (selector) => ({ freeze: false, selectors: [selector] });
+  const plain = 'body > div:nth-child(1) > span:nth-child(2)';
+  // `#clock` used to match any element whose class token was a substring of it.
+  assert.equal(isLiveTextChange(text(plain, 'c lock o'), declared('#clock'), 'span'), false);
+  assert.equal(isLiveTextChange(text(plain, 'ag'), declared('.age'), 'span'), false);
+  assert.equal(isLiveTextChange(text(plain, 'age'), declared('.ag'), 'span'), false);
+  // An id matches only when the capture encoded it: `tag:sp-key(fnv1a("id:clock"))`.
+  const withId = 'body > div:nth-child(1) > span:sp-key(43jem8)';
+  assert.equal(isLiveTextChange(text(withId, ''), declared('#clock'), 'span'), true);
+  assert.equal(isLiveTextChange(text(withId, ''), declared('span#clock'), 'span'), true);
+  assert.equal(isLiveTextChange(text(withId, ''), declared('div#clock'), 'span'), false);
+  assert.equal(isLiveTextChange(text(withId, ''), declared('#clocks'), 'span'), false);
+  // Compounds: every class token must be present; the tag falls back to the path.
+  assert.equal(isLiveTextChange(text(plain, 'age muted'), declared('span.age.muted')), true);
+  assert.equal(isLiveTextChange(text(plain, 'age'), declared('span.age.muted')), false);
+  // What the path cannot prove matches nothing (fail closed).
+  for (const selector of ['.card .age', 'div > .age', '.age:hover', '[data-age]', '.age, .other']) {
+    assert.equal(isLiveTextChange(text(plain, 'card age'), declared(selector), 'span'), false, selector);
+  }
 });
 
 // ── fixture: age drift as content, not a style finding by itself ────────────
@@ -233,6 +257,52 @@ test('declared liveText still certifies a real stylesheet change next to age dri
     { gateInventoryRemovals: true, baseCaptureFailed: false, changed: truth.hasReviewableEvidence },
   );
   assert.equal(verdict.state, 'STYLE_REVIEW_REQUIRED');
+});
+
+test('declared liveText drops only size reflow on the live path and its ancestors', () => {
+  const audit = auditLiveTextChanges(
+    'dashboard@1280',
+    [{ kind: 'text', path: AGE_PATH, cls: 'age', before: 'open 102.1d', after: 'open 103.1d' }],
+    { freeze: false, selectors: ['.age'] },
+  );
+  const style = (p, prop) => ({
+    kind: 'style',
+    path: p,
+    cls: '',
+    pseudo: null,
+    props: [{ prop, before: '10px', after: '20px' }],
+  });
+  const kept = dropDeclaredLiveTextGeometry(
+    [style(AGE_PATH, 'width'), style('body', 'height'), style('body', 'top'), style('body', 'inset-inline-start')],
+    audit,
+  );
+  assert.deepEqual(
+    kept.map((f) => f.props[0].prop),
+    ['top', 'inset-inline-start'],
+    'offsets are never explained by a text reflow',
+  );
+});
+
+test('declared liveText does not exempt an unrelated cleaned state delta from raw-only fail-closed', () => {
+  const audit = auditLiveTextChanges(
+    'dashboard@1280',
+    [{ kind: 'text', path: AGE_PATH, cls: 'age', before: 'open 102.1d', after: 'open 103.1d' }],
+    { freeze: false, selectors: ['.age'] },
+  );
+  const hover = {
+    kind: 'state',
+    path: 'body > button:nth-child(2)',
+    cls: 'cta',
+    state: 'hover',
+    sub: 'body > button:nth-child(2)',
+    props: [{ prop: 'width', before: '100px', after: '120px' }],
+  };
+  const findings = [ageFinding(96, 104, 'open 102.1d', 'open 103.1d'), hover];
+  const truth = assessComparisonTruth([{ surface: 'dashboard@1280', findings }], { dom: 0, style: 1, state: 1 }, [], {
+    liveText: audit,
+  });
+  assert.equal(truth.hasReviewableEvidence, false);
+  assert.equal(truth.rawOnlyNoReviewable, true, 'the :hover delta is not live text — fail closed');
 });
 
 // ── fail-closed freeze ──────────────────────────────────────────────────────
