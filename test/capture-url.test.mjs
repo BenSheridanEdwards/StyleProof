@@ -112,6 +112,22 @@ test('screenshots: toggled off and back on', () => {
   assert.equal(parseCaptureUrlArgs(['u', '--no-screenshots', '--screenshots']).screenshots, true);
 });
 
+test('bool flags honour an inline true/false/1/0, and reject anything else', () => {
+  assert.equal(parseCaptureUrlArgs(['u', '--crawl', '--require-full-coverage=false']).requireFullCoverage, false);
+  assert.equal(parseCaptureUrlArgs(['u', '--crawl', '--require-full-coverage=TRUE']).requireFullCoverage, true);
+  assert.equal(parseCaptureUrlArgs(['u', '--crawl=0']).crawl, false);
+  assert.equal(parseCaptureUrlArgs(['u', '--screenshots=false']).screenshots, false);
+  assert.equal(parseCaptureUrlArgs(['u', '--no-screenshots=false']).screenshots, true);
+  assert.equal(parseCaptureUrlArgs(['u', '--no-reset-storage=1']).resetStorage, false);
+  assert.throws(() => parseCaptureUrlArgs(['u', '--crawl=yes']), /--crawl: expects true or false, got "yes"/);
+});
+
+test('a value flag never swallows the next flag as its value', () => {
+  assert.throws(() => parseCaptureUrlArgs(['u', '--key', '--widths', '768']), /--key: missing value/);
+  assert.throws(() => parseCaptureUrlArgs(['u', '--out', '--crawl']), /--out: missing value/);
+  assert.equal(parseCaptureUrlArgs(['u', '--key=--odd']).key, '--odd', 'an inline value is taken verbatim');
+});
+
 test('usage errors throw UsageError', () => {
   assert.throws(() => parseCaptureUrlArgs([]), UsageError, 'missing url');
   assert.throws(() => parseCaptureUrlArgs(['a', 'b']), UsageError, 'two urls');

@@ -27,6 +27,15 @@ test('package exposes one primary styleproof command', () => {
   assert.equal(manifest.bin.styleproof, './bin/styleproof.mjs');
 });
 
+test('the @playwright/test peer floor covers every Playwright API the capture path calls', () => {
+  // page.clock (freezeClock, on by default) shipped in Playwright 1.45; an older peer throws at capture time.
+  const surfaceCapture = fs.readFileSync(path.join(root, 'src', 'runner', 'surface-capture.ts'), 'utf8');
+  assert.match(surfaceCapture, /page\.clock\.setFixedTime/);
+  const floor = /^>=1\.(\d+)$/.exec(manifest.peerDependencies['@playwright/test']);
+  assert.ok(floor, `unexpected peer range ${manifest.peerDependencies['@playwright/test']}`);
+  assert.ok(Number(floor[1]) >= 45, `peer floor 1.${floor[1]} predates page.clock (1.45)`);
+});
+
 test('styleproof help presents the complete workflow instead of implementation bins', () => {
   const result = run(['--help']);
   assert.equal(result.status, 0, result.stderr);
@@ -85,6 +94,7 @@ test('styleproof setup dry-run plans installation, browser, scaffold, and verifi
     const result = run(['setup', '--dry-run', '--dir=apps/web'], project);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, pinnedStyleproofInstall);
+    assert.match(result.stdout, /@playwright\/test@>=1\.45(\s|$)/m, 'setup installs the peer-range Playwright floor');
     assert.match(result.stdout, /npm exec playwright install chromium/);
     assert.match(result.stdout, /styleproof-init --dir=apps\/web$/m);
     assert.match(result.stdout, /styleproof-init --dir=apps\/web --check$/m);

@@ -19,11 +19,19 @@ function configuredMergeBase(): string {
   return branch ? gitOutput(['config', `branch.${branch}.gh-merge-base`]) : '';
 }
 
+/** `gh pr view` is a network call; bound it (default 10s) so a stalled gh cannot hang base inference. */
+const DEFAULT_GH_TIMEOUT_MILLISECONDS = 10_000;
+
 function ghPrBaseRef(): string {
+  const configured = Number(process.env.STYLEPROOF_GH_TIMEOUT_MS);
+  const timeout =
+    Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : DEFAULT_GH_TIMEOUT_MILLISECONDS;
   const r = spawnSync('gh', ['pr', 'view', '--json', 'baseRefName', '--jq', '.baseRefName'], {
     encoding: 'utf8',
     maxBuffer: 1 << 20,
+    timeout,
   });
+  // A timeout (r.error ETIMEDOUT, status null) is an unknown base: fall through to the default branches.
   return r.status === 0 ? r.stdout.trim() : '';
 }
 

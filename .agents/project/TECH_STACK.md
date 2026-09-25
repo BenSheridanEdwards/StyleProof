@@ -11,7 +11,7 @@
 ## Runtime dependencies
 
 - `pngjs` — PNG read/write for the report screenshots and crops.
-- **Peer:** `@playwright/test` (`>=1.40`) — the browser engine the capture path
+- **Peer:** `@playwright/test` (`>=1.45`) — the browser engine the capture path
   drives. It is a peer dependency so adopters control the Playwright version.
 
 ## Dev tooling
