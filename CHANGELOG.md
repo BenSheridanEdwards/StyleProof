@@ -7,6 +7,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Detection-rate corpus (`bench/`).** `npm run bench:detection` measures the
+  detector end-to-end: 56 seeded mutations on a deterministic fixture go through
+  real `captureStyleMap`/`diffStyleMaps` capture and diff — 46/46 observable
+  changes surfaced, 7/7 computed-identical rewrites stayed silent, 3/3
+  documented boundaries held. Receipt: `bench/detection-corpus.results.json`;
+  method and caveats: `bench/detection-corpus.review.md`. Benchmark only — not
+  part of the published package.
+
 ### Fixed
 
 - **A subtree that becomes volatile only on the head now blocks certification.**
@@ -55,6 +65,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (`src/verdict.ts`) as a backstop, with only the documented escapes (unbound,
   `--allow-unasserted`, first adoption) neutralised, so a blocker the CLI's own
   gate table misses can no longer exit `0`.
+- **The privacy check no longer publishes, or misses, what it protects.** Repo
+  tooling only — no product runtime change. The private-name denylist file was
+  committed to the public repo; it is now gitignored and CI reads the
+  `STYLEPROOF_PRIVACY_DENYLIST` secret instead (warning, not failing, when the
+  secret is absent, e.g. on forks). `npm run privacy:check` now scans every
+  git-tracked text file plus the npm tarball, not just the tarball and a few
+  directories, and denylist matching is case-insensitive. Hits the wider scan
+  surfaced were scrubbed.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
@@ -70,6 +88,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 flag` to stderr and pollute every spawned child's output — and a checkout
   path containing spaces skips the injection rather than breaking
   NODE_OPTIONS.
+
+### Docs
+
+- **Reference and gate docs match what actually runs.** `docs/REFERENCE.md`
+  now points at `StyleProof@v7`, lists every Action input (including `mode`
+  and `require-state-identity`) and output (including `audit-json`) with how
+  `mode`, `fail-on-diff`, and `require-approval` interact, and has a per-command
+  flag reference that covers every flag of every bin plus `styleproof setup`.
+  `QUALITY_GATES.md` and `DEFINITION_OF_DONE.md` no longer claim the privacy scan
+  runs at commit time, and they now describe the sharded e2e job with its Firefox
+  project, the four jobs behind `required`, and the pre-commit
+  `fallow health --production` step. `CONTRIBUTING.md` separates the Node ≥18
+  runtime support from the Node 22.13+ development toolchain.
+
+### Changed
+
+- **Package `files` no longer lists the deleted `docs/phase0-truth-contract.md`.**
 
 ## [7.0.2] - 2026-09-18
 
