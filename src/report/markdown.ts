@@ -20,11 +20,32 @@ export function escapeMarkdownFailureReason(reason: string): string {
     .replace(/[*_[`#|]/g, '\\$&');
 }
 
+// C0/C1 controls plus the Unicode line/paragraph separators: any of them can end a
+// Markdown line, so a map-supplied string carrying one could start a new block.
+// eslint-disable-next-line no-control-regex -- intentional control-character class
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
+
+/**
+ * Escape a map-supplied string for inline Markdown prose (outside code spans), so it
+ * renders as literal text in the report and the PR comment: control characters and
+ * newlines collapse to one space (no injected lines, checkboxes, or receipt markers),
+ * HTML and Markdown metacharacters are escaped, and `@` mentions are neutralised.
+ */
+export function escapeInlineMarkdown(text: string): string {
+  return text
+    .replace(CONTROL_CHARACTERS, ' ')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/[\\`*_[\]#!|~]/g, '\\$&')
+    .replace(/@/g, '@\u200b');
+}
+
 // CSS values are author-influenced, so they get their own escaper at the render
 // boundary: `|` is escaped (it would split the table row) and the code fence is
 // widened past the value's longest backtick run (GitHub's code-span rule).
 export function codeValue(v: string): string {
-  const escaped = v.replace(/\|/g, '\\|');
+  const escaped = v.replace(CONTROL_CHARACTERS, ' ').replace(/\|/g, '\\|');
   const longestRun = Math.max(0, ...(escaped.match(/`+/g) ?? []).map((r) => r.length));
   const fence = '`'.repeat(longestRun + 1);
   const pad = /^`|`$/.test(escaped) ? ' ' : '';
@@ -132,13 +153,13 @@ function statesSection(states: StateFinding[], added: boolean): string[] {
 
 const renderComponent = (c: NonNullable<DomFinding['component']>): string => {
   const entries = Object.entries(c.props ?? {});
-  return `\`${c.name}\`${entries.length ? ` (${entries.map(([k, v]) => `${k}=${v}`).join(', ')})` : ''}`;
+  return `${codeValue(c.name)}${entries.length ? ` (${entries.map(([k, v]) => escapeInlineMarkdown(`${k}=${v}`)).join(', ')})` : ''}`;
 };
 
 const DOM_HEADING: Record<DomFinding['change'], (label: string, dom: DomFinding) => string> = {
   removed: (label) => `**Removed** \`${label}\``,
   added: (label) => `**Added** \`${label}\``,
-  retagged: (label, dom) => `**Retagged** \`${label}\` ${dom.detail ?? ''}`,
+  retagged: (label, dom) => `**Retagged** \`${label}\` ${escapeInlineMarkdown(dom.detail ?? '')}`,
 };
 
 /** One element's heading + body (no leading blank, no ×N suffix); null when nothing to show. */

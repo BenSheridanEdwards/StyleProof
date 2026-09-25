@@ -256,8 +256,11 @@ test('Action DEGRADED_BASELINE / head-only copy claims recapture only when the f
   const statusStep = actionYml.match(/- name: Set review status[\s\S]*?(?=\n\s{4}# A failed base capture)/);
   const degradedGate = actionYml.match(/- name: Block on degraded baseline[\s\S]*?(?=\n\s{4}# Partial baseline)/);
   assert.ok(commentStep && statusStep && degradedGate);
-  assert.match(commentStep[0], /baseCaptureFailed = .*inputs\.base-capture-failed/);
-  assert.match(statusStep[0], /baseCaptureFailed = .*inputs\.base-capture-failed/);
+  // The input reaches each script through env, never spliced into the source.
+  for (const step of [commentStep[0], statusStep[0]]) {
+    assert.match(step, /STYLEPROOF_BASE_CAPTURE_FAILED: \$\{\{ inputs\.base-capture-failed \}\}/);
+    assert.match(step, /baseCaptureFailed = \(process\.env\.STYLEPROOF_BASE_CAPTURE_FAILED \|\| ''\)/);
+  }
   assert.match(degradedGate[0], /inputs\.base-capture-failed == 'true'/);
   assert.match(degradedGate[0], /formatDegradedBaselineFailEcho\(true\)/);
   assert.match(degradedGate[0], /process\.exit\(1\)/);

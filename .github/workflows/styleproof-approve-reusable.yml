@@ -50,10 +50,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v9
+        env:
+          # Passed through env, never spliced into the script source.
+          STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         with:
           github-token: ${{ secrets.token }}
           script: |
-            const STATUS = '${{ inputs.status-context }}';
+            const STATUS = process.env.STYLEPROOF_STATUS_CONTEXT;
             const allowSelfApproval = ${{ inputs.allow-self-approval }};
 
             // Minimal zip reader for artifact publications (#587): the report
@@ -247,7 +250,9 @@ jobs:
               // The newest StyleProof status for this exact head is the canonical
               // machine verdict. Only the Action's pending review verdict is eligible;
               // certification failures, clean/approved reports, and stale target URLs
-              // cannot be waved through by a checkbox.
+              // cannot be waved through by a checkbox. A fork (untrusted capture) PR's
+              // verdict is always pending with the fork description — including a
+              // clean one, which only a maintainer's tick may turn green.
               const readPendingStatus = async () => {
                 const response = await github.rest.repos.listCommitStatusesForRef({
                   ...context.repo,
@@ -257,11 +262,15 @@ jobs:
                 const latest = response.data.find((candidate) => candidate.context === STATUS);
                 const canonicalCreator =
                   latest?.creator?.type === 'Bot' && latest.creator.login === 'github-actions[bot]';
-                const eligibleDescription =
-                  latest?.description === 'StyleProof changes need sign-off — tick the box in the report comment' ||
-                  latest?.description === 'Tick "Approve all changes" to sign off' ||
-                  latest?.description?.startsWith('Needs a reviewer other than @');
-                return canonicalCreator && latest?.state === 'failure' && eligibleDescription && latest.target_url === reportUrl;
+                const eligibleFailure =
+                  latest?.state === 'failure' &&
+                  (latest?.description === 'StyleProof changes need sign-off — tick the box in the report comment' ||
+                    latest?.description === 'Tick "Approve all changes" to sign off' ||
+                    latest?.description?.startsWith('Needs a reviewer other than @'));
+                const eligibleUntrustedPending =
+                  latest?.state === 'pending' &&
+                  latest?.description === 'Fork PR — maps captured in an untrusted job; maintainer approval required';
+                return canonicalCreator && (eligibleFailure || eligibleUntrustedPending) && latest.target_url === reportUrl;
               };
               if (!(await readPendingStatus())) return;
 
@@ -396,11 +405,17 @@ jobs:
               ) return;
               try {
                 const parsedReport = JSON.parse(publishedJson);
+                // A clean verdict is approvable only when the Action marked the capture
+                // untrusted (fork PR): the fork produced both map sets, so it needs sign-off.
                 if (
                   !parsedReport ||
                   Array.isArray(parsedReport) ||
                   typeof parsedReport !== 'object' ||
-                  parsedReport.actionTrustState !== 'STYLE_REVIEW_REQUIRED'
+                  !(
+                    parsedReport.actionTrustState === 'STYLE_REVIEW_REQUIRED' ||
+                    (parsedReport.actionTrustState === 'NO_REVIEWABLE_STYLE_CHANGES' &&
+                      parsedReport.untrustedCapture === true)
+                  )
                 ) return;
               } catch {
                 return;

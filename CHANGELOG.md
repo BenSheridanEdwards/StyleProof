@@ -7,6 +7,78 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Security
+
+- **Fork PRs never auto-green.** In the capture/report split the untrusted
+  `pull_request` capture job uploads _both_ the base and head maps, so a fork
+  could upload identical maps and receive a green `StyleProof` status from the
+  trusted `workflow_run` job. When the captured head repository differs from
+  the base repository (or is missing from the `workflow_run` payload — fail
+  closed), the Action now treats the verdict as advisory: it never sets the
+  status to success automatically, even on zero diff, and posts `pending`
+  (`Fork PR — maps captured in an untrusted job; maintainer approval required`)
+  with the **Approve all changes** box in the comment. The approval workflow
+  (reusable and example) accepts that pending status, and a clean verdict only
+  when the trusted `report.json` carries `untrustedCapture: true`. Certification
+  failures stay red and unapprovable; same-repo PRs, including Dependabot, are
+  unchanged. Docs and scaffold comments no longer call the split "fork-safe".
+
+- **Branch-publish receipt read-back requires exactly one receipt.** The
+  publisher's read-back accepted any `report.md` that _contained_ this run's
+  receipt; a duplicated or second (stale/injected) `styleproof-receipt` marker
+  now fails closed, matching the approval workflow's exactly-one rule.
+- **Style-map reads are size-capped.** `loadStyleMap` read a capture file with
+  no size bound and gunzipped it with no output limit, so a gzip bomb in an
+  untrusted fork capture could exhaust the trusted report job's memory. Reads
+  now fail closed above 256 MiB on disk (`MAX_STYLE_MAP_FILE_BYTES`) or 1 GiB
+  decompressed (`MAX_STYLE_MAP_DECOMPRESSED_BYTES`) — far above real maps,
+  which the Action's evidence binding already limits to 16 MiB per file. An
+  optional second argument lowers the caps.
+- **Map-supplied strings are escaped in the report and PR comment.** Live-state
+  candidate labels (`tag`/`cls`/`reason`), variant keys, data-residue
+  surface/endpoint/reason text, live-text samples, critical-obligation notes,
+  retag details, component props, and changed-element names were interpolated
+  raw, so a newline in a captured `tag` could inject whole lines into the bot
+  comment — a fake verdict, a second **Approve all changes** box, or a forged
+  `styleproof-receipt` marker. Prose now goes through `escapeInlineMarkdown`
+  (control characters collapse to spaces, Markdown/HTML metacharacters are
+  escaped, `@` mentions are neutralised) and code spans collapse control
+  characters. `safeKey` also replaces control characters; ordinary surface
+  keys render exactly as before.
+- **The review gate only honours a canonical prior approval.** On a re-run the
+  Action accepted any existing `StyleProof` success status as a sign-off; it
+  now also requires the status creator to be `github-actions[bot]`, the same
+  check the approval workflow applies. Note: an approval workflow whose
+  `token` secret is a PAT writes its sign-off as that user, which a re-run no
+  longer honours — use `GITHUB_TOKEN` (the scaffolded default).
+- **Action inputs no longer reach script source.** `baseline-dir`,
+  `fresh-dir`, `report-branch`, `status-context`, `report-retention-days`,
+  `report-storage`, `mode`, `require-approval`, `include-content`, and
+  `base-capture-failed` were spliced into `run:`/`script:` bodies as
+  `${{ inputs.* }}` text; they now travel through `env:` (the reusable
+  approval workflow's `status-context` too). `report-retention-days` is
+  validated as a positive integer in branch mode as well as artifact mode.
+- **Scaffolded workflows keep tokens out of `.git/config`.** The one-job
+  `styleproof-init` layout installs and runs PR code with `statuses: write`,
+  yet checked out with persisted credentials; it now sets
+  `persist-credentials: false`, and with `--storage branch` hands the map
+  store a step-scoped `STYLEPROOF_MAP_STORE_TOKEN` instead (report
+  publication already uses the API). The map-store prune step no longer clones
+  from an `https://x-access-token:<token>@…` URL, which persisted the token in
+  the clone's config; it authenticates through a credential helper that reads
+  `GH_TOKEN` from the environment. Re-run `styleproof-init --upgrade` to
+  refresh existing scaffolds.
+- **Release workflow hardening.** `release.yml` ran `npm ci` — and with it
+  every dependency install script — while holding `contents: write`,
+  `id-token: write`, and a persisted checkout token. It now installs with
+  `npm ci --ignore-scripts`, checks out with `persist-credentials: false`, and
+  gives only the version-tag and major-tag pushes the token, through a
+  step-scoped credential helper.
+- **Third-party actions are SHA-pinned.** `softprops/action-gh-release`
+  (v3.0.3), `fallow-rs/fallow` (v3.28.0), and `gitleaks/gitleaks-action`
+  (v3.0.0) are pinned to the commit their `v3` tag resolved to, with the tag in
+  a comment; first-party `actions/*` keep their major tags.
+
 ### Added
 
 - **Detection-rate corpus (`bench/`).** `npm run bench:detection` measures the

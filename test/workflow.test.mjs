@@ -127,3 +127,47 @@ test('shipped and generated workflows carry no stale actions/* pins (#706)', () 
     }
   }
 });
+
+test('release installs without dependency scripts and never persists the checkout token', () => {
+  const checkout = release.match(/- uses: actions\/checkout@v7\n {8}with:\n([\s\S]*?)\n\n/)?.[1] ?? '';
+  assert.match(checkout, /fetch-depth: 0/);
+  assert.match(checkout, /persist-credentials: false/, 'the write token must not sit in .git/config during npm ci');
+  assert.match(release, /- name: Install dependencies\n[^\n]*\n {8}run: npm ci --ignore-scripts\n/);
+  assert.doesNotMatch(release, /run: npm ci\n/);
+});
+
+test('every release tag push carries explicit, step-scoped credentials', () => {
+  const steps = release.split(/\n(?= {6}- name: )/);
+  const pushSteps = steps.filter((step) => /\bpush\b.*refs\/tags/.test(step));
+  assert.deepEqual(
+    pushSteps.map((step) => step.match(/- name: (.+)/)[1]),
+    ['Tag the release', 'Move the major tag'],
+  );
+  for (const step of pushSteps) {
+    assert.match(step, /env:\n {10}GH_TOKEN: \$\{\{ github\.token \}\}/);
+    const pushes = step.split('\n').filter((line) => /\bgit\b.*\bpush\b/.test(line));
+    assert.ok(pushes.length > 0);
+    for (const line of pushes) {
+      assert.match(
+        line,
+        /git -c credential\.helper= -c 'credential\.helper=!f\(\) \{ .*password=\$GH_TOKEN.*\}; f' push/,
+      );
+    }
+  }
+});
+
+test('third-party actions are pinned to a full commit SHA with the tag in a comment', () => {
+  const firstParty = /^(actions|github)\/|^\.\/|^BenSheridanEdwards\//;
+  const dir = path.join(here, '..', '.github/workflows');
+  let pinned = 0;
+  for (const file of fs.readdirSync(dir).filter((name) => name.endsWith('.yml'))) {
+    const text = fs.readFileSync(path.join(dir, file), 'utf8');
+    for (const [, reference, comment] of text.matchAll(/^\s*(?:- )?uses: (\S+)(.*)$/gm)) {
+      if (firstParty.test(reference)) continue;
+      assert.match(reference, /@[0-9a-f]{40}$/, `${file}: ${reference} must be SHA-pinned`);
+      assert.match(comment, /^ # v\d+\.\d+\.\d+$/, `${file}: ${reference} must name its tag`);
+      pinned += 1;
+    }
+  }
+  assert.ok(pinned >= 4, 'release, fallow, and secret-scan third-party actions are covered');
+});

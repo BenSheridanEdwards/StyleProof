@@ -4,8 +4,11 @@ import path from 'node:path';
 
 // Surface keys originate from artifact filenames (attacker-controlled in the fork
 // capture/report split) and flow into the PRIVILEGED PR-comment summary: strip the
-// Markdown/HTML control characters that could inject a link, image, or table.
-export const safeKey = (s: string): string => s.replace(/[`[\]()<>|]/g, '-');
+// Markdown/HTML control characters that could inject a link, image, or table, and
+// the control characters (CR/LF/tab, ...) that could start a new Markdown line.
+export const safeKey = (s: string): string =>
+  // eslint-disable-next-line no-control-regex -- intentional control-character class
+  s.replace(/[`[\]()<>|]/g, '-').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, '-');
 
 export const surfaceBase = (s: string): string => s.replace(/@\d+$/, '');
 export const surfaceWidth = (s: string): number => Number(s.match(/@(\d+)$/)?.[1] ?? 0);

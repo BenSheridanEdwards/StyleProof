@@ -278,14 +278,19 @@ const MAP_STORE_PRUNE_STEP = `
               echo "Head $HEAD_SHA is on $DEFAULT_BRANCH (or status unknown: '$status') — keeping its map."
               exit 0 ;;
           esac
-          REMOTE="https://x-access-token:\${GH_TOKEN}@github.com/$REPO.git"
-          if ! git ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
+          # Authenticate through a credential helper that reads GH_TOKEN from the
+          # environment — never a token-bearing URL, which the clone would persist in
+          # its .git/config (the same approach the map store's own git transport uses).
+          export GIT_TERMINAL_PROMPT=0
+          AUTH=(-c credential.helper= -c 'credential.helper=!f() { if [ "$1" = get ]; then printf "%s\\n" username=x-access-token "password=$GH_TOKEN"; fi; }; f')
+          REMOTE="https://github.com/\${REPO}.git"
+          if ! git "\${AUTH[@]}" ls-remote --exit-code "$REMOTE" "refs/heads/$BRANCH" >/dev/null 2>&1; then
             echo "No $BRANCH branch yet — nothing to prune."; exit 0
           fi
           TMP="$(mktemp -d)"
           # Blobless + no-checkout: fetch the tree metadata only, then sparse-checkout just
           # this one SHA's folder — never download every cached bundle's blobs to delete one.
-          git clone --filter=blob:none --no-checkout --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
+          git "\${AUTH[@]}" clone --filter=blob:none --no-checkout --single-branch --branch "$BRANCH" "$REMOTE" "$TMP"
           cd "$TMP"
           git sparse-checkout set "$HEAD_SHA"
           git checkout -q "$BRANCH"
@@ -296,7 +301,7 @@ const MAP_STORE_PRUNE_STEP = `
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -r --quiet "$HEAD_SHA"
           git commit -m "chore(styleproof): prune map for closed PR #\${{ github.event.pull_request.number }} ($HEAD_SHA)"
-          git push origin "$BRANCH"`;
+          git "\${AUTH[@]}" push origin "$BRANCH"`;
 
 // Tail jobs shared by both layouts: prune the PR's report folder on close, sweep daily.
 const pruneAndSweepJobs = ({ PM, scaffold }) => `  prune:
@@ -417,6 +422,8 @@ ${scaffoldMarkerLine(ctx.scaffold)}
 #   reviews, or statuses;
 # - captured maps are uploaded as a short-lived artifact for the trusted report stage.
 # Trusted publication lives in styleproof-report.yml (workflow_run on the default branch).
+# Fork PR verdicts are advisory: the fork's code produces both map sets, so the
+# report stage keeps the StyleProof status pending until a maintainer approves.
 ${onPullRequest(ctx)}
 
 jobs:
@@ -454,6 +461,15 @@ ${captureStep(ctx)}
           if-no-files-found: error
 ${pruneJobs(ctx)}`;
 
+// Branch storage restores/publishes maps with git; without persisted checkout
+// credentials the map store authenticates with this step-scoped token instead.
+const mapStoreTokenEnv = (ctx) =>
+  isBranch(ctx)
+    ? `
+        env:
+          STYLEPROOF_MAP_STORE_TOKEN: \${{ github.token }}`
+    : '';
+
 // --workflow single (default): one job captures, diffs, and publishes.
 const singleWorkflow = (ctx) => `name: StyleProof
 
@@ -481,12 +497,14 @@ ${jobEnv(ctx)}
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # need base/head commits for the in-job base capture
+          # This job installs and runs PR code: never leave the token in .git/config.
+          persist-credentials: false
 ${ctx.PM.setup}
       - run: ${ctx.PM.install}
 ${VERIFY_STEP}
       - id: maps
         name: Capture StyleProof maps for base and head
-        shell: bash
+        shell: bash${mapStoreTokenEnv(ctx)}
         run: |
 ${captureStep(ctx)}
 ${actionStep(ctx, 'steps.maps.outputs.base-capture-failed')}
@@ -502,7 +520,9 @@ ${scaffoldMarkerLine(ctx.scaffold)}
 # - runs only after the untrusted capture workflow completes;
 # - holds write permissions for comment/status publication${isBranch(ctx) ? ' and the report branch' : ''};
 # - NEVER checks out or installs PR-controlled code;
-# - resolves PR identity only from the trusted workflow_run event / GitHub API.
+# - resolves PR identity only from the trusted workflow_run event / GitHub API;
+# - treats a fork PR's maps as untrusted: its StyleProof status is never set green
+#   automatically (pending until a maintainer ticks "Approve all changes").
 on:
   workflow_run:
     workflows: ['StyleProof capture']

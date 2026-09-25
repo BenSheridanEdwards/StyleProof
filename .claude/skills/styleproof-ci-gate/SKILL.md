@@ -77,7 +77,7 @@ Fork/Dependabot PRs run with a **read-only** token, so a single write-token job
 sits `pending` forever. Split it:
 
 - `example/styleproof-capture.yml` — `on: pull_request`, read-only, no secrets;
-  builds + captures + uploads maps as an artifact (safe on untrusted code).
+  builds + captures + uploads maps as an artifact (untrusted code, no write access).
 - `example/styleproof-report.yml` — `on: workflow_run` from the **default
   branch**, write token; downloads the artifact and does the diff/comment/status
   but **never runs PR code**. PR identity comes from the trusted `workflow_run`
@@ -87,6 +87,12 @@ This is why `workflow_run` beats `pull_request_target`: the latter would hand a
 write token + secrets to untrusted code — the exact supply-chain risk StyleProof
 helps you catch.
 
+Fork verdicts are **advisory**: the fork's code produces both map sets, so for a
+fork PR the Action never sets `StyleProof` green automatically — even on zero
+diff it posts `pending` ("Fork PR — maps captured in an untrusted job;
+maintainer approval required") and the comment carries **Approve all changes**
+for a maintainer to tick. Same-repo PRs (incl. Dependabot) are unchanged.
+
 ## Prune schedule defaults (config-driven)
 
 Map and report store prune operations read defaults from `styleproof.config.ts`:
@@ -94,12 +100,12 @@ Map and report store prune operations read defaults from `styleproof.config.ts`:
 ```ts
 export default defineConfig({
   mapStore: {
-    pruneRetentionDays: 14,      // default 14
-    pruneBudgetBytes: 1_500_000_000,  // default 1.5GB
+    pruneRetentionDays: 14, // default 14
+    pruneBudgetBytes: 1_500_000_000, // default 1.5GB
   },
   reportStore: {
-    pruneRetentionDays: 30,      // default 30
-    pruneBudgetBytes: 2_000_000_000,  // default 2GB
+    pruneRetentionDays: 30, // default 30
+    pruneBudgetBytes: 2_000_000_000, // default 2GB
   },
 });
 ```

@@ -71,6 +71,8 @@ const EMPTY_ARRAY_ENVIRONMENT = {
   STYLEPROOF_MODE: 'certify', // default mode produces empty migration_arguments array
   STYLEPROOF_EXPECTED_BASE_SHA: 'a'.repeat(40),
   STYLEPROOF_EXPECTED_HEAD_SHA: 'b'.repeat(40),
+  STYLEPROOF_BASELINE_DIR: 'base',
+  STYLEPROOF_FRESH_DIR: 'head',
   GITHUB_ACTION_PATH: path.join(here, '..'),
   GITHUB_OUTPUT: '/dev/null',
 };
@@ -98,9 +100,10 @@ for (const [stepName, uniqueLine] of [
   });
 }
 
-// #690: report-retention-days must be a positive integer in artifact mode —
-// 0 selects the repository default, unbounded by the bounded-retention
-// contract. The validate step is executed for real, not pattern-matched.
+// #690: report-retention-days must be a positive integer — 0 selects the
+// repository default, unbounded by the bounded-retention contract. Branch mode
+// validates it too: the value is rendered, so it is never passed through raw.
+// The validate step is executed for real, not pattern-matched.
 for (const [storage, days, expectedExit] of [
   ['artifact', '30', 0],
   ['artifact', '365', 0], // legal where repository settings allow more than 90
@@ -109,8 +112,10 @@ for (const [storage, days, expectedExit] of [
   ['artifact', '-1', 2],
   ['artifact', 'abc', 2],
   ['artifact', '', 2],
-  ['branch', '0', 0], // retention is unused in branch mode
-  ['branch', 'abc', 0],
+  ['branch', '30', 0],
+  ['branch', '0', 2],
+  ['branch', 'abc', 2],
+  ['branch', '1;id', 2],
   ['bogus', '30', 2],
 ]) {
   test(`report-storage=${storage} report-retention-days='${days}' exits ${expectedExit} (#690)`, () => {

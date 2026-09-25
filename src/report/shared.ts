@@ -8,6 +8,7 @@ import { formatSurfaceList, pushSurfaceWidth, renderSurfaceGroups, surfaceBase }
 import type { LiveTextAudit } from '../live-text.js';
 import { isSameOrDescendant, rectToBox, visible } from './geometry.js';
 import { readPng } from './png.js';
+import { codeValue } from './markdown.js';
 
 /** Loads a surface's style map from a capture dir, cached for the run. */
 export type MapLoader = (dir: string, surface: string) => StyleMap;
@@ -74,7 +75,7 @@ const VARIANT_LABEL: Record<string, string> = {
 export function surfaceContext(...maps: Array<StyleMap | undefined>): string {
   const metadata = maps.find((m) => m?.metadata)?.metadata;
   if (!metadata?.variantKey) return '';
-  return `${VARIANT_LABEL[metadata.variantKind ?? ''] ?? 'variant'} \`${metadata.variantKey}\``;
+  return `${VARIANT_LABEL[metadata.variantKind ?? ''] ?? 'variant'} ${codeValue(String(metadata.variantKey))}`;
 }
 
 export function formatSurfaceWithContext(surface: string, ...maps: Array<StyleMap | undefined>): string {

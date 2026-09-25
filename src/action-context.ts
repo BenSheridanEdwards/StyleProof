@@ -1,9 +1,14 @@
 export type ActionContextInput = {
   eventName: string;
   payload: {
-    pull_request?: { number?: number; base?: { sha?: string }; head?: { sha?: string } };
+    pull_request?: {
+      number?: number;
+      base?: { sha?: string };
+      head?: { sha?: string; repo?: { full_name?: string } | null };
+    };
     workflow_run?: {
       head_sha?: string;
+      head_repository?: { full_name?: string } | null;
       pull_requests?: { number?: number; base?: { sha?: string }; head?: { sha?: string } }[];
     };
   };
@@ -19,10 +24,34 @@ export type ActionContextInput = {
   };
 };
 
-export type ActionContextResult = { prNumber: string; baseSha: string; headSha: string };
+export type ActionContextResult = {
+  prNumber: string;
+  baseSha: string;
+  headSha: string;
+  /**
+   * True when the captured PR head lives in another repository (a fork): the capture
+   * job ran that fork's code, so its maps — base AND head — are untrusted input.
+   */
+  untrustedCapture: boolean;
+};
 
 function isFullCommitSha(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{40}$/i.test(value);
+}
+
+const sameRepository = (fullName: string | undefined, repo: ActionContextInput['repo']): boolean =>
+  typeof fullName === 'string' && fullName.toLowerCase() === `${repo.owner}/${repo.repo}`.toLowerCase();
+
+/** Fork detection from the trusted event payload. A workflow_run without a head
+ *  repository fails closed (untrusted); a pull_request payload only flags a named fork. */
+function isUntrustedCapture(
+  eventName: string,
+  payload: ActionContextInput['payload'],
+  repo: ActionContextInput['repo'],
+): boolean {
+  if (eventName === 'workflow_run') return !sameRepository(payload.workflow_run?.head_repository?.full_name, repo);
+  const headRepository = payload.pull_request?.head?.repo?.full_name;
+  return headRepository !== undefined && !sameRepository(headRepository, repo);
 }
 
 async function resolveWorkflowRunContext(
@@ -67,6 +96,6 @@ export async function resolveActionContext({
   }
 
   return prNumber && isFullCommitSha(baseSha) && isFullCommitSha(headSha)
-    ? { prNumber: String(prNumber), baseSha, headSha }
-    : { prNumber: '', baseSha: '', headSha: '' };
+    ? { prNumber: String(prNumber), baseSha, headSha, untrustedCapture: isUntrustedCapture(eventName, payload, repo) }
+    : { prNumber: '', baseSha: '', headSha: '', untrustedCapture: false };
 }

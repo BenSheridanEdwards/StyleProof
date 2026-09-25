@@ -348,11 +348,11 @@ test('reusable approval workflow has the same job guard as the reference (#598)'
 });
 
 test('reusable approval workflow uses the input status-context (#598)', () => {
-  assert.match(
-    reusableApproveYml,
-    /const STATUS = '\$\{\{ inputs\.status-context \}\}'/,
-    'must interpolate status-context input',
-  );
+  // The string input reaches the script through env — splicing it into the source
+  // would let a crafted status-context execute as JavaScript.
+  assert.match(reusableApproveYml, /STYLEPROOF_STATUS_CONTEXT: \$\{\{ inputs\.status-context \}\}/);
+  assert.match(reusableApproveYml, /const STATUS = process\.env\.STYLEPROOF_STATUS_CONTEXT;/);
+  assert.doesNotMatch(reusableApproveYml, /'\$\{\{ inputs\.status-context \}\}'/);
 });
 
 test('reusable approval workflow uses the input allow-self-approval (#598)', () => {
