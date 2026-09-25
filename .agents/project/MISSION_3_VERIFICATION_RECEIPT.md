@@ -20,8 +20,8 @@ Confidence and evidence only go up.
 | #559 | #553 | `4da6e861` | Dual-write: v1 Git-branch publish also writes to local v2 store |
 | #560 | #554 | `8066e2af` | Remote-read: restore tries v2 first with v1 Git-branch fallback |
 
-**Note:** #556 (Fleet object-DB purge) is Fleet-owned and out of StyleProof
-product scope for this receipt.
+**Note:** #556 (a consumer project's object-DB purge) is owned by that consumer
+project and out of StyleProof product scope for this receipt.
 
 ## Trust guarantees preserved
 
@@ -199,7 +199,7 @@ Per parent ticket #552:
 {
   "mission": 3,
   "tickets": ["#553", "#554", "#555"],
-  "fleet_owned_out_of_scope": "#556",
+  "consumer_owned_out_of_scope": "#556",
   "verification": {
     "unit_tests": "PASS (1318/1318)",
     "e2e_tests": "PASS (239/239, 1 skipped)",
