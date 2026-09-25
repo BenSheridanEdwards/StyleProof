@@ -137,7 +137,7 @@ runs:
         trap - EXIT
 
     # Resolve the PR number + head SHA from the TRUSTED event payload. This is what
-    # lets the report be driven from a `workflow_run` (the fork/Dependabot-safe flow:
+    # lets the report be driven from a `workflow_run` (the capture/report split:
     # capture under the read-only `pull_request` token, then comment + set the status
     # here under a write token) as well as directly from `pull_request`.
     #
@@ -146,6 +146,11 @@ runs:
     # lands on. `workflow_run.head_sha` is the real captured commit; the PR is its
     # `pull_requests` association (same-repo, incl. Dependabot) or, for forks, the
     # open PR whose head IS that exact commit.
+    #
+    # The fork cannot redirect the status, but it DID run the capture job, so it
+    # controls both uploaded map sets and therefore the verdict. `untrusted-capture`
+    # marks that case: the verdict is advisory and the status never turns green
+    # without a maintainer's approval.
     - id: context
       uses: actions/github-script@v9
       with:
@@ -153,7 +158,7 @@ runs:
         retries: 3
         script: |
           const { resolveActionContext } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/action-context.js`);
-          const { prNumber, baseSha, headSha } = await resolveActionContext({
+          const { prNumber, baseSha, headSha, untrustedCapture } = await resolveActionContext({
             eventName: context.eventName,
             payload: context.payload,
             repo: context.repo,
@@ -164,6 +169,10 @@ runs:
           core.setOutput('pr-number', resolved ? prNumber : '');
           core.setOutput('base-sha', resolved ? baseSha : '');
           core.setOutput('head-sha', resolved ? headSha : '');
+          core.setOutput('untrusted-capture', resolved && untrustedCapture ? 'true' : 'false');
+          if (resolved && untrustedCapture) {
+            core.notice('StyleProof: fork PR — the maps were captured in an untrusted job, so this verdict is advisory and needs maintainer approval.');
+          }
           if (!resolved) {
             core.info('StyleProof: no PR context resolved — comment/status steps will be skipped.');
           }
@@ -501,6 +510,7 @@ runs:
       uses: actions/github-script@v9
       env:
         STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
+        STYLEPROOF_UNTRUSTED_CAPTURE: ${{ steps.context.outputs.untrusted-capture }}
       with:
         script: |
           const fs = require('fs');
@@ -517,6 +527,9 @@ runs:
           const reportPath = 'styleproof-report/report.json';
           const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
           report.actionTrustState = state;
+          // Always written by this trusted step (never inherited from generated output):
+          // the approve workflow lets a maintainer sign off a clean verdict only when set.
+          report.untrustedCapture = process.env.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';
           fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
           core.setOutput('state', state);
           core.setOutput('reviewable-changed', reviewableChanged ? 'true' : 'false');
@@ -525,10 +538,11 @@ runs:
 
     # Is THIS commit's diff already signed off? Read the existing review status so a
     # re-run after approval keeps the check green (and renders the box ticked) instead
-    # of clobbering the approval the approve workflow set. Only meaningful when changed.
-    # Review-gate and migration modes use approval workflow, so check for prior approval.
+    # of clobbering the approval the approve workflow set. Meaningful when changed, or
+    # for an untrusted (fork) capture, whose clean verdict also needs sign-off.
+    # Every mode that sets the review status checks for a prior approval.
     - id: gate
-      if: steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration')
+      if: steps.context.outputs.pr-number != '' && (inputs.require-approval == 'true' || inputs.mode == 'review-gate' || inputs.mode == 'migration' || inputs.mode == 'advisory')
       uses: actions/github-script@v9
       env:
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
@@ -538,10 +552,11 @@ runs:
         script: |
           const changed = '${{ steps.diff.outputs.changed }}' === 'true';
           const sha = '${{ steps.context.outputs.head-sha }}';
+          const untrustedCapture = '${{ steps.context.outputs.untrusted-capture }}' === 'true';
           const STATUS = process.env.STYLEPROOF_STATUS_CONTEXT;
           let approved = false;
           let approver = '';
-          if (changed) {
+          if (changed || untrustedCapture) {
             const { data } = await github.rest.repos.listCommitStatusesForRef({ ...context.repo, ref: sha, per_page: 100 });
             const mine = data.find((s) => s.context === STATUS);
             // Trust only the canonical writer, as the approve workflow does: this Action and
@@ -678,6 +693,7 @@ runs:
         STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
         STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
         STYLEPROOF_REPORT_RETENTION_DAYS: ${{ inputs.report-retention-days }}
+        STYLEPROOF_UNTRUSTED_CAPTURE: ${{ steps.context.outputs.untrusted-capture }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
@@ -773,9 +789,17 @@ runs:
           const headSha = '${{ steps.context.outputs.head-sha }}';
 
           const link = delivery.markdown;
+          // Fork PR in the capture/report split: the fork produced both map sets, so even a
+          // clean verdict is advisory. In every mode that sets the review status, the comment
+          // carries the approval box so a maintainer can sign it off (same logic as the status).
+          const { decideReviewStatus } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-status.js`);
+          const untrustedCapture = process.env.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';
+          const setsReviewStatus = requireApproval || mode === 'review-gate' || migrationMode || mode === 'advisory';
+          const untrustedReview = untrustedCapture && setsReviewStatus &&
+            decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture }).approvable;
           // One box signs off every change; an already-approved re-run renders it pre-ticked.
           const approvedBy = approved && approver ? ` — _approved by @${approver}_` : '';
-          const box = useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED'
+          const box = (useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED') || untrustedReview
             ? ['', `- [${approved ? 'x' : ' '}] **Approve all changes**${approvedBy}`]
             : [];
           const reportJson = fs.existsSync('styleproof-report/report.json')
@@ -804,10 +828,15 @@ runs:
             ? `_Advisory-only mode: StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
             : `_Advisory-only mode: no reviewable changes detected — the **${statusContext}** check remains green._`;
           const migrationPendingGuidance = `_Migration mode: tick **Approve all changes** to turn the **${statusContext}** check green — write access required, and not the pull request author. The report shows **Changed styles**, **New surfaces**, and **New/removed elements**. A new push that changes styles or structure re-opens it._`;
+          const untrustedGuidance = approved
+            ? `_Fork PR — signed off by a maintainer; the **${statusContext}** check is green. A new push re-opens it._`
+            : `_Fork PR — these maps were captured in an untrusted job that ran the fork's code, so this verdict is advisory. The **${statusContext}** check stays pending until a maintainer with write access (not the pull request author) reviews the report and ticks **Approve all changes**._`;
           const migrationApprovedGuidance = `_Migration mode: signed off — the **${statusContext}** check is green. A new push that changes styles or structure re-opens it._`;
           const footer = [
             '---',
-            trustGuidance || (advisoryMode
+            trustGuidance || (untrustedReview
+              ? untrustedGuidance
+              : advisoryMode
               ? advisoryGuidance
               : useReviewGate
                 ? !changed
@@ -829,7 +858,8 @@ runs:
 
     # Review-gate and migration modes: drive a commit status the approve workflow
     # can flip, instead of failing the job. Green when nothing changed; red ("needs
-    # sign-off") until a write-access reviewer ticks the box. PR events only.
+    # sign-off") until a write-access reviewer ticks the box. PR events only. A fork
+    # (untrusted) capture is pending — never auto-green — until a maintainer approves.
     # Skipped when the comment step classified this delivery as a stale earlier
     # attempt, so a late attempt-1 retry cannot clobber attempt 2's status either.
     - name: Set review status
@@ -843,6 +873,7 @@ runs:
         STYLEPROOF_MODE: ${{ inputs.mode }}
         STYLEPROOF_STATUS_CONTEXT: ${{ inputs.status-context }}
         STYLEPROOF_BASE_CAPTURE_FAILED: ${{ inputs.base-capture-failed }}
+        STYLEPROOF_UNTRUSTED_CAPTURE: ${{ steps.context.outputs.untrusted-capture }}
       with:
         github-token: ${{ inputs.github-token }}
         retries: 3
@@ -859,11 +890,13 @@ runs:
           const mode = process.env.STYLEPROOF_MODE;
           const blocking = '${{ steps.config.outputs.blocking }}';
           const advisoryMode = mode === 'advisory' || blocking === 'advisory';
-          // Advisory mode is always green; otherwise green when no review is needed or a prior sign-off approved this commit.
-          const green =
-            advisoryMode ||
-            trustState === 'NO_REVIEWABLE_STYLE_CHANGES' ||
-            (trustState === 'STYLE_REVIEW_REQUIRED' && approved);
+          // Same-repo: advisory mode is always green; otherwise green when no review is needed
+          // or a prior sign-off approved this commit. Fork (untrusted) capture: never green
+          // automatically — pending until a maintainer approves, even on zero diff.
+          const { decideReviewStatus, UNTRUSTED_CAPTURE_STATUS_DESCRIPTION } =
+            await import(`${process.env.GITHUB_ACTION_PATH}/dist/review-status.js`);
+          const untrustedCapture = process.env.STYLEPROOF_UNTRUSTED_CAPTURE === 'true';
+          const decision = decideReviewStatus({ trustState, approved, advisoryMode, untrustedCapture });
           const {
             formatPartialBaselineStatusDescription,
             formatDegradedBaselineStatusDescription,
@@ -889,9 +922,15 @@ runs:
             ...context.repo,
             sha,
             context: process.env.STYLEPROOF_STATUS_CONTEXT,
-            state: green ? 'success' : 'failure',
-            description: descriptions[trustState] || `StyleProof trust failure: ${trustState}`,
-            ...(changed && !approved && url ? { target_url: url } : {}),
+            state: decision.state,
+            description: decision.awaitingMaintainer
+              ? UNTRUSTED_CAPTURE_STATUS_DESCRIPTION
+              : untrustedCapture && decision.state === 'success'
+                ? 'StyleProof changes approved'
+                : descriptions[trustState] || `StyleProof trust failure: ${trustState}`,
+            // The approve workflow binds a tick to this target_url, so every approvable
+            // pending/red status carries it.
+            ...((changed || decision.awaitingMaintainer) && !approved && url ? { target_url: url } : {}),
           });
 
     # A failed base capture still publishes useful head evidence, but that receipt

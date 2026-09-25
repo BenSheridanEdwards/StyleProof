@@ -1,11 +1,16 @@
-# StyleProof — report + gate stage (fork & Dependabot safe).
+# StyleProof — report + gate stage (never runs PR code).
 #
 # Triggered when styleproof-capture.yml finishes. Runs from your DEFAULT branch
 # with a WRITE token, so it can post the report comment and set the StyleProof
 # status even for fork and Dependabot PRs — without ever checking out or running
-# the PR's code. It only consumes the trusted style-map artifact the capture
-# stage produced. That is exactly why it is safe where `pull_request_target`
+# the PR's code. It only consumes the style-map artifact the capture stage
+# produced, as data. That is exactly why it is safe where `pull_request_target`
 # (which would run the PR's code under a write token) is not.
+#
+# That artifact is still produced by the PR's code. For a fork PR the Action
+# treats the verdict as advisory: StyleProof is never set green automatically,
+# even on zero diff — it posts `pending` and the comment carries the
+# "Approve all changes" box for a maintainer to tick (styleproof-approve.yml).
 #
 # This file must live on your DEFAULT branch to take effect (like the approve
 # workflow).

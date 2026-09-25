@@ -9,6 +9,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
+- **Fork PRs never auto-green.** In the capture/report split the untrusted
+  `pull_request` capture job uploads _both_ the base and head maps, so a fork
+  could upload identical maps and receive a green `StyleProof` status from the
+  trusted `workflow_run` job. When the captured head repository differs from
+  the base repository (or is missing from the `workflow_run` payload — fail
+  closed), the Action now treats the verdict as advisory: it never sets the
+  status to success automatically, even on zero diff, and posts `pending`
+  (`Fork PR — maps captured in an untrusted job; maintainer approval required`)
+  with the **Approve all changes** box in the comment. The approval workflow
+  (reusable and example) accepts that pending status, and a clean verdict only
+  when the trusted `report.json` carries `untrustedCapture: true`. Certification
+  failures stay red and unapprovable; same-repo PRs, including Dependabot, are
+  unchanged. Docs and scaffold comments no longer call the split "fork-safe".
+
 - **Branch-publish receipt read-back requires exactly one receipt.** The
   publisher's read-back accepted any `report.md` that _contained_ this run's
   receipt; a duplicated or second (stale/injected) `styleproof-receipt` marker

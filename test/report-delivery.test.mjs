@@ -51,6 +51,7 @@ function actionCommentScript({
     ['inputs.include-content', 'false'],
     ['steps.report.outputs.content-changes', '0'],
     ['inputs.base-capture-failed', 'false'],
+    ['steps.context.outputs.untrusted-capture', 'false'],
   ]);
   let script = match[1]
     .split('\n')

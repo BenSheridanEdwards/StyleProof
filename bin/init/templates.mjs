@@ -417,6 +417,8 @@ ${scaffoldMarkerLine(ctx.scaffold)}
 #   reviews, or statuses;
 # - captured maps are uploaded as a short-lived artifact for the trusted report stage.
 # Trusted publication lives in styleproof-report.yml (workflow_run on the default branch).
+# Fork PR verdicts are advisory: the fork's code produces both map sets, so the
+# report stage keeps the StyleProof status pending until a maintainer approves.
 ${onPullRequest(ctx)}
 
 jobs:
@@ -502,7 +504,9 @@ ${scaffoldMarkerLine(ctx.scaffold)}
 # - runs only after the untrusted capture workflow completes;
 # - holds write permissions for comment/status publication${isBranch(ctx) ? ' and the report branch' : ''};
 # - NEVER checks out or installs PR-controlled code;
-# - resolves PR identity only from the trusted workflow_run event / GitHub API.
+# - resolves PR identity only from the trusted workflow_run event / GitHub API;
+# - treats a fork PR's maps as untrusted: its StyleProof status is never set green
+#   automatically (pending until a maintainer ticks "Approve all changes").
 on:
   workflow_run:
     workflows: ['StyleProof capture']

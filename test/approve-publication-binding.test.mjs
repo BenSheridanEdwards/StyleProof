@@ -674,3 +674,42 @@ test('unticking remains fail-safe and does not require publication read access',
     [{ state: 'failure', sha: HEAD_SHA }],
   );
 });
+
+const UNTRUSTED_DESCRIPTION = 'Fork PR — maps captured in an untrusted job; maintainer approval required';
+const untrustedStatus = {
+  state: 'pending',
+  description: UNTRUSTED_DESCRIPTION,
+  target_url: REPORT_URL,
+  context: 'StyleProof',
+};
+
+test('a maintainer tick turns a pending fork (untrusted capture) verdict green, even a clean one', async () => {
+  for (const reportJson of [
+    '{"surfaces":[],"actionTrustState":"NO_REVIEWABLE_STYLE_CHANGES","untrustedCapture":true}',
+    '{"surfaces":[],"actionTrustState":"STYLE_REVIEW_REQUIRED","untrustedCapture":true}',
+  ]) {
+    const result = await runApproval({ status: untrustedStatus, reportJson });
+    assert.deepEqual(
+      result.statuses.map(({ state, description }) => ({ state, description })),
+      [{ state: 'success', description: 'Approved by @reviewer' }],
+    );
+  }
+});
+
+test('a clean verdict is approvable only when the trusted report marks the capture untrusted', async () => {
+  for (const [status, reportJson] of [
+    // Same-repo clean report: nothing to approve.
+    [untrustedStatus, '{"surfaces":[],"actionTrustState":"NO_REVIEWABLE_STYLE_CHANGES","untrustedCapture":false}'],
+    [untrustedStatus, '{"surfaces":[],"actionTrustState":"NO_REVIEWABLE_STYLE_CHANGES"}'],
+    // Certification failures stay unapprovable on forks too.
+    [untrustedStatus, '{"surfaces":[],"actionTrustState":"CERTIFICATION_FAILED","untrustedCapture":true}'],
+    // A pending status needs the exact fork description.
+    [
+      { ...untrustedStatus, description: 'Waiting' },
+      '{"surfaces":[],"actionTrustState":"NO_REVIEWABLE_STYLE_CHANGES","untrustedCapture":true}',
+    ],
+  ]) {
+    const result = await runApproval({ status, reportJson });
+    assert.deepEqual(result.statuses, []);
+  }
+});

@@ -1473,7 +1473,7 @@ test('composite action binds diff and report receipts to trusted GitHub base and
   assert.ok(contextStep);
   assert.ok(diffStep);
   assert.ok(reportStep);
-  assert.match(contextStep[0], /const \{ prNumber, baseSha, headSha \} = await resolveActionContext/);
+  assert.match(contextStep[0], /const \{ prNumber, baseSha, headSha, untrustedCapture \} = await resolveActionContext/);
   assert.match(contextStep[0], /Boolean\(baseSha\)/);
   assert.match(contextStep[0], /core\.setOutput\('base-sha', resolved \? baseSha : ''\)/);
   for (const step of [diffStep[0], reportStep[0]]) {

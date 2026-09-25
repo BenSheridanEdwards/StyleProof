@@ -232,7 +232,10 @@ Opt-in flags reproduce the heavier architectures:
 
 - `--workflow split` — a read-only `pull_request` capture job plus a trusted
   `workflow_run` report job. Required when the repository accepts **fork or
-  Dependabot PRs**, whose tokens are read-only.
+  Dependabot PRs**, whose tokens are read-only. Fork verdicts are advisory: the
+  fork's code produces both map sets, so a fork PR's `StyleProof` status stays
+  `pending` until a maintainer ticks **Approve all changes** — never green
+  automatically.
 - `--storage branch` — the SHA-keyed `styleproof-maps` store branch plus the
   pre-push publish hook, so CI restores maps instead of recapturing them.
 - `--mode certify` / `--mode review-gate` — fail on any diff, or hold the

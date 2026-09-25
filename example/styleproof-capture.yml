@@ -1,11 +1,15 @@
-# StyleProof — capture stage (fork & Dependabot safe).
+# StyleProof — capture stage (runs untrusted PR code read-only).
 #
-# Runs on the PR with a READ-ONLY token and no secrets, so it is safe on pull
-# requests from forks and from Dependabot. It only builds and captures the
-# computed-style maps and uploads them as an artifact. The privileged half — the
-# diff, the report comment, and the StyleProof status — runs in
-# styleproof-report.yml afterwards, under a write token, but never executes the
-# PR's code.
+# Runs on the PR with a READ-ONLY token and no secrets, so running fork and
+# Dependabot PR code here cannot write to the repository. It only builds and
+# captures the computed-style maps and uploads them as an artifact. The
+# privileged half — the diff, the report comment, and the StyleProof status —
+# runs in styleproof-report.yml afterwards, under a write token, but never
+# executes the PR's code.
+#
+# Fork verdicts are advisory: a fork's code produces BOTH uploaded map sets, so
+# the report stage never turns StyleProof green automatically for a fork PR — it
+# stays pending until a maintainer ticks "Approve all changes".
 #
 # Use this two-workflow setup (capture + report) instead of the single-job
 # styleproof.yml when your repo receives fork or Dependabot PRs. A repo that only
