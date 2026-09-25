@@ -467,6 +467,9 @@ if (inaccessible > 0) {
 const pixelRegions = pixelSurfaces.reduce((n, s) => n + s.regionCount, 0);
 const pixelUncompared = pixelSurfaces.reduce((n, s) => n + s.uncompared.length, 0);
 function pixelLayerLines(surface, layer) {
+  if (layer.status === 'missing-both') {
+    return [`  ${surface}: ✗ no screenshot on either side — nothing compared, surface uncertified`];
+  }
   if (layer.status !== 'compared') {
     return [
       `  ${surface} [${layer.layer}]: ✗ screenshot ${layer.status.replace('-', ' on the ')} side — layer uncertified`,
@@ -489,18 +492,22 @@ function pixelLayerLines(surface, layer) {
 }
 if (pixels) {
   const flagged = pixelSurfaces.filter((s) => s.regionCount > 0 || s.uncompared.length > 0);
-  if (!flagged.length) {
+  if (!pixelSurfaces.length) {
+    printSection('✗ pixel gate: no paired capture to compare — nothing certified');
+  } else if (!flagged.length) {
     printSection(
       `🖼 pixel gate: 0 changed region(s) across ${pixelSurfaces.length} paired capture(s), every screenshot layer compared`,
     );
   } else {
     printSection(
-      `🖼 pixel gate: ${pixelRegions} changed region(s) in ${flagged.filter((s) => s.regionCount > 0).length} surface(s)`,
+      `🖼 pixel gate: ${pixelRegions} changed region(s) in ${flagged.filter((s) => s.regionCount > 0).length} surface(s)` +
+        (pixelUncompared ? `, ${pixelUncompared} uncertified layer(s)` : ''),
       flagged.flatMap((s) => s.layers.flatMap((layer) => pixelLayerLines(s.surface, layer))),
     );
   }
 }
-const pixelBlocks = pixelRegions > 0 || pixelUncompared > 0;
+// Armed with no paired capture compares nothing: fail closed rather than pass vacuously.
+const pixelBlocks = pixelRegions > 0 || pixelUncompared > 0 || (pixels && !pixelSurfaces.length);
 
 const liveTextFreezeViolated = Boolean(liveTextAudit?.freeze && liveTextAudit.violations.length);
 if (liveTextFreezeViolated) {
@@ -585,7 +592,9 @@ const GATES = [
   { blocks: !certificationEvidence.interactionStatesComplete },
   {
     blocks: pixelBlocks,
-    note: ` + pixel gate: ${pixelRegions} changed region(s)${pixelUncompared ? `, ${pixelUncompared} uncertified layer(s)` : ''}`,
+    note: pixelSurfaces.length
+      ? ` + pixel gate: ${pixelRegions} changed region(s)${pixelUncompared ? `, ${pixelUncompared} uncertified layer(s)` : ''}`
+      : ' + pixel gate: nothing compared',
   },
 ];
 const clean = !GATES.some((gate) => gate.blocks);

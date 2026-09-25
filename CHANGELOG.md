@@ -9,6 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`--pixels` no longer passes having compared nothing.** A paired surface
+  with no screenshot on either side (captured with screenshots off) was skipped
+  silently, so `styleproof-diff --pixels` printed "0 changed region(s) …
+  every screenshot layer compared" and exited 0. Such a surface now reports its
+  `rest` layer as `missing-both` (an uncertified layer that blocks), and an
+  armed run with no paired capture fails closed with "nothing certified".
+
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
   spawns it wired, but ~26 test files still spawn `process.execPath` children

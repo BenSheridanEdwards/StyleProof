@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PNG } from 'pngjs';
 import { saveStyleMap } from '../dist/capture.js';
 import { DEFAULT_MAP_STORE_BRANCH, MAP_MANIFEST, expectedCompatibilityKey } from '../dist/map-store.js';
 import {
@@ -516,6 +517,31 @@ test('diff CLI exits 0 when captures are identical', () => {
   assert.equal(r.status, 0);
   assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
   assert.match(r.stdout, /content\/structure not evaluated/);
+  rmTmp(root);
+});
+
+test('diff CLI --pixels fails closed when neither side has a screenshot (nothing compared)', () => {
+  // identicalPair writes no PNGs — as a capture with screenshots off would.
+  const { root, A, B } = identicalPair();
+  const r = run(DIFF, [A, B, '--pixels']);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.doesNotMatch(r.stdout, /every screenshot layer compared/);
+  assert.match(r.stdout, /home@1280: ✗ no screenshot on either side — nothing compared, surface uncertified/);
+  assert.match(r.stdout, /pixel gate: 0 changed region\(s\) in 0 surface\(s\), 1 uncertified layer\(s\)/);
+  rmTmp(root);
+});
+
+test('diff CLI --pixels passes when identical screenshots were compared', () => {
+  const { root, A, B } = identicalPair();
+  const png = PNG.sync.write(new PNG({ width: 8, height: 8 }));
+  fs.writeFileSync(path.join(A, 'home@1280.png'), png);
+  fs.writeFileSync(path.join(B, 'home@1280.png'), png);
+  const r = run(DIFF, [A, B, '--pixels']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(
+    r.stdout,
+    /pixel gate: 0 changed region\(s\) across 1 paired capture\(s\), every screenshot layer compared/,
+  );
   rmTmp(root);
 });
 
