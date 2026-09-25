@@ -25,6 +25,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Playwright added in 1.45 — a 1.40–1.44 install passed the peer check and
   then failed at capture time. `styleproof setup` now installs the peer range
   instead of its own hard-coded floor.
+- **Base-branch inference no longer hangs on a stalled `gh`.** `styleproof-diff`
+  and `styleproof-report` without a base ask `gh pr view` for the PR base with
+  no timeout, so a stalled `gh` (network, auth prompt) hung the command
+  forever. The call is now bounded (10s, `STYLEPROOF_GH_TIMEOUT_MS` to
+  override); a timeout counts as "no PR base" and falls back to
+  `origin/main`/`origin/master`/`main`/`master` as before.
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
   spawns it wired, but ~26 test files still spawn `process.execPath` children
