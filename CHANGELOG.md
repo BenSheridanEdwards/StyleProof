@@ -27,6 +27,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   including the observation failure the worker pool treats as fatal, so a
   `--crawl` that could not observe a depth-2 state still reported confidence
   `complete`. The descent now rethrows it; ordinary errors stay fail-soft.
+- **A tolerated surface failure no longer masks other capture failures.**
+  `styleproof-map --tolerate-surface-failures` reset ANY non-zero Playwright
+  exit to 0 once one surface failure was ledgered, so a failed coverage-ledger
+  or manifest test, or a crashed worker, still published a "partial baseline".
+  The capture tests now record their outcomes (to a temp dir named by
+  `STYLEPROOF_CAPTURE_OUTCOMES_DIR`, set only by `styleproof-map`), and the
+  exit is reset only when every failed or unfinished test is a ledgered
+  surface failure; otherwise the capture fails, naming the unexplained test.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI

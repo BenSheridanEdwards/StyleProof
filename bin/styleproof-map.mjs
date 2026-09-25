@@ -3,6 +3,7 @@
 // StyleProof spec (or restore a published map by SHA), stamp the manifest, and
 // optionally publish the bundle to the map store branch.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { missingSpecMessage, nonLinuxUploadWarning, playwrightMissingMessage } from '../dist/cli-errors.js';
@@ -16,6 +17,7 @@ import {
   DEFAULT_MAP_LABEL,
   DEFAULT_MAP_STORE_BRANCH,
   DEFAULT_REMOTE,
+  CAPTURE_OUTCOMES_ENV,
   DETERMINISM_RECEIPT,
   MapStoreError,
   MapStoreNotFoundError,
@@ -25,6 +27,8 @@ import {
   expectedCompatibilityKey,
   isMapFile,
   publishMapBundle,
+  baselineFailureMatchesSurface,
+  readCaptureTestOutcomes,
   readFatalCaptureFailure,
   readSurfaceCaptureFailures,
   restoreMapBundle,
@@ -88,7 +92,7 @@ const cli = defineCli({
       help: `run the capture 5x in fresh contexts and require every canonical map hash to match; records determinism: oracle-proven and writes ${DETERMINISM_RECEIPT}`,
     },
     'tolerate-surface-failures': {
-      help: 'baseline-only (never on head): record per-surface capture failures and continue when at least one map succeeds (self-check failures still fail)',
+      help: 'baseline-only (never on head): record per-surface capture failures and continue when at least one map succeeds (self-check failures, and any failure that is not a ledgered surface failure, still fail)',
     },
   },
   notes: [
@@ -308,14 +312,24 @@ const captureEnv = (label) => ({
   STYLEPROOF_FREEZE_SPEC_CLOCK: env.STYLEPROOF_FREEZE_SPEC_CLOCK ?? '1',
   ...(tolerateSurfaceFailures ? { STYLEPROOF_TOLERATE_SURFACE_FAILURES: '1' } : {}),
 });
-const runCapture = (label) =>
+const runCapture = (label, extraEnv = {}) =>
   spawnSync(playwright, ['test', '--grep', CAPTURE_TEST_GREP, ...configArgs, ...playwrightArgs], {
     stdio: 'inherit',
-    env: captureEnv(label),
+    env: { ...captureEnv(label), ...extraEnv },
   });
 
+/** Capture test titles are `<surface> @ <width|auto>`; any other failed or unfinished test is unexplained. */
+function failureLedgered(outcome, failures) {
+  const match = /^(.+) @ (\d+|auto)$/.exec(outcome.title);
+  return Boolean(match) && failures.some((f) => baselineFailureMatchesSurface(`${match[1]}@${match[2]}`, f.key));
+}
+
 runVariantCrawl(captureEnv(dir));
-const result = runCapture(dir);
+// Every capture test records its outcome here, so one tolerated failure can never mask another failure.
+const outcomesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-outcomes-'));
+const result = runCapture(dir, { [CAPTURE_OUTCOMES_ENV]: outcomesDir });
+const unsuccessfulTests = readCaptureTestOutcomes(outcomesDir).filter((outcome) => outcome.status !== 'passed');
+removeTree(outcomesDir);
 if (result.error) fail(NAME, playwrightMissingMessage(result.error.message).replace(`${NAME}: `, ''));
 let status = result.status ?? 1;
 const captured = captureKeysIn(targetDir).length;
@@ -328,13 +342,21 @@ if (status !== 0 && fatalCaptureFailure) {
   removeTree(targetDir);
   process.exit(status);
 }
-// Promote to a publishable partial baseline ONLY when the failures are ledgered.
+// Promote to a publishable partial baseline ONLY when EVERY failed test is a ledgered surface failure.
+const unexplainedTests = unsuccessfulTests.filter((outcome) => !failureLedgered(outcome, toleratedFailures));
 if (status !== 0 && tolerateSurfaceFailures && captured > 0) {
-  if (toleratedFailures.length > 0) {
+  if (toleratedFailures.length > 0 && unsuccessfulTests.length > 0 && unexplainedTests.length === 0) {
     console.error(
       `${NAME}: Playwright exited ${status} but ${captured} surface map(s) were captured — publishing partial baseline (${toleratedFailures.length} tolerated failure(s))`,
     );
     status = 0;
+  } else if (toleratedFailures.length > 0) {
+    const unexplained = unexplainedTests.length
+      ? `: ${unexplainedTests.map((outcome) => `"${outcome.title}" (${outcome.status})`).join(', ')}`
+      : ' (no failed capture test was recorded — a worker, hook, or config error)';
+    console.error(
+      `${NAME}: Playwright exited ${status} with ${toleratedFailures.length} tolerated surface failure(s) but also a failure the ledger does not explain${unexplained} — failing the capture.`,
+    );
   } else {
     console.error(
       `${NAME}: Playwright exited ${status} with ${captured} surface map(s) but NO ledgered surface failure — an unrecorded failure class (e.g. a self-check/nondeterminism failure) is not tolerable; failing the capture.`,

@@ -13,7 +13,12 @@ import { warn } from '../capture/shared.js';
 import type { CaptureMetadata, StyleMap } from '../capture/types.js';
 import { COVERAGE_LEDGER, translateExpected, type CoverageLedger, type DeterminismBasis } from '../coverage.js';
 import type { DataResidueEntry } from '../data-residue.js';
-import { writeBrowserBuildSidecar, writeCaptureManifest } from '../map-store.js';
+import {
+  CAPTURE_OUTCOMES_ENV,
+  recordCaptureTestOutcome,
+  writeBrowserBuildSidecar,
+  writeCaptureManifest,
+} from '../map-store.js';
 import { realNow } from '../spec-clock.js';
 import { formatSurfaceHeartbeat, runWithSurfaceTimeout, type CapturePhase } from '../surface-progress.js';
 import { captureArtifactStem } from '../surface-keys.js';
@@ -187,4 +192,23 @@ export function writeBrowserBuildTest(settings: Settings): void {
     writeBrowserBuildSidecar(settings.outDir, page.context().browser()?.version());
     writeCaptureManifest({ dir: settings.outDir, screenshots: settings.screenshots });
   });
+}
+
+/**
+ * When `styleproof-map` asks (via {@link CAPTURE_OUTCOMES_ENV}), record every capture test's
+ * outcome so the CLI can tell a run whose ONLY failures are ledgered tolerated surfaces from one
+ * with any other failure (ledger, manifest, crashed worker) — only the former may publish.
+ */
+export function recordCaptureTestOutcomes(): void {
+  const dir = process.env[CAPTURE_OUTCOMES_ENV];
+  if (!dir) return;
+  // eslint-disable-next-line no-empty-pattern -- Playwright hooks take fixtures first; none are needed.
+  test.beforeEach(({}, info) => recordCaptureTestOutcome(dir, info.testId, { title: info.title, status: 'running' }));
+  // eslint-disable-next-line no-empty-pattern -- as above.
+  test.afterEach(({}, info) =>
+    recordCaptureTestOutcome(dir, info.testId, {
+      title: info.title,
+      status: info.status === info.expectedStatus ? 'passed' : 'failed',
+    }),
+  );
 }

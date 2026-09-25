@@ -10,6 +10,7 @@ import {
   captureSurface,
   heartbeatUnitCount,
   writeBrowserBuildTest,
+  recordCaptureTestOutcomes,
   writeCoverageLedgerTest,
 } from './surface-capture.js';
 import type { CrawlOptions, ExpandedSurface, HeartbeatOrdinal, Settings } from './types.js';
@@ -157,6 +158,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     const ledgerSurfaces = (expected ?? []).flatMap((key) =>
       expandSurfaceVariants({ key, go: async () => {}, variants, liveStates, stateRecipes }),
     );
+    recordCaptureTestOutcomes();
     writeCoverageLedgerTest(settings, expected ?? null, exclude, ledgerSurfaces);
     writeBrowserBuildTest(settings);
     test('discover surfaces by crawling links, then capture each', async ({ page }) => {

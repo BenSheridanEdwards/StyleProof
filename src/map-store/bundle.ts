@@ -184,6 +184,27 @@ export function readSurfaceCaptureFailures(dir: string): SurfaceCaptureFailure[]
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
+/** Env var naming the dir where each capture test records its outcome (set by `styleproof-map`). */
+export const CAPTURE_OUTCOMES_ENV = 'STYLEPROOF_CAPTURE_OUTCOMES_DIR';
+
+/** One capture test's outcome: `running` until its afterEach runs (a crashed worker never gets there). */
+export type CaptureTestOutcome = { title: string; status: 'running' | 'passed' | 'failed' };
+
+/** Record one capture test's outcome (one file per test id, safe under parallel workers; a retry overwrites). */
+export function recordCaptureTestOutcome(dir: string, testId: string, outcome: CaptureTestOutcome): void {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${sha256(testId).slice(0, 16)}.json`), JSON.stringify(outcome));
+}
+
+/** Every capture test outcome recorded in `dir` (empty when none ran). */
+export function readCaptureTestOutcomes(dir: string): CaptureTestOutcome[] {
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as CaptureTestOutcome);
+}
+
 /** Record a run-level capture failure that must never be tolerated or published. */
 export function markFatalCaptureFailure(dir: string, reason: string): void {
   fs.mkdirSync(dir, { recursive: true });
