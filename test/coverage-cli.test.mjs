@@ -60,9 +60,12 @@ function fixture(captured, expected, exclude = {}) {
   stampManifest(head, 'head-sha');
   return { root, base, head };
 }
-function run(base, head) {
+function run(base, head, extra = []) {
   try {
-    return { code: 0, out: execFileSync('node', [BIN, base, head], { encoding: 'utf8', cwd: path.dirname(base) }) };
+    return {
+      code: 0,
+      out: execFileSync('node', [BIN, base, head, ...extra], { encoding: 'utf8', cwd: path.dirname(base) }),
+    };
   } catch (e) {
     return { code: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
   }
@@ -101,6 +104,23 @@ test('no registry → completeness NOT asserted blocks certification (exit 1)', 
   assert.equal(code, 1, `unasserted completeness must not share exit 0 with certified greens\n${out}`);
   assert.match(out, /completeness NOT asserted/);
   assert.match(out, /refusing certification|--allow-unasserted/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('--allow-unasserted=false keeps certification strict (exit 1), not diagnostic mode', () => {
+  const { root, base, head } = fixture(['home'], null);
+  for (const off of ['--allow-unasserted=false', '--allow-unasserted=0', '--allow-unasserted=FALSE']) {
+    const { code, out } = run(base, head, [off]);
+    assert.equal(code, 1, `${off} must not turn diagnostic mode on\n${out}`);
+    assert.match(out, /refusing certification/);
+    assert.doesNotMatch(out, /diagnostic mode/);
+  }
+  const on = run(base, head, ['--allow-unasserted=true']);
+  assert.equal(on.code, 0, on.out);
+  assert.match(on.out, /diagnostic mode/);
+  const bad = run(base, head, ['--allow-unasserted=nope']);
+  assert.equal(bad.code, 2, bad.out);
+  assert.match(bad.out, /--allow-unasserted expects true or false, got "nope"/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

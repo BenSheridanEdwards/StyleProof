@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Boolean CLI flags honour an inline value.** `--allow-unasserted=false`
+  used to turn diagnostic mode _on_, because the shared `styleproof-*` flag
+  parser set a boolean flag to true whatever followed the `=`. Inline `true`/`false`/`1`/`0` (case-insensitive)
+  now set the flag accordingly (`--no-x=false` means `--x`); any other inline
+  value is a usage error (exit 2).
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI
   spawns it wired, but ~26 test files still spawn `process.execPath` children
