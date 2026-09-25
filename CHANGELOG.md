@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Security
+
+- **Branch-publish receipt read-back requires exactly one receipt.** The
+  publisher's read-back accepted any `report.md` that _contained_ this run's
+  receipt; a duplicated or second (stale/injected) `styleproof-receipt` marker
+  now fails closed, matching the approval workflow's exactly-one rule.
+
 ### Fixed
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**

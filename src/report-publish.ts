@@ -121,7 +121,8 @@ async function readPublishedBytes(options: PublishedReceiptOptions, relativePath
 }
 
 /** The receipt names this run's head SHA, run id and attempt, so a report published by
- *  any other run fails the read-back; report.json must also parse without duplicate keys. */
+ *  any other run fails the read-back; it must appear exactly once, and report.json must
+ *  also parse without duplicate keys. */
 function receiptMatches(expectedReceipt: string, markdown: Uint8Array | null, report: Uint8Array | null): boolean {
   if (!markdown || !report) return false;
   try {
@@ -129,7 +130,11 @@ function receiptMatches(expectedReceipt: string, markdown: Uint8Array | null, re
     const reportSource = decoder.decode(report);
     if (hasDuplicateJsonKeys(reportSource)) return false;
     JSON.parse(reportSource);
-    return decoder.decode(markdown).includes(expectedReceipt);
+    // Exactly one receipt marker, and it is this run's — an extra (injected or stale)
+    // marker makes the publication ambiguous, the same rule the approval readback applies.
+    const markdownText = decoder.decode(markdown);
+    const receiptMarkers = markdownText.split('<!-- styleproof-receipt').length - 1;
+    return receiptMarkers === 1 && markdownText.split(expectedReceipt).length - 1 === 1;
   } catch {
     return false;
   }

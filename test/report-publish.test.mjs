@@ -373,6 +373,20 @@ test('receipt verification rejects a missing or unparseable published report.jso
   );
 });
 
+test('receipt verification requires exactly one receipt marker in the published markdown', async () => {
+  // A duplicated receipt, or this run's receipt next to a stale/injected one, is an
+  // ambiguous publication — the approval readback refuses it, so the publisher must too.
+  for (const markdown of [
+    `${publishedBody()}${publishedBody()}`,
+    `${publishedBody()}${publishedBody('styleproof-receipt head-sha:def run-id:1 run-attempt:1')}`,
+  ]) {
+    await assert.rejects(
+      verifyPublishedReceipt(publishOptions(serveByName({ 'report.md': markdown, 'report.json': '{"surfaces":[]}' }))),
+      /do not trust this run's report/,
+    );
+  }
+});
+
 test('receipt verification fails closed on a stale or unreadable report', async () => {
   const fetchImplementation = async () => ({
     ok: true,
