@@ -2,8 +2,9 @@
 // Diff two computed-style map captures and apply every certification gate.
 // Per surface: DOM changes, computed-style changes (incl. pseudo elements), and
 // :hover/:focus/:active deltas. Custom properties (--*) are inputs, not outcomes.
-// Exit 0 = identical (certified), 1 = reviewable differences or non-certifying
-// evidence, 2 = usage/capture error, 3 = only NEW surfaces with no baseline.
+// Exit 0 = identical (certified only when source-bound; an unbound run is a labelled
+// diagnostic), 1 = reviewable differences or non-certifying evidence,
+// 2 = usage/capture error, 3 = only NEW surfaces with no baseline.
 import fs from 'node:fs';
 import path from 'node:path';
 import { auditLiveTextDirs, diffStyleMapDirs, findingLabel, summarizeComparability } from '../dist/diff.js';
@@ -19,6 +20,7 @@ import {
   groupByPath,
   groupBySignature,
   groupTitle,
+  rawFindingsExplainedByLiveText,
   summarizeProps,
 } from '../dist/change-groups.js';
 import { honestBaselineCompareAttribution, readBaselineProvenance } from '../dist/map-store.js';
@@ -61,7 +63,11 @@ const cli = defineCli({
     },
   },
   notes: [
-    'exit: 0 identical (certified), 1 differences found OR non-certifying evidence',
+    'exit: 0 identical — certified only when source-bound (--expected-before-sha and',
+    '      --expected-after-sha); without them 0 is an UNVERIFIED DIAGNOSTIC, not',
+    '      certification (--json certifiesFully: false), so the local and',
+    '      design-vs-build two-directory forms keep working. 1 differences found OR',
+    '      non-certifying evidence',
     '      (unasserted completeness, unknown/unproven determinism, incomplete registry,',
     '      inventory/residue failures, removed surfaces), 2 usage/capture error,',
     '      3 only NEW surfaces (present only on the head side, no baseline to diff',
@@ -164,7 +170,7 @@ const {
   sourceBinding,
   evidenceBinding,
 } = read;
-const { surfaces, counts, compared, volatile, statesUncertified, baselineFailures } = result;
+const { surfaces, counts, compared, volatile, headOnlyVolatile, statesUncertified, baselineFailures } = result;
 const pixelSurfaces = result.pixels ?? [];
 
 // ── declared ledgers: legacy pairs and critical obligations ────────────────────
@@ -513,12 +519,18 @@ if (liveTextFreezeViolated) {
 
 // ── verdict ────────────────────────────────────────────────────────────────────
 const reviewableTotal = truth.reviewableCounts.dom + truth.reviewableCounts.style + truth.reviewableCounts.state;
+// Zero the raw tally only when declared live text explains EVERY raw delta; any
+// other stripped delta (a cleaned :hover width, an offset) keeps failing closed.
 const declaredAgeOnly =
   Boolean(liveTextAudit?.declared) &&
   liveTextAudit.livePaths.length > 0 &&
   !liveTextFreezeViolated &&
   reviewableTotal === 0 &&
-  !truth.hasReviewableEvidence;
+  !truth.hasReviewableEvidence &&
+  rawFindingsExplainedByLiveText(
+    surfaces.filter((s) => !s.missing),
+    liveTextAudit,
+  );
 const total = declaredAgeOnly ? 0 : counts.dom + counts.style + counts.state;
 const newSurfaces = surfaces.filter((s) => s.missing === 'before').length;
 const removedSurfaces = surfaces.filter((s) => s.missing === 'after').length;
@@ -546,6 +558,7 @@ const evidence = {
   partialBaseline,
   explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
   liveTextFreeze: { violated: liveTextFreezeViolated },
+  volatility: { headOnly: headOnlyVolatile },
 };
 const certificationEvidence = assessCertificationEvidence({ ...evidence, criticalStates: criticalAudit });
 
@@ -584,10 +597,32 @@ const GATES = [
   },
   { blocks: !certificationEvidence.interactionStatesComplete },
   {
+    blocks: headOnlyVolatile.length > 0,
+    note: ` + ${headOnlyVolatile.length} subtree(s) newly volatile on head (excluded, not certified)`,
+  },
+  {
     blocks: pixelBlocks,
     note: ` + pixel gate: ${pixelRegions} changed region(s)${pixelUncompared ? `, ${pixelUncompared} uncertified layer(s)` : ''}`,
   },
 ];
+// Backstop: the shared verdict's blockers (src/verdict.ts) also drive the exit, so
+// a blocker the rows above miss can never exit 0. Only the documented escapes are
+// neutralised: an unbound run stays a labelled diagnostic (exit 0, certifiesFully
+// false — the local and design-vs-build two-directory forms carry no trusted SHAs),
+// and --allow-unasserted / first adoption relax only what coverageBlocks and
+// determinismBlocks already relax.
+const exitEvidence = assessCertificationEvidence({
+  ...evidence,
+  sourceBinding: { status: 'bound' },
+  coverage: coverageBlocks ? coverageVerdict : { basis: 'complete' },
+  determinism: determinismBlocks ? determinismVerdict : { status: 'proven' },
+  legacyPairs: legacyPairAudit,
+  criticalStates: criticalAudit,
+});
+GATES.push({
+  blocks: !exitEvidence.certifies,
+  note: GATES.some((gate) => gate.blocks) ? '' : ' + non-certifying evidence',
+});
 const clean = !GATES.some((gate) => gate.blocks);
 const notes =
   (greenfieldNewSurfaces > 0 ? ` (+${greenfieldNewSurfaces} new surface(s) with no baseline)` : '') +
@@ -636,6 +671,8 @@ if (jsonOut) {
           partialBaseline,
           // Subtrees excluded because a side auto-detected them as volatile at capture settle.
           volatileExcluded: volatile,
+          // Subtrees volatile on the head but compared on the base: excluded, so they block certification.
+          volatility: { headOnly: headOnlyVolatile },
           // Surfaces whose forced-state layer was skipped or unsupported on either side.
           statesUncertified,
           coverage: coverageVerdict,
@@ -680,6 +717,17 @@ if (volatile > 0) {
       '  settle) — changes inside them are NOT certified. Fixture the region, or `ignore` it deliberately.',
   );
 }
+if (headOnlyVolatile.length > 0) {
+  printSection(
+    `✗ ${headOnlyVolatile.length} subtree(s) newly volatile on head — still mutating at capture settle on the head but\n` +
+      '  settled and compared on the base, so they were excluded and whatever changed inside them is NOT certified:',
+    [
+      ...headOnlyVolatile.slice(0, MAX).map((v) => `  ✗ ${v.surface}: ${v.path}`),
+      ...(headOnlyVolatile.length > MAX ? [`  ... and ${headOnlyVolatile.length - MAX} more`] : []),
+      '  → stop the head-side churn (a timer, stream, or animation the PR added), fixture it, or `ignore` the region on both sides.',
+    ],
+  );
+}
 if (statesUncertified > 0) {
   printSection(
     `⚠ forced-state layer uncertified on ${statesUncertified} surface(s): at least one capture skipped or did not support it, so\n` +
@@ -707,7 +755,7 @@ function summaryLine() {
   else if (repairDebtOnly)
     diagnostic = `${newSurfaces} surface(s) on head have no base map because a named baseline surface capture failed — not a base recapture failure`;
   if (sourceBinding.status !== 'bound') {
-    return `⚠ UNVERIFIED DIAGNOSTIC: ${diagnostic}; trusted source SHAs were not supplied, so this result is not certification`;
+    return `⚠ UNVERIFIED DIAGNOSTIC (not certified: unbound): ${diagnostic}; trusted source SHAs were not supplied, so this result is not certification`;
   }
   if (newSurfaces > 0) return `ℹ ${diagnostic}${repairDebtOnly ? ' (see callout above)' : ''}`;
   return declaredLegacyPairs
@@ -754,6 +802,9 @@ function trustReasons() {
     reasons.push(check('reviewable-changes', 'found', `${total} style, ${greenfieldNewSurfaces} new surface(s)`));
   }
   if (partialBaseline) reasons.push(check('baseline-surface-capture', 'failed', baselineAttribution.summary));
+  if (headOnlyVolatile.length > 0) {
+    reasons.push(check('volatility', 'failed', `${headOnlyVolatile.length} subtree(s) newly volatile on head`));
+  }
   return reasons;
 }
 
@@ -780,7 +831,12 @@ try {
     { gateInventoryRemovals: true, baseCaptureFailed: false, changed: exitCode === 1 || exitCode === 3 },
   );
   const exitReason = {
-    0: 'certified — no reviewable changes',
+    // Exit 0 is certification only when certifiesFully; say which diagnostic it is otherwise.
+    0: certifiesFully
+      ? 'certified — no reviewable changes'
+      : sourceBinding.status !== 'bound'
+        ? 'not certified: unbound — no reviewable changes, but trusted source SHAs were not supplied'
+        : 'not certified: diagnostic or advisory — no reviewable changes',
     1: clean ? 'non-certifying evidence' : 'reviewable differences found',
     3: 'new surfaces only — review before baselining',
   };

@@ -102,15 +102,41 @@ export type LiveTextContentChange = {
   after?: string;
 };
 
-function elementMatchesLiveSelector(path: string, cls: string, tag: string, selector: string): boolean {
-  const trimmed = selector.trim();
-  if (trimmed.startsWith('.')) {
-    const name = trimmed.slice(1).split(/[.#[:\s>+~[]/)[0] ?? '';
-    return name.length > 0 && cls.split(/\s+/).includes(name);
+// One compound selector: optional type (or `*`), then `.class` / `#id` parts.
+const COMPOUND_SELECTOR = /^(\*|[A-Za-z][\w-]*)?((?:[.#][A-Za-z_-][\w-]*)*)$/;
+
+/** The capture's privacy-safe FNV-1a hash (capture/browser.ts `privacySafeHash`). */
+function pathIdentityHash(value: string): string {
+  let hash = 2166136261;
+  for (let characterIndex = 0; characterIndex < value.length; characterIndex++) {
+    hash ^= value.charCodeAt(characterIndex);
+    hash = Math.imul(hash, 16777619);
   }
-  if (/^[A-Za-z][\w-]*$/.test(trimmed)) return tag.toLowerCase() === trimmed.toLowerCase();
-  const clsTokens = cls.split(/\s+/).filter(Boolean);
-  return path.includes(trimmed) || clsTokens.some((token) => trimmed.includes(token));
+  return (hash >>> 0).toString(36);
+}
+
+/**
+ * Does the element match a declared live selector? Only what the captured path
+ * can PROVE counts: a single compound of type, whole class tokens, and an id,
+ * where an id matches only when the path's last segment is the capture's
+ * `tag:sp-key(hash("id:<id>"))`. Combinators, attributes, pseudo-classes, or an
+ * id the path did not encode match nothing — an unprovable selector must never
+ * turn a real text change into advisory live text.
+ */
+function elementMatchesLiveSelector(path: string, cls: string, tag: string, selector: string): boolean {
+  const compound = COMPOUND_SELECTOR.exec(selector.trim());
+  if (!compound || selector.trim() === '') return false;
+  const lastSegment = path.split(' > ').pop() ?? '';
+  const elementTag = (tag || /^[A-Za-z][\w-]*/.exec(lastSegment)?.[0] || '').toLowerCase();
+  const type = compound[1];
+  if (type && type !== '*' && type.toLowerCase() !== elementTag) return false;
+  const classTokens = new Set(cls.split(/\s+/).filter(Boolean));
+  for (const part of compound[2].match(/[.#][^.#]+/g) ?? []) {
+    const name = part.slice(1);
+    if (part.startsWith('.') && !classTokens.has(name)) return false;
+    if (part.startsWith('#') && lastSegment !== `${elementTag}:sp-key(${pathIdentityHash(`id:${name}`)})`) return false;
+  }
+  return true;
 }
 
 /** A text change that is live/age/clock under the declaration or the age-token rule. */

@@ -60,6 +60,44 @@ test('diffStyleMapDirs counts volatile regions and keeps them out of findings', 
   rmTmp(root);
 });
 
+// A PR that adds a JS interval toggling a class on a container makes that
+// subtree volatile ONLY on the head. The union skip hides the change, so the
+// head-only subtree must be named for the gate instead of passing silently.
+test('diffStyleMapDirs names subtrees volatile on the head but compared on the base', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const card = 'body > div:nth-child(1)';
+  writeCapture(A, 'home@1280', makeMap({ elements: { [card]: { tag: 'div', style: { color: 'red' } } } }), null);
+  // What a head capture writes: the churning subtree deleted and listed as volatile.
+  const head = { ...makeMap({ elements: { body: { tag: 'body' } } }), volatile: [card] };
+  writeCapture(B, 'home@1280', head, null);
+  // The determinism self-check compares two head captures that both exclude the
+  // subtree, so it passes — it cannot be the thing that catches this.
+  assert.equal(diffStyleMaps(head, { ...head }).length, 0);
+  const { counts, headOnlyVolatile } = diffStyleMapDirs(A, B);
+  assert.equal(counts.style + counts.dom + counts.state, 0);
+  assert.deepEqual(headOnlyVolatile, [{ surface: 'home@1280', path: card }]);
+  rmTmp(root);
+});
+
+test('diffStyleMapDirs keeps volatility present on both sides out of headOnlyVolatile', () => {
+  const root = mkTmp();
+  const A = path.join(root, 'a');
+  const B = path.join(root, 'b');
+  const feed = 'body > ul:nth-child(1)';
+  writeCapture(A, 'home@1280', { ...makeMap({ elements: { body: { tag: 'body' } } }), volatile: [feed] }, null);
+  // The head excludes a descendant of the base's live region: already uncompared on the base.
+  writeCapture(
+    B,
+    'home@1280',
+    { ...makeMap({ elements: { body: { tag: 'body' } } }), volatile: [`${feed} > li:nth-child(1)`] },
+    null,
+  );
+  assert.deepEqual(diffStyleMapDirs(A, B).headOnlyVolatile, []);
+  rmTmp(root);
+});
+
 // ---------------------------------------------------------------- diffStyleMaps
 
 test('reports a DOM-added element (present only in after)', () => {

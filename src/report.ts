@@ -8,6 +8,7 @@ import {
   presentationDiffStyleMaps,
   summarizeComparability,
   type ComparabilitySummary,
+  type HeadOnlyVolatile,
   type SurfaceComparability,
   type SurfaceDiff,
 } from './diff.js';
@@ -147,6 +148,8 @@ export type ReportResult = {
   partialBaseline: boolean;
   /** The head bundle's confidence badge (#399), separate from the visual verdict. */
   confidence: ConfidenceSummary;
+  /** Subtrees volatile on the head but compared on the base: excluded, so the report can never certify. */
+  headOnlyVolatile: HeadOnlyVolatile[];
   reportMdPath: string;
   reportJsonPath: string;
   /** Present only when `migration: true`. */
@@ -310,6 +313,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       shown,
       changedScope: countChangedSurfaceScope(changeGroups, surfaceKeyOf),
       volatileCount: diff.volatile,
+      headOnlyVolatile: diff.headOnlyVolatile,
       liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
       contentCount: contentSection.count,
       contentEvaluated: includeContent,
@@ -368,6 +372,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     confidence,
     baselineProvenance,
     liveTextFreeze: liveTextFreezeReceipt(liveText),
+    headOnlyVolatile: diff.headOnlyVolatile,
     legacyPairs: gates.legacyPairs,
     criticalStates: gates.criticalStates,
   });
@@ -385,6 +390,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baselineFailures: baseline.failures,
     partialBaseline: baseline.failures.length > 0,
     confidence,
+    headOnlyVolatile: diff.headOnlyVolatile,
     ...paths,
     ...(migrationGallery ? { migrationGallery } : {}),
   };
