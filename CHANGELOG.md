@@ -41,6 +41,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   error) let a self-check failure be tolerated and published. It now returns
   `undefined` only when the marker is absent and throws otherwise;
   `styleproof-map` treats that as a fatal failure and discards the capture.
+- **Cached-map compares no longer leak restored temp dirs on an exit-2 error.**
+  `styleproof-diff` / `styleproof-report` restore the map-store bundles into a
+  temp workspace, but a ledger error inside the read (a corrupt coverage or
+  acknowledgement ledger) exited the process before the cleanup `finally` ran.
+  An exit hook now removes the workspace on every exit path; exit codes are
+  unchanged.
 
 - **Every spawned Node child in the suite gets the deadlock guard (#718).**
   Test infrastructure only — no product runtime change. #712 bounded the CLI

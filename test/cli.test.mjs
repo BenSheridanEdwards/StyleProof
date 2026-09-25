@@ -876,7 +876,12 @@ function seedMapStore(repo, bundles) {
   }
 }
 
-function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main', changeLockfile = false } = {}) {
+function setupCachedComparison({
+  headColor = 'rgb(0, 0, 0)',
+  baseBranch = 'main',
+  changeLockfile = false,
+  seedHead = () => {},
+} = {}) {
   const repo = mkTmp();
   gitInit(repo);
   addBareOrigin(repo);
@@ -919,6 +924,7 @@ function setupCachedComparison({ headColor = 'rgb(0, 0, 0)', baseBranch = 'main'
     : undefined;
   writeManifest(baseDir, baseRefSha, baseCompatibilityKey, baseLockfileProvenance);
   writeManifest(headDir, headSha, headCompatibilityKey, headLockfileProvenance);
+  seedHead(headDir);
   seedMapStore(repo, [
     {
       sha: baseRefSha,
@@ -947,6 +953,41 @@ test('diff defaults to cached maps against the inferred main branch', () => {
   assert.match(r.stdout, /0 reviewable computed-style changes across 1 paired capture\(s\)/);
   rmTmp(repo);
 });
+
+for (const [label, seedHead, prepare, reason] of [
+  [
+    'a corrupt head coverage ledger',
+    (headDir) => fs.writeFileSync(path.join(headDir, 'styleproof-coverage.json'), '{not json'),
+    () => {},
+    /corrupt coverage ledger/,
+  ],
+  [
+    'a corrupt inventory acknowledgement ledger',
+    (headDir) => {
+      const map = mapWith('rgb(0, 0, 0)');
+      map.inventory = [{ key: 'route:/pricing', kind: 'link', label: 'Pricing', href: '/pricing' }];
+      writeCapture(headDir, 'home@1280', map, null);
+    },
+    (repo) => fs.writeFileSync(path.join(repo, 'styleproof.inventory.json'), '{not json'),
+    /styleproof\.inventory\.json/,
+  ],
+]) {
+  test(`diff removes restored cached-map temp dirs when it exits 2 on ${label}`, () => {
+    const { repo } = setupCachedComparison({ seedHead });
+    prepare(repo);
+    const tmp = path.join(repo, 'private-tmp');
+    fs.mkdirSync(tmp);
+    const r = runIn(repo, DIFF, ['main'], { env: { TMPDIR: tmp, TMP: tmp, TEMP: tmp } });
+    assert.equal(r.status, 2, r.stdout + r.stderr);
+    assert.match(r.stderr, reason);
+    assert.deepEqual(
+      fs.readdirSync(tmp).filter((name) => name.startsWith('styleproof-cache-')),
+      [],
+      `restored map-store dirs leaked (exit ${r.status}): ${r.stderr}`,
+    );
+    rmTmp(repo);
+  });
+}
 
 test('diff defaults to the GitHub PR base for stacked local branches when gh is available', () => {
   const { repo } = setupCachedComparison({ baseBranch: 'stack-base' });
