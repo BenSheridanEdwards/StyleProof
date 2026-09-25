@@ -681,6 +681,59 @@ test('styleproof-init: untrusted PR capture never receives write credentials', (
   }
 });
 
+test('styleproof-init: the one-job layout never persists the checkout token into PR-code steps', () => {
+  for (const [storageArgs, expectsMapStoreToken] of [
+    [[], false],
+    [BRANCH, true],
+  ]) {
+    const root = mkTmp();
+    try {
+      const res = runInit(root, [...storageArgs, '--dir', 'e2e/styleproof.spec.ts']);
+      assert.equal(res.status, 0, res.stderr);
+      const workflow = readFile(root, '.github/workflows/styleproof.yml');
+      const job = workflow.slice(workflow.indexOf('\n  styleproof:'), workflow.indexOf('\n  prune:') >>> 0);
+      // statuses:write + PR code: the token must not sit in .git/config for every step.
+      const checkout = job.match(/- uses: actions\/checkout@v7\n\s+with:\n([\s\S]*?)\n\s+- /)[1];
+      assert.match(checkout, /persist-credentials: false/);
+      // Branch storage restores/publishes maps with git, so that one step gets a scoped token.
+      const mapsStep = job.match(/- id: maps[\s\S]*?run: \|/)[0];
+      assert.equal(/STYLEPROOF_MAP_STORE_TOKEN: \$\{\{ github\.token \}\}/.test(mapsStep), expectsMapStoreToken);
+    } finally {
+      rmTmp(root);
+    }
+  }
+});
+
+test('styleproof-init: the map-store prune step never writes the token into a clone URL', () => {
+  const root = mkTmp();
+  try {
+    const res = runInit(root, [...BRANCH, '--dir', 'e2e/styleproof.spec.ts']);
+    assert.equal(res.status, 0, res.stderr);
+    const workflow = readFile(root, '.github/workflows/styleproof.yml');
+    const step = workflow.slice(workflow.indexOf("Prune this PR's head map from the map store"));
+    assert.doesNotMatch(step, /x-access-token:\$|x-access-token:\$\{/, 'a token-bearing URL persists in .git/config');
+    assert.match(step, /REMOTE="https:\/\/github\.com\/\$REPO\.git"/);
+    for (const command of ['ls-remote', 'clone', 'push origin']) {
+      assert.match(step, new RegExp(`git "\\$\\{AUTH\\[@\\]\\}" ${command}`));
+    }
+    // Execute the generated credential helper: it must hand git the token from env.
+    const authLine = step.match(/^\s*(AUTH=\(.*\))$/m)[1];
+    const fill = spawnSync(
+      '/bin/bash',
+      [
+        '-c',
+        `set -euo pipefail\n${authLine}\nprintf 'protocol=https\\nhost=github.com\\n\\n' | git "\${AUTH[@]}" credential fill`,
+      ],
+      { cwd: root, encoding: 'utf8', env: { ...process.env, GH_TOKEN: 'fake-token', GIT_TERMINAL_PROMPT: '0' } },
+    );
+    assert.equal(fill.status, 0, fill.stderr);
+    assert.match(fill.stdout, /^username=x-access-token$/m);
+    assert.match(fill.stdout, /^password=fake-token$/m);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('styleproof-init: installs the approval workflow so require-approval is not left inert', () => {
   // The report workflow runs with `require-approval: true`; without the approval
   // handler the "Approve all changes" checkbox can never flip the status green.

@@ -58,6 +58,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `${{ inputs.* }}` text; they now travel through `env:` (the reusable
   approval workflow's `status-context` too). `report-retention-days` is
   validated as a positive integer in branch mode as well as artifact mode.
+- **Scaffolded workflows keep tokens out of `.git/config`.** The one-job
+  `styleproof-init` layout installs and runs PR code with `statuses: write`,
+  yet checked out with persisted credentials; it now sets
+  `persist-credentials: false`, and with `--storage branch` hands the map
+  store a step-scoped `STYLEPROOF_MAP_STORE_TOKEN` instead (report
+  publication already uses the API). The map-store prune step no longer clones
+  from an `https://x-access-token:<token>@…` URL, which persisted the token in
+  the clone's config; it authenticates through a credential helper that reads
+  `GH_TOKEN` from the environment. Re-run `styleproof-init --upgrade` to
+  refresh existing scaffolds.
 
 ### Fixed
 
